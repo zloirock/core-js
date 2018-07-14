@@ -86,6 +86,7 @@
   - Fix import of property before constructor which should contain this property, [#262](https://github.com/zloirock/core-js/issues/262).
   - Fix some cases of IE11 `WeakMap` frozen keys fallback, [#384](https://github.com/zloirock/core-js/issues/384).
   - Fix non-enumerable integer keys issue because of Nashorn ~ JDK8 bug, [#389](https://github.com/zloirock/core-js/issues/389).
+  - Fix buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
 - Repository:
   - Change `core-js` repository structure to monorepo with packages in `/packages/` directory.
   - Clean-up it, remove all possible duplicates, generated files, etc.
