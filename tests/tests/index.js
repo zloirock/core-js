@@ -246,6 +246,8 @@ import './esnext.symbol.observable';
 import './esnext.symbol.pattern-match';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
+import './esnext.weak-set.add-all';
+import './esnext.weak-set.delete-all';
 import './esnext.weak-set.from';
 import './esnext.weak-set.of';
 

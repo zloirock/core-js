@@ -30,6 +30,8 @@
       - `Set#map`
       - `Set#reduce`
       - `Set#some`
+      - `WeakSet#addAll`
+      - `WeakSet#deleteAll`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))

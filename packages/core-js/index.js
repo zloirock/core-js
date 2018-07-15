@@ -257,6 +257,8 @@ require('./modules/esnext.symbol.observable');
 require('./modules/esnext.symbol.pattern-match');
 require('./modules/esnext.weak-map.from');
 require('./modules/esnext.weak-map.of');
+require('./modules/esnext.weak-set.add-all');
+require('./modules/esnext.weak-set.delete-all');
 require('./modules/esnext.weak-set.from');
 require('./modules/esnext.weak-set.of');
 require('./modules/web.dom-collections.for-each');

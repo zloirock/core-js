@@ -318,6 +318,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(load('features/set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
   ok(load('features/set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
+  ok(load('features/weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
+  ok(load('features/weak-set/delete-all')(new WeakSet(), [], {}) === false);
   const Promise = load('features/promise');
   ok('all' in Promise);
   ok(load('features/promise/all-settled')([1, 2, 3]) instanceof Promise);

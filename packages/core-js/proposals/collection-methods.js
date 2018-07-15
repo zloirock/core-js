@@ -13,3 +13,5 @@ require('../modules/esnext.set.join');
 require('../modules/esnext.set.map');
 require('../modules/esnext.set.reduce');
 require('../modules/esnext.set.some');
+require('../modules/esnext.weak-set.add-all');
+require('../modules/esnext.weak-set.delete-all');

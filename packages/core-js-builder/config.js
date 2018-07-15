@@ -260,6 +260,8 @@ module.exports = {
     'esnext.symbol.pattern-match',
     'esnext.weak-map.from',
     'esnext.weak-map.of',
+    'esnext.weak-set.add-all',
+    'esnext.weak-set.delete-all',
     'esnext.weak-set.from',
     'esnext.weak-set.of',
     'web.dom-collections.for-each',
