@@ -1660,7 +1660,7 @@ class Map {
   includes(searchElement: any): boolean;
   mapKeys(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
   mapValues(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
-  merge(iterable: Iterable<mixed>): this;
+  merge(iterable: Iterable<mixed>): Map;
   some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
 }
 
