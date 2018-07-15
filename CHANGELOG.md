@@ -17,11 +17,13 @@
     - New collections methods ([stage 1 proposal](https://github.com/Ginden/collection-methods))
       - `Map.groupBy`
       - `Map.keyBy`
+      - `Map#every`
       - `Map#filter`
       - `Map#includes`
       - `Map#mapKeys`
       - `Map#mapValues`
       - `Map#merge`
+      - `Map#some`
       - `Set#addAll`
       - `Set#deleteAll`
       - `Set#every`

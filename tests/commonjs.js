@@ -299,6 +299,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/from')([1, 2, 3, 2, 1]) instanceof Set);
   ok(load('features/weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
   ok(load('features/weak-set/from')([{}, []]) instanceof WeakSet);
+  ok(load('features/map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
   ok(load('features/map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
   ok(load('features/map/group-by')([], it => it) instanceof Map);
   ok(load('features/map/includes')(new Map([[1, 2]]), 2), true);
@@ -306,6 +307,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
   ok(load('features/map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
   ok(load('features/map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
+  ok(load('features/map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
   ok(load('features/set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
   ok(load('features/set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
   ok(load('features/set/difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
