@@ -301,6 +301,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/weak-set/from')([{}, []]) instanceof WeakSet);
   ok(load('features/map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
   ok(load('features/map/group-by')([], it => it) instanceof Map);
+  ok(load('features/map/includes')(new Map([[1, 2]]), 2), true);
   ok(load('features/map/key-by')([], it => it) instanceof Map);
   ok(load('features/map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
   ok(load('features/map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);

@@ -18,6 +18,7 @@
       - `Map.groupBy`
       - `Map.keyBy`
       - `Map#filter`
+      - `Map#includes`
       - `Map#mapKeys`
       - `Map#mapValues`
       - `Map#merge`

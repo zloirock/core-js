@@ -164,6 +164,7 @@ import './esnext.reflect.metadata';
 import './esnext.map.filter';
 import './esnext.map.from';
 import './esnext.map.group-by';
+import './esnext.map.includes';
 import './esnext.map.key-by';
 import './esnext.map.map-keys';
 import './esnext.map.map-values';

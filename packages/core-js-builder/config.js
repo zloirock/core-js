@@ -204,6 +204,7 @@ module.exports = {
     'esnext.map.key-by',
     'esnext.map.of',
     'esnext.map.filter',
+    'esnext.map.includes',
     'esnext.map.map-keys',
     'esnext.map.map-values',
     'esnext.map.merge',
