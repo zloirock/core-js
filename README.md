@@ -1434,6 +1434,36 @@ core-js(-pure)/features/array/virtual/flat-map
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
+* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.from-entries.js)
+```js
+class Object {
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/object-from-entries
+core-js(-pure)/features/object/from-entries
+```
+[*Examples*]():
+```js
+const map = new Map([['a', 1], ['b', 2]]);
+
+Object.fromEntries(map); // => { a: 1, b: 2 }
+
+class Unit {
+  constructor(id) {
+    this.id = id;
+  }
+  toString() {
+    return `unit${ this.id }`;
+  }
+}
+
+const units = new Set([new Unit(101), new Unit(102)]);
+
+Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
+```
 * `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.match-all.js)
 ```js
 class String {
@@ -1515,36 +1545,6 @@ Symbol().description;      // => undefined
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/stage/2
-```
-* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.from-entries.js)
-```js
-class Object {
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/object-from-entries
-core-js(-pure)/features/object/from-entries
-```
-[*Examples*]():
-```js
-const map = new Map([['a', 1], ['b', 2]]);
-
-Object.fromEntries(map); // => { a: 1, b: 2 }
-
-class Unit {
-  constructor(id) {
-    this.id = id;
-  }
-  toString() {
-    return `unit${ this.id }`;
-  }
-}
-
-const units = new Set([new Unit(101), new Unit(102)]);
-
-Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 * New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 ```js
