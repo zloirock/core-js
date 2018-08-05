@@ -39,6 +39,8 @@ const base = {
   'no-invalid-regexp': 'error',
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': 'error',
+  // disallow characters which are made with multiple code points in character class syntax
+  'no-misleading-character-class': 'error',
   // disallow the use of object properties of the global object (Math and JSON) as functions
   'no-obj-calls': 'error',
   // disallow use of Object.prototypes builtins directly
