@@ -5,6 +5,8 @@ var fails = require('../internals/fails');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+var SPECIES = wellKnownSymbol('species');
+
 module.exports = function (KEY, length, exec, sham) {
   var SYMBOL = wellKnownSymbol(KEY);
   var methods = exec(requireObjectCoercible, SYMBOL, ''[KEY]);
@@ -20,8 +22,16 @@ module.exports = function (KEY, length, exec, sham) {
     var execCalled = false;
     var re = /a/;
     re.exec = function () { execCalled = true; return null; };
+
+    if (KEY === 'split') {
+      // RegExp[@@split] doesn't call the regex's exec method, but first creates
+      // a new one. We need to return the patched regex when creating the new one.
+      re.constructor = {};
+      re.constructor[SPECIES] = function () { return re; };
+    }
+
     re[SYMBOL]('');
-    return execCalled;
+    return !execCalled;
   })) {
     redefine(String.prototype, KEY, stringMethod);
     redefine(RegExp.prototype, SYMBOL, length == 2
