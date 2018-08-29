@@ -245,6 +245,7 @@ import './esnext.string.trim-left';
 import './esnext.string.trim-right';
 import './esnext.string.replace-all';
 import './esnext.symbol.description';
+import './esnext.symbol.dispose';
 import './esnext.symbol.observable';
 import './esnext.symbol.pattern-match';
 import './esnext.weak-map.from';

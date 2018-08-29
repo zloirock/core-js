@@ -11,5 +11,6 @@ require('../proposals/richer-keys');
 require('../proposals/seeded-random');
 require('../proposals/string-code-points');
 require('../proposals/string-replace-all');
+require('../proposals/using-statement');
 
 module.exports = require('./2');

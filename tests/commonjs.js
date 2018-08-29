@@ -280,6 +280,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/async-iterator'));
   ok(load('features/symbol/observable'));
   ok(load('features/symbol/pattern-match'));
+  ok(load('features/symbol/dispose'));
   ok(typeof load('features/symbol/for') === 'function');
   ok(typeof load('features/symbol/key-for') === 'function');
   ok('iterator' in load('features/symbol'));
@@ -603,6 +604,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/string-replace-all');
   load('proposals/string-trim-start-end');
   load('proposals/symbol-description');
+  load('proposals/using-statement');
   load('proposals');
   ok(load('stage/4'));
   ok(load('stage/3'));

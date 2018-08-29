@@ -256,6 +256,7 @@ require('./modules/esnext.string.replace-all');
 require('./modules/esnext.string.trim-left');
 require('./modules/esnext.string.trim-right');
 require('./modules/esnext.symbol.description');
+require('./modules/esnext.symbol.dispose');
 require('./modules/esnext.symbol.observable');
 require('./modules/esnext.symbol.pattern-match');
 require('./modules/esnext.weak-map.from');

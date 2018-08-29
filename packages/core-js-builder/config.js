@@ -259,6 +259,7 @@ module.exports = {
     'esnext.string.trim-left',
     'esnext.string.trim-right',
     'esnext.symbol.description',
+    'esnext.symbol.dispose',
     'esnext.symbol.observable',
     'esnext.symbol.pattern-match',
     'esnext.weak-map.from',
