@@ -1,8 +1,9 @@
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
+import { patchRegExp$exec } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#split regression', assert => {
+const run = assert => {
   assert.isFunction(''.split);
   assert.arity(''.split, 2);
   assert.name(''.split, 'split');
@@ -687,18 +688,27 @@ QUnit.test('String#split regression', assert => {
       assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T24 #${ i + 3 }`);
     }
   }
+};
+
+QUnit.test('String#split regression', run);
+
+QUnit.test('RegExp#@@split appearance', assert => {
+  const split = /./[Symbol.split];
+  assert.isFunction(split);
+  // assert.name(split, '[Symbol.split]');
+  assert.arity(split, 2);
+  assert.looksNative(split);
+  assert.nonEnumerable(RegExp.prototype, Symbol.split);
 });
 
-QUnit.test('RegExp#@@split', assert => {
-  assert.isFunction(/./[Symbol.split]);
-  assert.arity(/./[Symbol.split], 2);
+QUnit.test('RegExp#@@split basic behavior', assert => {
   assert.strictEqual(/\s/[Symbol.split]('a b c de f').length, 5);
   assert.strictEqual(/\s/[Symbol.split]('a b c de f', undefined).length, 5);
   assert.strictEqual(/\s/[Symbol.split]('a b c de f', 1).length, 1);
   assert.strictEqual(/\s/[Symbol.split]('a b c de f', 10).length, 5);
 });
 
-QUnit.test('@@split logic', assert => {
+QUnit.test('String#split delegates to @@split', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};
@@ -718,3 +728,54 @@ QUnit.test('@@split logic', assert => {
   assert.strictEqual(''.split.call(number, regexp, 42).a, number);
   assert.strictEqual(''.split.call(number, regexp, 42).b, 42);
 });
+
+QUnit.test('RegExp#@@split delegates to exec', assert => {
+  let execCalled = false;
+  let speciesCalled = false;
+  let execSpeciesCalled = false;
+  const re = /[24]/;
+  re.exec = function () {
+    execCalled = true;
+    return /./.exec.apply(this, arguments);
+  };
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand
+    [Symbol.species]: function (source, flags) {
+      const re2 = new RegExp(source, flags);
+      speciesCalled = true;
+      re2.exec = function () {
+        execSpeciesCalled = true;
+        return /./.exec.apply(this, arguments);
+      };
+      return re2;
+    },
+  };
+  assert.deepEqual(re[Symbol.split]('123451234'), ['1', '3', '51', '3', '']);
+  assert.ok(!execCalled);
+  assert.ok(speciesCalled);
+  assert.ok(execSpeciesCalled);
+
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand
+    [Symbol.species]: function (source, flags) {
+      const re2 = new RegExp(source, flags);
+      // Not a function, should be ignored
+      re2.exec = 3;
+      return re2;
+    },
+  };
+  assert.deepEqual(re[Symbol.split]('123451234'), ['1', '3', '51', '3', '']);
+
+  re.constructor = {
+    // eslint-disable-next-line object-shorthand
+    [Symbol.species]: function (source, flags) {
+      const re2 = new RegExp(source, flags);
+      // Does not return an object, should throw
+      re2.exec = () => 3;
+      return re2;
+    },
+  };
+  assert.throws(() => re[Symbol.split]('123451234'));
+});
+
+QUnit.test('RegExp#@@split implementation', patchRegExp$exec(run));

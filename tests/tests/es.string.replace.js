@@ -1,8 +1,9 @@
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
+import { patchRegExp$exec } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
 
-QUnit.test('String#replace regression', assert => {
+const run = assert => {
   assert.isFunction(''.replace);
   assert.arity(''.replace, 2);
   assert.name(''.replace, 'replace');
@@ -125,15 +126,24 @@ QUnit.test('String#replace regression', assert => {
   assert.strictEqual('uid=31'.replace(/(uid=)(\d+)/, '$11A15'), 'uid=1A15', 'S15.5.4.11_A3_T3');
   assert.strictEqual('abc12 def34'.replace(/([a-z]+)([0-9]+)/, (a, b, c) => c + b), '12abc def34', 'S15.5.4.11_A4_T1');
   assert.strictEqual('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
+};
+
+QUnit.test('String#replace regression', run);
+
+QUnit.test('RegExp#@@replace appearance', assert => {
+  const replace = /./[Symbol.replace];
+  assert.isFunction(replace);
+  // assert.name(replace, '[Symbol.replace]');
+  assert.arity(replace, 2);
+  assert.looksNative(replace);
+  assert.nonEnumerable(RegExp.prototype, Symbol.replace);
 });
 
-QUnit.test('RegExp#@@replace', assert => {
-  assert.isFunction(/./[Symbol.replace]);
-  assert.arity(/./[Symbol.replace], 2);
+QUnit.test('RegExp#@@replace basic behavior', assert => {
   assert.strictEqual(/([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', (a, b, c) => c + b), '12abc def34');
 });
 
-QUnit.test('@@replace logic', assert => {
+QUnit.test('String.replace delegates to @@replace', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};
@@ -153,3 +163,57 @@ QUnit.test('@@replace logic', assert => {
   assert.strictEqual(''.replace.call(number, regexp, 42).a, number);
   assert.strictEqual(''.replace.call(number, regexp, 42).b, 42);
 });
+
+QUnit.test('RegExp#@@replace delegates to exec', assert => {
+  const exec = function () {
+    execCalled = true;
+    return /./.exec.apply(this, arguments);
+  };
+
+  let execCalled = false;
+  let re = /[ac]/;
+  re.exec = exec;
+  assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbc');
+  assert.ok(execCalled);
+  assert.strictEqual(re.lastIndex, 0);
+
+  execCalled = false;
+  re = /[ac]/g;
+  re.exec = exec;
+  assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbf');
+  assert.ok(execCalled);
+  assert.strictEqual(re.lastIndex, 0);
+
+  re = /a/;
+  // Not a function, should be ignored
+  re.exec = 3;
+  assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbc');
+
+  re = /a/;
+  // Does not return an object, should throw
+  re.exec = () => 3;
+  assert.throws(() => re[Symbol.replace]('abc', 'f'));
+});
+
+QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
+  const re = /./;
+  re.exec = function () {
+    const result = ['23', '7'];
+    result.groups = { '!!!': '7' };
+    result.index = 1;
+    return result;
+  };
+  assert.strictEqual('1234'.replace(re, '$1'), '174');
+  assert.strictEqual('1234'.replace(re, '$<!!!>'), '174');
+  assert.strictEqual('1234'.replace(re, '$`'), '114');
+  assert.strictEqual('1234'.replace(re, '$\''), '144');
+  assert.strictEqual('1234'.replace(re, '$$'), '1$4');
+  assert.strictEqual('1234'.replace(re, '$&'), '1234');
+  assert.strictEqual('1234'.replace(re, '$x'), '1$x4');
+
+  let args;
+  assert.strictEqual('1234'.replace(re, (..._args) => { args = _args; return 'x'; }), '1x4');
+  assert.deepEqual(args, ['23', '7', 1, '1234', { '!!!': '7' }]);
+});
+
+QUnit.test('RegExp#@@replace implementation', patchRegExp$exec(run));

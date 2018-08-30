@@ -54,3 +54,24 @@ export function timeLimitedPromise(time, fn) {
     }),
   ]);
 }
+
+// This function is used to force RegExp.prototype[Symbol.*] methods
+// to not use the native implementation.
+export function patchRegExp$exec(run) {
+  return assert => {
+    const originalExec = RegExp.prototype.exec;
+    // eslint-disable-next-line no-extend-native
+    RegExp.prototype.exec = function (...args) {
+      return originalExec.apply(this, args);
+    };
+    try {
+      return run(assert);
+    } catch (e) {
+      // In very old IE try / finally does not work without catch.
+      throw e;
+    } finally {
+      // eslint-disable-next-line no-extend-native
+      RegExp.prototype.exec = originalExec;
+    }
+  };
+}
