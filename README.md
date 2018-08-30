@@ -1434,6 +1434,36 @@ core-js(-pure)/features/array/virtual/flat-map
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
+* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.from-entries.js)
+```js
+class Object {
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/object-from-entries
+core-js(-pure)/features/object/from-entries
+```
+[*Examples*]():
+```js
+const map = new Map([['a', 1], ['b', 2]]);
+
+Object.fromEntries(map); // => { a: 1, b: 2 }
+
+class Unit {
+  constructor(id) {
+    this.id = id;
+  }
+  toString() {
+    return `unit${ this.id }`;
+  }
+}
+
+const units = new Set([new Unit(101), new Unit(102)]);
+
+Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
+```
 * `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.match-all.js)
 ```js
 class String {
@@ -1515,36 +1545,6 @@ Symbol().description;      // => undefined
 [*CommonJS entry points:*](#commonjs)
 ```
 core-js(-pure)/stage/2
-```
-* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.from-entries.js)
-```js
-class Object {
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/object-from-entries
-core-js(-pure)/features/object/from-entries
-```
-[*Examples*]():
-```js
-const map = new Map([['a', 1], ['b', 2]]);
-
-Object.fromEntries(map); // => { a: 1, b: 2 }
-
-class Unit {
-  constructor(id) {
-    this.id = id;
-  }
-  toString() {
-    return `unit${ this.id }`;
-  }
-}
-
-const units = new Set([new Unit(101), new Unit(102)]);
-
-Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 * New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 ```js
@@ -1633,7 +1633,7 @@ Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
 * New collections methods proposals:
-- New `Set` and `Map` methods [proposal](https://github.com/tc39/collection-methods) - modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js)
+- New `Set` and `Map` methods [proposal](https://github.com/tc39/collection-methods) - modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js)
 - `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
 class Set {
@@ -1655,10 +1655,13 @@ class Map {
   static of(...args: Array<[key, value]>): Map;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
   static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
+  every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
   filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Map;
+  includes(searchElement: any): boolean;
   mapKeys(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
   mapValues(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
-  merge(iterable: Iterable<mixed>): this;
+  merge(iterable: Iterable<mixed>): Map;
+  some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
 }
 
 class WeakSet {
@@ -1669,6 +1672,8 @@ class WeakSet {
 class WeakMap {
   static of(...args: Array<[key, value]>): WeakMap;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: Object, value: any], thisArg?: any): WeakMap;
+  addAll(...args: Array<mixed>): this;
+  deleteAll(...args: Array<mixed>): boolean;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
@@ -1686,14 +1691,19 @@ core-js(-pure)/features/set/map
 core-js(-pure)/features/set/of
 core-js(-pure)/features/set/reduce
 core-js(-pure)/features/set/some
+core-js(-pure)/features/map/every
 core-js(-pure)/features/map/filter
 core-js(-pure)/features/map/from
 core-js(-pure)/features/map/group-by
+core-js(-pure)/features/map/includes
 core-js(-pure)/features/map/key-by
 core-js(-pure)/features/map/map-keys
 core-js(-pure)/features/map/map-values
 core-js(-pure)/features/map/merge
 core-js(-pure)/features/map/of
+core-js(-pure)/features/map/some
+core-js(-pure)/features/weak-set/add-all
+core-js(-pure)/features/weak-set/delete-all
 core-js(-pure)/features/weak-set/of
 core-js(-pure)/features/weak-set/from
 core-js(-pure)/features/weak-map/of
@@ -1845,6 +1855,24 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
+* Seeded pseudo-random numbers [proposal](https://github.com/tc39/proposal-seeded-random) - module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.seeded-prng.js)
+```js
+class Math {
+  seededPRNG({ seed: number }): Iterator<number>;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/seeded-random
+core-js(-pure)/features/math/seeded-prng
+```
+[*Example*](https://goo.gl/oj3WgQ):
+```js
+for (let x of Math.seededPRNG({ seed: 42 })) {
+  console.log(x); // => 0.16461519912315087, 0.2203933906000046, 0.8249682894209105
+  if (x > .8) break;
+}
+```
 * `Symbol.patternMatch` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.pattern-match.js).
 ```js
 class Symbol {
@@ -1855,6 +1883,17 @@ class Symbol {
 ```js
 core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
+```
+* `Symbol.dispose` for [`using` statement proposal](https://github.com/tc39/proposal-using-statement) - module [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js).
+```js
+class Symbol {
+  static dispose: @@dispose;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/using-statement
+core-js(-pure)/features/symbol/dispose
 ```
 
 #### Stage 0 proposals
@@ -2016,7 +2055,7 @@ clearImmediate(setImmediate(() => {
 }));
 ```
 #### Iterable DOM collections
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That mean they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
+Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
 ```js
 class [
   CSSRuleList,

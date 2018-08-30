@@ -7,31 +7,31 @@ Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2
 import 'core-js'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flatten(2);              // => [1, 2, 3, 4, 5]
+[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
 *You can load only required features*:
 ```js
-import 'core-js/features/array/from';    // <- at the top of your entry point
-import 'core-js/features/array/flatten'; // <- at the top of your entry point
-import 'core-js/features/set';           // <- at the top of your entry point
-import 'core-js/features/promise';       // <- at the top of your entry point
+import 'core-js/features/array/from'; // <- at the top of your entry point
+import 'core-js/features/array/flat'; // <- at the top of your entry point
+import 'core-js/features/set';        // <- at the top of your entry point
+import 'core-js/features/promise';    // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flatten(2);              // => [1, 2, 3, 4, 5]
+[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 
 *Or use it without global namespace pollution*:
 ```js
 import from from 'core-js-pure/features/array/from';
-import flatten from 'core-js-pure/features/array/flatten';
+import flat from 'core-js-pure/features/array/flat';
 import Set from 'core-js-pure/features/set';
 import Promise from 'core-js-pure/features/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-flatten([1, [2, 3], [4, [5]]], 2);             // => [1, 2, 3, 4, 5]
+flat([1, [2, 3], [4, [5]]], 2);                // => [1, 2, 3, 4, 5]
 Promise.resolve(32).then(x => console.log(x)); // => 32
 ```
 

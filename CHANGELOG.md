@@ -3,7 +3,7 @@
 - Features
   - Add new features:
     - `Symbol#description` ([stage 3 proposal](https://tc39.github.io/proposal-Symbol-description/))
-    - `Object.fromEntries` ([stage 2 proposal](https://github.com/tc39/proposal-object-from-entries))
+    - `Object.fromEntries` ([stage 3 proposal](https://github.com/tc39/proposal-object-from-entries))
     - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
       - `Set#intersection`
@@ -17,10 +17,13 @@
     - New collections methods ([stage 1 proposal](https://github.com/Ginden/collection-methods))
       - `Map.groupBy`
       - `Map.keyBy`
+      - `Map#every`
       - `Map#filter`
+      - `Map#includes`
       - `Map#mapKeys`
       - `Map#mapValues`
       - `Map#merge`
+      - `Map#some`
       - `Set#addAll`
       - `Set#deleteAll`
       - `Set#every`
@@ -30,9 +33,13 @@
       - `Set#map`
       - `Set#reduce`
       - `Set#some`
+      - `WeakSet#addAll`
+      - `WeakSet#deleteAll`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
+    - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
+    - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
     - `Promise.allSettled` ([stage 0 proposal](https://github.com/jasonwilliams/proposal-promise-allSettled))
     - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Improve existing features:
@@ -49,7 +56,7 @@
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
     - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
-    - Update `String#matchAll` (mainly [this PR](https://github.com/tc39/proposal-string-matchall/pull/17)) and move to the stage 3
+    - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
   - Mark ES2016, ES2017 and ES2018 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
@@ -85,6 +92,7 @@
   - Fix import of property before constructor which should contain this property, [#262](https://github.com/zloirock/core-js/issues/262).
   - Fix some cases of IE11 `WeakMap` frozen keys fallback, [#384](https://github.com/zloirock/core-js/issues/384).
   - Fix non-enumerable integer keys issue because of Nashorn ~ JDK8 bug, [#389](https://github.com/zloirock/core-js/issues/389).
+  - Fix buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
 - Repository:
   - Change `core-js` repository structure to monorepo with packages in `/packages/` directory.
   - Clean-up it, remove all possible duplicates, generated files, etc.

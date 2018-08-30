@@ -139,6 +139,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/math/scale')(3, 1, 2, 1, 2) === 3);
   ok(load('features/math/umulh')(0xffffffff, 7) === 6);
   ok(load('features/math/signbit')(-2) === false);
+  ok(typeof load('features/math/seeded-prng')({ seed: 42 }).next().value === 'number');
   ok(load('features/number/constructor')('5') === 5);
   ok(load('features/number/epsilon') === Math.pow(2, -52));
   ok(load('features/number/is-finite')(42.5));
@@ -279,6 +280,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/async-iterator'));
   ok(load('features/symbol/observable'));
   ok(load('features/symbol/pattern-match'));
+  ok(load('features/symbol/dispose'));
   ok(typeof load('features/symbol/for') === 'function');
   ok(typeof load('features/symbol/key-for') === 'function');
   ok('iterator' in load('features/symbol'));
@@ -298,12 +300,15 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/from')([1, 2, 3, 2, 1]) instanceof Set);
   ok(load('features/weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
   ok(load('features/weak-set/from')([{}, []]) instanceof WeakSet);
+  ok(load('features/map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
   ok(load('features/map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
   ok(load('features/map/group-by')([], it => it) instanceof Map);
+  ok(load('features/map/includes')(new Map([[1, 2]]), 2), true);
   ok(load('features/map/key-by')([], it => it) instanceof Map);
   ok(load('features/map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
   ok(load('features/map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
   ok(load('features/map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
+  ok(load('features/map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
   ok(load('features/set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
   ok(load('features/set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
   ok(load('features/set/difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
@@ -317,6 +322,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
   ok(load('features/set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
   ok(load('features/set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
+  ok(load('features/weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
+  ok(load('features/weak-set/delete-all')(new WeakSet(), [], {}) === false);
   const Promise = load('features/promise');
   ok('all' in Promise);
   ok(load('features/promise/all-settled')([1, 2, 3]) instanceof Promise);
@@ -589,6 +596,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/richer-keys');
+  load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-code-points');
@@ -596,6 +604,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/string-replace-all');
   load('proposals/string-trim-start-end');
   load('proposals/symbol-description');
+  load('proposals/using-statement');
   load('proposals');
   ok(load('stage/4'));
   ok(load('stage/3'));
