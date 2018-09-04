@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#search regression' (assert)->
+run = (assert)->
   assert.isFunction ''search
   assert.arity ''search, 1
   assert.name ''search, \search
@@ -45,13 +45,23 @@ test 'String#search regression' (assert)->
   aString = Object 'power \u006F\u0066 the power of the power \u006F\u0066 the power of the power \u006F\u0066 the power of the great sword'
   assert.strictEqual aString.search(/of/), aString.search(/of/g), 'S15.5.4.12_A3_T2'
 
-test 'RegExp#@@search' (assert)->
+test 'String#search regression' run
+
+test 'RegExp#@@search appearance', (assert) ->
+  search = //.//[Symbol.search]
+  assert.isFunction search
+  assert.arity search, 1
+  assert.looksNative search
+  assert.nonEnumerable RegExp.prototype, Symbol.search
+  return 
+
+test 'RegExp#@@search basic behavior' (assert)->
   assert.isFunction /./[Symbol?search]
   assert.arity /./[Symbol?search], 1
   assert.strictEqual /four/[Symbol?search]('one two three four five'), 14
   assert.strictEqual /Four/[Symbol?search]('one two three four five'), -1
 
-test '@@search logic' (assert)->
+test 'String#search delegates to @@search' (assert)->
   'use strict'
   str = if STRICT => \qwe else Object \qwe
   num = if STRICT => 123 else Object 123
@@ -63,3 +73,24 @@ test '@@search logic' (assert)->
   assert.strictEqual str.search(re)value, str
   assert.strictEqual ''search.call(num, re)value, num
   
+test 'RegExp#@@search delegates to exec', (assert) ->
+  execCalled = false
+  re = //b//
+  re.lastIndex = 7
+  re.exec = ->
+    execCalled := true
+    //.//.exec ...
+  assert.deepEqual (re[Symbol.search] 'abc'), 1
+  assert.ok execCalled
+  assert.strictEqual re.lastIndex, 7
+  re = //b//
+  re.exec = 3
+  assert.deepEqual (re[Symbol.search] 'abc'), 1
+  re = //b//
+  re.exec = -> 3
+  assert.throws (->
+    re[Symbol.search] 'abc'
+    return )
+  return 
+
+test 'RegExp#@@search implementation', patchRegExp$exec run

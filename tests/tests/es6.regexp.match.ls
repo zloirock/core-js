@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#match regression' (assert)->
+run = (assert) ->
   assert.isFunction ''match
   assert.arity ''match, 1
   assert.name ''match, \match
@@ -163,7 +163,17 @@ test 'String#match regression' (assert)->
   assert.strictEqual ''match.call(num, re)index, 1, 'S15.5.4.10_A2_T18 #3'
   assert.strictEqual ''match.call(num, re)input, String(num), 'S15.5.4.10_A2_T18 #4'
 
-test 'RegExp#@@match' (assert)->
+test 'String#match regression' run
+
+test 'RegExp#@@match appearance', (assert) ->
+  match$$ = //.//[Symbol.match]
+  assert.isFunction match$$
+  assert.arity match$$, 1
+  assert.looksNative match$$
+  assert.nonEnumerable RegExp.prototype, Symbol.match
+  return 
+
+test 'RegExp#@@match basic behavior' (assert)->
   assert.isFunction /./[Symbol?match]
   assert.arity /./[Symbol?match], 1
   string = "Boston, MA 02134"
@@ -173,7 +183,7 @@ test 'RegExp#@@match' (assert)->
   for i in matches
     assert.strictEqual /([\d]{5})([-\ ]?[\d]{4})?$/[Symbol?match](string)[i], matches[i]
 
-test '@@match logic' (assert)->
+test 'String#match delegates to @@match' (assert)->
   'use strict'
   str = if STRICT => \qwe else Object \qwe
   num = if STRICT => 123 else Object 123
@@ -185,3 +195,22 @@ test '@@match logic' (assert)->
   assert.strictEqual str.match(re)value, str
   assert.strictEqual ''match.call(num, re)value, num
   
+test 'RegExp#@@match delegates to exec', (assert) ->
+  var execCalled
+  exec = ->
+    execCalled := true
+    //.//.exec ...
+  execCalled = false
+  re = //[ac]//
+  re.exec = exec
+  assert.deepEqual (re[Symbol.match] 'abc'), ['a']
+  assert.ok execCalled
+  re = //a//
+  re.exec = 3
+  assert.deepEqual (re[Symbol.match] 'abc'), ['a']
+  re = //a//
+  re.exec = -> 3
+  assert.throws (-> re[Symbol.match] 'abc')
+  return 
+
+test 'RegExp#@@match implementation', patchRegExp$exec run

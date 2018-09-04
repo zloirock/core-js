@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#split regression' (assert)->
+run = (assert)->
   assert.isFunction ''split
   assert.arity ''split, 2
   assert.name ''split, \split
@@ -572,7 +572,17 @@ test 'String#split regression' (assert)->
     for i til expected.length
       assert.strictEqual expected[i], split[i], "S15.5.4.14_A4_T24 #" + (i + 3)
 
-test 'RegExp#@@split' (assert)->
+test 'String#split regression' run
+
+test 'RegExp#@@split appearance', (assert) ->
+  split = //.//[Symbol.split]
+  assert.isFunction split
+  assert.arity split, 2
+  assert.looksNative split
+  assert.nonEnumerable RegExp.prototype, Symbol.split
+  return 
+
+test 'RegExp#@@split basic behavior' (assert)->
   assert.isFunction /./[Symbol?split]
   assert.arity /./[Symbol?split], 2
   assert.strictEqual /\s/[Symbol?split]('a b c de f').length, 5
@@ -580,7 +590,7 @@ test 'RegExp#@@split' (assert)->
   assert.strictEqual /\s/[Symbol?split]('a b c de f' 1).length, 1
   assert.strictEqual /\s/[Symbol?split]('a b c de f' 10).length, 5
 
-test '@@split logic' (assert)->
+test 'String#split delegates to @@split' (assert)->
   'use strict'
   str = if STRICT => \qwe else Object \qwe
   num = if STRICT => 123 else Object 123
@@ -595,3 +605,50 @@ test '@@split logic' (assert)->
   assert.strictEqual str.split(re, 42)b, 42
   assert.strictEqual ''split.call(num, re, 42)a, num
   assert.strictEqual ''split.call(num, re, 42)b, 42
+
+test 'RegExp#@@split delegates to exec', (assert) ->
+  execCalled = false
+  speciesCalled = false
+  execSpeciesCalled = false
+  re = //[24]//
+  re.exec = ->
+    execCalled := true
+    //.//.exec.apply this, arguments
+  re.constructor = {(Symbol.species): (source, flags) ->
+    re2 = new RegExp source, flags
+    speciesCalled := true
+    re2.exec = ->
+      execSpeciesCalled := true
+      //.//.exec.apply this, arguments
+    re2}
+  assert.deepEqual (re[Symbol.split] '123451234'), [
+    '1'
+    '3'
+    '51'
+    '3'
+    ''
+  ]
+  assert.ok not execCalled
+  assert.ok speciesCalled
+  assert.ok execSpeciesCalled
+  re.constructor = {(Symbol.species): (source, flags) ->
+    re2 = new RegExp source, flags
+    re2.exec = 3
+    re2}
+  assert.deepEqual (re[Symbol.split] '123451234'), [
+    '1'
+    '3'
+    '51'
+    '3'
+    ''
+  ]
+  re.constructor = {(Symbol.species): (source, flags) ->
+    re2 = new RegExp source, flags
+    re2.exec = -> 3
+    re2}
+  assert.throws (->
+    re[Symbol.split] '123451234'
+    return )
+  return 
+
+test 'RegExp#@@split implementation', patchRegExp$exec run
