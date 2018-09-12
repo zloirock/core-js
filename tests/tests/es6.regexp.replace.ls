@@ -1,7 +1,7 @@
 {module, test} = QUnit
 module \ES6
 
-test 'String#replace regression' (assert)->
+run = (assert)->
   assert.isFunction ''replace
   assert.arity ''replace, 2
   assert.name ''replace, \replace
@@ -68,12 +68,20 @@ test 'String#replace regression' (assert)->
   assert.strictEqual 'abc12 def34'replace(/([a-z]+)([0-9]+)/, -> &.2 + &.1), '12abc def34', 'S15.5.4.11_A4_T1'
   assert.strictEqual 'aaaaaaaaaa,aaaaaaaaaaaaaaa'replace(/^(a+)\1*,\1+$/, '$1'), \aaaaa, 'S15.5.4.11_A5_T1'
 
-test 'RegExp#@@replace' (assert)->
-  assert.isFunction /./[Symbol?replace]
-  assert.arity /./[Symbol?replace], 2
+test 'String#replace regression' run
+
+test 'RegExp#@@replace appearance', (assert) ->
+  replace = //.//[Symbol.replace]
+  assert.isFunction replace
+  assert.arity replace, 2
+  assert.looksNative replace
+  assert.nonEnumerable RegExp.prototype, Symbol.replace
+  return 
+
+test 'RegExp#@@replace basic behavior' (assert)->
   assert.strictEqual /([a-z]+)([0-9]+)/[Symbol?replace]('abc12 def34', -> &.2 + &.1), '12abc def34'
 
-test '@@replace logic' (assert)->
+test 'String.replace delegates to @@replace' (assert)->
   'use strict'
   str = if STRICT => \qwe else Object \qwe
   num = if STRICT => 123 else Object 123
@@ -88,3 +96,65 @@ test '@@replace logic' (assert)->
   assert.strictEqual str.replace(re, 42)b, 42
   assert.strictEqual ''replace.call(num, re, 42)a, num
   assert.strictEqual ''replace.call(num, re, 42)b, 42
+
+test 'RegExp#@@replace delegates to exec', (assert) ->
+  var execCalled
+  exec = ->
+    execCalled := true
+    //.//.exec ...
+  execCalled = false
+  re = //[ac]//
+  re.exec = exec
+  assert.deepEqual (re[Symbol.replace] 'abc', 'f'), 'fbc'
+  assert.ok execCalled
+  assert.strictEqual re.lastIndex, 0
+  execCalled = false
+  re = //[ac]//g
+  re.exec = exec
+  assert.deepEqual (re[Symbol.replace] 'abc', 'f'), 'fbf'
+  assert.ok execCalled
+  assert.strictEqual re.lastIndex, 0
+  re = //a//
+  re.exec = 3
+  assert.deepEqual (re[Symbol.replace] 'abc', 'f'), 'fbc'
+  re = //a//
+  re.exec = -> 3
+  assert.throws (-> re[Symbol.replace] 'abc', 'f')
+  return 
+
+test 'RegExp#@@replace correctly handles substitutions', (assert) ->
+  re = //.//
+  re.exec = ->
+    result = ['23', '7']
+    result.groups = {'!!!': '7'}
+    result.index = 1
+    result
+  assert.strictEqual ('1234'.replace re, '$1'), '174'
+  assert.strictEqual ('1234'.replace re, '$<!!!>'), '174'
+  assert.strictEqual ('1234'.replace re, '$`'), '114'
+  assert.strictEqual ('1234'.replace re, '$\''), '144'
+  assert.strictEqual ('1234'.replace re, '$$'), '1$4'
+  assert.strictEqual ('1234'.replace re, '$&'), '1234'
+  assert.strictEqual ('1234'.replace re, '$x'), '1$x4'
+  var args
+  assert.strictEqual (
+    '1234'.replace re, ->
+      _len = arguments.length
+      _args = new Array _len
+      _key = 0
+      while _key < _len
+        _args[_key] = arguments[_key]
+        _key++
+      args := _args
+      'x'
+  ), '1x4'
+  assert.deepEqual args, [
+    '23'
+    '7'
+    1
+    '1234'
+    {'!!!': '7'}
+  ]
+  return 
+
+test 'RegExp#@@replace implementation', patchRegExp$exec run
