@@ -116,7 +116,7 @@ module.exports = grunt => {
     karma: {
       options: {
         frameworks: ['qunit'],
-        basePath: './',
+        basePath: '.',
         browsers: ['PhantomJS'],
         singleRun: true,
       },
