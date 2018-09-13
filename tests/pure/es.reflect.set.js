@@ -64,7 +64,7 @@ QUnit.test('Reflect.set', assert => {
     assert.strictEqual(target.c, 1, 'set c');
 
     // https://github.com/zloirock/core-js/issues/392
-    const o = defineProperty({}, 'test', {
+    let o = defineProperty({}, 'test', {
       writable: false,
       configurable: true,
     });
