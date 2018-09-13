@@ -198,7 +198,7 @@ module.exports = {
     'esnext.asap',
     'esnext.composite-key',
     'esnext.composite-symbol',
-    'esnext.global',
+    'esnext.global-this',
     'esnext.map.from',
     'esnext.map.group-by',
     'esnext.map.key-by',

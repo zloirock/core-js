@@ -329,7 +329,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok(load('features/promise/try')(() => 42) instanceof load('features/promise'));
   ok('from' in load('features/observable'));
-  ok(load('features/global').Math === Math);
+  ok(load('features/global-this').Math === Math);
   ok(typeof load('features/dom-collections').iterator === 'function');
   ok(typeof load('features/dom-collections/iterator') === 'function');
   ok(typeof load('features/set-timeout') === 'function');
@@ -586,7 +586,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/efficient-64-bit-arithmetic');
-  load('proposals/global');
+  load('proposals/global-this');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');

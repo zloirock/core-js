@@ -1,4 +1,5 @@
 import '../helpers/qunit-helpers';
+import { GLOBAL } from '../helpers/constants';
 
 QUnit.module('ES');
 import './es.array.concat';
@@ -134,7 +135,7 @@ import './esnext.array.flat';
 import './esnext.asap';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
-import './esnext.global';
+import './esnext.global-this';
 import './esnext.math.clamp';
 import './esnext.math.deg-per-rad';
 import './esnext.math.degrees';
@@ -213,4 +214,4 @@ import './helpers.get-iterator';
 import './helpers.is-iterable';
 
 import core from 'core-js-pure';
-core.global.core = core;
+GLOBAL.core = core;

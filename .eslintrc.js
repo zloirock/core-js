@@ -474,6 +474,7 @@ module.exports = {
         asap: true,
         compositeKey: true,
         compositeSymbol: true,
+        globalThis: true,
         Observable: true,
       },
     },

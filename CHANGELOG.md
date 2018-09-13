@@ -57,6 +57,7 @@
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
     - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
+    - Update `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - rename `global` to `globalThis`
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
   - Mark ES2016, ES2017 and ES2018 features as stable:
@@ -69,7 +70,7 @@
     - `Object#__(define|lookup)[GS]etter__`
   - Remove obsolete features:
     - `Error.isError` (withdrawn)
-    - `System.global` (replaced by `global`)
+    - `System.global` (replaced by `globalThis`)
     - `Map#toJSON` and `Set#toJSON` (rejected)
     - `RegExp.escape` (rejected)
     - `Reflect.enumerate` (removed from the spec)
@@ -120,7 +121,7 @@
   - Rename `es6.regexp.{match, replace, search, split}` -> `es.string.{match, replace, search, split}` - mainly it's fixes / adding support of well-known symbols to string methods, only in second place adding related methods to regexp prototype.
   - Relax `/modules/` directory by moving internal modules to `/internals/` directory.
   - Remove deprecated array entry points: `core-js(/library)/fn/array/{pop, push, reverse, shift, unshift}`.
-  - `core` object no longer available in the global version, entry points which previously returned it now returns `global` object. Also, don't set `global.core` object.
+  - `core` object no longer available in the global version, entry points which previously returned it now returns `globalThis` object. Also, don't set global `core` property.
   - Add some missing entry points.
 - Tools, tests, code quality:
   - Refactor source code for improving readability.

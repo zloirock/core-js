@@ -195,7 +195,7 @@ require('./modules/esnext.array.last-item');
 require('./modules/esnext.asap');
 require('./modules/esnext.composite-key');
 require('./modules/esnext.composite-symbol');
-require('./modules/esnext.global');
+require('./modules/esnext.global-this');
 require('./modules/esnext.map.from');
 require('./modules/esnext.map.group-by');
 require('./modules/esnext.map.key-by');

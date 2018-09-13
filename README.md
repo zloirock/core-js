@@ -1508,21 +1508,18 @@ core-js(-pure)/features/string/virtual/trim-right
 '   hello   '.trimLeft();  // => 'hello   '
 '   hello   '.trimRight(); // => '   hello'
 ```
-* `global` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.global.js). **Warning! Due to [web compatibility concerns](https://github.com/tc39/proposal-global/issues/20), this object will be added to the spec under a different name.**
+* `globalThis` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.global-this.js).
 ```js
-let global: Object;
+let globalThis: Object;
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
-core-js/proposals/global
-core-js(-pure)/features/global
+core-js/proposals/global-this
+core-js(-pure)/features/global-this
 ```
-[*Examples*](http://goo.gl/gEqMl7):
+[*Examples*](https://goo.gl/LAifsc):
 ```js
-global.Array === Array; // => true
-```
-```js
-core-js(-pure)/stage/2
+globalThis.Array === Array; // => true
 ```
 * `Symbol#description` [proposal](https://github.com/tc39/proposal-Symbol-description) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.description.js)
 ```js

@@ -184,7 +184,7 @@ import './esnext.array.flat';
 import './esnext.asap';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
-import './esnext.global';
+import './esnext.global-this';
 import './esnext.map.from';
 import './esnext.map.of';
 import './esnext.math.clamp';
