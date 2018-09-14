@@ -1,5 +1,6 @@
 require('../modules/esnext.map.group-by');
 require('../modules/esnext.map.key-by');
+require('../modules/esnext.map.delete-all');
 require('../modules/esnext.map.every');
 require('../modules/esnext.map.filter');
 require('../modules/esnext.map.includes');
@@ -17,5 +18,6 @@ require('../modules/esnext.set.join');
 require('../modules/esnext.set.map');
 require('../modules/esnext.set.reduce');
 require('../modules/esnext.set.some');
+require('../modules/esnext.weak-map.delete-all');
 require('../modules/esnext.weak-set.add-all');
 require('../modules/esnext.weak-set.delete-all');

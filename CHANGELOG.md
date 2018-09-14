@@ -17,6 +17,7 @@
     - New collections methods ([stage 1 proposal](https://github.com/Ginden/collection-methods))
       - `Map.groupBy`
       - `Map.keyBy`
+      - `Map#deleteAll`
       - `Map#every`
       - `Map#filter`
       - `Map#includes`
@@ -34,6 +35,7 @@
       - `Set#map`
       - `Set#reduce`
       - `Set#some`
+      - `WeakMap#deleteAll`
       - `WeakSet#addAll`
       - `WeakSet#deleteAll`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))

@@ -2,6 +2,7 @@ module.exports = require('../../es/map');
 
 require('../../modules/esnext.map.from');
 require('../../modules/esnext.map.of');
+require('../../modules/esnext.map.delete-all');
 require('../../modules/esnext.map.every');
 require('../../modules/esnext.map.filter');
 require('../../modules/esnext.map.group-by');
