@@ -96,7 +96,7 @@ If you need already bundled version of `core-js`, use `core-js-bundle` `npm` pac
 Warning: if you use `core-js` with the extension of native objects, load all `core-js` modules at the top of entry point of your application, otherwise, you can have conflicts.
 
 ### CommonJS
-You can require only needed modules, like in examples in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js-pure/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js-pure/es`) contains all ES features.
+You can require only needed modules, like in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js-pure/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js-pure/es`) contains all ES features.
 
 ##### Caveats when using CommonJS API:
 
