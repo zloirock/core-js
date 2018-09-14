@@ -206,6 +206,7 @@ require('./modules/esnext.map.includes');
 require('./modules/esnext.map.map-keys');
 require('./modules/esnext.map.map-values');
 require('./modules/esnext.map.merge');
+require('./modules/esnext.map.reduce');
 require('./modules/esnext.map.some');
 require('./modules/esnext.math.clamp');
 require('./modules/esnext.math.deg-per-rad');

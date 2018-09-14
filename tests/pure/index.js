@@ -172,6 +172,7 @@ import './esnext.map.map-keys';
 import './esnext.map.map-values';
 import './esnext.map.merge';
 import './esnext.map.of';
+import './esnext.map.reduce';
 import './esnext.map.some';
 import './esnext.object.from-entries';
 import './esnext.set.add-all';

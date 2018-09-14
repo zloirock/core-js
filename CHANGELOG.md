@@ -23,6 +23,7 @@
       - `Map#mapKeys`
       - `Map#mapValues`
       - `Map#merge`
+      - `Map#reduce`
       - `Map#some`
       - `Set#addAll`
       - `Set#deleteAll`

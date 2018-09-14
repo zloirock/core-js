@@ -209,6 +209,7 @@ module.exports = {
     'esnext.map.map-keys',
     'esnext.map.map-values',
     'esnext.map.merge',
+    'esnext.map.reduce',
     'esnext.map.some',
     'esnext.math.clamp',
     'esnext.math.deg-per-rad',
