@@ -20,6 +20,8 @@
       - `Map#deleteAll`
       - `Map#every`
       - `Map#filter`
+      - `Map#find`
+      - `Map#findKey`
       - `Map#includes`
       - `Map#mapKeys`
       - `Map#mapValues`

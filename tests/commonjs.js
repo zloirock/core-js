@@ -303,6 +303,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/map/delete-all')(new Map(), 1, 2) === false);
   ok(load('features/map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
   ok(load('features/map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
+  ok(load('features/map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
+  ok(load('features/map/find-key')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 2);
   ok(load('features/map/group-by')([], it => it) instanceof Map);
   ok(load('features/map/includes')(new Map([[1, 2]]), 2), true);
   ok(load('features/map/key-by')([], it => it) instanceof Map);

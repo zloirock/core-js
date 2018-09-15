@@ -206,6 +206,8 @@ module.exports = {
     'esnext.map.delete-all',
     'esnext.map.every',
     'esnext.map.filter',
+    'esnext.map.find',
+    'esnext.map.find-key',
     'esnext.map.includes',
     'esnext.map.map-keys',
     'esnext.map.map-values',

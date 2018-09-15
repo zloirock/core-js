@@ -5,6 +5,8 @@ require('../../modules/esnext.map.of');
 require('../../modules/esnext.map.delete-all');
 require('../../modules/esnext.map.every');
 require('../../modules/esnext.map.filter');
+require('../../modules/esnext.map.find');
+require('../../modules/esnext.map.find-key');
 require('../../modules/esnext.map.group-by');
 require('../../modules/esnext.map.includes');
 require('../../modules/esnext.map.key-by');
