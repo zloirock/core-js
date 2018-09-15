@@ -23,6 +23,7 @@
       - `Map#find`
       - `Map#findKey`
       - `Map#includes`
+      - `Map#keyOf`
       - `Map#mapKeys`
       - `Map#mapValues`
       - `Map#merge`

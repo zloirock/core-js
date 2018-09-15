@@ -209,6 +209,7 @@ module.exports = {
     'esnext.map.find',
     'esnext.map.find-key',
     'esnext.map.includes',
+    'esnext.map.key-of',
     'esnext.map.map-keys',
     'esnext.map.map-values',
     'esnext.map.merge',

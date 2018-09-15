@@ -221,6 +221,7 @@ import './esnext.map.find-key';
 import './esnext.map.group-by';
 import './esnext.map.includes';
 import './esnext.map.key-by';
+import './esnext.map.key-of';
 import './esnext.map.map-keys';
 import './esnext.map.map-values';
 import './esnext.map.merge';
