@@ -1,18 +1,18 @@
 {
   "devDependencies": {
-    "@babel/cli": "^7.0.0",
-    "@babel/core": "^7.0.1",
+    "@babel/cli": "^7.1.0",
+    "@babel/core": "^7.1.0",
     "@babel/plugin-transform-arrow-functions": "^7.0.0",
     "@babel/plugin-transform-block-scoped-functions": "^7.0.0",
     "@babel/plugin-transform-block-scoping": "^7.0.0",
-    "@babel/plugin-transform-classes": "^7.0.0",
+    "@babel/plugin-transform-classes": "^7.1.0",
     "@babel/plugin-transform-computed-properties": "^7.0.0",
     "@babel/plugin-transform-destructuring": "^7.0.0",
-    "@babel/plugin-transform-exponentiation-operator": "^7.0.0",
+    "@babel/plugin-transform-exponentiation-operator": "^7.1.0",
     "@babel/plugin-transform-literals": "^7.0.0",
     "@babel/plugin-transform-member-expression-literals": "^7.0.0",
-    "@babel/plugin-transform-modules-commonjs": "^7.0.0",
-    "@babel/plugin-transform-parameters": "^7.0.0",
+    "@babel/plugin-transform-modules-commonjs": "^7.1.0",
+    "@babel/plugin-transform-parameters": "^7.1.0",
     "@babel/plugin-transform-property-literals": "^7.0.0",
     "@babel/plugin-transform-shorthand-properties": "^7.0.0",
     "@babel/plugin-transform-spread": "^7.0.0",
@@ -41,7 +41,7 @@
     "promises-aplus-tests": "^2.1.2",
     "qunit": "2.6.x",
     "temp": "^0.8.3",
-    "webpack": "^4.19.0"
+    "webpack": "^4.20.0"
   },
   "license": "MIT",
   "repository": {
