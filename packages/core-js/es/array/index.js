@@ -14,6 +14,7 @@ require('../../modules/es.array.some');
 require('../../modules/es.array.every');
 require('../../modules/es.array.reduce');
 require('../../modules/es.array.reduce-right');
+require('../../modules/es.array.reverse');
 require('../../modules/es.array.index-of');
 require('../../modules/es.array.last-index-of');
 require('../../modules/es.array.copy-within');

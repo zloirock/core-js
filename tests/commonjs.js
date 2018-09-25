@@ -67,6 +67,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/every') === 'function');
   ok(typeof load('features/array/reduce') === 'function');
   ok(typeof load('features/array/reduce-right') === 'function');
+  ok(typeof load('features/array/reverse') === 'function');
   ok(typeof load('features/array/index-of') === 'function');
   ok(typeof load('features/array/last-index-of') === 'function');
   ok(load('features/array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
@@ -94,6 +95,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/virtual/every') === 'function');
   ok(typeof load('features/array/virtual/reduce') === 'function');
   ok(typeof load('features/array/virtual/reduce-right') === 'function');
+  ok(typeof load('features/array/virtual/reverse') === 'function');
   ok(typeof load('features/array/virtual/index-of') === 'function');
   ok(typeof load('features/array/virtual/last-index-of') === 'function');
   ok(load('features/array/virtual/concat').call([1, 2, 3], [4, 5, 6]).length === 6);
@@ -401,6 +403,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/array/every') === 'function');
   ok(typeof load('es/array/reduce') === 'function');
   ok(typeof load('es/array/reduce-right') === 'function');
+  ok(typeof load('es/array/reverse') === 'function');
   ok(typeof load('es/array/index-of') === 'function');
   ok(typeof load('es/array/last-index-of') === 'function');
   ok(load('es/array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
@@ -424,6 +427,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/array/virtual/every') === 'function');
   ok(typeof load('es/array/virtual/reduce') === 'function');
   ok(typeof load('es/array/virtual/reduce-right') === 'function');
+  ok(typeof load('es/array/virtual/reverse') === 'function');
   ok(typeof load('es/array/virtual/index-of') === 'function');
   ok(typeof load('es/array/virtual/last-index-of') === 'function');
   ok(load('es/array/virtual/concat').call([1, 2, 3], [4, 5, 6]).length === 6);

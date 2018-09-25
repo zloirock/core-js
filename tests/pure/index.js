@@ -21,6 +21,7 @@ import './es.array.map';
 import './es.array.of';
 import './es.array.reduce-right';
 import './es.array.reduce';
+import './es.array.reverse';
 import './es.array.slice';
 import './es.array.some';
 import './es.array.sort';

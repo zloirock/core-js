@@ -59,6 +59,7 @@ module.exports = {
     'es.array.map',
     'es.array.reduce',
     'es.array.reduce-right',
+    'es.array.reverse',
     'es.array.slice',
     'es.array.some',
     'es.array.sort',
