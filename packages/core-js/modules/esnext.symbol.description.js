@@ -8,7 +8,10 @@ var defineProperty = require('../internals/object-define-property').f;
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var NativeSymbol = require('../internals/global').Symbol;
 
-if (DESCRIPTORS && typeof NativeSymbol == 'function' && !('description' in NativeSymbol.prototype)) {
+if (DESCRIPTORS && typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.prototype) ||
+  // Safari 12 bug
+  NativeSymbol().description !== undefined
+)) {
   var EmptyStringDescriptionStore = {};
   // wrap Symbol constructor for correct work with undefined description
   var SymbolWrapper = function Symbol() {
