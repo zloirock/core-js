@@ -9,15 +9,13 @@ var SPECIES = wks('species');
 
 module.exports = function (KEY, length, exec) {
   var SYMBOL = wks(KEY);
-  var fns = exec(defined, SYMBOL, ''[KEY]);
-  var strfn = fns[0];
-  var rxfn = fns[1];
-  if (fails(function () {
+
+  var delegates = !fails(function () {
     // String methods call symbol-named RegEp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
-  }) || fails(function () {
+  }) && !fails(function () {
     // Symbol-named RegExp methods call .exec
     var execCalled = false;
     var re = /a/;
@@ -30,7 +28,29 @@ module.exports = function (KEY, length, exec) {
     }
     re[SYMBOL]('');
     return !execCalled;
-  })) {
+  });
+
+  var replaceSupportsNamedGroups = KEY === 'replace' && !fails(function () {
+    // #replace needs built-in support for named groups.
+    // #match works fine because it just return the exec results, even if it has
+    // a "grops" property.
+    var re = /./;
+    re.exec = function () {
+      var result = [];
+      result.groups = { a: '7' };
+      return result;
+    };
+    return ''.replace(re, '$<a>') !== '7';
+  });
+
+  if (!delegates || (KEY === 'replace' && !replaceSupportsNamedGroups)) {
+    var fns = exec(defined, SYMBOL, ''[KEY], /./[SYMBOL], {
+      delegates: delegates,
+      replaceSupportsNamedGroups: replaceSupportsNamedGroups
+    });
+    var strfn = fns[0];
+    var rxfn = fns[1];
+
     redefine(String.prototype, KEY, strfn);
     redefine(RegExp.prototype, SYMBOL, length == 2
       // 21.2.5.8 RegExp.prototype[@@replace](string, replaceValue)

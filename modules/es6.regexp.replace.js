@@ -18,7 +18,7 @@ var maybeToString = function (it) {
 };
 
 // @@replace logic
-require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace) {
+require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, RegExp$replace, reason) {
   return [
     // `String.prototype.replace` method
     // https://tc39.github.io/ecma262/#sec-string.prototype.replace
@@ -32,7 +32,16 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace) {
     // `RegExp.prototype[@@replace]` method
     // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
     function (regexp, replaceValue) {
-      if (regexp.exec === nativeExec) return $replace.call(this, regexp, replaceValue);
+      if (regexp.exec === nativeExec) {
+        if (reason.delegates) {
+          // The native #replaceMethod already delegates to @@replace (this
+          // polyfilled function, leasing to infinite recursion).
+          // We avoid it by directly calling the native @@replace method.
+          return RegExp$replace.call(regexp, this, replaceValue);
+        }
+        return $replace.call(this, regexp, replaceValue);
+      }
+
       var rx = anObject(regexp);
       var S = String(this);
       var functionalReplace = typeof replaceValue === 'function';
