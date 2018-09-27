@@ -46,7 +46,7 @@
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
-    - `Promise.allSettled` ([stage 0 proposal](https://github.com/jasonwilliams/proposal-promise-allSettled))
+    - `Promise.allSettled` ([stage 1 proposal](https://github.com/jasonwilliams/proposal-promise-allSettled))
     - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Improve existing features:
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).

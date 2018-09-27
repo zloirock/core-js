@@ -6,6 +6,7 @@ require('../proposals/math-signbit');
 require('../proposals/number-from-string');
 require('../proposals/observable');
 require('../proposals/pattern-matching');
+require('../proposals/promise-all-settled');
 require('../proposals/promise-try');
 require('../proposals/richer-keys');
 require('../proposals/seeded-random');
