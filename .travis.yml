@@ -3,5 +3,9 @@ node_js:
   - '10'
   - '8'
   - '6'
+os:
+  - windows
+  - linux
+  - osx
 
 sudo: false
