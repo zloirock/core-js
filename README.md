@@ -89,7 +89,7 @@ npm i core-js@3.0.0-beta.3
 // version without global namespace pollution
 npm i core-js-pure@3.0.0-beta.3
 // bundled global version
-npm i core-j-bundles@3.0.0-beta.3
+npm i core-js-bundle@3.0.0-beta.3
 ```
 
 ```js
