@@ -344,7 +344,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/set-interval') === 'function');
   ok(typeof load('features/set-immediate') === 'function');
   ok(typeof load('features/clear-immediate') === 'function');
-  ok(typeof load('features/asap') === 'function');
+  ok(typeof load('features/queue-microtask') === 'function');
   ok(typeof load('features/composite-key')({}, 1, {}) === 'object');
   ok(typeof load('features/composite-symbol')({}, 1, {}) === 'symbol');
   ok(load('features/is-iterable')([]));
@@ -588,11 +588,11 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('Map' in load('es'));
   ok('setTimeout' in load('web/timers'));
   ok('setImmediate' in load('web/immediate'));
+  ok(typeof load('web/queue-microtask') === 'function');
   load('web/dom-collections');
   ok('setImmediate' in load('web'));
   load('proposals/array-flat-and-flat-map');
   load('proposals/array-last');
-  load('proposals/asap');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/efficient-64-bit-arithmetic');

@@ -60,12 +60,13 @@
     - Fix descriptors of global properties.
     - In the version without global pollution, if `Object#toString` does not support `@@toStringTag`, add to wrapped prototypes own `toString` method with `@@toStringTag` logic, see [#199](https://github.com/zloirock/core-js/issues/199).
   - Update standard features and proposals:
-    - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
+    - `asap` (old stage 0 proposal) replaced by `queueMicrotask` ([a part of HTML spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask))
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
     - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
     - Update `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - rename `global` to `globalThis`
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
+    - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
   - Mark ES2016, ES2017 and ES2018 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
     - `Object.values` and `Object.entries`

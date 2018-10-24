@@ -471,11 +471,11 @@ module.exports = {
         es6: true,
       },
       globals: {
-        asap: true,
         compositeKey: true,
         compositeSymbol: true,
         globalThis: true,
         Observable: true,
+        queueMicrotask: true,
       },
     },
   ],

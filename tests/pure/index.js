@@ -133,7 +133,6 @@ import './es.weak-set';
 QUnit.module('ESNext');
 import './esnext.array.flat-map';
 import './esnext.array.flat';
-import './esnext.asap';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
 import './esnext.global-this';
@@ -213,6 +212,7 @@ import './esnext.weak-set.of';
 QUnit.module('Web');
 import './web.dom-collections.iterator';
 import './web.immediate';
+import './web.queue-microtask';
 import './web.timers';
 
 QUnit.module('Helpers');

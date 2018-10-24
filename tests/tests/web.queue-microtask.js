@@ -1,13 +1,13 @@
-import asap from 'core-js-pure/features/asap';
-
-QUnit.test('asap', assert => {
-  assert.expect(3);
-  assert.isFunction(asap);
-  assert.arity(asap, 1);
+QUnit.test('queueMicrotask', assert => {
+  assert.expect(5);
+  assert.isFunction(queueMicrotask);
+  assert.arity(queueMicrotask, 1);
+  assert.name(queueMicrotask, 'queueMicrotask');
+  assert.looksNative(queueMicrotask);
   const async = assert.async();
   let done = false;
   let after = false;
-  asap(() => {
+  queueMicrotask(() => {
     if (!done) {
       done = true;
       assert.ok(after, 'works');

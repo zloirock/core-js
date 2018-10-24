@@ -196,7 +196,6 @@ module.exports = {
     'esnext.array.flat-map',
     'esnext.array.last-index',
     'esnext.array.last-item',
-    'esnext.asap',
     'esnext.composite-key',
     'esnext.composite-symbol',
     'esnext.global-this',
@@ -278,6 +277,7 @@ module.exports = {
     'web.dom-collections.for-each',
     'web.dom-collections.iterator',
     'web.immediate',
+    'web.queue-microtask',
     'web.timers',
   ],
   /* eslint-disable prefer-template */

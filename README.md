@@ -74,6 +74,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [Web standards](#web-standards)
     - [setTimeout / setInterval](#settimeout--setinterval)
     - [setImmediate](#setimmediate)
+    - [queueMicrotask](#queuemicrotask)
     - [iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
@@ -1971,19 +1972,6 @@ core-js(-pure)/features/math/isubh
 core-js(-pure)/features/math/imulh
 core-js(-pure)/features/math/umulh
 ```
-* `global.asap`, [TC39 discussion](https://github.com/rwaldron/tc39-notes/blob/master/es/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask), module [`esnext.asap`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.asap.js)
-```js
-function asap(fn: Function): void;
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/asap
-core-js(-pure)/features/asap
-```
-[*Examples*](http://goo.gl/tx3SRK):
-```js
-asap(() => console.log('called as microtask'));
-```
 
 #### Pre-stage 0 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -2071,6 +2059,21 @@ clearImmediate(setImmediate(() => {
   console.log('Message will not be displayed');
 }));
 ```
+#### queueMicrotask
+[Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask), module [`web.queue-microtask`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.queue-microtask.js)
+```js
+function queueMicrotask(fn: Function): void;
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/web/queue-microtask
+core-js(-pure)/features/queue-microtask
+```
+[*Examples*](https://goo.gl/nsW8P9):
+```js
+queueMicrotask(() => console.log('called as microtask'));
+```
+
 #### Iterable DOM collections
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
 ```js

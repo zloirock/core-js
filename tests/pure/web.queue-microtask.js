@@ -1,13 +1,13 @@
-QUnit.test('asap', assert => {
-  assert.expect(5);
-  assert.isFunction(asap);
-  assert.arity(asap, 1);
-  assert.name(asap, 'asap');
-  assert.looksNative(asap);
+import queueMicrotask from 'core-js-pure/features/queue-microtask';
+
+QUnit.test('queueMicrotask', assert => {
+  assert.expect(3);
+  assert.isFunction(queueMicrotask);
+  assert.arity(queueMicrotask, 1);
   const async = assert.async();
   let done = false;
   let after = false;
-  asap(() => {
+  queueMicrotask(() => {
     if (!done) {
       done = true;
       assert.ok(after, 'works');

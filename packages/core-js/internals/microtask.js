@@ -4,12 +4,14 @@ var macrotask = require('../internals/task').set;
 var Observer = global.MutationObserver || global.WebKitMutationObserver;
 var process = global.process;
 var Promise = global.Promise;
+var queueMicrotask = global.queueMicrotask;
 var isNode = classof(process) == 'process';
 
-module.exports = function () {
-  var head, last, notify;
+var flush, head, last, notify;
 
-  var flush = function () {
+// modern engines have queueMicrotask method
+if (!queueMicrotask) {
+  flush = function () {
     var parent, fn;
     if (isNode && (parent = process.domain)) parent.exit();
     while (head) {
@@ -58,13 +60,13 @@ module.exports = function () {
       macrotask.call(global, flush);
     };
   }
+}
 
-  return function (fn) {
-    var task = { fn: fn, next: undefined };
-    if (last) last.next = task;
-    if (!head) {
-      head = task;
-      notify();
-    } last = task;
-  };
+module.exports = queueMicrotask || function (fn) {
+  var task = { fn: fn, next: undefined };
+  if (last) last.next = task;
+  if (!head) {
+    head = task;
+    notify();
+  } last = task;
 };
