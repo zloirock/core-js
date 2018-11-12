@@ -10,12 +10,14 @@ var SPECIES = wellKnownSymbol('species');
 module.exports = function (KEY, length, exec, sham) {
   var SYMBOL = wellKnownSymbol(KEY);
 
-  var delegates = !fails(function () {
+  var delegatesToSymbol = !fails(function () {
     // String methods call symbol-named RegEp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
-  }) && !fails(function () {
+  });
+
+  var delegatesToExec = delegatesToSymbol ? !fails(function () {
     // Symbol-named RegExp methods call .exec
     var execCalled = false;
     var re = /a/;
@@ -30,7 +32,7 @@ module.exports = function (KEY, length, exec, sham) {
 
     re[SYMBOL]('');
     return !execCalled;
-  });
+  }) : undefined;
 
   var replaceSupportsNamedGroups = KEY === 'replace' && !fails(function () {
     // #replace needs built-in support for named groups.
@@ -45,11 +47,28 @@ module.exports = function (KEY, length, exec, sham) {
     return ''.replace(re, '$<a>') !== '7';
   });
 
-  if (!delegates || (KEY === 'replace' && !replaceSupportsNamedGroups)) {
-    var methods = exec(requireObjectCoercible, SYMBOL, ''[KEY], /./[SYMBOL], {
-      delegates: delegates,
-      replaceSupportsNamedGroups: replaceSupportsNamedGroups
-    });
+  var splitWorksWithOverwrittenExec = KEY === 'split' && (function () {
+    // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
+    var re = /(?:)/;
+    var nativeExec = re.exec;
+    re.exec = function () { return nativeExec.apply(this, arguments); };
+    var result = 'ab'.split(re);
+    return result.length === 2 && result[0] === 'a' && result[1] === 'b';
+  })();
+
+  if (
+    !delegatesToSymbol ||
+    !delegatesToExec ||
+    (KEY === 'replace' && !replaceSupportsNamedGroups) ||
+    (KEY === 'split' && !splitWorksWithOverwrittenExec)
+  ) {
+    var methods = exec(
+      requireObjectCoercible,
+      SYMBOL,
+      ''[KEY],
+      /./[SYMBOL],
+      delegatesToSymbol
+    );
     var stringMethod = methods[0];
     var regexMethod = methods[1];
 

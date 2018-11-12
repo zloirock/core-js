@@ -21,7 +21,7 @@ var maybeToString = function (it) {
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'replace',
   2,
-  function (defined, REPLACE, nativeReplace, nativeRegExpReplace, reason) {
+  function (defined, REPLACE, nativeReplace, nativeRegExpReplace, delegatesToSymbol) {
     return [
       // `String.prototype.replace` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.replace
@@ -36,7 +36,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
       function (regexp, replaceValue) {
         if (regexp.exec === nativeExec) {
-          if (reason.delegates) {
+          if (delegatesToSymbol) {
             // The native #replaceMethod already delegates to @@replace (this
             // polyfilled function, leasing to infinite recursion).
             // We avoid it by directly calling the native @@replace method.
