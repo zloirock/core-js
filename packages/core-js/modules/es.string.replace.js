@@ -6,7 +6,6 @@ var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec');
-var nativeExec = RegExp.prototype.exec;
 var max = Math.max;
 var min = Math.min;
 var floor = Math.floor;
@@ -21,7 +20,7 @@ var maybeToString = function (it) {
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'replace',
   2,
-  function (defined, REPLACE, nativeReplace, nativeRegExpReplace, delegatesToSymbol) {
+  function (defined, REPLACE, nativeReplace, maybeCallNative) {
     return [
       // `String.prototype.replace` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.replace
@@ -35,15 +34,8 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // `RegExp.prototype[@@replace]` method
       // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
       function (regexp, replaceValue) {
-        if (regexp.exec === nativeExec) {
-          if (delegatesToSymbol) {
-            // The native #replaceMethod already delegates to @@replace (this
-            // polyfilled function, leasing to infinite recursion).
-            // We avoid it by directly calling the native @@replace method.
-            return nativeRegExpReplace.call(regexp, this, replaceValue);
-          }
-          return nativeReplace.call(this, regexp, replaceValue);
-        }
+        var res = maybeCallNative(nativeReplace, regexp, this, replaceValue);
+        if (res.done) return res.value;
 
         var rx = anObject(regexp);
         var S = String(this);

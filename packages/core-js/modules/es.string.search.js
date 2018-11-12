@@ -3,13 +3,12 @@
 var anObject = require('../internals/an-object');
 var sameValue = require('../internals/same-value');
 var regExpExec = require('../internals/regexp-exec');
-var nativeExec = RegExp.prototype.exec;
 
 // @@search logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'search',
   1,
-  function (defined, SEARCH, nativeSearch, nativeRegExpSearch, delegatesToSymbol) {
+  function (defined, SEARCH, nativeSearch, maybeCallNative) {
     return [
       // `String.prototype.search` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.search
@@ -21,15 +20,8 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // `RegExp.prototype[@@search]` method
       // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@search
       function (regexp) {
-        if (regexp.exec === nativeExec) {
-          if (delegatesToSymbol) {
-            // The native #search method already delegates to @@search (this
-            // polyfilled function, leasing to infinite recursion).
-            // We avoid it by directly calling the native @@search method.
-            return nativeRegExpSearch.call(regexp, this);
-          }
-          return nativeSearch.call(this, regexp);
-        }
+        var res = maybeCallNative(nativeSearch, regexp, this);
+        if (res.done) return res.value;
 
         var rx = anObject(regexp);
         var S = String(this);

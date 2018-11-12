@@ -6,7 +6,6 @@ var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var regExpExec = require('../internals/regexp-exec');
-var nativeExec = RegExp.prototype.exec;
 var arrayPush = [].push;
 var min = Math.min;
 var LENGTH = 'length';
@@ -18,7 +17,7 @@ var SUPPORTS_Y = !!(function () { try { return new RegExp('x', 'y'); } catch (e)
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'split',
   2,
-  function (defined, SPLIT, nativeSplit, nativeRegExpSplit, delegatesToSymbol) {
+  function (defined, SPLIT, nativeSplit, maybeCallNative) {
     var internalSplit = nativeSplit;
     if (
       'abbc'.split(/(b)*/)[1] == 'c' ||
@@ -94,18 +93,8 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // NOTE: This cannot be properly polyfilled in engines that don't support
       // the 'y' flag.
       function (regexp, limit) {
-        // We can never use `internalSplit` if exec has been changed, because
-        // internalSplit contains workarounds for things which might have been
-        // purposely changed by the developer.
-        if (regexp.exec === nativeExec) {
-          if (delegatesToSymbol && internalSplit === nativeSplit) {
-            // The native #split method already delegates to @@split (this
-            // polyfilled function, leasing to infinite recursion).
-            // We avoid it by directly calling the native @@split method.
-            return nativeRegExpSplit.call(regexp, this, limit);
-          }
-          return internalSplit.call(this, regexp, limit);
-        }
+        var res = maybeCallNative(internalSplit, regexp, this, limit, internalSplit !== nativeSplit);
+        if (res.done) return res.value;
 
         var rx = anObject(regexp);
         var S = String(this);

@@ -4,13 +4,12 @@ var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec');
-var nativeExec = RegExp.prototype.exec;
 
 // @@match logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'match',
   1,
-  function (defined, MATCH, nativeMatch, nativeRegExpMatch, delegatesToSymbol) {
+  function (defined, MATCH, nativeMatch, maybeCallNative) {
     return [
       // `String.prototype.match` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.match
@@ -22,15 +21,8 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // `RegExp.prototype[@@match]` method
       // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@match
       function (regexp) {
-        if (regexp.exec === nativeExec) {
-          if (delegatesToSymbol) {
-            // The native #match method already delegates to @@match (this
-            // polyfilled function, leasing to infinite recursion).
-            // We avoid it by directly calling the native @@match method.
-            return nativeRegExpMatch.call(regexp, this);
-          }
-          return nativeMatch.call(this, regexp);
-        }
+        var res = maybeCallNative(nativeMatch, regexp, this);
+        if (res.done) return res.value;
 
         var rx = anObject(regexp);
         var S = String(this);

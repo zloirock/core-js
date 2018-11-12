@@ -5,6 +5,7 @@ var fails = require('../internals/fails');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+var nativeExec = RegExp.prototype.exec;
 var SPECIES = wellKnownSymbol('species');
 
 module.exports = function (KEY, length, exec, sham) {
@@ -50,8 +51,8 @@ module.exports = function (KEY, length, exec, sham) {
   var splitWorksWithOverwrittenExec = KEY === 'split' && (function () {
     // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
     var re = /(?:)/;
-    var nativeExec = re.exec;
-    re.exec = function () { return nativeExec.apply(this, arguments); };
+    var originalExec = re.exec;
+    re.exec = function () { return originalExec.apply(this, arguments); };
     var result = 'ab'.split(re);
     return result.length === 2 && result[0] === 'a' && result[1] === 'b';
   })();
@@ -62,12 +63,23 @@ module.exports = function (KEY, length, exec, sham) {
     (KEY === 'replace' && !replaceSupportsNamedGroups) ||
     (KEY === 'split' && !splitWorksWithOverwrittenExec)
   ) {
+    var nativeRegExpMethod = /./[SYMBOL];
     var methods = exec(
       requireObjectCoercible,
       SYMBOL,
       ''[KEY],
-      /./[SYMBOL],
-      delegatesToSymbol
+      function maybeCallNative(nativeMethod, regexp, str, arg2, forceStringMethod) {
+        if (regexp.exec === nativeExec) {
+          if (delegatesToSymbol && !forceStringMethod) {
+            // The native String method already delegates to @@method (this
+            // polyfilled function), leasing to infinite recursion.
+            // We avoid it by directly calling the native @@method method.
+            return { done: true, value: nativeRegExpMethod.call(regexp, str, arg2) };
+          }
+          return { done: true, value: nativeMethod.call(str, regexp, arg2) };
+        }
+        return { done: false };
+      }
     );
     var stringMethod = methods[0];
     var regexMethod = methods[1];
