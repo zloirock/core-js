@@ -103,6 +103,7 @@ import './es.reflect.prevent-extensions';
 import './es.reflect.set-prototype-of';
 import './es.reflect.set';
 import './es.regexp.constructor';
+import './es.regexp.exec';
 import './es.regexp.flags';
 import './es.regexp.to-string';
 import './es.set';
