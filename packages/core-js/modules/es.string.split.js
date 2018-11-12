@@ -5,7 +5,8 @@ var anObject = require('../internals/an-object');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
-var regExpExec = require('../internals/regexp-exec-abstract');
+var callRegExpExec = require('../internals/regexp-exec-abstract');
+var regexpExec = require('../internals/regexp-exec');
 var arrayPush = [].push;
 var min = Math.min;
 var LENGTH = 'length';
@@ -27,7 +28,6 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       '.'.split(/()()/)[LENGTH] > 1 ||
       ''.split(/.?/)[LENGTH]
     ) {
-      var NPCG = /()??/.exec('')[1] === undefined; // nonparticipating capturing group
       // based on es5-shim implementation, need to rework it
       internalSplit = function (separator, limit) {
         var string = String(this);
@@ -45,19 +45,12 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         var splitLimit = limit === undefined ? 4294967295 : limit >>> 0;
         // Make `global` and avoid `lastIndex` issues by working with a copy
         var separatorCopy = new RegExp(separator.source, flags + 'g');
-        var separator2, match, lastIndex, lastLength, i;
-        // Doesn't need flags gy, but they don't hurt
-        if (!NPCG) separator2 = new RegExp('^' + separatorCopy.source + '$(?!\\s)', flags);
-        while (match = separatorCopy.exec(string)) {
+        var match, lastIndex, lastLength;
+        while (match = regexpExec.impl.call(separatorCopy, string)) {
           // `separatorCopy.lastIndex` is not reliable cross-browser
           lastIndex = match.index + match[0][LENGTH];
           if (lastIndex > lastLastIndex) {
             output.push(string.slice(lastLastIndex, match.index));
-            // Fix browsers whose `exec` methods don't consistently return `undefined` for NPCG
-            // eslint-disable-next-line no-loop-func
-            if (!NPCG && match[LENGTH] > 1) match[0].replace(separator2, function () {
-              for (i = 1; i < arguments[LENGTH] - 2; i++) if (arguments[i] === undefined) match[i] = undefined;
-            });
             if (match[LENGTH] > 1 && match.index < string[LENGTH]) arrayPush.apply(output, match.slice(1));
             lastLength = match[0][LENGTH];
             lastLastIndex = lastIndex;
@@ -111,13 +104,13 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
         var lim = limit === undefined ? 0xffffffff : limit >>> 0;
         if (lim === 0) return [];
-        if (S.length === 0) return regExpExec(splitter, S) === null ? [S] : [];
+        if (S.length === 0) return callRegExpExec(splitter, S) === null ? [S] : [];
         var p = 0;
         var q = 0;
         var A = [];
         while (q < S.length) {
           splitter.lastIndex = SUPPORTS_Y ? q : 0;
-          var z = regExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
+          var z = callRegExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
           var e;
           if (
             z === null ||

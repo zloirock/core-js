@@ -4,8 +4,8 @@ var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var regexpExec = require('../internals/regexp-exec');
 
-var nativeExec = RegExp.prototype.exec;
 var SPECIES = wellKnownSymbol('species');
 
 module.exports = function (KEY, length, exec, sham) {
@@ -69,7 +69,7 @@ module.exports = function (KEY, length, exec, sham) {
       SYMBOL,
       ''[KEY],
       function maybeCallNative(nativeMethod, regexp, str, arg2, forceStringMethod) {
-        if (regexp.exec === nativeExec) {
+        if (regexp.exec === regexpExec.impl) {
           if (delegatesToSymbol && !forceStringMethod) {
             // The native String method already delegates to @@method (this
             // polyfilled function), leasing to infinite recursion.

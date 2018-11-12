@@ -1,5 +1,5 @@
 var classof = require('./classof-raw');
-var builtinExec = RegExp.prototype.exec;
+var regexpExec = require('./regexp-exec');
 
 // `RegExpExec` abstract operation
 // https://tc39.github.io/ecma262/#sec-regexpexec
@@ -17,6 +17,6 @@ module.exports = function (R, S) {
     throw new TypeError('RegExp#exec called on incompatible receiver');
   }
 
-  return builtinExec.call(R, S);
+  return regexpExec.impl.call(R, S);
 };
 

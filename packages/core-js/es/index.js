@@ -80,6 +80,7 @@ require('../modules/es.string.strike');
 require('../modules/es.string.sub');
 require('../modules/es.string.sup');
 require('../modules/es.regexp.constructor');
+require('../modules/es.regexp.exec');
 require('../modules/es.regexp.flags');
 require('../modules/es.regexp.to-string');
 require('../modules/es.parse-int');
