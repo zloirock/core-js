@@ -17,5 +17,5 @@ if (NOT_GENERIC || INCORRECT_NAME) {
     var R = anObject(this);
     return '/'.concat(R.source, '/',
       'flags' in R ? R.flags : !DESCRIPTORS && R instanceof RegExp ? flags.call(R) : undefined);
-  }, true);
+  }, { unsafe: true });
 }

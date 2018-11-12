@@ -87,12 +87,21 @@ QUnit.assert.name = function (fn, name, message) {
   });
 };
 
+QUnit.assert.enumerable = function (O, key, message) {
+  if (DESCRIPTORS) this.pushResult({
+    result: propertyIsEnumerable.call(O, key),
+    actual: false,
+    expected: true,
+    message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
+  });
+};
+
 QUnit.assert.nonEnumerable = function (O, key, message) {
   if (DESCRIPTORS) this.pushResult({
     result: !propertyIsEnumerable.call(O, key),
     actual: false,
     expected: true,
-    message: message || `${ typeof key === 'symbol' ? 'method' : key } is non-enumerable`,
+    message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
   });
 };
 

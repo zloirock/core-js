@@ -347,6 +347,10 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/queue-microtask') === 'function');
   ok(typeof load('features/composite-key')({}, 1, {}) === 'object');
   ok(typeof load('features/composite-symbol')({}, 1, {}) === 'symbol');
+  ok(typeof load('features/url') === 'function');
+  load('features/url/to-json');
+  ok(typeof load('features/url-search-params') === 'function');
+  load('features/url-search-params/sort');
   ok(load('features/is-iterable')([]));
   ok(typeof load('features/get-iterator-method')([]) === 'function');
   ok('next' in load('features/get-iterator')([]));
@@ -591,6 +595,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('setImmediate' in load('web/immediate'));
   ok(typeof load('web/queue-microtask') === 'function');
   load('web/dom-collections');
+  ok(typeof load('web/url') === 'function');
+  ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
   load('proposals/array-flat-and-flat-map');
   load('proposals/array-last');
@@ -615,6 +621,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/string-replace-all');
   load('proposals/string-trim-start-end');
   load('proposals/using-statement');
+  load('proposals/url');
   load('proposals');
   ok(load('stage/4'));
   ok(load('stage/3'));

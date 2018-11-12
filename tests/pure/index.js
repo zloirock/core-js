@@ -214,6 +214,7 @@ import './web.dom-collections.iterator';
 import './web.immediate';
 import './web.queue-microtask';
 import './web.timers';
+import './web.url-search-params';
 
 QUnit.module('Helpers');
 import './helpers.get-iterator-method';

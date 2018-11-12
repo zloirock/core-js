@@ -73,9 +73,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [stage 0 proposals](#stage-0-proposals)
     - [pre-stage 0 proposals](#pre-stage-0-proposals)
   - [Web standards](#web-standards)
-    - [setTimeout / setInterval](#settimeout--setinterval)
-    - [setImmediate](#setimmediate)
-    - [queueMicrotask](#queuemicrotask)
+    - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
+    - [`setImmediate`](#setimmediate)
+    - [`queueMicrotask`](#queuemicrotask)
+    - [`URL` and `URLSearchParams`](#url-and-urlsearchparams)
     - [iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
@@ -561,7 +562,7 @@ class RegExp {
   @@replace(string: string, replaceValue: Function | string): string;
   @@search(string: string): number;
   @@split(string: string, limit: number): Array<string>;
-  get flags: string; // IE9+
+  readonly attribute flags: string; // IE9+
 }
 ```
 [*CommonJS entry points:*](#commonjs)
@@ -916,7 +917,7 @@ Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/c
 ```js
 class Symbol {
   constructor(description?): symbol;
-  get description: string | void;
+  readonly attribute description: string | void;
   static asyncIterator: @@asyncIterator;
   static hasInstance: @@hasInstance;
   static isConcatSpreadable: @@isConcatSpreadable;
@@ -1058,7 +1059,7 @@ class Map {
   keys(): Iterator<key>;
   entries(): Iterator<[key, value]>;
   @@iterator(): Iterator<[key, value]>;
-  get size: number;
+  readonly attribute size: number;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
@@ -1112,7 +1113,7 @@ class Set {
   keys(): Iterator<value>;
   entries(): Iterator<[value, value]>;
   @@iterator(): Iterator<value>;
-  get size: number;
+  readonly attribute size: number;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
@@ -1228,7 +1229,7 @@ Modules [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob
 class ArrayBuffer {
   constructor(length: any): ArrayBuffer;
   slice(start: any, end: any): ArrayBuffer;
-  get byteLength: number;
+  readonly attribute byteLength: number;
   static isView(arg: any): boolean;
 }
 
@@ -1250,9 +1251,9 @@ class DataView {
   setUint32(offset: any, value: any, littleEndian?: boolean = false): void;
   setFloat32(offset: any, value: any, littleEndian?: boolean = false): void;
   setFloat64(offset: any, value: any, littleEndian?: boolean = false): void;
-  get buffer: ArrayBuffer;
-  get byteLength: number;
-  get byteOffset: number;
+  readonly attribute buffer: ArrayBuffer;
+  readonly attribute byteLength: number;
+  readonly attribute byteOffset: number;
 }
 
 class [
@@ -1295,10 +1296,10 @@ class [
   keys(): Iterator<index>;
   entries(): Iterator<[index, value]>;
   @@iterator(): Iterator<value>;
-  get buffer: ArrayBuffer;
-  get byteLength: number;
-  get byteOffset: number;
-  get length: number;
+  readonly attribute buffer: ArrayBuffer;
+  readonly attribute byteLength: number;
+  readonly attribute byteOffset: number;
+  readonly attribute length: number;
   BYTES_PER_ELEMENT: number;
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): %TypedArray%;
   static of(...args: Array<mixed>): %TypedArray%;
@@ -1590,7 +1591,7 @@ core-js(-pure)/features/set/union
 [*Examples*](https://goo.gl/YjaxTN):
 ```js
 new Set([1, 2, 3]).union([3, 4, 5]);               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersection([3, 4, 5]);           // => Set {3}
+new Set([1, 2, 3]).intersection([3, 4, 5]);        // => Set {3}
 new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
 new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 ```
@@ -1603,9 +1604,8 @@ core-js(-pure)/stage/1
 * Getting last item from `Array` [proposal](https://github.com/keithamus/proposal-array-last) - modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-index.js)
 ```js
 class Array {
-  get lastItem: value;
-  set lastItem(value);
-  get lastIndex: uint;
+  attribute lastItem: any;
+  readonly attribute lastIndex: uint;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
@@ -1815,7 +1815,7 @@ class Observable {
   @@observable(): this;
   static of(...items: Aray<mixed>): Observable;
   static from(x: Observable | Iterable): Observable;
-  static get @@species: this;
+  static readonly attribute @@species: this;
 }
 
 class Symbol {
@@ -1956,6 +1956,7 @@ core-js(-pure)/features/symbol/dispose
 ```js
 core-js(-pure)/stage/0
 ```
+* `URL` [proposal](https://github.com/jasnell/proposal-url), see more info [in web standards namespace](#url-and-urlsearchparams)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.at.js)
 ```js
 class String {
@@ -2037,7 +2038,7 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```js
 core-js(-pure)/web
 ```
-#### setTimeout / setInterval
+#### `setTimeout` and `setInterval`
 Module [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
 ```js
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
@@ -2055,7 +2056,7 @@ setTimeout(log.bind(null, 42), 1000);
 // After:
 setTimeout(log, 1000, 42);
 ```
-#### setImmediate
+#### `setImmediate`
 Module [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
@@ -2077,7 +2078,8 @@ clearImmediate(setImmediate(() => {
   console.log('Message will not be displayed');
 }));
 ```
-#### queueMicrotask
+
+#### `queueMicrotask`
 [Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask), module [`web.queue-microtask`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.queue-microtask.js)
 ```js
 function queueMicrotask(fn: Function): void;
@@ -2090,6 +2092,61 @@ core-js(-pure)/features/queue-microtask
 [*Examples*](https://goo.gl/nsW8P9):
 ```js
 queueMicrotask(() => console.log('called as microtask'));
+```
+
+#### `URL` and `URLSearchParams`
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.sort.js).
+```js
+class URL {
+  constructor(url: string, base?: string);
+  attribute href: string;
+  readonly attribute origin: string;
+  attribute protocol: string;
+  attribute username: string;
+  attribute password: string;
+  attribute host: string;
+  attribute hostname: string;
+  attribute port: string;
+  attribute pathname: string;
+  attribute search: string;
+  readonly attribute searchParams: URLSearchParams;
+  attribute hash: string;
+  toJSON(): string;
+  toString(): string;
+}
+
+class URLSearchParams {
+  constructor(params?: string | Iterable<[key, value]> | Object);
+  append(name: string, value: string): void;
+  delete(name: string): void;
+  get(name: string): string | void;
+  getAll(name: string): Array<string>;
+  has(name: string): boolean;
+  set(name: string, value: string): void;
+  sort(): void;
+  toString(): string;
+  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  entries(): Iterator<[key, value]>;
+  keys(): Iterator<key>;
+  values(): Iterator<value>;
+  @@iterator(): Iterator<[key, value]>;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/url
+core-js(-pure)/web/url
+core-js(-pure)/web/url-search-params
+core-js(-pure)/features/url
+core-js/features/url/to-json
+core-js(-pure)/features/url-search-params
+core-js/features/url-search-params/sort
+```
+[*Examples*]():
+```js
+const url = new URL('http://zloirock.ru/');
+
+const params = new URLSearchParams('?a=1&b=2&a=3');
 ```
 
 #### Iterable DOM collections
@@ -2130,8 +2187,8 @@ class [
 }
 
 class [DOMTokenList, NodeList] {
-  entries(): Iterator<[key, value]>;
   forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;
   @@iterator(): Iterator<value>;
