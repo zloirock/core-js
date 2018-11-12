@@ -2,7 +2,7 @@
 
 var anObject = require('../internals/an-object');
 var sameValue = require('../internals/same-value');
-var regExpExec = require('../internals/regexp-exec');
+var regExpExec = require('../internals/regexp-exec-abstract');
 
 // @@search logic
 require('../internals/fix-regexp-well-known-symbol-logic')(

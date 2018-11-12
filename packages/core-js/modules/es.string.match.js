@@ -3,7 +3,7 @@
 var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var advanceStringIndex = require('../internals/advance-string-index');
-var regExpExec = require('../internals/regexp-exec');
+var regExpExec = require('../internals/regexp-exec-abstract');
 
 // @@match logic
 require('../internals/fix-regexp-well-known-symbol-logic')(

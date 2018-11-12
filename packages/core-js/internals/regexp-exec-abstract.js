@@ -1,4 +1,4 @@
-var classof = require('../internals/classof-raw');
+var classof = require('./classof-raw');
 var builtinExec = RegExp.prototype.exec;
 
 // `RegExpExec` abstract operation
