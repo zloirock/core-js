@@ -47,8 +47,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         var separatorCopy = new RegExp(separator.source, flags + 'g');
         var match, lastIndex, lastLength;
         while (match = regexpExec.impl.call(separatorCopy, string)) {
-          // `separatorCopy.lastIndex` is not reliable cross-browser
-          lastIndex = match.index + match[0][LENGTH];
+          lastIndex = separatorCopy.lastIndex;
           if (lastIndex > lastLastIndex) {
             output.push(string.slice(lastLastIndex, match.index));
             if (match[LENGTH] > 1 && match.index < string[LENGTH]) arrayPush.apply(output, match.slice(1));

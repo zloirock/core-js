@@ -11,17 +11,20 @@ var nativeReplace = String.prototype.replace;
 var patchedExec = nativeExec;
 
 var LAST_INDEX = 'lastIndex';
+var LENGTH = 'length';
 
-var UPDATES_LAST_INDEX_NON_GLOBAL = (function () {
-  var re = /a/;
-  nativeExec.call(re, 'a');
-  return re[LAST_INDEX] !== 0;
+var UPDATES_LAST_INDEX_WRONG = (function () {
+  var re1 = /a/,
+      re2 = /b*/g;
+  nativeExec.call(re1, 'a');
+  nativeExec.call(re2, 'a');
+  return re1[LAST_INDEX] !== 0 || re2[LAST_INDEX] !== 0;
 })();
 
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var patch = UPDATES_LAST_INDEX_NON_GLOBAL || NPCG_INCLUDED;
+var patch = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED;
 
 if (patch) {
   patchedExec = function exec(str) {
@@ -31,17 +34,19 @@ if (patch) {
     if (NPCG_INCLUDED) {
       reCopy = new RegExp('^' + re.source + '$(?!\\s)', regexpFlags.call(re));
     }
-    if (UPDATES_LAST_INDEX_NON_GLOBAL) lastIndex = this[LAST_INDEX];
+    if (UPDATES_LAST_INDEX_WRONG) lastIndex = re[LAST_INDEX];
 
-    match = nativeExec.call(this, str);
+    match = nativeExec.call(re, str);
 
-    if (UPDATES_LAST_INDEX_NON_GLOBAL && !this.global) this[LAST_INDEX] = lastIndex;
-    if (NPCG_INCLUDED && match && match.length > 1) {
+    if (UPDATES_LAST_INDEX_WRONG && match) {
+      re[LAST_INDEX] = re.global ? match.index + match[0][LENGTH] : lastIndex;
+    }
+    if (NPCG_INCLUDED && match && match[LENGTH] > 1) {
       // Fix browsers whose `exec` methods don't consistently return `undefined`
       // for NPCG, like IE8. NOTE: This doesn' work for /(.?)?/
       // eslint-disable-next-line no-loop-func
       nativeReplace.call(match[0], reCopy, function () {
-        for (i = 1; i < arguments.length - 2; i++) {
+        for (i = 1; i < arguments[LENGTH] - 2; i++) {
           if (arguments[i] === undefined) match[i] = undefined;
         }
       });

@@ -8,6 +8,14 @@ QUnit.test('RegExp#exec lastIndex updating', assert => {
   assert.strictEqual(re.lastIndex, 0, '.lastIndex starts at 0 for global regexps');
   re.exec('abc');
   assert.strictEqual(re.lastIndex, 2, '.lastIndex is updated for global regexps');
+
+  re = /b*/;
+  re.exec('a');
+  assert.strictEqual(re.lastIndex, 0, '.lastIndex isn\'t updated for non-global regexps if the match is empty');
+
+  re = /b*/g;
+  re.exec('a');
+  assert.strictEqual(re.lastIndex, 0, '.lastIndex isn\'t updated for global regexps if the match is empty');
 });
 
 QUnit.test('RegExp#exec capturing groups', assert => {
