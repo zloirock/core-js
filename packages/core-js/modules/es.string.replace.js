@@ -96,7 +96,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       }
       return nativeReplace.call(replacement, symbols, function (match, ch) {
         var capture;
-        switch (ch[0]) {
+        switch (ch.charAt(0)) {
           case '$': return '$';
           case '&': return matched;
           case '`': return str.slice(0, position);
