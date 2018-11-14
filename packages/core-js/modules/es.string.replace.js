@@ -110,7 +110,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
             if (n > m) {
               var f = floor(n / 10);
               if (f === 0) return ch;
-              if (f <= m) return captures[f - 1] === undefined ? ch[1] : captures[f - 1] + ch[1];
+              if (f <= m) return captures[f - 1] === undefined ? ch.charAt(1) : captures[f - 1] + ch.charAt(1);
               return ch;
             }
             capture = captures[n - 1];
