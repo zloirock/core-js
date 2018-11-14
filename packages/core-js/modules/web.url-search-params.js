@@ -63,6 +63,11 @@ var parseSearchParams = function (result, search) {
   } return result;
 };
 
+var updateSearchParams = function (string) {
+  this.entries.length = 0;
+  parseSearchParams(this.entries, string);
+};
+
 var validateArgumentsLength = function (passed, required) {
   if (passed < required) throw new TypeError('Not enough arguments!');
 };
@@ -85,8 +90,8 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
 
 // `URLSearchParams` constructor
 // https://url.spec.whatwg.org/#interface-urlsearchparams
-var URLSearchParams = function URLSearchParams(/* init */) {
-  anInstance(this, URLSearchParams, URL_SEARCH_PARAMS);
+var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
+  anInstance(this, URLSearchParamsConstructor, URL_SEARCH_PARAMS);
   var init = arguments.length > 0 ? arguments[0] : undefined;
   var that = this;
   var entries = [];
@@ -96,10 +101,7 @@ var URLSearchParams = function URLSearchParams(/* init */) {
     type: URL_SEARCH_PARAMS,
     entries: entries,
     updateURL: null,
-    updateSearchParams: function (string) {
-      entries.length = 0;
-      parseSearchParams(entries, string);
-    }
+    updateSearchParams: updateSearchParams
   });
 
   if (init !== undefined) {
@@ -121,7 +123,7 @@ var URLSearchParams = function URLSearchParams(/* init */) {
   }
 };
 
-var URLSearchParamsPrototype = URLSearchParams.prototype;
+var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
 
 redefineAll(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.appent` method
@@ -261,13 +263,13 @@ redefine(URLSearchParamsPrototype, 'toString', function toString() {
   } return result.join('&');
 }, { enumerable: true });
 
-require('../internals/set-to-string-tag')(URLSearchParams, URL_SEARCH_PARAMS);
+require('../internals/set-to-string-tag')(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
 require('../internals/export')({ global: true, forced: !USE_NATIVE_URL }, {
-  URLSearchParams: URLSearchParams
+  URLSearchParams: URLSearchParamsConstructor
 });
 
 module.exports = {
-  URLSearchParams: URLSearchParams,
+  URLSearchParams: URLSearchParamsConstructor,
   getState: getInternalParamsState
 };

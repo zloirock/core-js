@@ -15,8 +15,6 @@ var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
 
-var trim = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
-
 var relative = create(null);
 relative.ftp = 21;
 relative.file = 0;
@@ -64,6 +62,8 @@ var percentEscapeQuery = function (char) {
 
 var ALPHA = /[a-zA-Z]/;
 var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
+var DIGIT = /[0-9]/;
+var TRIM = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
 var EOF = '';
 
 // States:
@@ -176,7 +176,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
 
       case RELATIVE:
         urlState.isRelative = true;
-        if (!baseState) baseState = getInternalURLState(new URL());
+        if (!baseState) baseState = getInternalURLState(new URLConstructor());
         if ('file' != urlState.scheme) urlState.scheme = baseState.scheme;
         if (EOF == char) {
           urlState.host = baseState.host;
@@ -338,7 +338,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
         break;
 
       case PORT:
-        if (/[0-9]/.test(char)) {
+        if (DIGIT.test(char)) {
           buffer += char;
         } else if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char || stateOverride) {
           if ('' != buffer) {
@@ -431,15 +431,15 @@ var clear = function (state) {
 // https://url.spec.whatwg.org/#url-class
 // Does not process domain names or IP addresses.
 // Does not handle encoding for the query parameter.
-var URL = function URL(url /* , base */) {
-  var that = anInstance(this, URL, 'URL');
+var URLConstructor = function URL(url /* , base */) {
+  var that = anInstance(this, URLConstructor, 'URL');
   var base = arguments.length > 1 ? arguments[1] : undefined;
   var urlString = String(url);
   var state = setInternalState(that, { type: 'URL' });
-  if (base !== undefined && !(base instanceof URL)) base = new URL(String(base));
+  if (base !== undefined && !(base instanceof URLConstructor)) base = new URLConstructor(String(base));
   state.url = urlString;
   clear(state);
-  parse(state, urlString.replace(trim, ''), null, base && getInternalURLState(base));
+  parse(state, urlString.replace(TRIM, ''), null, base && getInternalURLState(base));
   var searchParams = state.searchParams = new URLSearchParams(state.query);
   getInternalSearchParamsState(searchParams).updateURL = function () {
     var query = String(searchParams);
@@ -461,7 +461,7 @@ var URL = function URL(url /* , base */) {
   }
 };
 
-var URLPrototype = URL.prototype;
+var URLPrototype = URLConstructor.prototype;
 
 var getHref = function () {
   var that = this;
@@ -667,19 +667,19 @@ if (NativeURL) {
   // `URL.createObjectURL` method
   // https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
   // eslint-disable-next-line no-unused-vars
-  if (nativeCreateObjectURL) redefine(URL, 'createObjectURL', function createObjectURL(blob) {
+  if (nativeCreateObjectURL) redefine(URLConstructor, 'createObjectURL', function createObjectURL(blob) {
     return nativeCreateObjectURL.apply(NativeURL, arguments);
   });
   // `URL.revokeObjectURL` method
   // https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL
   // eslint-disable-next-line no-unused-vars
-  if (nativeRevokeObjectURL) redefine(URL, 'revokeObjectURL', function revokeObjectURL(url) {
+  if (nativeRevokeObjectURL) redefine(URLConstructor, 'revokeObjectURL', function revokeObjectURL(url) {
     return nativeRevokeObjectURL.apply(NativeURL, arguments);
   });
 }
 
-require('../internals/set-to-string-tag')(URL, 'URL');
+require('../internals/set-to-string-tag')(URLConstructor, 'URL');
 
 require('../internals/export')({ global: true, forced: !USE_NATIVE_URL }, {
-  URL: URL
+  URL: URLConstructor
 });
