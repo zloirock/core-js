@@ -4,6 +4,9 @@ const fs = require('fs');
 const mkdirp = require('mkdirp');
 const path = require('path');
 const config = require('./packages/core-js-builder/config');
+
+process.env.CHROME_BIN = require('puppeteer').executablePath();
+
 module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
@@ -117,7 +120,13 @@ module.exports = grunt => {
       options: {
         frameworks: ['qunit'],
         basePath: '.',
-        browsers: ['PhantomJS'],
+        browsers: ['HeadlessChrome', 'PhantomJS'],
+        customLaunchers: {
+          HeadlessChrome: {
+            base: 'ChromeHeadless',
+            flags: ['--no-sandbox', '--disable-setuid-sandbox'],
+          },
+        },
         singleRun: true,
       },
       tests: {
