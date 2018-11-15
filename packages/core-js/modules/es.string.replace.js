@@ -67,7 +67,13 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
 
           var matched = String(result[0]);
           var position = max(min(toInteger(result.index), S.length), 0);
-          var captures = result.slice(1).map(maybeToString);
+          var captures = [];
+          // NOTE: This is equivalent to
+          //   captures = result.slice(1).map(maybeToString)
+          // but for some reason `nativeSlice.call(result, 1, result.length)` (called in
+          // the slice polyfill when slicing native arrays) "doesn't work" in safari 9 and
+          // causes a crash (https://pastebin.com/N21QzeQA) when trying to debug it.
+          for (var j = 1; j < result.length; j++) captures.push(maybeToString(result[j]));
           var namedCaptures = result.groups;
           if (functionalReplace) {
             var replacerArgs = [matched].concat(captures, position, S);
