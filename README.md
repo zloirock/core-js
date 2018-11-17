@@ -48,6 +48,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [`@babel/polyfill`](#babelpolyfill)
     - [`@babel/runtime`](#babelruntime)
     - [`@babel/preset-env`](#babelpreset-env)
+  - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
 - [Supported engines](#supported-engines)
 - [Features](#features)
@@ -186,6 +187,30 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 In this case, feature detection is not perfect. Also, import of polyfills not at the top of your entry point can cause problems.
+
+### Configurable level of aggressiveness
+
+By default, `core-js` set polyfills only when they required. That means that `core-js` check is a feature available and works it correctly or not and if it has no problems, `core-js` use native implementation.
+
+But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
+
+Sometimes we could have inverse problem - knowingly broken environment with problems not covered by `core-js` feature detection.
+
+For those cases, we could redefine this behaviour for certain polyfills:
+
+```js
+import configurator from 'core-js/configurator';
+
+configurator({
+  useNative: ['Promise'],                                 // polyfills will be used only if it's completely unavailable
+  usePolyfill: ['Array.from', 'String.prototype.padEnd'], // polyfills will be used anyway
+  useFeatureDetection: ['Map', 'Set'],                    // default behaviour
+});
+
+import 'core-js';
+```
+
+However, if you change this default behavior, one can't be sure that even `core-js` internals will work correctly.
 
 ### Custom build
 

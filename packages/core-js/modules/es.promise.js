@@ -19,6 +19,7 @@ var perform = require('../internals/perform');
 var userAgent = require('../internals/user-agent');
 var SPECIES = require('../internals/well-known-symbol')('species');
 var InternalStateModule = require('../internals/internal-state');
+var forcedCheck = require('../internals/forced-check');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
@@ -41,25 +42,23 @@ var HANDLED = 1;
 var UNHANDLED = 2;
 var Internal, OwnPromiseCapability, PromiseWrapper;
 
-var USE_NATIVE = !!function () {
-  try {
-    // correct subclassing with @@species support
-    var promise = PromiseConstructor.resolve(1);
-    var empty = function () { /* empty */ };
-    var FakePromise = (promise.constructor = {})[SPECIES] = function (exec) {
-      exec(empty, empty);
-    };
-    // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-    return (IS_NODE || typeof PromiseRejectionEvent == 'function')
-      && (!IS_PURE || promise['finally'])
-      && promise.then(empty) instanceof FakePromise
-      // v8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
-      // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
-      // we can't detect it synchronously, so just check versions
-      && v8.indexOf('6.6') !== 0
-      && userAgent.indexOf('Chrome/66') === -1;
-  } catch (e) { /* empty */ }
-}();
+var FORCED = forcedCheck(PROMISE, function () {
+  // correct subclassing with @@species support
+  var promise = PromiseConstructor.resolve(1);
+  var empty = function () { /* empty */ };
+  var FakePromise = (promise.constructor = {})[SPECIES] = function (exec) {
+    exec(empty, empty);
+  };
+  // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
+  return !((IS_NODE || typeof PromiseRejectionEvent == 'function')
+    && (!IS_PURE || promise['finally'])
+    && promise.then(empty) instanceof FakePromise
+    // v8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
+    // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
+    // we can't detect it synchronously, so just check versions
+    && v8.indexOf('6.6') !== 0
+    && userAgent.indexOf('Chrome/66') === -1);
+});
 
 // helpers
 var isThenable = function (it) {
@@ -202,7 +201,7 @@ var internalResolve = function (promise, state, value, unwrap) {
 };
 
 // constructor polyfill
-if (!USE_NATIVE) {
+if (FORCED) {
   // 25.4.3.1 Promise(executor)
   PromiseConstructor = function Promise(executor) {
     anInstance(this, PromiseConstructor, PROMISE);
@@ -262,7 +261,7 @@ if (!USE_NATIVE) {
   };
 }
 
-$export({ global: true, wrap: true, forced: !USE_NATIVE }, { Promise: PromiseConstructor });
+$export({ global: true, wrap: true, forced: FORCED }, { Promise: PromiseConstructor });
 
 require('../internals/set-to-string-tag')(PromiseConstructor, PROMISE, false, true);
 require('../internals/set-species')(PROMISE);
@@ -270,7 +269,7 @@ require('../internals/set-species')(PROMISE);
 PromiseWrapper = require('../internals/path')[PROMISE];
 
 // statics
-$export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
+$export({ target: PROMISE, stat: true, forced: FORCED }, {
   // `Promise.reject` method
   // https://tc39.github.io/ecma262/#sec-promise.reject
   reject: function reject(r) {
@@ -280,7 +279,7 @@ $export({ target: PROMISE, stat: true, forced: !USE_NATIVE }, {
   }
 });
 
-$export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
+$export({ target: PROMISE, stat: true, forced: IS_PURE || FORCED }, {
   // `Promise.resolve` method
   // https://tc39.github.io/ecma262/#sec-promise.resolve
   resolve: function resolve(x) {
@@ -288,9 +287,9 @@ $export({ target: PROMISE, stat: true, forced: IS_PURE || !USE_NATIVE }, {
   }
 });
 
-$export({ target: PROMISE, stat: true, forced: !(USE_NATIVE && checkCorrectnessOfIteration(function (iterable) {
+$export({ target: PROMISE, stat: true, forced: FORCED || !checkCorrectnessOfIteration(function (iterable) {
   PromiseConstructor.all(iterable)['catch'](function () { /* empty */ });
-})) }, {
+}) }, {
   // `Promise.all` method
   // https://tc39.github.io/ecma262/#sec-promise.all
   all: function all(iterable) {

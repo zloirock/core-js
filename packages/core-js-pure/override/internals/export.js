@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var forcedCheck = require('../internals/forced-check');
 var path = require('../internals/path');
 var bind = require('../internals/bind-context');
 var hide = require('../internals/hide');
@@ -42,11 +43,12 @@ module.exports = function (options, source) {
   var target = GLOBAL ? path : path[TARGET] || (path[TARGET] = {});
   var targetPrototype = target.prototype;
 
-  var USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, targetProperty, resultProperty;
+  var USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, targetProperty, resultProperty, forced;
 
   for (key in source) {
+    forced = forcedCheck(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contains in native
-    USE_NATIVE = !options.forced && nativeSource && has(nativeSource, key);
+    USE_NATIVE = !forced && nativeSource && has(nativeSource, key);
 
     targetProperty = target[key];
 

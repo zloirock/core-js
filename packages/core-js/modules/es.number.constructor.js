@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var forcedCheck = require('../internals/forced-check');
 var has = require('../internals/has');
 var classof = require('../internals/classof-raw');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -46,7 +47,7 @@ var toNumber = function (argument) {
 
 // `Number` constructor
 // https://tc39.github.io/ecma262/#sec-number-constructor
-if (!NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1')) {
+if (forcedCheck(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1'))) {
   var NumberWrapper = function Number(value) {
     var it = arguments.length < 1 ? 0 : value;
     var that = this;
