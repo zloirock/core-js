@@ -95,6 +95,7 @@ module.exports = {
     'es.string.sub',
     'es.string.sup',
     'es.regexp.constructor',
+    'es.regexp.exec',
     'es.regexp.flags',
     'es.regexp.to-string',
     'es.parse-int',
