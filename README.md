@@ -530,6 +530,7 @@ class String {
 
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp; // ES2015+ fix - can alter flags (IE9+)
+  exec(): Array<string | undefined> | null; // IE8- fixes
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
   @@replace(string: string, replaceValue: Function | string): string;

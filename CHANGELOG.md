@@ -52,7 +52,7 @@
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
     - Add support of `@@isConcatSpreadable` to `Array#concat`.
     - Add support of `@@species` to `Array#{concat, filter, map, slice, splice}`.
-    - Add direct `.exec` calling to `RegExp#{@@replace, @@split, @@match, @@search}`, [#411](https://github.com/zloirock/core-js/issues/411).
+    - Add direct `.exec` calling to `RegExp#{@@replace, @@split, @@match, @@search}`. Also, added fixes for `RegExp#exec` method. [#411](https://github.com/zloirock/core-js/issues/411), [#434](https://github.com/zloirock/core-js/issues/434), [#453](https://github.com/zloirock/core-js/issues/453).
     - Correct iterators prototypes chain, related [#261](https://github.com/zloirock/core-js/issues/261).
     - Correct Typed Arrays prototypes chain, related [#378](https://github.com/zloirock/core-js/issues/378).
     - Make the internal state of polyfilled features completely unobservable, [#146](https://github.com/zloirock/core-js/issues/146).

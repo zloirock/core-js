@@ -5,7 +5,7 @@ var regexpExec = require('../internals/regexp-exec');
 require('../internals/export')({
   target: 'RegExp',
   proto: true,
-  forced: regexpExec.patched
+  forced: regexpExec !== /./.exec
 }, {
-  exec: regexpExec.impl
+  exec: regexpExec
 });

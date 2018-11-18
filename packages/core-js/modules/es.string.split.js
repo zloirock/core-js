@@ -46,7 +46,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         // Make `global` and avoid `lastIndex` issues by working with a copy
         var separatorCopy = new RegExp(separator.source, flags + 'g');
         var match, lastIndex, lastLength;
-        while (match = regexpExec.impl.call(separatorCopy, string)) {
+        while (match = regexpExec.call(separatorCopy, string)) {
           lastIndex = separatorCopy.lastIndex;
           if (lastIndex > lastLastIndex) {
             output.push(string.slice(lastLastIndex, match.index));

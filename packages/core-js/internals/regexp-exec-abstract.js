@@ -17,6 +17,6 @@ module.exports = function (R, S) {
     throw new TypeError('RegExp#exec called on incompatible receiver');
   }
 
-  return regexpExec.impl.call(R, S);
+  return regexpExec.call(R, S);
 };
 
