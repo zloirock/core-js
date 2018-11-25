@@ -1,10 +1,14 @@
+var DESCRIPTORS = require('../internals/descriptors');
+var MATCH = require('../internals/well-known-symbol')('match');
 var global = require('../internals/global');
+var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
 var redefine = require('../internals/redefine');
+var fails = require('../internals/fails');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 var re1 = /a/g;
@@ -15,11 +19,11 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 
 // `RegExp` constructor
 // https://tc39.github.io/ecma262/#sec-regexp-constructor
-if (require('../internals/descriptors') && (!CORRECT_NEW || require('../internals/fails')(function () {
-  re2[require('../internals/well-known-symbol')('match')] = false;
+if (isForced('RegExp', DESCRIPTORS && (!CORRECT_NEW || fails(function () {
+  re2[MATCH] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
-}))) {
+})))) {
   var RegExpWrapper = function RegExp(pattern, flags) {
     var thisIsRegExp = this instanceof RegExpWrapper;
     var patternIsRegExp = isRegExp(pattern);
