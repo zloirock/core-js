@@ -135,13 +135,13 @@ module.exports = grunt => {
           'packages/core-js-bundle/index.js',
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/tests.js',
-        ].map(it => ({ src: it })),
+        ].map(src => ({ src })),
       },
       pure: {
         files: [
           'tests/bundles/qunit-helpers.js',
           'tests/bundles/pure.js',
-        ].map(it => ({ src: it })),
+        ].map(src => ({ src })),
       },
     },
     webpack: require('./.webpack.config.js'),
