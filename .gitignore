@@ -18,6 +18,7 @@ node_modules/
 /packages/core-js-pure/proposals/
 /packages/core-js-pure/stage/
 /packages/core-js-pure/web/
+/packages/core-js-pure/configurator.js
 /packages/core-js-pure/index.js
 /packages/core-js-pure/LICENSE
 /tests/bundles/
