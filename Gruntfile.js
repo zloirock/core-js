@@ -87,6 +87,7 @@ module.exports = grunt => {
               'stage/**',
               'web/**',
               'index.js',
+              'configurator.js',
             ],
             dest: './packages/core-js-pure/',
           }, {

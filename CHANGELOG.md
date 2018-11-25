@@ -117,6 +117,7 @@
     - **~340kb for `core-js-pure` package**
   - Finally remove `bower.json`
 - CommonJS API, namespaces:
+  - Add availability [configuration of aggressiveness](https://github.com/zloirock/core-js/blob/master/README.md#configurable-level-of-aggressiveness).
   - Move `core-js/library` to separate `core-js-pure` package.
   - Because of removing all non-standard features, we no longer need `core-js/shim` entry point, replace it just with `core-js`.
   - Move all features from ES5, ES2015, ES2016, ES2017 and ES2018 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.

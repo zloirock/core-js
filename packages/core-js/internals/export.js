@@ -3,7 +3,7 @@ var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
 var setGlobal = require('../internals/set-global');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var forcedCheck = require('../internals/forced-check');
+var isForced = require('../internals/is-forced');
 
 /*
   options.target - name of the target object
@@ -21,7 +21,7 @@ module.exports = function (options, source) {
   var TARGET = options.target;
   var GLOBAL = options.global;
   var STATIC = options.stat;
-  var target, key, targetProperty, sourceProperty, forced;
+  var FORCED, target, key, targetProperty, sourceProperty;
   if (GLOBAL) {
     target = global;
   } else if (STATIC) {
@@ -32,9 +32,9 @@ module.exports = function (options, source) {
   if (target) for (key in source) {
     targetProperty = target[key];
     sourceProperty = source[key];
-    forced = forcedCheck(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
+    FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contained in target
-    if (!forced && targetProperty !== undefined) {
+    if (!FORCED && targetProperty !== undefined) {
       if (typeof sourceProperty === typeof targetProperty) continue;
       copyConstructorProperties(sourceProperty, targetProperty);
     }

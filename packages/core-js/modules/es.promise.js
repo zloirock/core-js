@@ -19,7 +19,7 @@ var perform = require('../internals/perform');
 var userAgent = require('../internals/user-agent');
 var SPECIES = require('../internals/well-known-symbol')('species');
 var InternalStateModule = require('../internals/internal-state');
-var forcedCheck = require('../internals/forced-check');
+var isForced = require('../internals/is-forced');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
@@ -42,7 +42,7 @@ var HANDLED = 1;
 var UNHANDLED = 2;
 var Internal, OwnPromiseCapability, PromiseWrapper;
 
-var FORCED = forcedCheck(PROMISE, function () {
+var FORCED = isForced(PROMISE, function () {
   // correct subclassing with @@species support
   var promise = PromiseConstructor.resolve(1);
   var empty = function () { /* empty */ };

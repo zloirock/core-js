@@ -1,6 +1,6 @@
 'use strict';
 var global = require('../internals/global');
-var forcedCheck = require('../internals/forced-check');
+var isForced = require('../internals/is-forced');
 var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
 var InternalMetadataModule = require('../internals/internal-metadata');
@@ -39,13 +39,13 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
   };
 
   // eslint-disable-next-line max-len
-  if (forcedCheck(NAME, typeof NativeConstructor != 'function' || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
+  if (isForced(NAME, typeof NativeConstructor != 'function' || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
     new NativeConstructor().entries().next();
   })))) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
     InternalMetadataModule.REQUIRED = true;
-  } else if (forcedCheck(NAME, true)) {
+  } else if (isForced(NAME, true)) {
     var instance = new Constructor();
     // early implementations not supports chaining
     var HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) != instance;

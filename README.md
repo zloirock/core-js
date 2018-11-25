@@ -202,7 +202,7 @@ For those cases, we could redefine this behaviour for certain polyfills:
 import configurator from 'core-js/configurator';
 
 configurator({
-  useNative: ['Promise'],                                 // polyfills will be used only if it's completely unavailable
+  useNative: ['Promise'],                                 // polyfills will be used only if natives completely unavailable
   usePolyfill: ['Array.from', 'String.prototype.padEnd'], // polyfills will be used anyway
   useFeatureDetection: ['Map', 'Set'],                    // default behaviour
 });
@@ -210,7 +210,7 @@ configurator({
 import 'core-js';
 ```
 
-However, if you change this default behavior, one can't be sure that even `core-js` internals will work correctly.
+It does not work with some features. Also, if you change the default behavior, even `core-js` internals may not work correctly.
 
 ### Custom build
 
