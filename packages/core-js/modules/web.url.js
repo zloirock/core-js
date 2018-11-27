@@ -35,7 +35,7 @@ var isRelativeScheme = function (scheme) {
 };
 
 var invalid = function (state) {
-  clear(state);
+  initializeState(state);
   state.isInvalid = true;
 };
 
@@ -153,12 +153,10 @@ var parse = function (urlState, input, stateOverride, baseState) {
 
       case NO_SCHEME:
         if (!baseState || !(isRelativeScheme(baseState.scheme))) {
-          err('Missing scheme.');
-          invalid(urlState);
-        } else {
-          state = RELATIVE;
-          continue;
-        } break;
+          return 'Missing scheme';
+        }
+        state = RELATIVE;
+        continue;
 
       case RELATIVE_OR_AUTHORITY:
         if ('/' == char && '/' == input.charAt(cursor + 1)) {
@@ -171,7 +169,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
 
       case RELATIVE:
         urlState.isRelative = true;
-        if (!baseState) baseState = getInternalURLState(new URLConstructor());
+        if (!baseState) baseState = initializeState({});
         if ('file' != urlState.scheme) urlState.scheme = baseState.scheme;
         if (EOF == char) {
           urlState.host = baseState.host;
@@ -409,7 +407,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
   }
 };
 
-var clear = function (state) {
+var initializeState = function (state) {
   state.scheme = '';
   state.schemeData = '';
   state.username = '';
@@ -421,6 +419,7 @@ var clear = function (state) {
   state.fragment = '';
   state.isInvalid = false;
   state.isRelative = false;
+  return state;
 };
 
 // `URL` constructor
@@ -432,10 +431,19 @@ var URLConstructor = function URL(url /* , base */) {
   var base = arguments.length > 1 ? arguments[1] : undefined;
   var urlString = String(url);
   var state = setInternalState(that, { type: 'URL' });
-  if (base !== undefined && !(base instanceof URLConstructor)) base = new URLConstructor(String(base));
+  var baseState, result;
+  if (base !== undefined) {
+    if (base instanceof URLConstructor) baseState = getInternalURLState(base);
+    else {
+      baseState = initializeState({});
+      result = parse(baseState, String(base));
+      if (result) throw new TypeError(result);
+    }
+  }
+  initializeState(state);
   state.url = urlString;
-  clear(state);
-  parse(state, urlString.replace(TRIM, ''), null, base && getInternalURLState(base));
+  result = parse(state, urlString.replace(TRIM, ''), null, baseState);
+  if (result) throw new TypeError(result);
   var searchParams = state.searchParams = new URLSearchParams(state.query);
   getInternalSearchParamsState(searchParams).updateURL = function () {
     var query = String(searchParams);
@@ -545,9 +553,10 @@ if (DESCRIPTORS) {
     href: accessorDescriptor(getHref, function (href) {
       var state = getInternalURLState(this);
       var urlString = href + '';
+      initializeState(state);
       state.url = urlString;
-      clear(state);
-      parse(state, urlString);
+      var result = parse(state, urlString);
+      if (result) throw new TypeError(result);
       getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
     }),
     // `URL.prototype.origin` getter

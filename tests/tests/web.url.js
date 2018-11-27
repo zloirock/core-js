@@ -22,6 +22,15 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('http:Example.com/', 'https://example.org/').toString(), 'http://example.com/');
   assert.same(new URL('https:Example.com/', 'https://example.org/').toString(), 'https://example.org/Example.com/');
   assert.same(new URL('foo:Example.com/', 'https://example.org/').toString(), 'foo:Example.com/');
+
+  assert.throws(() => new URL(), 'TypeError: Failed to construct \'URL\': 1 argument required, but only 0 present.');
+  assert.throws(() => new URL(''), 'TypeError: Failed to construct \'URL\': Invalid URL');
+  assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct \'URL\': Invalid URL');
+  assert.throws(() => new URL('abc'), 'TypeError: Failed to construct \'URL\': Invalid URL');
+  assert.throws(() => new URL('//abc'), 'TypeError: Failed to construct \'URL\': Invalid URL');
+  assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct \'URL\': Invalid base URL');
+  assert.throws(() => new URL('http:///www.domain.com/', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
+  assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
 });
 
 QUnit.test('URL#href', assert => {
