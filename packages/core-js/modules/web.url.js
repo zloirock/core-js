@@ -8,6 +8,7 @@ var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
 var create = require('../internals/object-create');
 var has = require('../internals/has');
+var toASCII = require('../internals/punycode-to-ascii');
 var URLSearchParamsModule = require('../modules/web.url-search-params');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
@@ -35,13 +36,12 @@ var isRelativeScheme = function (scheme) {
 };
 
 var invalid = function (state) {
-  initializeState(state);
-  state.isInvalid = true;
+  initializeState(state).isInvalid = true;
 };
 
-var IDNAToASCII = function (state, h) {
-  if ('' == h) invalid(state);
-  return h.toLowerCase();
+var IDNAToASCII = function (state, buffer) {
+  if ('' == buffer) invalid(state);
+  return toASCII(buffer.toLowerCase());
 };
 
 var escapeSet = { '"': 1, '#': 1, '<': 1, '>': 1, '?': 1, '`': 1 };
@@ -425,7 +425,6 @@ var initializeState = function (state) {
 // `URL` constructor
 // https://url.spec.whatwg.org/#url-class
 // Does not process domain names or IP addresses.
-// Does not handle encoding for the query parameter.
 var URLConstructor = function URL(url /* , base */) {
   var that = anInstance(this, URLConstructor, 'URL');
   var base = arguments.length > 1 ? arguments[1] : undefined;

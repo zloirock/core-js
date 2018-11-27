@@ -15,7 +15,8 @@ QUnit.test('URL constructor', assert => {
   assert.same(new URL('b/c', new URL('http://www.domain.com/a/b')).toString(), 'http://www.domain.com/a/b/c');
   assert.same(new URL({ toString: () => 'https://example.org/' }).toString(), 'https://example.org/');
 
-  // assert.same(new URL('https://測試').toString(), 'https://xn--g6w251d/');
+  assert.same(new URL('https://測試').toString(), 'https://xn--g6w251d/');
+  assert.same(new URL('https://xxпривет.тест').toString(), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
   assert.same(new URL('http://Example.com/', 'https://example.org/').toString(), 'http://example.com/');
   assert.same(new URL('https://Example.com/', 'https://example.org/').toString(), 'https://example.com/');
   assert.same(new URL('foo://Example.com/', 'https://example.org/').toString(), 'foo://Example.com/');
@@ -34,7 +35,7 @@ QUnit.test('URL constructor', assert => {
 });
 
 QUnit.test('URL#href', assert => {
-  const url = new URL('http://zloirock.ru/');
+  let url = new URL('http://zloirock.ru/');
 
   if (DESCRIPTORS) {
     assert.ok(!hasOwnProperty.call(url, 'href'));
@@ -50,6 +51,16 @@ QUnit.test('URL#href', assert => {
   if (DESCRIPTORS) {
     url.searchParams.append('foo', 'bar');
     assert.same(url.href, 'http://zloirock.ru/?foo=bar');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.href = 'https://測試';
+    assert.same(url.href, 'https://xn--g6w251d/');
+    assert.same(String(url), 'https://xn--g6w251d/');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.href = 'https://xxпривет.тест';
+    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/');
+    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
   }
 });
 
@@ -66,7 +77,7 @@ QUnit.test('URL#origin', assert => {
 
   assert.same(url.origin, 'http://es6.zloirock.ru');
 
-  // assert.same(new URL('https://測試/tests').origin, 'https://xn--g6w251d');
+  assert.same(new URL('https://測試/tests').origin, 'https://xn--g6w251d');
 });
 
 QUnit.test('URL#protocol', assert => {
