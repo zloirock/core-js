@@ -149,7 +149,7 @@ QUnit.test('URL#password', assert => {
 });
 
 QUnit.test('URL#host', assert => {
-  let url = new URL('http://zloirock.ru:81/');
+  let url = new URL('http://zloirock.ru:81/path');
 
   if (DESCRIPTORS) {
     assert.ok(!hasOwnProperty.call(url, 'host'));
@@ -163,10 +163,22 @@ QUnit.test('URL#host', assert => {
   assert.same(url.host, 'zloirock.ru:81');
 
   if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru:81/');
+    url = new URL('http://zloirock.ru:81/path');
     url.host = 'example.com:82';
     assert.same(url.host, 'example.com:82');
-    assert.same(String(url), 'http://example.com:82/');
+    assert.same(String(url), 'http://example.com:82/path');
+
+    // url = new URL('http://zloirock.ru:81/path');
+    // url.host = 'other?domain.com';
+    // assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
+
+    url = new URL('https://www.mydomain.com:8080/path/');
+    url.host = 'www.otherdomain.com:80';
+    assert.same(url.href, 'https://www.otherdomain.com:80/path/', 'set default port for another protocol');
+
+    // url = new URL('https://www.mydomain.com:8080/path/');
+    // url.host = 'www.otherdomain.com:443';
+    // assert.same(url.href, 'https://www.otherdomain.com/path/', 'set default port');
   }
 });
 
@@ -336,16 +348,35 @@ QUnit.test('URL#hash', assert => {
   url = new URL('http://zloirock.ru/#foo');
   assert.same(url.hash, '#foo');
 
+  url = new URL('http://zloirock.ru/#');
+  assert.same(url.hash, '');
+  assert.same(String(url), 'http://zloirock.ru/#');
+
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/#');
-    assert.same(url.hash, '');
-    assert.same(String(url), 'http://zloirock.ru/#');
     url.hash = 'foo';
     assert.same(url.hash, '#foo');
     assert.same(String(url), 'http://zloirock.ru/#foo');
     url.hash = '';
     assert.same(url.hash, '');
     assert.same(String(url), 'http://zloirock.ru/');
+    // url.hash = '#';
+    // assert.same(url.hash, '');
+    // assert.same(String(url), 'http://zloirock.ru/'); // 'http://zloirock.ru/#' in FF
+    url.hash = '#foo';
+    assert.same(url.hash, '#foo');
+    assert.same(String(url), 'http://zloirock.ru/#foo');
+    url.hash = '#foo#bar';
+    assert.same(url.hash, '#foo#bar');
+    assert.same(String(url), 'http://zloirock.ru/#foo#bar');
+
+    url = new URL('http://zloirock.ru/');
+    url.hash = 'абa';
+    assert.same(url.hash, '#%D0%B0%D0%B1a');
+
+    // url = new URL('http://zloirock.ru/');
+    // url.hash = '\udc01\ud802a';
+    // assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
   }
 });
 

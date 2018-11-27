@@ -44,20 +44,15 @@ var IDNAToASCII = function (state, h) {
   return h.toLowerCase();
 };
 
-var percentEscape = function (char) {
-  var code = char.charCodeAt(0);
-  return code > 0x20 && code < 0x7F &&
-    // " # < > ? `
-    0x22 != code && 0x23 != code && 0x3C != code && 0x3E != code && 0x3F != code && 0x60 != code
-      ? char : encodeURIComponent(char);
-};
+var escapeSet = { '"': 1, '#': 1, '<': 1, '>': 1, '?': 1, '`': 1 };
 
-var percentEscapeQuery = function (char) {
+var fragmentSet = { '"': 1, '<': 1, '>': 1, '`': 1 };
+
+var querySet = { '"': 1, '#': 1, '<': 1, '>': 1, '`': 1 };
+
+var percentEncode = function (char, set) {
   var code = char.charCodeAt(0);
-  return code > 0x20 && code < 0x7F &&
-    // " # < > ` (do not escape '?')
-    0x22 != code && 0x23 != code && 0x3C != code && 0x3E != code && 0x60 != code
-      ? char : encodeURIComponent(char);
+  return code > 0x20 && code < 0x7F && !has(set, char) ? char : encodeURIComponent(char);
 };
 
 var ALPHA = /[a-zA-Z]/;
@@ -153,7 +148,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
           state = FRAGMENT;
         // XXX error handling
         } else if (EOF != char && '\t' != char && '\n' != char && '\r' != char) {
-          urlState.schemeData += percentEscape(char);
+          urlState.schemeData += percentEncode(char, escapeSet);
         } break;
 
       case NO_SCHEME:
@@ -282,7 +277,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
               urlState.password = '';
               continue;
             }
-            var tempC = percentEscape(cp);
+            var tempC = percentEncode(cp, escapeSet);
             if (null !== urlState.password) urlState.password += tempC;
             else urlState.username += tempC;
           }
@@ -393,7 +388,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
             state = FRAGMENT;
           }
         } else if ('\t' != char && '\n' != char && '\r' != char) {
-          buffer += percentEscape(char);
+          buffer += percentEncode(char, escapeSet);
         } break;
 
       case QUERY:
@@ -401,12 +396,13 @@ var parse = function (urlState, input, stateOverride, baseState) {
           urlState.fragment = '#';
           state = FRAGMENT;
         } else if (EOF != char && '\t' != char && '\n' != char && '\r' != char) {
-          urlState.query += percentEscapeQuery(char);
+          urlState.query += percentEncode(char, querySet);
         } break;
 
       case FRAGMENT:
-        if (EOF != char && '\t' != char && '\n' != char && '\r' != char) urlState.fragment += char;
-        break;
+        if (EOF != char && '\t' != char && '\n' != char && '\r' != char) {
+          urlState.fragment += percentEncode(char, fragmentSet);
+        } break;
     }
 
     cursor++;
@@ -548,8 +544,10 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-href
     href: accessorDescriptor(getHref, function (href) {
       var state = getInternalURLState(this);
+      var urlString = href + '';
+      state.url = urlString;
       clear(state);
-      parse(state, href + '');
+      parse(state, urlString);
       getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
     }),
     // `URL.prototype.origin` getter
@@ -570,7 +568,7 @@ if (DESCRIPTORS) {
       var chars = String(username).split('');
       state.username = '';
       for (var i = 0; i < chars.length; i++) {
-        state.username += percentEscape(chars[i]);
+        state.username += percentEncode(chars[i], escapeSet);
       }
     }),
     // `URL.prototype.password` accessors pair
@@ -581,7 +579,7 @@ if (DESCRIPTORS) {
       var chars = String(password).split('');
       state.password = '';
       for (var i = 0; i < chars.length; i++) {
-        state.password += percentEscape(chars[i]);
+        state.password += percentEncode(chars[i], escapeSet);
       }
     }),
     // `URL.prototype.host` accessors pair
