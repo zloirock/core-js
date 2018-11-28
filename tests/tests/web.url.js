@@ -9,20 +9,23 @@ QUnit.test('URL constructor', assert => {
   assert.name(URL, 'URL');
   assert.looksNative(URL);
 
-  assert.same(new URL('http://www.domain.com/a/b').toString(), 'http://www.domain.com/a/b');
-  assert.same(new URL('/c/d', 'http://www.domain.com/a/b').toString(), 'http://www.domain.com/c/d');
-  assert.same(new URL('b/c', 'http://www.domain.com/a/b').toString(), 'http://www.domain.com/a/b/c');
-  assert.same(new URL('b/c', new URL('http://www.domain.com/a/b')).toString(), 'http://www.domain.com/a/b/c');
-  assert.same(new URL({ toString: () => 'https://example.org/' }).toString(), 'https://example.org/');
+  assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
+  assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');
+  assert.same(String(new URL('b/c', 'http://www.domain.com/a/b')), 'http://www.domain.com/a/b/c');
+  assert.same(String(new URL('b/c', new URL('http://www.domain.com/a/b'))), 'http://www.domain.com/a/b/c');
+  assert.same(String(new URL({ toString: () => 'https://example.org/' })), 'https://example.org/');
 
-  assert.same(new URL('https://測試').toString(), 'https://xn--g6w251d/');
-  assert.same(new URL('https://xxпривет.тест').toString(), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
-  assert.same(new URL('http://Example.com/', 'https://example.org/').toString(), 'http://example.com/');
-  assert.same(new URL('https://Example.com/', 'https://example.org/').toString(), 'https://example.com/');
-  assert.same(new URL('foo://Example.com/', 'https://example.org/').toString(), 'foo://Example.com/');
-  assert.same(new URL('http:Example.com/', 'https://example.org/').toString(), 'http://example.com/');
-  assert.same(new URL('https:Example.com/', 'https://example.org/').toString(), 'https://example.org/Example.com/');
-  assert.same(new URL('foo:Example.com/', 'https://example.org/').toString(), 'foo:Example.com/');
+  assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/');
+  assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
+  assert.same(String(new URL('http://Example.com/', 'https://example.org/')), 'http://example.com/');
+  assert.same(String(new URL('https://Example.com/', 'https://example.org/')), 'https://example.com/');
+  assert.same(String(new URL('foo://Example.com/', 'https://example.org/')), 'foo://Example.com/');
+  assert.same(String(new URL('http:Example.com/', 'https://example.org/')), 'http://example.com/');
+  assert.same(String(new URL('https:Example.com/', 'https://example.org/')), 'https://example.org/Example.com/');
+  assert.same(String(new URL('foo:Example.com/', 'https://example.org/')), 'foo:Example.com/');
+
+  assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
+  assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');
 
   assert.throws(() => new URL(), 'TypeError: Failed to construct \'URL\': 1 argument required, but only 0 present.');
   assert.throws(() => new URL(''), 'TypeError: Failed to construct \'URL\': Invalid URL');

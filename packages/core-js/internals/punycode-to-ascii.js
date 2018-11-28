@@ -160,9 +160,8 @@ var encode = function (input) {
 
 module.exports = function (input) {
   var encoded = [];
+  var labels = input.replace(regexSeparators, '\x2E').split('.');
   var i, label;
-  input = input.replace(regexSeparators, '\x2E');
-  var labels = input.split('.');
   for (i = 0; i < labels.length; i++) {
     label = labels[i];
     encoded.push(regexNonASCII.test(label) ? 'xn--' + encode(label) : label);

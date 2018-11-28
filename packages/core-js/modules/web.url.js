@@ -16,6 +16,191 @@ var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
 
+var ALPHA = /[a-zA-Z]/;
+var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
+var DIGIT = /[0-9]/;
+var HEX_START = /^(0x|0X)/;
+var OCT = /^[0-7]+$/;
+var DEC = /^[0-9]+$/;
+var HEX = /^[0-9A-Fa-f]+$/;
+var TRIM = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
+var EOF = '';
+
+var parseHost = function (state, buffer) {
+  var validationErrorFlag = false;
+  var result;
+  if ('' == buffer) invalid(state);
+  // ipv6 parsing
+  if (buffer.charAt(0) == '[') {
+    if (buffer.charAt(buffer.length - 1) != ']') return null;
+    buffer = buffer.slice(1, -1);
+    // eslint-disable-next-line max-statements
+    result = function () {
+      var address = [0, 0, 0, 0, 0, 0, 0, 0];
+      var pieceIndex = 0;
+      var compress = null;
+      var pointer = 0;
+      var char, value, length, numbersSeen, ipv4Piece, number, swaps, swap;
+      if (buffer.charAt(0) == ':') {
+        if (buffer.charAt(1) != ':') return validationErrorFlag = true;
+        pointer += 2;
+        pieceIndex++;
+      }
+      while ((char = buffer.charAt(pointer)) != EOF) {
+        if (pieceIndex == 8) return validationErrorFlag = true;
+        if (char == ':') {
+          if (compress !== null) return validationErrorFlag = true;
+          pointer++;
+          pieceIndex++;
+          compress = pieceIndex;
+          continue;
+        }
+        value = length = 0;
+        while (HEX.test(char = buffer.charAt(pointer)) && length < 4) {
+          value = value * 16 + parseInt(char, 16);
+          pointer++;
+          length++;
+        }
+        if (char == '.') {
+          if (length == 0) return validationErrorFlag = true;
+          pointer -= length;
+          if (pieceIndex > 6) return validationErrorFlag = true;
+          numbersSeen = 0;
+          while ((char = buffer.charAt(pointer)) != EOF) {
+            ipv4Piece = null;
+            if (numbersSeen > 0) {
+              if (char == '.' && numbersSeen < 4) pointer++;
+              else return validationErrorFlag = true;
+            }
+            if (!DIGIT.test(char)) return validationErrorFlag = true;
+            do {
+              number = parseInt(char, 10);
+              if (ipv4Piece === null) ipv4Piece = number;
+              else if (ipv4Piece == 0) return validationErrorFlag = true;
+              ipv4Piece = ipv4Piece * 10 + number;
+            } while (DIGIT.test(char = buffer.charAt(pointer)));
+            address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
+            numbersSeen++;
+            if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
+          }
+          if (numbersSeen != 4) return validationErrorFlag = true;
+          break;
+        } else if (char == ':') {
+          pointer++;
+          if (buffer.charAt(pointer) == EOF) return validationErrorFlag = true;
+        } else if (char != EOF) return validationErrorFlag = true;
+        address[pieceIndex++] = value;
+      }
+      if (compress !== null) {
+        swaps = pieceIndex - compress;
+        pieceIndex = 7;
+        while (pieceIndex != 0 && swaps > 0) {
+          swap = address[pieceIndex];
+          address[pieceIndex--] = address[compress + swaps - 1];
+          address[compress + --swaps] = swap;
+        }
+      } else if (pieceIndex != 8) return validationErrorFlag = true;
+      return address;
+    }();
+    if (validationErrorFlag) return null;
+    state.host = result;
+  } else {
+    buffer = toASCII(buffer.toLowerCase());
+    // ipv4 parsing
+    result = function () {
+      var parts = buffer.split('.');
+      var partsLength, numbers, i, part, R, n, ipv4;
+      if (parts[parts.length - 1] == '') {
+        validationErrorFlag = true;
+        if (parts.length) parts.pop();
+      }
+      partsLength = parts.length;
+      if (partsLength > 4) return buffer;
+      numbers = [];
+      for (i = 0; i < partsLength; i++) {
+        part = parts[i];
+        if (part == '') return buffer;
+        R = 10;
+        if (part.length > 1 && part.charAt(0) == '0') {
+          R = HEX_START.test(part) ? 16 : 8;
+          part = part.slice(R == 8 ? 1 : 2);
+          validationErrorFlag = true;
+        }
+        if (R == 10 ? !DEC.test(part) : R == 8 ? !OCT.test(part) : !HEX.test(part)) return buffer;
+        n = parseInt(part, R);
+        // eslint-disable-next-line no-self-compare
+        if (n != n) return buffer;
+        if (i == partsLength - 1) {
+          if (n >= Math.pow(256, 5 - partsLength)) return buffer;
+        } else if (n > 255) return buffer;
+        numbers.push(n);
+      }
+      ipv4 = numbers.pop();
+      for (i = 0; i < numbers.length; i++) {
+        ipv4 += numbers[i] * Math.pow(256, 3 - i);
+      }
+      return ipv4;
+    }();
+    if (buffer !== result) {
+      state.host = result;
+    } else {
+      state.host = buffer;
+    }
+    if (validationErrorFlag) return null;
+  }
+};
+
+var findLongestZeroSequence = function (ipv6) {
+  var maxIndex = null;
+  var maxLength = 1;
+  var currStart = null;
+  var currLength = 0;
+  var i = 0;
+  for (; i < 8; i++) {
+    if (ipv6[i] !== 0) {
+      if (currLength > maxLength) {
+        maxIndex = currStart;
+        maxLength = currLength;
+      }
+      currStart = null;
+      currLength = 0;
+    } else {
+      if (currStart === null) currStart = i;
+      ++currLength;
+    }
+  }
+  if (currLength > maxLength) {
+    maxIndex = currStart;
+    maxLength = currLength;
+  }
+  return maxIndex;
+};
+
+var serializeHost = function (host) {
+  var result, i, compress, ignore0;
+  // ipv4
+  if (typeof host == 'number') {
+    result = [];
+    for (i = 0; i < 4; i++) {
+      result.unshift(host % 256);
+      host = Math.floor(host / 256);
+    } return result.join('.');
+  // ipv6
+  } else if (typeof host == 'object') {
+    result = [];
+    compress = findLongestZeroSequence(host);
+    for (i = 0; i < 8; i++) {
+      if (ignore0 && host[i] === 0) continue;
+      if (ignore0) ignore0 = false;
+      if (compress === i) {
+        result.push(i ? '' : ':');
+        ignore0 = true;
+      } else result.push(host[i].toString(16));
+    }
+    return '[' + result.join(':') + ']';
+  } return host;
+};
+
 var relative = create(null);
 relative.ftp = 21;
 relative.file = 0;
@@ -39,11 +224,6 @@ var invalid = function (state) {
   initializeState(state).isInvalid = true;
 };
 
-var IDNAToASCII = function (state, buffer) {
-  if ('' == buffer) invalid(state);
-  return toASCII(buffer.toLowerCase());
-};
-
 var escapeSet = { '"': 1, '#': 1, '<': 1, '>': 1, '?': 1, '`': 1 };
 
 var fragmentSet = { '"': 1, '<': 1, '>': 1, '`': 1 };
@@ -54,12 +234,6 @@ var percentEncode = function (char, set) {
   var code = char.charCodeAt(0);
   return code > 0x20 && code < 0x7F && !has(set, char) ? char : encodeURIComponent(char);
 };
-
-var ALPHA = /[a-zA-Z]/;
-var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
-var DIGIT = /[0-9]/;
-var TRIM = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
-var EOF = '';
 
 // States:
 var SCHEME_START = {};
@@ -298,7 +472,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
           } else if (buffer.length == 0) {
             state = RELATIVE_PATH_START;
           } else {
-            urlState.host = IDNAToASCII(urlState, buffer);
+            parseHost(urlState, buffer);
             buffer = '';
             state = RELATIVE_PATH_START;
           }
@@ -313,12 +487,12 @@ var parse = function (urlState, input, stateOverride, baseState) {
       case HOSTNAME:
         if (':' == char && !seenBracket) {
           // XXX host parsing
-          urlState.host = IDNAToASCII(urlState, buffer);
+          parseHost(urlState, buffer);
           buffer = '';
           state = PORT;
           if (HOSTNAME == stateOverride) break loop;
         } else if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char) {
-          urlState.host = IDNAToASCII(urlState, buffer);
+          parseHost(urlState, buffer);
           buffer = '';
           state = RELATIVE_PATH_START;
           if (stateOverride) break loop;
@@ -424,7 +598,6 @@ var initializeState = function (state) {
 
 // `URL` constructor
 // https://url.spec.whatwg.org/#url-class
-// Does not process domain names or IP addresses.
 var URLConstructor = function URL(url /* , base */) {
   var that = anInstance(this, URLConstructor, 'URL');
   var base = arguments.length > 1 ? arguments[1] : undefined;
@@ -469,10 +642,12 @@ var URLPrototype = URLConstructor.prototype;
 var getHref = function () {
   var that = this;
   var state = getInternalURLState(that);
+  var username = state.username;
+  var password = state.password;
   var authority = '';
   if (state.isInvalid) return state.url;
-  if ('' !== state.username || null !== state.password) {
-    authority = state.username + (null !== state.password ? ':' + state.password : '') + '@';
+  if ('' !== username || null !== password) {
+    authority = username + (null !== password ? ':' + password : '') + '@';
   }
   return state.scheme + ':' + (state.isRelative ? '//' + authority + getHost.call(that) : '') +
     getPathname.call(that) + state.query + state.fragment;
@@ -480,8 +655,9 @@ var getHref = function () {
 
 var getOrigin = function () {
   var state = getInternalURLState(this);
-  if (state.isInvalid || !state.scheme) return '';
-  switch (state.scheme) {
+  var scheme = state.scheme;
+  if (state.isInvalid || !scheme) return '';
+  switch (scheme) {
     case 'data':
     case 'file':
     case 'javascript':
@@ -490,7 +666,7 @@ var getOrigin = function () {
   }
   var host = getHost.call(this);
   if (!host) return '';
-  return state.scheme + '://' + host;
+  return scheme + '://' + host;
 };
 
 var getProtocol = function () {
@@ -507,11 +683,11 @@ var getPassword = function () {
 
 var getHost = function () {
   var state = getInternalURLState(this);
-  return state.isInvalid ? '' : state.port ? state.host + ':' + state.port : state.host;
+  return state.isInvalid ? '' : state.port ? serializeHost(state.host) + ':' + state.port : serializeHost(state.host);
 };
 
 var getHostname = function () {
-  return getInternalURLState(this).host;
+  return serializeHost(getInternalURLState(this).host);
 };
 
 var getPort = function () {
@@ -534,7 +710,8 @@ var getSearchParams = function () {
 
 var getHash = function () {
   var state = getInternalURLState(this);
-  return state.isInvalid || !state.fragment || '#' == state.fragment ? '' : state.fragment;
+  var fragment = state.fragment;
+  return state.isInvalid || !fragment || '#' == fragment ? '' : fragment;
 };
 
 var cannotHaveUsernamePasswordPort = function (state) {
