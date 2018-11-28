@@ -1,5 +1,6 @@
 require('./modules/es.symbol');
 require('./modules/es.symbol.async-iterator');
+require('./modules/es.symbol.description');
 require('./modules/es.symbol.has-instance');
 require('./modules/es.symbol.is-concat-spreadable');
 require('./modules/es.symbol.iterator');
@@ -261,7 +262,6 @@ require('./modules/esnext.string.match-all');
 require('./modules/esnext.string.replace-all');
 require('./modules/esnext.string.trim-left');
 require('./modules/esnext.string.trim-right');
-require('./modules/esnext.symbol.description');
 require('./modules/esnext.symbol.dispose');
 require('./modules/esnext.symbol.observable');
 require('./modules/esnext.symbol.pattern-match');

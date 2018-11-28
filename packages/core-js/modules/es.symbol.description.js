@@ -1,5 +1,5 @@
 // `Symbol.prototype.description` getter
-// https://github.com/tc39/proposal-Symbol-description
+// https://tc39.github.io/ecma262/#sec-symbol.prototype.description
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
 var has = require('../internals/has');

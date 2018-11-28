@@ -5,7 +5,7 @@
 
 **It's documentation for the unstable `core-js@3`, if you looking documentation for `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
-Modular standard library for JavaScript. Includes polyfills for [ECMAScript 5, 2015, 2016, 2017](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C ECMAScript-related features and proposals](#web-standards) like [setImmediate](#setimmediate). You can load only required features or use it without global namespace pollution.
+Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2019](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C ECMAScript-related features and proposals](#web-standards) like [setImmediate](#setimmediate). You can load only required features or use it without global namespace pollution.
 
 [*Example*](http://goo.gl/a2xexl):
 ```js
@@ -912,10 +912,11 @@ setTimeout(() => promise.catch(() => {}), 1e3);
 ```
 
 #### ECMAScript: Symbol
-Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js), [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js).
+Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.description.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js), [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js).
 ```js
 class Symbol {
   constructor(description?): symbol;
+  get description: string | void;
   static asyncIterator: @@asyncIterator;
   static hasInstance: @@hasInstance;
   static isConcatSpreadable: @@isConcatSpreadable;
@@ -957,6 +958,7 @@ namespace JSON {
 ```
 core-js(-pure)/es|features/symbol
 core-js(-pure)/es|features/symbol/async-iterator
+core-js/es|features/symbol/description
 core-js(-pure)/es|features/symbol/has-instance
 core-js(-pure)/es|features/symbol/is-concat-spreadable
 core-js(-pure)/es|features/symbol/iterator
@@ -1009,6 +1011,12 @@ Object.keys(object);                  // => ['a']
 Object.getOwnPropertyNames(object);   // => ['a', 'b']
 Object.getOwnPropertySymbols(object); // => [Symbol(c)]
 Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
+```
+
+[*Symbol#description getter*](https://goo.gl/MWizfc):
+```js
+Symbol('foo').description; // => 'foo'
+Symbol().description;      // => undefined
 ```
 ##### Caveats when using `Symbol` polyfill:
 
@@ -1555,22 +1563,6 @@ core-js(-pure)/features/global-this
 [*Examples*](https://goo.gl/LAifsc):
 ```js
 globalThis.Array === Array; // => true
-```
-* `Symbol#description` [proposal](https://github.com/tc39/proposal-Symbol-description) - module [`esnext.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.description.js)
-```js
-class Symbol {
-  get description: string | void;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/symbol-description
-core-js/features/symbol/description
-```
-[*Examples*](https://goo.gl/MWizfc):
-```js
-Symbol('foo').description; // => 'foo'
-Symbol().description;      // => undefined
 ```
 
 #### Stage 2 proposals

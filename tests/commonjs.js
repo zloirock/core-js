@@ -573,6 +573,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/symbol/to-string-tag'));
   ok(load('es/symbol/unscopables'));
   ok(load('es/symbol/async-iterator'));
+  load('es/symbol/description');
   ok(typeof load('es/symbol/for') === 'function');
   ok(typeof load('es/symbol/key-for') === 'function');
   ok('iterator' in load('es/symbol'));
@@ -613,7 +614,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/string-match-all');
   load('proposals/string-replace-all');
   load('proposals/string-trim-start-end');
-  load('proposals/symbol-description');
   load('proposals/using-statement');
   load('proposals');
   ok(load('stage/4'));

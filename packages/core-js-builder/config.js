@@ -3,6 +3,7 @@ module.exports = {
   list: [
     'es.symbol',
     'es.symbol.async-iterator',
+    'es.symbol.description',
     'es.symbol.has-instance',
     'es.symbol.is-concat-spreadable',
     'es.symbol.iterator',
@@ -264,7 +265,6 @@ module.exports = {
     'esnext.string.replace-all',
     'esnext.string.trim-left',
     'esnext.string.trim-right',
-    'esnext.symbol.description',
     'esnext.symbol.dispose',
     'esnext.symbol.observable',
     'esnext.symbol.pattern-match',

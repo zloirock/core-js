@@ -2,7 +2,7 @@
 ##### 3.0.0
 - Features
   - Add new features:
-    - `Symbol#description` ([stage 3 proposal](https://tc39.github.io/proposal-Symbol-description/))
+    - `Symbol#description` ([ECMAScript 2019](https://tc39.github.io/ecma262/#sec-symbol.prototype.description))
     - `Object.fromEntries` ([stage 3 proposal](https://github.com/tc39/proposal-object-from-entries))
     - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
