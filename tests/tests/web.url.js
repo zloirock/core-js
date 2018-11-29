@@ -1,4 +1,3 @@
-/* eslint-disable prefer-template */
 import { DESCRIPTORS } from '../helpers/constants';
 
 const { hasOwnProperty } = Object.prototype;
@@ -15,8 +14,9 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('b/c', new URL('http://www.domain.com/a/b'))), 'http://www.domain.com/a/b/c');
   assert.same(String(new URL({ toString: () => 'https://example.org/' })), 'https://example.org/');
 
-  assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/');
-  assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
+  assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/', 'unicode parsing');
+  assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+  assert.same(String(new URL('https://xxПРИВЕТ.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
   assert.same(String(new URL('http://Example.com/', 'https://example.org/')), 'http://example.com/');
   assert.same(String(new URL('https://Example.com/', 'https://example.org/')), 'https://example.com/');
   assert.same(String(new URL('foo://Example.com/', 'https://example.org/')), 'foo://Example.com/');
@@ -26,6 +26,12 @@ QUnit.test('URL constructor', assert => {
 
   assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
   assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');
+  // assert.same(String(new URL('http://257.168.0xF0')), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // TypeError in Chrome and Safari
+  assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
+
+  assert.same(String(new URL('file:///var/log/system.log')), 'file:///var/log/system.log', 'file scheme');
+  // assert.same(String(new URL('file://nnsc.nsf.net/bar/baz')), 'file://nnsc.nsf.net/bar/baz', 'file scheme'); // 'file:///bar/baz' in FF
+  // assert.same(String(new URL('file://localhost/bar/baz')), 'file:///bar/baz', 'file scheme'); // 'file://localhost/bar/baz' in Chrome
 
   assert.throws(() => new URL(), 'TypeError: Failed to construct \'URL\': 1 argument required, but only 0 present.');
   assert.throws(() => new URL(''), 'TypeError: Failed to construct \'URL\': Invalid URL');
@@ -35,6 +41,9 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct \'URL\': Invalid base URL');
   assert.throws(() => new URL('http:///www.domain.com/', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
   assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
+  assert.throws(() => new URL('http://[20:0:0:1:0:0:0:ff'), 'incorrect IPv6');
+  assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
+  // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // not error in FF
 });
 
 QUnit.test('URL#href', assert => {
@@ -57,13 +66,56 @@ QUnit.test('URL#href', assert => {
 
     url = new URL('http://zloirock.ru/foo');
     url.href = 'https://測試';
-    assert.same(url.href, 'https://xn--g6w251d/');
-    assert.same(String(url), 'https://xn--g6w251d/');
+    assert.same(url.href, 'https://xn--g6w251d/', 'unicode parsing');
+    assert.same(String(url), 'https://xn--g6w251d/', 'unicode parsing');
 
     url = new URL('http://zloirock.ru/foo');
     url.href = 'https://xxпривет.тест';
-    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/');
-    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/');
+    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.href = 'https://xxПРИВЕТ.тест';
+    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/');
+    url.href = 'http://0300.168.0xF0';
+    assert.same(url.href, 'http://192.168.0.240/');
+    assert.same(String(url), 'http://192.168.0.240/');
+
+    url = new URL('http://zloirock.ru/');
+    url.href = 'http://[20:0:0:1:0:0:0:ff]';
+    assert.same(url.href, 'http://[20:0:0:1::ff]/');
+    assert.same(String(url), 'http://[20:0:0:1::ff]/');
+
+    // url = new URL('http://zloirock.ru/');
+    // url.href = 'http://257.168.0xF0'; // TypeError and Safari
+    // assert.same(url.href, 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
+    // assert.same(String(url), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // `F` instead of `f` in Chrome
+
+    url = new URL('http://zloirock.ru/');
+    url.href = 'http://0300.168.0xG0';
+    assert.same(url.href, 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
+    assert.same(String(url), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
+
+    url = new URL('http://192.168.0.240/');
+    url.href = 'file:///var/log/system.log';
+    assert.same(url.href, 'file:///var/log/system.log', 'file -> ip');
+    assert.same(String(url), 'file:///var/log/system.log', 'file -> ip');
+
+    url = new URL('file:///var/log/system.log');
+    url.href = 'http://0300.168.0xF0';
+    assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
+    assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
+
+    // assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // not error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // not error in Chrome and FF
   }
 });
 
@@ -202,6 +254,51 @@ QUnit.test('URL#host', assert => {
     // url = new URL('https://www.mydomain.com:8080/path/');
     // url.host = 'www.otherdomain.com:443';
     // assert.same(url.href, 'https://www.otherdomain.com/path/', 'set default port');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.host = '測試';
+    assert.same(url.host, 'xn--g6w251d', 'unicode parsing');
+    assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.host = 'xxпривет.тест';
+    assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.host = 'xxПРИВЕТ.тест';
+    assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.host = '0300.168.0xF0';
+    assert.same(url.host, '192.168.0.240');
+    assert.same(String(url), 'http://192.168.0.240/foo');
+
+    // url = new URL('http://zloirock.ru/foo');
+    // url.host = '[20:0:0:1:0:0:0:ff]';
+    // assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
+    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
+
+    // url = new URL('file:///var/log/system.log');
+    // url.host = 'nnsc.nsf.net'; // does not work in FF
+    // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
+    // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
+
+    // url = new URL('http://zloirock.ru/');
+    // url.host = '[20:0:0:1:0:0:0:ff';
+    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+
+    // url = new URL('http://zloirock.ru/');
+    // url.host = '[20:0:0:1:0:0:0:fg]';
+    // assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+
+    // url = new URL('http://zloirock.ru/');
+    // url.host = 'a%b';
+    // assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 
@@ -229,6 +326,51 @@ QUnit.test('URL#hostname', assert => {
     // url.hostname = 'example.com:82';
     // assert.same(url.hostname, 'example.com'); // '' in Chrome
     // assert.same(String(url), 'http://example.com:81/'); // 'ttp://example.com:82:81/' in Chrome
+
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = '測試';
+    assert.same(url.hostname, 'xn--g6w251d', 'unicode parsing');
+    assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = 'xxпривет.тест';
+    assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = 'xxПРИВЕТ.тест';
+    assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+
+    url = new URL('http://zloirock.ru/foo');
+    url.hostname = '0300.168.0xF0';
+    assert.same(url.hostname, '192.168.0.240');
+    assert.same(String(url), 'http://192.168.0.240/foo');
+
+    // url = new URL('http://zloirock.ru/foo');
+    // url.hostname = '[20:0:0:1:0:0:0:ff]';
+    // assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
+    // assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
+
+    // url = new URL('file:///var/log/system.log');
+    // url.hostname = 'nnsc.nsf.net'; // does not work in FF
+    // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
+    // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
+
+    // url = new URL('http://zloirock.ru/');
+    // url.hostname = '[20:0:0:1:0:0:0:ff';
+    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
+
+    // url = new URL('http://zloirock.ru/');
+    // url.hostname = '[20:0:0:1:0:0:0:fg]';
+    // assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+    // assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
+
+    // url = new URL('http://zloirock.ru/');
+    // url.hostname = 'a%b';
+    // assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+    // assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
   }
 });
 

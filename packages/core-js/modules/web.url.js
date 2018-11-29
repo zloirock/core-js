@@ -16,6 +16,8 @@ var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
 
+var INVALID_HOST = 'Invalid host';
+
 var ALPHA = /[a-zA-Z]/;
 var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
 var DIGIT = /[0-9]/;
@@ -23,131 +25,131 @@ var HEX_START = /^(0x|0X)/;
 var OCT = /^[0-7]+$/;
 var DEC = /^[0-9]+$/;
 var HEX = /^[0-9A-Fa-f]+$/;
+// eslint-disable-next-line no-control-regex
+var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|@|\[|\\|\]/;
 var TRIM = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
 var EOF = '';
 
 var parseHost = function (state, buffer) {
-  var validationErrorFlag = false;
-  var result;
-  if ('' == buffer) invalid(state);
-  // ipv6 parsing
+  var result, j;
   if (buffer.charAt(0) == '[') {
-    if (buffer.charAt(buffer.length - 1) != ']') return null;
-    buffer = buffer.slice(1, -1);
-    // eslint-disable-next-line max-statements
-    result = function () {
-      var address = [0, 0, 0, 0, 0, 0, 0, 0];
-      var pieceIndex = 0;
-      var compress = null;
-      var pointer = 0;
-      var char, value, length, numbersSeen, ipv4Piece, number, swaps, swap;
-      if (buffer.charAt(0) == ':') {
-        if (buffer.charAt(1) != ':') return validationErrorFlag = true;
-        pointer += 2;
-        pieceIndex++;
-      }
-      while ((char = buffer.charAt(pointer)) != EOF) {
-        if (pieceIndex == 8) return validationErrorFlag = true;
-        if (char == ':') {
-          if (compress !== null) return validationErrorFlag = true;
-          pointer++;
-          pieceIndex++;
-          compress = pieceIndex;
-          continue;
-        }
-        value = length = 0;
-        while (HEX.test(char = buffer.charAt(pointer)) && length < 4) {
-          value = value * 16 + parseInt(char, 16);
-          pointer++;
-          length++;
-        }
-        if (char == '.') {
-          if (length == 0) return validationErrorFlag = true;
-          pointer -= length;
-          if (pieceIndex > 6) return validationErrorFlag = true;
-          numbersSeen = 0;
-          while ((char = buffer.charAt(pointer)) != EOF) {
-            ipv4Piece = null;
-            if (numbersSeen > 0) {
-              if (char == '.' && numbersSeen < 4) pointer++;
-              else return validationErrorFlag = true;
-            }
-            if (!DIGIT.test(char)) return validationErrorFlag = true;
-            do {
-              number = parseInt(char, 10);
-              if (ipv4Piece === null) ipv4Piece = number;
-              else if (ipv4Piece == 0) return validationErrorFlag = true;
-              ipv4Piece = ipv4Piece * 10 + number;
-            } while (DIGIT.test(char = buffer.charAt(pointer)));
-            address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
-            numbersSeen++;
-            if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
-          }
-          if (numbersSeen != 4) return validationErrorFlag = true;
-          break;
-        } else if (char == ':') {
-          pointer++;
-          if (buffer.charAt(pointer) == EOF) return validationErrorFlag = true;
-        } else if (char != EOF) return validationErrorFlag = true;
-        address[pieceIndex++] = value;
-      }
-      if (compress !== null) {
-        swaps = pieceIndex - compress;
-        pieceIndex = 7;
-        while (pieceIndex != 0 && swaps > 0) {
-          swap = address[pieceIndex];
-          address[pieceIndex--] = address[compress + swaps - 1];
-          address[compress + --swaps] = swap;
-        }
-      } else if (pieceIndex != 8) return validationErrorFlag = true;
-      return address;
-    }();
-    if (validationErrorFlag) return null;
+    if (buffer.charAt(buffer.length - 1) != ']') return INVALID_HOST;
+    result = parseIPv6(buffer.slice(1, -1));
+    if (!result) return INVALID_HOST;
     state.host = result;
+  // opaque host
+  } else if (!state.isRelative) {
+    if (~buffer.indexOf('%')) return INVALID_HOST;
+    result = '';
+    for (j = 0; j < buffer.length; j++) result += percentEncode(buffer.charAt(j), {});
+    return result;
   } else {
-    buffer = toASCII(buffer.toLowerCase());
-    // ipv4 parsing
-    result = function () {
-      var parts = buffer.split('.');
-      var partsLength, numbers, i, part, R, n, ipv4;
-      if (parts[parts.length - 1] == '') {
-        validationErrorFlag = true;
-        if (parts.length) parts.pop();
-      }
-      partsLength = parts.length;
-      if (partsLength > 4) return buffer;
-      numbers = [];
-      for (i = 0; i < partsLength; i++) {
-        part = parts[i];
-        if (part == '') return buffer;
-        R = 10;
-        if (part.length > 1 && part.charAt(0) == '0') {
-          R = HEX_START.test(part) ? 16 : 8;
-          part = part.slice(R == 8 ? 1 : 2);
-          validationErrorFlag = true;
-        }
-        if (R == 10 ? !DEC.test(part) : R == 8 ? !OCT.test(part) : !HEX.test(part)) return buffer;
-        n = parseInt(part, R);
-        // eslint-disable-next-line no-self-compare
-        if (n != n) return buffer;
-        if (i == partsLength - 1) {
-          if (n >= Math.pow(256, 5 - partsLength)) return buffer;
-        } else if (n > 255) return buffer;
-        numbers.push(n);
-      }
-      ipv4 = numbers.pop();
-      for (i = 0; i < numbers.length; i++) {
-        ipv4 += numbers[i] * Math.pow(256, 3 - i);
-      }
-      return ipv4;
-    }();
-    if (buffer !== result) {
-      state.host = result;
-    } else {
-      state.host = buffer;
-    }
-    if (validationErrorFlag) return null;
+    buffer = toASCII(buffer);
+    if (FORBIDDEN_HOST_CODE_POINT.test(buffer)) return INVALID_HOST;
+    state.host = parseIPv4(buffer);
   }
+};
+
+var parseIPv4 = function (buffer) {
+  var parts = buffer.split('.');
+  var partsLength, numbers, i, part, R, n, ipv4;
+  if (parts[parts.length - 1] == '') {
+    if (parts.length) parts.pop();
+  }
+  partsLength = parts.length;
+  if (partsLength > 4) return buffer;
+  numbers = [];
+  for (i = 0; i < partsLength; i++) {
+    part = parts[i];
+    if (part == '') return buffer;
+    R = 10;
+    if (part.length > 1 && part.charAt(0) == '0') {
+      R = HEX_START.test(part) ? 16 : 8;
+      part = part.slice(R == 8 ? 1 : 2);
+    }
+    if (R == 10 ? !DEC.test(part) : R == 8 ? !OCT.test(part) : !HEX.test(part)) return buffer;
+    n = parseInt(part, R);
+    // eslint-disable-next-line no-self-compare
+    if (n != n) return buffer;
+    if (i == partsLength - 1) {
+      if (n >= Math.pow(256, 5 - partsLength)) return buffer;
+    } else if (n > 255) return buffer;
+    numbers.push(n);
+  }
+  ipv4 = numbers.pop();
+  for (i = 0; i < numbers.length; i++) {
+    ipv4 += numbers[i] * Math.pow(256, 3 - i);
+  }
+  return ipv4;
+};
+
+// eslint-disable-next-line max-statements
+var parseIPv6 = function (buffer) {
+  var address = [0, 0, 0, 0, 0, 0, 0, 0];
+  var pieceIndex = 0;
+  var compress = null;
+  var pointer = 0;
+  var char, value, length, numbersSeen, ipv4Piece, number, swaps, swap;
+  if (buffer.charAt(0) == ':') {
+    if (buffer.charAt(1) != ':') return;
+    pointer += 2;
+    pieceIndex++;
+  }
+  while ((char = buffer.charAt(pointer)) != EOF) {
+    if (pieceIndex == 8) return;
+    if (char == ':') {
+      if (compress !== null) return;
+      pointer++;
+      pieceIndex++;
+      compress = pieceIndex;
+      continue;
+    }
+    value = length = 0;
+    while (HEX.test(char = buffer.charAt(pointer)) && length < 4) {
+      value = value * 16 + parseInt(char, 16);
+      pointer++;
+      length++;
+    }
+    if (char == '.') {
+      if (length == 0) return;
+      pointer -= length;
+      if (pieceIndex > 6) return;
+      numbersSeen = 0;
+      while ((char = buffer.charAt(pointer)) != EOF) {
+        ipv4Piece = null;
+        if (numbersSeen > 0) {
+          if (char == '.' && numbersSeen < 4) pointer++;
+          else return;
+        }
+        if (!DIGIT.test(char)) return;
+        do {
+          number = parseInt(char, 10);
+          if (ipv4Piece === null) ipv4Piece = number;
+          else if (ipv4Piece == 0) return;
+          ipv4Piece = ipv4Piece * 10 + number;
+        } while (DIGIT.test(char = buffer.charAt(pointer)));
+        address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
+        numbersSeen++;
+        if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
+      }
+      if (numbersSeen != 4) return;
+      break;
+    } else if (char == ':') {
+      pointer++;
+      if (buffer.charAt(pointer) == EOF) return;
+    } else if (char != EOF) return;
+    address[pieceIndex++] = value;
+  }
+  if (compress !== null) {
+    swaps = pieceIndex - compress;
+    pieceIndex = 7;
+    while (pieceIndex != 0 && swaps > 0) {
+      swap = address[pieceIndex];
+      address[pieceIndex--] = address[compress + swaps - 1];
+      address[compress + --swaps] = swap;
+    }
+  } else if (pieceIndex != 8) return;
+  return address;
 };
 
 var findLongestZeroSequence = function (ipv6) {
@@ -210,15 +212,15 @@ relative.https = 443;
 relative.ws = 80;
 relative.wss = 443;
 
+var isRelativeScheme = function (scheme) {
+  return has(relative, scheme);
+};
+
 var relativePathDotMapping = create(null);
 relativePathDotMapping['%2e'] = '.';
 relativePathDotMapping['.%2e'] = '..';
 relativePathDotMapping['%2e.'] = '..';
 relativePathDotMapping['%2e%2e'] = '..';
-
-var isRelativeScheme = function (scheme) {
-  return has(relative, scheme);
-};
 
 var invalid = function (state) {
   initializeState(state).isInvalid = true;
@@ -269,6 +271,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
   var seenAt = false;
   var seenBracket = false;
   var errors = [];
+  var result;
 
   loop: while ((input.charAt(cursor - 1) != EOF || cursor == 0) && !urlState.isInvalid) {
     var char = input.charAt(cursor);
@@ -463,46 +466,54 @@ var parse = function (urlState, input, stateOverride, baseState) {
         break;
 
       case FILE_HOST:
-        if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char) {
+        if (char == EOF || char == '/' || char == '\\' || char == '?' || char == '#') {
           if (
+            !stateOverride &&
             buffer.length == 2 && ALPHA.test(buffer.charAt(0)) &&
             (buffer.charAt(1) == ':' || buffer.charAt(1) == '|')
           ) {
             state = RELATIVE_PATH;
-          } else if (buffer.length == 0) {
+          } else if (buffer == '') {
+            urlState.host = '';
+            if (stateOverride) break loop;
             state = RELATIVE_PATH_START;
           } else {
-            parseHost(urlState, buffer);
+            result = parseHost(urlState, buffer);
+            if (result) return result;
+            if (urlState.host == 'localhost') urlState.host = '';
+            if (stateOverride) break loop;
             buffer = '';
             state = RELATIVE_PATH_START;
           }
           continue;
-        } else if ('\t' == char || '\n' == char || '\r' == char) {
-          err('Invalid whitespace in file host.');
-        } else {
-          buffer += char;
-        } break;
+        } else buffer += char;
+        break;
 
       case HOST:
       case HOSTNAME:
-        if (':' == char && !seenBracket) {
-          // XXX host parsing
-          parseHost(urlState, buffer);
+        if (stateOverride && urlState.scheme == 'file') {
+          cursor--;
+          state = FILE_HOST;
+        } else if (char == ':' && !seenBracket) {
+          if (buffer == '') return INVALID_HOST;
+          result = parseHost(urlState, buffer);
+          if (result) return result;
           buffer = '';
           state = PORT;
-          if (HOSTNAME == stateOverride) break loop;
-        } else if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char) {
-          parseHost(urlState, buffer);
+          if (stateOverride == HOSTNAME) break loop;
+        } else if (char == EOF || char == '/' || char == '\\' || char == '?' || char == '#') {
+          if (buffer == '') return INVALID_HOST;
+          result = parseHost(urlState, buffer);
+          if (result) return result;
           buffer = '';
           state = RELATIVE_PATH_START;
           if (stateOverride) break loop;
           continue;
-        } else if ('\t' != char && '\n' != char && '\r' != char) {
-          if ('[' == char) seenBracket = true;
-          else if (']' == char) seenBracket = false;
+        } else {
+          if (char == '[') seenBracket = true;
+          else if (char == ']') seenBracket = false;
           buffer += char;
-        } else err('Invalid code point in host/hostname: ' + char);
-        break;
+        } break;
 
       case PORT:
         if (DIGIT.test(char)) {

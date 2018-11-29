@@ -160,7 +160,7 @@ var encode = function (input) {
 
 module.exports = function (input) {
   var encoded = [];
-  var labels = input.replace(regexSeparators, '\x2E').split('.');
+  var labels = input.toLowerCase().replace(regexSeparators, '\x2E').split('.');
   var i, label;
   for (i = 0; i < labels.length; i++) {
     label = labels[i];
