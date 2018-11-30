@@ -15,8 +15,11 @@ var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
+var pow = Math.pow;
 
+var INVALID_SCHEME = 'Invalid scheme';
 var INVALID_HOST = 'Invalid host';
+var INVALID_PORT = 'Invalid port';
 
 var ALPHA = /[a-zA-Z]/;
 var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
@@ -27,7 +30,10 @@ var DEC = /^[0-9]+$/;
 var HEX = /^[0-9A-Fa-f]+$/;
 // eslint-disable-next-line no-control-regex
 var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|@|\[|\\|\]/;
-var TRIM = /^[ \t\r\n\f]+|[ \t\r\n\f]+$/g;
+// eslint-disable-next-line no-control-regex
+var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F\u0020]+|[\u0000-\u001F\u0020]+$/g;
+// eslint-disable-next-line no-control-regex
+var TAB_AND_NEW_LINE = /\u0009|\u000A|\u000D/g;
 var EOF = '';
 
 var parseHost = function (state, buffer) {
@@ -67,18 +73,18 @@ var parseIPv4 = function (buffer) {
       R = HEX_START.test(part) ? 16 : 8;
       part = part.slice(R == 8 ? 1 : 2);
     }
-    if (R == 10 ? !DEC.test(part) : R == 8 ? !OCT.test(part) : !HEX.test(part)) return buffer;
+    if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return buffer;
     n = parseInt(part, R);
     // eslint-disable-next-line no-self-compare
     if (n != n) return buffer;
     if (i == partsLength - 1) {
-      if (n >= Math.pow(256, 5 - partsLength)) return buffer;
+      if (n >= pow(256, 5 - partsLength)) return buffer;
     } else if (n > 255) return buffer;
     numbers.push(n);
   }
   ipv4 = numbers.pop();
   for (i = 0; i < numbers.length; i++) {
-    ipv4 += numbers[i] * Math.pow(256, 3 - i);
+    ipv4 += numbers[i] * pow(256, 3 - i);
   }
   return ipv4;
 };
@@ -222,10 +228,6 @@ relativePathDotMapping['.%2e'] = '..';
 relativePathDotMapping['%2e.'] = '..';
 relativePathDotMapping['%2e%2e'] = '..';
 
-var invalid = function (state) {
-  initializeState(state).isInvalid = true;
-};
-
 var escapeSet = { '"': 1, '#': 1, '<': 1, '>': 1, '?': 1, '`': 1 };
 
 var fragmentSet = { '"': 1, '<': 1, '>': 1, '`': 1 };
@@ -237,6 +239,10 @@ var percentEncode = function (char, set) {
   return code > 0x20 && code < 0x7F && !has(set, char) ? char : encodeURIComponent(char);
 };
 
+var includesCredentials = function (state) {
+  return state.username != '' || state.password != '';
+};
+
 // States:
 var SCHEME_START = {};
 var SCHEME = {};
@@ -245,8 +251,7 @@ var NO_SCHEME = {};
 var RELATIVE_OR_AUTHORITY = {};
 var RELATIVE = {};
 var RELATIVE_SLASH = {};
-var AUTHORITY_FIRST_SLASH = {};
-var AUTHORITY_SECOND_SLASH = {};
+var AUTHORITY_SLASHES = {};
 var AUTHORITY_IGNORE_SLASHES = {};
 var AUTHORITY = {};
 var FILE_HOST = {};
@@ -261,38 +266,33 @@ var FRAGMENT = {};
 // URL parser based on https://github.com/webcomponents/URL
 // eslint-disable-next-line max-statements
 var parse = function (urlState, input, stateOverride, baseState) {
-  var err = function (message) {
-    errors.push(message);
-  };
-
   var state = stateOverride || SCHEME_START;
-  var cursor = 0;
+  var pointer = 0;
   var buffer = '';
   var seenAt = false;
   var seenBracket = false;
-  var errors = [];
+  var seenPasswordToken = false;
   var result;
 
-  loop: while ((input.charAt(cursor - 1) != EOF || cursor == 0) && !urlState.isInvalid) {
-    var char = input.charAt(cursor);
+  input = input.replace(TAB_AND_NEW_LINE, '');
+
+  loop: while ((input.charAt(pointer - 1) != EOF || pointer == 0)) {
+    var char = input.charAt(pointer);
     switch (state) {
       case SCHEME_START:
         if (char && ALPHA.test(char)) {
           buffer += char.toLowerCase(); // ASCII-safe
           state = SCHEME;
         } else if (!stateOverride) {
-          buffer = '';
           state = NO_SCHEME;
           continue;
-        } else {
-          err('Invalid scheme.');
-          break loop;
-        } break;
+        } else return INVALID_SCHEME;
+        break;
 
       case SCHEME:
         if (char && ALPHANUMERIC.test(char)) {
           buffer += char.toLowerCase(); // ASCII-safe
-        } else if (':' == char) {
+        } else if (char == ':') {
           urlState.scheme = buffer;
           buffer = '';
           if (stateOverride) break loop;
@@ -302,29 +302,27 @@ var parse = function (urlState, input, stateOverride, baseState) {
           } else if (urlState.isRelative && baseState && baseState.scheme == urlState.scheme) {
             state = RELATIVE_OR_AUTHORITY;
           } else if (urlState.isRelative) {
-            state = AUTHORITY_FIRST_SLASH;
+            state = AUTHORITY_SLASHES;
           } else state = SCHEME_DATA;
         } else if (!stateOverride) {
           buffer = '';
-          cursor = 0;
+          pointer = 0;
           state = NO_SCHEME;
           continue;
-        } else if (EOF == char) {
+        } else if (char == EOF) {
           break loop;
-        } else {
-          err('Code point not allowed in scheme: ' + char);
-          break loop;
-        } break;
+        } else return INVALID_SCHEME;
+        break;
 
       case SCHEME_DATA:
-        if ('?' == char) {
+        if (char == '?') {
           urlState.query = '?';
           state = QUERY;
-        } else if ('#' == char) {
+        } else if (char == '#') {
           urlState.fragment = '#';
           state = FRAGMENT;
         // XXX error handling
-        } else if (EOF != char && '\t' != char && '\n' != char && '\r' != char) {
+        } else if (char != EOF && char != '\t' && char != '\n' && char != '\r') {
           urlState.schemeData += percentEncode(char, escapeSet);
         } break;
 
@@ -336,10 +334,9 @@ var parse = function (urlState, input, stateOverride, baseState) {
         continue;
 
       case RELATIVE_OR_AUTHORITY:
-        if ('/' == char && '/' == input.charAt(cursor + 1)) {
+        if (char == '/' && input.charAt(pointer + 1) == '/') {
           state = AUTHORITY_IGNORE_SLASHES;
         } else {
-          err('Expected /, got: ' + char);
           state = RELATIVE;
           continue;
         } break;
@@ -357,7 +354,6 @@ var parse = function (urlState, input, stateOverride, baseState) {
           urlState.password = baseState.password;
           break loop;
         } else if ('/' == char || '\\' == char) {
-          if ('\\' == char) err('\\ is an invalid code point.');
           state = RELATIVE_SLASH;
         } else if ('?' == char) {
           urlState.host = baseState.host;
@@ -377,8 +373,8 @@ var parse = function (urlState, input, stateOverride, baseState) {
           urlState.password = baseState.password;
           state = FRAGMENT;
         } else {
-          var nextC = input.charAt(cursor + 1);
-          var nextNextC = input.charAt(cursor + 2);
+          var nextC = input.charAt(pointer + 1);
+          var nextNextC = input.charAt(pointer + 2);
           if (
             'file' != urlState.scheme || !ALPHA.test(char) ||
             (nextC != ':' && nextC != '|') ||
@@ -396,8 +392,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
         } break;
 
       case RELATIVE_SLASH:
-        if ('/' == char || '\\' == char) {
-          if ('\\' == char) err('\\ is an invalid code point.');
+        if (char == '/' || char == '\\') {
           if ('file' == urlState.scheme) state = FILE_HOST;
           else state = AUTHORITY_IGNORE_SLASHES;
         } else {
@@ -411,54 +406,35 @@ var parse = function (urlState, input, stateOverride, baseState) {
           continue;
         } break;
 
-      case AUTHORITY_FIRST_SLASH:
-        if ('/' == char) {
-          state = AUTHORITY_SECOND_SLASH;
-        } else {
-          err("Expected '/', got: " + char);
-          state = AUTHORITY_IGNORE_SLASHES;
-          continue;
-        } break;
-
-      case AUTHORITY_SECOND_SLASH:
+      case AUTHORITY_SLASHES:
         state = AUTHORITY_IGNORE_SLASHES;
-        if ('/' != char) {
-          err("Expected '/', got: " + char);
-          continue;
-        } break;
+        if (char != '/' || buffer.charAt(pointer + 1) != '/') continue;
+        pointer++;
+        break;
 
       case AUTHORITY_IGNORE_SLASHES:
         if ('/' != char && '\\' != char) {
           state = AUTHORITY;
           continue;
-        } else err('Expected authority, got: ' + char);
-        break;
+        } break;
 
       case AUTHORITY:
         if ('@' == char) {
-          if (seenAt) {
-            err('@ already seen.');
-            buffer += '%40';
-          }
+          if (seenAt) buffer += '%40';
           seenAt = true;
           for (var i = 0; i < buffer.length; i++) {
-            var cp = buffer.charAt(i);
-            if ('\t' == cp || '\n' == cp || '\r' == cp) {
-              err('Invalid whitespace in authority.');
+            var codePoint = buffer.charAt(i);
+            if (codePoint == ':') {
+              seenPasswordToken = true;
               continue;
             }
-            // XXX check URL code points
-            if (':' == cp && null === urlState.password) {
-              urlState.password = '';
-              continue;
-            }
-            var tempC = percentEncode(cp, escapeSet);
-            if (null !== urlState.password) urlState.password += tempC;
-            else urlState.username += tempC;
+            var encodedCodePoints = percentEncode(codePoint, escapeSet);
+            if (seenPasswordToken) urlState.password += encodedCodePoints;
+            else urlState.username += encodedCodePoints;
           }
           buffer = '';
         } else if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char) {
-          cursor -= buffer.length;
+          pointer -= buffer.length;
           buffer = '';
           state = HOST;
           continue;
@@ -492,8 +468,8 @@ var parse = function (urlState, input, stateOverride, baseState) {
       case HOST:
       case HOSTNAME:
         if (stateOverride && urlState.scheme == 'file') {
-          cursor--;
           state = FILE_HOST;
+          continue;
         } else if (char == ':' && !seenBracket) {
           if (buffer == '') return INVALID_HOST;
           result = parseHost(urlState, buffer);
@@ -518,34 +494,26 @@ var parse = function (urlState, input, stateOverride, baseState) {
       case PORT:
         if (DIGIT.test(char)) {
           buffer += char;
-        } else if (EOF == char || '/' == char || '\\' == char || '?' == char || '#' == char || stateOverride) {
+        } else if (char == EOF || char == '/' || char == '\\' || char == '?' || char == '#' || stateOverride) {
           if ('' != buffer) {
             var temp = parseInt(buffer, 10);
-            if (temp > 65535) {
-              err('Invalid port: ' + temp);
-            } else if (temp != relative[urlState.scheme]) {
-              urlState.port = temp + '';
-            }
+            if (temp > 65535) return INVALID_PORT;
+            if (temp != relative[urlState.scheme]) urlState.port = String(temp);
             buffer = '';
           }
           if (stateOverride) break loop;
           state = RELATIVE_PATH_START;
           continue;
-        } else if ('\t' == char || '\n' == char || '\r' == char) {
-          err('Invalid code point in port: ' + char);
-        } else {
-          invalid(urlState);
-        } break;
+        } else return INVALID_PORT;
+        break;
 
       case RELATIVE_PATH_START:
-        if ('\\' == char) err("'\\' not allowed in path.");
         state = RELATIVE_PATH;
         if ('/' != char && '\\' != char) continue;
         break;
 
       case RELATIVE_PATH:
         if (EOF == char || '/' == char || '\\' == char || (!stateOverride && ('?' == char || '#' == char))) {
-          if ('\\' == char) err('\\ not allowed in relative path.');
           var tmp = relativePathDotMapping[buffer.toLowerCase()];
           if (tmp) buffer = tmp;
           if ('..' == buffer) {
@@ -588,7 +556,7 @@ var parse = function (urlState, input, stateOverride, baseState) {
         } break;
     }
 
-    cursor++;
+    pointer++;
   }
 };
 
@@ -596,13 +564,12 @@ var initializeState = function (state) {
   state.scheme = '';
   state.schemeData = '';
   state.username = '';
-  state.password = null;
+  state.password = '';
   state.host = '';
   state.port = '';
   state.path = [];
   state.query = '';
   state.fragment = '';
-  state.isInvalid = false;
   state.isRelative = false;
   return state;
 };
@@ -625,7 +592,7 @@ var URLConstructor = function URL(url /* , base */) {
   }
   initializeState(state);
   state.url = urlString;
-  result = parse(state, urlString.replace(TRIM, ''), null, baseState);
+  result = parse(state, urlString.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, ''), null, baseState);
   if (result) throw new TypeError(result);
   var searchParams = state.searchParams = new URLSearchParams(state.query);
   getInternalSearchParamsState(searchParams).updateURL = function () {
@@ -656,9 +623,8 @@ var getHref = function () {
   var username = state.username;
   var password = state.password;
   var authority = '';
-  if (state.isInvalid) return state.url;
-  if ('' !== username || null !== password) {
-    authority = username + (null !== password ? ':' + password : '') + '@';
+  if (includesCredentials(state)) {
+    authority = username + (password ? ':' + password : '') + '@';
   }
   return state.scheme + ':' + (state.isRelative ? '//' + authority + getHost.call(that) : '') +
     getPathname.call(that) + state.query + state.fragment;
@@ -667,7 +633,7 @@ var getHref = function () {
 var getOrigin = function () {
   var state = getInternalURLState(this);
   var scheme = state.scheme;
-  if (state.isInvalid || !scheme) return '';
+  if (!scheme) return '';
   switch (scheme) {
     case 'data':
     case 'file':
@@ -694,7 +660,7 @@ var getPassword = function () {
 
 var getHost = function () {
   var state = getInternalURLState(this);
-  return state.isInvalid ? '' : state.port ? serializeHost(state.host) + ':' + state.port : serializeHost(state.host);
+  return state.port ? serializeHost(state.host) + ':' + state.port : serializeHost(state.host);
 };
 
 var getHostname = function () {
@@ -707,12 +673,12 @@ var getPort = function () {
 
 var getPathname = function () {
   var state = getInternalURLState(this);
-  return state.isInvalid ? '' : state.isRelative ? '/' + state.path.join('/') : state.schemeData;
+  return state.isRelative ? '/' + state.path.join('/') : state.schemeData;
 };
 
 var getSearch = function () {
   var state = getInternalURLState(this);
-  return state.isInvalid || state.query === '?' ? '' : state.query;
+  return state.query === '?' ? '' : state.query;
 };
 
 var getSearchParams = function () {
@@ -722,11 +688,11 @@ var getSearchParams = function () {
 var getHash = function () {
   var state = getInternalURLState(this);
   var fragment = state.fragment;
-  return state.isInvalid || !fragment || '#' == fragment ? '' : fragment;
+  return !fragment || '#' == fragment ? '' : fragment;
 };
 
 var cannotHaveUsernamePasswordPort = function (state) {
-  return state.isInvalid || !state.isRelative;
+  return !state.isRelative;
 };
 
 var accessorDescriptor = function (getter, setter) {
@@ -739,10 +705,10 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-href
     href: accessorDescriptor(getHref, function (href) {
       var state = getInternalURLState(this);
-      var urlString = href + '';
+      var urlString = String(href);
       initializeState(state);
       state.url = urlString;
-      var result = parse(state, urlString);
+      var result = parse(state, urlString.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, ''));
       if (result) throw new TypeError(result);
       getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
     }),
@@ -753,7 +719,6 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-protocol
     protocol: accessorDescriptor(getProtocol, function (protocol) {
       var state = getInternalURLState(this);
-      if (state.isInvalid) return;
       parse(state, protocol + ':', SCHEME_START);
     }),
     // `URL.prototype.username` accessors pair
@@ -783,14 +748,14 @@ if (DESCRIPTORS) {
     host: accessorDescriptor(getHost, function (host) {
       var state = getInternalURLState(this);
       host += '';
-      if (state.isInvalid || !state.isRelative) return;
+      if (!state.isRelative) return;
       parse(state, host, HOST);
     }),
     // `URL.prototype.hostname` accessors pair
     // https://url.spec.whatwg.org/#dom-url-hostname
     hostname: accessorDescriptor(getHostname, function (hostname) {
       var state = getInternalURLState(this);
-      if (state.isInvalid || !state.isRelative) return;
+      if (!state.isRelative) return;
       parse(state, hostname + '', HOSTNAME);
     }),
     // `URL.prototype.port` accessors pair
@@ -804,7 +769,7 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-pathname
     pathname: accessorDescriptor(getPathname, function (pathname) {
       var state = getInternalURLState(this);
-      if (state.isInvalid || !state.isRelative) return;
+      if (!state.isRelative) return;
       state.path = [];
       parse(state, pathname + '', RELATIVE_PATH_START);
     }),
@@ -813,7 +778,7 @@ if (DESCRIPTORS) {
     search: accessorDescriptor(getSearch, function (search) {
       var state = getInternalURLState(this);
       search += '';
-      if (state.isInvalid || !state.isRelative) return;
+      if (!state.isRelative) return;
       if ('?' == search.charAt(0)) search = search.slice(1);
       if (search === '') {
         state.query = '';
@@ -831,7 +796,6 @@ if (DESCRIPTORS) {
     hash: accessorDescriptor(getHash, function (hash) {
       var state = getInternalURLState(this);
       hash += '';
-      if (state.isInvalid) return;
       if ('#' == hash.charAt(0)) hash = hash.slice(1);
       if (hash === '') {
         state.fragment = '';

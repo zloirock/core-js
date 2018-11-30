@@ -43,7 +43,8 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:ff'), 'incorrect IPv6');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
-  // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // not error in FF
+  // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
+  assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
 });
 
 QUnit.test('URL#href', assert => {
@@ -109,13 +110,14 @@ QUnit.test('URL#href', assert => {
     assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
     assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
 
-    // assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // not error in Chrome
-    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // not error in Chrome and FF
+    // assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
+    // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
+    // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
   }
 });
 
@@ -161,6 +163,12 @@ QUnit.test('URL#protocol', assert => {
     // assert.same(url.protocol, 'http:');
     // assert.same(url.href, 'http://zloirock.ru/');
     // assert.same(String(url), 'http://zloirock.ru/');
+
+    url = new URL('http://zloirock.ru/');
+    url.protocol = '1http';
+    assert.same(url.protocol, 'http:');
+    assert.same(url.href, 'http://zloirock.ru/', 'incorrect scheme');
+    assert.same(String(url), 'http://zloirock.ru/', 'incorrect scheme');
   }
 });
 
