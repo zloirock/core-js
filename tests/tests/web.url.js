@@ -14,15 +14,17 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('b/c', new URL('http://www.domain.com/a/b'))), 'http://www.domain.com/a/b/c');
   assert.same(String(new URL({ toString: () => 'https://example.org/' })), 'https://example.org/');
 
+  assert.same(String(new URL('nonspecial://example.com/')), 'nonspecial://example.com/');
+
   assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/', 'unicode parsing');
   assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
   assert.same(String(new URL('https://xxПРИВЕТ.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
   assert.same(String(new URL('http://Example.com/', 'https://example.org/')), 'http://example.com/');
   assert.same(String(new URL('https://Example.com/', 'https://example.org/')), 'https://example.com/');
-  assert.same(String(new URL('foo://Example.com/', 'https://example.org/')), 'foo://Example.com/');
+  assert.same(String(new URL('nonspecial://Example.com/', 'https://example.org/')), 'nonspecial://Example.com/');
   assert.same(String(new URL('http:Example.com/', 'https://example.org/')), 'http://example.com/');
   assert.same(String(new URL('https:Example.com/', 'https://example.org/')), 'https://example.org/Example.com/');
-  assert.same(String(new URL('foo:Example.com/', 'https://example.org/')), 'foo:Example.com/');
+  assert.same(String(new URL('nonspecial:Example.com/', 'https://example.org/')), 'nonspecial:Example.com/');
 
   assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
   assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');

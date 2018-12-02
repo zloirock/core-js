@@ -65,7 +65,7 @@ var parseSearchParams = function (result, search) {
 
 var updateSearchParams = function (string) {
   this.entries.length = 0;
-  parseSearchParams(this.entries, string);
+  parseSearchParams(this.entries, string || '');
 };
 
 var validateArgumentsLength = function (passed, required) {
