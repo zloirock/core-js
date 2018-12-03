@@ -103,6 +103,7 @@
   - Fix non-enumerable integer keys issue because of Nashorn ~ JDK8 bug, [#389](https://github.com/zloirock/core-js/issues/389).
   - Fix [Safari 12.0 `Array#reverse` bug](https://bugs.webkit.org/show_bug.cgi?id=188794).
   - Fix buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
+  - One more fix for microtasks in iOS related [#339](https://github.com/zloirock/core-js/issues/339).
   - Added a fallback for [Rhino bug](https://github.com/mozilla/rhino/issues/346), [#440](https://github.com/zloirock/core-js/issues/440).
 - Repository:
   - Change `core-js` repository structure to monorepo with packages in `/packages/` directory.
