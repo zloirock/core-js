@@ -5,8 +5,7 @@ var toObject = require('./_to-object');
 var toLength = require('./_to-length');
 var toInteger = require('./_to-integer');
 var advanceStringIndex = require('./_advance-string-index');
-var regExpExec = require('./_re-exec');
-var nativeExec = RegExp.prototype.exec;
+var regExpExec = require('./_regexp-exec-abstract');
 var max = Math.max;
 var min = Math.min;
 var floor = Math.floor;
@@ -18,7 +17,7 @@ var maybeToString = function (it) {
 };
 
 // @@replace logic
-require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, RegExp$replace, reason) {
+require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, maybeCallNative) {
   return [
     // `String.prototype.replace` method
     // https://tc39.github.io/ecma262/#sec-string.prototype.replace
@@ -32,15 +31,8 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, Reg
     // `RegExp.prototype[@@replace]` method
     // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
     function (regexp, replaceValue) {
-      if (regexp.exec === nativeExec) {
-        if (reason.delegates) {
-          // The native #replaceMethod already delegates to @@replace (this
-          // polyfilled function, leasing to infinite recursion).
-          // We avoid it by directly calling the native @@replace method.
-          return RegExp$replace.call(regexp, this, replaceValue);
-        }
-        return $replace.call(this, regexp, replaceValue);
-      }
+      var res = maybeCallNative($replace, regexp, this, replaceValue);
+      if (res.done) return res.value;
 
       var rx = anObject(regexp);
       var S = String(this);
@@ -66,7 +58,13 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, Reg
         result = results[i];
         var matched = String(result[0]);
         var position = max(min(toInteger(result.index), S.length), 0);
-        var captures = result.slice(1).map(maybeToString);
+        var captures = [];
+        // NOTE: This is equivalent to
+        //   captures = result.slice(1).map(maybeToString)
+        // but for some reason `nativeSlice.call(result, 1, result.length)` (called in
+        // the slice polyfill when slicing native arrays) "doesn't work" in safari 9 and
+        // causes a crash (https://pastebin.com/N21QzeQA) when trying to debug it.
+        for (var j = 1; j < result.length; j++) captures.push(maybeToString(result[j]));
         var namedCaptures = result.groups;
         if (functionalReplace) {
           var replacerArgs = [matched].concat(captures, position, S);
@@ -95,7 +93,7 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, Reg
     }
     return $replace.call(replacement, symbols, function (match, ch) {
       var capture;
-      switch (ch[0]) {
+      switch (ch.charAt(0)) {
         case '$': return '$';
         case '&': return matched;
         case '`': return str.slice(0, position);
@@ -109,7 +107,7 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, Reg
           if (n > m) {
             var f = floor(n / 10);
             if (f === 0) return ch;
-            if (f <= m) return captures[f - 1] === undefined ? ch[1] : captures[f - 1] + ch[1];
+            if (f <= m) return captures[f - 1] === undefined ? ch.charAt(1) : captures[f - 1] + ch.charAt(1);
             return ch;
           }
           capture = captures[n - 1];

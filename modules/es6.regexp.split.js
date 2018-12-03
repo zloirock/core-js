@@ -5,8 +5,8 @@ var anObject = require('./_an-object');
 var speciesConstructor = require('./_species-constructor');
 var advanceStringIndex = require('./_advance-string-index');
 var toLength = require('./_to-length');
-var regExpExec = require('./_re-exec');
-var nativeExec = RegExp.prototype.exec;
+var callRegExpExec = require('./_regexp-exec-abstract');
+var regexpExec = require('./_regexp-exec');
 var $min = Math.min;
 var $push = [].push;
 var $SPLIT = 'split';
@@ -17,7 +17,8 @@ var LAST_INDEX = 'lastIndex';
 var SUPPORTS_Y = !!(function () { try { return new RegExp('x', 'y'); } catch (e) {} })();
 
 // @@split logic
-require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
+require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split, maybeCallNative) {
+  var internalSplit = $split;
   if (
     'abbc'[$SPLIT](/(b)*/)[1] == 'c' ||
     'test'[$SPLIT](/(?:)/, -1)[LENGTH] != 4 ||
@@ -26,9 +27,8 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
     '.'[$SPLIT](/()()/)[LENGTH] > 1 ||
     ''[$SPLIT](/.?/)[LENGTH]
   ) {
-    var NPCG = /()??/.exec('')[1] === undefined; // nonparticipating capturing group
     // based on es5-shim implementation, need to rework it
-    $split = function (separator, limit) {
+    internalSplit = function (separator, limit) {
       var string = String(this);
       if (separator === undefined && limit === 0) return [];
       // If `separator` is not a regex, use native split
@@ -42,19 +42,11 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
       var splitLimit = limit === undefined ? 4294967295 : limit >>> 0;
       // Make `global` and avoid `lastIndex` issues by working with a copy
       var separatorCopy = new RegExp(separator.source, flags + 'g');
-      var separator2, match, lastIndex, lastLength, i;
-      // Doesn't need flags gy, but they don't hurt
-      if (!NPCG) separator2 = new RegExp('^' + separatorCopy.source + '$(?!\\s)', flags);
-      while (match = separatorCopy.exec(string)) {
-        // `separatorCopy.lastIndex` is not reliable cross-browser
-        lastIndex = match.index + match[0][LENGTH];
+      var match, lastIndex, lastLength;
+      while (match = regexpExec.impl.call(separatorCopy, string)) {
+        lastIndex = separatorCopy[LAST_INDEX];
         if (lastIndex > lastLastIndex) {
           output.push(string.slice(lastLastIndex, match.index));
-          // Fix browsers whose `exec` methods don't consistently return `undefined` for NPCG
-          // eslint-disable-next-line no-loop-func
-          if (!NPCG && match[LENGTH] > 1) match[0].replace(separator2, function () {
-            for (i = 1; i < arguments[LENGTH] - 2; i++) if (arguments[i] === undefined) match[i] = undefined;
-          });
           if (match[LENGTH] > 1 && match.index < string[LENGTH]) $push.apply(output, match.slice(1));
           lastLength = match[0][LENGTH];
           lastLastIndex = lastIndex;
@@ -69,7 +61,7 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
     };
   // Chakra, V8
   } else if ('0'[$SPLIT](undefined, 0)[LENGTH]) {
-    $split = function (separator, limit) {
+    internalSplit = function (separator, limit) {
       return separator === undefined && limit === 0 ? [] : $split.call(this, separator, limit);
     };
   }
@@ -81,8 +73,8 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
       var O = defined(this);
       var splitter = separator == undefined ? undefined : separator[SPLIT];
       return splitter !== undefined
-      ? splitter.call(separator, O, limit)
-      : $split.call(String(O), separator, limit);
+        ? splitter.call(separator, O, limit)
+        : internalSplit.call(String(O), separator, limit);
     },
     // `RegExp.prototype[@@split]` method
     // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@split
@@ -90,10 +82,8 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
     // NOTE: This cannot be properly polyfilled in engines that don't support
     // the 'y' flag.
     function (regexp, limit) {
-      // We can never use `internalSplit` if exec has been changed, because
-      // internalSplit contains workarounds for things which might have been
-      // purposely changed by the developer.
-      if (regexp.exec === nativeExec) return $split.call(this, regexp, limit);
+      var res = maybeCallNative(internalSplit, regexp, this, limit, internalSplit !== $split);
+      if (res.done) return res.value;
 
       var rx = anObject(regexp);
       var S = String(this);
@@ -110,13 +100,13 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split) {
       var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
       var lim = limit === undefined ? 0xffffffff : limit >>> 0;
       if (lim === 0) return [];
-      if (S.length === 0) return regExpExec(splitter, S) === null ? [S] : [];
+      if (S.length === 0) return callRegExpExec(splitter, S) === null ? [S] : [];
       var p = 0;
       var q = 0;
       var A = [];
       while (q < S.length) {
         splitter.lastIndex = SUPPORTS_Y ? q : 0;
-        var z = regExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
+        var z = callRegExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
         var e;
         if (
           z === null ||

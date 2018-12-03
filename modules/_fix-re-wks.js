@@ -4,18 +4,21 @@ var redefine = require('./_redefine');
 var fails = require('./_fails');
 var defined = require('./_defined');
 var wks = require('./_wks');
+var regexpExec = require('./_regexp-exec');
 
 var SPECIES = wks('species');
 
 module.exports = function (KEY, length, exec) {
   var SYMBOL = wks(KEY);
 
-  var delegates = !fails(function () {
+  var delegatesToSymbol = !fails(function () {
     // String methods call symbol-named RegEp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
-  }) && !fails(function () {
+  });
+
+  var delegatesToExec = delegatesToSymbol ? !fails(function () {
     // Symbol-named RegExp methods call .exec
     var execCalled = false;
     var re = /a/;
@@ -28,7 +31,7 @@ module.exports = function (KEY, length, exec) {
     }
     re[SYMBOL]('');
     return !execCalled;
-  });
+  }) : undefined;
 
   var replaceSupportsNamedGroups = KEY === 'replace' && !fails(function () {
     // #replace needs built-in support for named groups.
@@ -43,11 +46,39 @@ module.exports = function (KEY, length, exec) {
     return ''.replace(re, '$<a>') !== '7';
   });
 
-  if (!delegates || (KEY === 'replace' && !replaceSupportsNamedGroups)) {
-    var fns = exec(defined, SYMBOL, ''[KEY], /./[SYMBOL], {
-      delegates: delegates,
-      replaceSupportsNamedGroups: replaceSupportsNamedGroups
-    });
+  var splitWorksWithOverwrittenExec = KEY === 'split' && (function () {
+    // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
+    var re = /(?:)/;
+    var originalExec = re.exec;
+    re.exec = function () { return originalExec.apply(this, arguments); };
+    var result = 'ab'.split(re);
+    return result.length === 2 && result[0] === 'a' && result[1] === 'b';
+  })();
+
+  if (
+    !delegatesToSymbol ||
+    !delegatesToExec ||
+    (KEY === 'replace' && !replaceSupportsNamedGroups) ||
+    (KEY === 'split' && !splitWorksWithOverwrittenExec)
+  ) {
+    var nativeRegExpMethod = /./[SYMBOL];
+    var fns = exec(
+      defined,
+      SYMBOL,
+      ''[KEY],
+      function maybeCallNative(nativeMethod, regexp, str, arg2, forceStringMethod) {
+        if (regexp.exec === regexpExec.impl) {
+          if (delegatesToSymbol && !forceStringMethod) {
+            // The native String method already delegates to @@method (this
+            // polyfilled function), leasing to infinite recursion.
+            // We avoid it by directly calling the native @@method method.
+            return { done: true, value: nativeRegExpMethod.call(regexp, str, arg2) };
+          }
+          return { done: true, value: nativeMethod.call(str, regexp, arg2) };
+        }
+        return { done: false };
+      }
+    );
     var strfn = fns[0];
     var rxfn = fns[1];
 
