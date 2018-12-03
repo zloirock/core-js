@@ -5,7 +5,6 @@ QUnit.test('Map#find', assert => {
 
   assert.isFunction(find);
   assert.arity(find, 1);
-  assert.name(find, 'find');
   assert.nonEnumerable(Map.prototype, 'find');
 
   const set = new Map([[1, 2]]);

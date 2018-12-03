@@ -6,7 +6,6 @@ QUnit.test('Map#deleteAll', assert => {
 
   assert.isFunction(deleteAll);
   assert.arity(deleteAll, 0);
-  assert.name(deleteAll, 'deleteAll');
   assert.nonEnumerable(Map.prototype, 'deleteAll');
 
   let set = new Map([[1, 2], [2, 3], [3, 4]]);
