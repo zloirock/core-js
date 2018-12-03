@@ -5778,9 +5778,9 @@ var regexpExec = __webpack_require__(223);
 __webpack_require__(0)({
   target: 'RegExp',
   proto: true,
-  forced: regexpExec.patched
+  forced: regexpExec !== /./.exec
 }, {
-  exec: regexpExec.impl
+  exec: regexpExec
 });
 
 
@@ -5802,7 +5802,6 @@ var nativeReplace = String.prototype.replace;
 var patchedExec = nativeExec;
 
 var LAST_INDEX = 'lastIndex';
-var LENGTH = 'length';
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/,
@@ -5815,9 +5814,9 @@ var UPDATES_LAST_INDEX_WRONG = (function () {
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var patch = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED;
 
-if (patch) {
+if (PATCH) {
   patchedExec = function exec(str) {
     var re = this;
     var lastIndex, reCopy, match, i;
@@ -5830,14 +5829,14 @@ if (patch) {
     match = nativeExec.call(re, str);
 
     if (UPDATES_LAST_INDEX_WRONG && match) {
-      re[LAST_INDEX] = re.global ? match.index + match[0][LENGTH] : lastIndex;
+      re[LAST_INDEX] = re.global ? match.index + match[0].length : lastIndex;
     }
-    if (NPCG_INCLUDED && match && match[LENGTH] > 1) {
+    if (NPCG_INCLUDED && match && match.length > 1) {
       // Fix browsers whose `exec` methods don't consistently return `undefined`
       // for NPCG, like IE8. NOTE: This doesn' work for /(.?)?/
       // eslint-disable-next-line no-loop-func
       nativeReplace.call(match[0], reCopy, function () {
-        for (i = 1; i < arguments[LENGTH] - 2; i++) {
+        for (i = 1; i < arguments.length - 2; i++) {
           if (arguments[i] === undefined) match[i] = undefined;
         }
       });
@@ -5847,11 +5846,7 @@ if (patch) {
   };
 }
 
-module.exports = {
-  orig: nativeExec,
-  impl: patchedExec,
-  patched: patch
-};
+module.exports = patchedExec;
 
 
 /***/ }),

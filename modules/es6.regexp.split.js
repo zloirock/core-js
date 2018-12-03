@@ -43,7 +43,7 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split, maybeCall
       // Make `global` and avoid `lastIndex` issues by working with a copy
       var separatorCopy = new RegExp(separator.source, flags + 'g');
       var match, lastIndex, lastLength;
-      while (match = regexpExec.impl.call(separatorCopy, string)) {
+      while (match = regexpExec.call(separatorCopy, string)) {
         lastIndex = separatorCopy[LAST_INDEX];
         if (lastIndex > lastLastIndex) {
           output.push(string.slice(lastLastIndex, match.index));

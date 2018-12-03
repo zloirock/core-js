@@ -3,7 +3,7 @@ var regexpExec = require('./_regexp-exec');
 require('./_export')({
   target: 'RegExp',
   proto: true,
-  forced: regexpExec.patched
+  forced: regexpExec !== /./.exec
 }, {
-  exec: regexpExec.impl
+  exec: regexpExec
 });

@@ -1794,17 +1794,39 @@ var regexpExec = __webpack_require__(90);
 
 var SPECIES = wks('species');
 
+var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
+  // #replace needs built-in support for named groups.
+  // #match works fine because it just return the exec results, even if it has
+  // a "grops" property.
+  var re = /./;
+  re.exec = function () {
+    var result = [];
+    result.groups = { a: '7' };
+    return result;
+  };
+  return ''.replace(re, '$<a>') !== '7';
+});
+
+var SPLIT_WORKS_WITH_OVERWRITTEN_EXEC = (function () {
+  // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
+  var re = /(?:)/;
+  var originalExec = re.exec;
+  re.exec = function () { return originalExec.apply(this, arguments); };
+  var result = 'ab'.split(re);
+  return result.length === 2 && result[0] === 'a' && result[1] === 'b';
+})();
+
 module.exports = function (KEY, length, exec) {
   var SYMBOL = wks(KEY);
 
-  var delegatesToSymbol = !fails(function () {
+  var DELEGATES_TO_SYMBOL = !fails(function () {
     // String methods call symbol-named RegEp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) != 7;
   });
 
-  var delegatesToExec = delegatesToSymbol ? !fails(function () {
+  var DELEGATES_TO_EXEC = DELEGATES_TO_SYMBOL ? !fails(function () {
     // Symbol-named RegExp methods call .exec
     var execCalled = false;
     var re = /a/;
@@ -1819,33 +1841,11 @@ module.exports = function (KEY, length, exec) {
     return !execCalled;
   }) : undefined;
 
-  var replaceSupportsNamedGroups = KEY === 'replace' && !fails(function () {
-    // #replace needs built-in support for named groups.
-    // #match works fine because it just return the exec results, even if it has
-    // a "grops" property.
-    var re = /./;
-    re.exec = function () {
-      var result = [];
-      result.groups = { a: '7' };
-      return result;
-    };
-    return ''.replace(re, '$<a>') !== '7';
-  });
-
-  var splitWorksWithOverwrittenExec = KEY === 'split' && (function () {
-    // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
-    var re = /(?:)/;
-    var originalExec = re.exec;
-    re.exec = function () { return originalExec.apply(this, arguments); };
-    var result = 'ab'.split(re);
-    return result.length === 2 && result[0] === 'a' && result[1] === 'b';
-  })();
-
   if (
-    !delegatesToSymbol ||
-    !delegatesToExec ||
-    (KEY === 'replace' && !replaceSupportsNamedGroups) ||
-    (KEY === 'split' && !splitWorksWithOverwrittenExec)
+    !DELEGATES_TO_SYMBOL ||
+    !DELEGATES_TO_EXEC ||
+    (KEY === 'replace' && !REPLACE_SUPPORTS_NAMED_GROUPS) ||
+    (KEY === 'split' && !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC)
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
     var fns = exec(
@@ -1853,8 +1853,8 @@ module.exports = function (KEY, length, exec) {
       SYMBOL,
       ''[KEY],
       function maybeCallNative(nativeMethod, regexp, str, arg2, forceStringMethod) {
-        if (regexp.exec === regexpExec.impl) {
-          if (delegatesToSymbol && !forceStringMethod) {
+        if (regexp.exec === regexpExec) {
+          if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
             // The native String method already delegates to @@method (this
             // polyfilled function), leasing to infinite recursion.
             // We avoid it by directly calling the native @@method method.
@@ -2470,7 +2470,6 @@ var nativeReplace = String.prototype.replace;
 var patchedExec = nativeExec;
 
 var LAST_INDEX = 'lastIndex';
-var LENGTH = 'length';
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/,
@@ -2483,9 +2482,9 @@ var UPDATES_LAST_INDEX_WRONG = (function () {
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var patch = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED;
 
-if (patch) {
+if (PATCH) {
   patchedExec = function exec(str) {
     var re = this;
     var lastIndex, reCopy, match, i;
@@ -2498,14 +2497,14 @@ if (patch) {
     match = nativeExec.call(re, str);
 
     if (UPDATES_LAST_INDEX_WRONG && match) {
-      re[LAST_INDEX] = re.global ? match.index + match[0][LENGTH] : lastIndex;
+      re[LAST_INDEX] = re.global ? match.index + match[0].length : lastIndex;
     }
-    if (NPCG_INCLUDED && match && match[LENGTH] > 1) {
+    if (NPCG_INCLUDED && match && match.length > 1) {
       // Fix browsers whose `exec` methods don't consistently return `undefined`
       // for NPCG, like IE8. NOTE: This doesn' work for /(.?)?/
       // eslint-disable-next-line no-loop-func
       nativeReplace.call(match[0], reCopy, function () {
-        for (i = 1; i < arguments[LENGTH] - 2; i++) {
+        for (i = 1; i < arguments.length - 2; i++) {
           if (arguments[i] === undefined) match[i] = undefined;
         }
       });
@@ -2515,11 +2514,7 @@ if (patch) {
   };
 }
 
-module.exports = {
-  orig: nativeExec,
-  impl: patchedExec,
-  patched: patch
-};
+module.exports = patchedExec;
 
 
 /***/ }),
@@ -6202,9 +6197,9 @@ var regexpExec = __webpack_require__(90);
 __webpack_require__(0)({
   target: 'RegExp',
   proto: true,
-  forced: regexpExec.patched
+  forced: regexpExec !== /./.exec
 }, {
-  exec: regexpExec.impl
+  exec: regexpExec
 });
 
 
@@ -6500,7 +6495,7 @@ __webpack_require__(62)('split', 2, function (defined, SPLIT, $split, maybeCallN
       // Make `global` and avoid `lastIndex` issues by working with a copy
       var separatorCopy = new RegExp(separator.source, flags + 'g');
       var match, lastIndex, lastLength;
-      while (match = regexpExec.impl.call(separatorCopy, string)) {
+      while (match = regexpExec.call(separatorCopy, string)) {
         lastIndex = separatorCopy[LAST_INDEX];
         if (lastIndex > lastLastIndex) {
           output.push(string.slice(lastLastIndex, match.index));
