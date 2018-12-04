@@ -96,6 +96,7 @@ module.exports = {
     'es6.array.iterator',
     'es6.array.species',
     'es6.regexp.constructor',
+    'es6.regexp.exec',
     'es6.regexp.to-string',
     'es6.regexp.flags',
     'es6.regexp.match',

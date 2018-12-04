@@ -1,4 +1,5 @@
 require('../modules/es6.regexp.constructor');
+require('../modules/es6.regexp.exec');
 require('../modules/es6.regexp.to-string');
 require('../modules/es6.regexp.flags');
 require('../modules/es6.regexp.match');

@@ -3,11 +3,10 @@
 var anObject = require('./_an-object');
 var toLength = require('./_to-length');
 var advanceStringIndex = require('./_advance-string-index');
-var regExpExec = require('./_re-exec');
-var nativeExec = RegExp.prototype.exec;
+var regExpExec = require('./_regexp-exec-abstract');
 
 // @@match logic
-require('./_fix-re-wks')('match', 1, function (defined, MATCH, $match) {
+require('./_fix-re-wks')('match', 1, function (defined, MATCH, $match, maybeCallNative) {
   return [
     // `String.prototype.match` method
     // https://tc39.github.io/ecma262/#sec-string.prototype.match
@@ -19,7 +18,8 @@ require('./_fix-re-wks')('match', 1, function (defined, MATCH, $match) {
     // `RegExp.prototype[@@match]` method
     // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@match
     function (regexp) {
-      if (regexp.exec === nativeExec) return $match.call(this, regexp);
+      var res = maybeCallNative($match, regexp, this);
+      if (res.done) return res.value;
       var rx = anObject(regexp);
       var S = String(this);
       if (!rx.global) return regExpExec(rx, S);
