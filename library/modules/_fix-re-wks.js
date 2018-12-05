@@ -1,4 +1,5 @@
 'use strict';
+require('./es6.regexp.exec');
 var redefine = require('./_redefine');
 var hide = require('./_hide');
 var fails = require('./_fails');
