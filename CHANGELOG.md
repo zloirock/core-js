@@ -1,4 +1,7 @@
 ## Changelog
+##### 2.6.0 - 2018.12.05
+- Add direct .exec calling to `RegExp#{@@replace, @@split, @@match, @@search}`. Also, added fixes for `RegExp#exec` method. [#411](https://github.com/zloirock/core-js/issues/411), [#428](https://github.com/zloirock/core-js/issues/428), [#434](https://github.com/zloirock/core-js/issues/434), [#435](https://github.com/zloirock/core-js/issues/435), [#453](https://github.com/zloirock/core-js/issues/453), [#458](https://github.com/zloirock/core-js/issues/458), thanks [**@nicolo-ribaudo**](https://github.com/nicolo-ribaudo).
+
 ##### 2.5.7 - 2018.05.26
 - Get rid of reserved variable name `final`, related [#400](https://github.com/zloirock/core-js/issues/400)
 
