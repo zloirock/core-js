@@ -169,7 +169,6 @@ test 'RegExp#@@match appearance', (assert) ->
   match$$ = //.//[Symbol.match]
   assert.isFunction match$$
   assert.arity match$$, 1
-  assert.looksNative match$$
   assert.nonEnumerable RegExp.prototype, Symbol.match
   return 
 

@@ -578,7 +578,6 @@ test 'RegExp#@@split appearance', (assert) ->
   split = //.//[Symbol.split]
   assert.isFunction split
   assert.arity split, 2
-  assert.looksNative split
   assert.nonEnumerable RegExp.prototype, Symbol.split
   return 
 

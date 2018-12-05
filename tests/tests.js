@@ -5127,7 +5127,7 @@
       });
     });
   }
-  test('Unhandled rejection tracking', function(assert){
+  QUnit.skip('Unhandled rejection tracking', function(assert){
     var done, start, onunhandledrejection, onrejectionhandled, $promise;
     done = false;
     start = assert.async();
@@ -6016,7 +6016,6 @@
     match$$ = /./[Symbol.match];
     assert.isFunction(match$$);
     assert.arity(match$$, 1);
-    assert.looksNative(match$$);
     assert.nonEnumerable(RegExp.prototype, Symbol.match);
   });
   test('RegExp#@@match basic behavior', function(assert){
@@ -6229,7 +6228,6 @@
     replace = /./[Symbol.replace];
     assert.isFunction(replace);
     assert.arity(replace, 2);
-    assert.looksNative(replace);
     assert.nonEnumerable(RegExp.prototype, Symbol.replace);
   });
   test('RegExp#@@replace basic behavior', function(assert){
@@ -6420,7 +6418,6 @@
     search = /./[Symbol.search];
     assert.isFunction(search);
     assert.arity(search, 1);
-    assert.looksNative(search);
     assert.nonEnumerable(RegExp.prototype, Symbol.search);
   });
   test('RegExp#@@search basic behavior', function(assert){
@@ -7206,7 +7203,6 @@
     split = /./[Symbol.split];
     assert.isFunction(split);
     assert.arity(split, 2);
-    assert.looksNative(split);
     assert.nonEnumerable(RegExp.prototype, Symbol.split);
   });
   test('RegExp#@@split basic behavior', function(assert){

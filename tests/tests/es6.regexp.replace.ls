@@ -74,7 +74,6 @@ test 'RegExp#@@replace appearance', (assert) ->
   replace = //.//[Symbol.replace]
   assert.isFunction replace
   assert.arity replace, 2
-  assert.looksNative replace
   assert.nonEnumerable RegExp.prototype, Symbol.replace
   return 
 

@@ -245,7 +245,7 @@ if PROTO
     # check the async values
     p3.then assert.async!, -> assert.ok it, no
 
-test 'Unhandled rejection tracking' (assert)!->
+QUnit.skip 'Unhandled rejection tracking' (assert)!->
   done = no
   start = assert.async!
   if process?

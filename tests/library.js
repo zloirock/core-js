@@ -4074,7 +4074,7 @@
       });
     });
   }
-  test('Unhandled rejection tracking', function(assert){
+  QUnit.skip('Unhandled rejection tracking', function(assert){
     var done, start, onunhandledrejection, onrejectionhandled, $promise;
     done = false;
     start = assert.async();

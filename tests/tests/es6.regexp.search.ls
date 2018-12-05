@@ -51,7 +51,6 @@ test 'RegExp#@@search appearance', (assert) ->
   search = //.//[Symbol.search]
   assert.isFunction search
   assert.arity search, 1
-  assert.looksNative search
   assert.nonEnumerable RegExp.prototype, Symbol.search
   return 
 
