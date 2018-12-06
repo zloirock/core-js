@@ -666,16 +666,16 @@ var parseURL = function (url, input, stateOverride, base) {
         } break;
 
       case QUERY:
-        if (!stateOverride && '#' == char) {
+        if (!stateOverride && char == '#') {
           url.fragment = '';
           state = FRAGMENT;
-        } else if (EOF != char) {
+        } else if (char != EOF) {
           // TODO
           url.query += percentEncode(char, querySet);
         } break;
 
       case FRAGMENT:
-        if (EOF != char) url.fragment += percentEncode(char, fragmentSet);
+        if (char != EOF) url.fragment += percentEncode(char, fragmentSet);
         break;
     }
 
@@ -715,9 +715,11 @@ var URLConstructor = function URL(url /* , base */) {
   initializeState(state);
   result = parseURL(state, urlString, null, baseState);
   if (result) throw new TypeError(result);
-  var searchParams = state.searchParams = new URLSearchParams(state.query || undefined);
-  getInternalSearchParamsState(searchParams).updateURL = function () {
-    state.query = String(searchParams);
+  var searchParams = state.searchParams = new URLSearchParams();
+  var searchParamsState = getInternalSearchParamsState(searchParams);
+  searchParamsState.updateSearchParams(state.query);
+  searchParamsState.updateURL = function () {
+    state.query = String(searchParams) || null;
   };
   if (!DESCRIPTORS) {
     that.href = serializeURL.call(that);

@@ -44,10 +44,9 @@ var serialize = function (it) {
   return encodeURIComponent(it).replace(find, replacer);
 };
 
-var parseSearchParams = function (result, search) {
-  var string = typeof search === 'string' ? search.charAt(0) === '?' ? search.slice(1) : search : search + '';
-  if (string !== '') {
-    var attributes = string.split('&');
+var parseSearchParams = function (result, query) {
+  if (query) {
+    var attributes = query.split('&');
     var i = 0;
     var attribute, entry;
     while (i < attributes.length) {
@@ -63,9 +62,9 @@ var parseSearchParams = function (result, search) {
   } return result;
 };
 
-var updateSearchParams = function (string) {
+var updateSearchParams = function (query) {
   this.entries.length = 0;
-  parseSearchParams(this.entries, string || '');
+  parseSearchParams(this.entries, query);
 };
 
 var validateArgumentsLength = function (passed, required) {
@@ -119,7 +118,9 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
           entries.push({ key: first.value + '', value: second.value + '' });
         }
       } else for (key in init) if (hasOwn(init, key)) entries.push({ key: key, value: init[key] + '' });
-    } else parseSearchParams(entries, init);
+    } else {
+      parseSearchParams(entries, typeof init === 'string' ? init.charAt(0) === '?' ? init.slice(1) : init : init + '');
+    }
   }
 };
 
