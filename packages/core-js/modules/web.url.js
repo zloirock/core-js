@@ -306,6 +306,7 @@ var parseURL = function (url, input, stateOverride, base) {
   var seenPasswordToken = false;
   var char, failure;
 
+  if (!stateOverride) input = input.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, '');
   input = input.replace(TAB_AND_NEW_LINE, '');
 
   while (pointer <= input.length) {
@@ -712,7 +713,7 @@ var URLConstructor = function URL(url /* , base */) {
     }
   }
   initializeState(state);
-  result = parseURL(state, urlString.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, ''), null, baseState);
+  result = parseURL(state, urlString, null, baseState);
   if (result) throw new TypeError(result);
   var searchParams = state.searchParams = new URLSearchParams(state.query || undefined);
   getInternalSearchParamsState(searchParams).updateURL = function () {
@@ -837,7 +838,7 @@ if (DESCRIPTORS) {
       var state = getInternalURLState(this);
       var urlString = String(href);
       initializeState(state);
-      var result = parseURL(state, urlString.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, ''));
+      var result = parseURL(state, urlString);
       if (result) throw new TypeError(result);
       getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
     }),
