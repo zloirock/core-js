@@ -7,6 +7,7 @@ var defineProperties = require('../internals/object-define-properties');
 var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
 var has = require('../internals/has');
+var assign = require('../internals/object-assign');
 var toASCII = require('../internals/punycode-to-ascii');
 var URLSearchParamsModule = require('../modules/web.url-search-params');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
@@ -47,7 +48,7 @@ var parseHost = function (state, buffer) {
   } else if (!isSpecial(state)) {
     if (~buffer.indexOf('%')) return INVALID_HOST;
     result = '';
-    for (j = 0; j < buffer.length; j++) result += percentEncode(buffer.charAt(j), {});
+    for (j = 0; j < buffer.length; j++) result += percentEncode(buffer.charAt(j), C0ControlPercentEncodeSet);
     state.host = result;
   } else {
     buffer = toASCII(buffer);
@@ -209,11 +210,16 @@ var serializeHost = function (host) {
   } return host;
 };
 
-var escapeSet = { '"': 1, '#': 1, '<': 1, '>': 1, '?': 1, '`': 1 };
-
-var fragmentSet = { '"': 1, '<': 1, '>': 1, '`': 1 };
-
-var querySet = { '"': 1, '#': 1, '<': 1, '>': 1, '`': 1 };
+var C0ControlPercentEncodeSet = {};
+var fragmentPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
+  ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1
+});
+var pathPercentEncodeSet = assign({}, fragmentPercentEncodeSet, {
+  '#': 1, '?': 1, '{': 1, '}': 1
+});
+var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
+  '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1
+});
 
 var percentEncode = function (char, set) {
   var code = char.charCodeAt(0);
@@ -471,7 +477,7 @@ var parseURL = function (url, input, stateOverride, base) {
               seenPasswordToken = true;
               continue;
             }
-            var encodedCodePoints = percentEncode(codePoint, escapeSet);
+            var encodedCodePoints = percentEncode(codePoint, userinfoPercentEncodeSet);
             if (seenPasswordToken) url.password += encodedCodePoints;
             else url.username += encodedCodePoints;
           }
@@ -651,7 +657,7 @@ var parseURL = function (url, input, stateOverride, base) {
             state = FRAGMENT;
           }
         } else {
-          buffer += percentEncode(char, escapeSet);
+          buffer += percentEncode(char, pathPercentEncodeSet);
         } break;
 
       case CANNOT_BE_A_BASE_URL_PATH:
@@ -662,7 +668,7 @@ var parseURL = function (url, input, stateOverride, base) {
           url.fragment = '';
           state = FRAGMENT;
         } else if (char != EOF) {
-          url.path[0] += percentEncode(char, {});
+          url.path[0] += percentEncode(char, C0ControlPercentEncodeSet);
         } break;
 
       case QUERY:
@@ -671,11 +677,11 @@ var parseURL = function (url, input, stateOverride, base) {
           state = FRAGMENT;
         } else if (char != EOF) {
           // TODO
-          url.query += percentEncode(char, querySet);
+          url.query += percentEncode(char, C0ControlPercentEncodeSet);
         } break;
 
       case FRAGMENT:
-        if (char != EOF) url.fragment += percentEncode(char, fragmentSet);
+        if (char != EOF) url.fragment += percentEncode(char, fragmentPercentEncodeSet);
         break;
     }
 
@@ -860,7 +866,7 @@ if (DESCRIPTORS) {
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.username = '';
       for (var i = 0; i < username.length; i++) {
-        state.username += percentEncode(username.charAt(i), escapeSet);
+        state.username += percentEncode(username.charAt(i), userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.password` accessors pair
@@ -870,7 +876,7 @@ if (DESCRIPTORS) {
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.password = '';
       for (var i = 0; i < password.length; i++) {
-        state.password += percentEncode(password.charAt(i), escapeSet);
+        state.password += percentEncode(password.charAt(i), userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.host` accessors pair
