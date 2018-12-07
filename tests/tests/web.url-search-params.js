@@ -402,16 +402,15 @@ QUnit.test('URLSearchParams#sort', assert => {
       assert.same(value, reqValue);
     });
 
-    // TODO: fix URI malformed for unicode in urls query
-    // i = 0;
-    // const url = new URL(`?${ input }`, 'https://example/');
-    // params = url.searchParams;
-    // params.sort();
-    // params.forEach((value, key) => {
-    //   const [reqKey, reqValue] = output[i++];
-    //   assert.same(key, reqKey);
-    //   assert.same(value, reqValue);
-    // });
+    i = 0;
+    const url = new URL(`?${ input }`, 'https://example/');
+    params = url.searchParams;
+    params.sort();
+    params.forEach((value, key) => {
+      const [reqKey, reqValue] = output[i++];
+      assert.same(key, reqKey);
+      assert.same(value, reqValue);
+    });
   }
 
   if (DESCRIPTORS) {

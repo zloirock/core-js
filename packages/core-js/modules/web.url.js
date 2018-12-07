@@ -1,4 +1,5 @@
 'use strict';
+require('../modules/es.string.iterator');
 // var DEBUG = true;
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/native-url');
@@ -8,6 +9,8 @@ var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
 var has = require('../internals/has');
 var assign = require('../internals/object-assign');
+var arrayFrom = require('../internals/array-from');
+var codePointAt = require('../internals/string-at')(false);
 var toASCII = require('../internals/punycode-to-ascii');
 var URLSearchParamsModule = require('../modules/web.url-search-params');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
@@ -35,10 +38,10 @@ var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|
 var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F\u0020]+|[\u0000-\u001F\u0020]+$/g;
 // eslint-disable-next-line no-control-regex
 var TAB_AND_NEW_LINE = /\u0009|\u000A|\u000D/g;
-var EOF = '';
+var EOF;
 
 var parseHost = function (url, input) {
-  var result, j;
+  var result, codePoints, i;
   if (input.charAt(0) == '[') {
     if (input.charAt(input.length - 1) != ']') return INVALID_HOST;
     result = parseIPv6(input.slice(1, -1));
@@ -48,7 +51,8 @@ var parseHost = function (url, input) {
   } else if (!isSpecial(url)) {
     if (~input.indexOf('%')) return INVALID_HOST;
     result = '';
-    for (j = 0; j < input.length; j++) result += percentEncode(input.charAt(j), C0ControlPercentEncodeSet);
+    codePoints = arrayFrom(input);
+    for (i = 0; i < codePoints.length; i++) result += percentEncode(codePoints[i], C0ControlPercentEncodeSet);
     url.host = result;
   } else {
     input = toASCII(input);
@@ -102,7 +106,7 @@ var parseIPv6 = function (input) {
     pointer += 2;
     pieceIndex++;
   }
-  while ((char = input.charAt(pointer)) != EOF) {
+  while (char = input.charAt(pointer)) {
     if (pieceIndex == 8) return;
     if (char == ':') {
       if (compress !== null) return;
@@ -122,7 +126,7 @@ var parseIPv6 = function (input) {
       pointer -= length;
       if (pieceIndex > 6) return;
       numbersSeen = 0;
-      while ((char = input.charAt(pointer)) != EOF) {
+      while (char = input.charAt(pointer)) {
         ipv4Piece = null;
         if (numbersSeen > 0) {
           if (char == '.' && numbersSeen < 4) pointer++;
@@ -143,8 +147,8 @@ var parseIPv6 = function (input) {
       break;
     } else if (char == ':') {
       pointer++;
-      if (input.charAt(pointer) == EOF) return;
-    } else if (char != EOF) return;
+      if (!input.charAt(pointer)) return;
+    } else if (char) return;
     address[pieceIndex++] = value;
   }
   if (compress !== null) {
@@ -222,7 +226,7 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 });
 
 var percentEncode = function (char, set) {
-  var code = char.charCodeAt(0);
+  var code = codePointAt(char, 0);
   return code > 0x20 && code < 0x7F && !has(set, char) ? char : encodeURIComponent(char);
 };
 
@@ -258,7 +262,7 @@ var startsWithWindowsDriveLetter = function (string) {
   var third;
   return string.length > 1 && isWindowsDriveLetter(string.slice(0, 2)) && (
     string.length == 2 ||
-    ((third = string.charAt(2)) === EOF || third === '/' || third === '\\' || third === '?' || third === '#')
+    ((third = string.charAt(2)) === '/' || third === '\\' || third === '?' || third === '#')
   );
 };
 
@@ -310,15 +314,17 @@ var parseURL = function (url, input, stateOverride, base) {
   var seenAt = false;
   var seenBracket = false;
   var seenPasswordToken = false;
-  var char, failure;
+  var codePoints, char, bufferCodePoints, failure;
 
   if (!stateOverride) input = input.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, '');
   input = input.replace(TAB_AND_NEW_LINE, '');
 
-  while (pointer <= input.length) {
-    char = input.charAt(pointer);
+  codePoints = arrayFrom(input);
+
+  while (pointer <= codePoints.length) {
+    char = codePoints[pointer];
     // eslint-disable-next-line
-    // if (DEBUG) console.log(pointer, char, state);
+    // if (DEBUG) console.log(pointer, char, state, buffer);
     switch (state) {
       case SCHEME_START:
         if (char && ALPHA.test(char)) {
@@ -353,7 +359,7 @@ var parseURL = function (url, input, stateOverride, base) {
             state = SPECIAL_RELATIVE_OR_AUTHORITY;
           } else if (isSpecial(url)) {
             state = SPECIAL_AUTHORITY_SLASHES;
-          } else if (input.charAt(pointer + 1) == '/') {
+          } else if (codePoints[pointer + 1] == '/') {
             state = PATH_OR_AUTHORITY;
             pointer++;
           } else {
@@ -384,7 +390,7 @@ var parseURL = function (url, input, stateOverride, base) {
         continue;
 
       case SPECIAL_RELATIVE_OR_AUTHORITY:
-        if (char == '/' && input.charAt(pointer + 1) == '/') {
+        if (char == '/' && codePoints[pointer + 1] == '/') {
           state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
           pointer++;
         } else {
@@ -470,8 +476,9 @@ var parseURL = function (url, input, stateOverride, base) {
         if (char == '@') {
           if (seenAt) buffer = '%40' + buffer;
           seenAt = true;
-          for (var i = 0; i < buffer.length; i++) {
-            var codePoint = buffer.charAt(i);
+          bufferCodePoints = arrayFrom(buffer);
+          for (var i = 0; i < bufferCodePoints.length; i++) {
+            var codePoint = bufferCodePoints[i];
             if (codePoint == ':' && !seenPasswordToken) {
               seenPasswordToken = true;
               continue;
@@ -486,7 +493,7 @@ var parseURL = function (url, input, stateOverride, base) {
           (char == '\\' && isSpecial(url))
         ) {
           if (seenAt && buffer == '') return INVALID_AUTHORITY;
-          pointer -= buffer.length + 1;
+          pointer -= arrayFrom(buffer).length + 1;
           buffer = '';
           state = HOST;
         } else buffer += char;
@@ -562,7 +569,7 @@ var parseURL = function (url, input, stateOverride, base) {
             url.fragment = '';
             state = FRAGMENT;
           } else {
-            if (!startsWithWindowsDriveLetter(input.slice(pointer))) {
+            if (!startsWithWindowsDriveLetter(codePoints.slice(pointer).join(''))) {
               url.host = base.host;
               url.path = base.path.slice();
               shortenURLsPath(url);
@@ -580,7 +587,7 @@ var parseURL = function (url, input, stateOverride, base) {
           state = FILE_HOST;
           break;
         }
-        if (base && base.scheme == 'file' && !startsWithWindowsDriveLetter(input.slice(pointer))) {
+        if (base && base.scheme == 'file' && !startsWithWindowsDriveLetter(codePoints.slice(pointer).join(''))) {
           if (isWindowsDriveLetter(base.path[0], true)) url.path.push(base.path[0]);
           else url.host = base.host;
         }
@@ -863,20 +870,22 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-username
     username: accessorDescriptor(getUsername, function (username) {
       var state = getInternalURLState(this);
+      var codePoints = arrayFrom(username + '');
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.username = '';
-      for (var i = 0; i < username.length; i++) {
-        state.username += percentEncode(username.charAt(i), userinfoPercentEncodeSet);
+      for (var i = 0; i < codePoints.length; i++) {
+        state.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.password` accessors pair
     // https://url.spec.whatwg.org/#dom-url-password
     password: accessorDescriptor(getPassword, function (password) {
       var state = getInternalURLState(this);
+      var codePoints = arrayFrom(password + '');
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.password = '';
-      for (var i = 0; i < password.length; i++) {
-        state.password += percentEncode(password.charAt(i), userinfoPercentEncodeSet);
+      for (var i = 0; i < codePoints.length; i++) {
+        state.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.host` accessors pair
