@@ -347,7 +347,7 @@ QUnit.test('URLSearchParams#sort', assert => {
   assert.enumerable(URLSearchParams.prototype, 'sort');
   assert.looksNative(sort);
 
-  const params = new URLSearchParams('a=1&b=4&a=3&b=2');
+  let params = new URLSearchParams('a=1&b=4&a=3&b=2');
   params.sort();
   assert.same(String(params), 'a=1&a=3&b=4&b=2');
   params.delete('a');
@@ -355,6 +355,71 @@ QUnit.test('URLSearchParams#sort', assert => {
   params.append('b', '0');
   params.sort();
   assert.same(String(params), 'a=0&b=4&b=2&b=0');
+
+  const testData = [
+    {
+      input: 'z=b&a=b&z=a&a=a',
+      output: [['a', 'b'], ['a', 'a'], ['z', 'b'], ['z', 'a']],
+    },
+    {
+      input: '\uFFFD=x&\uFFFC&\uFFFD=a',
+      output: [['\uFFFC', ''], ['\uFFFD', 'x'], ['\uFFFD', 'a']],
+    },
+    {
+      input: 'ﬃ&🌈', // 🌈 > code point, but < code unit because two code units
+      output: [['🌈', ''], ['ﬃ', '']],
+    },
+    {
+      input: 'é&e\uFFFD&e\u0301',
+      output: [['e\u0301', ''], ['e\uFFFD', ''], ['é', '']],
+    },
+    {
+      input: 'z=z&a=a&z=y&a=b&z=x&a=c&z=w&a=d&z=v&a=e&z=u&a=f&z=t&a=g',
+      // eslint-disable-next-line max-len
+      output: [['a', 'a'], ['a', 'b'], ['a', 'c'], ['a', 'd'], ['a', 'e'], ['a', 'f'], ['a', 'g'], ['z', 'z'], ['z', 'y'], ['z', 'x'], ['z', 'w'], ['z', 'v'], ['z', 'u'], ['z', 't']],
+    },
+    {
+      input: 'bbb&bb&aaa&aa=x&aa=y',
+      output: [['aa', 'x'], ['aa', 'y'], ['aaa', ''], ['bb', ''], ['bbb', '']],
+    },
+    {
+      input: 'z=z&=f&=t&=x',
+      output: [['', 'f'], ['', 't'], ['', 'x'], ['z', 'z']],
+    },
+    {
+      input: 'a🌈&a💩',
+      output: [['a🌈', ''], ['a💩', '']],
+    },
+  ];
+
+  for (const { input, output } of testData) {
+    let i = 0;
+    params = new URLSearchParams(input);
+    params.sort();
+    params.forEach((value, key) => {
+      const [reqKey, reqValue] = output[i++];
+      assert.same(key, reqKey);
+      assert.same(value, reqValue);
+    });
+
+    // TODO: fix URI malformed for unicode in urls query
+    // i = 0;
+    // const url = new URL(`?${ input }`, 'https://example/');
+    // params = url.searchParams;
+    // params.sort();
+    // params.forEach((value, key) => {
+    //   const [reqKey, reqValue] = output[i++];
+    //   assert.same(key, reqKey);
+    //   assert.same(value, reqValue);
+    // });
+  }
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://example.com/?');
+    url.searchParams.sort();
+    assert.same(url.href, 'http://example.com/', 'Sorting non-existent params removes ? from URL');
+    assert.same(url.search, '', 'Sorting non-existent params removes ? from URL');
+  }
 });
 
 QUnit.test('URLSearchParams#toString', assert => {
@@ -464,7 +529,7 @@ QUnit.test('URLSearchParams#forEach', assert => {
   assert.looksNative(forEach);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
-  const params = new URLSearchParams('a=1&b=2&c=3');
+  let params = new URLSearchParams('a=1&b=2&c=3');
   let result = '';
   params.forEach((value, key, that) => {
     assert.same(params.get(key), expectedValues[key]);
@@ -473,6 +538,29 @@ QUnit.test('URLSearchParams#forEach', assert => {
     result += key;
   });
   assert.same(result, 'abc');
+
+  new URL('http://a.b/c').searchParams.forEach(() => {
+    assert.ok(false, 'should not be called');
+  });
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+    params = url.searchParams;
+    result = '';
+    params.forEach((val, key) => {
+      url.search = 'x=1&y=2&z=3';
+      result += key + val;
+    });
+    assert.same(result, 'a1y2z3');
+  }
+
+  params = new URLSearchParams('a=1&b=2&c=3');
+  result = '';
+  params.forEach((value, key) => {
+    params.delete('b');
+    result += key + value;
+  });
+  assert.same(result, 'a1c3');
 });
 
 QUnit.test('URLSearchParams#entries', assert => {
@@ -484,8 +572,8 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.looksNative(entries);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
-  const params = new URLSearchParams('a=1&b=2&c=3');
-  const iterator = params.entries();
+  let params = new URLSearchParams('a=1&b=2&c=3');
+  let iterator = params.entries();
   let result = '';
   let entry;
   while (!(entry = iterator.next()).done) {
@@ -495,6 +583,30 @@ QUnit.test('URLSearchParams#entries', assert => {
     result += key;
   }
   assert.same(result, 'abc');
+
+  assert.ok(new URL('http://a.b/c').searchParams.entries().next().done, 'should be finished');
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+    iterator = url.searchParams.entries();
+    result = '';
+    while (!(entry = iterator.next()).done) {
+      const [key, value] = entry.value;
+      url.search = 'x=1&y=2&z=3';
+      result += key + value;
+    }
+    assert.same(result, 'a1y2z3');
+  }
+
+  params = new URLSearchParams('a=1&b=2&c=3');
+  iterator = params.entries();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    params.delete('b');
+    const [key, value] = entry.value;
+    result += key + value;
+  }
+  assert.same(result, 'a1c3');
 });
 
 QUnit.test('URLSearchParams#keys', assert => {
@@ -505,13 +617,37 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.enumerable(URLSearchParams.prototype, 'keys');
   assert.looksNative(keys);
 
-  const iterator = new URLSearchParams('a=1&b=2&c=3').keys();
+  let iterator = new URLSearchParams('a=1&b=2&c=3').keys();
   let result = '';
   let entry;
   while (!(entry = iterator.next()).done) {
     result += entry.value;
   }
   assert.same(result, 'abc');
+
+  assert.ok(new URL('http://a.b/c').searchParams.keys().next().done, 'should be finished');
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+    iterator = url.searchParams.keys();
+    result = '';
+    while (!(entry = iterator.next()).done) {
+      const key = entry.value;
+      url.search = 'x=1&y=2&z=3';
+      result += key;
+    }
+    assert.same(result, 'ayz');
+  }
+
+  const params = new URLSearchParams('a=1&b=2&c=3');
+  iterator = params.keys();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    params.delete('b');
+    const key = entry.value;
+    result += key;
+  }
+  assert.same(result, 'ac');
 });
 
 QUnit.test('URLSearchParams#values', assert => {
@@ -522,13 +658,37 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.enumerable(URLSearchParams.prototype, 'values');
   assert.looksNative(values);
 
-  const iterator = new URLSearchParams('a=1&b=2&c=3').values();
+  let iterator = new URLSearchParams('a=1&b=2&c=3').values();
   let result = '';
   let entry;
   while (!(entry = iterator.next()).done) {
     result += entry.value;
   }
   assert.same(result, '123');
+
+  assert.ok(new URL('http://a.b/c').searchParams.values().next().done, 'should be finished');
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
+    iterator = url.searchParams.keys();
+    result = '';
+    while (!(entry = iterator.next()).done) {
+      const { value } = entry;
+      url.search = 'x=x&y=y&z=z';
+      result += value;
+    }
+    assert.same(result, 'ayz');
+  }
+
+  const params = new URLSearchParams('a=1&b=2&c=3');
+  iterator = params.values();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    params.delete('b');
+    const key = entry.value;
+    result += key;
+  }
+  assert.same(result, '13');
 });
 
 QUnit.test('URLSearchParams#@@iterator', assert => {
@@ -541,8 +701,8 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.same(entries, URLSearchParams.prototype.entries);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
-  const params = new URLSearchParams('a=1&b=2&c=3');
-  const iterator = params[Symbol.iterator]();
+  let params = new URLSearchParams('a=1&b=2&c=3');
+  let iterator = params[Symbol.iterator]();
   let result = '';
   let entry;
   while (!(entry = iterator.next()).done) {
@@ -552,6 +712,30 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
     result += key;
   }
   assert.same(result, 'abc');
+
+  assert.ok(new URL('http://a.b/c').searchParams[Symbol.iterator]().next().done, 'should be finished');
+
+  if (DESCRIPTORS) {
+    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+    iterator = url.searchParams[Symbol.iterator]();
+    result = '';
+    while (!(entry = iterator.next()).done) {
+      const [key, value] = entry.value;
+      url.search = 'x=1&y=2&z=3';
+      result += key + value;
+    }
+    assert.same(result, 'a1y2z3');
+  }
+
+  params = new URLSearchParams('a=1&b=2&c=3');
+  iterator = params[Symbol.iterator]();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    params.delete('b');
+    const [key, value] = entry.value;
+    result += key + value;
+  }
+  assert.same(result, 'a1c3');
 });
 
 QUnit.test('URLSearchParams#@@toStringTag', assert => {
