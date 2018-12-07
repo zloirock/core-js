@@ -1,3 +1,4 @@
+import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
 QUnit.test('URLSearchParams', assert => {
@@ -148,6 +149,19 @@ QUnit.test('URLSearchParams#delete', assert => {
   params.append('first', 10);
   params.delete('first');
   assert.same(params.has('first'), false, 'search params object has no "first" name');
+
+  if (DESCRIPTORS) {
+    let url = new URL('http://example.com/?param1&param2');
+    url.searchParams.delete('param1');
+    url.searchParams.delete('param2');
+    assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
+    assert.same(url.search, '', 'url.search does not have ?');
+
+    url = new URL('http://example.com/?');
+    url.searchParams.delete('param1');
+    // assert.same(String(url), 'http://example.com/', 'url.href does not have ?'); // Safari bug
+    assert.same(url.search, '', 'url.search does not have ?');
+  }
 
   assert.throws(() => {
     return new URLSearchParams('').delete();
