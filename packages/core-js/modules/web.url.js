@@ -37,50 +37,50 @@ var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F\u0020]+|[\u0000-
 var TAB_AND_NEW_LINE = /\u0009|\u000A|\u000D/g;
 var EOF = '';
 
-var parseHost = function (state, buffer) {
+var parseHost = function (url, input) {
   var result, j;
-  if (buffer.charAt(0) == '[') {
-    if (buffer.charAt(buffer.length - 1) != ']') return INVALID_HOST;
-    result = parseIPv6(buffer.slice(1, -1));
+  if (input.charAt(0) == '[') {
+    if (input.charAt(input.length - 1) != ']') return INVALID_HOST;
+    result = parseIPv6(input.slice(1, -1));
     if (!result) return INVALID_HOST;
-    state.host = result;
+    url.host = result;
   // opaque host
-  } else if (!isSpecial(state)) {
-    if (~buffer.indexOf('%')) return INVALID_HOST;
+  } else if (!isSpecial(url)) {
+    if (~input.indexOf('%')) return INVALID_HOST;
     result = '';
-    for (j = 0; j < buffer.length; j++) result += percentEncode(buffer.charAt(j), C0ControlPercentEncodeSet);
-    state.host = result;
+    for (j = 0; j < input.length; j++) result += percentEncode(input.charAt(j), C0ControlPercentEncodeSet);
+    url.host = result;
   } else {
-    buffer = toASCII(buffer);
-    if (FORBIDDEN_HOST_CODE_POINT.test(buffer)) return INVALID_HOST;
-    state.host = parseIPv4(buffer);
+    input = toASCII(input);
+    if (FORBIDDEN_HOST_CODE_POINT.test(input)) return INVALID_HOST;
+    url.host = parseIPv4(input);
   }
 };
 
-var parseIPv4 = function (buffer) {
-  var parts = buffer.split('.');
+var parseIPv4 = function (input) {
+  var parts = input.split('.');
   var partsLength, numbers, i, part, R, n, ipv4;
   if (parts[parts.length - 1] == '') {
     if (parts.length) parts.pop();
   }
   partsLength = parts.length;
-  if (partsLength > 4) return buffer;
+  if (partsLength > 4) return input;
   numbers = [];
   for (i = 0; i < partsLength; i++) {
     part = parts[i];
-    if (part == '') return buffer;
+    if (part == '') return input;
     R = 10;
     if (part.length > 1 && part.charAt(0) == '0') {
       R = HEX_START.test(part) ? 16 : 8;
       part = part.slice(R == 8 ? 1 : 2);
     }
-    if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return buffer;
+    if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return input;
     n = parseInt(part, R);
     // eslint-disable-next-line no-self-compare
-    if (n != n) return buffer;
+    if (n != n) return input;
     if (i == partsLength - 1) {
-      if (n >= pow(256, 5 - partsLength)) return buffer;
-    } else if (n > 255) return buffer;
+      if (n >= pow(256, 5 - partsLength)) return input;
+    } else if (n > 255) return input;
     numbers.push(n);
   }
   ipv4 = numbers.pop();
@@ -91,18 +91,18 @@ var parseIPv4 = function (buffer) {
 };
 
 // eslint-disable-next-line max-statements
-var parseIPv6 = function (buffer) {
+var parseIPv6 = function (input) {
   var address = [0, 0, 0, 0, 0, 0, 0, 0];
   var pieceIndex = 0;
   var compress = null;
   var pointer = 0;
   var char, value, length, numbersSeen, ipv4Piece, number, swaps, swap;
-  if (buffer.charAt(0) == ':') {
-    if (buffer.charAt(1) != ':') return;
+  if (input.charAt(0) == ':') {
+    if (input.charAt(1) != ':') return;
     pointer += 2;
     pieceIndex++;
   }
-  while ((char = buffer.charAt(pointer)) != EOF) {
+  while ((char = input.charAt(pointer)) != EOF) {
     if (pieceIndex == 8) return;
     if (char == ':') {
       if (compress !== null) return;
@@ -112,7 +112,7 @@ var parseIPv6 = function (buffer) {
       continue;
     }
     value = length = 0;
-    while (HEX.test(char = buffer.charAt(pointer)) && length < 4) {
+    while (HEX.test(char = input.charAt(pointer)) && length < 4) {
       value = value * 16 + parseInt(char, 16);
       pointer++;
       length++;
@@ -122,7 +122,7 @@ var parseIPv6 = function (buffer) {
       pointer -= length;
       if (pieceIndex > 6) return;
       numbersSeen = 0;
-      while ((char = buffer.charAt(pointer)) != EOF) {
+      while ((char = input.charAt(pointer)) != EOF) {
         ipv4Piece = null;
         if (numbersSeen > 0) {
           if (char == '.' && numbersSeen < 4) pointer++;
@@ -134,7 +134,7 @@ var parseIPv6 = function (buffer) {
           if (ipv4Piece === null) ipv4Piece = number;
           else if (ipv4Piece == 0) return;
           ipv4Piece = ipv4Piece * 10 + number;
-        } while (DIGIT.test(char = buffer.charAt(pointer)));
+        } while (DIGIT.test(char = input.charAt(pointer)));
         address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
         numbersSeen++;
         if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
@@ -143,7 +143,7 @@ var parseIPv6 = function (buffer) {
       break;
     } else if (char == ':') {
       pointer++;
-      if (buffer.charAt(pointer) == EOF) return;
+      if (input.charAt(pointer) == EOF) return;
     } else if (char != EOF) return;
     address[pieceIndex++] = value;
   }
@@ -375,7 +375,7 @@ var parseURL = function (url, input, stateOverride, base) {
           url.scheme = base.scheme;
           url.path = base.path.slice();
           url.query = base.query;
-          url.fragment = base.fragment;
+          url.fragment = '';
           url.cannotBeABaseURL = true;
           state = FRAGMENT;
           break;
@@ -404,37 +404,36 @@ var parseURL = function (url, input, stateOverride, base) {
       case RELATIVE:
         url.scheme = base.scheme;
         if (char == EOF) {
+          url.username = base.username;
+          url.password = base.password;
           url.host = base.host;
           url.port = base.port;
           url.path = base.path.slice();
           url.query = base.query;
-          url.username = base.username;
-          url.password = base.password;
-          return;
-        } else if (char == '/' || char == '\\') {
+        } else if (char == '/' || (char == '\\' && isSpecial(url))) {
           state = RELATIVE_SLASH;
         } else if (char == '?') {
+          url.username = base.username;
+          url.password = base.password;
           url.host = base.host;
           url.port = base.port;
           url.path = base.path.slice();
-          url.username = base.username;
-          url.password = base.password;
           url.query = '';
           state = QUERY;
         } else if (char == '#') {
+          url.username = base.username;
+          url.password = base.password;
           url.host = base.host;
           url.port = base.port;
           url.path = base.path.slice();
           url.query = base.query;
-          url.username = base.username;
-          url.password = base.password;
           url.fragment = '';
           state = FRAGMENT;
         } else {
-          url.host = base.host;
-          url.port = base.port;
           url.username = base.username;
           url.password = base.password;
+          url.host = base.host;
+          url.port = base.port;
           url.path = base.path.slice();
           url.path.pop();
           state = PATH;
@@ -469,7 +468,7 @@ var parseURL = function (url, input, stateOverride, base) {
 
       case AUTHORITY:
         if (char == '@') {
-          if (seenAt) buffer += '%40';
+          if (seenAt) buffer = '%40' + buffer;
           seenAt = true;
           for (var i = 0; i < buffer.length; i++) {
             var codePoint = buffer.charAt(i);
@@ -483,7 +482,7 @@ var parseURL = function (url, input, stateOverride, base) {
           }
           buffer = '';
         } else if (
-          EOF == char || '/' == char || '?' == char || '#' == char ||
+          char == EOF || char == '/' || char == '?' || char == '#' ||
           (char == '\\' && isSpecial(url))
         ) {
           if (seenAt && buffer == '') return INVALID_AUTHORITY;
@@ -506,11 +505,11 @@ var parseURL = function (url, input, stateOverride, base) {
           state = PORT;
           if (stateOverride == HOSTNAME) return;
         } else if (
-          EOF == char || '/' == char || '?' == char || '#' == char ||
+          char == EOF || char == '/' || char == '?' || char == '#' ||
           (char == '\\' && isSpecial(url))
         ) {
           if (isSpecial(url) && buffer == '') return INVALID_HOST;
-          if (stateOverride && buffer == '' && (includesCredentials(url) || url.port != null)) return;
+          if (stateOverride && buffer == '' && (includesCredentials(url) || url.port !== null)) return;
           failure = parseHost(url, buffer);
           if (failure) return failure;
           buffer = '';
@@ -563,7 +562,7 @@ var parseURL = function (url, input, stateOverride, base) {
             url.fragment = '';
             state = FRAGMENT;
           } else {
-            if (startsWithWindowsDriveLetter(input.slice(pointer))) {
+            if (!startsWithWindowsDriveLetter(input.slice(pointer))) {
               url.host = base.host;
               url.path = base.path.slice();
               shortenURLsPath(url);
@@ -583,6 +582,7 @@ var parseURL = function (url, input, stateOverride, base) {
         }
         if (base && base.scheme == 'file' && !startsWithWindowsDriveLetter(input.slice(pointer))) {
           if (isWindowsDriveLetter(base.path[0], true)) url.path.push(base.path[0]);
+          else url.host = base.host;
         }
         state = PATH;
         continue;
@@ -609,7 +609,7 @@ var parseURL = function (url, input, stateOverride, base) {
       case PATH_START:
         if (isSpecial(url)) {
           state = PATH;
-          if ('/' != char && '\\' != char) continue;
+          if (char != '/' && char != '\\') continue;
         } else if (!stateOverride && char == '?') {
           url.query = '';
           state = QUERY;
@@ -623,9 +623,9 @@ var parseURL = function (url, input, stateOverride, base) {
 
       case PATH:
         if (
-          EOF == char || '/' == char ||
+          char == EOF || char == '/' ||
           (char == '\\' && isSpecial(url)) ||
-          (!stateOverride && ('?' == char || '#' == char))
+          (!stateOverride && (char == '?' || char == '#'))
         ) {
           if (isDoubleDot(buffer)) {
             shortenURLsPath(url);
@@ -652,7 +652,7 @@ var parseURL = function (url, input, stateOverride, base) {
           if (char == '?') {
             url.query = '';
             state = QUERY;
-          } else if ('#' == char) {
+          } else if (char == '#') {
             url.fragment = '';
             state = FRAGMENT;
           }
@@ -708,19 +708,19 @@ var URLConstructor = function URL(url /* , base */) {
   var base = arguments.length > 1 ? arguments[1] : undefined;
   var urlString = String(url);
   var state = setInternalState(that, { type: 'URL' });
-  var baseState, result;
+  var baseState, failure;
   // if (DEBUG) this.state = state;
   if (base !== undefined) {
     if (base instanceof URLConstructor) baseState = getInternalURLState(base);
     else {
       initializeState(baseState = {});
-      result = parseURL(baseState, String(base));
-      if (result) throw new TypeError(result);
+      failure = parseURL(baseState, String(base));
+      if (failure) throw new TypeError(failure);
     }
   }
   initializeState(state);
-  result = parseURL(state, urlString, null, baseState);
-  if (result) throw new TypeError(result);
+  failure = parseURL(state, urlString, null, baseState);
+  if (failure) throw new TypeError(failure);
   var searchParams = state.searchParams = new URLSearchParams();
   var searchParamsState = getInternalSearchParamsState(searchParams);
   searchParamsState.updateSearchParams(state.query);
@@ -846,8 +846,8 @@ if (DESCRIPTORS) {
       var state = getInternalURLState(this);
       var urlString = String(href);
       initializeState(state);
-      var result = parseURL(state, urlString);
-      if (result) throw new TypeError(result);
+      var failure = parseURL(state, urlString);
+      if (failure) throw new TypeError(failure);
       getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
     }),
     // `URL.prototype.origin` getter
