@@ -1,5 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
-import settersTestsData from '../wpt-url-resources/setters';
+import urlTestData from '../wpt-url-resources/urltestdata';
+import settersTestData from '../wpt-url-resources/setters';
 
 const { hasOwnProperty } = Object.prototype;
 
@@ -596,9 +597,38 @@ QUnit.test('URL#@@toStringTag', assert => {
 });
 
 // see https://github.com/web-platform-tests/wpt/blob/master/url
+QUnit.skip('WPT URL constructor tests', assert => {
+  for (const expected of urlTestData) {
+    if (typeof expected == 'string') continue;
+    const name = `Parsing: <${ expected.input }> against <${ expected.base }>`;
+    if (expected.failure) {
+      assert.throws(() => new URL(expected.input, expected.base || 'about:blank'), name);
+    } else {
+      const url = new URL(expected.input, expected.base || 'about:blank');
+      assert.same(url.href, expected.href, `${ name }: href`);
+      assert.same(url.protocol, expected.protocol, `${ name }: protocol`);
+      assert.same(url.username, expected.username, `${ name }: username`);
+      assert.same(url.password, expected.password, `${ name }: password`);
+      assert.same(url.host, expected.host, `${ name }: host`);
+      assert.same(url.hostname, expected.hostname, `${ name }: hostname`);
+      assert.same(url.port, expected.port, `${ name }: port`);
+      assert.same(url.pathname, expected.pathname, `${ name }: pathname`);
+      assert.same(url.search, expected.search, `${ name }: search`);
+      if ('searchParams' in expected) {
+        assert.same(url.searchParams.toString(), expected.searchParams, `${ name }: searchParams`);
+      }
+      assert.same(url.hash, expected.hash, `${ name }: hash`);
+      if ('origin' in expected) {
+        assert.same(url.origin, expected.origin, `${ name }: origin`);
+      }
+    }
+  }
+});
+
+// see https://github.com/web-platform-tests/wpt/blob/master/url
 if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
-  for (const setter in settersTestsData) {
-    const testCases = settersTestsData[setter];
+  for (const setter in settersTestData) {
+    const testCases = settersTestData[setter];
     for (const { href, newValue, comment, expected } of testCases) {
       let name = `Setting <${ href }>.${ setter } = '${ newValue }'.`;
       if (comment) name += ` ${ comment }`;
