@@ -139,8 +139,7 @@ var parseIPv6 = function (input) {
           else if (ipv4Piece == 0) return;
           else ipv4Piece = ipv4Piece * 10 + number;
           if (ipv4Piece > 255) return;
-          pointer++;
-        } while (DIGIT.test(char = input.charAt(pointer)));
+        } while (DIGIT.test(char = input.charAt(++pointer)));
         address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
         numbersSeen++;
         if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
@@ -909,7 +908,9 @@ if (DESCRIPTORS) {
     port: accessorDescriptor(getPort, function (port) {
       var state = getInternalURLState(this);
       if (cannotHaveUsernamePasswordPort(state)) return;
-      parseURL(state, port + '', PORT);
+      port += '';
+      if (port == '') state.port = null;
+      else parseURL(state, port, PORT);
     }),
     // `URL.prototype.pathname` accessors pair
     // https://url.spec.whatwg.org/#dom-url-pathname
