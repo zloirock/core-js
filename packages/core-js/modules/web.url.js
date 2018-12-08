@@ -137,7 +137,9 @@ var parseIPv6 = function (input) {
           number = parseInt(char, 10);
           if (ipv4Piece === null) ipv4Piece = number;
           else if (ipv4Piece == 0) return;
-          ipv4Piece = ipv4Piece * 10 + number;
+          else ipv4Piece = ipv4Piece * 10 + number;
+          if (ipv4Piece > 255) return;
+          pointer++;
         } while (DIGIT.test(char = input.charAt(pointer)));
         address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
         numbersSeen++;
