@@ -1,4 +1,5 @@
 import { DESCRIPTORS } from '../helpers/constants';
+import settersTestsData from '../wpt-url-resources/setters';
 
 import { URL, URLSearchParams } from 'core-js-pure';
 
@@ -582,5 +583,22 @@ QUnit.test('URL#toString', assert => {
   if (DESCRIPTORS) {
     url.searchParams.append('foo', 'bar');
     assert.same(url.toString(), 'http://zloirock.ru/?foo=bar');
+  }
+});
+
+// see https://github.com/web-platform-tests/wpt/blob/master/url
+if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
+  for (const setter in settersTestsData) {
+    const testCases = settersTestsData[setter];
+    for (const { href, newValue, comment, expected } of testCases) {
+      let name = `Setting <${ href }>.${ setter } = '${ newValue }'.`;
+      if (comment) name += ` ${ comment }`;
+
+      const url = new URL(href);
+      url[setter] = newValue;
+      for (const attribute in expected) {
+        assert.same(url[attribute], expected[attribute], name);
+      }
+    }
   }
 });
