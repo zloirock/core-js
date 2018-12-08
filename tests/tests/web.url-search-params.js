@@ -46,6 +46,76 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(params.has(' c'), true, 'search params object has name " c"');
   assert.same(params.has('møø'), true, 'search params object has name "møø"');
 
+  params = new URLSearchParams('a=b+c');
+  assert.same(params.get('a'), 'b c', 'parse +');
+  params = new URLSearchParams('a+b=c');
+  assert.same(params.get('a b'), 'c', 'parse +');
+
+  params = new URLSearchParams('a=b c');
+  assert.same(params.get('a'), 'b c', 'parse " "');
+  params = new URLSearchParams('a b=c');
+  assert.same(params.get('a b'), 'c', 'parse " "');
+
+  params = new URLSearchParams('a=b%20c');
+  assert.same(params.get('a'), 'b c', 'parse %20');
+  params = new URLSearchParams('a%20b=c');
+  assert.same(params.get('a b'), 'c', 'parse %20');
+
+  params = new URLSearchParams('a=b\0c');
+  assert.same(params.get('a'), 'b\0c', 'parse \\0');
+  params = new URLSearchParams('a\0b=c');
+  assert.same(params.get('a\0b'), 'c', 'parse \\0');
+
+  params = new URLSearchParams('a=b%00c');
+  assert.same(params.get('a'), 'b\0c', 'parse %00');
+  params = new URLSearchParams('a%00b=c');
+  assert.same(params.get('a\0b'), 'c', 'parse %00');
+
+  params = new URLSearchParams('a=b\u2384');
+  assert.same(params.get('a'), 'b\u2384', 'parse \u2384');
+  params = new URLSearchParams('a\u2384b=c');
+  assert.same(params.get('a\u2384b'), 'c', 'parse \u2384');
+
+  params = new URLSearchParams('a=b%e2%8e%84');
+  assert.same(params.get('a'), 'b\u2384', 'parse %e2%8e%84');
+  params = new URLSearchParams('a%e2%8e%84b=c');
+  assert.same(params.get('a\u2384b'), 'c', 'parse %e2%8e%84');
+
+  params = new URLSearchParams('a=b\uD83D\uDCA9c');
+  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse \uD83D\uDCA9');
+  params = new URLSearchParams('a\uD83D\uDCA9b=c');
+  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse \uD83D\uDCA9');
+
+  params = new URLSearchParams('a=b%f0%9f%92%a9c');
+  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse %f0%9f%92%a9');
+  params = new URLSearchParams('a%f0%9f%92%a9b=c');
+  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse %f0%9f%92%a9');
+
+  params = new URLSearchParams();
+  params.set('query', '+15555555555');
+  assert.same(params.toString(), 'query=%2B15555555555');
+  assert.same(params.get('query'), '+15555555555', 'parse encoded +');
+  params = new URLSearchParams(params.toString());
+  assert.same(params.get('query'), '+15555555555', 'parse encoded +');
+
+  const testData = [
+    { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
+    { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
+    { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
+    // eslint-disable-next-line max-len
+    // !!! { input: { 'a\0b': '42', 'c\uD83D': '23', dሴ: 'foo' }, output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']], name: 'object with NULL, non-ASCII, and surrogate keys' },
+  ];
+
+  for (const { input, output, name } of testData) {
+    params = new URLSearchParams(input);
+    let i = 0;
+    params.forEach((value, key) => {
+      const [reqKey, reqValue] = output[i++];
+      assert.same(key, reqKey, `construct with ${ name }`);
+      assert.same(value, reqValue, `construct with ${ name }`);
+    });
+  }
+
   assert.throws(() => {
     URLSearchParams('');
   }, 'throws w/o `new`');
@@ -57,6 +127,14 @@ QUnit.test('URLSearchParams', assert => {
   assert.throws(() => {
     new URLSearchParams([createIterable([createIterable([1, 2, 3])])]);
   }, 'sequence elements must be pairs #2');
+
+  assert.throws(() => {
+    new URLSearchParams([[1]]);
+  }, 'sequence elements must be pairs #3');
+
+  assert.throws(() => {
+    new URLSearchParams([createIterable([createIterable([1])])]);
+  }, 'sequence elements must be pairs #4');
 });
 
 QUnit.test('URLSearchParams#append', assert => {
