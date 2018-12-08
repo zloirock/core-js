@@ -1,6 +1,7 @@
 import { DESCRIPTORS } from '../helpers/constants';
 import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';
+import toASCIITestData from '../wpt-url-resources/toascii';
 
 import { URL, URLSearchParams } from 'core-js-pure';
 
@@ -629,6 +630,23 @@ if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
       for (const attribute in expected) {
         assert.same(url[attribute], expected[attribute], name);
       }
+    }
+  }
+});
+
+// see https://github.com/web-platform-tests/wpt/blob/master/url
+QUnit.skip('WPT conversion to ASCII tests', assert => {
+  for (const { comment, input, output } of toASCIITestData) {
+    let name = `Parsing: <${ input }>`;
+    if (comment) name += ` ${ comment }`;
+    if (output === null) {
+      assert.throws(() => new URL(`https://${ input }/x`), name);
+    } else {
+      const url = new URL(`https://${ input }/x`);
+      assert.same(url.host, output, name);
+      assert.same(url.hostname, output, name);
+      assert.same(url.pathname, '/x', name);
+      assert.same(url.href, `https://${ output }/x`, name);
     }
   }
 });
