@@ -35,6 +35,8 @@ var HEX = /^[0-9A-Fa-f]+$/;
 // eslint-disable-next-line no-control-regex
 var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|@|\[|\\|\]/;
 // eslint-disable-next-line no-control-regex
+var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|\/|:|\?|@|\[|\\|\]/;
+// eslint-disable-next-line no-control-regex
 var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F\u0020]+|[\u0000-\u001F\u0020]+$/g;
 // eslint-disable-next-line no-control-regex
 var TAB_AND_NEW_LINE = /\u0009|\u000A|\u000D/g;
@@ -49,7 +51,7 @@ var parseHost = function (url, input) {
     url.host = result;
   // opaque host
   } else if (!isSpecial(url)) {
-    if (~input.indexOf('%')) return INVALID_HOST;
+    if (FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT.test(input)) return INVALID_HOST;
     result = '';
     codePoints = arrayFrom(input);
     for (i = 0; i < codePoints.length; i++) result += percentEncode(codePoints[i], C0ControlPercentEncodeSet);
