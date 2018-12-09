@@ -100,15 +100,21 @@ var parseIPv6 = function (input) {
   var pieceIndex = 0;
   var compress = null;
   var pointer = 0;
-  var char, value, length, numbersSeen, ipv4Piece, number, swaps, swap;
-  if (input.charAt(0) == ':') {
+  var value, length, numbersSeen, ipv4Piece, number, swaps, swap;
+
+  var char = function () {
+    return input.charAt(pointer);
+  };
+
+  if (char() == ':') {
     if (input.charAt(1) != ':') return;
     pointer += 2;
     pieceIndex++;
+    compress = pieceIndex;
   }
-  while (char = input.charAt(pointer)) {
+  while (char()) {
     if (pieceIndex == 8) return;
-    if (char == ':') {
+    if (char() == ':') {
       if (compress !== null) return;
       pointer++;
       pieceIndex++;
@@ -116,40 +122,41 @@ var parseIPv6 = function (input) {
       continue;
     }
     value = length = 0;
-    while (HEX.test(char = input.charAt(pointer)) && length < 4) {
-      value = value * 16 + parseInt(char, 16);
+    while (length < 4 && HEX.test(char())) {
+      value = value * 16 + parseInt(char(), 16);
       pointer++;
       length++;
     }
-    if (char == '.') {
+    if (char() == '.') {
       if (length == 0) return;
       pointer -= length;
       if (pieceIndex > 6) return;
       numbersSeen = 0;
-      while (char = input.charAt(pointer)) {
+      while (char()) {
         ipv4Piece = null;
         if (numbersSeen > 0) {
-          if (char == '.' && numbersSeen < 4) pointer++;
+          if (char() == '.' && numbersSeen < 4) pointer++;
           else return;
         }
-        if (!DIGIT.test(char)) return;
-        do {
-          number = parseInt(char, 10);
+        if (!DIGIT.test(char())) return;
+        while (DIGIT.test(char())) {
+          number = parseInt(char(), 10);
           if (ipv4Piece === null) ipv4Piece = number;
           else if (ipv4Piece == 0) return;
           else ipv4Piece = ipv4Piece * 10 + number;
           if (ipv4Piece > 255) return;
-        } while (DIGIT.test(char = input.charAt(++pointer)));
+          pointer++;
+        }
         address[pieceIndex] = address[pieceIndex] * 256 + ipv4Piece;
         numbersSeen++;
         if (numbersSeen == 2 || numbersSeen == 4) pieceIndex++;
       }
       if (numbersSeen != 4) return;
       break;
-    } else if (char == ':') {
+    } else if (char() == ':') {
       pointer++;
-      if (!input.charAt(pointer)) return;
-    } else if (char) return;
+      if (!char()) return;
+    } else if (char()) return;
     address[pieceIndex++] = value;
   }
   if (compress !== null) {
