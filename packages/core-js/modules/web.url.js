@@ -59,7 +59,9 @@ var parseHost = function (url, input) {
   } else {
     input = toASCII(input);
     if (FORBIDDEN_HOST_CODE_POINT.test(input)) return INVALID_HOST;
-    url.host = parseIPv4(input);
+    result = parseIPv4(input);
+    if (result === null) return INVALID_HOST;
+    url.host = result;
   }
 };
 
@@ -80,14 +82,19 @@ var parseIPv4 = function (input) {
       R = HEX_START.test(part) ? 16 : 8;
       part = part.slice(R == 8 ? 1 : 2);
     }
-    if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return input;
-    n = parseInt(part, R);
-    // eslint-disable-next-line no-self-compare
-    if (n != n) return input;
-    if (i == partsLength - 1) {
-      if (n >= pow(256, 5 - partsLength)) return input;
-    } else if (n > 255) return input;
+    if (part === '') {
+      n = 0;
+    } else {
+      if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return input;
+      n = parseInt(part, R);
+    }
     numbers.push(n);
+  }
+  for (i = 0; i < partsLength; i++) {
+    n = numbers[i];
+    if (i == partsLength - 1) {
+      if (n >= pow(256, 5 - partsLength)) return null;
+    } else if (n > 255) return null;
   }
   ipv4 = numbers.pop();
   for (i = 0; i < numbers.length; i++) {
