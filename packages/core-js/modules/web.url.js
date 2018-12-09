@@ -217,17 +217,20 @@ var serializeHost = function (host) {
     } return result.join('.');
   // ipv6
   } else if (typeof host == 'object') {
-    result = [];
+    result = '';
     compress = findLongestZeroSequence(host);
     for (i = 0; i < 8; i++) {
       if (ignore0 && host[i] === 0) continue;
       if (ignore0) ignore0 = false;
       if (compress === i) {
-        result.push(i ? '' : ':');
+        result += i ? ':' : '::';
         ignore0 = true;
-      } else result.push(host[i].toString(16));
+      } else {
+        result += host[i].toString(16);
+        if (i < 7) result += ':';
+      }
     }
-    return '[' + result.join(':') + ']';
+    return '[' + result + ']';
   } return host;
 };
 
