@@ -336,7 +336,19 @@ var parseURL = function (url, input, stateOverride, base) {
   var seenPasswordToken = false;
   var codePoints, char, bufferCodePoints, failure;
 
-  if (!stateOverride) input = input.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, '');
+  if (!stateOverride) {
+    url.scheme = '';
+    url.username = '';
+    url.password = '';
+    url.host = null;
+    url.port = null;
+    url.path = [];
+    url.query = null;
+    url.fragment = null;
+    url.cannotBeABaseURL = false;
+    input = input.replace(LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE, '');
+  }
+
   input = input.replace(TAB_AND_NEW_LINE, '');
 
   codePoints = arrayFrom(input);
@@ -717,18 +729,6 @@ var parseURL = function (url, input, stateOverride, base) {
   }
 };
 
-var initializeState = function (state) {
-  state.scheme = '';
-  state.username = '';
-  state.password = '';
-  state.host = null;
-  state.port = null;
-  state.path = [];
-  state.query = null;
-  state.fragment = null;
-  state.cannotBeABaseURL = false;
-};
-
 // `URL` constructor
 // https://url.spec.whatwg.org/#url-class
 var URLConstructor = function URL(url /* , base */) {
@@ -741,12 +741,10 @@ var URLConstructor = function URL(url /* , base */) {
   if (base !== undefined) {
     if (base instanceof URLConstructor) baseState = getInternalURLState(base);
     else {
-      initializeState(baseState = {});
-      failure = parseURL(baseState, String(base));
+      failure = parseURL(baseState = {}, String(base));
       if (failure) throw new TypeError(failure);
     }
   }
-  initializeState(state);
   failure = parseURL(state, urlString, null, baseState);
   if (failure) throw new TypeError(failure);
   var searchParams = state.searchParams = new URLSearchParams();
@@ -774,41 +772,41 @@ var URLConstructor = function URL(url /* , base */) {
 var URLPrototype = URLConstructor.prototype;
 
 var serializeURL = function () {
-  var state = getInternalURLState(this);
-  var scheme = state.scheme;
-  var username = state.username;
-  var password = state.password;
-  var host = state.host;
-  var port = state.port;
-  var path = state.path;
-  var query = state.query;
-  var fragment = state.fragment;
+  var url = getInternalURLState(this);
+  var scheme = url.scheme;
+  var username = url.username;
+  var password = url.password;
+  var host = url.host;
+  var port = url.port;
+  var path = url.path;
+  var query = url.query;
+  var fragment = url.fragment;
   var output = scheme + ':';
   if (host !== null) {
     output += '//';
-    if (includesCredentials(state)) {
+    if (includesCredentials(url)) {
       output += username + (password ? ':' + password : '') + '@';
     }
     output += serializeHost(host);
     if (port !== null) output += ':' + port;
   } else if (scheme == 'file') output += '//';
-  output += state.cannotBeABaseURL ? path[0] : path.length ? '/' + path.join('/') : '';
+  output += url.cannotBeABaseURL ? path[0] : path.length ? '/' + path.join('/') : '';
   if (query !== null) output += '?' + query;
   if (fragment !== null) output += '#' + fragment;
   return output;
 };
 
 var getOrigin = function () {
-  var state = getInternalURLState(this);
-  var scheme = state.scheme;
-  var port = state.port;
+  var url = getInternalURLState(this);
+  var scheme = url.scheme;
+  var port = url.port;
   if (scheme == 'blob') try {
     return new URL(scheme.path[0]).origin;
   } catch (e) {
     return 'null';
   }
-  if (scheme == 'file' || !isSpecial(state)) return 'null';
-  return scheme + '://' + serializeHost(state.host) + (port !== null ? ':' + port : '');
+  if (scheme == 'file' || !isSpecial(url)) return 'null';
+  return scheme + '://' + serializeHost(url.host) + (port !== null ? ':' + port : '');
 };
 
 var getProtocol = function () {
@@ -824,9 +822,9 @@ var getPassword = function () {
 };
 
 var getHost = function () {
-  var state = getInternalURLState(this);
-  var host = state.host;
-  var port = state.port;
+  var url = getInternalURLState(this);
+  var host = url.host;
+  var port = url.port;
   return host === null ? ''
     : port === null ? serializeHost(host)
     : serializeHost(host) + ':' + port;
@@ -843,9 +841,9 @@ var getPort = function () {
 };
 
 var getPathname = function () {
-  var state = getInternalURLState(this);
-  var path = state.path;
-  return state.cannotBeABaseURL ? path[0] : path.length ? '/' + path.join('/') : '';
+  var url = getInternalURLState(this);
+  var path = url.path;
+  return url.cannotBeABaseURL ? path[0] : path.length ? '/' + path.join('/') : '';
 };
 
 var getSearch = function () {
@@ -871,12 +869,11 @@ if (DESCRIPTORS) {
     // `URL.prototype.href` accessors pair
     // https://url.spec.whatwg.org/#dom-url-href
     href: accessorDescriptor(serializeURL, function (href) {
-      var state = getInternalURLState(this);
+      var url = getInternalURLState(this);
       var urlString = String(href);
-      initializeState(state);
-      var failure = parseURL(state, urlString);
+      var failure = parseURL(url, urlString);
       if (failure) throw new TypeError(failure);
-      getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
+      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
     }),
     // `URL.prototype.origin` getter
     // https://url.spec.whatwg.org/#dom-url-origin
@@ -884,75 +881,75 @@ if (DESCRIPTORS) {
     // `URL.prototype.protocol` accessors pair
     // https://url.spec.whatwg.org/#dom-url-protocol
     protocol: accessorDescriptor(getProtocol, function (protocol) {
-      var state = getInternalURLState(this);
-      parseURL(state, String(protocol) + ':', SCHEME_START);
+      var url = getInternalURLState(this);
+      parseURL(url, String(protocol) + ':', SCHEME_START);
     }),
     // `URL.prototype.username` accessors pair
     // https://url.spec.whatwg.org/#dom-url-username
     username: accessorDescriptor(getUsername, function (username) {
-      var state = getInternalURLState(this);
+      var url = getInternalURLState(this);
       var codePoints = arrayFrom(String(username));
-      if (cannotHaveUsernamePasswordPort(state)) return;
-      state.username = '';
+      if (cannotHaveUsernamePasswordPort(url)) return;
+      url.username = '';
       for (var i = 0; i < codePoints.length; i++) {
-        state.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+        url.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.password` accessors pair
     // https://url.spec.whatwg.org/#dom-url-password
     password: accessorDescriptor(getPassword, function (password) {
-      var state = getInternalURLState(this);
+      var url = getInternalURLState(this);
       var codePoints = arrayFrom(String(password));
-      if (cannotHaveUsernamePasswordPort(state)) return;
-      state.password = '';
+      if (cannotHaveUsernamePasswordPort(url)) return;
+      url.password = '';
       for (var i = 0; i < codePoints.length; i++) {
-        state.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+        url.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
       }
     }),
     // `URL.prototype.host` accessors pair
     // https://url.spec.whatwg.org/#dom-url-host
     host: accessorDescriptor(getHost, function (host) {
-      var state = getInternalURLState(this);
-      if (state.cannotBeABaseURL) return;
-      parseURL(state, String(host), HOST);
+      var url = getInternalURLState(this);
+      if (url.cannotBeABaseURL) return;
+      parseURL(url, String(host), HOST);
     }),
     // `URL.prototype.hostname` accessors pair
     // https://url.spec.whatwg.org/#dom-url-hostname
     hostname: accessorDescriptor(getHostname, function (hostname) {
-      var state = getInternalURLState(this);
-      if (state.cannotBeABaseURL) return;
-      parseURL(state, String(hostname), HOSTNAME);
+      var url = getInternalURLState(this);
+      if (url.cannotBeABaseURL) return;
+      parseURL(url, String(hostname), HOSTNAME);
     }),
     // `URL.prototype.port` accessors pair
     // https://url.spec.whatwg.org/#dom-url-port
     port: accessorDescriptor(getPort, function (port) {
-      var state = getInternalURLState(this);
-      if (cannotHaveUsernamePasswordPort(state)) return;
+      var url = getInternalURLState(this);
+      if (cannotHaveUsernamePasswordPort(url)) return;
       port = String(port);
-      if (port == '') state.port = null;
-      else parseURL(state, port, PORT);
+      if (port == '') url.port = null;
+      else parseURL(url, port, PORT);
     }),
     // `URL.prototype.pathname` accessors pair
     // https://url.spec.whatwg.org/#dom-url-pathname
     pathname: accessorDescriptor(getPathname, function (pathname) {
-      var state = getInternalURLState(this);
-      if (state.cannotBeABaseURL) return;
-      state.path = [];
-      parseURL(state, pathname + '', PATH_START);
+      var url = getInternalURLState(this);
+      if (url.cannotBeABaseURL) return;
+      url.path = [];
+      parseURL(url, pathname + '', PATH_START);
     }),
     // `URL.prototype.search` accessors pair
     // https://url.spec.whatwg.org/#dom-url-search
     search: accessorDescriptor(getSearch, function (search) {
-      var state = getInternalURLState(this);
+      var url = getInternalURLState(this);
       search = String(search);
       if (search == '') {
-        state.query = null;
+        url.query = null;
       } else {
         if ('?' == search.charAt(0)) search = search.slice(1);
-        state.query = '';
-        parseURL(state, search, QUERY);
+        url.query = '';
+        parseURL(url, search, QUERY);
       }
-      getInternalSearchParamsState(state.searchParams).updateSearchParams(state.query);
+      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
     }),
     // `URL.prototype.searchParams` getter
     // https://url.spec.whatwg.org/#dom-url-searchparams
@@ -960,15 +957,15 @@ if (DESCRIPTORS) {
     // `URL.prototype.hash` accessors pair
     // https://url.spec.whatwg.org/#dom-url-hash
     hash: accessorDescriptor(getHash, function (hash) {
-      var state = getInternalURLState(this);
+      var url = getInternalURLState(this);
       hash = String(hash);
       if (hash == '') {
-        state.fragment = null;
+        url.fragment = null;
         return;
       }
       if ('#' == hash.charAt(0)) hash = hash.slice(1);
-      state.fragment = '';
-      parseURL(state, hash, FRAGMENT);
+      url.fragment = '';
+      parseURL(url, hash, FRAGMENT);
     })
   });
 }
