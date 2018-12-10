@@ -597,6 +597,10 @@ QUnit.test('URL#@@toStringTag', assert => {
   assert.same(({}).toString.call(url), '[object URL]');
 });
 
+// `core-js` URL implementation pass all (exclude some encoding-ralated) tests
+// from the next 3 test cases, but URLs from all of popular browsers fail a serious part of tests.
+// Replacing all of them does not looks like a good idea, so next test cases disabled by default.
+
 // see https://github.com/web-platform-tests/wpt/blob/master/url
 QUnit.skip('WPT URL constructor tests', assert => {
   for (const expected of urlTestData) {

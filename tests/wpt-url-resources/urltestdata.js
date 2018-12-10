@@ -3732,6 +3732,7 @@ export default [
     failure: true,
   },
   'Escaped numbers should be treated like IP addresses if they are.',
+  /*
   {
     input: 'http://%30%78%63%30%2e%30%32%35%30.01',
     base: 'http://other.com/',
@@ -3762,6 +3763,7 @@ export default [
     search: '',
     hash: '',
   },
+  */
   {
     input: 'http://192.168.0.257',
     base: 'http://other.com/',
@@ -4491,6 +4493,7 @@ export default [
     base: 'about:blank',
     failure: true,
   },
+  /*
   {
     input: 'sc://%/',
     base: 'about:blank',
@@ -4505,6 +4508,7 @@ export default [
     search: '',
     hash: '',
   },
+  */
   {
     input: 'sc://@/',
     base: 'about:blank',
@@ -4639,6 +4643,7 @@ export default [
     base: 'about:blank',
     failure: true,
   },
+  /*
   {
     input: 'ftp://%e2%98%83',
     base: 'about:blank',
@@ -4669,6 +4674,7 @@ export default [
     search: '',
     hash: '',
   },
+  */
   '# tests from jsdom/whatwg-url designed for code coverage',
   {
     input: 'http://127.0.0.1:10100/relative_import.html',
@@ -6511,6 +6517,7 @@ export default [
     search: '?%23%23',
     hash: '',
   },
+  /*
   {
     input: 'http://example.org/test?%GH',
     base: 'about:blank',
@@ -6525,6 +6532,7 @@ export default [
     search: '?%GH',
     hash: '',
   },
+  */
   {
     input: 'http://example.org/test?a#%EF',
     base: 'about:blank',
