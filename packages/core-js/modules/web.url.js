@@ -884,13 +884,13 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-protocol
     protocol: accessorDescriptor(getProtocol, function (protocol) {
       var state = getInternalURLState(this);
-      parseURL(state, protocol + ':', SCHEME_START);
+      parseURL(state, String(protocol) + ':', SCHEME_START);
     }),
     // `URL.prototype.username` accessors pair
     // https://url.spec.whatwg.org/#dom-url-username
     username: accessorDescriptor(getUsername, function (username) {
       var state = getInternalURLState(this);
-      var codePoints = arrayFrom(username + '');
+      var codePoints = arrayFrom(String(username));
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.username = '';
       for (var i = 0; i < codePoints.length; i++) {
@@ -901,7 +901,7 @@ if (DESCRIPTORS) {
     // https://url.spec.whatwg.org/#dom-url-password
     password: accessorDescriptor(getPassword, function (password) {
       var state = getInternalURLState(this);
-      var codePoints = arrayFrom(password + '');
+      var codePoints = arrayFrom(String(password));
       if (cannotHaveUsernamePasswordPort(state)) return;
       state.password = '';
       for (var i = 0; i < codePoints.length; i++) {
@@ -913,21 +913,21 @@ if (DESCRIPTORS) {
     host: accessorDescriptor(getHost, function (host) {
       var state = getInternalURLState(this);
       if (state.cannotBeABaseURL) return;
-      parseURL(state, host + '', HOST);
+      parseURL(state, String(host), HOST);
     }),
     // `URL.prototype.hostname` accessors pair
     // https://url.spec.whatwg.org/#dom-url-hostname
     hostname: accessorDescriptor(getHostname, function (hostname) {
       var state = getInternalURLState(this);
       if (state.cannotBeABaseURL) return;
-      parseURL(state, hostname + '', HOSTNAME);
+      parseURL(state, String(hostname), HOSTNAME);
     }),
     // `URL.prototype.port` accessors pair
     // https://url.spec.whatwg.org/#dom-url-port
     port: accessorDescriptor(getPort, function (port) {
       var state = getInternalURLState(this);
       if (cannotHaveUsernamePasswordPort(state)) return;
-      port += '';
+      port = String(port);
       if (port == '') state.port = null;
       else parseURL(state, port, PORT);
     }),
