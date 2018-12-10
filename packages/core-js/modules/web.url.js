@@ -703,8 +703,9 @@ var parseURL = function (url, input, stateOverride, base) {
           url.fragment = '';
           state = FRAGMENT;
         } else if (char != EOF) {
-          // TODO
-          url.query += percentEncode(char, C0ControlPercentEncodeSet);
+          if (char == "'" && isSpecial(url)) url.query += '%27';
+          else if (char == '#') url.query += '%23';
+          else url.query += percentEncode(char, C0ControlPercentEncodeSet);
         } break;
 
       case FRAGMENT:
