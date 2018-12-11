@@ -2142,12 +2142,53 @@ core-js/features/url/to-json
 core-js(-pure)/features/url-search-params
 core-js/features/url-search-params/sort
 ```
-[*Examples*]():
+[*Examples*](https://goo.gl/kksjwV):
 ```js
-const url = new URL('http://zloirock.ru/');
+const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
+
+console.log(url.href);       // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2#fragment'
+console.log(url.origin);     // => 'http://example.com:8080'
+console.log(url.protocol);   // => 'http:'
+console.log(url.username);   // => 'login'
+console.log(url.password);   // => 'password'
+console.log(url.host);       // => 'example.com:8080'
+console.log(url.hostname);   // => 'example.com'
+console.log(url.port);       // => '8080'
+console.log(url.pathname);   // => '/foo/bar'
+console.log(url.search);     // => '?a=1&b=2&a=3'
+console.log(url.hash);       // => '#fragment'
+console.log(url.toJSON());   // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+console.log(url.toString()); // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+
+for (let [key, value] of url.searchParams) {
+  console.log(key);   // => 'a', 'b'
+  console.log(value); // => '1', '2'
+}
+
+url.pathname = '';
+url.searchParams.append('c', 3);
+
+console.log(url.search); // => '?a=1&b=2&c=3'
+console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&a=3&b=2&c=4#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
+
+params.append('c', 4);
+params.append('a', 2);
+params.sort();
+
+for (let [key, value] of params) {
+  console.log(key);   // => 'a', 'a', 'a', 'b', 'c'
+  console.log(value); // => '1', '3', '2', '2', '4'
+}
+
+console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 ```
+
+##### Caveats when using `URL` and `URLSearchParams`:
+- IE8- does not supports setters, so they does not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
+- Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
+- `URL` implementations from all of popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
 #### Iterable DOM collections
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
