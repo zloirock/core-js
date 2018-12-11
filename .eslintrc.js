@@ -453,6 +453,7 @@ module.exports = {
         'tests/helpers/**',
         'tests/pure/**',
         'tests/tests/**',
+        'tests/wpt-url-resources/**',
       ],
       parserOptions: {
         sourceType: 'module',

@@ -12,21 +12,23 @@ require('../internals/shared')('inspectSource', function (it) {
   return nativeFunctionToString.call(it);
 });
 
-(module.exports = function (O, key, value, unsafe) {
+(module.exports = function (O, key, value, options) {
+  var unsafe = options ? !!options.unsafe : false;
+  var simple = options ? !!options.enumerable : false;
   if (typeof value == 'function') {
     if (typeof key == 'string' && !has(value, 'name')) hide(value, 'name', key);
     enforceInternalState(value).source = TEMPLATE.join(typeof key == 'string' ? key : '');
   }
   if (O === global) {
     setGlobal(key, value);
+    return;
   } else if (!unsafe) {
     delete O[key];
-    hide(O, key, value);
   } else if (O[key]) {
-    O[key] = value;
-  } else {
-    hide(O, key, value);
+    simple = true;
   }
+  if (simple) O[key] = value;
+  else hide(O, key, value);
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
 })(Function.prototype, 'toString', function toString() {
   return typeof this == 'function' && getInternalState(this).source || nativeFunctionToString.call(this);

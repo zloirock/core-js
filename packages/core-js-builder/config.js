@@ -280,6 +280,10 @@ module.exports = {
     'web.immediate',
     'web.queue-microtask',
     'web.timers',
+    'web.url',
+    'web.url.to-json',
+    'web.url-search-params',
+    'web.url-search-params.sort',
   ],
   /* eslint-disable prefer-template */
   banner: '/**\n' +

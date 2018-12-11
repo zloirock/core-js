@@ -47,7 +47,36 @@
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
     - `Promise.allSettled` ([stage 1 proposal](https://github.com/jasonwilliams/proposal-promise-allSettled))
-    - `.forEach` method to iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
+    - `URL` and `URLSearchParam` [from `URL` standard](https://url.spec.whatwg.org/), also [stage 0 proposal to ECMAScript](https://github.com/jasnell/proposal-url)
+      - `URL`
+        - `URL#href`
+        - `URL#origin`
+        - `URL#protocol`
+        - `URL#username`
+        - `URL#password`
+        - `URL#host`
+        - `URL#hostname`
+        - `URL#port`
+        - `URL#pathname`
+        - `URL#search`
+        - `URL#searchParams`
+        - `URL#hash`
+        - `URL#toString`
+        - `URL#toJSON`
+      - `URLSearchParams`
+        - `URLSearchParams#append`
+        - `URLSearchParams#delete`
+        - `URLSearchParams#get`
+        - `URLSearchParams#getAll`
+        - `URLSearchParams#has`
+        - `URLSearchParams#set`
+        - `URLSearchParams#sort`
+        - `URLSearchParams#toString`
+        - `URLSearchParams#keys`
+        - `URLSearchParams#values`
+        - `URLSearchParams#entries`
+        - `URLSearchParams#@@iterator`
+    - `.forEach` method on iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Improve existing features:
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
     - Add support of `@@isConcatSpreadable` to `Array#concat`.
