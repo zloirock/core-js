@@ -620,6 +620,7 @@ QUnit.test('URLSearchParams#forEach', assert => {
     assert.ok(false, 'should not be called');
   });
 
+  // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
     params = url.searchParams;
@@ -631,6 +632,7 @@ QUnit.test('URLSearchParams#forEach', assert => {
     assert.same(result, 'a1y2z3');
   }
 
+  // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
   result = '';
   params.forEach((value, key) => {
@@ -663,6 +665,7 @@ QUnit.test('URLSearchParams#entries', assert => {
 
   assert.ok(new URL('http://a.b/c').searchParams.entries().next().done, 'should be finished');
 
+  // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
     iterator = url.searchParams.entries();
@@ -675,6 +678,7 @@ QUnit.test('URLSearchParams#entries', assert => {
     assert.same(result, 'a1y2z3');
   }
 
+  // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
   iterator = params.entries();
   result = '';
@@ -704,6 +708,7 @@ QUnit.test('URLSearchParams#keys', assert => {
 
   assert.ok(new URL('http://a.b/c').searchParams.keys().next().done, 'should be finished');
 
+  // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
     iterator = url.searchParams.keys();
@@ -716,6 +721,7 @@ QUnit.test('URLSearchParams#keys', assert => {
     assert.same(result, 'ayz');
   }
 
+  // fails in Chrome 66-
   const params = new URLSearchParams('a=1&b=2&c=3');
   iterator = params.keys();
   result = '';
@@ -745,6 +751,7 @@ QUnit.test('URLSearchParams#values', assert => {
 
   assert.ok(new URL('http://a.b/c').searchParams.values().next().done, 'should be finished');
 
+  // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
     iterator = url.searchParams.keys();
@@ -757,6 +764,7 @@ QUnit.test('URLSearchParams#values', assert => {
     assert.same(result, 'ayz');
   }
 
+  // fails in Chrome 66-
   const params = new URLSearchParams('a=1&b=2&c=3');
   iterator = params.values();
   result = '';
@@ -792,6 +800,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
 
   assert.ok(new URL('http://a.b/c').searchParams[Symbol.iterator]().next().done, 'should be finished');
 
+  // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
     iterator = url.searchParams[Symbol.iterator]();
@@ -804,6 +813,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
     assert.same(result, 'a1y2z3');
   }
 
+  // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
   iterator = params[Symbol.iterator]();
   result = '';
