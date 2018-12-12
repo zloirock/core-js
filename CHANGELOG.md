@@ -93,7 +93,7 @@
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
     - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
     - Update `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - rename `global` to `globalThis`
-    - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), etc.) and move to the stage 3
+    - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
   - Mark ES2016, ES2017 and ES2018 features as stable:

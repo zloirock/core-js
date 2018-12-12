@@ -72,14 +72,15 @@ var $matchAll = function (string) {
 require('../internals/export')({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
-    var S;
+    var S, matcher, rx;
     if (regexp != null) {
-      var matcher = regexp[MATCH_ALL];
+      matcher = regexp[MATCH_ALL];
       if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
       if (matcher != null) return aFunction(matcher).call(regexp, O);
     }
     S = String(O);
-    return new $RegExpStringIterator(new RegExp(regexp, 'g'), S, true, false);
+    rx = new RegExp(regexp, 'g');
+    return IS_PURE ? new $RegExpStringIterator(rx, S, true, false) : rx[MATCH_ALL](S);
   }
 });
 
