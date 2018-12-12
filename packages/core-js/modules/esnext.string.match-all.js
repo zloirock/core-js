@@ -80,7 +80,7 @@ require('../internals/export')({ target: 'String', proto: true }, {
     }
     S = String(O);
     rx = new RegExp(regexp, 'g');
-    return IS_PURE ? new $RegExpStringIterator(rx, S, true, false) : rx[MATCH_ALL](S);
+    return IS_PURE ? $matchAll.call(rx, S) : rx[MATCH_ALL](S);
   }
 });
 
