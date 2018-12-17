@@ -18,7 +18,7 @@ var SUPPORTS_Y = !!(function () { try { return new RegExp('x', 'y'); } catch (e)
 
 // @@split logic
 require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split, maybeCallNative) {
-  var internalSplit = $split;
+  var internalSplit;
   if (
     'abbc'[$SPLIT](/(b)*/)[1] == 'c' ||
     'test'[$SPLIT](/(?:)/, -1)[LENGTH] != 4 ||
@@ -64,6 +64,8 @@ require('./_fix-re-wks')('split', 2, function (defined, SPLIT, $split, maybeCall
     internalSplit = function (separator, limit) {
       return separator === undefined && limit === 0 ? [] : $split.call(this, separator, limit);
     };
+  } else {
+    internalSplit = $split;
   }
 
   return [
