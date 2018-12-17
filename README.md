@@ -2095,7 +2095,7 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 #### `URL` and `URLSearchParams`
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.sort.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js).
 ```js
 class URL {
   constructor(url: string, base?: string);

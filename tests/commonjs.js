@@ -350,7 +350,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/url') === 'function');
   load('features/url/to-json');
   ok(typeof load('features/url-search-params') === 'function');
-  load('features/url-search-params/sort');
   ok(load('features/is-iterable')([]));
   ok(typeof load('features/get-iterator-method')([]) === 'function');
   ok('next' in load('features/get-iterator')([]));
