@@ -19,7 +19,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
   'split',
   2,
   function (defined, SPLIT, nativeSplit, maybeCallNative) {
-    var internalSplit = nativeSplit;
+    var internalSplit;
     if (
       'abbc'.split(/(b)*/)[1] == 'c' ||
       'test'.split(/(?:)/, -1)[LENGTH] != 4 ||
@@ -67,7 +67,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       internalSplit = function (separator, limit) {
         return separator === undefined && limit === 0 ? [] : nativeSplit.call(this, separator, limit);
       };
-    }
+    } else internalSplit = nativeSplit;
 
     return [
       // `String.prototype.split` method
