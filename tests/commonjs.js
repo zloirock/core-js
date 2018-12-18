@@ -323,6 +323,9 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/filter')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/find')(new Set([2, 3, 4]), it => it % 2) === 3);
   ok(load('features/set/intersection')(new Set([1, 2, 3]), [1, 3, 4]).size === 2);
+  ok(load('features/set/is-disjoint-with')(new Set([1, 2, 3]), [4, 5, 6]));
+  ok(load('features/set/is-subset-of')(new Set([1, 2, 3]), [1, 2, 3, 4]));
+  ok(load('features/set/is-superset-of')(new Set([1, 2, 3, 4]), [1, 2, 3]));
   ok(load('features/set/join')(new Set([1, 2, 3])) === '1,2,3');
   ok(load('features/set/map')(new Set([1, 2, 3]), it => it % 2).size === 2);
   ok(load('features/set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);
