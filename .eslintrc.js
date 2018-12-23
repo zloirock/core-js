@@ -137,6 +137,8 @@ const base = {
   'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
   // disallow unused labels
   'no-unused-labels': 'error',
+  // disallow unnecessary catch clauses
+  'no-useless-catch': 'error',
   // disallow useless string concatenation
   'no-useless-concat': 'error',
   // disallow unnecessary string escaping

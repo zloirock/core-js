@@ -66,8 +66,9 @@ export function patchRegExp$exec(run) {
     };
     try {
       return run(assert);
+    // In very old IE try / finally does not work without catch.
+    // eslint-disable-next-line no-useless-catch
     } catch (e) {
-      // In very old IE try / finally does not work without catch.
       throw e;
     } finally {
       // eslint-disable-next-line no-extend-native
