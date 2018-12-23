@@ -39,7 +39,6 @@ module.exports = grunt => {
     },
     clean: {
       'core-js': [
-        './packages/core-js/client',
         './packages/core-js/LICENSE',
       ],
       'core-js-pure': [
@@ -53,7 +52,7 @@ module.exports = grunt => {
         './packages/core-js-builder/LICENSE',
       ],
       'core-js-bundle': [
-        './packages/core-js/LICENSE',
+        './packages/core-js-bundle/LICENSE',
       ],
       tests: [
         './tests/bundles/*',

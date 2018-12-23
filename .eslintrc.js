@@ -302,7 +302,7 @@ const base = {
   // require using arrow functions for callbacks
   'prefer-arrow-callback': 'error',
   // require const declarations for variables that are never reassigned after declared
-  'prefer-const': 'error',
+  'prefer-const': ['error', { destructuring: 'all' }],
   // require template literals instead of string concatenation
   'prefer-template': 'error',
   // enforce spacing between rest and spread operators and their expressions
@@ -467,6 +467,7 @@ module.exports = {
     },
     {
       files: [
+        'packages/core-js-builder/**',
         'tests/tests/**',
         'tests/commonjs.js',
       ],
