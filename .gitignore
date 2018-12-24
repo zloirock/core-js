@@ -11,6 +11,8 @@ node_modules/
 /packages/core-js-bundle/index.js
 /packages/core-js-bundle/minified.js
 /packages/core-js-bundle/minified.js.map
+/packages/core-js-compat/data.json
+/packages/core-js-compat/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/features/
 /packages/core-js-pure/internals/
