@@ -50,6 +50,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [`@babel/preset-env`](#babelpreset-env)
   - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
+  - [Compatibility data](#compatibility-data)
 - [Supported engines](#supported-engines)
 - [Features](#features)
   - [ECMAScript](#ecmascript)
@@ -215,18 +216,12 @@ It does not work with some features. Also, if you change the default behavior, e
 
 ### Custom build
 
-For some cases could be useful add a blacklist of features. [`core-js-builder`](https://www.npmjs.com/package/core-js-builder) package exports a function. This will conditionally include or exclude certain parts of `core-js`:
+For some cases could be useful adding a blacklist of features or generation a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
 
-```js
-require('core-js-builder')({
-  modules: ['es', 'esnext.reflect', 'web'],        // modules / namespaces
-  blacklist: ['es.math', 'es.number.constructor'], // blacklist of modules / namespaces, by default - empty list
-}).then(code => {
-  // ...
-}).catch(error => {
-  // ...
-});
-```
+### Compatibility data
+
+[`core-js-compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
+
 ## Supported engines
 **Tested in:**
 - Chrome 26+

@@ -66,7 +66,7 @@ function checkModule(name, targets) {
   return result;
 }
 
-module.exports = function ({ targets, modules, filter }) {
+module.exports = function ({ targets, filter }) {
   const list = browserslist(targets);
   const engines = normalizeBrowsersList(list);
   const reducedTargets = reduceByMinVersion(engines);
@@ -76,11 +76,10 @@ module.exports = function ({ targets, modules, filter }) {
     targets: {},
   };
 
-  if (!Array.isArray(modules)) modules = Object.keys(data);
+  let modules = Array.isArray(filter) ? filter : Object.keys(data);
 
   if (filter instanceof RegExp) modules = modules.filter(it => filter.test(it));
   else if (typeof filter == 'string') modules = modules.filter(it => it.startsWith(filter));
-  else if (typeof filter != 'undefined') throw new TypeError('Incorrect filter');
 
   modules.forEach(key => {
     const check = checkModule(key, reducedTargets);

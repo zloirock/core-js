@@ -7,7 +7,7 @@ const temp = require('temp');
 const compat = require('core-js-compat');
 const list = config.list;
 
-module.exports = ({ blacklist = [], modules = [], targets }) => {
+module.exports = ({ blacklist = [], modules = list.slice(), targets }) => {
   return new Promise((resolve, reject) => {
     const filter = modules.reduce((memo, it) => {
       memo[it] = true;
@@ -36,7 +36,8 @@ module.exports = ({ blacklist = [], modules = [], targets }) => {
     }
 
     modules = list.filter(it => filter[it]);
-    if (targets) modules = compat({ targets, modules }).list;
+
+    if (targets) modules = compat({ targets, filter: modules }).list;
 
     const tempFile = temp.path({ suffix: '.js' });
 
