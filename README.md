@@ -5,7 +5,7 @@
 
 **It's documentation for the unstable `core-js@3`, if you looking documentation for `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
-Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2019](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C ECMAScript-related features and proposals](#web-standards) like [setImmediate](#setimmediate). You can load only required features or use it without global namespace pollution.
+Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2019](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 [*Example*](http://goo.gl/a2xexl):
 ```js
@@ -133,7 +133,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 #### `@babel/polyfill`
 
-[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) **IS** `core-js` and  `regenerator-runtime` for generators and async functions, it's just [2 lines](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js#L6-L7), so if you load `@babel/polyfill` - you load the full global version of `core-js`.
+[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) **IS** `core-js` and  `regenerator-runtime` for generators and async functions, it's just [2 lines](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js#L6-L7), so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
 #### `@babel/runtime`
 
