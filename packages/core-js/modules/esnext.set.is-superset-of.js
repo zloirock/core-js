@@ -2,7 +2,6 @@
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var iterate = require('../internals/iterate');
-var classof = require('../internals/classof');
 var BREAK = iterate.BREAK;
 
 // `Set.prototype.isSupersetOf` method
@@ -10,7 +9,6 @@ var BREAK = iterate.BREAK;
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   isSupersetOf: function isSupersetOf(iterable) {
     var set = anObject(this);
-    if (classof(set) != 'Set') throw new TypeError('Incorrect receiver!');
     var hasCheck = aFunction(set.has);
     return iterate(iterable, function (value) {
       if (hasCheck.call(set, value) === false) return BREAK;
