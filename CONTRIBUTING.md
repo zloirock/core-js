@@ -8,8 +8,9 @@ Contributions are always welcome. If you don't know what how you can help, you c
 - If the implementation for the `pure` version should differ from the global version, it should be added to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest of `core-js-pure` will be copied from `core-js` package.
 - For export the polyfill, in almost all cases should be used `_export` helper.
 - The polyfill should be added to the [list of polyfills](./packages/core-js-builder/config.js) and to entry points, where it's required: [`packages/core-js/index.js`](./packages/core-js/index.js), directories [`packages/core-js/features`](./packages/core-js/features), [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/esnext`](./packages/core-js/esnext) and [`packages/core-js/web`](./packages/core-js/web).
-- Unit tests for the polyfill should be added to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
-- All new entry points should be added to [the test of entry points](./tests/commonjs).
+- Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
+- Add feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js) and compatibility data to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js).
+- Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs).
 - Add it to [README.md](./README.md).
 
 ## Style and standards
@@ -76,3 +77,14 @@ and after that use this file:
 ```
 tests/promises-aplus.html
 ```
+
+## Updating `core-js-compat` data
+
+For updating `core-js-compat` data:
+
+- Clone `core-js` repo.
+- If you wanna add new data for a browser, run in this browser `tests/compat/index.html` and you will see which `core-js` modules required for this browser.
+- If you wanna add new data for Node.js, run `tests/compat/node-runner.js` in required Node.js version and you will see results in the console.
+- After getting this data, add it to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js).
+- If you wanna add new mapping (for example, add a new iOS Safari version based on Safari or Node.js based on Chrome), add it to [`packages/core-js-compat/src/mapping.js`](./packages/core-js-compat/src/mapping.js).
+- Add a pull request to `core-js` repo.

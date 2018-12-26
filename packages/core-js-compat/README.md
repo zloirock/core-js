@@ -33,3 +33,5 @@ console.log(targets);
 }
 */
 ```
+
+If you want to add new / update data about modules required for target engines, [follow this instruction](../../CONTRIBUTING.md#updating-core-js-compat-data).
