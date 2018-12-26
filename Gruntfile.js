@@ -158,10 +158,10 @@ module.exports = grunt => {
     webpack: require('./.webpack.config.js'),
   });
   grunt.registerTask('bundle', function () {
+    const builder = require('./packages/core-js-builder');
     const done = this.async();
-    require('./packages/core-js-builder')({
-      modules: ['es', 'esnext', 'web'],
-    }).then(it => {
+
+    builder().then(it => {
       const filename = './packages/core-js-bundle/index.js';
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);

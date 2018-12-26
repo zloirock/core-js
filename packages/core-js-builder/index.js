@@ -1,13 +1,13 @@
 'use strict';
-const config = require('./config');
 const fs = require('fs');
 const path = require('path');
 const webpack = require('webpack');
 const temp = require('temp');
 const compat = require('core-js-compat');
-const list = config.list;
+const modulesList = Object.keys(require('core-js-compat/data'));
+const { banner } = require('./config');
 
-module.exports = ({ blacklist = [], modules = list.slice(), targets }) => {
+module.exports = ({ blacklist = [], modules = modulesList.slice(), targets } = {}) => {
   return new Promise((resolve, reject) => {
     const filter = modules.reduce((memo, it) => {
       memo[it] = true;
@@ -16,8 +16,8 @@ module.exports = ({ blacklist = [], modules = list.slice(), targets }) => {
 
     for (const ns in filter) {
       if (filter[ns]) {
-        for (let i = 0, length = list.length; i < length; ++i) {
-          const name = list[i];
+        for (let i = 0, length = modulesList.length; i < length; ++i) {
+          const name = modulesList[i];
           if (name.indexOf(`${ ns }.`) === 0) {
             filter[name] = true;
           }
@@ -27,15 +27,15 @@ module.exports = ({ blacklist = [], modules = list.slice(), targets }) => {
 
     for (let i = 0, length1 = blacklist.length; i < length1; ++i) {
       const ns = blacklist[i];
-      for (let j = 0, length2 = list.length; j < length2; ++j) {
-        const name = list[j];
+      for (let j = 0, length2 = modulesList.length; j < length2; ++j) {
+        const name = modulesList[j];
         if (name === ns || name.indexOf(`${ ns }.`) === 0) {
           filter[name] = false;
         }
       }
     }
 
-    modules = list.filter(it => filter[it]);
+    modules = modulesList.filter(it => filter[it]);
 
     if (targets) modules = compat({ targets, filter: modules }).list;
 
@@ -59,7 +59,7 @@ module.exports = ({ blacklist = [], modules = list.slice(), targets }) => {
         if (err2) return reject(err2);
         fs.unlink(tempFile, err3 => {
           if (err3) return reject(err3);
-          resolve(`${ config.banner }\n!function (undefined) { 'use strict'; ${ script } }();`);
+          resolve(`${ banner }\n!function (undefined) { 'use strict'; ${ script } }();`);
         });
       });
     });

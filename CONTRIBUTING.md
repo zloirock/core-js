@@ -5,13 +5,14 @@ Contributions are always welcome. If you don't know what how you can help, you c
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
-- If the implementation for the `pure` version should differ from the global version, it should be added to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest of `core-js-pure` will be copied from `core-js` package.
-- For export the polyfill, in almost all cases should be used `_export` helper.
-- The polyfill should be added to the [list of polyfills](./packages/core-js-builder/config.js) and to entry points, where it's required: [`packages/core-js/index.js`](./packages/core-js/index.js), directories [`packages/core-js/features`](./packages/core-js/features), [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/esnext`](./packages/core-js/esnext) and [`packages/core-js/web`](./packages/core-js/web).
+- Any shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory.
+- If the implementation for the `pure` version differs from the global version, add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
+- For export the polyfill, in almost all cases use `internals/export` helper.
+- Add feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js) and compatibility data to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js) (this data also used for getting default list of polyfills at bundling).
+- Add it to entry points where it's required: directories [`packages/core-js/features`](./packages/core-js/features), [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
 - Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
-- Add feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js) and compatibility data to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js).
 - Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs).
-- Add it to [README.md](./README.md).
+- Add documentation to [README.md](./README.md).
 
 ## Style and standards
 
