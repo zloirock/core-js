@@ -49,7 +49,7 @@
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
-    - `Promise.allSettled` ([stage 1 proposal](https://github.com/jasonwilliams/proposal-promise-allSettled))
+    - `Promise.allSettled` ([stage 1 proposal](https://github.com/tc39/proposal-promise-allSettled))
     - `URL` and `URLSearchParam` [from `URL` standard](https://url.spec.whatwg.org/), also [stage 0 proposal to ECMAScript](https://github.com/jasnell/proposal-url)
       - `URL`
         - `URL#href`

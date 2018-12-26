@@ -1,6 +1,6 @@
 'use strict';
 // `Promise.allSettled` method
-// https://github.com/jasonwilliams/proposal-promise-allSettled
+// https://github.com/tc39/proposal-promise-allSettled
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');

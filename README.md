@@ -1649,7 +1649,7 @@ core-js/features/string/replace-all
 ```js
 'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
 ```
-* `Promise.allSettled` [proposal](https://github.com/jasonwilliams/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled.js)
+* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled.js)
 ```js
 class Promise {
   static allSettled(iterable): promise;
