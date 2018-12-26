@@ -1,6 +1,6 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
+const { readFile, unlink } = require('fs');
+const { basename, dirname } = require('path');
 const webpack = require('webpack');
 const temp = require('temp');
 const compat = require('core-js-compat');
@@ -50,14 +50,14 @@ module.exports = ({ blacklist = [], modules = modulesList.slice(), targets } = {
       },
       entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
-        path: path.dirname(tempFile),
-        filename: path.basename(`./${ tempFile }`),
+        path: dirname(tempFile),
+        filename: basename(`./${ tempFile }`),
       },
     }, err1 => {
       if (err1) return reject(err1);
-      fs.readFile(tempFile, (err2, script) => {
+      readFile(tempFile, (err2, script) => {
         if (err2) return reject(err2);
-        fs.unlink(tempFile, err3 => {
+        unlink(tempFile, err3 => {
           if (err3) return reject(err3);
           resolve(`${ banner }\n!function (undefined) { 'use strict'; ${ script } }();`);
         });
