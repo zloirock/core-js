@@ -1,5 +1,4 @@
 'use strict';
-const build = require('./packages/core-js-builder');
 const fs = require('fs');
 const mkdirp = require('mkdirp');
 const path = require('path');
@@ -53,6 +52,10 @@ module.exports = grunt => {
       ],
       'core-js-bundle': [
         './packages/core-js-bundle/LICENSE',
+      ],
+      'core-js-compat': [
+        './packages/core-js-compat/data.json',
+        './packages/core-js-compat/LICENSE',
       ],
       tests: [
         './tests/bundles/*',
@@ -115,6 +118,15 @@ module.exports = grunt => {
           },
         ],
       },
+      'core-js-compat': {
+        files: [
+          {
+            expand: true,
+            src: ['LICENSE'],
+            dest: './packages/core-js/',
+          },
+        ],
+      },
     },
     karma: {
       options: {
@@ -146,10 +158,10 @@ module.exports = grunt => {
     webpack: require('./.webpack.config.js'),
   });
   grunt.registerTask('bundle', function () {
+    const builder = require('./packages/core-js-builder');
     const done = this.async();
-    build({
-      modules: ['es', 'esnext', 'web'],
-    }).then(it => {
+
+    builder().then(it => {
       const filename = './packages/core-js-bundle/index.js';
       mkdirp.sync(path.dirname(filename));
       fs.writeFile(filename, it, done);

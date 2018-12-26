@@ -444,6 +444,7 @@ module.exports = {
         'packages/core-js/**',
         'packages/core-js-pure/**',
         'tests/promises-aplus/**',
+        'tests/compat/**',
       ],
       parserOptions: {
         ecmaVersion: 3,
@@ -468,7 +469,9 @@ module.exports = {
     {
       files: [
         'packages/core-js-builder/**',
+        'packages/core-js-compat/**',
         'tests/tests/**',
+        'tests/compat/**',
         'tests/commonjs.js',
       ],
       env: {
