@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@babel/cli": "^7.2.0",
+    "@babel/cli": "^7.2.3",
     "@babel/core": "^7.2.2",
     "@babel/plugin-transform-arrow-functions": "^7.2.0",
     "@babel/plugin-transform-block-scoped-functions": "^7.2.0",
@@ -42,7 +42,6 @@
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^1.11.0",
     "qunit": "2.8.x",
-    "temp": "^0.9.0",
     "webpack": "^4.28.2"
   },
   "license": "MIT",
