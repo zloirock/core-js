@@ -9,30 +9,22 @@ const { banner } = require('./config');
 
 module.exports = ({ blacklist = [], modules = modulesList.slice(), targets } = {}) => {
   return new Promise((resolve, reject) => {
-    const filter = modules.reduce((memo, it) => {
-      memo[it] = true;
-      return memo;
-    }, {});
+    const set = new Set();
 
-    for (const ns in filter) {
-      if (filter[ns]) {
+    function filter(method, list) {
+      for (const ns of list) {
         for (const name of modulesList) {
-          if (name.startsWith(`${ ns }.`)) {
-            filter[name] = true;
+          if (name === ns || name.startsWith(`${ ns }.`)) {
+            set[method](name);
           }
         }
       }
     }
 
-    for (const ns of blacklist) {
-      for (const name of modulesList) {
-        if (name === ns || name.startsWith(`${ ns }.`)) {
-          filter[name] = false;
-        }
-      }
-    }
+    filter('add', modules);
+    filter('delete', blacklist);
 
-    modules = modulesList.filter(it => filter[it]);
+    modules = modulesList.filter(it => set.has(it));
 
     if (targets) modules = compat({ targets, filter: modules }).list;
 
