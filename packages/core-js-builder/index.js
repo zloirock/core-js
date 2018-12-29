@@ -16,20 +16,17 @@ module.exports = ({ blacklist = [], modules = modulesList.slice(), targets } = {
 
     for (const ns in filter) {
       if (filter[ns]) {
-        for (let i = 0, length = modulesList.length; i < length; ++i) {
-          const name = modulesList[i];
-          if (name.indexOf(`${ ns }.`) === 0) {
+        for (const name of modulesList) {
+          if (name.startsWith(`${ ns }.`)) {
             filter[name] = true;
           }
         }
       }
     }
 
-    for (let i = 0, length1 = blacklist.length; i < length1; ++i) {
-      const ns = blacklist[i];
-      for (let j = 0, length2 = modulesList.length; j < length2; ++j) {
-        const name = modulesList[j];
-        if (name === ns || name.indexOf(`${ ns }.`) === 0) {
+    for (const ns of blacklist) {
+      for (const name of modulesList) {
+        if (name === ns || name.startsWith(`${ ns }.`)) {
           filter[name] = false;
         }
       }
