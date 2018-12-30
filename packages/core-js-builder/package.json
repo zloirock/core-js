@@ -10,7 +10,9 @@
   "dependencies": {
     "core-js": "3.0.0-beta.7",
     "core-js-compat": "3.0.0-beta.7",
+    "mkdirp": "^0.5.1",
     "temp": "^0.9.0",
+    "util.promisify": "^1.0.0",
     "webpack": "^4.28.2"
   },
   "license": "MIT"

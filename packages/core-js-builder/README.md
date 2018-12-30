@@ -5,7 +5,8 @@ require('core-js-builder')({
   modules: ['es', 'esnext.reflect', 'web'],        // modules / namespaces, by default - all `core-js` modules
   blacklist: ['es.math', 'es.number.constructor'], // blacklist of modules / namespaces, by default - empty list
   targets: '> 0.5%',                               // optional browserslist query
-}).then(code => {
+  filename: './my-core-js-bundle.js',              // optional target filename, if it's missed a file will not be created
+}).then(code => {                                  // code of result polyfill
   // ...
 }).catch(error => {
   // ...

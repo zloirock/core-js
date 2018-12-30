@@ -1,8 +1,5 @@
 'use strict';
-const fs = require('fs');
-const mkdirp = require('mkdirp');
-const path = require('path');
-const config = require('./packages/core-js-builder/config');
+const { banner } = require('./packages/core-js-builder/config');
 
 process.env.CHROME_BIN = require('puppeteer').executablePath();
 
@@ -32,7 +29,7 @@ module.exports = grunt => {
           },
           ie8: true,
           sourceMap: true,
-          banner: config.banner,
+          banner,
         },
       },
     },
@@ -161,11 +158,7 @@ module.exports = grunt => {
     const builder = require('./packages/core-js-builder');
     const done = this.async();
 
-    builder().then(it => {
-      const filename = './packages/core-js-bundle/index.js';
-      mkdirp.sync(path.dirname(filename));
-      fs.writeFile(filename, it, done);
-    }).catch(it => {
+    builder({ filename: './packages/core-js-bundle/index.js' }).then(done).catch(it => {
       // eslint-disable-next-line no-console
       console.error(it);
       process.exit(1);
