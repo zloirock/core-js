@@ -1450,7 +1450,7 @@ None.
 ```js
 core-js(-pure)/stage/3
 ```
-* `Array#flat` and `Array#flatMap` [proposal](https://github.com/tc39/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat.js) and [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat-map.js)
+* `Array#flat` and `Array#flatMap` [proposal](https://github.com/tc39/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat.js), [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat-map.js), [`esnext.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unscopables.flat.js) and [`esnext.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unscopables.flat-map.js)
 ```js
 class Array {
   flat(depthArg?: number = 1): Array<mixed>;

@@ -18,5 +18,3 @@ require('../internals/export')({ target: 'Array', proto: true }, {
     return A;
   }
 });
-
-require('../internals/add-to-unscopables')('flatMap');

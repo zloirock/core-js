@@ -981,10 +981,16 @@ GLOBAL.tests = {
     return Array.prototype.flatMap;
   },
   'esnext.array.last-index': function () {
-    return [1, 2, 3].lastIndex;
+    return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
   'esnext.array.last-item': function () {
-    return [1, 2, 3].lastItem;
+    return [1, 2, 3].lastItem && Array.prototype[Symbol.unscopables].lastItem;
+  },
+  'esnext.array.unscopables.flat': function () {
+    return Array.prototype[Symbol.unscopables].flat;
+  },
+  'esnext.array.unscopables.flat-map': function () {
+    return Array.prototype[Symbol.unscopables].flatMap;
   },
   'esnext.composite-key': function () {
     return compositeKey;

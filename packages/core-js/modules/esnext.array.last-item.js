@@ -20,4 +20,6 @@ if (DESCRIPTORS && !('lastItem' in [])) {
       return O[len == 0 ? 0 : len - 1] = value;
     }
   });
+
+  require('../internals/add-to-unscopables')('lastItem');
 }

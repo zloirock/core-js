@@ -15,4 +15,6 @@ if (DESCRIPTORS && !('lastIndex' in [])) {
       return len == 0 ? 0 : len - 1;
     }
   });
+
+  require('../internals/add-to-unscopables')('lastIndex');
 }

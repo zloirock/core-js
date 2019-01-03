@@ -1149,6 +1149,10 @@ module.exports = {
   },
   'esnext.array.last-item': {
   },
+  'esnext.array.unscopables.flat': {
+  },
+  'esnext.array.unscopables.flat-map': {
+  },
   'esnext.composite-key': {
   },
   'esnext.composite-symbol': {
