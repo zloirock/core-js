@@ -8,5 +8,5 @@ var store = global[SHARED] || setGlobal(SHARED, {});
 })('versions', []).push({
   version: '3.0.0-beta.7',
   mode: require('../internals/is-pure') ? 'pure' : 'global',
-  copyright: '© 2018 Denis Pushkarev (zloirock.ru)'
+  copyright: '© 2019 Denis Pushkarev (zloirock.ru)'
 });

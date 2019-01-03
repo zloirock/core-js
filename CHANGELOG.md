@@ -99,7 +99,7 @@
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
-  - Mark ES2016, ES2017 and ES2018 features as stable:
+  - Mark ES2016, ES2017, ES2018 and ES2019 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
     - `Object.values` and `Object.entries`
     - `Object.getOwnPropertyDescriptors`
@@ -153,7 +153,7 @@
   - Add availability [configuration of aggressiveness](https://github.com/zloirock/core-js/blob/master/README.md#configurable-level-of-aggressiveness).
   - Move `core-js/library` to separate `core-js-pure` package.
   - Because of removing all non-standard features, we no longer need `core-js/shim` entry point, replace it just with `core-js`.
-  - Move all features from ES5, ES2015, ES2016, ES2017 and ES2018 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
+  - Move all features from ES5, ES2015, ES2016, ES2017, ES2018 and ES2019 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
   - Change prefix for ES proposals from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
   - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
   - Add `/proposals/` entry points for allow include all features from one proposal (for example, `core-js/proposals/reflect-metadata`).
