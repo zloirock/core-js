@@ -28,7 +28,7 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
 });
 
 // `String.prototype.codePoints` method
-// https://github.com/RReverser/string-prototype-codepoints
+// https://github.com/tc39/proposal-string-prototype-codepoints
 require('../internals/export')({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
     return new $StringIterator(String(requireObjectCoercible(this)));

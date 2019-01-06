@@ -1629,7 +1629,7 @@ array.lastItem = 4;
 
 array; // => [1, 2, 4]
 ```
-* `String#replaceAll` [proposal](https://github.com/psmarshall/string-replace-all-proposal) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.replace-all.js)
+* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
   replaceAll(searchString: string, replaceString: string): string;
@@ -1886,7 +1886,7 @@ Math.signbit(-1);  // => false
 Math.signbit(0);   // => true
 Math.signbit(-0);  // => false
 ```
-* `Number.fromString` [proposal](https://github.com/mathiasbynens/proposal-number-fromstring) - module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
+* `Number.fromString` [proposal](https://github.com/tc39/proposal-number-fromstring) - module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
 ```js
 class Number {
   fromString(string: string, radix: number): number;
@@ -1897,7 +1897,7 @@ class Number {
 core-js/proposals/number-from-string
 core-js(-pure)/features/number/from-string
 ```
-* `String#codePoints` [proposal](https://github.com/RReverser/string-prototype-codepoints) - module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
+* `String#codePoints` [proposal](https://github.com/tc39/proposal-string-prototype-codepoints) - module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
 ```js
 class String {
   codePoints(): Iterator<codePoint, position>;

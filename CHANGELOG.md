@@ -15,9 +15,9 @@
     - Getting last item from `Array` ([stage 1 proposal](https://github.com/keithamus/proposal-array-last))
       - `Array#lastItem`
       - `Array#lastIndex`
-    - `String#replaceAll` ([stage 1 proposal](https://github.com/psmarshall/string-replace-all-proposal))
-    - `String#codePoints` ([stage 1 proposal](https://github.com/RReverser/string-prototype-codepoints))
-    - New collections methods ([stage 1 proposal](https://github.com/Ginden/collection-methods))
+    - `String#replaceAll` ([stage 1 proposal](https://github.com/tc39/proposal-string-replace-all))
+    - `String#codePoints` ([stage 1 proposal](https://github.com/tc39/proposal-string-prototype-codepoints))
+    - New collections methods ([stage 1 proposal](https://github.com/tc39/collection-methods))
       - `Map.groupBy`
       - `Map.keyBy`
       - `Map#deleteAll`
@@ -45,7 +45,7 @@
       - `WeakSet#addAll`
       - `WeakSet#deleteAll`
     - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
-    - `Number.fromString` ([stage 1 proposal](https://github.com/mathiasbynens/proposal-number-fromstring))
+    - `Number.fromString` ([stage 1 proposal](https://github.com/tc39/proposal-number-fromstring))
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
     - `Symbol.dispose` ([for stage 1 `using` statement proposal](https://github.com/tc39/proposal-using-statement))
