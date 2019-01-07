@@ -40,7 +40,7 @@
     "phantomjs-prebuilt": "2.1.x",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^1.11.0",
-    "qunit": "2.8.x",
+    "qunit": "2.9.x",
     "webpack": "^4.28.3"
   },
   "license": "MIT",
