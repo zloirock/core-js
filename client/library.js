@@ -2,7 +2,7 @@
  * core-js 2.6.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
- * © 2018 Denis Pushkarev
+ * © 2019 Denis Pushkarev
  */
 !function(__e, __g, undefined){
 'use strict';

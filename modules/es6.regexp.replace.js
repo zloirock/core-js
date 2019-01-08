@@ -103,12 +103,12 @@ require('./_fix-re-wks')('replace', 2, function (defined, REPLACE, $replace, may
           break;
         default: // \d\d?
           var n = +ch;
-          if (n === 0) return ch;
+          if (n === 0) return match;
           if (n > m) {
             var f = floor(n / 10);
-            if (f === 0) return ch;
+            if (f === 0) return match;
             if (f <= m) return captures[f - 1] === undefined ? ch.charAt(1) : captures[f - 1] + ch.charAt(1);
-            return ch;
+            return match;
           }
           capture = captures[n - 1];
       }

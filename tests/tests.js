@@ -6220,7 +6220,9 @@
     assert.strictEqual('abc12 def34'.replace(/([a-z]+)([0-9]+)/, function(){
       return arguments[2] + arguments[1];
     }), '12abc def34', 'S15.5.4.11_A4_T1');
-    return assert.strictEqual('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
+    assert.strictEqual('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
+    assert.strictEqual('{price} Retail'.replace(/{price}/g, '$25.00'), '$25.00 Retail');
+    return assert.strictEqual('a'.replace(/(.)/, '$0'), '$0');
   };
   test('String#replace regression', run);
   test('RegExp#@@replace appearance', function(assert){
