@@ -1,7 +1,7 @@
 # core-js
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/zloirock/core-js?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![npm downloads](https://img.shields.io/npm/dm/core-js.svg)](http://npm-stat.com/charts.html?package=core-js&author=&from=2014-11-18) [![Build Status](https://travis-ci.org/zloirock/core-js.svg)](https://travis-ci.org/zloirock/core-js) [![devDependency status](https://david-dm.org/zloirock/core-js/dev-status.svg)](https://david-dm.org/zloirock/core-js?type=dev)
-## As advertising: the author is looking for a good job :)
+## Good job offer for the author: At [Maker](https://www.maker.co) we're looking for great frontend engineers all over the world. Let me know if interested at [pavel@maker.me](mailto:pavel@maker.me). I can give you more details over email/call.
 
 **It's documentation for the unstable `core-js@3`, if you looking documentation for `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
