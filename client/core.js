@@ -2,7 +2,7 @@
  * core-js 2.6.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
- * © 2018 Denis Pushkarev
+ * © 2019 Denis Pushkarev
  */
 !function(__e, __g, undefined){
 'use strict';
@@ -6393,12 +6393,12 @@ __webpack_require__(62)('replace', 2, function (defined, REPLACE, $replace, mayb
           break;
         default: // \d\d?
           var n = +ch;
-          if (n === 0) return ch;
+          if (n === 0) return match;
           if (n > m) {
             var f = floor(n / 10);
-            if (f === 0) return ch;
+            if (f === 0) return match;
             if (f <= m) return captures[f - 1] === undefined ? ch.charAt(1) : captures[f - 1] + ch.charAt(1);
-            return ch;
+            return match;
           }
           capture = captures[n - 1];
       }
