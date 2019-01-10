@@ -1,4 +1,7 @@
 ## Changelog
+##### 2.6.2 - 2019.01.10
+- Fixed handling of `$` in `String#replace`, [#471](https://github.com/zloirock/core-js/issues/471)
+
 ##### 2.6.1 - 2018.12.18
 - Fixed an issue with minified version, [#463](https://github.com/zloirock/core-js/issues/463)
 
