@@ -7,7 +7,7 @@ var initializer = function () {
   return freeze ? freeze(create(null)) : create(null);
 };
 
-// https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey
+// https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
 require('../internals/export')({ global: true }, {
   compositeKey: function compositeKey() {
     return getCompositeKeyNode.apply(Object, arguments).get('object', initializer);

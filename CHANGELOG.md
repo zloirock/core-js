@@ -44,7 +44,7 @@
       - `WeakMap#deleteAll`
       - `WeakSet#addAll`
       - `WeakSet#deleteAll`
-    - `compositeKey` and `compositeSymbol` methods from ([richer keys stage 1 proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey))
+    - `compositeKey` and `compositeSymbol` methods ([from richer keys stage 1 proposal](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/tc39/proposal-number-fromstring))
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
@@ -99,7 +99,7 @@
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
-  - Mark ES2016, ES2017, ES2018 and ES2019 features as stable:
+  - Mark ES2016, ES2017 and ES2018 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
     - `Object.values` and `Object.entries`
     - `Object.getOwnPropertyDescriptors`

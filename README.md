@@ -1775,7 +1775,7 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map {1: 4, 9: 16}
 ```
-* `compositeKey` and `compositeSymbol` methods from richer keys [proposal](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey) - modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
+* `compositeKey` and `compositeSymbol` methods from richer keys [proposal](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey) - modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
 ```js
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
