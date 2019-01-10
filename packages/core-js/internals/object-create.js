@@ -16,10 +16,11 @@ var createDict = function () {
   var lt = '<';
   var script = 'script';
   var gt = '>';
+  var js = 'java' + script + ':';
   var iframeDocument;
   iframe.style.display = 'none';
   html.appendChild(iframe);
-  iframe.src = 'java' + script + ':';
+  iframe.src = String(js);
   iframeDocument = iframe.contentWindow.document;
   iframeDocument.open();
   iframeDocument.write(lt + script + gt + 'document.F=Object' + lt + '/' + script + gt);
