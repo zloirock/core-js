@@ -1712,7 +1712,7 @@ class Map {
   keyOf(searchElement: any): any;
   mapKeys(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
   mapValues(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
-  merge(iterable: Iterable<mixed>): Map;
+  merge(...iterables: Array<Iterable>): this;
   reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
   some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
 }
