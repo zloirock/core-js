@@ -23,12 +23,12 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
         C.resolve(promise).then(function (value) {
           if (alreadyCalled) return;
           alreadyCalled = true;
-          values[index] = { value: value, status: 'fulfilled' };
+          values[index] = { status: 'fulfilled', value: value };
           --remaining || resolve(values);
         }, function (e) {
           if (alreadyCalled) return;
           alreadyCalled = true;
-          values[index] = { reason: e, status: 'rejected' };
+          values[index] = { status: 'rejected', reason: e };
           --remaining || resolve(values);
         });
       });
