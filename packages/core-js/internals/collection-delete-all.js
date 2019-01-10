@@ -10,5 +10,5 @@ module.exports = function (/* ...elements */) {
   for (var k = 0, len = arguments.length; k < len; k++) {
     allDeleted = allDeleted && remover.call(collection, arguments[k]);
   }
-  return allDeleted;
+  return !!allDeleted;
 };
