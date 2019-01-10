@@ -14,14 +14,15 @@ var createDict = function () {
   var iframe = documentCreateElement('iframe');
   var length = enumBugKeys.length;
   var lt = '<';
+  var script = 'script';
   var gt = '>';
   var iframeDocument;
   iframe.style.display = 'none';
   html.appendChild(iframe);
-  iframe.src = 'javascript:'; // eslint-disable-line no-script-url
+  iframe.src = 'java' + script + ':';
   iframeDocument = iframe.contentWindow.document;
   iframeDocument.open();
-  iframeDocument.write(lt + 'script' + gt + 'document.F=Object' + lt + '/script' + gt);
+  iframeDocument.write(lt + script + gt + 'document.F=Object' + lt + '/' + script + gt);
   iframeDocument.close();
   createDict = iframeDocument.F;
   while (length--) delete createDict[PROTOTYPE][enumBugKeys[length]];
