@@ -6,9 +6,9 @@ var aFunction = require('../internals/a-function');
 module.exports = function (/* ...elements */) {
   var collection = anObject(this);
   var remover = aFunction(collection['delete']);
-  var result = true;
+  var allDeleted = true;
   for (var k = 0, len = arguments.length; k < len; k++) {
-    if (!remover.call(collection, arguments[k])) result = false;
+    allDeleted = allDeleted && remover.call(collection, arguments[k]);
   }
-  return result;
+  return allDeleted;
 };
