@@ -11,14 +11,21 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   var mapping = mapfn !== undefined;
   var iteratorMethod = getIteratorMethod(O);
-  var i, length, values, result, step, iterator;
+  var i, length, result, step, iterator;
   if (iteratorMethod != undefined && !isArrayIteratorMethod(iteratorMethod)) {
-    for (iterator = iteratorMethod.call(O), values = [], i = 0; !(step = iterator.next()).done; i++) {
-      values.push(step.value);
-    } O = values;
+    iterator = iteratorMethod.call(O);
+    O = [];
+    while (!(step = iterator.next()).done) {
+      O.push(step.value);
+    }
   }
-  if (mapping && argumentsLength > 2) mapfn = bind(mapfn, arguments[2], 2);
-  for (i = 0, length = toLength(O.length), result = new (aTypedArrayConstructor(this))(length); length > i; i++) {
+  if (mapping && argumentsLength > 2) {
+    mapfn = bind(mapfn, arguments[2], 2);
+  }
+  i = 0;
+  length = toLength(O.length);
+  result = new (aTypedArrayConstructor(this))(length);
+  for (; length > i; i++) {
     result[i] = mapping ? mapfn(O[i], i) : O[i];
   }
   return result;

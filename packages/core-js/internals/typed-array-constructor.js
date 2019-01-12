@@ -29,7 +29,6 @@ if (require('../internals/descriptors')) {
   var nativeDefineProperty = definePropertyModule.f;
   var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   var RangeError = global.RangeError;
-  var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
   var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
   var DataView = ArrayBufferModule.DataView;
   var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
@@ -38,6 +37,7 @@ if (require('../internals/descriptors')) {
   var TypedArrayPrototype = ArrayBufferViewCore.TypedArrayPrototype;
   var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
+  var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
   var WRONG_LENGTH = 'Wrong length!';
 
   var fromList = function (C, list) {

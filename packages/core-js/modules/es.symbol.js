@@ -48,7 +48,7 @@ var ObjectPrototypeSymbols = shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
 var ObjectPrototype = Object[PROTOTYPE];
 var QObject = global.QObject;
-var USE_NATIVE = require('../internals/native-symbol');
+var NATIVE_SYMBOL = require('../internals/native-symbol');
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
@@ -77,10 +77,10 @@ var wrap = function (tag, description) {
   return symbol;
 };
 
-var isSymbol = USE_NATIVE && typeof $Symbol.iterator == 'symbol' ? function (it) {
+var isSymbol = NATIVE_SYMBOL && typeof $Symbol.iterator == 'symbol' ? function (it) {
   return typeof it == 'symbol';
 } : function (it) {
-  return it instanceof $Symbol;
+  return Object(it) instanceof $Symbol;
 };
 
 var $defineProperty = function defineProperty(it, key, D) {
@@ -151,7 +151,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
 
 // `Symbol` constructor
 // https://tc39.github.io/ecma262/#sec-symbol-constructor
-if (!USE_NATIVE) {
+if (!NATIVE_SYMBOL) {
   $Symbol = function Symbol() {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
     var description = arguments[0] === undefined ? undefined : String(arguments[0]);
@@ -192,13 +192,13 @@ if (!USE_NATIVE) {
   };
 }
 
-$export({ global: true, wrap: true, forced: !USE_NATIVE, sham: !USE_NATIVE }, { Symbol: $Symbol });
+$export({ global: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, { Symbol: $Symbol });
 
 for (var wellKnownSymbols = objectKeys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
   defineWellKnownSymbol(wellKnownSymbols[k++]);
 }
 
-$export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
+$export({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   // `Symbol.for` method
   // https://tc39.github.io/ecma262/#sec-symbol.for
   'for': function (key) {
@@ -216,7 +216,7 @@ $export({ target: SYMBOL, stat: true, forced: !USE_NATIVE }, {
   useSimple: function () { USE_SETTER = false; }
 });
 
-$export({ target: 'Object', stat: true, forced: !USE_NATIVE, sham: !DESCRIPTORS }, {
+$export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, {
   // `Object.create` method
   // https://tc39.github.io/ecma262/#sec-object.create
   create: $create,
@@ -231,7 +231,7 @@ $export({ target: 'Object', stat: true, forced: !USE_NATIVE, sham: !DESCRIPTORS 
   getOwnPropertyDescriptor: $getOwnPropertyDescriptor
 });
 
-$export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
+$export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertyNames` method
   // https://tc39.github.io/ecma262/#sec-object.getownpropertynames
   getOwnPropertyNames: $getOwnPropertyNames,
@@ -242,7 +242,7 @@ $export({ target: 'Object', stat: true, forced: !USE_NATIVE }, {
 
 // `JSON.stringify` method behavior with symbols
 // https://tc39.github.io/ecma262/#sec-json.stringify
-JSON && $export({ target: 'JSON', stat: true, forced: !USE_NATIVE || fails(function () {
+JSON && $export({ target: 'JSON', stat: true, forced: !NATIVE_SYMBOL || fails(function () {
   var symbol = $Symbol();
   // MS Edge converts symbol values to JSON as {}
   return nativeJSONStringify([symbol]) != '[null]'
