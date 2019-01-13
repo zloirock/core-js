@@ -8,13 +8,13 @@ module.exports = function (R, S) {
   if (typeof exec === 'function') {
     var result = exec.call(R, S);
     if (typeof result !== 'object') {
-      throw new TypeError('RegExp exec method returned something other than an Object or null');
+      throw TypeError('RegExp exec method returned something other than an Object or null');
     }
     return result;
   }
 
   if (classof(R) !== 'RegExp') {
-    throw new TypeError('RegExp#exec called on incompatible receiver');
+    throw TypeError('RegExp#exec called on incompatible receiver');
   }
 
   return regexpExec.call(R, S);

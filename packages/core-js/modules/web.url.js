@@ -742,11 +742,11 @@ var URLConstructor = function URL(url /* , base */) {
     if (base instanceof URLConstructor) baseState = getInternalURLState(base);
     else {
       failure = parseURL(baseState = {}, String(base));
-      if (failure) throw new TypeError(failure);
+      if (failure) throw TypeError(failure);
     }
   }
   failure = parseURL(state, urlString, null, baseState);
-  if (failure) throw new TypeError(failure);
+  if (failure) throw TypeError(failure);
   var searchParams = state.searchParams = new URLSearchParams();
   var searchParamsState = getInternalSearchParamsState(searchParams);
   searchParamsState.updateSearchParams(state.query);
@@ -872,7 +872,7 @@ if (DESCRIPTORS) {
       var url = getInternalURLState(this);
       var urlString = String(href);
       var failure = parseURL(url, urlString);
-      if (failure) throw new TypeError(failure);
+      if (failure) throw TypeError(failure);
       getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
     }),
     // `URL.prototype.origin` getter

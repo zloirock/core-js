@@ -68,7 +68,7 @@ var updateSearchParams = function (query) {
 };
 
 var validateArgumentsLength = function (passed, required) {
-  if (passed < required) throw new TypeError('Not enough arguments!');
+  if (passed < required) throw TypeError('Not enough arguments');
 };
 
 var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params, kind) {
@@ -114,7 +114,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
             (first = entryIterator.next()).done ||
             (second = entryIterator.next()).done ||
             !entryIterator.next().done
-          ) throw new TypeError('Expected sequence with length 2');
+          ) throw TypeError('Expected sequence with length 2');
           entries.push({ key: first.value + '', value: second.value + '' });
         }
       } else for (key in init) if (hasOwn(init, key)) entries.push({ key: key, value: init[key] + '' });
