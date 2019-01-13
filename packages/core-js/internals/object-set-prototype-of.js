@@ -3,14 +3,16 @@
 var validateSetPrototypeOfArguments = require('../internals/validate-set-prototype-of-arguments');
 
 module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () { // eslint-disable-line
-  var test = {};
   var correctSetter = true;
+  var test = {};
   var setter;
   try {
     setter = Object.getOwnPropertyDescriptor(Object.prototype, '__proto__').set;
     setter.call(test, []);
     correctSetter = test instanceof Array;
-  } catch (e) { correctSetter = false; }
+  } catch (e) {
+    correctSetter = false;
+  }
   return function setPrototypeOf(O, proto) {
     validateSetPrototypeOfArguments(O, proto);
     if (correctSetter) setter.call(O, proto);

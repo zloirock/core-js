@@ -8,7 +8,7 @@ var Promise = global.Promise;
 var queueMicrotask = global.queueMicrotask;
 var isNode = classof(process) == 'process';
 
-var flush, head, last, notify;
+var flush, head, last, notify, toggle, node, promise;
 
 // modern engines have queueMicrotask method
 if (!queueMicrotask) {
@@ -36,8 +36,8 @@ if (!queueMicrotask) {
     };
   // browsers with MutationObserver, except iOS - https://github.com/zloirock/core-js/issues/339
   } else if (MutationObserver && !/(iPhone|iPod|iPad).*AppleWebKit/i.test(userAgent)) {
-    var toggle = true;
-    var node = document.createTextNode('');
+    toggle = true;
+    node = document.createTextNode('');
     new MutationObserver(flush).observe(node, { characterData: true }); // eslint-disable-line no-new
     notify = function () {
       node.data = toggle = !toggle;
@@ -45,7 +45,7 @@ if (!queueMicrotask) {
   // environments with maybe non-completely correct, but existent Promise
   } else if (Promise && Promise.resolve) {
     // Promise.resolve without an argument throws an error in LG WebOS 2
-    var promise = Promise.resolve(undefined);
+    promise = Promise.resolve(undefined);
     notify = function () {
       promise.then(flush);
     };

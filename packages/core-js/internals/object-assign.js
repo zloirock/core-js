@@ -12,11 +12,11 @@ module.exports = !nativeAssign || require('../internals/fails')(function () {
   var A = {};
   var B = {};
   // eslint-disable-next-line no-undef
-  var S = Symbol();
-  var K = 'abcdefghijklmnopqrst';
-  A[S] = 7;
-  K.split('').forEach(function (k) { B[k] = k; });
-  return nativeAssign({}, A)[S] != 7 || Object.keys(nativeAssign({}, B)).join('') != K;
+  var symbol = Symbol();
+  var alphabet = 'abcdefghijklmnopqrst';
+  A[symbol] = 7;
+  alphabet.split('').forEach(function (chr) { B[chr] = chr; });
+  return nativeAssign({}, A)[symbol] != 7 || objectKeys(nativeAssign({}, B)).join('') != alphabet;
 }) ? function assign(target, source) { // eslint-disable-line no-unused-vars
   var T = toObject(target);
   var argumentsLength = arguments.length;

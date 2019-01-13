@@ -197,11 +197,11 @@ GLOBAL.tests = {
   'es.object.assign': function () {
     var A = {};
     var B = {};
-    var S = Symbol();
-    var K = 'abcdefghijklmnopqrst';
-    A[S] = 7;
-    K.split('').forEach(function (k) { B[k] = k; });
-    return Object.assign({}, A)[S] == 7 && Object.keys(Object.assign({}, B)).join('') == K;
+    var symbol = Symbol();
+    var alphabet = 'abcdefghijklmnopqrst';
+    A[symbol] = 7;
+    alphabet.split('').forEach(function (chr) { B[chr] = chr; });
+    return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
   },
   'es.object.create': function () {
     return Object.create;
