@@ -1,18 +1,17 @@
 var Map = require('../modules/es.map');
 var WeakMap = require('../modules/es.weak-map');
-var $export = require('../internals/export');
 var shared = require('../internals/shared')('metadata');
 var store = shared.store || (shared.store = new WeakMap());
 
 var getOrCreateMetadataMap = function (target, targetKey, create) {
   var targetMetadata = store.get(target);
   if (!targetMetadata) {
-    if (!create) return undefined;
+    if (!create) return;
     store.set(target, targetMetadata = new Map());
   }
   var keyMetadata = targetMetadata.get(targetKey);
   if (!keyMetadata) {
-    if (!create) return undefined;
+    if (!create) return;
     targetMetadata.set(targetKey, keyMetadata = new Map());
   } return keyMetadata;
 };
@@ -38,21 +37,16 @@ var ordinaryOwnMetadataKeys = function (target, targetKey) {
   return keys;
 };
 
-var toMetaKey = function (it) {
+var toMetadataKey = function (it) {
   return it === undefined || typeof it == 'symbol' ? it : String(it);
-};
-
-var exp = function (exported) {
-  $export({ target: 'Reflect', stat: true }, exported);
 };
 
 module.exports = {
   store: store,
-  map: getOrCreateMetadataMap,
+  getMap: getOrCreateMetadataMap,
   has: ordinaryHasOwnMetadata,
   get: ordinaryGetOwnMetadata,
   set: ordinaryDefineOwnMetadata,
   keys: ordinaryOwnMetadataKeys,
-  key: toMetaKey,
-  exp: exp
+  toKey: toMetadataKey
 };

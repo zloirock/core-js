@@ -1,7 +1,7 @@
 QUnit.test('Reflect.defineMetadata', assert => {
   const { defineMetadata } = Reflect;
   assert.isFunction(defineMetadata);
-  assert.arity(defineMetadata, 4);
+  assert.arity(defineMetadata, 3);
   assert.name(defineMetadata, 'defineMetadata');
   assert.looksNative(defineMetadata);
   assert.nonEnumerable(Reflect, 'defineMetadata');

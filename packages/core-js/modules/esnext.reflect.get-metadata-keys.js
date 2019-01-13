@@ -4,7 +4,7 @@ var anObject = require('../internals/an-object');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var iterate = require('../internals/iterate');
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
-var toMetaKey = ReflectMetadataModule.key;
+var toMetadataKey = ReflectMetadataModule.toKey;
 
 var from = function (iter) {
   var result = [];
@@ -22,6 +22,9 @@ var ordinaryMetadataKeys = function (O, P) {
 
 // `Reflect.getMetadataKeys` method
 // https://github.com/rbuckton/reflect-metadata
-ReflectMetadataModule.exp({ getMetadataKeys: function getMetadataKeys(target /* , targetKey */) {
-  return ordinaryMetadataKeys(anObject(target), arguments.length < 2 ? undefined : toMetaKey(arguments[1]));
-} });
+require('../internals/export')({ target: 'Reflect', stat: true }, {
+  getMetadataKeys: function getMetadataKeys(target /* , targetKey */) {
+    var targetKey = arguments.length < 2 ? undefined : toMetadataKey(arguments[1]);
+    return ordinaryMetadataKeys(anObject(target), targetKey);
+  }
+});

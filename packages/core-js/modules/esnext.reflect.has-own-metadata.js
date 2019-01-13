@@ -1,11 +1,13 @@
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
 var ordinaryHasOwnMetadata = ReflectMetadataModule.has;
-var toMetaKey = ReflectMetadataModule.key;
+var toMetadataKey = ReflectMetadataModule.toKey;
 
 // `Reflect.hasOwnMetadata` method
 // https://github.com/rbuckton/reflect-metadata
-ReflectMetadataModule.exp({ hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , targetKey */) {
-  return ordinaryHasOwnMetadata(metadataKey, anObject(target)
-    , arguments.length < 3 ? undefined : toMetaKey(arguments[2]));
-} });
+require('../internals/export')({ target: 'Reflect', stat: true }, {
+  hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , targetKey */) {
+    var targetKey = arguments.length < 3 ? undefined : toMetadataKey(arguments[2]);
+    return ordinaryHasOwnMetadata(metadataKey, anObject(target), targetKey);
+  }
+});

@@ -1,17 +1,14 @@
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var aFunction = require('../internals/a-function');
-var toMetaKey = ReflectMetadataModule.key;
+var toMetadataKey = ReflectMetadataModule.toKey;
 var ordinaryDefineOwnMetadata = ReflectMetadataModule.set;
 
 // `Reflect.metadata` method
 // https://github.com/rbuckton/reflect-metadata
-ReflectMetadataModule.exp({ metadata: function metadata(metadataKey, metadataValue) {
-  return function decorator(target, targetKey) {
-    ordinaryDefineOwnMetadata(
-      metadataKey, metadataValue,
-      (targetKey !== undefined ? anObject : aFunction)(target),
-      toMetaKey(targetKey)
-    );
-  };
-} });
+require('../internals/export')({ target: 'Reflect', stat: true }, {
+  metadata: function metadata(metadataKey, metadataValue) {
+    return function decorator(target, key) {
+      ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetadataKey(key));
+    };
+  }
+});
