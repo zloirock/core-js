@@ -1521,7 +1521,7 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
   console.log(d, D); // => 1 a, 2 b, 3 c
 }
 ```
-* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.trim-right.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.trim-right.js)
+* `String#trimLeft`, `String#trimRight` / `String#trimStart`, `String#trimEnd` [proposal](https://github.com/tc39/ecmascript-string-left-right-trim) - modules [`esnext.string.trim-left`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.trim-left.js), [`esnext.string.trim-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.trim-right.js)
 ```js
 class String {
   trimLeft(): string;
