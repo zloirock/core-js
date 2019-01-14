@@ -33,7 +33,9 @@ require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_
         Constructor = Constructor[SPECIES];
         if (Constructor === null) Constructor = undefined;
       }
-      if (Constructor === Array || Constructor === undefined) return nativeSlice.call(O, k, fin);
+      if (Constructor === Array || Constructor === undefined) {
+        return nativeSlice.call(O, k, fin);
+      }
     }
     result = new (Constructor === undefined ? Array : Constructor)(max(fin - k, 0));
     for (n = 0; k < fin; k++, n++) if (k in O) createProperty(result, n, O[k]);

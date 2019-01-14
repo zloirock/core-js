@@ -1,11 +1,13 @@
 var nativeImul = Math.imul;
 
+var FORCED = require('../internals/fails')(function () {
+  return nativeImul(0xffffffff, 5) != -5 || nativeImul.length != 2;
+});
+
 // `Math.imul` method
 // https://tc39.github.io/ecma262/#sec-math.imul
 // some WebKit versions fails with big numbers, some has wrong arity
-require('../internals/export')({ target: 'Math', stat: true, forced: require('../internals/fails')(function () {
-  return nativeImul(0xffffffff, 5) != -5 || nativeImul.length != 2;
-}) }, {
+require('../internals/export')({ target: 'Math', stat: true, forced: FORCED }, {
   imul: function imul(x, y) {
     var UINT16 = 0xffff;
     var xn = +x;

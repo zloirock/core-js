@@ -13,7 +13,7 @@ module.exports = function (that, callbackfn, argumentsLength, memo, isRight) {
   var length = toLength(O.length);
   var index = isRight ? length - 1 : 0;
   var i = isRight ? -1 : 1;
-  if (argumentsLength < 2) for (;;) {
+  if (argumentsLength < 2) while (true) {
     if (index in self) {
       memo = self[index];
       index += i;

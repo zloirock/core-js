@@ -21,7 +21,9 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
   if (mapping) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
   // if the target is not iterable or it's an array with the default iterator - use a simple case
   if (iteratorMethod != undefined && !(C == Array && isArrayIteratorMethod(iteratorMethod))) {
-    for (iterator = iteratorMethod.call(O), result = new C(); !(step = iterator.next()).done; index++) {
+    iterator = iteratorMethod.call(O);
+    result = new C();
+    for (;!(step = iterator.next()).done; index++) {
       createProperty(result, index, mapping
         ? callWithSafeIterationClosing(iterator, mapfn, [step.value, index], true)
         : step.value
@@ -29,7 +31,8 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
     }
   } else {
     length = toLength(O.length);
-    for (result = new C(length); length > index; index++) {
+    result = new C(length);
+    for (;length > index; index++) {
       createProperty(result, index, mapping ? mapfn(O[index], index) : O[index]);
     }
   }

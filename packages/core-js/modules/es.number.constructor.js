@@ -22,10 +22,10 @@ var NATIVE_TRIM = 'trim' in String.prototype;
 // https://tc39.github.io/ecma262/#sec-tonumber
 var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
+  var first, third, radix, maxCode, digits, length, i, code;
   if (typeof it == 'string' && it.length > 2) {
     it = NATIVE_TRIM ? it.trim() : internalTrim(it, 3);
-    var first = it.charCodeAt(0);
-    var third, radix, maxCode;
+    first = it.charCodeAt(0);
     if (first === 43 || first === 45) {
       third = it.charCodeAt(2);
       if (third === 88 || third === 120) return NaN; // Number('+0x1') should be NaN, old V8 fix
@@ -35,7 +35,9 @@ var toNumber = function (argument) {
         case 79: case 111: radix = 8; maxCode = 55; break; // fast equal of /^0o[0-7]+$/i
         default: return +it;
       }
-      for (var digits = it.slice(2), i = 0, l = digits.length, code; i < l; i++) {
+      digits = it.slice(2);
+      length = digits.length;
+      for (i = 0; i < length; i++) {
         code = digits.charCodeAt(i);
         // parseInt parses a string to a first unavailable symbol
         // but ToNumber should return NaN if a string contains unavailable symbols

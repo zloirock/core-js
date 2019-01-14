@@ -40,7 +40,7 @@ module.exports = function (KEY, length, exec, sham) {
     return ''[KEY](O) != 7;
   });
 
-  var DELEGATES_TO_EXEC = DELEGATES_TO_SYMBOL ? !fails(function () {
+  var DELEGATES_TO_EXEC = DELEGATES_TO_SYMBOL && !fails(function () {
     // Symbol-named RegExp methods call .exec
     var execCalled = false;
     var re = /a/;
@@ -55,7 +55,7 @@ module.exports = function (KEY, length, exec, sham) {
 
     re[SYMBOL]('');
     return !execCalled;
-  }) : undefined;
+  });
 
   if (
     !DELEGATES_TO_SYMBOL ||
@@ -64,10 +64,7 @@ module.exports = function (KEY, length, exec, sham) {
     (KEY === 'split' && !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC)
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
-    var methods = exec(
-      requireObjectCoercible,
-      SYMBOL,
-      ''[KEY],
+    var methods = exec(requireObjectCoercible, SYMBOL, ''[KEY],
       function (nativeMethod, regexp, str, arg2, forceStringMethod) {
         if (regexp.exec === regexpExec) {
           if (DELEGATES_TO_SYMBOL && !forceStringMethod) {

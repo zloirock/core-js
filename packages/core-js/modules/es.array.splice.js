@@ -7,6 +7,8 @@ var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
 var max = Math.max;
 var min = Math.min;
+var MAX_SAFE_INTEGER = 0x1fffffffffffff;
+var MAXIMUM_ALLOWED_LENGTH_EXCEEDED = 'Maximum allowed length exceeded';
 
 var SPECIES_SUPPORT = require('../internals/check-array-species-create')(function (array) {
   return array.splice();
@@ -31,7 +33,9 @@ require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_
       insertCount = argumentsLength - 2;
       actualDeleteCount = min(max(toInteger(deleteCount), 0), len - actualStart);
     }
-    if (len + insertCount - actualDeleteCount > 9007199254740991) throw TypeError('Incorrect length!');
+    if (len + insertCount - actualDeleteCount > MAX_SAFE_INTEGER) {
+      throw TypeError(MAXIMUM_ALLOWED_LENGTH_EXCEEDED);
+    }
     A = arraySpeciesCreate(O, actualDeleteCount);
     for (k = 0; k < actualDeleteCount; k++) {
       from = actualStart + k;
@@ -54,7 +58,9 @@ require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_
         else delete O[to];
       }
     }
-    for (k = 0; k < insertCount; k++) O[k + actualStart] = arguments[k + 2];
+    for (k = 0; k < insertCount; k++) {
+      O[k + actualStart] = arguments[k + 2];
+    }
     O.length = len - actualDeleteCount + insertCount;
     return A;
   }
