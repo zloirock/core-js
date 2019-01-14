@@ -2,39 +2,43 @@
 
 var isRegExp = require('../internals/is-regexp');
 var anObject = require('../internals/an-object');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var callRegExpExec = require('../internals/regexp-exec-abstract');
 var regexpExec = require('../internals/regexp-exec');
+var fails = require('../internals/fails');
 var arrayPush = [].push;
 var min = Math.min;
-var LENGTH = 'length';
+var MAX_UINT32 = 0xffffffff;
 
-// eslint-disable-next-line no-empty
-var SUPPORTS_Y = !!(function () { try { return new RegExp('x', 'y'); } catch (e) {} })();
+// eslint-disable-next-line no-new
+var SUPPORTS_Y = !fails(function () { new RegExp('x', 'y'); });
 
 // @@split logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'split',
   2,
-  function (defined, SPLIT, nativeSplit, maybeCallNative) {
+  function (SPLIT, nativeSplit, maybeCallNative) {
     var internalSplit;
     if (
       'abbc'.split(/(b)*/)[1] == 'c' ||
-      'test'.split(/(?:)/, -1)[LENGTH] != 4 ||
-      'ab'.split(/(?:ab)*/)[LENGTH] != 2 ||
-      '.'.split(/(.?)(.?)/)[LENGTH] != 4 ||
-      '.'.split(/()()/)[LENGTH] > 1 ||
-      ''.split(/.?/)[LENGTH]
+      'test'.split(/(?:)/, -1).length != 4 ||
+      'ab'.split(/(?:ab)*/).length != 2 ||
+      '.'.split(/(.?)(.?)/).length != 4 ||
+      '.'.split(/()()/).length > 1 ||
+      ''.split(/.?/).length
     ) {
       // based on es5-shim implementation, need to rework it
       internalSplit = function (separator, limit) {
-        var string = String(this);
-        if (separator === undefined && limit === 0) return [];
+        var string = String(requireObjectCoercible(this));
+        var lim = limit === undefined ? MAX_UINT32 : limit >>> 0;
+        if (lim === 0) return [];
+        if (separator === undefined) return [string];
         // If `separator` is not a regex, use native split
         if (!isRegExp(separator)) {
-          return nativeSplit.call(string, separator, limit !== undefined ? limit >>> 0 : 4294967295);
+          return nativeSplit.call(string, separator, lim);
         }
         var output = [];
         var flags = (separator.ignoreCase ? 'i' : '') +
@@ -42,7 +46,6 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
                     (separator.unicode ? 'u' : '') +
                     (separator.sticky ? 'y' : '');
         var lastLastIndex = 0;
-        var splitLimit = limit === undefined ? 4294967295 : limit >>> 0;
         // Make `global` and avoid `lastIndex` issues by working with a copy
         var separatorCopy = new RegExp(separator.source, flags + 'g');
         var match, lastIndex, lastLength;
@@ -50,20 +53,20 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
           lastIndex = separatorCopy.lastIndex;
           if (lastIndex > lastLastIndex) {
             output.push(string.slice(lastLastIndex, match.index));
-            if (match[LENGTH] > 1 && match.index < string[LENGTH]) arrayPush.apply(output, match.slice(1));
-            lastLength = match[0][LENGTH];
+            if (match.length > 1 && match.index < string.length) arrayPush.apply(output, match.slice(1));
+            lastLength = match[0].length;
             lastLastIndex = lastIndex;
-            if (output[LENGTH] >= splitLimit) break;
+            if (output.length >= lim) break;
           }
           if (separatorCopy.lastIndex === match.index) separatorCopy.lastIndex++; // Avoid an infinite loop
         }
-        if (lastLastIndex === string[LENGTH]) {
+        if (lastLastIndex === string.length) {
           if (lastLength || !separatorCopy.test('')) output.push('');
         } else output.push(string.slice(lastLastIndex));
-        return output[LENGTH] > splitLimit ? output.slice(0, splitLimit) : output;
+        return output.length > lim ? output.slice(0, lim) : output;
       };
     // Chakra, V8
-    } else if ('0'.split(undefined, 0)[LENGTH]) {
+    } else if ('0'.split(undefined, 0).length) {
       internalSplit = function (separator, limit) {
         return separator === undefined && limit === 0 ? [] : nativeSplit.call(this, separator, limit);
       };
@@ -73,7 +76,7 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // `String.prototype.split` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.split
       function split(separator, limit) {
-        var O = defined(this);
+        var O = requireObjectCoercible(this);
         var splitter = separator == undefined ? undefined : separator[SPLIT];
         return splitter !== undefined
           ? splitter.call(separator, O, limit)
@@ -94,14 +97,14 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
 
         var unicodeMatching = rx.unicode;
         var flags = (rx.ignoreCase ? 'i' : '') +
-                      (rx.multiline ? 'm' : '') +
-                      (rx.unicode ? 'u' : '') +
-                      (SUPPORTS_Y ? 'y' : 'g');
+                    (rx.multiline ? 'm' : '') +
+                    (rx.unicode ? 'u' : '') +
+                    (SUPPORTS_Y ? 'y' : 'g');
 
         // ^(? + rx + ) is needed, in combination with some S slicing, to
         // simulate the 'y' flag.
         var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
-        var lim = limit === undefined ? 0xffffffff : limit >>> 0;
+        var lim = limit === undefined ? MAX_UINT32 : limit >>> 0;
         if (lim === 0) return [];
         if (S.length === 0) return callRegExpExec(splitter, S) === null ? [S] : [];
         var p = 0;

@@ -1,6 +1,7 @@
 'use strict';
 
 var anObject = require('../internals/an-object');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var sameValue = require('../internals/same-value');
 var regExpExec = require('../internals/regexp-exec-abstract');
 
@@ -8,12 +9,12 @@ var regExpExec = require('../internals/regexp-exec-abstract');
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'search',
   1,
-  function (defined, SEARCH, nativeSearch, maybeCallNative) {
+  function (SEARCH, nativeSearch, maybeCallNative) {
     return [
       // `String.prototype.search` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.search
       function search(regexp) {
-        var O = defined(this);
+        var O = requireObjectCoercible(this);
         var searcher = regexp == undefined ? undefined : regexp[SEARCH];
         return searcher !== undefined ? searcher.call(regexp, O) : new RegExp(regexp)[SEARCH](String(O));
       },

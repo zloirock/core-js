@@ -2,7 +2,6 @@
 var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
-var requireObjectCoercible = require('../internals/require-object-coercible');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var regexpExec = require('../internals/regexp-exec');
 
@@ -21,14 +20,15 @@ var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
   return ''.replace(re, '$<a>') !== '7';
 });
 
-var SPLIT_WORKS_WITH_OVERWRITTEN_EXEC = (function () {
-  // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
+// Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
+// Weex JS has frozen built-in prototypes, so use try / catch wrapper
+var SPLIT_WORKS_WITH_OVERWRITTEN_EXEC = !fails(function () {
   var re = /(?:)/;
   var originalExec = re.exec;
   re.exec = function () { return originalExec.apply(this, arguments); };
   var result = 'ab'.split(re);
-  return result.length === 2 && result[0] === 'a' && result[1] === 'b';
-})();
+  return result.length !== 2 || result[0] !== 'a' || result[1] !== 'b';
+});
 
 module.exports = function (KEY, length, exec, sham) {
   var SYMBOL = wellKnownSymbol(KEY);
@@ -64,20 +64,18 @@ module.exports = function (KEY, length, exec, sham) {
     (KEY === 'split' && !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC)
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
-    var methods = exec(requireObjectCoercible, SYMBOL, ''[KEY],
-      function (nativeMethod, regexp, str, arg2, forceStringMethod) {
-        if (regexp.exec === regexpExec) {
-          if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
-            // The native String method already delegates to @@method (this
-            // polyfilled function), leasing to infinite recursion.
-            // We avoid it by directly calling the native @@method method.
-            return { done: true, value: nativeRegExpMethod.call(regexp, str, arg2) };
-          }
-          return { done: true, value: nativeMethod.call(str, regexp, arg2) };
+    var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
+      if (regexp.exec === regexpExec) {
+        if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
+          // The native String method already delegates to @@method (this
+          // polyfilled function), leasing to infinite recursion.
+          // We avoid it by directly calling the native @@method method.
+          return { done: true, value: nativeRegExpMethod.call(regexp, str, arg2) };
         }
-        return { done: false };
+        return { done: true, value: nativeMethod.call(str, regexp, arg2) };
       }
-    );
+      return { done: false };
+    });
     var stringMethod = methods[0];
     var regexMethod = methods[1];
 

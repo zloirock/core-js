@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var max = Math.max;
@@ -20,12 +21,12 @@ var maybeToString = function (it) {
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'replace',
   2,
-  function (defined, REPLACE, nativeReplace, maybeCallNative) {
+  function (REPLACE, nativeReplace, maybeCallNative) {
     return [
       // `String.prototype.replace` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.replace
       function replace(searchValue, replaceValue) {
-        var O = defined(this);
+        var O = requireObjectCoercible(this);
         var replacer = searchValue == undefined ? undefined : searchValue[REPLACE];
         return replacer !== undefined
           ? replacer.call(searchValue, O, replaceValue)

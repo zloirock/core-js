@@ -2,6 +2,7 @@
 
 var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec-abstract');
 
@@ -9,12 +10,12 @@ var regExpExec = require('../internals/regexp-exec-abstract');
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'match',
   1,
-  function (defined, MATCH, nativeMatch, maybeCallNative) {
+  function (MATCH, nativeMatch, maybeCallNative) {
     return [
       // `String.prototype.match` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.match
       function match(regexp) {
-        var O = defined(this);
+        var O = requireObjectCoercible(this);
         var matcher = regexp == undefined ? undefined : regexp[MATCH];
         return matcher !== undefined ? matcher.call(regexp, O) : new RegExp(regexp)[MATCH](String(O));
       },
