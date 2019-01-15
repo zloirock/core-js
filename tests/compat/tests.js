@@ -1157,8 +1157,8 @@ GLOBAL.tests = {
   'esnext.set.intersection': function () {
     return Set.prototype.intersection;
   },
-  'esnext.set.is-disjoint-with': function () {
-    return Set.prototype.isDisjointWith;
+  'esnext.set.is-disjoint-from': function () {
+    return Set.prototype.isDisjointFrom;
   },
   'esnext.set.is-subset-of': function () {
     return Set.prototype.isSubsetOf;

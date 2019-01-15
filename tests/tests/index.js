@@ -238,7 +238,7 @@ import './esnext.set.filter';
 import './esnext.set.find';
 import './esnext.set.from';
 import './esnext.set.intersection';
-import './esnext.set.is-disjoint-with';
+import './esnext.set.is-disjoint-from';
 import './esnext.set.is-subset-of';
 import './esnext.set.is-superset-of';
 import './esnext.set.join';

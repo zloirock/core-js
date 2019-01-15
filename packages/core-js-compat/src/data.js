@@ -1265,7 +1265,7 @@ module.exports = {
   },
   'esnext.set.intersection': {
   },
-  'esnext.set.is-disjoint-with': {
+  'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of': {
   },

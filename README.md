@@ -1566,12 +1566,12 @@ globalThis.Array === Array; // => true
 ```
 core-js(-pure)/stage/2
 ```
-* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-with.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
+* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 ```js
 class Set {
   difference(iterable: Iterable<mixed>): Set;
   intersection(iterable: Iterable<mixed>): Set;
-  isDisjointWith(iterable: Iterable<mixed>): boolean;
+  isDisjointFrom(iterable: Iterable<mixed>): boolean;
   isSubsetOf(iterable: Iterable<mixed>): boolean;
   isSupersetOf(iterable: Iterable<mixed>): boolean;
   symmetric-difference(iterable: Iterable<mixed>): Set;
@@ -1583,7 +1583,7 @@ class Set {
 core-js/proposals/set-methods
 core-js(-pure)/features/set/difference
 core-js(-pure)/features/set/intersection
-core-js(-pure)/features/set/is-disjoint-with
+core-js(-pure)/features/set/is-disjoint-from
 core-js(-pure)/features/set/is-subset-of
 core-js(-pure)/features/set/is-superset-of
 core-js(-pure)/features/set/symmetric-difference
@@ -1596,7 +1596,7 @@ new Set([1, 2, 3]).intersection([3, 4, 5]);        // => Set {3}
 new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
 new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 
-new Set([1, 2, 3]).isDisjointWith([4, 5, 6]);      // => true
+new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
 ```

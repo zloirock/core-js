@@ -7,7 +7,7 @@
     - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
       - `Set#intersection`
-      - `Set#isDisjointWith`
+      - `Set#isDisjointFrom`
       - `Set#isSubsetOf`
       - `Set#isSupersetOf`
       - `Set#symmetricDifference`
