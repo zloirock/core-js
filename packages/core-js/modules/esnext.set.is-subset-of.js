@@ -1,5 +1,5 @@
 'use strict';
-var Set = require('../internals/path').Set;
+var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var getIterator = require('../internals/get-iterator');
@@ -14,7 +14,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
     var otherSet = anObject(iterable);
     var hasCheck = otherSet.has;
     if (typeof hasCheck != 'function') {
-      otherSet = new Set(iterable);
+      otherSet = new (getBuiltIn('Set'))(iterable);
       hasCheck = aFunction(otherSet.has);
     }
     return iterate(iterator, function (value) {

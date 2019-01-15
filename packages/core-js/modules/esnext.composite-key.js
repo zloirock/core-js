@@ -1,9 +1,9 @@
 var getCompositeKeyNode = require('../internals/composite-key');
+var getBuiltIn = require('../internals/get-built-in');
 var create = require('../internals/object-create');
-var $Object = require('../internals/path').Object;
-var freeze = $Object && $Object.freeze;
 
 var initializer = function () {
+  var freeze = getBuiltIn('Object', 'freeze');
   return freeze ? freeze(create(null)) : create(null);
 };
 

@@ -22,10 +22,9 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   if (mapping && argumentsLength > 2) {
     mapfn = bind(mapfn, arguments[2], 2);
   }
-  i = 0;
   length = toLength(O.length);
   result = new (aTypedArrayConstructor(this))(length);
-  for (; length > i; i++) {
+  for (i = 0; length > i; i++) {
     result[i] = mapping ? mapfn(O[i], i) : O[i];
   }
   return result;
