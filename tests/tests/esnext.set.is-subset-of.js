@@ -17,6 +17,12 @@ QUnit.test('Set#isSubsetOf', assert => {
   assert.ok(new Set([1]).isSubsetOf(createIterable([1, 2, 3])));
   assert.ok(!new Set([1]).isSubsetOf(createIterable([2, 3, 4])));
 
+  assert.ok(new Set([1]).isSubsetOf({ has: () => true }));
+  assert.ok(!new Set([1]).isSubsetOf({ has: () => false }));
+
+  assert.ok(isSubsetOf.call('ab', ['a', 'b', 'c']));
+  assert.ok(!isSubsetOf.call('ab', ['a']));
+
   assert.throws(() => new Set([1, 2, 3]).isSubsetOf(), TypeError);
   assert.throws(() => isSubsetOf.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isSubsetOf.call(undefined, [1, 2, 3]), TypeError);
