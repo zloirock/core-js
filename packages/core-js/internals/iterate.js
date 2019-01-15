@@ -14,7 +14,7 @@ var exports = module.exports = function (iterable, fn, that, ENTRIES, ITERATOR) 
     iterator = iterable;
   } else {
     iterFn = getIteratorMethod(iterable);
-    if (typeof iterFn != 'function') throw TypeError('Target is not iterable!');
+    if (typeof iterFn != 'function') throw TypeError('Target is not iterable');
     // optimisation for array iterators
     if (isArrayIteratorMethod(iterFn)) {
       for (index = 0, length = toLength(iterable.length); length > index; index++) {

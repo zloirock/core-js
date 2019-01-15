@@ -24,7 +24,7 @@ var regExpExec = function (R, S) {
   var result;
   if (typeof exec == 'function') {
     result = exec.call(R, S);
-    if (typeof result != 'object') throw TypeError('Incorrect exec result!');
+    if (typeof result != 'object') throw TypeError('Incorrect exec result');
     return result;
   } return regExpBuiltinExec.call(R, S);
 };

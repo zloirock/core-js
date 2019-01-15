@@ -14,7 +14,7 @@ require('../internals/export')({ target: 'Set', proto: true, real: true, forced:
     if (arguments.length > 1) accumulator = arguments[1];
     else {
       step = iterator.next();
-      if (step.done) throw TypeError('Reduce of empty set with no initial value!');
+      if (step.done) throw TypeError('Reduce of empty set with no initial value');
       accumulator = step.value;
     }
     while (!(step = iterator.next()).done) {

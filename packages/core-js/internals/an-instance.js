@@ -1,5 +1,5 @@
 module.exports = function (it, Constructor, name) {
   if (!(it instanceof Constructor)) {
-    throw TypeError((name ? name + ': i' : 'I') + 'ncorrect invocation!');
+    throw TypeError('Incorrect ' + (name ? name + ' ' : '') + 'invocation');
   } return it;
 };

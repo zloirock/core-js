@@ -38,7 +38,7 @@ if (require('../internals/descriptors')) {
   var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
   var isTypedArray = ArrayBufferViewCore.isTypedArray;
   var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
-  var WRONG_LENGTH = 'Wrong length!';
+  var WRONG_LENGTH = 'Wrong length';
 
   var fromList = function (C, list) {
     var index = 0;

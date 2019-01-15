@@ -176,7 +176,7 @@ var internalResolve = function (promise, state, value, unwrap) {
   state.done = true;
   if (unwrap) state = unwrap;
   try {
-    if (promise === value) throw TypeError("Promise can't be resolved itself!");
+    if (promise === value) throw TypeError("Promise can't be resolved itself");
     var then = isThenable(value);
     if (then) {
       microtask(function () {

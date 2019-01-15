@@ -71,7 +71,7 @@ require('../internals/export')({ target: 'Number', proto: true, forced: nativeTo
     var s = '';
     var m = '0';
     var e, z, j, k;
-    if (f < 0 || f > 20) throw RangeError('Incorrect fraction digits!');
+    if (f < 0 || f > 20) throw RangeError('Incorrect fraction digits');
     // eslint-disable-next-line no-self-compare
     if (x != x) return 'NaN';
     if (x <= -1e21 || x >= 1e21) return String(x);

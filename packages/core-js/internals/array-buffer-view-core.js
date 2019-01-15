@@ -51,7 +51,7 @@ var isTypedArray = function (it) {
 
 var aTypedArray = function (it) {
   if (isTypedArray(it)) return it;
-  throw TypeError('Target is not a typed array!');
+  throw TypeError('Target is not a typed array');
 };
 
 var aTypedArrayConstructor = function (C) {
@@ -62,7 +62,7 @@ var aTypedArrayConstructor = function (C) {
     if (TypedArrayConstructor && (C === TypedArrayConstructor || isPrototypeOf.call(TypedArrayConstructor, C))) {
       return C;
     }
-  } throw TypeError('Target is not a typed array constructor!');
+  } throw TypeError('Target is not a typed array constructor');
 };
 
 var exportProto = function (KEY, property, forced) {
@@ -112,7 +112,7 @@ for (NAME in TypedArrayConstructorsList) {
 if (!NATIVE_ARRAY_BUFFER_VIEWS || typeof TypedArray != 'function' || TypedArray === Function.prototype) {
   // eslint-disable-next-line no-shadow
   TypedArray = function TypedArray() {
-    throw TypeError('Incorrect invocation!');
+    throw TypeError('Incorrect invocation');
   };
   if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
     if (global[NAME]) setPrototypeOf(global[NAME], TypedArray);

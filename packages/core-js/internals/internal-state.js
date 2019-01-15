@@ -16,7 +16,7 @@ var getterFor = function (TYPE) {
   return function (it) {
     var state;
     if (!isObject(it) || (state = get(it)).type !== TYPE) {
-      throw TypeError('Incompatible receiver, ' + TYPE + ' required!');
+      throw TypeError('Incompatible receiver, ' + TYPE + ' required');
     } return state;
   };
 };

@@ -1,8 +1,8 @@
 'use strict';
 var toInteger = require('../internals/to-integer');
 var parseInt = require('../internals/parse-int');
-var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation!';
-var INVALID_RADIX = 'Invalid radix!';
+var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
+var INVALID_RADIX = 'Invalid radix';
 var valid = /^[0-9a-z]+$/;
 
 // `Number.fromString` method

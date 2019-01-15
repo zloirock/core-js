@@ -19,6 +19,6 @@ ArrayBufferViewCore.exportProto('set', function set(arrayLike /* , offset */) {
   var src = toObject(arrayLike);
   var len = toLength(src.length);
   var index = 0;
-  if (len + offset > length) throw RangeError('Wrong length!');
+  if (len + offset > length) throw RangeError('Wrong length');
   while (index < len) this[offset + index] = src[index++];
 }, FORCED);

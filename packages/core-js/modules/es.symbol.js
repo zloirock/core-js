@@ -153,7 +153,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
 // https://tc39.github.io/ecma262/#sec-symbol-constructor
 if (!NATIVE_SYMBOL) {
   $Symbol = function Symbol() {
-    if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor!');
+    if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor');
     var description = arguments[0] === undefined ? undefined : String(arguments[0]);
     var tag = uid(description);
     var setter = function (value) {
@@ -209,7 +209,7 @@ $export({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   // `Symbol.keyFor` method
   // https://tc39.github.io/ecma262/#sec-symbol.keyfor
   keyFor: function keyFor(sym) {
-    if (!isSymbol(sym)) throw TypeError(sym + ' is not a symbol!');
+    if (!isSymbol(sym)) throw TypeError(sym + ' is not a symbol');
     for (var key in SymbolRegistry) if (SymbolRegistry[key] === sym) return key;
   },
   useSetter: function () { USE_SETTER = true; },

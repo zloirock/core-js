@@ -19,8 +19,8 @@ var setInternalState = InternalStateModule.set;
 var ARRAY_BUFFER = 'ArrayBuffer';
 var DATA_VIEW = 'DataView';
 var PROTOTYPE = 'prototype';
-var WRONG_LENGTH = 'Wrong length!';
-var WRONG_INDEX = 'Wrong index!';
+var WRONG_LENGTH = 'Wrong length';
+var WRONG_INDEX = 'Wrong index';
 var NativeArrayBuffer = global[ARRAY_BUFFER];
 var $ArrayBuffer = NativeArrayBuffer;
 var $DataView = global[DATA_VIEW];
@@ -176,7 +176,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     anInstance(buffer, $ArrayBuffer, DATA_VIEW);
     var bufferLength = getInternalState(buffer).byteLength;
     var offset = toInteger(byteOffset);
-    if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset!');
+    if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
     if (offset + byteLength > bufferLength) throw RangeError(WRONG_LENGTH);
     setInternalState(this, {

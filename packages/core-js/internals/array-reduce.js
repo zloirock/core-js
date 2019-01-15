@@ -21,7 +21,7 @@ module.exports = function (that, callbackfn, argumentsLength, memo, isRight) {
     }
     index += i;
     if (isRight ? index < 0 : length <= index) {
-      throw TypeError('Reduce of empty array with no initial value!');
+      throw TypeError('Reduce of empty array with no initial value');
     }
   }
   for (;isRight ? index >= 0 : length > index; index += i) if (index in self) {
