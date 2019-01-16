@@ -137,10 +137,18 @@ function createIsRegExpLogicTest(name) {
   };
 }
 
-function createHTMLStringMethodTest(name) {
+function createStringHTMLMethodTest(METHOD_NAME) {
   return function () {
-    var test = ''[name]('"');
+    var test = ''[METHOD_NAME]('"');
     return test == test.toLowerCase() && test.split('"').length <= 3;
+  };
+}
+
+function createStringTrimMethodTest(METHOD_NAME) {
+  return function () {
+    return !WHITESPACES[METHOD_NAME]()
+      && NOT_WHITESPACES[METHOD_NAME]() === NOT_WHITESPACES
+      && WHITESPACES[METHOD_NAME].name === METHOD_NAME;
   };
 }
 
@@ -514,26 +522,23 @@ GLOBAL.tests = {
     return ''.split(O) == 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
-  'es.string.trim': function () {
-    return !WHITESPACES.trim()
-      && NOT_WHITESPACES.trim() == NOT_WHITESPACES;
-  },
+  'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
     return ''[Symbol.iterator];
   }],
-  'es.string.anchor': createHTMLStringMethodTest('anchor'),
-  'es.string.big': createHTMLStringMethodTest('big'),
-  'es.string.blink': createHTMLStringMethodTest('blink'),
-  'es.string.bold': createHTMLStringMethodTest('bold'),
-  'es.string.fixed': createHTMLStringMethodTest('fixed'),
-  'es.string.fontcolor': createHTMLStringMethodTest('fontcolor'),
-  'es.string.fontsize': createHTMLStringMethodTest('fontsize'),
-  'es.string.italics': createHTMLStringMethodTest('italics'),
-  'es.string.link': createHTMLStringMethodTest('link'),
-  'es.string.small': createHTMLStringMethodTest('small'),
-  'es.string.strike': createHTMLStringMethodTest('strike'),
-  'es.string.sub': createHTMLStringMethodTest('sub'),
-  'es.string.sup': createHTMLStringMethodTest('sup'),
+  'es.string.anchor': createStringHTMLMethodTest('anchor'),
+  'es.string.big': createStringHTMLMethodTest('big'),
+  'es.string.blink': createStringHTMLMethodTest('blink'),
+  'es.string.bold': createStringHTMLMethodTest('bold'),
+  'es.string.fixed': createStringHTMLMethodTest('fixed'),
+  'es.string.fontcolor': createStringHTMLMethodTest('fontcolor'),
+  'es.string.fontsize': createStringHTMLMethodTest('fontsize'),
+  'es.string.italics': createStringHTMLMethodTest('italics'),
+  'es.string.link': createStringHTMLMethodTest('link'),
+  'es.string.small': createStringHTMLMethodTest('small'),
+  'es.string.strike': createStringHTMLMethodTest('strike'),
+  'es.string.sub': createStringHTMLMethodTest('sub'),
+  'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.regexp.constructor': function () {
     var re1 = /a/g;
     var re2 = /a/g;
@@ -1196,16 +1201,8 @@ GLOBAL.tests = {
   'esnext.string.replace-all': function () {
     return String.prototype.replaceAll;
   },
-  'esnext.string.trim-left': function () {
-    return !WHITESPACES.trimStart()
-      && NOT_WHITESPACES.trimStart() == NOT_WHITESPACES
-      && String.prototype.trimLeft.name == 'trimStart';
-  },
-  'esnext.string.trim-right': function () {
-    return !WHITESPACES.trimEnd()
-      && NOT_WHITESPACES.trimEnd() == NOT_WHITESPACES
-      && String.prototype.trimRight.name == 'trimEnd';
-  },
+  'esnext.string.trim-left': createStringTrimMethodTest('trimStart'),
+  'esnext.string.trim-right': createStringTrimMethodTest('trimEnd'),
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },

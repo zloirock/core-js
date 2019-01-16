@@ -9,7 +9,7 @@ var fails = require('../internals/fails');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
-var internalTrim = require('../internals/string-trim').trim;
+var internalStringTrim = require('../internals/string-trim');
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
@@ -24,7 +24,7 @@ var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
   var first, third, radix, maxCode, digits, length, i, code;
   if (typeof it == 'string' && it.length > 2) {
-    it = NATIVE_TRIM ? it.trim() : internalTrim(it, 3);
+    it = NATIVE_TRIM ? it.trim() : internalStringTrim(it, 3);
     first = it.charCodeAt(0);
     if (first === 43 || first === 45) {
       third = it.charCodeAt(2);

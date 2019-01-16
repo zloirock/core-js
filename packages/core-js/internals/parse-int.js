@@ -1,5 +1,5 @@
 var nativeParseInt = require('../internals/global').parseInt;
-var internalStringTrim = require('../internals/string-trim').trim;
+var internalStringTrim = require('../internals/string-trim');
 var whitespaces = require('../internals/whitespaces');
 var hex = /^[-+]?0[xX]/;
 var FORCED = nativeParseInt(whitespaces + '08') !== 8 || nativeParseInt(whitespaces + '0x16') !== 22;

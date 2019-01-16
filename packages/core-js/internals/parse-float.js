@@ -1,5 +1,5 @@
 var nativeParseFloat = require('../internals/global').parseFloat;
-var internalStringTrim = require('../internals/string-trim').trim;
+var internalStringTrim = require('../internals/string-trim');
 var whitespaces = require('../internals/whitespaces');
 var FORCED = 1 / nativeParseFloat(whitespaces + '-0') !== -Infinity;
 
