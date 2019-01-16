@@ -1,2 +1,2 @@
-require('../modules/esnext.string.trim-left');
-require('../modules/esnext.string.trim-right');
+require('../modules/esnext.string.trim-start');
+require('../modules/esnext.string.trim-end');

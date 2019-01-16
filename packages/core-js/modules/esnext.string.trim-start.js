@@ -6,7 +6,7 @@ var trimStart = FORCED ? function trimStart() {
   return internalStringTrim(this, 1);
 } : ''.trimStart;
 
-// `String.prototype.{ trimLeft, trimStart }` methods
+// `String.prototype.{ trimStart, trimLeft }` methods
 // https://github.com/tc39/ecmascript-string-left-right-trim
 require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
   trimStart: trimStart,

@@ -3,8 +3,8 @@ var whitespace = '[' + require('../internals/whitespaces') + ']';
 var ltrim = RegExp('^' + whitespace + whitespace + '*');
 var rtrim = RegExp(whitespace + whitespace + '*$');
 
-// 1 -> String#trimLeft
-// 2 -> String#trimRight
+// 1 -> String#trimStart
+// 2 -> String#trimEnd
 // 3 -> String#trim
 module.exports = function (string, TYPE) {
   string = String(requireObjectCoercible(string));

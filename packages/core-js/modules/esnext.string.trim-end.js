@@ -6,7 +6,7 @@ var trimEnd = FORCED ? function trimEnd() {
   return internalStringTrim(this, 2);
 } : ''.trimEnd;
 
-// `String.prototype.{ trimRight, trimEnd }` methods
+// `String.prototype.{ trimEnd, trimRight }` methods
 // https://github.com/tc39/ecmascript-string-left-right-trim
 require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
   trimEnd: trimEnd,

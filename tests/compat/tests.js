@@ -1201,8 +1201,8 @@ GLOBAL.tests = {
   'esnext.string.replace-all': function () {
     return String.prototype.replaceAll;
   },
-  'esnext.string.trim-left': createStringTrimMethodTest('trimStart'),
-  'esnext.string.trim-right': createStringTrimMethodTest('trimEnd'),
+  'esnext.string.trim-start': createStringTrimMethodTest('trimStart'),
+  'esnext.string.trim-end': createStringTrimMethodTest('trimEnd'),
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },

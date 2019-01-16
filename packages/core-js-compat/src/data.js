@@ -1291,12 +1291,12 @@ module.exports = {
   },
   'esnext.string.replace-all': {
   },
-  'esnext.string.trim-left': {
+  'esnext.string.trim-start': {
     chrome: '66',
     firefox: '61',
     safari: '12.0',
   },
-  'esnext.string.trim-right': {
+  'esnext.string.trim-end': {
     chrome: '66',
     firefox: '61',
   },
