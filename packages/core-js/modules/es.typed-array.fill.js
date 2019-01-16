@@ -5,6 +5,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.fill` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.fill
-ArrayBufferViewCore.exportProto('fill', function fill(value /* , start, end */) { // eslint-disable-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
+ArrayBufferViewCore.exportProto('fill', function fill(value /* , start, end */) {
   return arrayFill.apply(aTypedArray(this), arguments);
 });

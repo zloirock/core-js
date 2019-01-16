@@ -10,9 +10,7 @@ var min = Math.min;
 var MAX_SAFE_INTEGER = 0x1fffffffffffff;
 var MAXIMUM_ALLOWED_LENGTH_EXCEEDED = 'Maximum allowed length exceeded';
 
-var SPECIES_SUPPORT = require('../internals/check-array-species-create')(function (array) {
-  return array.splice();
-});
+var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('splice');
 
 // `Array.prototype.splice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.splice

@@ -1,9 +1,7 @@
 'use strict';
 var internalMap = require('../internals/array-methods')(1);
 
-var SPECIES_SUPPORT = require('../internals/check-array-species-create')(function (array) {
-  return array.map(Boolean);
-});
+var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('map');
 
 // `Array.prototype.map` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.map

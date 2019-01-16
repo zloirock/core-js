@@ -9,9 +9,7 @@ var SPECIES = require('../internals/well-known-symbol')('species');
 var nativeSlice = [].slice;
 var max = Math.max;
 
-var SPECIES_SUPPORT = require('../internals/check-array-species-create')(function (array) {
-  return array.slice();
-});
+var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('slice');
 
 // `Array.prototype.slice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.slice

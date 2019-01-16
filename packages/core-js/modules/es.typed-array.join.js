@@ -5,6 +5,7 @@ var arrayJoin = [].join;
 
 // `%TypedArray%.prototype.join` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.join
-ArrayBufferViewCore.exportProto('join', function join(separator) { // eslint-disable-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
+ArrayBufferViewCore.exportProto('join', function join(separator) {
   return arrayJoin.apply(aTypedArray(this), arguments);
 });

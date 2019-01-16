@@ -15,9 +15,7 @@ var IS_CONCAT_SPREADABLE_SUPPORT = !require('../internals/fails')(function () {
   return array.concat()[0] !== array;
 });
 
-var SPECIES_SUPPORT = require('../internals/check-array-species-create')(function (array) {
-  return array.concat();
-});
+var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('concat');
 
 var isConcatSpreadable = function (O) {
   if (!isObject(O)) return false;
