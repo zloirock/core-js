@@ -12,8 +12,10 @@ var OPTIONAL_ARGUMENTS_LIST = !require('../internals/fails')(function () {
 // https://tc39.github.io/ecma262/#sec-reflect.apply
 require('../internals/export')({ target: 'Reflect', stat: true, forced: OPTIONAL_ARGUMENTS_LIST }, {
   apply: function apply(target, thisArgument, argumentsList) {
-    var T = aFunction(target);
-    var L = anObject(argumentsList);
-    return nativeApply ? nativeApply(T, thisArgument, L) : functionApply.call(T, thisArgument, L);
+    aFunction(target);
+    anObject(argumentsList);
+    return nativeApply
+      ? nativeApply(target, thisArgument, argumentsList)
+      : functionApply.call(target, thisArgument, argumentsList);
   }
 });

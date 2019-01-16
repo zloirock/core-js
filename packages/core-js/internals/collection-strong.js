@@ -14,11 +14,11 @@ var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 
 module.exports = {
-  getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
+  getConstructor: function (wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
-      anInstance(that, C, NAME);
+      anInstance(that, C, CONSTRUCTOR_NAME);
       setInternalState(that, {
-        type: NAME,
+        type: CONSTRUCTOR_NAME,
         index: create(null),
         first: undefined,
         last: undefined,
@@ -28,7 +28,7 @@ module.exports = {
       if (iterable != undefined) iterate(iterable, that[ADDER], that, IS_MAP);
     });
 
-    var getInternalState = internalStateGetterFor(NAME);
+    var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
     var define = function (that, key, value) {
       var state = getInternalState(that);
@@ -147,13 +147,13 @@ module.exports = {
     });
     return C;
   },
-  setStrong: function (C, NAME, IS_MAP) {
-    var ITERATOR_NAME = NAME + ' Iterator';
-    var getInternalCollectionState = internalStateGetterFor(NAME);
+  setStrong: function (C, CONSTRUCTOR_NAME, IS_MAP) {
+    var ITERATOR_NAME = CONSTRUCTOR_NAME + ' Iterator';
+    var getInternalCollectionState = internalStateGetterFor(CONSTRUCTOR_NAME);
     var getInternalIteratorState = internalStateGetterFor(ITERATOR_NAME);
     // add .keys, .values, .entries, [@@iterator]
     // 23.1.3.4, 23.1.3.8, 23.1.3.11, 23.1.3.12, 23.2.3.5, 23.2.3.8, 23.2.3.10, 23.2.3.11
-    defineIterator(C, NAME, function (iterated, kind) {
+    defineIterator(C, CONSTRUCTOR_NAME, function (iterated, kind) {
       setInternalState(this, {
         type: ITERATOR_NAME,
         target: iterated,
@@ -180,6 +180,6 @@ module.exports = {
     }, IS_MAP ? 'entries' : 'values', !IS_MAP, true);
 
     // add [@@species], 23.1.2.2, 23.2.2.2
-    setSpecies(NAME);
+    setSpecies(CONSTRUCTOR_NAME);
   }
 };

@@ -4,10 +4,12 @@ var toPrimitive = require('../internals/to-primitive');
 var toISOString = require('../internals/date-to-iso-string');
 var classof = require('../internals/classof-raw');
 
-require('../internals/export')({ target: 'Date', proto: true, forced: require('../internals/fails')(function () {
+var FORCED = require('../internals/fails')(function () {
   return new Date(NaN).toJSON() !== null
     || Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) !== 1;
-}) }, {
+});
+
+require('../internals/export')({ target: 'Date', proto: true, forced: FORCED }, {
   // eslint-disable-next-line no-unused-vars
   toJSON: function toJSON(key) {
     var O = toObject(this);

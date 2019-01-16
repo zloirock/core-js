@@ -52,18 +52,18 @@ UncaughtFrozenStore.prototype = {
 };
 
 module.exports = {
-  getConstructor: function (wrapper, NAME, IS_MAP, ADDER) {
+  getConstructor: function (wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER) {
     var C = wrapper(function (that, iterable) {
-      anInstance(that, C, NAME);
+      anInstance(that, C, CONSTRUCTOR_NAME);
       setInternalState(that, {
-        type: NAME,
+        type: CONSTRUCTOR_NAME,
         id: id++,
         frozen: undefined
       });
       if (iterable != undefined) iterate(iterable, that[ADDER], that, IS_MAP);
     });
 
-    var getInternalState = internalStateGetterFor(NAME);
+    var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
     var define = function (that, key, value) {
       var state = getInternalState(that);

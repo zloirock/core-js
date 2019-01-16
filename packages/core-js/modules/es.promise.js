@@ -60,6 +60,10 @@ var FORCED = isForced(PROMISE, function () {
     && userAgent.indexOf('Chrome/66') === -1);
 });
 
+var INCORRECT_ITERATION = FORCED || !checkCorrectnessOfIteration(function (iterable) {
+  PromiseConstructor.all(iterable)['catch'](function () { /* empty */ });
+});
+
 // helpers
 var isThenable = function (it) {
   var then;
@@ -287,9 +291,7 @@ $export({ target: PROMISE, stat: true, forced: IS_PURE || FORCED }, {
   }
 });
 
-$export({ target: PROMISE, stat: true, forced: FORCED || !checkCorrectnessOfIteration(function (iterable) {
-  PromiseConstructor.all(iterable)['catch'](function () { /* empty */ });
-}) }, {
+$export({ target: PROMISE, stat: true, forced: INCORRECT_ITERATION }, {
   // `Promise.all` method
   // https://tc39.github.io/ecma262/#sec-promise.all
   all: function all(iterable) {

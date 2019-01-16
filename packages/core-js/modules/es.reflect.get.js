@@ -12,9 +12,9 @@ function get(target, propertyKey /* , receiver */) {
   if (anObject(target) === receiver) return target[propertyKey];
   if (descriptor = getOwnPropertyDescriptorModule.f(target, propertyKey)) return has(descriptor, 'value')
     ? descriptor.value
-    : descriptor.get !== undefined
-      ? descriptor.get.call(receiver)
-      : undefined;
+    : descriptor.get === undefined
+      ? undefined
+      : descriptor.get.call(receiver);
   if (isObject(prototype = getPrototypeOf(target))) return get(prototype, propertyKey, receiver);
 }
 

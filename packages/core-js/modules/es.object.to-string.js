@@ -1,7 +1,8 @@
 var toString = require('../internals/object-to-string');
+var ObjectPrototype = Object.prototype;
 
 // `Object.prototype.toString` method
 // https://tc39.github.io/ecma262/#sec-object.prototype.tostring
-if (toString !== ({}).toString) {
-  require('../internals/redefine')(Object.prototype, 'toString', toString, { unsafe: true });
+if (toString !== ObjectPrototype.toString) {
+  require('../internals/redefine')(ObjectPrototype, 'toString', toString, { unsafe: true });
 }

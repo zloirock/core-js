@@ -1,5 +1,5 @@
 'use strict';
-// Forced replacement prototype accessors methods
+// Forced replacement object prototype accessors methods
 module.exports = require('../internals/is-pure') || !require('../internals/fails')(function () {
   var key = Math.random();
   // In FF throws only define methods

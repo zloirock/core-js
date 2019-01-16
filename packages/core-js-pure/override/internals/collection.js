@@ -15,8 +15,8 @@ var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 
-module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
-  var NativeConstructor = global[NAME];
+module.exports = function (CONSTRUCTOR_NAME, wrapper, common, IS_MAP, IS_WEAK) {
+  var NativeConstructor = global[CONSTRUCTOR_NAME];
   var NativePrototype = NativeConstructor && NativeConstructor.prototype;
   var ADDER = IS_MAP ? 'set' : 'add';
   var exported = {};
@@ -26,18 +26,18 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
     || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
   ) {
     // create collection constructor
-    Constructor = common.getConstructor(wrapper, NAME, IS_MAP, ADDER);
+    Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
     InternalMetadataModule.REQUIRED = true;
   } else {
     Constructor = wrapper(function (target, iterable) {
-      setInternalState(anInstance(target, Constructor, NAME), {
-        type: NAME,
+      setInternalState(anInstance(target, Constructor, CONSTRUCTOR_NAME), {
+        type: CONSTRUCTOR_NAME,
         collection: new NativeConstructor()
       });
       if (iterable != undefined) iterate(iterable, target[ADDER], target, IS_MAP);
     });
 
-    var getInternalState = internalStateGetterFor(NAME);
+    var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
     each(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
@@ -56,12 +56,12 @@ module.exports = function (NAME, wrapper, common, IS_MAP, IS_WEAK) {
     });
   }
 
-  setToStringTag(Constructor, NAME, false, true);
+  setToStringTag(Constructor, CONSTRUCTOR_NAME, false, true);
 
-  exported[NAME] = Constructor;
+  exported[CONSTRUCTOR_NAME] = Constructor;
   $export({ global: true, forced: true }, exported);
 
-  if (!IS_WEAK) common.setStrong(Constructor, NAME, IS_MAP);
+  if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };

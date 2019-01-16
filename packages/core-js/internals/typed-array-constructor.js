@@ -104,10 +104,10 @@ if (require('../internals/descriptors')) {
 
   // eslint-disable-next-line max-statements
   module.exports = function (TYPE, BYTES, wrapper, CLAMPED) {
-    var NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
+    var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
     var GETTER = 'get' + TYPE;
     var SETTER = 'set' + TYPE;
-    var NativeTypedArrayConstructor = global[NAME];
+    var NativeTypedArrayConstructor = global[CONSTRUCTOR_NAME];
     var TypedArrayConstructor = NativeTypedArrayConstructor;
     var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
     var exported = {};
@@ -137,7 +137,7 @@ if (require('../internals/descriptors')) {
 
     if (!NATIVE_ARRAY_BUFFER_VIEWS) {
       TypedArrayConstructor = wrapper(function (that, data, offset, $length) {
-        anInstance(that, TypedArrayConstructor, NAME);
+        anInstance(that, TypedArrayConstructor, CONSTRUCTOR_NAME);
         var index = 0;
         var byteOffset = 0;
         var buffer, byteLength, length;
@@ -177,7 +177,7 @@ if (require('../internals/descriptors')) {
       TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
     } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
       TypedArrayConstructor = wrapper(function (that, data, typedArrayOffset, $length) {
-        anInstance(that, TypedArrayConstructor, NAME);
+        anInstance(that, TypedArrayConstructor, CONSTRUCTOR_NAME);
         if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
         if (isArrayBuffer(data)) return $length !== undefined
           ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)
@@ -199,9 +199,9 @@ if (require('../internals/descriptors')) {
       hide(TypedArrayConstructorPrototype, 'constructor', TypedArrayConstructor);
     }
 
-    if (TYPED_ARRAY_TAG) hide(TypedArrayConstructorPrototype, TYPED_ARRAY_TAG, NAME);
+    if (TYPED_ARRAY_TAG) hide(TypedArrayConstructorPrototype, TYPED_ARRAY_TAG, CONSTRUCTOR_NAME);
 
-    exported[NAME] = TypedArrayConstructor;
+    exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
     $export({
       global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor, sham: !NATIVE_ARRAY_BUFFER_VIEWS
@@ -215,6 +215,6 @@ if (require('../internals/descriptors')) {
       hide(TypedArrayConstructorPrototype, BYTES_PER_ELEMENT, BYTES);
     }
 
-    setSpecies(NAME);
+    setSpecies(CONSTRUCTOR_NAME);
   };
 } else module.exports = function () { /* empty */ };
