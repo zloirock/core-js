@@ -1,7 +1,7 @@
 'use strict';
 var internalReduceRight = require('../internals/array-reduce');
 
-var SLOPPY_METHOD = !require('../internals/strict-method')([].reduceRight, true);
+var SLOPPY_METHOD = require('../internals/sloppy-array-method')('reduceRight');
 
 // `Array.prototype.reduceRight` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.reduceright

@@ -1,7 +1,7 @@
 'use strict';
 var internalSome = require('../internals/array-methods')(3);
 
-var SLOPPY_METHOD = !require('../internals/strict-method')([].some, true);
+var SLOPPY_METHOD = require('../internals/sloppy-array-method')('some');
 
 // `Array.prototype.some` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.some

@@ -1,7 +1,7 @@
 'use strict';
 var internalEvery = require('../internals/array-methods')(4);
 
-var SLOPPY_METHOD = !require('../internals/strict-method')([].every, true);
+var SLOPPY_METHOD = require('../internals/sloppy-array-method')('every');
 
 // `Array.prototype.every` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.every

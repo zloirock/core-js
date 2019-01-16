@@ -1,5 +1,5 @@
 'use strict';
-var internalCodePointAt = require('../internals/string-at')(false);
+var internalCodePointAt = require('../internals/string-at');
 
 // `String.prototype.codePointAt` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.codepointat

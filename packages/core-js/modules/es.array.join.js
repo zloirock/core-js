@@ -3,7 +3,7 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var nativeJoin = [].join;
 
 var ES3_STRINGS = require('../internals/indexed-object') != Object;
-var SLOPPY_METHOD = !require('../internals/strict-method')(nativeJoin);
+var SLOPPY_METHOD = require('../internals/sloppy-array-method')('join', ',');
 
 // `Array.prototype.join` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.join

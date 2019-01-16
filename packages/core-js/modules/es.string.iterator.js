@@ -1,5 +1,5 @@
 'use strict';
-var at = require('../internals/string-at')(true);
+var codePointAt = require('../internals/string-at');
 var InternalStateModule = require('../internals/internal-state');
 var defineIterator = require('../internals/define-iterator');
 var STRING_ITERATOR = 'String Iterator';
@@ -22,7 +22,7 @@ defineIterator(String, 'String', function (iterated) {
   var index = state.index;
   var point;
   if (index >= string.length) return { value: undefined, done: true };
-  point = at(string, index);
+  point = codePointAt(string, index, true);
   state.index += point.length;
   return { value: point, done: false };
 });

@@ -14,7 +14,7 @@ var FAILS_ON_NULL = fails(function () {
   test.sort(null);
 });
 // Old WebKit
-var SLOPPY_METHOD = !require('../internals/strict-method')(nativeSort);
+var SLOPPY_METHOD = require('../internals/sloppy-array-method')('sort');
 
 var FORCED = FAILS_ON_UNDEFINED || !FAILS_ON_NULL || SLOPPY_METHOD;
 
