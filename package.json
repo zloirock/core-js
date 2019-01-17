@@ -41,7 +41,7 @@
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^1.11.0",
     "qunit": "2.9.x",
-    "webpack": "^4.28.3"
+    "webpack": "^4.28.4"
   },
   "license": "MIT",
   "repository": {
