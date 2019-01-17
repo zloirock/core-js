@@ -137,6 +137,7 @@
   - Fix buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
   - One more fix for microtasks in iOS related [#339](https://github.com/zloirock/core-js/issues/339).
   - Added a fallback for [Rhino bug](https://github.com/mozilla/rhino/issues/346), [#440](https://github.com/zloirock/core-js/issues/440).
+  - Many other internal fixes and improvements.
 - Repository:
   - Change `core-js` repository structure to monorepo with packages in `/packages/` directory.
   - Clean-up it, remove all possible duplicates, generated files, etc.
