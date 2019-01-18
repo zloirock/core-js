@@ -1,3 +1,1 @@
-require('../../modules/es.reflect.delete-property');
-
-module.exports = require('../../internals/path').Reflect.deleteProperty;
+module.exports = require('../../es/reflect/delete-property');
