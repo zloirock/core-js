@@ -21,6 +21,7 @@ const validTargets = new Set([
   'edge',
   'samsung',
   'ios',
+  'phantom',
 ]);
 
 function coercedLte(a, b) {

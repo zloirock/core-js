@@ -8,6 +8,7 @@ const {
   ChromeToSamsung,
   ChromeToAndroid,
   SafariToIOS,
+  SafariToPhantomJS,
 } = require('./mapping');
 const has = Function.call.bind({}.hasOwnProperty);
 
@@ -39,9 +40,15 @@ for (const key in data) {
       if (android) module.android = android;
     }
   }
-  if (!has(module, 'ios') && has(module, 'safari')) {
-    const ios = map(module.safari, SafariToIOS);
-    if (ios) module.ios = ios;
+  if (has(module, 'safari')) {
+    if (!has(module, 'ios')) {
+      const ios = map(module.safari, SafariToIOS);
+      if (ios) module.ios = ios;
+    }
+    if (!has(module, 'phantom')) {
+      const phantom = map(module.safari, SafariToPhantomJS);
+      if (phantom) module.phantom = phantom;
+    }
   }
 }
 
