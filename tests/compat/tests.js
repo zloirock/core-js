@@ -1290,7 +1290,7 @@ GLOBAL.tests = {
     return setImmediate && clearImmediate;
   },
   'web.queue-microtask': function () {
-    return queueMicrotask;
+    return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
   'web.timers': function () {
     return !/MSIE .\./.test(USERAGENT);
