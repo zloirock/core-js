@@ -1,4 +1,9 @@
 'use strict';
+const ChromeToElectronModule = require('electron-to-chromium/chromium-versions');
+const ChromeToElectron = Object
+  .keys(ChromeToElectronModule)
+  .map(chrome => [chrome, ChromeToElectronModule[chrome]]);
+
 module.exports = {
   ChromeToNode: [
     [14, '0.10'],
@@ -29,6 +34,7 @@ module.exports = {
     [30, '4.4'],
     [33, '4.4.3'],
   ],
+  ChromeToElectron,
   SafariToIOS: [
     ['5.1', '6.0'],
     ['7.0', '7.0'],

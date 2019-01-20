@@ -11,17 +11,18 @@ const mapping = new Map([
 ]);
 
 const validTargets = new Set([
-  'ie',
-  'chrome',
-  'opera',
-  'node',
   'android',
-  'firefox',
-  'safari',
+  'chrome',
   'edge',
-  'samsung',
+  'electron',
+  'firefox',
+  'ie',
   'ios',
+  'node',
+  'opera',
   'phantom',
+  'safari',
+  'samsung',
 ]);
 
 function coercedLte(a, b) {

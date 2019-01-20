@@ -7,6 +7,7 @@ const {
   ChromeToNode,
   ChromeToSamsung,
   ChromeToAndroid,
+  ChromeToElectron,
   SafariToIOS,
   SafariToPhantomJS,
 } = require('./mapping');
@@ -38,6 +39,10 @@ for (const key in data) {
     if (!has(module, 'android')) {
       const android = map(chrome, ChromeToAndroid);
       if (android) module.android = android;
+    }
+    if (!has(module, 'electron')) {
+      const electron = map(chrome, ChromeToElectron);
+      if (electron) module.electron = electron;
     }
   }
   if (has(module, 'safari')) {
