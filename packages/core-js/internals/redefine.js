@@ -15,6 +15,7 @@ require('../internals/shared')('inspectSource', function (it) {
 (module.exports = function (O, key, value, options) {
   var unsafe = options ? !!options.unsafe : false;
   var simple = options ? !!options.enumerable : false;
+  var noTargetGet = options ? !!options.noTargetGet : false;
   if (typeof value == 'function') {
     if (typeof key == 'string' && !has(value, 'name')) hide(value, 'name', key);
     enforceInternalState(value).source = TEMPLATE.join(typeof key == 'string' ? key : '');
@@ -24,7 +25,7 @@ require('../internals/shared')('inspectSource', function (it) {
     return;
   } else if (!unsafe) {
     delete O[key];
-  } else if (O[key]) {
+  } else if (!noTargetGet && O[key]) {
     simple = true;
   }
   if (simple) O[key] = value;

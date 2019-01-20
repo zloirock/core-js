@@ -1,12 +1,15 @@
 var global = require('../internals/global');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var classof = require('../internals/classof-raw');
 var macrotask = require('../internals/task').set;
 var userAgent = require('../internals/user-agent');
 var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
 var process = global.process;
 var Promise = global.Promise;
-var queueMicrotask = global.queueMicrotask;
-var isNode = classof(process) == 'process';
+var IS_NODE = classof(process) == 'process';
+// Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
+var queueMicrotaskDescriptor = getOwnPropertyDescriptor(global, 'queueMicrotask');
+var queueMicrotask = queueMicrotaskDescriptor && queueMicrotaskDescriptor.value;
 
 var flush, head, last, notify, toggle, node, promise;
 
@@ -14,7 +17,7 @@ var flush, head, last, notify, toggle, node, promise;
 if (!queueMicrotask) {
   flush = function () {
     var parent, fn;
-    if (isNode && (parent = process.domain)) parent.exit();
+    if (IS_NODE && (parent = process.domain)) parent.exit();
     while (head) {
       fn = head.fn;
       head = head.next;
@@ -30,7 +33,7 @@ if (!queueMicrotask) {
   };
 
   // Node.js
-  if (isNode) {
+  if (IS_NODE) {
     notify = function () {
       process.nextTick(flush);
     };

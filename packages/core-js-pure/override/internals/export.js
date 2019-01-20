@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/bind-context');
@@ -21,16 +22,18 @@ var wrapConstructor = function (NativeConstructor) {
 };
 
 /*
-  options.target - name of the target object
-  options.global - target is the global object
-  options.stat   - export as static methods of target
-  options.proto  - export as prototype methods of target
-  options.real   - real prototype method for the `pure` version
-  options.forced - export even if the native feature is available
-  options.bind   - bind methods to the target, required for the `pure` version
-  options.wrap   - wrap constructors to preventing global pollution, required for the `pure` version
-  options.unsafe - use the simple assignment of property instead of delete + defineProperty
-  options.sham   - add a flag to not completely full polyfills
+  options.target      - name of the target object
+  options.global      - target is the global object
+  options.stat        - export as static methods of target
+  options.proto       - export as prototype methods of target
+  options.real        - real prototype method for the `pure` version
+  options.forced      - export even if the native feature is available
+  options.bind        - bind methods to the target, required for the `pure` version
+  options.wrap        - wrap constructors to preventing global pollution, required for the `pure` version
+  options.unsafe      - use the simple assignment of property instead of delete + defineProperty
+  options.sham        - add a flag to not completely full polyfills
+  options.enumerable  - export as enumerable property
+  options.noTargetGet - prevent calling a getter on target
 */
 module.exports = function (options, source) {
   var TARGET = options.target;
@@ -43,7 +46,8 @@ module.exports = function (options, source) {
   var target = GLOBAL ? path : path[TARGET] || (path[TARGET] = {});
   var targetPrototype = target.prototype;
 
-  var FORCED, USE_NATIVE, VIRTUAL_PROTOTYPE, key, sourceProperty, targetProperty, resultProperty;
+  var FORCED, USE_NATIVE, VIRTUAL_PROTOTYPE;
+  var key, sourceProperty, targetProperty, nativeProperty, resultProperty, descriptor;
 
   for (key in source) {
     FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
@@ -52,8 +56,13 @@ module.exports = function (options, source) {
 
     targetProperty = target[key];
 
+    if (USE_NATIVE) if (options.noTargetGet) {
+      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      nativeProperty = descriptor && descriptor.value;
+    } else nativeProperty = nativeSource[key];
+
     // export native or implementation
-    sourceProperty = USE_NATIVE ? nativeSource[key] : source[key];
+    sourceProperty = (USE_NATIVE && nativeProperty) ? nativeProperty : source[key];
 
     if (USE_NATIVE && typeof targetProperty === typeof sourceProperty) continue;
 
