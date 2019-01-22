@@ -13,8 +13,8 @@ var arrayPush = [].push;
 var min = Math.min;
 var MAX_UINT32 = 0xffffffff;
 
-// eslint-disable-next-line no-new
-var SUPPORTS_Y = !fails(function () { new RegExp('x', 'y'); });
+// babel-minify transpiles RegExp('x', 'y') -> /x/y and it causes SyntaxError
+var SUPPORTS_Y = !fails(function () { RegExp(MAX_UINT32, 'y'); });
 
 // @@split logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
