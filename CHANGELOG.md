@@ -179,6 +179,9 @@
   - Use for tests Babel with minimalistic config which should work anywhere.
   - Use ESLint on the code of tests and tools.
 
+##### 2.6.3 - 2019.01.22
+- Added a workaround for `babel-minify` bug, [#479](https://github.com/zloirock/core-js/issues/479)
+
 ##### 2.6.2 - 2019.01.10
 - Fixed handling of `$` in `String#replace`, [#471](https://github.com/zloirock/core-js/issues/471)
 
