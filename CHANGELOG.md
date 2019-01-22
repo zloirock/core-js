@@ -1,5 +1,5 @@
 ## Changelog
-##### 2.6.2 - 2019.01.22
+##### 2.6.3 - 2019.01.22
 - Added a workaround for `babel-minify` bug, [#479](https://github.com/zloirock/core-js/issues/479)
 
 ##### 2.6.2 - 2019.01.10
