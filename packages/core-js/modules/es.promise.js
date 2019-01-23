@@ -27,6 +27,7 @@ var PromiseConstructor = global[PROMISE];
 var TypeError = global.TypeError;
 var document = global.document;
 var process = global.process;
+var $fetch = global.fetch;
 var versions = process && process.versions;
 var v8 = versions && versions.v8 || '';
 var newPromiseCapability = newPromiseCapabilityModule.f;
@@ -263,6 +264,14 @@ if (FORCED) {
       ? new OwnPromiseCapability(C)
       : newGenericPromiseCapability(C);
   };
+
+  // wrap fetch result
+  if (!IS_PURE && typeof $fetch == 'function') $export({ global: true, forced: true }, {
+    // eslint-disable-next-line no-unused-vars
+    fetch: function fetch(input) {
+      return promiseResolve(PromiseConstructor, $fetch.apply(global, arguments));
+    }
+  });
 }
 
 $export({ global: true, wrap: true, forced: FORCED }, { Promise: PromiseConstructor });
