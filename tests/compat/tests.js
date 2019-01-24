@@ -1201,8 +1201,12 @@ GLOBAL.tests = {
   'esnext.string.replace-all': function () {
     return String.prototype.replaceAll;
   },
-  'esnext.string.trim-start': createStringTrimMethodTest('trimStart'),
-  'esnext.string.trim-end': createStringTrimMethodTest('trimEnd'),
+  'esnext.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
+    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
+  }],
+  'esnext.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
+    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
+  }],
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
