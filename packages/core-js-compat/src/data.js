@@ -14,6 +14,7 @@ module.exports = {
   'es.symbol.description': {
     chrome: '70',
     firefox: '63',
+    safari: '12.1',
   },
   'es.symbol.has-instance': {
     edge: '15',
@@ -471,6 +472,7 @@ module.exports = {
     edge: '15',
     chrome: '59',
     firefox: '52',
+    safari: '12.1',
   },
   'es.string.iterator': {
     edge: '13',
@@ -858,6 +860,7 @@ module.exports = {
     ie: '11',
     chrome: '31',
     firefox: '46',
+    safari: '12.1',
   },
   'es.data-view': {
     ie: '10',
@@ -1159,6 +1162,7 @@ module.exports = {
   },
   'esnext.global-this': {
     chrome: '71',
+    safari: '12.1',
   },
   'esnext.map.from': {
   },
@@ -1222,6 +1226,7 @@ module.exports = {
   },
   'esnext.object.from-entries': {
     firefox: '63',
+    safari: '12.1',
   },
   'esnext.observable': {
   },
@@ -1299,6 +1304,7 @@ module.exports = {
   'esnext.string.trim-end': {
     chrome: '66',
     firefox: '61',
+    safari: '12.1',
   },
   'esnext.symbol.dispose': {
   },
@@ -1341,6 +1347,7 @@ module.exports = {
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     // Waition for https://github.com/nodejs/node/pull/25594
     // node: '11.0',
+    safari: '12.1',
   },
   'web.timers': {
     ie: '10',
