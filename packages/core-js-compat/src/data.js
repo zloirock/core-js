@@ -1345,7 +1345,7 @@ module.exports = {
   'web.queue-microtask': {
     chrome: '71',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
-    // Waition for https://github.com/nodejs/node/pull/25594
+    // Waiting for https://github.com/nodejs/node/pull/25594
     // node: '11.0',
     safari: '12.1',
   },
