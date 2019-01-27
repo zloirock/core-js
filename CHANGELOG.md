@@ -82,6 +82,7 @@
     - `.forEach` method on iterable DOM collections ([#329](https://github.com/zloirock/core-js/issues/329))
   - Improve existing features:
     - Add triggering unhandled `Promise` rejection events (instead of only global handlers), [#205](https://github.com/zloirock/core-js/issues/205).
+    - Wrap `fetch` for correct with polyfilled `Promise` and preventing problems like [#178](https://github.com/zloirock/core-js/issues/178), [#332](https://github.com/zloirock/core-js/issues/332), [#371](https://github.com/zloirock/core-js/issues/371).
     - Add support of `@@isConcatSpreadable` to `Array#concat`.
     - Add support of `@@species` to `Array#{concat, filter, map, slice, splice}`.
     - Add direct `.exec` calling to `RegExp#{@@replace, @@split, @@match, @@search}`. Also, added fixes for `RegExp#exec` method. [#411](https://github.com/zloirock/core-js/issues/411), [#434](https://github.com/zloirock/core-js/issues/434), [#453](https://github.com/zloirock/core-js/issues/453), thanks [**@nicolo-ribaudo**](https://github.com/nicolo-ribaudo).
