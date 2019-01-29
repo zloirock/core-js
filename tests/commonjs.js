@@ -375,6 +375,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/object/set-prototype-of')({}, []) instanceof Array);
   ok(load('es/object/to-string')([]) === '[object Array]');
   ok(load('es/object/entries')({ q: 2 })[0][0] === 'q');
+  ok(load('es/object/from-entries')([['a', 42]]).a === 42);
   ok(load('es/object/values')({ q: 2 })[0] === 2);
   ok(load('es/object/get-own-property-descriptors')({ q: 1 }).q.enumerable);
   ok(typeof load('es/object/define-getter') === 'function');
@@ -609,7 +610,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');
-  load('proposals/object-from-entries');
   load('proposals/observable');
   load('proposals/pattern-matching');
   load('proposals/promise-try');

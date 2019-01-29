@@ -215,6 +215,10 @@ module.exports = {
     firefox: '48',
     safari: '8.0',
   },
+  'es.object.from-entries': {
+    firefox: '63',
+    safari: '12.1',
+  },
   'es.object.lookup-getter': {
     edge: '16',
     chrome: '62',
@@ -1224,10 +1228,6 @@ module.exports = {
   'esnext.math.umulh': {
   },
   'esnext.number.from-string': {
-  },
-  'esnext.object.from-entries': {
-    firefox: '63',
-    safari: '12.1',
   },
   'esnext.observable': {
   },

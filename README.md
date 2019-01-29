@@ -249,7 +249,7 @@ core-js(-pure)
 core-js(-pure)/es
 ```
 #### ECMAScript: Object
-Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js) and [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js).
+Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js) and [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js).
 
 Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.es.object.define-properties.js).
 
@@ -267,6 +267,7 @@ class Object {
   static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
   static entries(object: Object): Array<[string, mixed]>;
   static freeze(object: any): any;
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
   static getOwnPropertyDescriptor(object: any, property: PropertyKey): PropertyDescriptor | void;
   static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
   static getOwnPropertyNames(object: any): Array<string>;
@@ -299,6 +300,7 @@ core-js(-pure)/es|features/object/values
 core-js(-pure)/es|features/object/entries
 core-js(-pure)/es|features/object/get-own-property-names
 core-js(-pure)/es|features/object/freeze
+core-js(-pure)/es|features/object/from-entries
 core-js(-pure)/es|features/object/seal
 core-js(-pure)/es|features/object/prevent-extensions
 core-js(-pure)/es|features/object/is-frozen
@@ -349,6 +351,22 @@ for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
 let copy = Object.create(Object.getPrototypeOf(object), Object.getOwnPropertyDescriptors(object));
 // Mixin:
 Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
+
+const map = new Map([['a', 1], ['b', 2]]);
+Object.fromEntries(map); // => { a: 1, b: 2 }
+
+class Unit {
+  constructor(id) {
+    this.id = id;
+  }
+  toString() {
+    return `unit${ this.id }`;
+  }
+}
+
+const units = new Set([new Unit(101), new Unit(102)]);
+
+Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 #### ECMAScript: Function
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
@@ -1472,36 +1490,6 @@ core-js(-pure)/features/array/virtual/flat-map
 [1, [2, [3, [4]]], 5].flat(3); // => [1, 2, 3, 4, 5]
 
 [{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
-```
-* `Object.fromEntries`, [proposal](https://github.com/tc39/proposal-object-from-entries), module [`esnext.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.from-entries.js)
-```js
-class Object {
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/object-from-entries
-core-js(-pure)/features/object/from-entries
-```
-[*Examples*]():
-```js
-const map = new Map([['a', 1], ['b', 2]]);
-
-Object.fromEntries(map); // => { a: 1, b: 2 }
-
-class Unit {
-  constructor(id) {
-    this.id = id;
-  }
-  toString() {
-    return `unit${ this.id }`;
-  }
-}
-
-const units = new Set([new Unit(101), new Unit(102)]);
-
-Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.match-all.js)
 ```js
