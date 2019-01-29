@@ -1,3 +1,1 @@
-require('../../../modules/esnext.string.trim-end');
-
-module.exports = require('../../../internals/entry-virtual')('String').trimRight;
+module.exports = require('../../../es/string/virtual/trim-right');

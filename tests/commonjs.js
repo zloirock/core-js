@@ -507,6 +507,10 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/string/from-code-point')(97) === 'a');
   ok(load('es/string/raw')({ raw: 'test' }, 0, 1, 2) === 't0e1s2t');
   ok(load('es/string/trim')(' ab ') === 'ab');
+  ok(load('es/string/trim-start')(' a ') === 'a ');
+  ok(load('es/string/trim-end')(' a ') === ' a');
+  ok(load('es/string/trim-left')(' a ') === 'a ');
+  ok(load('es/string/trim-right')(' a ') === ' a');
   ok(load('es/string/code-point-at')('a', 0) === 97);
   ok(load('es/string/ends-with')('qwe', 'we'));
   ok(load('es/string/includes')('qwe', 'w'));
@@ -533,6 +537,11 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/string/virtual/includes').call('qwe', 'w'));
   ok(load('es/string/virtual/repeat').call('q', 3) === 'qqq');
   ok(load('es/string/virtual/starts-with').call('qwe', 'qw'));
+  ok(load('es/string/virtual/trim').call(' ab ') === 'ab');
+  ok(load('es/string/virtual/trim-start').call(' a ') === 'a ');
+  ok(load('es/string/virtual/trim-end').call(' a ') === ' a');
+  ok(load('es/string/virtual/trim-left').call(' a ') === 'a ');
+  ok(load('es/string/virtual/trim-right').call(' a ') === ' a');
   ok(typeof load('es/string/virtual/anchor') === 'function');
   ok(typeof load('es/string/virtual/big') === 'function');
   ok(typeof load('es/string/virtual/blink') === 'function');
@@ -621,7 +630,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/string-code-points');
   load('proposals/string-match-all');
   load('proposals/string-replace-all');
-  load('proposals/string-trim-start-end');
   load('proposals/using-statement');
   load('proposals/url');
   load('proposals');

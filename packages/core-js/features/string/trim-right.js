@@ -1,3 +1,1 @@
-require('../../modules/esnext.string.trim-end');
-
-module.exports = require('../../internals/entry-unbind')('String', 'trimRight');
+module.exports = require('../../es/string/trim-right');

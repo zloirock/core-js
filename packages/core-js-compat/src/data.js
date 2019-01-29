@@ -478,6 +478,16 @@ module.exports = {
     firefox: '52',
     safari: '12.1',
   },
+  'es.string.trim-start': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.0',
+  },
+  'es.string.trim-end': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.1',
+  },
   'es.string.iterator': {
     edge: '13',
     chrome: '39',
@@ -1297,16 +1307,6 @@ module.exports = {
     chrome: '74',
   },
   'esnext.string.replace-all': {
-  },
-  'esnext.string.trim-start': {
-    chrome: '66',
-    firefox: '61',
-    safari: '12.0',
-  },
-  'esnext.string.trim-end': {
-    chrome: '66',
-    firefox: '61',
-    safari: '12.1',
   },
   'esnext.symbol.dispose': {
   },

@@ -2,8 +2,8 @@
 ##### 3.0.0
 - Features
   - Add new features:
+    - `Object.fromEntries` ([ECMAScript 2019](https://github.com/tc39/proposal-object-from-entries))
     - `Symbol#description` ([ECMAScript 2019](https://tc39.github.io/ecma262/#sec-symbol.prototype.description))
-    - `Object.fromEntries` ([stage 3 proposal](https://github.com/tc39/proposal-object-from-entries))
     - New `Set` methods ([stage 2 proposal](https://github.com/tc39/proposal-set-methods))
       - `Set#difference`
       - `Set#intersection`
@@ -100,11 +100,12 @@
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
-  - Mark ES2016, ES2017 and ES2018 features as stable:
+  - Mark ES2016, ES2017, ES2018, ES2019 features as stable:
     - `Array#includes` and `%TypedArray%#includes`
     - `Object.values` and `Object.entries`
     - `Object.getOwnPropertyDescriptors`
-    - `String#padStart` and `String#padEnd`
+    - `String#{ padStart, padEnd }`
+    - `String#{ trimStart, trimEnd, trimLeft, trimRight }`
     - `Promise#finally`
     - `Symbol.asyncIterator`
     - `Object#__(define|lookup)[GS]etter__`
