@@ -134,7 +134,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 #### `@babel/polyfill`
 
-[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) **IS** `core-js` and  `regenerator-runtime` for generators and async functions, it's just [2 lines](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js#L6-L7), so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
+[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) [**IS** just import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
 #### `@babel/runtime`
 
