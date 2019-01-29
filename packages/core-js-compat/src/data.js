@@ -1162,6 +1162,7 @@ module.exports = {
   },
   'esnext.global-this': {
     chrome: '71',
+    firefox: '65',
     safari: '12.1',
   },
   'esnext.map.from': {
@@ -1293,6 +1294,7 @@ module.exports = {
   'esnext.string.code-points': {
   },
   'esnext.string.match-all': {
+    chrome: '74',
   },
   'esnext.string.replace-all': {
   },
