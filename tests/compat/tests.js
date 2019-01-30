@@ -1111,6 +1111,9 @@ GLOBAL.tests = {
   'esnext.promise.all-settled': function () {
     return Promise.allSettled;
   },
+  'esnext.promise.any': function () {
+    return Promise.any;
+  },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
     return Promise['try'];
   }],

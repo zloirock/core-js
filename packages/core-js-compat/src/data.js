@@ -1244,6 +1244,8 @@ module.exports = {
   },
   'esnext.promise.all-settled': {
   },
+  'esnext.promise.any': {
+  },
   'esnext.promise.try': {
   },
   'esnext.reflect.define-metadata': {

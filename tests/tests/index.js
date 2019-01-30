@@ -208,6 +208,7 @@ import './esnext.math.seeded-prng';
 import './esnext.number.from-string';
 import './esnext.observable';
 import './esnext.promise.all-settled';
+import './esnext.promise.any';
 import './esnext.promise.try';
 import './esnext.reflect.define-metadata';
 import './esnext.reflect.delete-metadata';

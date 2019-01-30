@@ -338,6 +338,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   const Promise = load('features/promise');
   ok('all' in Promise);
   ok(load('features/promise/all-settled')([1, 2, 3]) instanceof Promise);
+  ok(load('features/promise/any')([1, 2, 3]) instanceof Promise);
   ok(load('features/promise/try')(() => 42) instanceof load('features/promise'));
   ok('from' in load('features/observable'));
   ok(load('features/global-this').Math === Math);
@@ -624,6 +625,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/number-from-string');
   load('proposals/observable');
   load('proposals/pattern-matching');
+  load('proposals/promise-all-settled');
+  load('proposals/promise-any');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/richer-keys');
