@@ -119,6 +119,7 @@ module.exports = {
     safari: '9.0',
   },
   'es.object.from-entries': {
+    chrome: '74',
     firefox: '63',
     safari: '12.1',
   },
