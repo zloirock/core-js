@@ -10,6 +10,8 @@ import './es.array.filter';
 import './es.array.find-index';
 import './es.array.find';
 import './es.array.for-each';
+import './es.array.flat';
+import './es.array.flat-map';
 import './es.array.from';
 import './es.array.includes';
 import './es.array.index-of';
@@ -134,8 +136,6 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
-import './esnext.array.flat-map';
-import './esnext.array.flat';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
 import './esnext.global-this';

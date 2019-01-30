@@ -1,4 +1,1 @@
-require('../../../modules/esnext.array.flat-map');
-require('../../../modules/esnext.array.unscopables.flat-map');
-
-module.exports = require('../../../internals/entry-virtual')('Array').flatMap;
+module.exports = require('../../../es/array/virtual/flat-map');

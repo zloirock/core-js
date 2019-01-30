@@ -224,6 +224,9 @@ GLOBAL.tests = {
   'es.object.freeze': function () {
     return Object.freeze(true);
   },
+  'es.object.from-entries': function () {
+    return Object.fromEntries;
+  },
   'es.object.get-own-property-descriptor': [DESCRIPTORS_SUPPORT, function () {
     return Object.getOwnPropertyDescriptor('qwe', '0');
   }],
@@ -441,6 +444,18 @@ GLOBAL.tests = {
       && [][Symbol.unscopables].values
       && [][Symbol.unscopables].entries;
   }],
+  'es.array.flat': function () {
+    return Array.prototype.flat;
+  },
+  'es.array.flat-map': function () {
+    return Array.prototype.flatMap;
+  },
+  'es.array.unscopables.flat': function () {
+    return Array.prototype[Symbol.unscopables].flat;
+  },
+  'es.array.unscopables.flat-map': function () {
+    return Array.prototype[Symbol.unscopables].flatMap;
+  },
   'es.string.from-code-point': function () {
     return String.fromCodePoint;
   },
@@ -523,6 +538,12 @@ GLOBAL.tests = {
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.trim': createStringTrimMethodTest('trim'),
+  'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
+    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
+  }],
+  'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
+    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
+  }],
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
     return ''[Symbol.iterator];
   }],
@@ -979,23 +1000,11 @@ GLOBAL.tests = {
   'es.reflect.set-prototype-of': function () {
     return Reflect.setPrototypeOf;
   },
-  'esnext.array.flat': function () {
-    return Array.prototype.flat;
-  },
-  'esnext.array.flat-map': function () {
-    return Array.prototype.flatMap;
-  },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
   'esnext.array.last-item': function () {
     return [1, 2, 3].lastItem && Array.prototype[Symbol.unscopables].lastItem;
-  },
-  'esnext.array.unscopables.flat': function () {
-    return Array.prototype[Symbol.unscopables].flat;
-  },
-  'esnext.array.unscopables.flat-map': function () {
-    return Array.prototype[Symbol.unscopables].flatMap;
   },
   'esnext.composite-key': function () {
     return compositeKey;
@@ -1095,9 +1104,6 @@ GLOBAL.tests = {
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
-  },
-  'esnext.object.from-entries': function () {
-    return Object.fromEntries;
   },
   'esnext.observable': function () {
     return Observable;
@@ -1201,12 +1207,6 @@ GLOBAL.tests = {
   'esnext.string.replace-all': function () {
     return String.prototype.replaceAll;
   },
-  'esnext.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
-    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
-  }],
-  'esnext.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
-    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
-  }],
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },

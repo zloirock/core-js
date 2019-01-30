@@ -406,6 +406,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/array/for-each') === 'function');
   ok(typeof load('es/array/map') === 'function');
   ok(typeof load('es/array/filter') === 'function');
+  ok(typeof load('es/array/flat') === 'function');
+  ok(typeof load('es/array/flat-map') === 'function');
   ok(typeof load('es/array/some') === 'function');
   ok(typeof load('es/array/every') === 'function');
   ok(typeof load('es/array/reduce') === 'function');
@@ -430,6 +432,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/array/virtual/for-each') === 'function');
   ok(typeof load('es/array/virtual/map') === 'function');
   ok(typeof load('es/array/virtual/filter') === 'function');
+  ok(typeof load('es/array/virtual/flat') === 'function');
+  ok(typeof load('es/array/virtual/flat-map') === 'function');
   ok(typeof load('es/array/virtual/some') === 'function');
   ok(typeof load('es/array/virtual/every') === 'function');
   ok(typeof load('es/array/virtual/reduce') === 'function');
@@ -610,7 +614,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('web/url') === 'function');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
-  load('proposals/array-flat-and-flat-map');
   load('proposals/array-last');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');

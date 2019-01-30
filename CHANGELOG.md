@@ -95,14 +95,15 @@
   - Update standard features and proposals:
     - `asap` (old stage 0 proposal) replaced by `queueMicrotask` ([a part of HTML spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask))
     - Update [`Observable`](https://github.com/tc39/proposal-observable) (#257, #276, etc.)
-    - Update `Array#flatten` -> `Array#flat` and `Array#flatMap` and move to the stage 3
+    - Update `Array#flatten` -> `Array#flat` and `Array#flatMap`
     - Update `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - rename `global` to `globalThis`
     - Update `String#matchAll` ([proposal-string-matchall#17](https://github.com/tc39/proposal-string-matchall/pull/17), [proposal-string-matchall#38](https://github.com/tc39/proposal-string-matchall/pull/38), [proposal-string-matchall#41](https://github.com/tc39/proposal-string-matchall/pull/41), etc.) and move to the stage 3
     - Update `.name` properties of `String#{trimStart, trimEnd , trimLeft, trimRight}`, move to the stage 3
     - Remove mongolian vowel separator (U+180E) from the list of whitespaces for methods like `String#trim` (ES6 -> ES7)
   - Mark ES2016, ES2017, ES2018, ES2019 features as stable:
-    - `Array#includes` and `%TypedArray%#includes`
-    - `Object.values` and `Object.entries`
+    - `Array#{ flat, flatMap }`
+    - `{ Array, %TypedArray% }#includes`
+    - `Object.{ values, entries}`
     - `Object.getOwnPropertyDescriptors`
     - `String#{ padStart, padEnd }`
     - `String#{ trimStart, trimEnd, trimLeft, trimRight }`

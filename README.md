@@ -391,8 +391,9 @@ core-js/es|features/function/virtual/bind
 
 console.log.bind(console, 42)(43); // => 42 43
 ```
+
 #### ECMAScript: Array
-Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce-right.js), [`es.array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reverse.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.sort.js)
+Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.includes.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.join.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce-right.js), [`es.array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reverse.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.sort.js), [`es.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat.js), [`es.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat-map.js), [`es.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat.js) and [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat-map.js)
 ```js
 class Array {
   concat(...args: Array<mixed>): Array<mixed>; // with adding support of @@isConcatSpreadable and @@species
@@ -403,6 +404,8 @@ class Array {
   filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>; // with adding support of @@species
   find(callbackfn: (value: any, index: number, target: any) => boolean), thisArg?: any): any;
   findIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): number;
+  flat(depthArg?: number = 1): Array<mixed>;
+  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
   forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
@@ -436,53 +439,57 @@ core-js(-pure)/es|features/array/from
 core-js(-pure)/es|features/array/of
 core-js(-pure)/es|features/array/is-array
 core-js(-pure)/es|features/array/concat
+core-js(-pure)/es|features/array/entries
+core-js(-pure)/es|features/array/every
 core-js(-pure)/es|features/array/copy-within
 core-js(-pure)/es|features/array/fill
+core-js(-pure)/es|features/array/filter
 core-js(-pure)/es|features/array/find
 core-js(-pure)/es|features/array/find-index
-core-js(-pure)/es|features/array/includes
-core-js(-pure)/es|features/array/iterator
-core-js(-pure)/es|features/array/values
-core-js(-pure)/es|features/array/keys
-core-js(-pure)/es|features/array/entries
-core-js(-pure)/es|features/array/slice
-core-js(-pure)/es|features/array/splice
-core-js(-pure)/es|features/array/join
-core-js(-pure)/es|features/array/index-of
-core-js(-pure)/es|features/array/last-index-of
-core-js(-pure)/es|features/array/every
-core-js(-pure)/es|features/array/some
+core-js(-pure)/es|features/array/flat
+core-js(-pure)/es|features/array/flat-map
 core-js(-pure)/es|features/array/for-each
+core-js(-pure)/es|features/array/includes
+core-js(-pure)/es|features/array/index-of
+core-js(-pure)/es|features/array/iterator
+core-js(-pure)/es|features/array/join
+core-js(-pure)/es|features/array/keys
+core-js(-pure)/es|features/array/last-index-of
 core-js(-pure)/es|features/array/map
-core-js(-pure)/es|features/array/filter
 core-js(-pure)/es|features/array/reduce
 core-js(-pure)/es|features/array/reduce-right
 core-js(-pure)/es|features/array/reverse
+core-js(-pure)/es|features/array/slice
+core-js(-pure)/es|features/array/splice
+core-js(-pure)/es|features/array/some
 core-js(-pure)/es|features/array/sort
+core-js(-pure)/es|features/array/values
 core-js(-pure)/es|features/array/virtual/concat
 core-js(-pure)/es|features/array/virtual/copy-within
+core-js(-pure)/es|features/array/virtual/entries
+core-js(-pure)/es|features/array/virtual/every
 core-js(-pure)/es|features/array/virtual/fill
+core-js(-pure)/es|features/array/virtual/filter
 core-js(-pure)/es|features/array/virtual/find
 core-js(-pure)/es|features/array/virtual/find-index
-core-js(-pure)/es|features/array/virtual/includes
-core-js(-pure)/es|features/array/virtual/iterator
-core-js(-pure)/es|features/array/virtual/values
-core-js(-pure)/es|features/array/virtual/keys
-core-js(-pure)/es|features/array/virtual/entries
-core-js(-pure)/es|features/array/virtual/slice
-core-js(-pure)/es|features/array/virtual/splice
-core-js(-pure)/es|features/array/virtual/join
-core-js(-pure)/es|features/array/virtual/index-of
-core-js(-pure)/es|features/array/virtual/last-index-of
-core-js(-pure)/es|features/array/virtual/every
-core-js(-pure)/es|features/array/virtual/some
+core-js(-pure)/es|features/array/virtual/flat
+core-js(-pure)/es|features/array/virtual/flat-map
 core-js(-pure)/es|features/array/virtual/for-each
+core-js(-pure)/es|features/array/virtual/includes
+core-js(-pure)/es|features/array/virtual/index-of
+core-js(-pure)/es|features/array/virtual/iterator
+core-js(-pure)/es|features/array/virtual/join
+core-js(-pure)/es|features/array/virtual/keys
+core-js(-pure)/es|features/array/virtual/last-index-of
 core-js(-pure)/es|features/array/virtual/map
-core-js(-pure)/es|features/array/virtual/filter
 core-js(-pure)/es|features/array/virtual/reduce
 core-js(-pure)/es|features/array/virtual/reduce-right
 core-js(-pure)/es|features/array/virtual/reverse
+core-js(-pure)/es|features/array/virtual/slice
+core-js(-pure)/es|features/array/virtual/some
 core-js(-pure)/es|features/array/virtual/sort
+core-js(-pure)/es|features/array/virtual/splice
+core-js(-pure)/es|features/array/virtual/values
 ```
 [*Examples*](https://goo.gl/Tegvq4):
 ```js
@@ -525,6 +532,12 @@ Array(5).fill(42); // => [42, 42, 42, 42, 42]
 [NaN].includes(NaN);          // => true
 Array(1).indexOf(undefined);  // => -1
 Array(1).includes(undefined); // => true
+
+[1, [2, 3], [4, 5]].flat();    // => [1, 2, 3, 4, 5]
+[1, [2, [3, [4]]], 5].flat();  // => [1, 2, [3, [4]], 5]
+[1, [2, [3, [4]]], 5].flat(3); // => [1, 2, 3, 4, 5]
+
+[{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
 
 #### ECMAScript: String and RegExp
@@ -1485,29 +1498,6 @@ None.
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js(-pure)/stage/3
-```
-* `Array#flat` and `Array#flatMap` [proposal](https://github.com/tc39/proposal-flatMap) - modules [`esnext.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat.js), [`esnext.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.flat-map.js), [`esnext.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unscopables.flat.js) and [`esnext.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unscopables.flat-map.js)
-```js
-class Array {
-  flat(depthArg?: number = 1): Array<mixed>;
-  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/array-flat-and-flat-map
-core-js(-pure)/features/array/flat
-core-js(-pure)/features/array/flat-map
-core-js(-pure)/features/array/virtual/flat
-core-js(-pure)/features/array/virtual/flat-map
-```
-[*Examples*](https://goo.gl/jTXsZi):
-```js
-[1, [2, 3], [4, 5]].flat();    // => [1, 2, 3, 4, 5]
-[1, [2, [3, [4]]], 5].flat();  // => [1, 2, [3, [4]], 5]
-[1, [2, [3, [4]]], 5].flat(3); // => [1, 2, 3, 4, 5]
-
-[{ a: 1, b: 2 }, { a: 3, b: 4 }, { a: 5, b: 6 }].flatMap(it => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
 ```
 * `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.match-all.js)
 ```js

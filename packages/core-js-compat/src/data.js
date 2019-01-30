@@ -118,6 +118,10 @@ module.exports = {
     firefox: '35',
     safari: '9.0',
   },
+  'es.object.from-entries': {
+    firefox: '63',
+    safari: '12.1',
+  },
   'es.object.get-own-property-descriptor': {
     edge: '13',
     chrome: '44',
@@ -214,10 +218,6 @@ module.exports = {
     chrome: '62',
     firefox: '48',
     safari: '8.0',
-  },
-  'es.object.from-entries': {
-    firefox: '63',
-    safari: '12.1',
   },
   'es.object.lookup-getter': {
     edge: '16',
@@ -402,6 +402,20 @@ module.exports = {
     chrome: '66',
     firefox: '60',
     safari: '10.0',
+  },
+  'es.array.flat': {
+    chrome: '69',
+    firefox: '62',
+    safari: '12.0',
+  },
+  'es.array.flat-map': {
+    chrome: '69',
+    firefox: '62',
+    safari: '12.0',
+  },
+  'es.array.unscopables.flat': {
+  },
+  'es.array.unscopables.flat-map': {
   },
   'es.string.from-code-point': {
     edge: '13',
@@ -1152,23 +1166,9 @@ module.exports = {
     firefox: '42',
     safari: '10.0',
   },
-  'esnext.array.flat': {
-    chrome: '69',
-    firefox: '62',
-    safari: '12.0',
-  },
-  'esnext.array.flat-map': {
-    chrome: '69',
-    firefox: '62',
-    safari: '12.0',
-  },
   'esnext.array.last-index': {
   },
   'esnext.array.last-item': {
-  },
-  'esnext.array.unscopables.flat': {
-  },
-  'esnext.array.unscopables.flat-map': {
   },
   'esnext.composite-key': {
   },
