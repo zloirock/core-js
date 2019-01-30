@@ -1570,6 +1570,25 @@ new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
 ```
+* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled.js)
+```js
+class Promise {
+  static allSettled(iterable): promise;
+}
+```
+[*CommonJS entry points:*](#commonjs)
+```js
+core-js/proposals/promise-all-settled
+core-js(-pure)/features/promise/all-settled
+```
+[*Examples*](https://goo.gl/PXXLNJ):
+```js
+Promise.allSettled([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs)
@@ -1613,25 +1632,6 @@ core-js/features/string/replace-all
 [*Examples*](https://goo.gl/wUXNXN):
 ```js
 'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
-```
-* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable): promise;
-}
-```
-[*CommonJS entry points:*](#commonjs)
-```js
-core-js/proposals/promise-all-settled
-core-js(-pure)/features/promise/all-settled
-```
-[*Examples*](https://goo.gl/PXXLNJ):
-```js
-Promise.allSettled([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 * `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 ```js
