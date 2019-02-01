@@ -35,7 +35,7 @@ QUnit.test('String#matchAll', assert => {
       done: false,
     });
     assert.deepEqual(iterator.next(), {
-      value: null,
+      value: undefined,
       done: true,
     });
   }
@@ -66,7 +66,7 @@ QUnit.test('String#matchAll', assert => {
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: null,
+    value: undefined,
     done: true,
   });
   iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
@@ -80,7 +80,7 @@ QUnit.test('String#matchAll', assert => {
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: null,
+    value: undefined,
     done: true,
   });
   iterator = '1111a2b3cccc'.matchAll('(\\d)(\\D)');
@@ -108,7 +108,7 @@ QUnit.test('String#matchAll', assert => {
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: null,
+    value: undefined,
     done: true,
   });
   /* IE8- issue
@@ -130,7 +130,7 @@ QUnit.test('String#matchAll', assert => {
     done: false,
   });
   assert.deepEqual(iterator.next(), {
-    value: null,
+    value: undefined,
     done: true,
   });
   */

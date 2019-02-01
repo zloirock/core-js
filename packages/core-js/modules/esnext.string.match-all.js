@@ -41,11 +41,11 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
   });
 }, REGEXP_STRING, function next() {
   var state = getInternalState(this);
-  if (state.done) return { value: null, done: true };
+  if (state.done) return { value: undefined, done: true };
   var R = state.regexp;
   var S = state.string;
   var match = regExpExec(R, S);
-  if (match === null) return { value: null, done: state.done = true };
+  if (match === null) return { value: undefined, done: state.done = true };
   if (state.global) {
     if (String(match[0]) == '') R.lastIndex = advanceStringIndex(S, toLength(R.lastIndex), state.unicode);
     return { value: match, done: false };
