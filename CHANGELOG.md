@@ -45,7 +45,7 @@
       - `WeakMap#deleteAll`
       - `WeakSet#addAll`
       - `WeakSet#deleteAll`
-    - `compositeKey` and `compositeSymbol` methods ([from richer keys stage 1 proposal](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey))
+    - `compositeKey` and `compositeSymbol` methods ([stage 1 proposal](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey))
     - `Number.fromString` ([stage 1 proposal](https://github.com/tc39/proposal-number-fromstring))
     - `Math.seededPRNG` ([stage 1 proposal](https://github.com/tc39/proposal-seeded-random))
     - `Symbol.patternMatch` ([for stage 1 pattern matching proposal](https://github.com/tc39/proposal-pattern-matching))
