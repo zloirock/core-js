@@ -744,5 +744,430 @@ load('es/typed-array/to-string');
 load('es/typed-array/values');
 ok(typeof load('es/typed-array').Uint32Array === 'function');
 
+PATH = '../packages/core-js-pure';
+
+const instanceAt = load('features/instance/at');
+ok(typeof instanceAt === 'function');
+ok(instanceAt({}) === undefined);
+ok(typeof instanceAt('') === 'function');
+ok(instanceAt('').call('abc', 1) === 'b');
+
+let instanceBind = load('features/instance/bind');
+ok(typeof instanceBind === 'function');
+ok(instanceBind({}) === undefined);
+ok(typeof instanceBind(it => it) === 'function');
+ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
+instanceBind = load('es/instance/bind');
+ok(typeof instanceBind === 'function');
+ok(instanceBind({}) === undefined);
+ok(typeof instanceBind(it => it) === 'function');
+ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
+
+let instanceCodePointAt = load('features/instance/code-point-at');
+ok(typeof instanceCodePointAt === 'function');
+ok(instanceCodePointAt({}) === undefined);
+ok(typeof instanceCodePointAt('') === 'function');
+ok(instanceCodePointAt('').call('a', 0) === 97);
+instanceCodePointAt = load('es/instance/code-point-at');
+ok(typeof instanceCodePointAt === 'function');
+ok(instanceCodePointAt({}) === undefined);
+ok(typeof instanceCodePointAt('') === 'function');
+ok(instanceCodePointAt('').call('a', 0) === 97);
+
+const instanceCodePoints = load('features/instance/code-points');
+ok(typeof instanceCodePoints === 'function');
+ok(instanceCodePoints({}) === undefined);
+ok(typeof instanceCodePoints('') === 'function');
+ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
+
+let instanceConcat = load('features/instance/concat');
+ok(typeof instanceConcat === 'function');
+ok(instanceConcat({}) === undefined);
+ok(typeof instanceConcat([]) === 'function');
+ok(instanceConcat([]).call([1, 2, 3], [4, 5, 6]).length === 6);
+instanceConcat = load('es/instance/concat');
+ok(typeof instanceConcat === 'function');
+ok(instanceConcat({}) === undefined);
+ok(typeof instanceConcat([]) === 'function');
+ok(instanceConcat([]).call([1, 2, 3], [4, 5, 6]).length === 6);
+
+let instanceCopyWithin = load('features/instance/copy-within');
+ok(typeof instanceCopyWithin === 'function');
+ok(instanceCopyWithin({}) === undefined);
+ok(typeof instanceCopyWithin([]) === 'function');
+ok(instanceCopyWithin([]).call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
+instanceCopyWithin = load('es/instance/copy-within');
+ok(typeof instanceCopyWithin === 'function');
+ok(instanceCopyWithin({}) === undefined);
+ok(typeof instanceCopyWithin([]) === 'function');
+ok(instanceCopyWithin([]).call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
+
+let instanceEndsWith = load('features/instance/ends-with');
+ok(typeof instanceEndsWith === 'function');
+ok(instanceEndsWith({}) === undefined);
+ok(typeof instanceEndsWith('') === 'function');
+ok(instanceEndsWith('').call('qwe', 'we'));
+instanceEndsWith = load('es/instance/ends-with');
+ok(typeof instanceEndsWith === 'function');
+ok(instanceEndsWith({}) === undefined);
+ok(typeof instanceEndsWith('') === 'function');
+ok(instanceEndsWith('').call('qwe', 'we'));
+
+let instanceEntries = load('features/instance/entries');
+ok(typeof instanceEntries === 'function');
+ok(instanceEntries({}) === undefined);
+ok(typeof instanceEntries([]) === 'function');
+ok(instanceEntries([]).call([1, 2, 3]).next().value[1] === 1);
+instanceEntries = load('es/instance/entries');
+ok(typeof instanceEntries === 'function');
+ok(instanceEntries({}) === undefined);
+ok(typeof instanceEntries([]) === 'function');
+ok(instanceEntries([]).call([1, 2, 3]).next().value[1] === 1);
+
+let instanceEvery = load('features/instance/every');
+ok(typeof instanceEvery === 'function');
+ok(instanceEvery({}) === undefined);
+ok(typeof instanceEvery([]) === 'function');
+ok(instanceEvery([]).call([1, 2, 3], it => typeof it === 'number'));
+instanceEvery = load('es/instance/every');
+ok(typeof instanceEvery === 'function');
+ok(instanceEvery({}) === undefined);
+ok(typeof instanceEvery([]) === 'function');
+ok(instanceEvery([]).call([1, 2, 3], it => typeof it === 'number'));
+
+let instanceFill = load('features/instance/fill');
+ok(typeof instanceFill === 'function');
+ok(instanceFill({}) === undefined);
+ok(typeof instanceFill([]) === 'function');
+ok(instanceFill([]).call(Array(5), 42)[3] === 42);
+instanceFill = load('es/instance/fill');
+ok(typeof instanceFill === 'function');
+ok(instanceFill({}) === undefined);
+ok(typeof instanceFill([]) === 'function');
+ok(instanceFill([]).call(Array(5), 42)[3] === 42);
+
+let instanceFilter = load('features/instance/filter');
+ok(typeof instanceFilter === 'function');
+ok(instanceFilter({}) === undefined);
+ok(typeof instanceFilter([]) === 'function');
+ok(instanceFilter([]).call([1, 2, 3], it => it % 2).length === 2);
+instanceFilter = load('es/instance/filter');
+ok(typeof instanceFilter === 'function');
+ok(instanceFilter({}) === undefined);
+ok(typeof instanceFilter([]) === 'function');
+ok(instanceFilter([]).call([1, 2, 3], it => it % 2).length === 2);
+
+let instanceFindIndex = load('features/instance/find-index');
+ok(typeof instanceFindIndex === 'function');
+ok(instanceFindIndex({}) === undefined);
+ok(typeof instanceFindIndex([]) === 'function');
+ok(instanceFindIndex([]).call([1, 2, 3], it => it % 2) === 0);
+instanceFindIndex = load('es/instance/find-index');
+ok(typeof instanceFindIndex === 'function');
+ok(instanceFindIndex({}) === undefined);
+ok(typeof instanceFindIndex([]) === 'function');
+ok(instanceFindIndex([]).call([1, 2, 3], it => it % 2) === 0);
+
+let instanceFind = load('features/instance/find');
+ok(typeof instanceFind === 'function');
+ok(instanceFind({}) === undefined);
+ok(typeof instanceFind([]) === 'function');
+ok(instanceFind([]).call([1, 2, 3], it => it % 2) === 1);
+instanceFind = load('es/instance/find');
+ok(typeof instanceFind === 'function');
+ok(instanceFind({}) === undefined);
+ok(typeof instanceFind([]) === 'function');
+ok(instanceFind([]).call([1, 2, 3], it => it % 2) === 1);
+
+let instanceFlags = load('features/instance/flags');
+ok(typeof instanceFlags === 'function');
+ok(instanceFlags({}) === undefined);
+ok(instanceFlags(/./g) === 'g');
+instanceFlags = load('es/instance/flags');
+ok(typeof instanceFlags === 'function');
+ok(instanceFlags({}) === undefined);
+ok(instanceFlags(/./g) === 'g');
+
+let instanceFlatMap = load('features/instance/flat-map');
+ok(typeof instanceFlatMap === 'function');
+ok(instanceFlatMap({}) === undefined);
+ok(typeof instanceFlatMap([]) === 'function');
+ok(instanceFlatMap([]).call([1, 2, 3], (v, i) => [v, i]).length === 6);
+instanceFlatMap = load('es/instance/flat-map');
+ok(typeof instanceFlatMap === 'function');
+ok(instanceFlatMap({}) === undefined);
+ok(typeof instanceFlatMap([]) === 'function');
+ok(instanceFlatMap([]).call([1, 2, 3], (v, i) => [v, i]).length === 6);
+
+let instanceFlat = load('features/instance/flat');
+ok(typeof instanceFlat === 'function');
+ok(instanceFlat({}) === undefined);
+ok(typeof instanceFlat([]) === 'function');
+ok(instanceFlat([]).call([1, [2, 3], [4, [5, [6]]]]).length === 5);
+instanceFlat = load('es/instance/flat');
+ok(typeof instanceFlat === 'function');
+ok(instanceFlat({}) === undefined);
+ok(typeof instanceFlat([]) === 'function');
+ok(instanceFlat([]).call([1, [2, 3], [4, [5, [6]]]]).length === 5);
+
+let instanceForEach = load('features/instance/for-each');
+ok(typeof instanceForEach === 'function');
+ok(instanceForEach({}) === undefined);
+ok(typeof instanceForEach([]) === 'function');
+instanceForEach = load('es/instance/for-each');
+ok(typeof instanceForEach === 'function');
+ok(instanceForEach({}) === undefined);
+ok(typeof instanceForEach([]) === 'function');
+
+let instanceIncludes = load('features/instance/includes');
+ok(typeof instanceIncludes === 'function');
+ok(instanceIncludes({}) === undefined);
+ok(typeof instanceIncludes([]) === 'function');
+ok(typeof instanceIncludes('') === 'function');
+ok(instanceIncludes([]).call([1, 2, 3], 2));
+ok(instanceIncludes('').call('123', '2'));
+instanceIncludes = load('es/instance/includes');
+ok(typeof instanceIncludes === 'function');
+ok(instanceIncludes({}) === undefined);
+ok(typeof instanceIncludes([]) === 'function');
+ok(typeof instanceIncludes('') === 'function');
+ok(instanceIncludes([]).call([1, 2, 3], 2));
+ok(instanceIncludes('').call('123', '2'));
+
+let instanceIndexOf = load('features/instance/index-of');
+ok(typeof instanceIndexOf === 'function');
+ok(instanceIndexOf({}) === undefined);
+ok(typeof instanceIndexOf([]) === 'function');
+ok(instanceIndexOf([]).call([1, 2, 3], 2) === 1);
+instanceIndexOf = load('es/instance/index-of');
+ok(typeof instanceIndexOf === 'function');
+ok(instanceIndexOf({}) === undefined);
+ok(typeof instanceIndexOf([]) === 'function');
+ok(instanceIndexOf([]).call([1, 2, 3], 2) === 1);
+
+let instanceKeys = load('features/instance/keys');
+ok(typeof instanceKeys === 'function');
+ok(instanceKeys({}) === undefined);
+ok(typeof instanceKeys([]) === 'function');
+ok(instanceKeys([]).call([1, 2, 3]).next().value === 0);
+instanceKeys = load('es/instance/keys');
+ok(typeof instanceKeys === 'function');
+ok(instanceKeys({}) === undefined);
+ok(typeof instanceKeys([]) === 'function');
+ok(instanceKeys([]).call([1, 2, 3]).next().value === 0);
+
+let instanceLastIndexOf = load('features/instance/last-index-of');
+ok(typeof instanceLastIndexOf === 'function');
+ok(instanceLastIndexOf({}) === undefined);
+ok(typeof instanceLastIndexOf([]) === 'function');
+ok(instanceLastIndexOf([]).call([1, 2, 3], 2) === 1);
+instanceLastIndexOf = load('es/instance/last-index-of');
+ok(typeof instanceLastIndexOf === 'function');
+ok(instanceLastIndexOf({}) === undefined);
+ok(typeof instanceLastIndexOf([]) === 'function');
+ok(instanceLastIndexOf([]).call([1, 2, 3], 2) === 1);
+
+let instanceMap = load('features/instance/map');
+ok(typeof instanceMap === 'function');
+ok(instanceMap({}) === undefined);
+ok(typeof instanceMap([]) === 'function');
+ok(instanceMap([]).call([1, 2, 3], it => it % 2)[1] === 0);
+instanceMap = load('es/instance/map');
+ok(typeof instanceMap === 'function');
+ok(instanceMap({}) === undefined);
+ok(typeof instanceMap([]) === 'function');
+ok(instanceMap([]).call([1, 2, 3], it => it % 2)[1] === 0);
+
+const instanceMatchAll = load('features/instance/match-all');
+ok(typeof instanceMatchAll === 'function');
+ok(instanceMatchAll({}) === undefined);
+ok(typeof instanceMatchAll('') === 'function');
+ok(instanceMatchAll('').call('test1test2', /t(e)(st(\d?))/g).next().value[0] === 'test1');
+
+let instancePadEnd = load('features/instance/pad-end');
+ok(typeof instancePadEnd === 'function');
+ok(instancePadEnd({}) === undefined);
+ok(typeof instancePadEnd('') === 'function');
+ok(instancePadEnd('').call('a', 3, 'b') === 'abb');
+instancePadEnd = load('es/instance/pad-end');
+ok(typeof instancePadEnd === 'function');
+ok(instancePadEnd({}) === undefined);
+ok(typeof instancePadEnd('') === 'function');
+ok(instancePadEnd('').call('a', 3, 'b') === 'abb');
+
+let instancePadStart = load('features/instance/pad-start');
+ok(typeof instancePadStart === 'function');
+ok(instancePadStart({}) === undefined);
+ok(typeof instancePadStart('') === 'function');
+ok(instancePadStart('').call('a', 3, 'b') === 'bba');
+instancePadStart = load('es/instance/pad-start');
+ok(typeof instancePadStart === 'function');
+ok(instancePadStart({}) === undefined);
+ok(typeof instancePadStart('') === 'function');
+ok(instancePadStart('').call('a', 3, 'b') === 'bba');
+
+let instanceReduceRight = load('features/instance/reduce-right');
+ok(typeof instanceReduceRight === 'function');
+ok(instanceReduceRight({}) === undefined);
+ok(typeof instanceReduceRight([]) === 'function');
+ok(instanceReduceRight([]).call([1, 2, 3], (memo, it) => it + memo, '') === '123');
+instanceReduceRight = load('es/instance/reduce-right');
+ok(typeof instanceReduceRight === 'function');
+ok(instanceReduceRight({}) === undefined);
+ok(typeof instanceReduceRight([]) === 'function');
+ok(instanceReduceRight([]).call([1, 2, 3], (memo, it) => it + memo, '') === '123');
+
+let instanceReduce = load('features/instance/reduce');
+ok(typeof instanceReduce === 'function');
+ok(instanceReduce({}) === undefined);
+ok(typeof instanceReduce([]) === 'function');
+ok(instanceReduce([]).call([1, 2, 3], (memo, it) => it + memo, '') === '321');
+instanceReduce = load('es/instance/reduce');
+ok(typeof instanceReduce === 'function');
+ok(instanceReduce({}) === undefined);
+ok(typeof instanceReduce([]) === 'function');
+ok(instanceReduce([]).call([1, 2, 3], (memo, it) => it + memo, '') === '321');
+
+let instanceRepeat = load('features/instance/repeat');
+ok(typeof instanceRepeat === 'function');
+ok(instanceRepeat({}) === undefined);
+ok(typeof instanceRepeat('') === 'function');
+ok(instanceRepeat('').call('a', 3) === 'aaa');
+instanceRepeat = load('es/instance/repeat');
+ok(typeof instanceRepeat === 'function');
+ok(instanceRepeat({}) === undefined);
+ok(typeof instanceRepeat('') === 'function');
+ok(instanceRepeat('').call('a', 3) === 'aaa');
+
+const instanceReplaceAll = load('features/instance/replace-all');
+ok(typeof instanceReplaceAll === 'function');
+ok(instanceReplaceAll({}) === undefined);
+ok(typeof instanceReplaceAll('') === 'function');
+ok(instanceReplaceAll('').call('aba', 'a', 'c') === 'cbc');
+
+let instanceReverse = load('features/instance/reverse');
+ok(typeof instanceReverse === 'function');
+ok(instanceReverse({}) === undefined);
+ok(typeof instanceReverse([]) === 'function');
+instanceReverse = load('es/instance/reverse');
+ok(typeof instanceReverse === 'function');
+ok(instanceReverse({}) === undefined);
+ok(typeof instanceReverse([]) === 'function');
+
+let instanceSlice = load('features/instance/slice');
+ok(typeof instanceSlice === 'function');
+ok(instanceSlice({}) === undefined);
+ok(typeof instanceSlice([]) === 'function');
+instanceSlice = load('es/instance/slice');
+ok(typeof instanceSlice === 'function');
+ok(instanceSlice({}) === undefined);
+ok(typeof instanceSlice([]) === 'function');
+
+let instanceSome = load('features/instance/some');
+ok(typeof instanceSome === 'function');
+ok(instanceSome({}) === undefined);
+ok(typeof instanceSome([]) === 'function');
+ok(instanceSome([]).call([1, 2, 3], it => typeof it === 'number'));
+instanceSome = load('es/instance/some');
+ok(typeof instanceSome === 'function');
+ok(instanceSome({}) === undefined);
+ok(typeof instanceSome([]) === 'function');
+ok(instanceSome([]).call([1, 2, 3], it => typeof it === 'number'));
+
+let instanceSort = load('features/instance/sort');
+ok(typeof instanceSort === 'function');
+ok(instanceSort({}) === undefined);
+ok(typeof instanceSort([]) === 'function');
+instanceSort = load('es/instance/sort');
+ok(typeof instanceSort === 'function');
+ok(instanceSort({}) === undefined);
+ok(typeof instanceSort([]) === 'function');
+
+let instanceSplice = load('features/instance/splice');
+ok(typeof instanceSplice === 'function');
+ok(instanceSplice({}) === undefined);
+ok(typeof instanceSplice([]) === 'function');
+instanceSplice = load('es/instance/splice');
+ok(typeof instanceSplice === 'function');
+ok(instanceSplice({}) === undefined);
+ok(typeof instanceSplice([]) === 'function');
+
+let instanceStartsWith = load('features/instance/starts-with');
+ok(typeof instanceStartsWith === 'function');
+ok(instanceStartsWith({}) === undefined);
+ok(typeof instanceStartsWith('') === 'function');
+ok(instanceStartsWith('').call('qwe', 'qw'));
+instanceStartsWith = load('es/instance/starts-with');
+ok(typeof instanceStartsWith === 'function');
+ok(instanceStartsWith({}) === undefined);
+ok(typeof instanceStartsWith('') === 'function');
+ok(instanceStartsWith('').call('qwe', 'qw'));
+
+let instanceTrimEnd = load('features/instance/trim-end');
+ok(typeof instanceTrimEnd === 'function');
+ok(instanceTrimEnd({}) === undefined);
+ok(typeof instanceTrimEnd('') === 'function');
+ok(instanceTrimEnd('').call(' 1 ') === ' 1');
+instanceTrimEnd = load('es/instance/trim-end');
+ok(typeof instanceTrimEnd === 'function');
+ok(instanceTrimEnd({}) === undefined);
+ok(typeof instanceTrimEnd('') === 'function');
+ok(instanceTrimEnd('').call(' 1 ') === ' 1');
+
+let instanceTrimLeft = load('features/instance/trim-left');
+ok(typeof instanceTrimLeft === 'function');
+ok(instanceTrimLeft({}) === undefined);
+ok(typeof instanceTrimLeft('') === 'function');
+ok(instanceTrimLeft('').call(' 1 ') === '1 ');
+instanceTrimLeft = load('es/instance/trim-left');
+ok(typeof instanceTrimLeft === 'function');
+ok(instanceTrimLeft({}) === undefined);
+ok(typeof instanceTrimLeft('') === 'function');
+ok(instanceTrimLeft('').call(' 1 ') === '1 ');
+
+let instanceTrimRight = load('features/instance/trim-right');
+ok(typeof instanceTrimRight === 'function');
+ok(instanceTrimRight({}) === undefined);
+ok(typeof instanceTrimRight('') === 'function');
+ok(instanceTrimRight('').call(' 1 ') === ' 1');
+instanceTrimRight = load('es/instance/trim-right');
+ok(typeof instanceTrimRight === 'function');
+ok(instanceTrimRight({}) === undefined);
+ok(typeof instanceTrimRight('') === 'function');
+ok(instanceTrimRight('').call(' 1 ') === ' 1');
+
+let instanceTrimStart = load('features/instance/trim-start');
+ok(typeof instanceTrimStart === 'function');
+ok(instanceTrimStart({}) === undefined);
+ok(typeof instanceTrimStart('') === 'function');
+ok(instanceTrimStart('').call(' 1 ') === '1 ');
+instanceTrimStart = load('es/instance/trim-start');
+ok(typeof instanceTrimStart === 'function');
+ok(instanceTrimStart({}) === undefined);
+ok(typeof instanceTrimStart('') === 'function');
+ok(instanceTrimStart('').call(' 1 ') === '1 ');
+
+let instanceTrim = load('features/instance/trim');
+ok(typeof instanceTrim === 'function');
+ok(instanceTrim({}) === undefined);
+ok(typeof instanceTrim('') === 'function');
+ok(instanceTrim('').call(' 1 ') === '1');
+instanceTrim = load('es/instance/trim');
+ok(typeof instanceTrim === 'function');
+ok(instanceTrim({}) === undefined);
+ok(typeof instanceTrim('') === 'function');
+ok(instanceTrim('').call(' 1 ') === '1');
+
+let instanceValues = load('features/instance/values');
+ok(typeof instanceValues === 'function');
+ok(instanceValues({}) === undefined);
+ok(typeof instanceValues([]) === 'function');
+ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
+instanceValues = load('es/instance/values');
+ok(typeof instanceValues === 'function');
+ok(instanceValues({}) === undefined);
+ok(typeof instanceValues([]) === 'function');
+ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
+
 // eslint-disable-next-line no-console
 console.log(`Tested ${ tested } CommonJS entry points`);
