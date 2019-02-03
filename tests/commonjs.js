@@ -1,6 +1,7 @@
 /* eslint-disable import/no-dynamic-require */
 'use strict';
 const ok = require('assert').ok;
+const compat = require('../packages/core-js-compat/data');
 let tested = 0;
 let PATH;
 
@@ -647,6 +648,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stage/pre'));
   ok(load('stage'));
   ok(load('index'));
+
+  for (const key in compat) load(`modules/${ key }`);
 }
 
 ok(typeof load('features/string/match') === 'function');
