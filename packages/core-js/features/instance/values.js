@@ -1,1 +1,1 @@
-module.exports = require('../../es/instance/values');
+module.exports = require('../../stable/instance/values');

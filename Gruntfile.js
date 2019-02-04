@@ -83,6 +83,7 @@ module.exports = grunt => {
               'internals/**',
               'modules/**',
               'proposals/**',
+              'stable/**',
               'stage/**',
               'web/**',
               'index.js',

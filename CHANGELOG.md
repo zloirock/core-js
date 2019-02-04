@@ -151,8 +151,8 @@
   - Remove bundling logic from `core-js` package, leave it only in `core-js-builder` package.
   - Clean-up packages.
   - Because of all approaches, **reduce size of packages from ~2mb for `core-js@2` to**:
-    - **~480kb for `core-js` package**
-    - **~400kb for `core-js-pure` package**
+    - **~500kb for `core-js` package**
+    - **~440kb for `core-js-pure` package**
   - Finally remove `bower.json`
 - CommonJS API, namespaces:
   - Add availability [configuration of aggressiveness](https://github.com/zloirock/core-js/blob/master/README.md#configurable-level-of-aggressiveness).

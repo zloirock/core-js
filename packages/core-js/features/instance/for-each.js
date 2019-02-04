@@ -1,1 +1,1 @@
-module.exports = require('../../es/instance/for-each');
+module.exports = require('../../stable/instance/for-each');
