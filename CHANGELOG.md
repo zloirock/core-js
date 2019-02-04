@@ -161,8 +161,10 @@
   - Move all features from ES5, ES2015, ES2016, ES2017, ES2018 and ES2019 to one namespace for stable ES - it's available as `core-js/es`, all those features in `modules` folder has `es.` prefix.
   - Change prefix for ES proposals from `es7.` to `esnext.`, they no longer available in `core-js/es7`, use `core-js/stage/*` instead of that.
   - Rename `core-js(/library)/fn` to `core-js(-pure)/features` for improve readability.
-  - Add `/proposals/` entry points for allow include all features from one proposal (for example, `core-js/proposals/reflect-metadata`).
   - Allow more granular inclusion of features from `/es/` path (for example, `core-js/es/array/from`).
+  - Add `/stable/` entry points as an equal of `/features/` for stable features, without proposals.
+  - Add `/proposals/` entry points for allow include all features from one proposal (for example, `core-js/proposals/reflect-metadata`).
+  - Add `/es|stable|features/instance/` entry points for getting polyfill of related method for passed instance (could be used in cases like `babel-runtime`).
   - Split typed arrays polyfills. Now you can, for example, load only required method (for example, `core-js/es/typed-array/from`).
   - Extract well-known symbols definition from `es.symbol` module for loading only required features, for example, in MS Edge.
   - Rename `web.dom` namespace to `web.dom-collections`.
