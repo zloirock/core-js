@@ -39,9 +39,9 @@
     "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
-    "puppeteer": "~1.12.1",
+    "puppeteer": "~1.12.2",
     "qunit": "~2.9.1",
-    "webpack": "^4.29.0"
+    "webpack": "^4.29.2"
   },
   "license": "MIT",
   "repository": {
