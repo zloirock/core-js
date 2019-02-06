@@ -1,13 +1,13 @@
 'use strict';
+var global = require('../internals/global');
 var redefineAll = require('../internals/redefine-all');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var weak = require('../internals/collection-weak');
 var isObject = require('../internals/is-object');
-var fails = require('../internals/fails');
 var enforceIternalState = require('../internals/internal-state').enforce;
-var WEAK_MAP = 'WeakMap';
+var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
+var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
 var isExtensible = Object.isExtensible;
-var test = {};
 var InternalWeakMap;
 
 var wrapper = function (get) {
@@ -18,11 +18,13 @@ var wrapper = function (get) {
 
 // `WeakMap` constructor
 // https://tc39.github.io/ecma262/#sec-weakmap-constructor
-var $WeakMap = module.exports = require('../internals/collection')(WEAK_MAP, wrapper, weak, true, true);
+var $WeakMap = module.exports = require('../internals/collection')('WeakMap', wrapper, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
-if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(test), 7).get(test) != 7; })) {
-  InternalWeakMap = weak.getConstructor(wrapper, WEAK_MAP, true);
+// We can't use feature detection because it crash some old IE builds
+// https://github.com/zloirock/core-js/issues/485
+if (NATIVE_WEAK_MAP && IS_IE11) {
+  InternalWeakMap = weak.getConstructor(wrapper, 'WeakMap', true);
   InternalMetadataModule.REQUIRED = true;
   var WeakMapPrototype = $WeakMap.prototype;
   var nativeDelete = WeakMapPrototype['delete'];

@@ -1,11 +1,10 @@
-var global = require('../internals/global');
-var nativeFunctionToString = require('../internals/function-to-string');
+var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
 var isObject = require('../internals/is-object');
 var hide = require('../internals/hide');
 var objectHas = require('../internals/has');
 var sharedKey = require('../internals/shared-key');
 var hiddenKeys = require('../internals/hidden-keys');
-var WeakMap = global.WeakMap;
+var WeakMap = require('../internals/global').WeakMap;
 var set, get, has;
 
 var enforce = function (it) {
@@ -21,7 +20,7 @@ var getterFor = function (TYPE) {
   };
 };
 
-if (typeof WeakMap == 'function' && /native code/.test(nativeFunctionToString.call(WeakMap))) {
+if (NATIVE_WEAK_MAP) {
   var store = new WeakMap();
   var wmget = store.get;
   var wmhas = store.has;
