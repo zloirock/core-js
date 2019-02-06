@@ -164,7 +164,7 @@
   - Allow more granular inclusion of features from `/es/` path (for example, `core-js/es/array/from`).
   - Add `/stable/` entry points as an equal of `/features/` for stable features, without proposals.
   - Add `/proposals/` entry points for allow include all features from one proposal (for example, `core-js/proposals/reflect-metadata`).
-  - Add `/es|stable|features/instance/` entry points for getting polyfill of related method for passed instance (could be used in cases like `babel-runtime`).
+  - Add `/es|stable|features/instance/` entry points for getting polyfill of thr related method for passed instance (could be used in cases like `babel-runtime`).
   - Split typed arrays polyfills. Now you can, for example, load only required method (for example, `core-js/es/typed-array/from`).
   - Extract well-known symbols definition from `es.symbol` module for loading only required features, for example, in MS Edge.
   - Rename `web.dom` namespace to `web.dom-collections`.

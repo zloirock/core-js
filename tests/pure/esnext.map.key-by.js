@@ -10,15 +10,13 @@ QUnit.test('Map.keyBy', assert => {
   assert.arity(keyBy, 2);
   if ('name' in keyBy) assert.name(keyBy, 'keyBy');
 
-  assert.ok(Map.keyBy([], it => it) instanceof Map);
+  assert.ok(keyBy([], it => it) instanceof Map);
 
-  assert.deepEqual(toArray(Map.keyBy([], it => it)), []);
-  assert.deepEqual(toArray(Map.keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(Map.keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(Map.keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(keyBy([], it => it)), []);
+  assert.deepEqual(toArray(keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
 
   const element = {};
-  Map.keyBy([element], it => assert.same(it, element));
-
-  assert.throws(() => keyBy([1, 2], it => it));
+  keyBy([element], it => assert.same(it, element));
 });
