@@ -4,7 +4,7 @@ var aFunction = require('../internals/a-function');
 var getMapIterator = require('../internals/get-map-iterator');
 
 // `Map.prototype.reduce` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var map = anObject(this);

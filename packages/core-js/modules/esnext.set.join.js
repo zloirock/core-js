@@ -3,7 +3,7 @@ var anObject = require('../internals/an-object');
 var getSetIterator = require('../internals/get-set-iterator');
 
 // `Set.prototype.join` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   join: function join(separator) {
     var set = anObject(this);

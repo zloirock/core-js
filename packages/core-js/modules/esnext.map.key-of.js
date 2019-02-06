@@ -3,7 +3,7 @@ var anObject = require('../internals/an-object');
 var getMapIterator = require('../internals/get-map-iterator');
 
 // `Map.prototype.includes` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   keyOf: function keyOf(searchElement) {
     var map = anObject(this);

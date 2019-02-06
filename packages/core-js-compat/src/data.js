@@ -1212,6 +1212,8 @@ module.exports = {
   },
   'esnext.map.some': {
   },
+  'esnext.map.update': {
+  },
   'esnext.math.clamp': {
   },
   'esnext.math.deg-per-rad': {

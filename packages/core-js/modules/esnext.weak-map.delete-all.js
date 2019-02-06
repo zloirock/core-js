@@ -2,7 +2,7 @@
 var collectionDeleteAll = require('../internals/collection-delete-all');
 
 // `WeakMap.prototype.deleteAll` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({
   target: 'WeakMap', proto: true, real: true, forced: require('../internals/is-pure')
 }, {

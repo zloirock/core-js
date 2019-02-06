@@ -4,7 +4,7 @@ var bind = require('../internals/bind-context');
 var getSetIterator = require('../internals/get-set-iterator');
 
 // `Set.prototype.every` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   every: function every(callbackfn /* , thisArg */) {
     var set = anObject(this);

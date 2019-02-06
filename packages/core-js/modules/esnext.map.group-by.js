@@ -4,7 +4,7 @@ var aFunction = require('../internals/a-function');
 var getBuiltIn = require('../internals/get-built-in');
 
 // `Map.groupBy` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', stat: true, forced: require('../internals/is-pure') }, {
   groupBy: function groupBy(iterable, keyDerivative) {
     var newMap = new (typeof this == 'function' ? this : getBuiltIn('Map'))();

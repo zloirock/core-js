@@ -4,7 +4,7 @@ var bind = require('../internals/bind-context');
 var getMapIterator = require('../internals/get-map-iterator');
 
 // `Set.prototype.some` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   some: function some(callbackfn /* , thisArg */) {
     var map = anObject(this);

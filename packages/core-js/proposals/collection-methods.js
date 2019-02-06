@@ -12,6 +12,7 @@ require('../modules/esnext.map.map-values');
 require('../modules/esnext.map.merge');
 require('../modules/esnext.map.reduce');
 require('../modules/esnext.map.some');
+require('../modules/esnext.map.update');
 require('../modules/esnext.set.add-all');
 require('../modules/esnext.set.delete-all');
 require('../modules/esnext.set.every');

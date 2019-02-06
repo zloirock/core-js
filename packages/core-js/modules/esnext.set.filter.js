@@ -7,7 +7,7 @@ var speciesConstructor = require('../internals/species-constructor');
 var getSetIterator = require('../internals/get-set-iterator');
 
 // `Set.prototype.filter` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var set = anObject(this);

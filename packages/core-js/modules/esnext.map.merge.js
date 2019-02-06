@@ -4,7 +4,7 @@ var aFunction = require('../internals/a-function');
 var iterate = require('../internals/iterate');
 
 // `Map.prototype.merge` method
-// https://github.com/tc39/collection-methods
+// https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
   // eslint-disable-next-line no-unused-vars
   merge: function merge(iterable /* ...iterbles */) {

@@ -182,6 +182,7 @@ import './esnext.map.merge';
 import './esnext.map.of';
 import './esnext.map.reduce';
 import './esnext.map.some';
+import './esnext.map.update';
 import './esnext.set.add-all';
 import './esnext.set.delete-all';
 import './esnext.set.difference';
