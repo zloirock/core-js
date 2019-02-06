@@ -189,7 +189,7 @@ module.exports = function (exec) {
 /***/ (function(module, exports, __webpack_require__) {
 
 var store = __webpack_require__(49)('wks');
-var uid = __webpack_require__(40);
+var uid = __webpack_require__(41);
 var Symbol = __webpack_require__(2).Symbol;
 var USE_SYMBOL = typeof Symbol == 'function';
 
@@ -550,7 +550,7 @@ if (__webpack_require__(8)) {
   var getPrototypeOf = __webpack_require__(13);
   var gOPN = __webpack_require__(46).f;
   var getIterFn = __webpack_require__(48);
-  var uid = __webpack_require__(40);
+  var uid = __webpack_require__(41);
   var wks = __webpack_require__(5);
   var createArrayMethod = __webpack_require__(20);
   var createArrayIncludes = __webpack_require__(50);
@@ -558,7 +558,7 @@ if (__webpack_require__(8)) {
   var ArrayIterators = __webpack_require__(82);
   var Iterators = __webpack_require__(36);
   var $iterDetect = __webpack_require__(79);
-  var setSpecies = __webpack_require__(42);
+  var setSpecies = __webpack_require__(43);
   var arrayFill = __webpack_require__(81);
   var arrayCopyWithin = __webpack_require__(106);
   var $DP = __webpack_require__(7);
@@ -1098,7 +1098,7 @@ module.exports = function (bitmap, value) {
 /* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var META = __webpack_require__(40)('meta');
+var META = __webpack_require__(41)('meta');
 var isObject = __webpack_require__(3);
 var has = __webpack_require__(15);
 var setDesc = __webpack_require__(7).f;
@@ -1333,6 +1333,17 @@ module.exports = function (target, src, safe) {
 
 /***/ }),
 /* 40 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var isObject = __webpack_require__(3);
+module.exports = function (it, TYPE) {
+  if (!isObject(it) || it._t !== TYPE) throw TypeError('Incompatible receiver, ' + TYPE + ' required!');
+  return it;
+};
+
+
+/***/ }),
+/* 41 */
 /***/ (function(module, exports) {
 
 var id = 0;
@@ -1343,7 +1354,7 @@ module.exports = function (key) {
 
 
 /***/ }),
-/* 41 */
+/* 42 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var def = __webpack_require__(7).f;
@@ -1356,7 +1367,7 @@ module.exports = function (it, tag, stat) {
 
 
 /***/ }),
-/* 42 */
+/* 43 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -1373,17 +1384,6 @@ module.exports = function (KEY) {
     configurable: true,
     get: function () { return this; }
   });
-};
-
-
-/***/ }),
-/* 43 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isObject = __webpack_require__(3);
-module.exports = function (it, TYPE) {
-  if (!isObject(it) || it._t !== TYPE) throw TypeError('Incompatible receiver, ' + TYPE + ' required!');
-  return it;
 };
 
 
@@ -1546,7 +1546,7 @@ var redefine = __webpack_require__(63);
 var hide = __webpack_require__(17);
 var Iterators = __webpack_require__(36);
 var $iterCreate = __webpack_require__(54);
-var setToStringTag = __webpack_require__(41);
+var setToStringTag = __webpack_require__(42);
 var getPrototypeOf = __webpack_require__(13);
 var ITERATOR = __webpack_require__(5)('iterator');
 var BUGGY = !([].keys && 'next' in [].keys()); // Safari has buggy iterators w/o `next`
@@ -1618,7 +1618,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
 
 var create = __webpack_require__(32);
 var descriptor = __webpack_require__(28);
-var setToStringTag = __webpack_require__(41);
+var setToStringTag = __webpack_require__(42);
 var IteratorPrototype = {};
 
 // 25.1.2.1.1 %IteratorPrototype%[@@iterator]()
@@ -1670,7 +1670,7 @@ var redefineAll = __webpack_require__(39);
 var forOf = __webpack_require__(34);
 var anInstance = __webpack_require__(38);
 var isObject = __webpack_require__(3);
-var setToStringTag = __webpack_require__(41);
+var setToStringTag = __webpack_require__(42);
 var dP = __webpack_require__(7).f;
 var each = __webpack_require__(20)(0);
 var DESCRIPTORS = __webpack_require__(8);
@@ -1727,7 +1727,7 @@ module.exports = function (NAME, wrapper, methods, common, IS_MAP, IS_WEAK) {
 
 var global = __webpack_require__(2);
 var hide = __webpack_require__(17);
-var uid = __webpack_require__(40);
+var uid = __webpack_require__(41);
 var TYPED = uid('typed_array');
 var VIEW = uid('view');
 var ABV = !!(global.ArrayBuffer && global.DataView);
@@ -1865,7 +1865,7 @@ module.exports = function (name) {
 /***/ (function(module, exports, __webpack_require__) {
 
 var shared = __webpack_require__(49)('keys');
-var uid = __webpack_require__(40);
+var uid = __webpack_require__(41);
 module.exports = function (key) {
   return shared[key] || (shared[key] = uid(key));
 };
@@ -2428,7 +2428,7 @@ var toIndex = __webpack_require__(115);
 var gOPN = __webpack_require__(46).f;
 var dP = __webpack_require__(7).f;
 var arrayFill = __webpack_require__(81);
-var setToStringTag = __webpack_require__(41);
+var setToStringTag = __webpack_require__(42);
 var ARRAY_BUFFER = 'ArrayBuffer';
 var DATA_VIEW = 'DataView';
 var PROTOTYPE = 'prototype';
@@ -3079,7 +3079,7 @@ module.exports = function (C, x) {
 "use strict";
 
 var strong = __webpack_require__(110);
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
 var MAP = 'Map';
 
 // 23.1 Map Objects
@@ -3112,10 +3112,10 @@ var anInstance = __webpack_require__(38);
 var forOf = __webpack_require__(34);
 var $iterDefine = __webpack_require__(53);
 var step = __webpack_require__(83);
-var setSpecies = __webpack_require__(42);
+var setSpecies = __webpack_require__(43);
 var DESCRIPTORS = __webpack_require__(8);
 var fastKey = __webpack_require__(29).fastKey;
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
 var SIZE = DESCRIPTORS ? '_s' : 'size';
 
 var getEntry = function (that, key) {
@@ -3256,7 +3256,7 @@ module.exports = {
 "use strict";
 
 var strong = __webpack_require__(110);
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
 var SET = 'Set';
 
 // 23.2 Set Objects
@@ -3276,19 +3276,20 @@ module.exports = __webpack_require__(57)(SET, function (get) {
 
 "use strict";
 
+var global = __webpack_require__(2);
 var each = __webpack_require__(20)(0);
 var redefine = __webpack_require__(63);
 var meta = __webpack_require__(29);
 var assign = __webpack_require__(68);
 var weak = __webpack_require__(113);
 var isObject = __webpack_require__(3);
-var fails = __webpack_require__(4);
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
+var NATIVE_WEAK_MAP = __webpack_require__(40);
+var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
 var WEAK_MAP = 'WeakMap';
 var getWeak = meta.getWeak;
 var isExtensible = Object.isExtensible;
 var uncaughtFrozenStore = weak.ufstore;
-var tmp = {};
 var InternalMap;
 
 var wrapper = function (get) {
@@ -3316,7 +3317,7 @@ var methods = {
 var $WeakMap = module.exports = __webpack_require__(57)(WEAK_MAP, wrapper, methods, weak, true, true);
 
 // IE11 WeakMap frozen keys fix
-if (fails(function () { return new $WeakMap().set((Object.freeze || Object)(tmp), 7).get(tmp) != 7; })) {
+if (NATIVE_WEAK_MAP && IS_IE11) {
   InternalMap = weak.getConstructor(wrapper, WEAK_MAP);
   assign(InternalMap.prototype, methods);
   meta.NEED = true;
@@ -3350,7 +3351,7 @@ var anInstance = __webpack_require__(38);
 var forOf = __webpack_require__(34);
 var createArrayMethod = __webpack_require__(20);
 var $has = __webpack_require__(15);
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
 var arrayFind = createArrayMethod(5);
 var arrayFindIndex = createArrayMethod(6);
 var id = 0;
@@ -3913,8 +3914,8 @@ var redefine = __webpack_require__(63);
 var META = __webpack_require__(29).KEY;
 var $fails = __webpack_require__(4);
 var shared = __webpack_require__(49);
-var setToStringTag = __webpack_require__(41);
-var uid = __webpack_require__(40);
+var setToStringTag = __webpack_require__(42);
+var uid = __webpack_require__(41);
 var wks = __webpack_require__(5);
 var wksExt = __webpack_require__(91);
 var wksDefine = __webpack_require__(64);
@@ -5745,7 +5746,7 @@ __webpack_require__(33)(KEY);
 /* 220 */
 /***/ (function(module, exports, __webpack_require__) {
 
-__webpack_require__(42)('Array');
+__webpack_require__(43)('Array');
 
 
 /***/ }),
@@ -5982,8 +5983,8 @@ if (!USE_NATIVE) {
 }
 
 $export($export.G + $export.W + $export.F * !USE_NATIVE, { Promise: $Promise });
-__webpack_require__(41)($Promise, PROMISE);
-__webpack_require__(42)(PROMISE);
+__webpack_require__(42)($Promise, PROMISE);
+__webpack_require__(43)(PROMISE);
 Wrapper = __webpack_require__(12)[PROMISE];
 
 // statics
@@ -6055,7 +6056,7 @@ $export($export.S + $export.F * !(USE_NATIVE && __webpack_require__(79)(function
 "use strict";
 
 var weak = __webpack_require__(113);
-var validate = __webpack_require__(43);
+var validate = __webpack_require__(40);
 var WEAK_SET = 'WeakSet';
 
 // 23.4 WeakSet Objects
@@ -6505,7 +6506,7 @@ $export($export.P + $export.U + $export.F * __webpack_require__(4)(function () {
   }
 });
 
-__webpack_require__(42)(ARRAY_BUFFER);
+__webpack_require__(43)(ARRAY_BUFFER);
 
 
 /***/ }),
@@ -7730,7 +7731,7 @@ hide($Observable.prototype, OBSERVABLE, function () { return this; });
 
 $export($export.G, { Observable: $Observable });
 
-__webpack_require__(42)('Observable');
+__webpack_require__(43)('Observable');
 
 
 /***/ }),
