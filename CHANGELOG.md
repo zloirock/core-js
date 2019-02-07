@@ -186,6 +186,9 @@
   - Use for tests Babel with minimalistic config which should work anywhere.
   - Use ESLint on the code of tests and tools.
 
+##### 2.6.4 - 2019.02.07
+- Added a workaround against crushing an old IE11.0.9600.16384 build, [#485](https://github.com/zloirock/core-js/issues/485).
+
 ##### 2.6.3 - 2019.01.22
 - Added a workaround for `babel-minify` bug, [#479](https://github.com/zloirock/core-js/issues/479)
 
