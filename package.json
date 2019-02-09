@@ -51,7 +51,9 @@
   "scripts": {
     "bootstrap": "lerna bootstrap",
     "build": "lerna bootstrap && grunt clean copy && npm run build-compat && grunt bundle uglify",
-    "build-compat": "node packages/core-js-compat/src/build-data",
+    "build-compat": "npm run build-compat-data && npm run build-compat-entries",
+    "build-compat-data": "node packages/core-js-compat/src/build-data",
+    "build-compat-entries": "node packages/core-js-compat/src/build-entries",
     "lint": "lerna bootstrap && grunt clean copy && npm run build-compat && eslint ./",
     "unit-tests": "lerna bootstrap && grunt clean copy && npm run build-compat && grunt bundle webpack:helpers webpack:tests karma:tests",
     "unit-tests-pure": "grunt clean copy && npm run build-compat && grunt webpack:helpers webpack:pure karma:pure",
