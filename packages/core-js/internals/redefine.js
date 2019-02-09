@@ -21,7 +21,8 @@ require('../internals/shared')('inspectSource', function (it) {
     enforceInternalState(value).source = TEMPLATE.join(typeof key == 'string' ? key : '');
   }
   if (O === global) {
-    setGlobal(key, value);
+    if (simple) O[key] = value;
+    else setGlobal(key, value);
     return;
   } else if (!unsafe) {
     delete O[key];

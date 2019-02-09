@@ -266,7 +266,7 @@ if (FORCED) {
   };
 
   // wrap fetch result
-  if (!IS_PURE && typeof $fetch == 'function') $export({ global: true, forced: true }, {
+  if (!IS_PURE && typeof $fetch == 'function') $export({ global: true, enumerable: true, forced: true }, {
     // eslint-disable-next-line no-unused-vars
     fetch: function fetch(input) {
       return promiseResolve(PromiseConstructor, $fetch.apply(global, arguments));
