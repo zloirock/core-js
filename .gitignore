@@ -13,6 +13,7 @@ node_modules/
 /packages/core-js-bundle/minified.js.map
 /packages/core-js-compat/data.json
 /packages/core-js-compat/entries.json
+/packages/core-js-compat/modules-by-versions.json
 /packages/core-js-compat/LICENSE
 /packages/core-js-pure/es/
 /packages/core-js-pure/features/
