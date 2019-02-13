@@ -1,13 +1,12 @@
 'use strict';
 var iterate = require('../internals/iterate');
 var aFunction = require('../internals/a-function');
-var getBuiltIn = require('../internals/get-built-in');
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-collection-methods
 require('../internals/export')({ target: 'Map', stat: true, forced: require('../internals/is-pure') }, {
   groupBy: function groupBy(iterable, keyDerivative) {
-    var newMap = new (typeof this == 'function' ? this : getBuiltIn('Map'))();
+    var newMap = new this();
     aFunction(keyDerivative);
     var has = aFunction(newMap.has);
     var get = aFunction(newMap.get);

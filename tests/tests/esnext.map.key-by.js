@@ -10,13 +10,15 @@ QUnit.test('Map.keyBy', assert => {
   assert.looksNative(keyBy);
   assert.nonEnumerable(Map, 'keyBy');
 
-  assert.ok(keyBy([], it => it) instanceof Map);
+  assert.ok(Map.keyBy([], it => it) instanceof Map);
 
-  assert.deepEqual(toArray(keyBy([], it => it)), []);
-  assert.deepEqual(toArray(keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(Map.keyBy([], it => it)), []);
+  assert.deepEqual(toArray(Map.keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(Map.keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(toArray(Map.keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
 
   const element = {};
-  keyBy([element], it => assert.same(it, element));
+  Map.keyBy([element], it => assert.same(it, element));
+
+  assert.throws(() => keyBy([1, 2], it => it));
 });
