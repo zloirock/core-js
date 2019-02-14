@@ -1268,10 +1268,6 @@ module.exports = {
   },
   'esnext.reflect.metadata': {
   },
-  'esnext.set.from': {
-  },
-  'esnext.set.of': {
-  },
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {
@@ -1284,6 +1280,8 @@ module.exports = {
   },
   'esnext.set.find': {
   },
+  'esnext.set.from': {
+  },
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from': {
@@ -1295,6 +1293,8 @@ module.exports = {
   'esnext.set.join': {
   },
   'esnext.set.map': {
+  },
+  'esnext.set.of': {
   },
   'esnext.set.reduce': {
   },

@@ -1147,12 +1147,6 @@ GLOBAL.tests = {
   'esnext.reflect.metadata': function () {
     return Reflect.metadata;
   },
-  'esnext.set.from': function () {
-    return Set.from;
-  },
-  'esnext.set.of': function () {
-    return Set.of;
-  },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
@@ -1171,6 +1165,9 @@ GLOBAL.tests = {
   'esnext.set.find': function () {
     return Set.prototype.find;
   },
+  'esnext.set.from': function () {
+    return Set.from;
+  },
   'esnext.set.intersection': function () {
     return Set.prototype.intersection;
   },
@@ -1188,6 +1185,9 @@ GLOBAL.tests = {
   },
   'esnext.set.map': function () {
     return Set.prototype.map;
+  },
+  'esnext.set.of': function () {
+    return Set.of;
   },
   'esnext.set.reduce': function () {
     return Set.prototype.reduce;
