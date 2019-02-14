@@ -163,11 +163,11 @@ GLOBAL.tests = {
       && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
-  'es.symbol.async-iterator': function () {
-    return Symbol.asyncIterator;
-  },
   'es.symbol.description': function () {
     return Symbol('foo').description == 'foo' && Symbol().description === undefined;
+  },
+  'es.symbol.async-iterator': function () {
+    return Symbol.asyncIterator;
   },
   'es.symbol.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance;
@@ -202,96 +202,6 @@ GLOBAL.tests = {
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
   }],
-  'es.object.assign': function () {
-    var A = {};
-    var B = {};
-    var symbol = Symbol();
-    var alphabet = 'abcdefghijklmnopqrst';
-    A[symbol] = 7;
-    alphabet.split('').forEach(function (chr) { B[chr] = chr; });
-    return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
-  },
-  'es.object.create': function () {
-    return Object.create;
-  },
-  'es.object.define-property': DESCRIPTORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
-    return Object.defineProperties;
-  }],
-  'es.object.entries': function () {
-    return Object.entries;
-  },
-  'es.object.freeze': function () {
-    return Object.freeze(true);
-  },
-  'es.object.from-entries': function () {
-    return Object.fromEntries;
-  },
-  'es.object.get-own-property-descriptor': [DESCRIPTORS_SUPPORT, function () {
-    return Object.getOwnPropertyDescriptor('qwe', '0');
-  }],
-  'es.object.get-own-property-descriptors': function () {
-    return Object.getOwnPropertyDescriptors;
-  },
-  'es.object.get-own-property-names': function () {
-    return Object.getOwnPropertyNames('qwe');
-  },
-  'es.object.get-prototype-of': function () {
-    return Object.getPrototypeOf('qwe');
-  },
-  'es.object.is': function () {
-    return Object.is;
-  },
-  'es.object.is-extensible': function () {
-    return !Object.isExtensible('qwe');
-  },
-  'es.object.is-frozen': function () {
-    return Object.isFrozen('qwe');
-  },
-  'es.object.is-sealed': function () {
-    return Object.isSealed('qwe');
-  },
-  'es.object.keys': function () {
-    return Object.keys('qwe');
-  },
-  'es.object.prevent-extensions': function () {
-    return Object.preventExtensions(true);
-  },
-  'es.object.seal': function () {
-    return Object.seal(true);
-  },
-  'es.object.set-prototype-of': function () {
-    return Object.setPrototypeOf;
-  },
-  'es.object.values': function () {
-    return Object.values;
-  },
-  'es.object.to-string': [SYMBOLS_SUPPORT, function () {
-    var O = {};
-    O[Symbol.toStringTag] = 'foo';
-    return String(O) === '[object foo]';
-  }],
-  'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.lookup-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.lookup-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.function.bind': function () {
-    return Function.prototype.bind;
-  },
-  'es.function.name': function () {
-    return 'name' in Function.prototype;
-  },
-  'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
-    return Symbol.hasInstance in Function.prototype;
-  }],
-  'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
-  'es.array.is-array': function () {
-    return Array.isArray;
-  },
-  'es.array.of': function () {
-    function F() { /* empty */ }
-    return Array.of.call(F) instanceof F;
-  },
   'es.array.concat': function () {
     var array1 = [];
     array1[Symbol.isConcatSpreadable] = false;
@@ -335,6 +245,12 @@ GLOBAL.tests = {
     Array(1).findIndex(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].findIndex;
   },
+  'es.array.flat': function () {
+    return Array.prototype.flat;
+  },
+  'es.array.flat-map': function () {
+    return Array.prototype.flatMap;
+  },
   'es.array.for-each': function () {
     try {
       Array.prototype.forEach.call(null, function () { /* empty */ });
@@ -342,6 +258,7 @@ GLOBAL.tests = {
     } catch (e) { /* empty */ }
     return Array.prototype.forEach;
   },
+  'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
     return Array.prototype.includes && Array.prototype[Symbol.unscopables].includes;
   },
@@ -352,6 +269,18 @@ GLOBAL.tests = {
       return 1 / [1].indexOf(1, -0) > 0;
     }
   },
+  'es.array.is-array': function () {
+    return Array.isArray;
+  },
+  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
+    return [][Symbol.iterator] === [].values
+      && [][Symbol.iterator].name === 'values'
+      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && [].keys().next()
+      && [][Symbol.unscopables].keys
+      && [][Symbol.unscopables].values
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.join': function () {
     try {
       if (!Object.prototype.propertyIsEnumerable.call(Object('z'), 0)) return false;
@@ -378,6 +307,10 @@ GLOBAL.tests = {
       return { foo: 1 };
     };
     return array.map(function () { return true; }).foo === 1;
+  },
+  'es.array.of': function () {
+    function F() { /* empty */ }
+    return Array.of.call(F) instanceof F;
   },
   'es.array.reduce': function () {
     try {
@@ -424,6 +357,9 @@ GLOBAL.tests = {
       }
     }
   },
+  'es.array.species': [SYMBOLS_SUPPORT, function () {
+    return Array[Symbol.species];
+  }],
   'es.array.splice': function () {
     var array = [];
     var constructor = array.constructor = {};
@@ -432,216 +368,82 @@ GLOBAL.tests = {
     };
     return array.splice().foo === 1;
   },
-  'es.array.species': [SYMBOLS_SUPPORT, function () {
-    return Array[Symbol.species];
-  }],
-  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
-      && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
-  }],
-  'es.array.flat': function () {
-    return Array.prototype.flat;
-  },
-  'es.array.flat-map': function () {
-    return Array.prototype.flatMap;
-  },
   'es.array.unscopables.flat': function () {
     return Array.prototype[Symbol.unscopables].flat;
   },
   'es.array.unscopables.flat-map': function () {
     return Array.prototype[Symbol.unscopables].flatMap;
   },
-  'es.string.from-code-point': function () {
-    return String.fromCodePoint;
+  'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
+    try {
+      return !ArrayBuffer(1);
+    } catch (e) { /* empty */ }
+    try {
+      return !new ArrayBuffer(-1);
+    } catch (e) { /* empty */ }
+    new ArrayBuffer();
+    new ArrayBuffer(1.5);
+    new ArrayBuffer(NaN);
+    return ArrayBuffer.name == 'ArrayBuffer';
+  }],
+  'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return ArrayBuffer.isView;
+  }],
+  'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
+    return new ArrayBuffer(2).slice(1, undefined).byteLength;
+  }],
+  'es.data-view': ARRAY_BUFFER_SUPPORT,
+  'es.date.now': function () {
+    return Date.now;
   },
-  'es.string.raw': function () {
-    return String.raw;
+  'es.date.to-iso-string': function () {
+    try {
+      new Date(NaN).toISOString();
+    } catch (e) {
+      return new Date(-5e13 - 1).toISOString() == '0385-07-25T07:06:39.999Z';
+    }
   },
-  'es.string.code-point-at': function () {
-    return String.prototype.codePointAt;
+  'es.date.to-json': function () {
+    return new Date(NaN).toJSON() === null
+      && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
   },
-  'es.string.ends-with': createIsRegExpLogicTest('endsWith'),
-  'es.string.includes': createIsRegExpLogicTest('includes'),
-  'es.string.match': function () {
-    var O = {};
-    O[Symbol.match] = function () { return 7; };
-
-    var execCalled = false;
-    var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
-    re[Symbol.match]('');
-
-    return ''.match(O) == 7 && execCalled;
+  'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
+    return Date.prototype[Symbol.toPrimitive];
+  }],
+  'es.date.to-string': function () {
+    return new Date(NaN).toString() == 'Invalid Date';
   },
-  'es.string.pad-end': function () {
-    return String.prototype.padEnd
-      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+  'es.function.bind': function () {
+    return Function.prototype.bind;
   },
-  'es.string.pad-start': function () {
-    return String.prototype.padStart
-      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+  'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
+    return Symbol.hasInstance in Function.prototype;
+  }],
+  'es.function.name': function () {
+    return 'name' in Function.prototype;
   },
-  'es.string.repeat': function () {
-    return String.prototype.repeat;
-  },
-  'es.string.replace': function () {
-    var O = {};
-    O[Symbol.replace] = function () { return 7; };
-
-    var execCalled = false;
-    var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
-    re[Symbol.replace]('');
-
-    var re2 = /./;
-    re2.exec = function () {
-      var result = [];
-      result.groups = { a: '7' };
-      return result;
+  'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
+    return JSON[Symbol.toStringTag];
+  }],
+  'es.map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+    var called = 0;
+    var iterable = {
+      next: function () {
+        return { done: !!called++, value: [1, 2] };
+      }
+    };
+    iterable[Symbol.iterator] = function () {
+      return this;
     };
 
-    return ''.replace(O) == 7 && execCalled && ''.replace(re2, '$<a>') === '7';
-  },
-  'es.string.search': function () {
-    var O = {};
-    O[Symbol.search] = function () { return 7; };
-
-    var execCalled = false;
-    var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
-    re[Symbol.search]('');
-
-    return ''.search(O) == 7 && execCalled;
-  },
-  'es.string.split': function () {
-    var O = {};
-    O[Symbol.split] = function () { return 7; };
-
-    var execCalled = false;
-    var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
-    re.constructor = {};
-    re.constructor[Symbol.species] = function () { return re; };
-    re[Symbol.split]('');
-
-    var re2 = /(?:)/;
-    var originalExec = re2.exec;
-    re2.exec = function () { return originalExec.apply(this, arguments); };
-    var result = 'ab'.split(re2);
-
-    return ''.split(O) == 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
-  },
-  'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
-  'es.string.trim': createStringTrimMethodTest('trim'),
-  'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
-    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
+    var map = new Map(iterable);
+    return map.forEach
+      && map[Symbol.iterator]().next()
+      && map.get(1) == 2
+      && map.set(-0, 3) == map
+      && map.has(0)
+      && map[Symbol.toStringTag];
   }],
-  'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
-    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
-  }],
-  'es.string.iterator': [SYMBOLS_SUPPORT, function () {
-    return ''[Symbol.iterator];
-  }],
-  'es.string.anchor': createStringHTMLMethodTest('anchor'),
-  'es.string.big': createStringHTMLMethodTest('big'),
-  'es.string.blink': createStringHTMLMethodTest('blink'),
-  'es.string.bold': createStringHTMLMethodTest('bold'),
-  'es.string.fixed': createStringHTMLMethodTest('fixed'),
-  'es.string.fontcolor': createStringHTMLMethodTest('fontcolor'),
-  'es.string.fontsize': createStringHTMLMethodTest('fontsize'),
-  'es.string.italics': createStringHTMLMethodTest('italics'),
-  'es.string.link': createStringHTMLMethodTest('link'),
-  'es.string.small': createStringHTMLMethodTest('small'),
-  'es.string.strike': createStringHTMLMethodTest('strike'),
-  'es.string.sub': createStringHTMLMethodTest('sub'),
-  'es.string.sup': createStringHTMLMethodTest('sup'),
-  'es.regexp.constructor': function () {
-    var re1 = /a/g;
-    var re2 = /a/g;
-    re2[Symbol.match] = false;
-    return new RegExp(re1) !== re1
-      && RegExp(re1) === re1
-      && RegExp(re2) !== re2
-      && RegExp(re1, 'i') == '/a/i'
-      && RegExp[Symbol.species];
-  },
-  'es.regexp.exec': function () {
-    var re1 = /a/;
-    var re2 = /b*/g;
-    re1.exec('a');
-    re2.exec('a');
-    return re1.lastIndex === 0 && re2.lastIndex === 0
-      && /()??/.exec('')[1] === undefined;
-  },
-  'es.regexp.flags': function () {
-    return /./g.flags === 'g';
-  },
-  'es.regexp.to-string': function () {
-    return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
-      && RegExp.prototype.toString.name === 'toString';
-  },
-  'es.parse-int': function () {
-    return parseInt(WHITESPACES + '08') === 8
-      && parseInt(WHITESPACES + '0x16') === 22;
-  },
-  'es.parse-float': function () {
-    return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
-  },
-  'es.number.constructor': function () {
-    return Number(' 0o1') && Number('0b1') && !Number('+0x1');
-  },
-  'es.number.epsilon': function () {
-    return Number.EPSILON;
-  },
-  'es.number.is-finite': function () {
-    return Number.isFinite;
-  },
-  'es.number.is-integer': function () {
-    return Number.isInteger;
-  },
-  'es.number.is-nan': function () {
-    return Number.isNaN;
-  },
-  'es.number.is-safe-integer': function () {
-    return Number.isSafeInteger;
-  },
-  'es.number.max-safe-integer': function () {
-    return Number.MAX_SAFE_INTEGER;
-  },
-  'es.number.min-safe-integer': function () {
-    return Number.MIN_SAFE_INTEGER;
-  },
-  'es.number.parse-float': function () {
-    return Number.parseFloat === parseFloat
-      && 1 / Number.parseFloat(WHITESPACES + '-0') === -Infinity;
-  },
-  'es.number.parse-int': function () {
-    return Number.parseInt === parseInt
-      && Number.parseInt(WHITESPACES + '08') === 8
-      && Number.parseInt(WHITESPACES + '0x16') === 22;
-  },
-  'es.number.to-fixed': function () {
-    try {
-      Number.prototype.toFixed.call({});
-    } catch (e) {
-      return 0.00008.toFixed(3) === '0.000'
-        && 0.9.toFixed(0) === '1'
-        && 1.255.toFixed(2) === '1.25'
-        && 1000000000000000128.0.toFixed(0) === '1000000000000000128';
-    }
-  },
-  'es.number.to-precision': function () {
-    try {
-      Number.prototype.toPrecision.call({});
-    } catch (e) {
-      return 1.0.toPrecision(undefined) === '1';
-    }
-  },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
     return Math.floor(Math.acosh(Number.MAX_VALUE)) == 710
@@ -702,252 +504,139 @@ GLOBAL.tests = {
   'es.math.trunc': function () {
     return Math.trunc;
   },
-  'es.date.now': function () {
-    return Date.now;
+  'es.number.constructor': function () {
+    return Number(' 0o1') && Number('0b1') && !Number('+0x1');
   },
-  'es.date.to-json': function () {
-    return new Date(NaN).toJSON() === null
-      && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
+  'es.number.epsilon': function () {
+    return Number.EPSILON;
   },
-  'es.date.to-iso-string': function () {
+  'es.number.is-finite': function () {
+    return Number.isFinite;
+  },
+  'es.number.is-integer': function () {
+    return Number.isInteger;
+  },
+  'es.number.is-nan': function () {
+    return Number.isNaN;
+  },
+  'es.number.is-safe-integer': function () {
+    return Number.isSafeInteger;
+  },
+  'es.number.max-safe-integer': function () {
+    return Number.MAX_SAFE_INTEGER;
+  },
+  'es.number.min-safe-integer': function () {
+    return Number.MIN_SAFE_INTEGER;
+  },
+  'es.number.parse-float': function () {
+    return Number.parseFloat === parseFloat
+      && 1 / Number.parseFloat(WHITESPACES + '-0') === -Infinity;
+  },
+  'es.number.parse-int': function () {
+    return Number.parseInt === parseInt
+      && Number.parseInt(WHITESPACES + '08') === 8
+      && Number.parseInt(WHITESPACES + '0x16') === 22;
+  },
+  'es.number.to-fixed': function () {
     try {
-      new Date(NaN).toISOString();
+      Number.prototype.toFixed.call({});
     } catch (e) {
-      return new Date(-5e13 - 1).toISOString() == '0385-07-25T07:06:39.999Z';
+      return 0.00008.toFixed(3) === '0.000'
+        && 0.9.toFixed(0) === '1'
+        && 1.255.toFixed(2) === '1.25'
+        && 1000000000000000128.0.toFixed(0) === '1000000000000000128';
     }
   },
-  'es.date.to-string': function () {
-    return new Date(NaN).toString() == 'Invalid Date';
+  'es.number.to-precision': function () {
+    try {
+      Number.prototype.toPrecision.call({});
+    } catch (e) {
+      return 1.0.toPrecision(undefined) === '1';
+    }
   },
-  'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
-    return Date.prototype[Symbol.toPrimitive];
+  'es.object.assign': function () {
+    var A = {};
+    var B = {};
+    var symbol = Symbol();
+    var alphabet = 'abcdefghijklmnopqrst';
+    A[symbol] = 7;
+    alphabet.split('').forEach(function (chr) { B[chr] = chr; });
+    return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
+  },
+  'es.object.create': function () {
+    return Object.create;
+  },
+  'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
+    return Object.defineProperties;
   }],
-  'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
-    return JSON[Symbol.toStringTag];
+  'es.object.define-property': DESCRIPTORS_SUPPORT,
+  'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.entries': function () {
+    return Object.entries;
+  },
+  'es.object.freeze': function () {
+    return Object.freeze(true);
+  },
+  'es.object.from-entries': function () {
+    return Object.fromEntries;
+  },
+  'es.object.get-own-property-descriptor': [DESCRIPTORS_SUPPORT, function () {
+    return Object.getOwnPropertyDescriptor('qwe', '0');
   }],
+  'es.object.get-own-property-descriptors': function () {
+    return Object.getOwnPropertyDescriptors;
+  },
+  'es.object.get-own-property-names': function () {
+    return Object.getOwnPropertyNames('qwe');
+  },
+  'es.object.get-prototype-of': function () {
+    return Object.getPrototypeOf('qwe');
+  },
+  'es.object.is': function () {
+    return Object.is;
+  },
+  'es.object.is-extensible': function () {
+    return !Object.isExtensible('qwe');
+  },
+  'es.object.is-frozen': function () {
+    return Object.isFrozen('qwe');
+  },
+  'es.object.is-sealed': function () {
+    return Object.isSealed('qwe');
+  },
+  'es.object.keys': function () {
+    return Object.keys('qwe');
+  },
+  'es.object.lookup-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.lookup-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.prevent-extensions': function () {
+    return Object.preventExtensions(true);
+  },
+  'es.object.seal': function () {
+    return Object.seal(true);
+  },
+  'es.object.set-prototype-of': function () {
+    return Object.setPrototypeOf;
+  },
+  'es.object.to-string': [SYMBOLS_SUPPORT, function () {
+    var O = {};
+    O[Symbol.toStringTag] = 'foo';
+    return String(O) === '[object foo]';
+  }],
+  'es.object.values': function () {
+    return Object.values;
+  },
+  'es.parse-float': function () {
+    return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+  },
+  'es.parse-int': function () {
+    return parseInt(WHITESPACES + '08') === 8
+      && parseInt(WHITESPACES + '0x16') === 22;
+  },
   'es.promise': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     return Promise.prototype['finally'];
-  }],
-  'es.map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
-    var called = 0;
-    var iterable = {
-      next: function () {
-        return { done: !!called++, value: [1, 2] };
-      }
-    };
-    iterable[Symbol.iterator] = function () {
-      return this;
-    };
-
-    var map = new Map(iterable);
-    return map.forEach
-      && map[Symbol.iterator]().next()
-      && map.get(1) == 2
-      && map.set(-0, 3) == map
-      && map.has(0)
-      && map[Symbol.toStringTag];
-  }],
-  'es.set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
-    var called = 0;
-    var iterable = {
-      next: function () {
-        return { done: !!called++, value: 1 };
-      }
-    };
-    iterable[Symbol.iterator] = function () {
-      return this;
-    };
-
-    var set = new Set(iterable);
-    return set.forEach
-      && set[Symbol.iterator]().next()
-      && set.has(1)
-      && set.add(-0) == set
-      && set.has(0)
-      && set[Symbol.toStringTag];
-  }],
-  'es.weak-map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
-    var key = Object.freeze({});
-    var called = 0;
-    var iterable = {
-      next: function () {
-        return { done: !!called++, value: [key, 1] };
-      }
-    };
-    iterable[Symbol.iterator] = function () {
-      return this;
-    };
-
-    var map = new WeakMap(iterable);
-    return map.get(key) == 1
-      && map.get(null) == undefined
-      && map.set({}, 2) == map
-      && map[Symbol.toStringTag];
-  }],
-  'es.weak-set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
-    var key = {};
-    var called = 0;
-    var iterable = {
-      next: function () {
-        return { done: !!called++, value: key };
-      }
-    };
-    iterable[Symbol.iterator] = function () {
-      return this;
-    };
-
-    var set = new WeakSet(iterable);
-    return set.has(key)
-      && !set.has(null)
-      && set.add({}) == set
-      && set[Symbol.toStringTag];
-  }],
-  'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
-    try {
-      return !ArrayBuffer(1);
-    } catch (e) { /* empty */ }
-    try {
-      return !new ArrayBuffer(-1);
-    } catch (e) { /* empty */ }
-    new ArrayBuffer();
-    new ArrayBuffer(1.5);
-    new ArrayBuffer(NaN);
-    return ArrayBuffer.name == 'ArrayBuffer';
-  }],
-  'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return ArrayBuffer.isView;
-  }],
-  'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
-    return new ArrayBuffer(2).slice(1, undefined).byteLength;
-  }],
-  'es.data-view': ARRAY_BUFFER_SUPPORT,
-  'es.typed-array.int8-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.uint8-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.uint8-clamped-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.int16-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.uint16-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.int32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.uint32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.float32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.float64-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
-  ],
-  'es.typed-array.from': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
-    function () {
-      return Int8Array.from;
-    }
-  ],
-  'es.typed-array.of': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
-    function () {
-      return Int8Array.of;
-    }
-  ],
-  'es.typed-array.copy-within': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.copyWithin;
-  }],
-  'es.typed-array.every': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.every;
-  }],
-  'es.typed-array.fill': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.fill;
-  }],
-  'es.typed-array.filter': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.filter;
-  }],
-  'es.typed-array.find': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.find;
-  }],
-  'es.typed-array.find-index': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.findIndex;
-  }],
-  'es.typed-array.for-each': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.forEach;
-  }],
-  'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.includes;
-  }],
-  'es.typed-array.index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.indexOf;
-  }],
-  'es.typed-array.iterator': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype[Symbol.iterator].name === 'values'
-      && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
-      && Int8Array.prototype.keys
-      && Int8Array.prototype.entries;
-  }],
-  'es.typed-array.join': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.join;
-  }],
-  'es.typed-array.last-index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.lastIndexOf;
-  }],
-  'es.typed-array.map': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.map;
-  }],
-  'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.reduce;
-  }],
-  'es.typed-array.reduce-right': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.reduceRight;
-  }],
-  'es.typed-array.reverse': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.reverse;
-  }],
-  'es.typed-array.set': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    new Int8Array(1).set({});
-    return true;
-  }],
-  'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return new Int8Array(1).slice();
-  }],
-  'es.typed-array.some': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.some;
-  }],
-  'es.typed-array.sort': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.sort;
-  }],
-  'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.subarray;
-  }],
-  'es.typed-array.to-locale-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    try {
-      Int8Array.prototype.toLocaleString.call([1, 2]);
-    } catch (e) {
-      return [1, 2].toLocaleString() == new Int8Array([1, 2]).toLocaleString();
-    }
-  }],
-  'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.toString == Array.prototype.toString;
   }],
   'es.reflect.apply': function () {
     try {
@@ -1000,6 +689,317 @@ GLOBAL.tests = {
   'es.reflect.set-prototype-of': function () {
     return Reflect.setPrototypeOf;
   },
+  'es.regexp.constructor': function () {
+    var re1 = /a/g;
+    var re2 = /a/g;
+    re2[Symbol.match] = false;
+    return new RegExp(re1) !== re1
+      && RegExp(re1) === re1
+      && RegExp(re2) !== re2
+      && RegExp(re1, 'i') == '/a/i'
+      && RegExp[Symbol.species];
+  },
+  'es.regexp.exec': function () {
+    var re1 = /a/;
+    var re2 = /b*/g;
+    re1.exec('a');
+    re2.exec('a');
+    return re1.lastIndex === 0 && re2.lastIndex === 0
+      && /()??/.exec('')[1] === undefined;
+  },
+  'es.regexp.flags': function () {
+    return /./g.flags === 'g';
+  },
+  'es.regexp.to-string': function () {
+    return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
+      && RegExp.prototype.toString.name === 'toString';
+  },
+  'es.set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+    var called = 0;
+    var iterable = {
+      next: function () {
+        return { done: !!called++, value: 1 };
+      }
+    };
+    iterable[Symbol.iterator] = function () {
+      return this;
+    };
+
+    var set = new Set(iterable);
+    return set.forEach
+      && set[Symbol.iterator]().next()
+      && set.has(1)
+      && set.add(-0) == set
+      && set.has(0)
+      && set[Symbol.toStringTag];
+  }],
+  'es.string.code-point-at': function () {
+    return String.prototype.codePointAt;
+  },
+  'es.string.ends-with': createIsRegExpLogicTest('endsWith'),
+  'es.string.from-code-point': function () {
+    return String.fromCodePoint;
+  },
+  'es.string.includes': createIsRegExpLogicTest('includes'),
+  'es.string.iterator': [SYMBOLS_SUPPORT, function () {
+    return ''[Symbol.iterator];
+  }],
+  'es.string.match': function () {
+    var O = {};
+    O[Symbol.match] = function () { return 7; };
+
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    re[Symbol.match]('');
+
+    return ''.match(O) == 7 && execCalled;
+  },
+  'es.string.pad-end': function () {
+    return String.prototype.padEnd
+      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+  },
+  'es.string.pad-start': function () {
+    return String.prototype.padStart
+      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+  },
+  'es.string.raw': function () {
+    return String.raw;
+  },
+  'es.string.repeat': function () {
+    return String.prototype.repeat;
+  },
+  'es.string.replace': function () {
+    var O = {};
+    O[Symbol.replace] = function () { return 7; };
+
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    re[Symbol.replace]('');
+
+    var re2 = /./;
+    re2.exec = function () {
+      var result = [];
+      result.groups = { a: '7' };
+      return result;
+    };
+
+    return ''.replace(O) == 7 && execCalled && ''.replace(re2, '$<a>') === '7';
+  },
+  'es.string.search': function () {
+    var O = {};
+    O[Symbol.search] = function () { return 7; };
+
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    re[Symbol.search]('');
+
+    return ''.search(O) == 7 && execCalled;
+  },
+  'es.string.split': function () {
+    var O = {};
+    O[Symbol.split] = function () { return 7; };
+
+    var execCalled = false;
+    var re = /a/;
+    re.exec = function () { execCalled = true; return null; };
+    re.constructor = {};
+    re.constructor[Symbol.species] = function () { return re; };
+    re[Symbol.split]('');
+
+    var re2 = /(?:)/;
+    var originalExec = re2.exec;
+    re2.exec = function () { return originalExec.apply(this, arguments); };
+    var result = 'ab'.split(re2);
+
+    return ''.split(O) == 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
+  },
+  'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
+  'es.string.trim': createStringTrimMethodTest('trim'),
+  'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
+    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
+  }],
+  'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
+    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
+  }],
+  'es.string.anchor': createStringHTMLMethodTest('anchor'),
+  'es.string.big': createStringHTMLMethodTest('big'),
+  'es.string.blink': createStringHTMLMethodTest('blink'),
+  'es.string.bold': createStringHTMLMethodTest('bold'),
+  'es.string.fixed': createStringHTMLMethodTest('fixed'),
+  'es.string.fontcolor': createStringHTMLMethodTest('fontcolor'),
+  'es.string.fontsize': createStringHTMLMethodTest('fontsize'),
+  'es.string.italics': createStringHTMLMethodTest('italics'),
+  'es.string.link': createStringHTMLMethodTest('link'),
+  'es.string.small': createStringHTMLMethodTest('small'),
+  'es.string.strike': createStringHTMLMethodTest('strike'),
+  'es.string.sub': createStringHTMLMethodTest('sub'),
+  'es.string.sup': createStringHTMLMethodTest('sup'),
+  'es.typed-array.float32-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.float64-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.int8-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.int16-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.int32-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.uint8-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.uint8-clamped-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.uint16-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.uint32-array': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+  ],
+  'es.typed-array.copy-within': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.copyWithin;
+  }],
+  'es.typed-array.every': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.every;
+  }],
+  'es.typed-array.fill': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.fill;
+  }],
+  'es.typed-array.filter': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.filter;
+  }],
+  'es.typed-array.find': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.find;
+  }],
+  'es.typed-array.find-index': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.findIndex;
+  }],
+  'es.typed-array.for-each': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.forEach;
+  }],
+  'es.typed-array.from': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    function () {
+      return Int8Array.from;
+    }
+  ],
+  'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.includes;
+  }],
+  'es.typed-array.index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.indexOf;
+  }],
+  'es.typed-array.iterator': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype[Symbol.iterator].name === 'values'
+      && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
+      && Int8Array.prototype.keys
+      && Int8Array.prototype.entries;
+  }],
+  'es.typed-array.join': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.join;
+  }],
+  'es.typed-array.last-index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.lastIndexOf;
+  }],
+  'es.typed-array.map': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.map;
+  }],
+  'es.typed-array.of': [
+    ARRAY_BUFFER_VIEWS_SUPPORT,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    function () {
+      return Int8Array.of;
+    }
+  ],
+  'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.reduce;
+  }],
+  'es.typed-array.reduce-right': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.reduceRight;
+  }],
+  'es.typed-array.reverse': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.reverse;
+  }],
+  'es.typed-array.set': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    new Int8Array(1).set({});
+    return true;
+  }],
+  'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return new Int8Array(1).slice();
+  }],
+  'es.typed-array.some': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.some;
+  }],
+  'es.typed-array.sort': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.sort;
+  }],
+  'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.subarray;
+  }],
+  'es.typed-array.to-locale-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    try {
+      Int8Array.prototype.toLocaleString.call([1, 2]);
+    } catch (e) {
+      return [1, 2].toLocaleString() == new Int8Array([1, 2]).toLocaleString();
+    }
+  }],
+  'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    return Int8Array.prototype.toString == Array.prototype.toString;
+  }],
+  'es.weak-map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+    var key = Object.freeze({});
+    var called = 0;
+    var iterable = {
+      next: function () {
+        return { done: !!called++, value: [key, 1] };
+      }
+    };
+    iterable[Symbol.iterator] = function () {
+      return this;
+    };
+
+    var map = new WeakMap(iterable);
+    return map.get(key) == 1
+      && map.get(null) == undefined
+      && map.set({}, 2) == map
+      && map[Symbol.toStringTag];
+  }],
+  'es.weak-set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+    var key = {};
+    var called = 0;
+    var iterable = {
+      next: function () {
+        return { done: !!called++, value: key };
+      }
+    };
+    iterable[Symbol.iterator] = function () {
+      return this;
+    };
+
+    var set = new WeakSet(iterable);
+    return set.has(key)
+      && !set.has(null)
+      && set.add({}) == set
+      && set[Symbol.toStringTag];
+  }],
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
@@ -1014,18 +1014,6 @@ GLOBAL.tests = {
   },
   'esnext.global-this': function () {
     return globalThis;
-  },
-  'esnext.map.from': function () {
-    return Map.from;
-  },
-  'esnext.map.group-by': function () {
-    return Map.groupBy;
-  },
-  'esnext.map.key-by': function () {
-    return Map.keyBy;
-  },
-  'esnext.map.of': function () {
-    return Map.of;
   },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
@@ -1042,8 +1030,17 @@ GLOBAL.tests = {
   'esnext.map.find-key': function () {
     return Map.prototype.findKey;
   },
+  'esnext.map.from': function () {
+    return Map.from;
+  },
+  'esnext.map.group-by': function () {
+    return Map.groupBy;
+  },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
+  },
+  'esnext.map.key-by': function () {
+    return Map.keyBy;
   },
   'esnext.map.key-of': function () {
     return Map.prototype.keyOf;
@@ -1057,11 +1054,17 @@ GLOBAL.tests = {
   'esnext.map.merge': function () {
     return Map.prototype.merge;
   },
+  'esnext.map.of': function () {
+    return Map.of;
+  },
   'esnext.map.reduce': function () {
     return Map.prototype.reduce;
   },
   'esnext.map.some': function () {
     return Map.prototype.some;
+  },
+  'esnext.map.update': function () {
+    return Map.prototype.update;
   },
   'esnext.math.clamp': function () {
     return Math.clamp;
@@ -1078,14 +1081,11 @@ GLOBAL.tests = {
   'esnext.math.iaddh': function () {
     return Math.iaddh;
   },
-  'esnext.math.isubh': function () {
-    return Math.isubh;
-  },
   'esnext.math.imulh': function () {
     return Math.imulh;
   },
-  'esnext.math.seeded-prng': function () {
-    return Math.seededPRNG;
+  'esnext.math.isubh': function () {
+    return Math.isubh;
   },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;
@@ -1095,6 +1095,9 @@ GLOBAL.tests = {
   },
   'esnext.math.scale': function () {
     return Math.scale;
+  },
+  'esnext.math.seeded-prng': function () {
+    return Math.seededPRNG;
   },
   'esnext.math.signbit': function () {
     return Math.signbit;
@@ -1156,11 +1159,11 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.every': function () {
-    return Set.prototype.every;
-  },
   'esnext.set.difference': function () {
     return Set.prototype.difference;
+  },
+  'esnext.set.every': function () {
+    return Set.prototype.every;
   },
   'esnext.set.filter': function () {
     return Set.prototype.filter;
@@ -1219,14 +1222,14 @@ GLOBAL.tests = {
   'esnext.symbol.pattern-match': function () {
     return Symbol.patternMatch;
   },
+  'esnext.weak-map.delete-all': function () {
+    return WeakMap.prototype.deleteAll;
+  },
   'esnext.weak-map.from': function () {
     return WeakMap.from;
   },
   'esnext.weak-map.of': function () {
     return WeakMap.of;
-  },
-  'esnext.weak-map.delete-all': function () {
-    return WeakMap.prototype.deleteAll;
   },
   'esnext.weak-set.add-all': function () {
     return WeakSet.prototype.addAll;
