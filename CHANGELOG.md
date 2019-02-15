@@ -139,7 +139,6 @@
   - Fix some cases of IE11 `WeakMap` frozen keys fallback, [#384](https://github.com/zloirock/core-js/issues/384).
   - Fix non-enumerable integer keys issue because of Nashorn ~ JDK8 bug, [#389](https://github.com/zloirock/core-js/issues/389).
   - Fix [Safari 12.0 `Array#reverse` bug](https://bugs.webkit.org/show_bug.cgi?id=188794).
-  - Fix buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
   - One more fix for microtasks in iOS related [#339](https://github.com/zloirock/core-js/issues/339).
   - Added a fallback for [Rhino bug](https://github.com/mozilla/rhino/issues/346), [#440](https://github.com/zloirock/core-js/issues/440).
   - Many other internal fixes and improvements.
@@ -186,6 +185,9 @@
     - Rewrite scripts to JS.
   - Use for tests Babel with minimalistic config which should work anywhere.
   - Use ESLint on the code of tests and tools.
+
+##### 2.6.5 - 2019.02.15
+- Fixed buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
 
 ##### 2.6.4 - 2019.02.07
 - Added a workaround against crushing an old IE11.0.9600.16384 build, [#485](https://github.com/zloirock/core-js/issues/485).
