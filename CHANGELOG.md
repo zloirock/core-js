@@ -1,4 +1,7 @@
 ## Changelog
+##### 2.6.5 - 2019.02.15
+- Fixed buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
+
 ##### 2.6.4 - 2019.02.07
 - Added a workaround against crushing an old IE11.0.9600.16384 build, [#485](https://github.com/zloirock/core-js/issues/485).
 
