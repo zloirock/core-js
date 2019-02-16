@@ -2,6 +2,8 @@
 const { coerce, lt, lte } = require('semver');
 const browserslist = require('browserslist');
 const data = require('./data');
+const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
+const intersection = require('core-js-pure/features/set/intersection');
 const has = Function.call.bind({}.hasOwnProperty);
 
 const mapping = new Map([
@@ -68,7 +70,7 @@ function checkModule(name, targets) {
   return result;
 }
 
-module.exports = function ({ targets, filter }) {
+function compat({ targets, filter, version }) {
   const list = browserslist(targets);
   const engines = normalizeBrowsersList(list);
   const reducedTargets = reduceByMinVersion(engines);
@@ -83,6 +85,10 @@ module.exports = function ({ targets, filter }) {
   if (filter instanceof RegExp) modules = modules.filter(it => filter.test(it));
   else if (typeof filter == 'string') modules = modules.filter(it => it.startsWith(filter));
 
+  if (version) {
+    modules = [...intersection(new Set(getModulesListForTargetVersion(version)), new Set(modules))];
+  }
+
   modules.forEach(key => {
     const check = checkModule(key, reducedTargets);
     if (check.required) {
@@ -92,4 +98,8 @@ module.exports = function ({ targets, filter }) {
   });
 
   return result;
-};
+}
+
+module.exports = compat;
+module.exports.compat = compat;
+module.exports.getModulesListForTargetVersion = getModulesListForTargetVersion;
