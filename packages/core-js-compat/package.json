@@ -1,7 +1,7 @@
 {
   "name": "core-js-compat",
   "description": "core-js compat",
-  "version": "3.0.0-beta.15",
+  "version": "3.0.0-beta.16",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
@@ -9,7 +9,7 @@
   "main": "index.js",
   "dependencies": {
     "browserslist": "^4.4.1",
-    "core-js-pure": "3.0.0-beta.15",
+    "core-js-pure": "3.0.0-beta.16",
     "semver": "^5.6.0"
   },
   "devDependencies": {
