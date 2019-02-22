@@ -46,8 +46,8 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [CommonJS](#commonjs)
   - [Babel](#babel)
     - [`@babel/polyfill`](#babelpolyfill)
-    - [`@babel/runtime`](#babelruntime)
     - [`@babel/preset-env`](#babelpreset-env)
+    - [`@babel/runtime`](#babelruntime)
   - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
   - [Compatibility data](#compatibility-data)
@@ -113,7 +113,7 @@ You can require only needed modules, like in examples at the top of `README.md`.
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. `babel` `runtime` transformer also can't transform them. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
 ```js
 import fill from 'core-js-pure/features/array/virtual/fill';
 import findIndex from 'core-js-pure/features/array/virtual/find-index';
@@ -125,70 +125,104 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 import { fill, findIndex } from 'core-js-pure/features/array/virtual';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
-
 ```
 
 ### Babel
 
-`core-js` integrated to some parts of `babel`:
+`core-js` integrated with `babel` and is the base for polyfilling-related `babel` features:
 
 #### `@babel/polyfill`
 
-[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) [**IS** just import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
+[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/master/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
-#### `@babel/runtime`
+Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
 
-[`@babel/runtime`](http://babeljs.io/docs/plugins/transform-runtime/) simplifies work with `core-js-pure`. It automatically replaces usage of modern features from ECMAScript standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+As a full equal of `@babel/polyfill`, you can use this:
 ```js
-import from from 'core-js-pure/features/array/from';
-import Set from 'core-js-pure/features/set';
-import Promise from 'core-js-pure/features/promise';
-
-from(new Set([1, 2, 3, 2, 1]));
-Promise.resolve(32).then(x => console.log(x));
+import 'core-js/stable';
+import 'regenerator-runtime/runtime';
 ```
-you can write just:
-```js
-Array.from(new Set([1, 2, 3, 2, 1]));
-Promise.resolve(32).then(x => console.log(x));
-```
-At this moment, it does not work with instance methods, only globals and statics.
 
 #### `@babel/preset-env`
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes work with polyfill. It works only with stable ECMAScript features, polyfills for ECMAScript proposals you should import separately.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes work with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: 3` or `corejs: '3.0'`.
 
-- `useBuiltIns: 'entry'` replaces `import '@babel/polyfill'` or `import 'core-js'` to import only required features for the target environment. So, for example, for enough modern target,
+- `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
-import 'core-js';
+import 'core-js/stable';
 ```
-will be replaced to something like:
+with `chrome 71` target will be replaced just to:
 ```js
-import 'core-js/modules/es.promise.finally';
-import 'core-js/modules/es.string.pad-start';
-import 'core-js/modules/es.string.pad-end';
-// ...
+import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.array.unscopables.flat-map";
+import "core-js/modules/es.object.from-entries";
+import "core-js/modules/web.immediate";
+```
+It works for all entry points of global version of `core-js` and their combinations, for example for
+```js
+import 'core-js/es';
+import 'core-js/proposals/set-methods';
+import 'core-js/features/set/map';
+```
+with `chrome 71` target you will have as a result:
+```js
+import "core-js/modules/es.array.unscopables.flat";
+import "core-js/modules/es.array.unscopables.flat-map";
+import "core-js/modules/es.object.from-entries";
+import "core-js/modules/esnext.set.difference";
+import "core-js/modules/esnext.set.intersection";
+import "core-js/modules/esnext.set.is-disjoint-from";
+import "core-js/modules/esnext.set.is-subset-of";
+import "core-js/modules/esnext.set.is-superset-of";
+import "core-js/modules/esnext.set.map";
+import "core-js/modules/esnext.set.symmetric-difference";
+import "core-js/modules/esnext.set.union";
 ```
 
-- `useBuiltIns: 'usage'` adds at the top of each file imports of polyfills for features used in this file, so for:
+- `useBuiltIns: 'usage'` add at the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
 ```js
 // first file:
-var set = new Set();
+var set = new Set([1, 2, 3]);
 
 // second file:
 var array = Array.of(1, 2, 3);
 ```
-if target contains old environments without support those ECMAScript features we will have:
+if target contains an old environment like `IE 11` we will have something like:
 ```js
 // first file:
+import 'core-js/modules/es.array.iterator';
+import 'core-js/modules/es.object.to-string';
 import 'core-js/modules/es.set';
-var set = new Set();
+var set = new Set([1, 2, 3]);
 
 // second file:
 import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
-In this case, feature detection is not perfect. Also, import of polyfills not at the top of your entry point can cause problems.
+
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option polyfill only stable features, but you can enable polyfilling of proposals by option `proposals: true`.
+
+#### `@babel/runtime`
+
+[`@babel/runtime`](http://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with `core-js-pure`. It automatically replaces usage of modern features from JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+```js
+import from from 'core-js-pure/stable/array/from';
+import flat from 'core-js-pure/stable/array/flat';
+import Set from 'core-js-pure/stable/set';
+import Promise from 'core-js-pure/stable/promise';
+
+from(new Set([1, 2, 3, 2, 1]));
+flat([1, [2, 3], [4, [5]]], 2);
+Promise.resolve(32).then(x => console.log(x));
+```
+you can write just:
+```js
+Array.from(new Set([1, 2, 3, 2, 1]));
+[1, [2, 3], [4, [5]]].flat(2);
+Promise.resolve(32).then(x => console.log(x));
+```
+
+By default, `@babel/runtime` polyfill only stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by option `proposals: true`.
 
 ### Configurable level of aggressiveness
 
