@@ -241,8 +241,12 @@ module.exports = {
     safari: '10.0',
   },
   'es.array.unscopables.flat': {
+    firefox: '67',
+    chrome: '74',
   },
   'es.array.unscopables.flat-map': {
+    firefox: '67',
+    chrome: '74',
   },
   'es.array-buffer.constructor': {
     edge: '14',
