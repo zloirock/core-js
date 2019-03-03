@@ -200,7 +200,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option polyfill only stable features, but you can enable polyfilling of proposals by option `proposals: true`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option polyfill only stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 #### `@babel/runtime`
 
@@ -222,7 +222,7 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/runtime` polyfill only stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by option `proposals: true`.
+By default, `@babel/runtime` polyfill only stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 ### Configurable level of aggressiveness
 
