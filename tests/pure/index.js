@@ -136,6 +136,7 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
+import './esnext.agregate-error';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
 import './esnext.global-this';

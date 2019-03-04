@@ -1,9 +1,11 @@
 'use strict';
 // `Promise.any` method
 // https://github.com/tc39/proposal-promise-any
+var getBuiltIn = require('../internals/get-built-in');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
+var PROMISE_ANY_ERROR = 'No one promise resolved';
 
 require('../internals/export')({ target: 'Promise', stat: true }, {
   any: function any(iterable) {
@@ -29,10 +31,10 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
           if (alreadyRejected || alreadyResolved) return;
           alreadyRejected = true;
           errors[index] = e;
-          --remaining || reject(errors);
+          --remaining || reject(new (getBuiltIn('AgregateError'))(errors, PROMISE_ANY_ERROR));
         });
       });
-      --remaining || reject(errors);
+      --remaining || reject(new (getBuiltIn('AgregateError'))(errors, PROMISE_ANY_ERROR));
     });
     if (result.e) reject(result.v);
     return capability.promise;

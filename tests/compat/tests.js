@@ -1000,6 +1000,9 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
+  'esnext.agregate-error': function () {
+    return typeof AgregatesError === 'function';
+  },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },

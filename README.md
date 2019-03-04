@@ -1933,16 +1933,23 @@ core-js(-pure)/features/symbol/dispose
 ```js
 core-js(-pure)/stage/0
 ```
-* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - module [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.any.js)
+* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.any.js) and [`esnext.agregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.agregate-error.js)
 ```js
+class AgregeteError {
+  constructor(errors: Iterable, message: string): AgregeteError;
+  errors: Array<any>;
+  message: string;
+}
+
 class Promise {
-  static any(iterable): promise;
+  static any(promises: Iterable): Promise<any>;
 }
 ```
 [*CommonJS entry points:*](#commonjs)
 ```js
 core-js/proposals/promise-any
 core-js(-pure)/features/promise/any
+core-js(-pure)/features/agregate-error
 ```
 [*Examples*](https://goo.gl/iErvmp):
 ```js
@@ -1956,7 +1963,7 @@ Promise.any([
   Promise.reject(1),
   Promise.reject(2),
   Promise.reject(3),
-]).catch(console.log); // => [1, 2, 3]
+]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
 * `URL` [proposal](https://github.com/jasnell/proposal-url), see more info [in web standards namespace](#url-and-urlsearchparams)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.at.js)

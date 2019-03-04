@@ -1,4 +1,4 @@
-import Promise from 'core-js-pure/features/promise';
+import { AgregateError, Promise } from 'core-js-pure/features';
 
 QUnit.test('Promise.any', assert => {
   assert.isFunction(Promise.any);
@@ -20,14 +20,15 @@ QUnit.test('Promise.any, resolved', assert => {
 });
 
 QUnit.test('Promise.any, rejected #1', assert => {
-  assert.expect(1);
+  assert.expect(2);
   const async = assert.async();
   Promise.any([
     Promise.reject(1),
     Promise.reject(2),
     Promise.reject(3),
   ]).catch(it => {
-    assert.deepEqual(it, [1, 2, 3], 'rejected with a correct value');
+    assert.ok(it instanceof AgregateError, 'instanceof AgregateError');
+    assert.deepEqual(it.errors, [1, 2, 3], 'rejected with a correct value');
     async();
   });
 });
@@ -42,10 +43,11 @@ QUnit.test('Promise.any, rejected #2', assert => {
 });
 
 QUnit.test('Promise.any, rejected #3', assert => {
-  assert.expect(1);
+  assert.expect(2);
   const async = assert.async();
   Promise.any([]).catch(it => {
-    assert.deepEqual(it, [], 'rejected as expected');
+    assert.ok(it instanceof AgregateError, 'instanceof AgregateError');
+    assert.deepEqual(it.errors, [], 'rejected with a correct value');
     async();
   });
 });
