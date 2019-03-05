@@ -1621,7 +1621,7 @@ array; // => [1, 2, 4]
 * `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
-  replaceAll(searchString: string, replaceString: string): string;
+  replaceAll(searchValue: string | RegExp, replaceString: string): string;
 }
 ```
 [*CommonJS entry points:*](#commonjs)

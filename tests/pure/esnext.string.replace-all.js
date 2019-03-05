@@ -1,6 +1,5 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/features/symbol';
 import replaceAll from 'core-js-pure/features/string/replace-all';
 
 QUnit.test('String#replaceAll', assert => {
@@ -13,12 +12,8 @@ QUnit.test('String#replaceAll', assert => {
     assert.throws(() => replaceAll(null, 'a', 'b'), TypeError);
     assert.throws(() => replaceAll(undefined, 'a', 'b'), TypeError);
   }
-  const regexp = /./;
-  assert.throws(() => replaceAll('/./', regexp, 'a'), TypeError);
-  regexp[Symbol.match] = false;
-  assert.notThrows(() => replaceAll('/./', regexp, 'a') === 'a');
+  assert.same(replaceAll('b.b.b.b.b', /\./, 'a'), 'babababab');
+  assert.same(replaceAll('b.b.b.b.b', /\./g, 'a'), 'babababab');
   const object = {};
-  assert.notThrows(() => replaceAll('[object Object]', object, 'a') === 'a');
-  object[Symbol.match] = true;
-  assert.throws(() => replaceAll('[object Object]', object, 'a'), TypeError);
+  assert.same(replaceAll('[object Object]', object, 'a'), 'a');
 });

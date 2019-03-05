@@ -1,6 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants';
-
-const Symbol = GLOBAL.Symbol || {};
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('String#replaceAll', assert => {
   const { replaceAll } = String.prototype;
@@ -17,12 +15,8 @@ QUnit.test('String#replaceAll', assert => {
     assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);
     assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
   }
-  const regexp = /./;
-  assert.throws(() => '/./'.replaceAll(regexp, 'a'), TypeError);
-  regexp[Symbol.match] = false;
-  assert.notThrows(() => '/./'.replaceAll(regexp, 'a') === 'a');
+  assert.same('b.b.b.b.b'.replaceAll(/\./, 'a'), 'babababab');
+  assert.same('b.b.b.b.b'.replaceAll(/\./g, 'a'), 'babababab');
   const object = {};
-  assert.notThrows(() => '[object Object]'.replaceAll(object, 'a') === 'a');
-  object[Symbol.match] = true;
-  assert.throws(() => '[object Object]'.replaceAll(object, 'a'), TypeError);
+  assert.same('[object Object]'.replaceAll(object, 'a'), 'a');
 });
