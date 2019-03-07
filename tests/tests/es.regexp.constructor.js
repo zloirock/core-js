@@ -45,6 +45,6 @@ if (DESCRIPTORS) {
   QUnit.test('RegExp sticky', assert => {
     const re = new RegExp('a', 'y');
     assert.ok(re.sticky, '.sticky is true');
-    assert.strictEqual(re.flags, 'y', '.flags contains y')
-  })
+    assert.strictEqual(re.flags, 'y', '.flags contains y');
+  });
 }
