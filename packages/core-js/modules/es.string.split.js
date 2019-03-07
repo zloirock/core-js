@@ -8,13 +8,9 @@ var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var callRegExpExec = require('../internals/regexp-exec-abstract');
 var regexpExec = require('../internals/regexp-exec');
-var fails = require('../internals/fails');
 var arrayPush = [].push;
 var min = Math.min;
 var MAX_UINT32 = 0xffffffff;
-
-// babel-minify transpiles RegExp('x', 'y') -> /x/y and it causes SyntaxError
-var SUPPORTS_Y = !fails(function () { return !RegExp(MAX_UINT32, 'y'); });
 
 // @@split logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
@@ -99,11 +95,11 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         var flags = (rx.ignoreCase ? 'i' : '') +
                     (rx.multiline ? 'm' : '') +
                     (rx.unicode ? 'u' : '') +
-                    (SUPPORTS_Y ? 'y' : 'g');
+                    'y';
 
         // ^(? + rx + ) is needed, in combination with some S slicing, to
         // simulate the 'y' flag.
-        var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
+        var splitter = new C(rx, flags);
         var lim = limit === undefined ? MAX_UINT32 : limit >>> 0;
         if (lim === 0) return [];
         if (S.length === 0) return callRegExpExec(splitter, S) === null ? [S] : [];
@@ -111,12 +107,12 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         var q = 0;
         var A = [];
         while (q < S.length) {
-          splitter.lastIndex = SUPPORTS_Y ? q : 0;
-          var z = callRegExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
+          splitter.lastIndex = q;
+          var z = callRegExpExec(splitter, S);
           var e;
           if (
             z === null ||
-            (e = min(toLength(splitter.lastIndex + (SUPPORTS_Y ? 0 : q)), S.length)) === p
+            (e = min(toLength(splitter.lastIndex), S.length)) === p
           ) {
             q = advanceStringIndex(S, q, unicodeMatching);
           } else {
@@ -133,6 +129,5 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
         return A;
       }
     ];
-  },
-  !SUPPORTS_Y
+  }
 );

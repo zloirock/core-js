@@ -41,4 +41,10 @@ if (DESCRIPTORS) {
       assert.ok(new Subclass('^abc$').test('abc'), 'correct subclassing with native classes #3');
     }
   });
+
+  QUnit.test('RegExp sticky', assert => {
+    const re = new RegExp('a', 'y');
+    assert.ok(re.sticky, '.sticky is true');
+    assert.strictEqual(re.flags, 'y', '.flags contains y')
+  })
 }
