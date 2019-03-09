@@ -482,7 +482,7 @@ module.exports = {
         compositeSymbol: true,
         globalThis: true,
         queueMicrotask: true,
-        AgregateError: true,
+        AggregateError: true,
         Observable: true,
       },
     },

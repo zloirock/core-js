@@ -31,10 +31,10 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
           if (alreadyRejected || alreadyResolved) return;
           alreadyRejected = true;
           errors[index] = e;
-          --remaining || reject(new (getBuiltIn('AgregateError'))(errors, PROMISE_ANY_ERROR));
+          --remaining || reject(new (getBuiltIn('AggregateError'))(errors, PROMISE_ANY_ERROR));
         });
       });
-      --remaining || reject(new (getBuiltIn('AgregateError'))(errors, PROMISE_ANY_ERROR));
+      --remaining || reject(new (getBuiltIn('AggregateError'))(errors, PROMISE_ANY_ERROR));
     });
     if (result.e) reject(result.v);
     return capability.promise;

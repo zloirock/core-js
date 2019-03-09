@@ -1933,10 +1933,10 @@ core-js(-pure)/features/symbol/dispose
 ```js
 core-js(-pure)/stage/0
 ```
-* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.any.js) and [`esnext.agregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.agregate-error.js)
+* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
-class AgregeteError {
-  constructor(errors: Iterable, message: string): AgregeteError;
+class AggregateError {
+  constructor(errors: Iterable, message: string): AggregateError;
   errors: Array<any>;
   message: string;
 }
@@ -1949,7 +1949,7 @@ class Promise {
 ```js
 core-js/proposals/promise-any
 core-js(-pure)/features/promise/any
-core-js(-pure)/features/agregate-error
+core-js(-pure)/features/aggregate-error
 ```
 [*Examples*](https://goo.gl/iErvmp):
 ```js

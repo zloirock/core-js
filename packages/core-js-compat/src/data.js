@@ -1171,7 +1171,7 @@ module.exports = {
     firefox: '53',
     safari: '10.0',
   },
-  'esnext.agregate-error': {
+  'esnext.aggregate-error': {
   },
   'esnext.array.last-index': {
   },

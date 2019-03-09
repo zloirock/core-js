@@ -4,9 +4,9 @@ var create = require('../internals/object-create');
 var iterate = require('../internals/iterate');
 var hide = require('../internals/hide');
 
-var $AgregateError = function AgregateError(errors, message) {
+var $AggregateError = function AggregateError(errors, message) {
   var that = this;
-  if (!(that instanceof $AgregateError)) return new $AgregateError(errors, message);
+  if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message);
   if (setPrototypeOf) {
     that = setPrototypeOf(new Error(message), getPrototypeOf(that));
   }
@@ -17,11 +17,11 @@ var $AgregateError = function AgregateError(errors, message) {
   return that;
 };
 
-$AgregateError.prototype = create(Error.prototype, {
-  constructor: { value: $AgregateError, configurable: true, writable: true },
-  name: { value: 'AgregateError', configurable: true, writable: true }
+$AggregateError.prototype = create(Error.prototype, {
+  constructor: { value: $AggregateError, configurable: true, writable: true },
+  name: { value: 'AggregateError', configurable: true, writable: true }
 });
 
 require('../internals/export')({ global: true }, {
-  AgregateError: $AgregateError
+  AggregateError: $AggregateError
 });
