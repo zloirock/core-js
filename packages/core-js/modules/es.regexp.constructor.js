@@ -57,22 +57,10 @@ if (FORCED) {
       RegExpWrapper
     );
 
-    if (UNSUPPORTED_Y) {
-      var desc = {
-        configurable: true,
-        get: function () { return sticky; }
-      };
-      try {
-        defineProperty(result, 'sticky', desc);
-      } catch (e) {
-        // In old firefox versions (e.g. 11.0), RegExps have a
-        // non-configurable non-writable "sticky" property.
-        // It isn't possible to correctly set it to "true",
-        // but we need to store "sticky" in another property to
-        // make polyfilled .exec work.
-        defineProperty(result, stickyHelpers.COREJS_STICKY, desc);
-      }
-    }
+    if (UNSUPPORTED_Y) defineProperty(result, 'sticky', {
+      configurable: true,
+      get: function () { return sticky; }
+    });
 
     return result;
   };
