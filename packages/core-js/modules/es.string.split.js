@@ -14,7 +14,7 @@ var min = Math.min;
 var MAX_UINT32 = 0xffffffff;
 
 // babel-minify transpiles RegExp('x', 'y') -> /x/y and it causes SyntaxError
-var SUPPORTS_Y = !fails(function () { RegExp(MAX_UINT32, 'y'); });
+var SUPPORTS_Y = !fails(function () { return !RegExp(MAX_UINT32, 'y'); });
 
 // @@split logic
 require('../internals/fix-regexp-well-known-symbol-logic')(
