@@ -1,7 +1,7 @@
 'use strict';
 
 var regexpFlags = require('./regexp-flags');
-var fails = require('./fails');
+var stickyHelpers = require('./regexp-sticky-helpers');
 
 var nativeExec = RegExp.prototype.exec;
 // This always refers to the native implementation, because the
@@ -19,12 +19,7 @@ var UPDATES_LAST_INDEX_WRONG = (function () {
   return re1.lastIndex !== 0 || re2.lastIndex !== 0;
 })();
 
-var UNSUPPORTED_Y = fails(function () {
-  // babel-minify transpiles RegExp('a', 'y') -> /a/y and it causes SyntaxError
-  var re = RegExp(Math.random() < 2 && 'a', 'y');
-  re.lastIndex = 2;
-  return re.exec('abcd') != null;
-});
+var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
@@ -35,7 +30,7 @@ if (PATCH) {
   patchedExec = function exec(str) {
     var re = this;
     var lastIndex, reCopy, match, i;
-    var sticky = UNSUPPORTED_Y && re.sticky;
+    var sticky = UNSUPPORTED_Y && stickyHelpers.isSticky(re);
 
     if (sticky) {
       var flags = (re.ignoreCase ? 'i' : '') +
