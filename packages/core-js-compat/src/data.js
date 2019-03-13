@@ -242,11 +242,11 @@ module.exports = {
   },
   'es.array.unscopables.flat': {
     firefox: '67',
-    chrome: '74',
+    chrome: '73',
   },
   'es.array.unscopables.flat-map': {
     firefox: '67',
-    chrome: '74',
+    chrome: '73',
   },
   'es.array-buffer.constructor': {
     edge: '14',
@@ -570,7 +570,7 @@ module.exports = {
     safari: '9.0',
   },
   'es.object.from-entries': {
-    chrome: '74',
+    chrome: '73',
     firefox: '63',
     safari: '12.1',
   },
@@ -1315,7 +1315,7 @@ module.exports = {
   'esnext.string.code-points': {
   },
   'esnext.string.match-all': {
-    chrome: '74',
+    chrome: '73',
   },
   'esnext.string.replace-all': {
   },
