@@ -108,6 +108,7 @@ import './es.reflect.set';
 import './es.regexp.constructor';
 import './es.regexp.exec';
 import './es.regexp.flags';
+import './es.regexp.sticky';
 import './es.regexp.to-string';
 import './es.set';
 import './es.string.anchor';

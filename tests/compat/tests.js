@@ -710,6 +710,13 @@ GLOBAL.tests = {
   'es.regexp.flags': function () {
     return /./g.flags === 'g';
   },
+  'es.regexp.sticky': function () {
+    try {
+      return new RegExp('a', 'y').sticky === true;
+    } catch (e) {
+      return false;
+    }
+  },
   'es.regexp.to-string': function () {
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
       && RegExp.prototype.toString.name === 'toString';
