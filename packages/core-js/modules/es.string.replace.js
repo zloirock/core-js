@@ -21,7 +21,7 @@ var maybeToString = function (it) {
 require('../internals/fix-regexp-well-known-symbol-logic')(
   'replace',
   2,
-  function (REPLACE, nativeReplace, maybeCallNative) {
+  function (REPLACE, nativeReplace, maybeCallNative, reason) {
     return [
       // `String.prototype.replace` method
       // https://tc39.github.io/ecma262/#sec-string.prototype.replace
@@ -35,8 +35,14 @@ require('../internals/fix-regexp-well-known-symbol-logic')(
       // `RegExp.prototype[@@replace]` method
       // https://tc39.github.io/ecma262/#sec-regexp.prototype-@@replace
       function (regexp, replaceValue) {
-        var res = maybeCallNative(nativeReplace, regexp, this, replaceValue);
-        if (res.done) return res.value;
+        if (
+          reason.REPLACE_KEEPS_$0 || (
+            typeof replaceValue === 'string' && replaceValue.indexOf('$0') === -1
+          )
+        ) {
+          var res = maybeCallNative(nativeReplace, regexp, this, replaceValue);
+          if (res.done) return res.value;
+        }
 
         var rx = anObject(regexp);
         var S = String(this);
