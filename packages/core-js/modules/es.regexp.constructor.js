@@ -11,6 +11,9 @@ var getFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
+var InternalStateModule = require('../internals/internal-state');
+var getInternalState = InternalStateModule.get;
+var setInternalState = InternalStateModule.set;
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 var re1 = /a/g;
@@ -57,10 +60,7 @@ if (FORCED) {
       RegExpWrapper
     );
 
-    if (UNSUPPORTED_Y) defineProperty(result, 'sticky', {
-      configurable: true,
-      get: function () { return sticky; }
-    });
+    if (UNSUPPORTED_Y) setInternalState(result, { sticky: sticky });
 
     return result;
   };
@@ -77,7 +77,22 @@ if (FORCED) {
   RegExpPrototype.constructor = RegExpWrapper;
   RegExpWrapper.prototype = RegExpPrototype;
   redefine(global, 'RegExp', RegExpWrapper);
-  if (UNSUPPORTED_Y) hide(RegExpWrapper, 'sham', true);
+
+  if (UNSUPPORTED_Y) {
+    hide(RegExpWrapper, 'sham', true);
+    defineProperty(RegExpPrototype, 'sticky', {
+      configurable: true,
+      get: function () {
+        // We can't use InternalStateModule.getterFor because
+        // we don't add metadata for regexps created by a literal.
+        if (!(this instanceof RegExpWrapper) && this !== RegExpPrototype) {
+          throw TypeError('Incompatible receiver, RegExp required');
+        }
+        var state = getInternalState(this);
+        return state.sticky;
+      }
+    });
+  }
 }
 
 // https://tc39.github.io/ecma262/#sec-get-regexp-@@species
