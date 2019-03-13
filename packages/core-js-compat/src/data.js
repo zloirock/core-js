@@ -791,7 +791,6 @@ module.exports = {
     chrome: '49',
     edge: '13',
     firefox: '3',
-    opera: '36',
     safari: '10.0',
   },
   'es.regexp.to-string': {
