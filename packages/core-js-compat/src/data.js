@@ -208,7 +208,8 @@ module.exports = {
     ie: '8',
     chrome: '26',
     firefox: '4',
-    // safari 12 has a serious bug
+    // safari 12.0 has a serious bug
+    safari: '12.0.2',
   },
   'es.array.slice': {
     edge: '13',
