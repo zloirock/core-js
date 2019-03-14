@@ -1,15 +1,15 @@
 {
   "name": "core-js-builder",
   "description": "core-js builder",
-  "version": "3.0.0-beta.18",
+  "version": "3.0.0-beta.19",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
   "dependencies": {
-    "core-js": "3.0.0-beta.18",
-    "core-js-compat": "3.0.0-beta.18",
+    "core-js": "3.0.0-beta.19",
+    "core-js-compat": "3.0.0-beta.19",
     "mkdirp": "^0.5.1",
     "temp": "^0.9.0",
     "util.promisify": "^1.0.0",
