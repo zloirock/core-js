@@ -55,8 +55,8 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 ### Index
 - [Usage](#usage)
-  - [Basic](#basic)
-  - [CommonJS](#commonjs)
+  - [Installation](#installation)
+  - [CommonJS API](#commonjs-api)
   - [Babel](#babel)
     - [`@babel/polyfill`](#babelpolyfill)
     - [`@babel/preset-env`](#babelpreset-env)
@@ -98,8 +98,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 - [Changelog](./CHANGELOG.md)
 
 ## Usage
-### Basic
-Installation:
+### Installation:
 ```
 // global version
 npm install --save core-js@3.0.0-beta.20
@@ -109,24 +108,51 @@ npm install --save core-js-pure@3.0.0-beta.20
 npm install --save core-js-bundle@3.0.0-beta.20
 ```
 
+Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.0.0-beta.20) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-beta.20/minified.js)).
+
+### CommonJS API
+You can import only reqired for you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+
 ```js
-// Include all polyfills
-require('core-js');
+// polyfill all `core-js` features:
+import "core-js";
+// polyfill only stable `core-js` features - ES and web standards:
+import "core-js/stable";
+// polyfill only stable ES features:
+import "core-js/es";
+
+// if you want to polyfill `Set`:
+// all `Set`-related features, with ES proposals:
+import "core-js/features/set";
+// stable required for `Set` ES features and features from web standards
+// (DOM collections iterator in this case):
+import "core-js/stable/set";
+// only stable ES features required for `Set`:
+import "core-js/es/set";
+// the same without global namespace pollution:
+import Set from "core-js-pure/features/set";
+import Set from "core-js-pure/stable/set";
+import Set from "core-js-pure/es/set";
+
+// if you want to polyfill just required methods:
+import "core-js/features/set/intersection";
+import "core-js/stable/queue-microtask";
+import "core-js/es/array/from";
+
+// polyfill reflect metadata proposal:
+import "core-js/proposals/reflect-metadata";
+// polyfill all stage 2+ proposals:
+import "core-js/stage/2";
 ```
-If you need already bundled version of `core-js`, use `core-js-bundle` `npm` package or a [version of this package from CDN](https://unpkg.com/core-js-bundle@3.0.0-beta.20) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-beta.20/minified.js)).
-
-Warning: if you use `core-js` with the extension of native objects, load all `core-js` modules at the top of entry point of your application, otherwise, you can have conflicts.
-
-### CommonJS
-You can require only needed modules, like in examples at the top of `README.md`. Available entry points for methods / constructors and namespaces: for example, `core-js/es/array` (`core-js-pure/es/array`) contains all [ES `Array` features](#ecmascript-array), `core-js/es` (`core-js-pure/es`) contains all ES features.
 
 ##### Caveats when using CommonJS API:
 
 * `modules` path is internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and / or if you know what are you doing.
+* If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/zenparsing/es-function-bind). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```js
 import fill from 'core-js-pure/features/array/virtual/fill';
 import findIndex from 'core-js-pure/features/array/virtual/find-index';
@@ -285,13 +311,13 @@ For some cases could be useful adding a blacklist of features or generation a po
 ...and it doesn't mean `core-js` will not work in other engines, they just have not been tested.
 
 ## Features:
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)
 ```
 
 ### ECMAScript
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es
 ```
@@ -330,7 +356,7 @@ class Object {
   static values(object: any): Array<mixed>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/object
 core-js(-pure)/es|stable|features/object/assign
@@ -424,7 +450,7 @@ class Function {
   @@hasInstance(value: any): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|features/function
 core-js/es|stable|features/function/name
@@ -479,7 +505,7 @@ class Arguments {
   @@iterator(): Iterator<value>; // available only in core-js methods
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/array
 core-js(-pure)/es|stable|features/array/from
@@ -643,7 +669,7 @@ class RegExp {
   readonly attribute flags: string; // IE9+
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/string
 core-js(-pure)/es|stable|features/string/from-code-point
@@ -783,7 +809,7 @@ class Number {
 function parseFloat(string: string): number;
 function parseInt(string: string, radix?: number = 10): number;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/number
 core-js/es|stable|features/number/constructor
@@ -824,7 +850,7 @@ namespace Math {
   trunc(number: number): number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/math
 core-js(-pure)/es|stable|features/math/acosh
@@ -856,7 +882,7 @@ class Date {
   static now(): number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|features/date
 core-js/es|stable|features/date/to-string
@@ -884,7 +910,7 @@ class Promise {
   static race(iterable: Iterable): Promise;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/promise
 core-js(-pure)/es|stable|features/promise/finally
@@ -1046,7 +1072,7 @@ namespace JSON {
   stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/symbol
 core-js(-pure)/es|stable|features/symbol/async-iterator
@@ -1153,7 +1179,7 @@ class Map {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/map
 ```
@@ -1207,7 +1233,7 @@ class Set {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/set
 ```
@@ -1246,7 +1272,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/weak-map
 ```
@@ -1291,7 +1317,7 @@ class WeakSet {
   has(key: Object): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/weak-set
 ```
@@ -1397,7 +1423,7 @@ class [
   static BYTES_PER_ELEMENT: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|features/array-buffer
 core-js/es|stable|features/array-buffer/constructor
@@ -1498,7 +1524,7 @@ namespace Reflect {
   setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/reflect
 core-js(-pure)/es|stable|features/reflect/apply
@@ -1535,14 +1561,14 @@ instance.c; // => 42
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
 #### Stage 4 proposals
 
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/4
 ```
 None.
 
 #### Stage 3 proposals
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/3
 ```
@@ -1552,7 +1578,7 @@ class String {
   matchAll(regexp: RegExp): Iterator;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-match-all
 core-js(-pure)/features/string/match-all
@@ -1568,7 +1594,7 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
 ```js
 let globalThis: Object;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/global-this
 core-js(-pure)/features/global-this
@@ -1579,7 +1605,7 @@ globalThis.Array === Array; // => true
 ```
 
 #### Stage 2 proposals
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/2
 ```
@@ -1595,7 +1621,7 @@ class Set {
   union(iterable: Iterable<mixed>): Set;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/set-methods
 core-js(-pure)/features/set/difference
@@ -1623,7 +1649,7 @@ class Promise {
   static allSettled(iterable): promise;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-all-settled
 core-js(-pure)/features/promise/all-settled
@@ -1638,7 +1664,7 @@ Promise.allSettled([
 ```
 
 #### Stage 1 proposals
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/1
 ```
@@ -1649,7 +1675,7 @@ class Array {
   readonly attribute lastIndex: uint;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-last
 core-js/features/array/last-item
@@ -1671,7 +1697,7 @@ class String {
   replaceAll(searchValue: string | RegExp, replaceString: string): string;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-replace-all
 core-js/features/string/replace-all
@@ -1686,7 +1712,7 @@ class Promise {
   static try(callbackfn: Function): promise;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-try
 core-js(-pure)/features/promise/try
@@ -1748,7 +1774,7 @@ class WeakMap {
   deleteAll(...args: Array<mixed>): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/collection-methods
 core-js/proposals/collection-of-from
@@ -1799,7 +1825,7 @@ Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map 
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/keys-composition
 core-js(-pure)/features/composite-key
@@ -1846,7 +1872,7 @@ class Symbol {
   static observable: @@observable;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/observable
 core-js(-pure)/features/observable
@@ -1875,7 +1901,7 @@ namespace Math {
   scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/math-extensions
 core-js(-pure)/features/math/clamp
@@ -1892,7 +1918,7 @@ namespace Math {
   signbit(x: number): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/math-signbit
 core-js(-pure)/features/math/signbit
@@ -1911,7 +1937,7 @@ class Number {
   fromString(string: string, radix: number): number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/number-from-string
 core-js(-pure)/features/number/from-string
@@ -1922,7 +1948,7 @@ class String {
   codePoints(): Iterator<codePoint, position>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-code-points
 core-js(-pure)/features/string/code-points
@@ -1940,7 +1966,7 @@ class Math {
   seededPRNG({ seed: number }): Iterator<number>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/seeded-random
 core-js(-pure)/features/math/seeded-prng
@@ -1958,7 +1984,7 @@ class Symbol {
   static patternMatch: @@patternMatch;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
@@ -1969,14 +1995,14 @@ class Symbol {
   static dispose: @@dispose;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/using-statement
 core-js(-pure)/features/symbol/dispose
 ```
 
 #### Stage 0 proposals
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/0
 ```
@@ -1992,7 +2018,7 @@ class Promise {
   static any(promises: Iterable): Promise<any>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-any
 core-js(-pure)/features/promise/any
@@ -2019,7 +2045,7 @@ class String {
   at(index: number): string;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-at
 core-js(-pure)/features/string/at
@@ -2039,7 +2065,7 @@ namespace Math {
   umulh(a: number, b: number): number;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/efficient-64-bit-arithmetic
 core-js(-pure)/features/math/iaddh
@@ -2049,7 +2075,7 @@ core-js(-pure)/features/math/umulh
 ```
 
 #### Pre-stage 0 proposals
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/pre
 ```
@@ -2067,7 +2093,7 @@ namespace Reflect {
   metadata(metadataKey: any, metadataValue: any): decorator(target: Object, targetKey?: PropertyKey) => void;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/reflect-metadata
 core-js(-pure)/features/reflect/define-metadata
@@ -2090,7 +2116,7 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
 ### Web standards
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/web
 ```
@@ -2100,7 +2126,7 @@ Module [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/c
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/web/timers
 core-js(-pure)/stable|features/set-timeout
@@ -2118,7 +2144,7 @@ Module [`web.immediate`](https://github.com/zloirock/core-js/blob/master/package
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/web/immediate
 core-js(-pure)/stable|features/set-immediate
@@ -2140,7 +2166,7 @@ clearImmediate(setImmediate(() => {
 ```js
 function queueMicrotask(fn: Function): void;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/web/queue-microtask
 core-js(-pure)/stable|features/queue-microtask
@@ -2188,7 +2214,7 @@ class URLSearchParams {
   @@iterator(): Iterator<[key, value]>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/url
 core-js(-pure)/web/url
@@ -2291,7 +2317,7 @@ class [DOMTokenList, NodeList] {
   @@iterator(): Iterator<value>;
 }
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/web/dom-collections
 core-js(-pure)/stable|features/dom-collections/iterator
@@ -2316,7 +2342,7 @@ function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
 function getIteratorMethod(value: any): Function | void;
 ```
-[*CommonJS entry points:*](#commonjs)
+[*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js-pure/features/is-iterable
 core-js-pure/features/get-iterator
