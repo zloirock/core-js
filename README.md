@@ -89,18 +89,18 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 Installation:
 ```
 // global version
-npm i core-js@3.0.0-beta.19
+npm install --save core-js@3.0.0-beta.20
 // version without global namespace pollution
-npm i core-js-pure@3.0.0-beta.19
+npm install --save core-js-pure@3.0.0-beta.20
 // bundled global version
-npm i core-js-bundle@3.0.0-beta.19
+npm install --save core-js-bundle@3.0.0-beta.20
 ```
 
 ```js
 // Include all polyfills
 require('core-js');
 ```
-If you need already bundled version of `core-js`, use `core-js-bundle` `npm` package or a [version of this package from CDN](https://unpkg.com/core-js-bundle@3.0.0-beta.19) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-beta.19/minified.js)).
+If you need already bundled version of `core-js`, use `core-js-bundle` `npm` package or a [version of this package from CDN](https://unpkg.com/core-js-bundle@3.0.0-beta.20) ([minified version](https://unpkg.com/core-js-bundle@3.0.0-beta.20/minified.js)).
 
 Warning: if you use `core-js` with the extension of native objects, load all `core-js` modules at the top of entry point of your application, otherwise, you can have conflicts.
 
