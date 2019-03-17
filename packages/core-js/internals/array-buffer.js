@@ -283,7 +283,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     setUint8: function setUint8(byteOffset, value) {
       nativeSetInt8.call(this, byteOffset, value << 24 >> 24);
     }
-  }, true);
+  }, { unsafe: true });
 }
 
 setToStringTag($ArrayBuffer, ARRAY_BUFFER);
