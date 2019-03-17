@@ -1001,6 +1001,6 @@ if (NativeURL) {
 
 require('../internals/set-to-string-tag')(URLConstructor, 'URL');
 
-require('../internals/export')({ global: true, forced: !USE_NATIVE_URL }, {
+require('../internals/export')({ global: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
   URL: URLConstructor
 });

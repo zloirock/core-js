@@ -114,7 +114,7 @@
     - `Object#__(define|lookup)[GS]etter__`
   - Remove obsolete features:
     - `Error.isError` (withdrawn)
-    - `System.global` (replaced by `globalThis`)
+    - `System.global` and `global` (replaced by `globalThis`)
     - `Map#toJSON` and `Set#toJSON` (rejected)
     - `RegExp.escape` (rejected)
     - `Reflect.enumerate` (removed from the spec)
@@ -133,6 +133,7 @@
     - `Object.getPrototypeOf` can be deceived in ES3 environment.
     - `Reflect.construct` can't be polyfilled for a correct work with `newTarget` argument on built-ins.
     - Typed Array constructors polyfill is quite correct but too expensive.
+    - `URL` constructor in engines without descriptors support.
 - Bug and compatibility fixes:
   - Fix deoptimisation of iterators in V8, [#377](https://github.com/zloirock/core-js/issues/377).
   - Fix import of property before constructor which should contain this property, [#262](https://github.com/zloirock/core-js/issues/262).
