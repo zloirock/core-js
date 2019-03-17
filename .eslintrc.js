@@ -285,8 +285,6 @@ const base = {
   'arrow-parens': ['error', 'as-needed'],
   // enforce consistent spacing before and after the arrow in arrow functions
   'arrow-spacing': 'error',
-  // disallow duplicate module imports
-  'no-duplicate-imports': 'error',
   // enforce the location of arrow function bodies
   'implicit-arrow-linebreak': ['error', 'beside'],
   // disallow unnecessary computed property keys in object literals
