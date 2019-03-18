@@ -301,11 +301,11 @@ For some cases could be useful adding a blacklist of features or generation a po
 - Firefox 4+
 - Safari 5+
 - Opera 12+
-- Internet Explorer 6+ (sure, IE8- with ES3 limitations)
+- Internet Explorer 8+ (sure, IE8 with ES3 limitations)
 - Edge
 - Android Browser 2.3+
 - iOS Safari 5.1+
-- PhantomJS 1.9 / 2.1
+- PhantomJS 1.9+
 - NodeJS 0.8+
 
 ...and it doesn't mean `core-js` will not work in other engines, they just have not been tested.
@@ -660,7 +660,7 @@ class String {
 
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp; // ES2015+ fix - can alter flags (IE9+)
-  exec(): Array<string | undefined> | null; // IE8- fixes
+  exec(): Array<string | undefined> | null; // IE8 fixes
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
   @@replace(string: string, replaceValue: Function | string): string;
@@ -2268,7 +2268,7 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 ```
 
 ##### Caveats when using `URL` and `URLSearchParams`:
-- IE8- does not supports setters, so they does not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
+- IE8 does not supports setters, so they does not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
 - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
 - `URL` implementations from all of popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
@@ -2380,7 +2380,6 @@ console.log(getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills
-- ES `JSON` is missing now only in IE7- and never will it be added to `core-js`, if you need it in these old browsers, many implementations are available.
 - ES `String#normalize` is not a very useful feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
 - ES `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES2015 version.
 - `window.fetch` is not a cross-platform feature, in some environments it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *may be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
