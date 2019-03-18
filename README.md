@@ -265,7 +265,7 @@ By default, `@babel/runtime` polyfill only stable features, but like in `@babel/
 
 ### Configurable level of aggressiveness
 
-By default, `core-js` set polyfills only when they required. That means that `core-js` check is a feature available and works it correctly or not and if it has no problems, `core-js` use native implementation.
+By default, `core-js` set polyfills only when they required. That means that `core-js` check is a feature available and works correctly or not and if it has no problems, `core-js` use native implementation.
 
 But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
 
@@ -301,7 +301,7 @@ For some cases could be useful adding a blacklist of features or generation a po
 - Firefox 4+
 - Safari 5+
 - Opera 12+
-- Internet Explorer 8+ (sure, IE8 with ES3 limitations)
+- Internet Explorer 8+ (sure, IE8 with ES3 limitations; IE7- also should work, but no longer tested)
 - Edge
 - Android Browser 2.3+
 - iOS Safari 5.1+
