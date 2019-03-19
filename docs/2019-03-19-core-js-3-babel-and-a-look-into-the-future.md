@@ -261,7 +261,7 @@ import "core-js/modules/web.immediate";
 
 Since now `@babel/polyfill` is deprecated in favor of separate `core-js` and `regenerator-runtime` inclusion, we can optimize `regenerator-runtime` import. For this reason, `regenerator-runtime` import will be removed from the source code when targeting browsers that supports generators natively.
 
-Now, `@babel/preset-env` in `useBuilIns: entry` mode transpile **all available** `core-js` entry points and their combinations. This means that you can customize it as much as you want, by using different `core-js` entry points, and it will be optimized for your target envieronment.
+Now, `@babel/preset-env` in `useBuilIns: entry` mode transpile **all available** `core-js` entry points and their combinations. This means that you can customize it as much as you want, by using different `core-js` entry points, and it will be optimized for your target environment.
 
 For example, when targeting `chrome 72`,
 ```js
@@ -398,7 +398,7 @@ The main reason why `core-js` doesn’t include them was that it would have seri
 
 Maybe it's time to revisit this old decision?
 
-### `@babel/runtime` for target envieronment
+### `@babel/runtime` for target environment
 
 Currently, we can't set the target environment as `@babel/runtime` like we can do for `@babel/preset-env`. That means that `@babel/runtime` injects all possible polyfills even when targeting modern engines: it unnecessarily increases the size of the final bundle.
 
