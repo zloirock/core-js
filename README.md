@@ -4,6 +4,8 @@
 
 ## As advertising: the author is looking for a good job -)
 
+## [core-js@3, babel and a look into the future](https://github.com/zloirock/core-js/tree/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
+
 ## Open Collective Sponsors
 
 [**Become a sponsor**](https://opencollective.com/core-js#sponsor) and get your logo with a link to your site on our README on GitHub and NPM.
