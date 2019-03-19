@@ -1,5 +1,5 @@
 ## Changelog
-##### 3.0.0
+##### 3.0.0 - 2019.03.19
 - Features
   - Add new features:
     - `Object.fromEntries` ([ECMAScript 2019](https://github.com/tc39/proposal-object-from-entries))
