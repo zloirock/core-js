@@ -154,7 +154,7 @@ import "core-js/stage/2";
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```js
 import fill from 'core-js-pure/features/array/virtual/fill';
 import findIndex from 'core-js-pure/features/array/virtual/find-index';
