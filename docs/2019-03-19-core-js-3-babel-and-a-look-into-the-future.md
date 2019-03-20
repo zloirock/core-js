@@ -218,7 +218,7 @@ npm i --save core-js regenerator-runtime
 
 Babel 7.4.0 introduces both changes commons to the two modes and specific to each mode.
 
-Since `@babel/preset-env` now supports `core-js@2` and `core-js@3`, `useBuilIns` requires setting a new option, `corejs`, which specifies the used version (`corejs: 2` or `corejs: 3`). If it isn't directly set, `corejs: 2` will be used by default and it will show a warning.
+Since `@babel/preset-env` now supports `core-js@2` and `core-js@3`, `useBuiltIns` requires setting a new option, `corejs`, which specifies the used version (`corejs: 2` or `corejs: 3`). If it isn't directly set, `corejs: 2` will be used by default and it will show a warning.
 
 To make it possible for Babel to support new `core-js` features introduced in future minor versions, you also can specify the minor `core-js` version used in your project. For example, if you want to use `core-js@3.1` and take advantage of new features added in that version, you can set the `corejs` option to `3.1`: `corejs: '3.1'` or `corejs: { version: '3.1' }`.
 
@@ -232,7 +232,7 @@ For this reason, I created the [`core-js-compat`](https://github.com/zloirock/co
 
 Until Babel 7.3, `@babel/preset-env` had some problems related to the order polyfills were injected. Starting from version 7.4.0, `@babel/preset-env` will add the polyfills only when it know which of them required and in the recommended order.
 
-#### `useBuilIns: entry` with `corejs: 3`
+#### `useBuiltIns: entry` with `corejs: 3`
 
 When using this option, `@babel/preset-env` replaces direct imports of `core-js` to imports of only the specific modules required for a target environment.
 
@@ -261,7 +261,7 @@ import "core-js/modules/web.immediate";
 
 Since now `@babel/polyfill` is deprecated in favor of separate `core-js` and `regenerator-runtime` inclusion, we can optimize `regenerator-runtime` import. For this reason, `regenerator-runtime` import will be removed from the source code when targeting browsers that supports generators natively.
 
-Now, `@babel/preset-env` in `useBuilIns: entry` mode transpile **all available** `core-js` entry points and their combinations. This means that you can customize it as much as you want, by using different `core-js` entry points, and it will be optimized for your target environment.
+Now, `@babel/preset-env` in `useBuiltIns: entry` mode transpile **all available** `core-js` entry points and their combinations. This means that you can customize it as much as you want, by using different `core-js` entry points, and it will be optimized for your target environment.
 
 For example, when targeting `chrome 72`,
 ```js
@@ -284,7 +284,7 @@ import "core-js/modules/esnext.set.symmetric-difference";
 import "core-js/modules/esnext.set.union";
 ```
 
-#### `useBuilIns: usage` with `corejs: 3`
+#### `useBuiltIns: usage` with `corejs: 3`
 
 When using this option, `@babel/preset-env` adds at the top of each file imports of polyfills only for features used in the current and not supported by target environments.
 
@@ -311,7 +311,7 @@ const set = new Set([1, 2, 3]);
 [1, 2, 3].includes(2);
 ```
 
-Until Babel 7.3, `useBuilIns: usage` was unstable and not fully reliable: many polyfills were not included, and many others were added without their required dependencies. In Babel 7.4, I tried to make it understand every possible usage pattern.
+Until Babel 7.3, `useBuiltIns: usage` was unstable and not fully reliable: many polyfills were not included, and many others were added without their required dependencies. In Babel 7.4, I tried to make it understand every possible usage pattern.
 
 I improved the techniques used to determine which polyfills should be added on property accesses, object destructuring, `in` operator, global object property accesses.
 
@@ -410,11 +410,11 @@ As explained above, Babel plugins give us different ways of optimizing `core-js`
 
 `@babel/preset-env` with `useBuiltIns: usage` now should work much better than before, but it could still fail in some uncommon cases: when the code can't be statically analyzed. For that case, we to find a way for library developers to specify which polyfills are required by their library instead of directly loading them: some kind of metadata, which will be used to inject polyfills when creating the final bundle.
 
-Another issue of `useBuilIns: usage` is the duplication of polyfills import. `useBuilIns: usage` can inject dozens of `core-js` imports in each file. But what if in our project has thousands of files or even tenths of thousands? In this case, we will have more lines of code with `import "core-js/..."` than lines of code in `core-js` itself: we need a way to collect all imports to one file so that they can be deduplicated.
+Another issue of `useBuiltIns: usage` is the duplication of polyfills import. `useBuiltIns: usage` can inject dozens of `core-js` imports in each file. But what if in our project has thousands of files or even tenths of thousands? In this case, we will have more lines of code with `import "core-js/..."` than lines of code in `core-js` itself: we need a way to collect all imports to one file so that they can be deduplicated.
 
 Almost every `@babel/preset-env` user which targets old engines like IE11 uses a single bundle for every browser. That means that even modern engines with full ES2019 support will be loading the unnecessary polyfills only required by IE11. Sure, we can create different bundles for different targets and use, for example, the `type=module` / `nomodules`  attributes: one bundle for modern engines with modules support, another for legacy engines. Unfortunately it’s not a complete solution to this problem: a service which bundles polyfills for the required target based on the user agent would be really useful. And we already have one - [`polyfill-service`](https://github.com/Financial-Times/polyfill-service). Although it is an interesting and popular service, polyfills quality leaves much to be desired. It’s not as bad as it was some years ago: the team of this project is actively working to improve it, but I wouldn't recommend using polyfills from this project if you want them to match native implementations. Some years ago was an attempt to use `core-js` as a polyfills source for this project, but it hadn't been possible because `polyfill-service` relies on files concatenation instead of modules (like `core-js` in the first few months after it was published 😊).
 
-A service like this one integrated with a good polyfills source like `core-js`, which only loads the needed polyfills by statically analyzing the source like Babel's `useBuilIns: usage` option does could cause a revolution in the way we think about polyfills.
+A service like this one integrated with a good polyfills source like `core-js`, which only loads the needed polyfills by statically analyzing the source like Babel's `useBuiltIns: usage` option does could cause a revolution in the way we think about polyfills.
 
 ### New features proposals from TC39 and possible problems for `core-js`
 
