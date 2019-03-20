@@ -34,4 +34,4 @@ console.log(targets);
 */
 ```
 
-If you want to add new / update data about modules required for target engines, [follow this instruction](../../CONTRIBUTING.md#updating-core-js-compat-data).
+If you want to add new / update data about modules required for target engines, [follow this instruction](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data).
