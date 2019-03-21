@@ -100,13 +100,14 @@ var notify = function (promise, state, isReject) {
               exited = true;
             }
           }
-          var isResultThenable = isThenable(result);
           if (result === reaction.promise) {
             reject(TypeError('Promise-chain cycle'));
-          } else if (isResultThenable) {
-            then = isResultThenable;
-            then.call(result, resolve, reject);
-          } else resolve(result);
+          } else {
+            then = isThenable(result);
+            if (then) {
+              then.call(result, resolve, reject);
+            } else resolve(result);
+          }
         } else reject(value);
       } catch (e) {
         if (domain && !exited) domain.exit();
