@@ -1,1 +1,1 @@
-module.exports = module.exports = require('../../es/array/flat-map');
+module.exports = require('../../es/array/flat-map');

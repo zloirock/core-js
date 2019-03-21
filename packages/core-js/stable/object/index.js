@@ -1,1 +1,1 @@
-module.exports = module.exports = require('../../es/object');
+module.exports = require('../../es/object');
