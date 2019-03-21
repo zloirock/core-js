@@ -100,9 +100,11 @@ var notify = function (promise, state, isReject) {
               exited = true;
             }
           }
+          var isResultThenable = isThenable(result);
           if (result === reaction.promise) {
             reject(TypeError('Promise-chain cycle'));
-          } else if (then = isThenable(result)) {
+          } else if (isResultThenable) {
+            then = isResultThenable;
             then.call(result, resolve, reject);
           } else resolve(result);
         } else reject(value);
