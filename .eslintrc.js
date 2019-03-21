@@ -5,6 +5,8 @@ const base = {
   'for-direction': 'error',
   // disallow window alert / confirm / prompt calls
   'no-alert': 'error',
+  // disallow assignment operators in conditional statements
+  'no-cond-assign': 'error',
   // disallow comparing against -0
   'no-compare-neg-zero': 'error',
   // disallow use of console
