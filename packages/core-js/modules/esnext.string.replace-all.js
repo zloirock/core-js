@@ -2,7 +2,7 @@
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-flags');
-var ESCAPE_REGEXP = /[\\^$*+?.()|[\]{}]/g;
+var speciesConstructor = require('../internals/species-constructor');
 
 // `String.prototype.replaceAll` method
 // https://github.com/tc39/proposal-string-replace-all
@@ -12,10 +12,11 @@ require('../internals/export')({ target: 'String', proto: true }, {
     var search, flags;
     if (isRegExp(searchValue)) {
       flags = getRegExpFlags.call(searchValue);
-      search = new RegExp(searchValue.source, ~flags.indexOf('g') ? flags : flags + 'g');
-    } else {
-      search = new RegExp(String(searchValue).replace(ESCAPE_REGEXP, '\\$&'), 'g');
+      if (!~flags.indexOf('g')) {
+        search = new (speciesConstructor(searchValue, RegExp))(searchValue.source, flags + 'g');
+      } else search = searchValue;
+      return String(O).replace(search, replaceValue);
     }
-    return String(O).replace(search, replaceValue);
+    return String(O).split(searchValue).join(replaceValue);
   }
 });
