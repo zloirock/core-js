@@ -19,5 +19,6 @@ module.exports = {
     ['@babel/transform-template-literals', { loose: true, spec: true }],
     ['@babel/transform-exponentiation-operator'],
     ['transform-for-of-as-array'],
+    ['@babel/plugin-transform-runtime'],
   ],
 };
