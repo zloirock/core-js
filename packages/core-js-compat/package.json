@@ -11,7 +11,7 @@
     "browserslist": "^4.5.2",
     "core-js": "3.0.0",
     "core-js-pure": "3.0.0",
-    "semver": "^5.6.0"
+    "semver": "^6.0.0"
   },
   "devDependencies": {
     "detective": "^5.2.0",
