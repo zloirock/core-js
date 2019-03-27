@@ -4,6 +4,7 @@ require('../../modules/es.string.code-point-at');
 require('../../modules/es.string.ends-with');
 require('../../modules/es.string.includes');
 require('../../modules/es.string.match');
+require('../../modules/es.string.match-all');
 require('../../modules/es.string.pad-end');
 require('../../modules/es.string.pad-start');
 require('../../modules/es.string.repeat');

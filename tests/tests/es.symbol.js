@@ -37,6 +37,7 @@ QUnit.test('Well-known Symbols', assert => {
     'isConcatSpreadable',
     'iterator',
     'match',
+    'matchAll',
     'replace',
     'search',
     'species',

@@ -185,6 +185,9 @@ GLOBAL.tests = {
   'es.symbol.match': [SYMBOLS_SUPPORT, function () {
     return Symbol.match;
   }],
+  'es.symbol.match-all': [SYMBOLS_SUPPORT, function () {
+    return Symbol.matchAll;
+  }],
   'es.symbol.replace': [SYMBOLS_SUPPORT, function () {
     return Symbol.replace;
   }],
@@ -758,6 +761,9 @@ GLOBAL.tests = {
     re[Symbol.match]('');
 
     return ''.match(O) == 7 && execCalled;
+  },
+  'es.string.match-all': function () {
+    return String.prototype.matchAll;
   },
   'es.string.pad-end': function () {
     return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;

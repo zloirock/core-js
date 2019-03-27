@@ -1,5 +1,5 @@
 'use strict';
-module.exports = {
+const data = {
   'es.symbol': {
     edge: '15',
     chrome: '49',
@@ -38,6 +38,10 @@ module.exports = {
     chrome: '50',
     firefox: '40',
     safari: '10.0',
+  },
+  'es.symbol.match-all': {
+    chrome: '73',
+    firefox: '67',
   },
   'es.symbol.replace': {
     chrome: '50',
@@ -832,6 +836,9 @@ module.exports = {
     firefox: '49',
     safari: '10.0',
   },
+  'es.string.match-all': {
+    chrome: '73',
+  },
   'es.string.pad-end': {
     edge: '15',
     chrome: '57',
@@ -1316,10 +1323,6 @@ module.exports = {
   },
   'esnext.string.code-points': {
   },
-  'esnext.string.match-all': {
-    chrome: '73',
-    firefox: '67',
-  },
   'esnext.string.replace-all': {
   },
   'esnext.symbol.dispose': {
@@ -1393,3 +1396,8 @@ module.exports = {
     safari: '12.0',
   },
 };
+
+// TODO: Remove from `core-js@4`
+data['esnext.string.match-all'] = data['es.string.match-all'];
+
+module.exports = data;

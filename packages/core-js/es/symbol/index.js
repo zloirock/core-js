@@ -7,6 +7,7 @@ require('../../modules/es.symbol.has-instance');
 require('../../modules/es.symbol.is-concat-spreadable');
 require('../../modules/es.symbol.iterator');
 require('../../modules/es.symbol.match');
+require('../../modules/es.symbol.match-all');
 require('../../modules/es.symbol.replace');
 require('../../modules/es.symbol.search');
 require('../../modules/es.symbol.species');

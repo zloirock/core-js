@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
-import matchAll from 'core-js-pure/features/string/match-all';
-import Symbol from 'core-js-pure/features/symbol';
-import assign from 'core-js-pure/features/object/assign';
+import matchAll from 'core-js-pure/es/string/match-all';
+import Symbol from 'core-js-pure/es/symbol';
+import assign from 'core-js-pure/es/object/assign';
 
 QUnit.test('String#matchAll', assert => {
   assert.isFunction(matchAll);

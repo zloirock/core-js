@@ -616,7 +616,7 @@ Array(1).includes(undefined); // => true
 ```
 
 #### ECMAScript: String and RegExp
-The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim-end.js).
+The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.match-all.js).
 
 Adding support of well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.string.split.js).
 
@@ -636,6 +636,7 @@ class String {
   padEnd(length: number, fillStr?: string = ' '): string;
   codePointAt(pos: number): number | void;
   match(template: any): any; // ES2015+ fix for support @@match
+  matchAll(regexp: RegExp): Iterator;
   replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
   search(template: any): any; // ES2015+ fix for support @@search
   split(template: any, limit: any): any; // ES2015+ fix for support @@split, some fixes for old engines
@@ -676,13 +677,18 @@ class RegExp {
 core-js(-pure)/es|stable|features/string
 core-js(-pure)/es|stable|features/string/from-code-point
 core-js(-pure)/es|stable|features/string/raw
+core-js(-pure)/es|stable|features/string/code-point-at
+core-js(-pure)/es|stable|features/string/ends-with
 core-js(-pure)/es|stable|features/string/includes
 core-js(-pure)/es|stable|features/string/starts-with
-core-js(-pure)/es|stable|features/string/ends-with
+core-js/es|stable|features/string/match
+core-js(-pure)/es|stable|features/string/match-all
 core-js(-pure)/es|stable|features/string/repeat
 core-js(-pure)/es|stable|features/string/pad-start
 core-js(-pure)/es|stable|features/string/pad-end
-core-js(-pure)/es|stable|features/string/code-point-at
+core-js/es|stable|features/string/replace
+core-js/es|stable|features/string/search
+core-js/es|stable|features/string/split
 core-js(-pure)/es|stable|features/string/trim
 core-js(-pure)/es|stable|features/string/trim-start
 core-js(-pure)/es|stable|features/string/trim-end
@@ -705,6 +711,7 @@ core-js(-pure)/es|stable|features/string/iterator
 core-js(-pure)/es|stable|features/string/virtual/includes
 core-js(-pure)/es|stable|features/string/virtual/starts-with
 core-js(-pure)/es|stable|features/string/virtual/ends-with
+core-js(-pure)/es|stable|features/string/virtual/match-all
 core-js(-pure)/es|stable|features/string/virtual/repeat
 core-js(-pure)/es|stable|features/string/virtual/pad-start
 core-js(-pure)/es|stable|features/string/virtual/pad-end
@@ -732,12 +739,8 @@ core-js/es|stable|features/regexp
 core-js/es|stable|features/regexp/constructor
 core-js(-pure)/es|stable|features/regexp/flags
 core-js/es|stable|features/regexp/to-string
-core-js/es|stable|features/regexp/match
-core-js/es|stable|features/regexp/replace
-core-js/es|stable|features/regexp/search
-core-js/es|stable|features/regexp/split
 ```
-[*Examples*](https://goo.gl/DR1Q72):
+[*Examples*](https://goo.gl/E6e7s6):
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // => 'a', '𠮷', 'b'
@@ -784,6 +787,10 @@ RegExp.prototype.toString.call({ source: 'foo', flags: 'bar' }); // => '/foo/bar
 '   hello   '.trimRight(); // => '   hello'
 '   hello   '.trimStart(); // => 'hello   '
 '   hello   '.trimEnd();   // => '   hello'
+
+for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
+  console.log(d, D); // => 1 a, 2 b, 3 c
+}
 ```
 #### ECMAScript: Number
 Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](http://goo.gl/jRd6b3):
@@ -1563,18 +1570,13 @@ instance.c; // => 42
 `core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
 #### Stage 4 proposals
 
+Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be removed from proposals namespace in the next major `core-js` version.
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/4
 ```
-None.
+* `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.string.match-all.js).
 
-#### Stage 3 proposals
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/3
-```
-* `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.string.match-all.js)
 ```js
 class String {
   matchAll(regexp: RegExp): Iterator;
@@ -1583,14 +1585,12 @@ class String {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-match-all
-core-js(-pure)/features/string/match-all
-core-js(-pure)/features/string/virtual/match-all
 ```
-[*Examples*](https://goo.gl/AxSqHT):
+
+#### Stage 3 proposals
+[*CommonJS entry points:*](#commonjs-api)
 ```js
-for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
-  console.log(d, D); // => 1 a, 2 b, 3 c
-}
+core-js(-pure)/stage/3
 ```
 * `globalThis` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.global-this.js).
 ```js
