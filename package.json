@@ -41,7 +41,7 @@
     "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
-    "puppeteer": "~1.13.0",
+    "puppeteer": "~1.14.0",
     "qunit": "~2.9.2",
     "webpack": "^4.29.6"
   },
