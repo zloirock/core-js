@@ -149,12 +149,12 @@ import "core-js/stage/2";
 
 ##### Caveats when using CommonJS API:
 
-* `modules` path is internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and / or if you know what are you doing.
+* `modules` path is internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
 * If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed to static methods like in examples above. But with transpilers we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```js
 import fill from 'core-js-pure/features/array/virtual/fill';
 import findIndex from 'core-js-pure/features/array/virtual/find-index';
@@ -176,7 +176,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 [`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
-Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
+Now it's deprecated in favour of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
 
 As a full equal of `@babel/polyfill`, you can use this:
 ```js
@@ -287,7 +287,7 @@ configurator({
 import 'core-js';
 ```
 
-It does not work with some features. Also, if you change the default behavior, even `core-js` internals may not work correctly.
+It does not work with some features. Also, if you change the default behaviour, even `core-js` internals may not work correctly.
 
 ### Custom build
 
@@ -2270,9 +2270,9 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 ```
 
 ##### Caveats when using `URL` and `URLSearchParams`:
-- IE8 does not supports setters, so they does not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
+- IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
 - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
-- `URL` implementations from all of popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+- `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
 #### Iterable DOM collections
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/v3.0.0/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/v3.0.0/packages/core-js/modules/web.dom-collections.for-each.js).
@@ -2383,6 +2383,6 @@ console.log(getIteratorMethod({})); // undefined
 
 ## Missing polyfills
 - ES `String#normalize` is not a very useful feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
-- ES `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES2015 version.
-- `window.fetch` is not a cross-platform feature, in some environments it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *may be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
-- ECMA-402 `Intl` is missed because of size. You can use [this polyfill](https://github.com/andyearnshaw/Intl.js/).
+- ES `Proxy` can't be polyfilled, but for Node.js / Chromium with additional flags, you can try [harmony-reflect](https://github.com/tvcutsem/harmony-reflect) for adapt old style `Proxy` API to final ES2015 version.
+- `window.fetch` is not a cross-platform feature, in some environments, it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *might be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
+- ECMA-402 `Intl` is missed because of the size. You can use [this polyfill](https://github.com/andyearnshaw/Intl.js/).
