@@ -11,7 +11,7 @@ var regexpExec = require('../internals/regexp-exec');
 var fails = require('../internals/fails');
 var arrayPush = [].push;
 var min = Math.min;
-var MAX_UINT32 = 0xffffffff;
+var MAX_UINT32 = 0xFFFFFFFF;
 
 // babel-minify transpiles RegExp('x', 'y') -> /x/y and it causes SyntaxError
 var SUPPORTS_Y = !fails(function () { return !RegExp(MAX_UINT32, 'y'); });

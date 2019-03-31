@@ -43,8 +43,8 @@ const run = assert => {
         },
       });
       assert.ok(false, 'S15.5.4.11_A1_T11 #1 lead to throwing exception');
-    } catch (e) {
-      assert.strictEqual(e.message, 'insearchValue', 'S15.5.4.11_A1_T11 #2');
+    } catch (error) {
+      assert.strictEqual(error.message, 'insearchValue', 'S15.5.4.11_A1_T11 #2');
     }
     try {
       Object('ABB\u0041BABAB').replace({
@@ -60,8 +60,8 @@ const run = assert => {
         },
       });
       assert.ok(false, 'S15.5.4.11_A1_T12 #1 lead to throwing exception');
-    } catch (e) {
-      assert.strictEqual(e.message, 'insearchValue', 'S15.5.4.11_A1_T12 #2');
+    } catch (error) {
+      assert.strictEqual(error.message, 'insearchValue', 'S15.5.4.11_A1_T12 #2');
     }
   }
   try {
@@ -78,8 +78,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.11_A1_T13 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'insearchValue', 'S15.5.4.11_A1_T13 #2');
+  } catch (error) {
+    assert.strictEqual(error.message, 'insearchValue', 'S15.5.4.11_A1_T13 #2');
   }
   assert.strictEqual('ABB\u0041BABAB\u0037\u0037BBAA'.replace(new RegExp('77'), 1), 'ABBABABAB\u0031BBAA', 'S15.5.4.11_A1_T14');
   instance = Object(1100.00777001);
@@ -91,8 +91,8 @@ const run = assert => {
       },
     }, 1);
     assert.ok(false, 'S15.5.4.11_A1_T15 #1 lead to throwing exception');
-  } catch (e) {
-    assert.ok(e instanceof TypeError, 'S15.5.4.11_A1_T15 #2');
+  } catch (error) {
+    assert.ok(error instanceof TypeError, 'S15.5.4.11_A1_T15 #2');
   }
   instance = Object(1100.00777001);
   instance.replace = String.prototype.replace;
@@ -103,8 +103,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.11_A1_T16 #1 lead to throwing exception');
-  } catch (e) {
-    assert.ok(e instanceof TypeError, 'S15.5.4.11_A1_T16 #2');
+  } catch (error) {
+    assert.ok(error instanceof TypeError, 'S15.5.4.11_A1_T16 #2');
   }
   assert.strictEqual('asdf'.replace(RegExp('', 'g'), '1'), '1a1s1d1f1', 'S15.5.4.11_A1_T17');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, 'sch'), 'She sells seaschells by the seaschore.', 'S15.5.4.11_A2_T1');
@@ -124,7 +124,7 @@ const run = assert => {
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, "$'sch"), 'She sells seaells by the seashore.schells by the seashore.', 'S15.5.4.11_A2_T10');
   assert.strictEqual('uid=31'.replace(/(uid=)(\d+)/, '$1115'), 'uid=115', 'S15.5.4.11_A3_T1');
   assert.strictEqual('uid=31'.replace(/(uid=)(\d+)/, '$11A15'), 'uid=1A15', 'S15.5.4.11_A3_T3');
-  assert.strictEqual('abc12 def34'.replace(/([a-z]+)([0-9]+)/, (a, b, c) => c + b), '12abc def34', 'S15.5.4.11_A4_T1');
+  assert.strictEqual('abc12 def34'.replace(/([a-z]+)(\d+)/, (a, b, c) => c + b), '12abc def34', 'S15.5.4.11_A4_T1');
   assert.strictEqual('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
 
   // https://github.com/zloirock/core-js/issues/471
@@ -144,7 +144,7 @@ QUnit.test('RegExp#@@replace appearance', assert => {
 });
 
 QUnit.test('RegExp#@@replace basic behavior', assert => {
-  assert.strictEqual(/([a-z]+)([0-9]+)/[Symbol.replace]('abc12 def34', (a, b, c) => c + b), '12abc def34');
+  assert.strictEqual(/([a-z]+)(\d+)/[Symbol.replace]('abc12 def34', (a, b, c) => c + b), '12abc def34');
 });
 
 QUnit.test('String.replace delegates to @@replace', assert => {

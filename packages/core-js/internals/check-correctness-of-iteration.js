@@ -16,7 +16,7 @@ try {
   };
   // eslint-disable-next-line no-throw-literal
   Array.from(iteratorWithReturn, function () { throw 2; });
-} catch (e) { /* empty */ }
+} catch (error) { /* empty */ }
 
 module.exports = function (exec, SKIP_CLOSING) {
   if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
@@ -31,6 +31,6 @@ module.exports = function (exec, SKIP_CLOSING) {
       };
     };
     exec(object);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   return ITERATION_SUPPORT;
 };

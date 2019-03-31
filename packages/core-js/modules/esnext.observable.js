@@ -27,8 +27,8 @@ var cleanupSubscription = function (subscriptionState) {
     subscriptionState.cleanup = undefined;
     try {
       cleanup();
-    } catch (e) {
-      hostReportErrors(e);
+    } catch (error) {
+      hostReportErrors(error);
     }
   }
 };
@@ -55,8 +55,8 @@ var Subscription = function (observer, subscriber) {
   if (!DESCRIPTORS) this.closed = false;
   try {
     if (start = getMethod(observer.start)) start.call(observer, this);
-  } catch (e) {
-    hostReportErrors(e);
+  } catch (error) {
+    hostReportErrors(error);
   }
   if (subscriptionClosed(subscriptionState)) return;
   var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(this);
@@ -66,8 +66,8 @@ var Subscription = function (observer, subscriber) {
     if (cleanup != null) subscriptionState.cleanup = typeof cleanup.unsubscribe === 'function'
       ? function () { subscription.unsubscribe(); }
       : aFunction(cleanup);
-  } catch (e) {
-    subscriptionObserver.error(e);
+  } catch (error) {
+    subscriptionObserver.error(error);
     return;
   } if (subscriptionClosed(subscriptionState)) cleanupSubscription(subscriptionState);
 };
@@ -102,8 +102,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
       try {
         var m = getMethod(observer.next);
         if (m) m.call(observer, value);
-      } catch (e) {
-        hostReportErrors(e);
+      } catch (error) {
+        hostReportErrors(error);
       }
     }
   },
@@ -117,8 +117,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
         var m = getMethod(observer.error);
         if (m) m.call(observer, value);
         else hostReportErrors(value);
-      } catch (e) {
-        hostReportErrors(e);
+      } catch (err) {
+        hostReportErrors(err);
       } cleanupSubscription(subscriptionState);
     }
   },
@@ -131,8 +131,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
       try {
         var m = getMethod(observer.complete);
         if (m) m.call(observer);
-      } catch (e) {
-        hostReportErrors(e);
+      } catch (error) {
+        hostReportErrors(error);
       } cleanupSubscription(subscriptionState);
     }
   }

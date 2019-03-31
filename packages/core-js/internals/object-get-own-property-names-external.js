@@ -9,7 +9,7 @@ var windowNames = typeof window == 'object' && window && Object.getOwnPropertyNa
 var getWindowNames = function (it) {
   try {
     return nativeGetOwnPropertyNames(it);
-  } catch (e) {
+  } catch (error) {
     return windowNames.slice();
   }
 };

@@ -2,7 +2,7 @@
 /* eslint-disable no-proto */
 var validateSetPrototypeOfArguments = require('../internals/validate-set-prototype-of-arguments');
 
-module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () { // eslint-disable-line
+module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
   var correctSetter = false;
   var test = {};
   var setter;
@@ -10,7 +10,7 @@ module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () { // 
     setter = Object.getOwnPropertyDescriptor(Object.prototype, '__proto__').set;
     setter.call(test, []);
     correctSetter = test instanceof Array;
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   return function setPrototypeOf(O, proto) {
     validateSetPrototypeOfArguments(O, proto);
     if (correctSetter) setter.call(O, proto);

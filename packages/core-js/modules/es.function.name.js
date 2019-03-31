@@ -13,7 +13,7 @@ if (DESCRIPTORS && !(NAME in FunctionPrototype)) {
     get: function () {
       try {
         return FunctionPrototypeToString.call(this).match(nameRE)[1];
-      } catch (e) {
+      } catch (error) {
         return '';
       }
     }

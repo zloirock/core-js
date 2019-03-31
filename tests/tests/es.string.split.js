@@ -150,8 +150,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.14_A1_T11 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'intointeger', 'S15.5.4.14_A1_T11 #2');
+  } catch (error) {
+    assert.strictEqual(error.message, 'intointeger', 'S15.5.4.14_A1_T11 #2');
   }
   if (NATIVE) {
     try {
@@ -168,8 +168,8 @@ const run = assert => {
         },
       });
       assert.ok(false, 'S15.5.4.14_A1_T12 #1 lead to throwing exception');
-    } catch (e) {
-      assert.strictEqual(e.message, 'intointeger', 'S15.5.4.14_A1_T12 #2');
+    } catch (error) {
+      assert.strictEqual(error.message, 'intointeger', 'S15.5.4.14_A1_T12 #2');
     }
   }
   split = 'ABB\u0041BABAB\u0042cc^^\u0042Bvv%%B\u0042xxx'.split({
@@ -203,8 +203,8 @@ const run = assert => {
         },
       });
       assert.ok(false, 'S15.5.4.14_A1_T14 #1 lead to throwing exception');
-    } catch (e) {
-      assert.strictEqual(e.message, 'intoint', 'S15.5.4.14_A1_T14 #2');
+    } catch (error) {
+      assert.strictEqual(error.message, 'intoint', 'S15.5.4.14_A1_T14 #2');
     }
     try {
       class F {
@@ -232,8 +232,8 @@ const run = assert => {
         },
       });
       assert.ok(false, 'S15.5.4.14_A1_T15 #1 lead to throwing exception');
-    } catch (e) {
-      assert.strictEqual(e.message, 'intoint', 'S15.5.4.14_A1_T15 #2');
+    } catch (error) {
+      assert.strictEqual(error.message, 'intoint', 'S15.5.4.14_A1_T15 #2');
     }
   }
   try {
@@ -243,8 +243,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.14_A1_T16 #1 lead to throwing exception');
-  } catch (e) {
-    assert.ok(e instanceof TypeError, 'S15.5.4.14_A1_T16 #2');
+  } catch (error) {
+    assert.ok(error instanceof TypeError, 'S15.5.4.14_A1_T16 #2');
   }
   split = String.prototype.split.call(6776767677.006771122677555, /\u0037\u0037/g);
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T17 #1');

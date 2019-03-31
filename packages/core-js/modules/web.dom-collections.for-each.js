@@ -9,7 +9,7 @@ for (var COLLECTION_NAME in DOMIterables) {
   // some Chrome versions have non-configurable methods on DOMTokenList
   if (CollectionPrototype && CollectionPrototype.forEach !== forEach) try {
     hide(CollectionPrototype, 'forEach', forEach);
-  } catch (e) {
+  } catch (error) {
     CollectionPrototype.forEach = forEach;
   }
 }

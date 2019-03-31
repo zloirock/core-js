@@ -1,6 +1,5 @@
 'use strict';
 require('../modules/es.string.iterator');
-// var DEBUG = true;
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/native-url');
 var NativeURL = require('../internals/global').URL;
@@ -27,10 +26,10 @@ var INVALID_PORT = 'Invalid port';
 
 var ALPHA = /[a-zA-Z]/;
 var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
-var DIGIT = /[0-9]/;
+var DIGIT = /\d/;
 var HEX_START = /^(0x|0X)/;
 var OCT = /^[0-7]+$/;
-var DEC = /^[0-9]+$/;
+var DEC = /^\d+$/;
 var HEX = /^[0-9A-Fa-f]+$/;
 // eslint-disable-next-line no-control-regex
 var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|@|\[|\\|\]/;
@@ -304,27 +303,27 @@ var isDoubleDot = function (segment) {
 };
 
 // States:
-var SCHEME_START = {}; // 'SCHEME_START';
-var SCHEME = {}; // 'SCHEME';
-var NO_SCHEME = {}; // 'NO_SCHEME';
-var SPECIAL_RELATIVE_OR_AUTHORITY = {}; // 'SPECIAL_RELATIVE_OR_AUTHORITY';
-var PATH_OR_AUTHORITY = {}; // 'PATH_OR_AUTHORITY';
-var RELATIVE = {}; // 'RELATIVE';
-var RELATIVE_SLASH = {}; // 'RELATIVE_SLASH';
-var SPECIAL_AUTHORITY_SLASHES = {}; // 'SPECIAL_AUTHORITY_SLASHES';
-var SPECIAL_AUTHORITY_IGNORE_SLASHES = {}; // 'SPECIAL_AUTHORITY_IGNORE_SLASHES';
-var AUTHORITY = {}; // 'AUTHORITY';
-var HOST = {}; // 'HOST';
-var HOSTNAME = {}; // 'HOSTNAME';
-var PORT = {}; // 'PORT';
-var FILE = {}; // 'FILE';
-var FILE_SLASH = {}; // 'FILE_SLASH';
-var FILE_HOST = {}; // 'FILE_HOST';
-var PATH_START = {}; // 'PATH_START';
-var PATH = {}; // 'PATH';
-var CANNOT_BE_A_BASE_URL_PATH = {}; // 'CANNOT_BE_A_BASE_URL_PATH';
-var QUERY = {}; // 'QUERY';
-var FRAGMENT = {}; // 'FRAGMENT';
+var SCHEME_START = {};
+var SCHEME = {};
+var NO_SCHEME = {};
+var SPECIAL_RELATIVE_OR_AUTHORITY = {};
+var PATH_OR_AUTHORITY = {};
+var RELATIVE = {};
+var RELATIVE_SLASH = {};
+var SPECIAL_AUTHORITY_SLASHES = {};
+var SPECIAL_AUTHORITY_IGNORE_SLASHES = {};
+var AUTHORITY = {};
+var HOST = {};
+var HOSTNAME = {};
+var PORT = {};
+var FILE = {};
+var FILE_SLASH = {};
+var FILE_HOST = {};
+var PATH_START = {};
+var PATH = {};
+var CANNOT_BE_A_BASE_URL_PATH = {};
+var QUERY = {};
+var FRAGMENT = {};
 
 // eslint-disable-next-line max-statements
 var parseURL = function (url, input, stateOverride, base) {
@@ -355,8 +354,6 @@ var parseURL = function (url, input, stateOverride, base) {
 
   while (pointer <= codePoints.length) {
     char = codePoints[pointer];
-    // eslint-disable-next-line
-    // if (DEBUG) console.log(pointer, char, state, buffer);
     switch (state) {
       case SCHEME_START:
         if (char && ALPHA.test(char)) {
@@ -571,7 +568,7 @@ var parseURL = function (url, input, stateOverride, base) {
         ) {
           if (buffer != '') {
             var port = parseInt(buffer, 10);
-            if (port > 0xffff) return INVALID_PORT;
+            if (port > 0xFFFF) return INVALID_PORT;
             url.port = (isSpecial(url) && port === specialSchemes[url.scheme]) ? null : port;
             buffer = '';
           }
@@ -737,7 +734,6 @@ var URLConstructor = function URL(url /* , base */) {
   var urlString = String(url);
   var state = setInternalState(that, { type: 'URL' });
   var baseState, failure;
-  // if (DEBUG) this.state = state;
   if (base !== undefined) {
     if (base instanceof URLConstructor) baseState = getInternalURLState(base);
     else {
@@ -802,7 +798,7 @@ var getOrigin = function () {
   var port = url.port;
   if (scheme == 'blob') try {
     return new URL(scheme.path[0]).origin;
-  } catch (e) {
+  } catch (error) {
     return 'null';
   }
   if (scheme == 'file' || !isSpecial(url)) return 'null';

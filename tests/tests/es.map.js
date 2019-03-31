@@ -26,7 +26,7 @@ QUnit.test('Map', assert => {
         return done = true;
       },
     }));
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   assert.ok(done, '.return #throw');
   const array = [];
   done = false;

@@ -7,7 +7,7 @@ var CORRECT_ARGUMENTS = classofRaw(function () { return arguments; }()) == 'Argu
 var tryGet = function (it, key) {
   try {
     return it[key];
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
 };
 
 // getting tag from ES6+ `Object.prototype.toString`

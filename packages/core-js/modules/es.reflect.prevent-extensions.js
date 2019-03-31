@@ -11,7 +11,7 @@ require('../internals/export')({ target: 'Reflect', stat: true, sham: !FREEZING 
       var objectPreventExtensions = getBuiltIn('Object', 'preventExtensions');
       if (objectPreventExtensions) objectPreventExtensions(target);
       return true;
-    } catch (e) {
+    } catch (error) {
       return false;
     }
   }

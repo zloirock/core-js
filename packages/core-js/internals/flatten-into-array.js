@@ -18,7 +18,7 @@ var flattenIntoArray = function (target, original, source, sourceLen, start, dep
       if (depth > 0 && isArray(element)) {
         targetIndex = flattenIntoArray(target, original, element, toLength(element.length), targetIndex, depth - 1) - 1;
       } else {
-        if (targetIndex >= 0x1fffffffffffff) throw TypeError();
+        if (targetIndex >= 0x1FFFFFFFFFFFFF) throw TypeError('Exceed the acceptable array length');
         target[targetIndex] = element;
       }
 

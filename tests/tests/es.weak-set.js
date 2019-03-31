@@ -29,7 +29,7 @@ QUnit.test('WeakSet', assert => {
         return done = true;
       },
     }));
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   assert.ok(done, '.return #throw');
   assert.ok(!('clear' in WeakSet.prototype), 'should not contains `.clear` method');
   const array = [];

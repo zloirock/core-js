@@ -33,7 +33,7 @@ QUnit.test('WeakMap', assert => {
         return done = true;
       },
     }));
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   assert.ok(done, '.return #throw');
   assert.ok(!('clear' in WeakMap.prototype), 'should not contains `.clear` method');
   const array = [];

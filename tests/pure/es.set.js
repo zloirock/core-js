@@ -43,7 +43,7 @@ QUnit.test('Set', assert => {
         return done = true;
       },
     }));
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   Set.prototype.add = add;
   assert.ok(done, '.return #throw');
   const array = [];

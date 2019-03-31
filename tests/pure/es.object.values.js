@@ -14,7 +14,7 @@ QUnit.test('Object.values', assert => {
         return 2;
       }, c: 3 });
    `)(values), [1, 2]);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   try {
     assert.deepEqual(Function('values', `
       return values({ a: 1, get b() {
@@ -25,5 +25,5 @@ QUnit.test('Object.values', assert => {
         return 2;
       }, c: 3 });
     `)(values), [1, 2]);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
 });

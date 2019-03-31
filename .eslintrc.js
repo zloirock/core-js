@@ -310,6 +310,36 @@ const base = {
 
   // require strict mode directives
   strict: ['error', 'global'],
+
+  // unicorn
+  // enforce a specific parameter name in catch clauses
+  'unicorn/catch-error-name': ['error', { name: 'error', caughtErrorsIgnorePattern: '^err' }],
+  // enforce passing a message value when throwing a built-in error
+  'unicorn/error-message': 'error',
+  // require escape sequences to use uppercase values
+  'unicorn/escape-case': 'error',
+  // enforce a case style for filenames
+  'unicorn/filename-case': ['error', { case: 'kebabCase' }],
+  // enforce importing index files with `.`
+  'unicorn/import-index': 'error',
+  // enforce specifying rules to disable in eslint-disable comments
+  'unicorn/no-abusive-eslint-disable': 'error',
+  // do not use leading/trailing space between `console.log` parameters
+  'unicorn/no-console-spaces': 'error',
+  // enforce the use of unicode escapes instead of hexadecimal escapes
+  'unicorn/no-hex-escape': 'error',
+  // disallow unreadable array destructuring
+  'unicorn/no-unreadable-array-destructuring': 'error',
+  // disallow unsafe regular expressions
+  'unicorn/no-unsafe-regex': 'error',
+  // disallow unused object properties
+  'unicorn/no-unused-properties': 'error',
+  // enforce lowercase identifier and uppercase value for number literals
+  'unicorn/number-literal-case': 'error',
+  // prefer the exponentiation operator over `Math.pow()`
+  'unicorn/prefer-exponentiation-operator': 'error',
+  // enforce the use of regex shorthands to improve readability
+  'unicorn/regex-shorthand': 'error',
 };
 
 const es3 = {
@@ -333,6 +363,8 @@ const es3 = {
   'quote-props': ['error', 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: 'off',
+  // prefer the exponentiation operator over `Math.pow()`
+  'unicorn/prefer-exponentiation-operator': 'off',
 };
 
 const unit = {
@@ -360,6 +392,8 @@ const unit = {
   'no-unused-expressions': 'off',
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': 'off',
+  // enforce passing a message value when throwing a built-in error
+  'unicorn/error-message': 'off',
 
   // qunit:
   // ensure the correct number of assert arguments is used
@@ -427,6 +461,7 @@ module.exports = {
   plugins: [
     'import',
     'qunit',
+    'unicorn',
   ],
   settings: {
     'import/resolver': {

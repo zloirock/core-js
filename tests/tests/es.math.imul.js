@@ -25,8 +25,8 @@ QUnit.test('Math.imul', assert => {
   assert.same(imul(7, {}), 0);
   assert.same(imul([], 7), 0);
   assert.same(imul(7, []), 0);
-  assert.strictEqual(imul(0xffffffff, 5), -5);
-  assert.strictEqual(imul(0xfffffffe, 5), -10);
+  assert.strictEqual(imul(0xFFFFFFFF, 5), -5);
+  assert.strictEqual(imul(0xFFFFFFFE, 5), -10);
   assert.strictEqual(imul(2, 4), 8);
   assert.strictEqual(imul(-1, 8), -8);
   assert.strictEqual(imul(-2, -2), 4);

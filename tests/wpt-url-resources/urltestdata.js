@@ -3540,13 +3540,13 @@ export default [
   },
   'U+3000 is mapped to U+0020 (space) which is disallowed',
   {
-    input: 'http://GOO\u00a0\u3000goo.com',
+    input: 'http://GOO\u00A0\u3000goo.com',
     base: 'http://other.com/',
     failure: true,
   },
   'Other types of space (no-break, zero-width, zero-width-no-break) are name-prepped away to nothing. U+200B, U+2060, and U+FEFF, are ignored',
   {
-    input: 'http://GOO\u200b\u2060\ufeffgoo.com',
+    input: 'http://GOO\u200B\u2060\uFEFFgoo.com',
     base: 'http://other.com/',
     href: 'http://googoo.com/',
     origin: 'http://googoo.com',
@@ -3562,7 +3562,7 @@ export default [
   },
   'Leading and trailing C0 control or space',
   {
-    input: '\u0000\u001b\u0004\u0012 http://example.com/\u001f \u000d ',
+    input: '\u0000\u001B\u0004\u0012 http://example.com/\u001F \u000D ',
     base: 'about:blank',
     href: 'http://example.com/',
     origin: 'http://example.com',
@@ -3594,7 +3594,7 @@ export default [
   },
   'Invalid unicode characters should fail... U+FDD0 is disallowed; %ef%b7%90 is U+FDD0',
   {
-    input: 'http://\ufdd0zyx.com',
+    input: 'http://\uFDD0zyx.com',
     base: 'http://other.com/',
     failure: true,
   },
@@ -3606,7 +3606,7 @@ export default [
   },
   'U+FFFD',
   {
-    input: 'https://\ufffd',
+    input: 'https://\uFFFD',
     base: 'about:blank',
     failure: true,
   },
@@ -3616,7 +3616,7 @@ export default [
     failure: true,
   },
   {
-    input: 'https://x/\ufffd?\ufffd#\ufffd',
+    input: 'https://x/\uFFFD?\uFFFD#\uFFFD',
     base: 'about:blank',
     href: 'https://x/%EF%BF%BD?%EF%BF%BD#%EF%BF%BD',
     origin: 'https://x',

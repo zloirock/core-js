@@ -1,9 +1,6 @@
 'use strict';
 var internalStringPad = require('../internals/string-pad');
-var userAgent = require('../internals/user-agent');
-
-// https://github.com/zloirock/core-js/issues/280
-var WEBKIT_BUG = /Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(userAgent);
+var WEBKIT_BUG = require('../internals/webkit-string-pad-bug');
 
 // `String.prototype.padStart` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.padstart

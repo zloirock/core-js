@@ -110,9 +110,9 @@ QUnit.assert.notThrows = function (fn, message) {
   try {
     result = fn();
     throws = false;
-  } catch (e) {
+  } catch (err) {
     throws = true;
-    error = e;
+    error = err;
   }
   this.pushResult({
     result: !throws && result,

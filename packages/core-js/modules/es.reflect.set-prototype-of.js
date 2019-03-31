@@ -9,7 +9,7 @@ if (objectSetPrototypeOf) require('../internals/export')({ target: 'Reflect', st
     try {
       objectSetPrototypeOf(target, proto);
       return true;
-    } catch (e) {
+    } catch (error) {
       return false;
     }
   }

@@ -6,7 +6,7 @@ var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var IS_CONCAT_SPREADABLE = require('../internals/well-known-symbol')('isConcatSpreadable');
-var MAX_SAFE_INTEGER = 0x1fffffffffffff;
+var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 var MAXIMUM_ALLOWED_INDEX_EXCEEDED = 'Maximum allowed index exceeded';
 
 var IS_CONCAT_SPREADABLE_SUPPORT = !require('../internals/fails')(function () {

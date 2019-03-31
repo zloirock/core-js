@@ -10,7 +10,7 @@ for (var key in tests) {
     } else result[key] = test.reduce(function (accumulator, $test) {
       return accumulator && !!$test();
     }, true);
-  } catch (e) {
+  } catch (error) {
     result[key] = false;
   }
 }

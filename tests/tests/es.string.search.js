@@ -35,8 +35,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.12_A1_T11 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'intostr', 'S15.5.4.12_A1_T11 #2');
+  } catch (error) {
+    assert.strictEqual(error.message, 'intostr', 'S15.5.4.12_A1_T11 #2');
   }
   try {
     Object('ABB\u0041BABAB').search({
@@ -48,8 +48,8 @@ const run = assert => {
       },
     });
     assert.ok(false, 'S15.5.4.12_A1_T12 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'intostr', 'S15.5.4.12_A1_T12 #2');
+  } catch (error) {
+    assert.strictEqual(error.message, 'intostr', 'S15.5.4.12_A1_T12 #2');
   }
   assert.strictEqual('ABB\u0041B\u0031ABAB\u0031BBAA'.search({
     toString() {

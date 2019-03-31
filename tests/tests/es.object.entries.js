@@ -19,7 +19,7 @@ QUnit.test('Object.entries', assert => {
         c: 3
       });
     `)(entries), [['a', 1], ['b', 2]]);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   try {
     assert.deepEqual(Function('entries', `
       return entries({
@@ -34,5 +34,5 @@ QUnit.test('Object.entries', assert => {
         c: 3
       });
     `)(entries), [['a', 1], ['b', 2]]);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
 });

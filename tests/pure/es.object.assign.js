@@ -41,7 +41,7 @@ QUnit.test('Object.assign', assert => {
           delete this.b;
         }, b: 2 });
       `)(assign).b, 1);
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     try {
       assert.strictEqual(Function('assign', `
         return assign({ b: 1 }, { get a() {
@@ -51,7 +51,7 @@ QUnit.test('Object.assign', assert => {
           });
         }, b: 2 });
       `)(assign).b, 1);
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
   }
   string = 'abcdefghijklmnopqrst';
   const result = {};

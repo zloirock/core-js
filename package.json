@@ -26,6 +26,7 @@
     "eslint-import-resolver-webpack": "^0.11.0",
     "eslint-plugin-import": "~2.16.0",
     "eslint-plugin-qunit": "^4.0.0",
+    "eslint-plugin-unicorn": "^8.0.1",
     "grunt": "^1.0.4",
     "grunt-cli": "^1.3.2",
     "grunt-contrib-clean": "^2.0.0",

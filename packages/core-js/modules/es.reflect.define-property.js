@@ -19,7 +19,7 @@ require('../internals/export')({ target: 'Reflect', stat: true, forced: ERROR_IN
     try {
       definePropertyModule.f(target, propertyKey, attributes);
       return true;
-    } catch (e) {
+    } catch (error) {
       return false;
     }
   }

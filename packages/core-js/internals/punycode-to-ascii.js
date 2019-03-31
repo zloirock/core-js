@@ -9,8 +9,8 @@ var damp = 700;
 var initialBias = 72;
 var initialN = 128; // 0x80
 var delimiter = '-'; // '\x2D'
-var regexNonASCII = /[^\0-\x7E]/; // non-ASCII chars
-var regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g; // RFC 3490 separators
+var regexNonASCII = /[^\0-\u007E]/; // non-ASCII chars
+var regexSeparators = /[\u002E\u3002\uFF0E\uFF61]/g; // RFC 3490 separators
 var OVERFLOW_ERROR = 'Overflow: input needs wider integers to process';
 var baseMinusTMin = base - tMin;
 var floor = Math.floor;
@@ -160,7 +160,7 @@ var encode = function (input) {
 
 module.exports = function (input) {
   var encoded = [];
-  var labels = input.toLowerCase().replace(regexSeparators, '\x2E').split('.');
+  var labels = input.toLowerCase().replace(regexSeparators, '\u002E').split('.');
   var i, label;
   for (i = 0; i < labels.length; i++) {
     label = labels[i];

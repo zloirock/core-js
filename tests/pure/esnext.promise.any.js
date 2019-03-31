@@ -26,9 +26,9 @@ QUnit.test('Promise.any, rejected #1', assert => {
     Promise.reject(1),
     Promise.reject(2),
     Promise.reject(3),
-  ]).catch(it => {
-    assert.ok(it instanceof AggregateError, 'instanceof AggregateError');
-    assert.deepEqual(it.errors, [1, 2, 3], 'rejected with a correct value');
+  ]).catch(error => {
+    assert.ok(error instanceof AggregateError, 'instanceof AggregateError');
+    assert.deepEqual(error.errors, [1, 2, 3], 'rejected with a correct value');
     async();
   });
 });
@@ -45,9 +45,9 @@ QUnit.test('Promise.any, rejected #2', assert => {
 QUnit.test('Promise.any, rejected #3', assert => {
   assert.expect(2);
   const async = assert.async();
-  Promise.any([]).catch(it => {
-    assert.ok(it instanceof AggregateError, 'instanceof AggregateError');
-    assert.deepEqual(it.errors, [], 'rejected with a correct value');
+  Promise.any([]).catch(error => {
+    assert.ok(error instanceof AggregateError, 'instanceof AggregateError');
+    assert.deepEqual(error.errors, [], 'rejected with a correct value');
     async();
   });
 });

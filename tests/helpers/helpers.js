@@ -44,7 +44,7 @@ export const nativeSubclass = (() => {
       'use strict';
       return class extends Parent { /* empty */ };
     `);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
 })();
 
 export function timeLimitedPromise(time, fn) {
@@ -68,8 +68,8 @@ export function patchRegExp$exec(run) {
       return run(assert);
     // In very old IE try / finally does not work without catch.
     // eslint-disable-next-line no-useless-catch
-    } catch (e) {
-      throw e;
+    } catch (error) {
+      throw error;
     } finally {
       // eslint-disable-next-line no-extend-native
       RegExp.prototype.exec = originalExec;

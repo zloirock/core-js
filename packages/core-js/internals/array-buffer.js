@@ -115,15 +115,15 @@ var unpackInt32 = function (buffer) {
 };
 
 var packInt8 = function (number) {
-  return [number & 0xff];
+  return [number & 0xFF];
 };
 
 var packInt16 = function (number) {
-  return [number & 0xff, number >> 8 & 0xff];
+  return [number & 0xFF, number >> 8 & 0xFF];
 };
 
 var packInt32 = function (number) {
-  return [number & 0xff, number >> 8 & 0xff, number >> 16 & 0xff, number >> 24 & 0xff];
+  return [number & 0xFF, number >> 8 & 0xFF, number >> 16 & 0xFF, number >> 24 & 0xFF];
 };
 
 var packFloat32 = function (number) {

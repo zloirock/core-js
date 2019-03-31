@@ -2,11 +2,14 @@
 // eslint-disable-next-line no-new-func
 var GLOBAL = Function('return this')();
 // eslint-disable-next-line max-len
-var WHITESPACES = '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
+var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
 
-var NOT_WHITESPACES = '\u200b\u0085\u180e';
+var NOT_WHITESPACES = '\u200B\u0085\u180E';
 
 var USERAGENT = GLOBAL.navigator && GLOBAL.navigator.userAgent || '';
+
+// eslint-disable-next-line unicorn/no-unsafe-regex
+var WEBKIT_STRING_PAD_BUG = /Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
 
 var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', { get: function () { return 7; } }).a == 7;
@@ -51,7 +54,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
   try {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
-  } catch (e) {
+  } catch (error) {
     return Object.prototype.__defineSetter__;
   }
 };
@@ -71,8 +74,8 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
     iteratorWithReturn[Symbol.iterator] = function () {
       return this;
     };
-    Array.from(iteratorWithReturn, function () { throw Error(); });
-  } catch (e) {
+    Array.from(iteratorWithReturn, function () { throw Error('close'); });
+  } catch (error) {
     return SAFE_CLOSING;
   }
 };
@@ -101,10 +104,10 @@ var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
 var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
   try {
     return !Int8Array(1);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   try {
     return !new Int8Array(-1);
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   new Int8Array();
   new Int8Array(null);
   new Int8Array(1.5);
@@ -221,7 +224,7 @@ GLOBAL.tests = {
     try {
       Array.prototype.every.call(null, function () { /* empty */ });
       return false;
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     return Array.prototype.every;
   },
   'es.array.fill': function () {
@@ -255,7 +258,7 @@ GLOBAL.tests = {
     try {
       Array.prototype.forEach.call(null, function () { /* empty */ });
       return false;
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     return Array.prototype.forEach;
   },
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
@@ -265,7 +268,7 @@ GLOBAL.tests = {
   'es.array.index-of': function () {
     try {
       Array.prototype.indexOf.call(null);
-    } catch (e) {
+    } catch (error) {
       return 1 / [1].indexOf(1, -0) > 0;
     }
   },
@@ -284,19 +287,19 @@ GLOBAL.tests = {
   'es.array.join': function () {
     try {
       if (!Object.prototype.propertyIsEnumerable.call(Object('z'), 0)) return false;
-    } catch (e) {
+    } catch (error) {
       return false;
     }
     try {
       Array.prototype.join.call(null);
       return false;
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     return true;
   },
   'es.array.last-index-of': function () {
     try {
       Array.prototype.lastIndexOf.call(null);
-    } catch (e) {
+    } catch (error) {
       return 1 / [1].lastIndexOf(1, -0) > 0;
     }
   },
@@ -315,14 +318,14 @@ GLOBAL.tests = {
   'es.array.reduce': function () {
     try {
       Array.prototype.reduce.call(null, function () { /* empty */ }, 1);
-    } catch (e) {
+    } catch (error) {
       return Array.prototype.reduce;
     }
   },
   'es.array.reduce-right': function () {
     try {
       Array.prototype.reduceRight.call(null, function () { /* empty */ }, 1);
-    } catch (e) {
+    } catch (error) {
       return Array.prototype.reduceRight;
     }
   },
@@ -341,7 +344,7 @@ GLOBAL.tests = {
   'es.array.some': function () {
     try {
       Array.prototype.some.call(null, function () { /* empty */ });
-    } catch (e) {
+    } catch (error) {
       return Array.prototype.some;
     }
   },
@@ -377,10 +380,10 @@ GLOBAL.tests = {
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
       return !ArrayBuffer(1);
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     try {
       return !new ArrayBuffer(-1);
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     new ArrayBuffer();
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
@@ -399,7 +402,7 @@ GLOBAL.tests = {
   'es.date.to-iso-string': function () {
     try {
       new Date(NaN).toISOString();
-    } catch (e) {
+    } catch (error) {
       return new Date(-5e13 - 1).toISOString() == '0385-07-25T07:06:39.999Z';
     }
   },
@@ -478,7 +481,7 @@ GLOBAL.tests = {
     return Math.hypot;
   },
   'es.math.imul': function () {
-    return Math.imul(0xffffffff, 5) == -5 && Math.imul.length == 2;
+    return Math.imul(0xFFFFFFFF, 5) == -5 && Math.imul.length == 2;
   },
   'es.math.log10': function () {
     return Math.log10;
@@ -540,7 +543,7 @@ GLOBAL.tests = {
   'es.number.to-fixed': function () {
     try {
       Number.prototype.toFixed.call({});
-    } catch (e) {
+    } catch (error) {
       return 0.00008.toFixed(3) === '0.000'
         && 0.9.toFixed(0) === '1'
         && 1.255.toFixed(2) === '1.25'
@@ -550,7 +553,7 @@ GLOBAL.tests = {
   'es.number.to-precision': function () {
     try {
       Number.prototype.toPrecision.call({});
-    } catch (e) {
+    } catch (error) {
       return 1.0.toPrecision(undefined) === '1';
     }
   },
@@ -643,7 +646,7 @@ GLOBAL.tests = {
       return Reflect.apply(function () {
         return false;
       });
-    } catch (e) {
+    } catch (error) {
       return Reflect.apply(function () {
         return true;
       }, null, []);
@@ -652,7 +655,7 @@ GLOBAL.tests = {
   'es.reflect.construct': function () {
     try {
       return !Reflect.construct(function () { /* empty */ });
-    } catch (e) { /* empty */ }
+    } catch (error) { /* empty */ }
     function F() { /* empty */ }
     return Reflect.construct(function () { /* empty */ }, [], F) instanceof F;
   },
@@ -756,12 +759,10 @@ GLOBAL.tests = {
     return ''.match(O) == 7 && execCalled;
   },
   'es.string.pad-end': function () {
-    return String.prototype.padEnd
-      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
   },
   'es.string.pad-start': function () {
-    return String.prototype.padStart
-      && !/Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
+    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
   },
   'es.string.raw': function () {
     return String.raw;
@@ -957,7 +958,7 @@ GLOBAL.tests = {
   'es.typed-array.to-locale-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     try {
       Int8Array.prototype.toLocaleString.call([1, 2]);
-    } catch (e) {
+    } catch (error) {
       return [1, 2].toLocaleString() == new Int8Array([1, 2]).toLocaleString();
     }
   }],

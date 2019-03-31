@@ -2,7 +2,7 @@
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
 require('../internals/export')({ target: 'Math', stat: true }, {
   umulh: function umulh(u, v) {
-    var UINT16 = 0xffff;
+    var UINT16 = 0xFFFF;
     var $u = +u;
     var $v = +v;
     var u0 = $u & UINT16;

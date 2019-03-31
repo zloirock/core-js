@@ -194,7 +194,7 @@ QUnit.test('Promise.all', assert => {
         done = true;
       },
     })).catch(() => { /* empty */ });
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   Promise.resolve = resolve;
   assert.ok(done, 'iteration closing');
   let FakePromise1 = function (executor) {
@@ -254,7 +254,7 @@ QUnit.test('Promise.race', assert => {
         done = true;
       },
     })).catch(() => { /* empty */ });
-  } catch (e) { /* empty */ }
+  } catch (error) { /* empty */ }
   Promise.resolve = resolve;
   assert.ok(done, 'iteration closing');
   let FakePromise1 = function (executor) {

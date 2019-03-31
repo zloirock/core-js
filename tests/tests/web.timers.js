@@ -34,8 +34,8 @@ QUnit.test('setInterval / clearInterval', assert => {
     }, 5, 'a', 'b');
   }).then(() => {
     assert.ok(true, 'setInterval & clearInterval works with additional args');
-  }).catch(args => {
-    if (!args) args = {};
-    assert.ok(false, `setInterval & clearInterval works with additional args: ${ args.a }, ${ args.b }, times: ${ args.i }`);
+  }).catch(error => {
+    if (!error) error = {};
+    assert.ok(false, `setInterval & clearInterval works with additional args: ${ error.a }, ${ error.b }, times: ${ error.i }`);
   }).then(assert.async());
 });

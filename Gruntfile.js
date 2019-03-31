@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/filename-case */
 'use strict';
 const { banner } = require('./packages/core-js-builder/config');
 
@@ -159,9 +160,9 @@ module.exports = grunt => {
     const builder = require('./packages/core-js-builder');
     const done = this.async();
 
-    builder({ filename: './packages/core-js-bundle/index.js' }).then(done).catch(it => {
+    builder({ filename: './packages/core-js-bundle/index.js' }).then(done).catch(error => {
       // eslint-disable-next-line no-console
-      console.error(it);
+      console.error(error);
       process.exit(1);
     });
   });

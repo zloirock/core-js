@@ -106,9 +106,9 @@ var notify = function (promise, state, isReject) {
             then.call(result, resolve, reject);
           } else resolve(result);
         } else reject(value);
-      } catch (e) {
+      } catch (error) {
         if (domain && !exited) domain.exit();
-        reject(e);
+        reject(error);
       }
     };
     while (chain.length > i) run(chain[i++]); // variable length - can't use forEach
@@ -191,8 +191,8 @@ var internalResolve = function (promise, state, value, unwrap) {
             bind(internalResolve, promise, wrapper, state),
             bind(internalReject, promise, wrapper, state)
           );
-        } catch (e) {
-          internalReject(promise, wrapper, e, state);
+        } catch (error) {
+          internalReject(promise, wrapper, error, state);
         }
       });
     } else {
@@ -200,8 +200,8 @@ var internalResolve = function (promise, state, value, unwrap) {
       state.state = FULFILLED;
       notify(promise, state, false);
     }
-  } catch (e) {
-    internalReject(promise, { done: false }, e, state);
+  } catch (error) {
+    internalReject(promise, { done: false }, error, state);
   }
 };
 
@@ -215,8 +215,8 @@ if (FORCED) {
     var state = getInternalState(this);
     try {
       executor(bind(internalResolve, this, state), bind(internalReject, this, state));
-    } catch (err) {
-      internalReject(this, state, err);
+    } catch (error) {
+      internalReject(this, state, error);
     }
   };
   // eslint-disable-next-line no-unused-vars

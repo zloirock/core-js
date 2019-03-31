@@ -1,7 +1,7 @@
 var nativeImul = Math.imul;
 
 var FORCED = require('../internals/fails')(function () {
-  return nativeImul(0xffffffff, 5) != -5 || nativeImul.length != 2;
+  return nativeImul(0xFFFFFFFF, 5) != -5 || nativeImul.length != 2;
 });
 
 // `Math.imul` method
@@ -9,7 +9,7 @@ var FORCED = require('../internals/fails')(function () {
 // some WebKit versions fails with big numbers, some has wrong arity
 require('../internals/export')({ target: 'Math', stat: true, forced: FORCED }, {
   imul: function imul(x, y) {
-    var UINT16 = 0xffff;
+    var UINT16 = 0xFFFF;
     var xn = +x;
     var yn = +y;
     var xl = UINT16 & xn;

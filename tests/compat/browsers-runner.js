@@ -9,7 +9,7 @@ for (var key in window.tests) {
     } else {
       for (var i = 0; i < test.length; i++) result = result && !!test[i].call(undefined);
     }
-  } catch (e) {
+  } catch (error) {
     result = false;
   }
 

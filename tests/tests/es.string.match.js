@@ -1,5 +1,5 @@
 // TODO: fix escaping in regexps
-/* eslint-disable no-useless-escape */
+/* eslint-disable no-useless-escape, unicorn/no-unsafe-regex */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 
@@ -42,8 +42,8 @@ const run = assert => {
   try {
     string.match(object);
     assert.ok(false, 'S15.5.4.10_A1_T11 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'intostr', `S15.5.4.10_A1_T11 #1.1: Exception === "intostr". Actual: ${ e }`);
+  } catch (error) {
+    assert.strictEqual(error.message, 'intostr', `S15.5.4.10_A1_T11 #1.1: Exception === "intostr". Actual: ${ error }`);
   }
   object = {
     toString() {
@@ -57,8 +57,8 @@ const run = assert => {
   try {
     string.match(object);
     assert.ok(false, 'S15.5.4.10_A1_T12 #1 lead to throwing exception');
-  } catch (e) {
-    assert.strictEqual(e.message, 'intostr', `S15.5.4.10_A1_T12 #1.1: Exception === "intostr". Actual: ${ e }`);
+  } catch (error) {
+    assert.strictEqual(error.message, 'intostr', `S15.5.4.10_A1_T12 #1.1: Exception === "intostr". Actual: ${ error }`);
   }
   object = {
     toString() {
