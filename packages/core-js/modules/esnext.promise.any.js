@@ -36,7 +36,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
       });
       --remaining || reject(new (getBuiltIn('AggregateError'))(errors, PROMISE_ANY_ERROR));
     });
-    if (result.e) reject(result.v);
+    if (result.error) reject(result.value);
     return capability.promise;
   }
 });

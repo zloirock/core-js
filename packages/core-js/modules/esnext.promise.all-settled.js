@@ -34,7 +34,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
       });
       --remaining || resolve(values);
     });
-    if (result.e) reject(result.v);
+    if (result.error) reject(result.value);
     return capability.promise;
   }
 });

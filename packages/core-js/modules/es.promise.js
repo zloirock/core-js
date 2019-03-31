@@ -144,8 +144,8 @@ var onUnhandled = function (promise, state) {
       });
       // Browsers should not trigger `rejectionHandled` event if it was handled here, NodeJS - should
       state.rejection = IS_NODE || isUnhandled(state) ? UNHANDLED : HANDLED;
+      if (result.error) throw result.value;
     }
-    if (IS_UNHANDLED && result.e) throw result.v;
   });
 };
 
@@ -326,7 +326,7 @@ $export({ target: PROMISE, stat: true, forced: INCORRECT_ITERATION }, {
       });
       --remaining || resolve(values);
     });
-    if (result.e) reject(result.v);
+    if (result.error) reject(result.value);
     return capability.promise;
   },
   // `Promise.race` method
@@ -340,7 +340,7 @@ $export({ target: PROMISE, stat: true, forced: INCORRECT_ITERATION }, {
         C.resolve(promise).then(capability.resolve, reject);
       });
     });
-    if (result.e) reject(result.v);
+    if (result.error) reject(result.value);
     return capability.promise;
   }
 });
