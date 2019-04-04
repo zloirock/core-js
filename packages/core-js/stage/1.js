@@ -10,7 +10,6 @@ require('../proposals/promise-try');
 require('../proposals/keys-composition');
 require('../proposals/seeded-random');
 require('../proposals/string-code-points');
-require('../proposals/string-replace-all');
 require('../proposals/using-statement');
 require('../proposals/promise-any');
 

@@ -1664,6 +1664,21 @@ new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
 ```
+* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.string.replace-all.js)
+```js
+class String {
+  replaceAll(searchValue: string | RegExp, replaceString: string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-replace-all
+core-js/features/string/replace-all
+```
+[*Examples*](https://goo.gl/wUXNXN):
+```js
+'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1692,21 +1707,6 @@ const array = [1, 2, 3];
 array.lastItem = 4;
 
 array; // => [1, 2, 4]
-```
-* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-replace-all
-core-js/features/string/replace-all
-```
-[*Examples*](https://goo.gl/wUXNXN):
-```js
-'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
 ```
 * `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.promise.try.js)
 ```js
