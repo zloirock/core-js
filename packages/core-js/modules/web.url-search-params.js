@@ -20,9 +20,27 @@ var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
 var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
 
 var plus = /\+/g;
+var sequences = Array(4);
+
+var percentSequence = function (bytes) {
+  return sequences[bytes - 1] || (sequences[bytes - 1] = RegExp('((?:%[\\da-f]{2}){' + bytes + '})', 'gi'));
+};
+
+var percentDecode = function (sequence) {
+  try {
+    return decodeURIComponent(sequence);
+  } catch (error) {
+    return sequence;
+  }
+};
 
 var deserialize = function (it) {
-  return decodeURIComponent(it.replace(plus, ' '));
+  var result = it.replace(plus, ' ');
+  var bytes = 4;
+  while (bytes) {
+    result = result.replace(percentSequence(bytes--), percentDecode);
+  }
+  return result;
 };
 
 var find = /[!'()~]|%20/g;

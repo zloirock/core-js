@@ -99,6 +99,7 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(params.get('query'), '+15555555555', 'parse encoded +');
 
   const testData = [
+    { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
     { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
     { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
