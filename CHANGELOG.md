@@ -1,4 +1,8 @@
 ## Changelog
+##### 3.0.1 - 2019.04.06
+- Fixed some cases of work with malformed URI sequences in `URLSearchParams`, [#525](https://github.com/zloirock/core-js/issues/525)
+- Added a workaround for a rollup issue, [#513](https://github.com/zloirock/core-js/issues/513)
+
 ##### 3.0.0 - 2019.03.19
 - Features
   - Add new features:
