@@ -38,7 +38,7 @@ if (!queueMicrotask) {
       process.nextTick(flush);
     };
   // browsers with MutationObserver, except iOS - https://github.com/zloirock/core-js/issues/339
-  } else if (MutationObserver && !/(iPhone|iPod|iPad).*AppleWebKit/i.test(userAgent)) {
+  } else if (MutationObserver && !/(iphone|ipod|ipad).*applewebkit/i.test(userAgent)) {
     toggle = true;
     node = document.createTextNode('');
     new MutationObserver(flush).observe(node, { characterData: true }); // eslint-disable-line no-new

@@ -340,6 +340,9 @@ const base = {
   'unicorn/prefer-exponentiation-operator': 'error',
   // enforce the use of regex shorthands to improve readability
   'unicorn/regex-shorthand': 'error',
+
+  // optimize regex literals
+  'optimize-regex/optimize-regex': 'error',
 };
 
 const es3 = {
@@ -460,6 +463,7 @@ module.exports = {
   },
   plugins: [
     'import',
+    'optimize-regex',
     'qunit',
     'unicorn',
   ],

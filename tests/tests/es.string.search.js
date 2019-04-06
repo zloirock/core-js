@@ -62,7 +62,7 @@ const run = assert => {
   assert.strictEqual('ABB\u0041BABAB\u0037\u0037BBAA'.search(RegExp('77')), 9, 'S15.5.4.12_A1_T14');
   assert.strictEqual(Object('test string').search('string'), 5, 'S15.5.4.12_A2_T1');
   assert.strictEqual(Object('test string').search('String'), -1, 'S15.5.4.12_A2_T2');
-  assert.strictEqual(Object('test string').search(/String/i), 5, 'S15.5.4.12_A2_T3');
+  assert.strictEqual(Object('test string').search(/string/i), 5, 'S15.5.4.12_A2_T3');
   assert.strictEqual(Object('test string').search(/Four/), -1, 'S15.5.4.12_A2_T4');
   assert.strictEqual(Object('one two three four five').search(/four/), 14, 'S15.5.4.12_A2_T5');
   assert.strictEqual(Object('test string').search('notexist'), -1, 'S15.5.4.12_A2_T6');

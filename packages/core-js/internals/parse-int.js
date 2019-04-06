@@ -1,7 +1,7 @@
 var nativeParseInt = require('../internals/global').parseInt;
 var internalStringTrim = require('../internals/string-trim');
 var whitespaces = require('../internals/whitespaces');
-var hex = /^[-+]?0[xX]/;
+var hex = /^[+-]?0[Xx]/;
 var FORCED = nativeParseInt(whitespaces + '08') !== 8 || nativeParseInt(whitespaces + '0x16') !== 22;
 
 module.exports = FORCED ? function parseInt(str, radix) {

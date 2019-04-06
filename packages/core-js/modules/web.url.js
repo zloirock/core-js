@@ -24,21 +24,21 @@ var INVALID_SCHEME = 'Invalid scheme';
 var INVALID_HOST = 'Invalid host';
 var INVALID_PORT = 'Invalid port';
 
-var ALPHA = /[a-zA-Z]/;
-var ALPHANUMERIC = /[a-zA-Z0-9+\-.]/;
+var ALPHA = /[A-Za-z]/;
+var ALPHANUMERIC = /[\d+\-.A-Za-z]/;
 var DIGIT = /\d/;
 var HEX_START = /^(0x|0X)/;
 var OCT = /^[0-7]+$/;
 var DEC = /^\d+$/;
-var HEX = /^[0-9A-Fa-f]+$/;
+var HEX = /^[\dA-Fa-f]+$/;
 // eslint-disable-next-line no-control-regex
-var FORBIDDEN_HOST_CODE_POINT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|%|\/|:|\?|@|\[|\\|\]/;
+var FORBIDDEN_HOST_CODE_POINT = /[\u0000\u0009\u000A\u000D #%/:?@[\\]]/;
 // eslint-disable-next-line no-control-regex
-var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /\u0000|\u0009|\u000A|\u000D|\u0020|#|\/|:|\?|@|\[|\\|\]/;
+var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /[\u0000\u0009\u000A\u000D #/:?@[\\]]/;
 // eslint-disable-next-line no-control-regex
-var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F\u0020]+|[\u0000-\u001F\u0020]+$/g;
+var LEADING_AND_TRAILING_C0_CONTROL_OR_SPACE = /^[\u0000-\u001F ]+|[\u0000-\u001F ]+$/g;
 // eslint-disable-next-line no-control-regex
-var TAB_AND_NEW_LINE = /\u0009|\u000A|\u000D/g;
+var TAB_AND_NEW_LINE = /[\u0009\u000A\u000D]/g;
 var EOF;
 
 var parseHost = function (url, input) {

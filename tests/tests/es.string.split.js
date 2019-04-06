@@ -1,3 +1,5 @@
+/* eslint-disable optimize-regex/optimize-regex */
+
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 
@@ -239,14 +241,14 @@ const run = assert => {
   try {
     String.prototype.split.call(6776767677.006771122677555, {
       toString() {
-        return /\u0037\u0037/g;
+        return /77/g;
       },
     });
     assert.ok(false, 'S15.5.4.14_A1_T16 #1 lead to throwing exception');
   } catch (error) {
     assert.ok(error instanceof TypeError, 'S15.5.4.14_A1_T16 #2');
   }
-  split = String.prototype.split.call(6776767677.006771122677555, /\u0037\u0037/g);
+  split = String.prototype.split.call(6776767677.006771122677555, /77/g);
   assert.strictEqual(typeof split, 'object', 'S15.5.4.14_A1_T17 #1');
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A1_T17 #2');
   assert.strictEqual(split.length, 4, 'S15.5.4.14_A1_T17 #3');

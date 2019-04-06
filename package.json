@@ -25,6 +25,7 @@
     "eslint": "^5.16.0",
     "eslint-import-resolver-webpack": "^0.11.0",
     "eslint-plugin-import": "~2.16.0",
+    "eslint-plugin-optimize-regex": "^1.1.6",
     "eslint-plugin-qunit": "^4.0.0",
     "eslint-plugin-unicorn": "^8.0.1",
     "grunt": "^1.0.4",

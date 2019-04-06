@@ -3,7 +3,7 @@ var toInteger = require('../internals/to-integer');
 var parseInt = require('../internals/parse-int');
 var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
 var INVALID_RADIX = 'Invalid radix';
-var valid = /^[0-9a-z]+$/;
+var valid = /^[\da-z]+$/;
 
 // `Number.fromString` method
 // https://github.com/tc39/proposal-number-fromstring
