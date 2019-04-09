@@ -1,6 +1,7 @@
 'use strict';
 // `Promise.allSettled` method
 // https://github.com/tc39/proposal-promise-allSettled
+var aFunction = require('../internals/a-function');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
@@ -12,6 +13,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
     var resolve = capability.resolve;
     var reject = capability.reject;
     var result = perform(function () {
+      var promiseResolve = aFunction(C.resolve);
       var values = [];
       var counter = 0;
       var remaining = 1;
@@ -20,7 +22,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
         var alreadyCalled = false;
         values.push(undefined);
         remaining++;
-        C.resolve(promise).then(function (value) {
+        promiseResolve.call(C, promise).then(function (value) {
           if (alreadyCalled) return;
           alreadyCalled = true;
           values[index] = { status: 'fulfilled', value: value };

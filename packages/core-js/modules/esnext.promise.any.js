@@ -1,6 +1,7 @@
 'use strict';
 // `Promise.any` method
 // https://github.com/tc39/proposal-promise-any
+var aFunction = require('../internals/a-function');
 var getBuiltIn = require('../internals/get-built-in');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
@@ -14,6 +15,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
     var resolve = capability.resolve;
     var reject = capability.reject;
     var result = perform(function () {
+      var promiseResolve = aFunction(C.resolve);
       var errors = [];
       var counter = 0;
       var remaining = 1;
@@ -23,7 +25,7 @@ require('../internals/export')({ target: 'Promise', stat: true }, {
         var alreadyRejected = false;
         errors.push(undefined);
         remaining++;
-        C.resolve(promise).then(function (value) {
+        promiseResolve.call(C, promise).then(function (value) {
           if (alreadyRejected || alreadyResolved) return;
           alreadyResolved = true;
           resolve(value);
