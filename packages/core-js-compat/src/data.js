@@ -1317,6 +1317,7 @@ module.exports = {
   },
   'esnext.string.match-all': {
     chrome: '73',
+    firefox: '67',
   },
   'esnext.string.replace-all': {
   },
