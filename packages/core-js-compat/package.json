@@ -9,7 +9,6 @@
   "main": "index.js",
   "dependencies": {
     "browserslist": "^4.5.4",
-    "core-js": "3.0.1",
     "core-js-pure": "3.0.1",
     "semver": "^6.0.0"
   },
