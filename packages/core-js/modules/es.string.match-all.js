@@ -57,9 +57,10 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
 var $matchAll = function (string) {
   var R = anObject(this);
   var S = String(string);
-  var C, flags, matcher, global, fullUnicode;
+  var C, flagsValue, flags, matcher, global, fullUnicode;
   C = speciesConstructor(R, RegExp);
-  flags = 'flags' in RegExpPrototype ? String(R.flags) : getFlags.call(R);
+  flagsValue = R.flags;
+  flags = flagsValue === undefined ? 'flags' in RegExpPrototype ? '' : getFlags.call(R) : String(flagsValue);
   matcher = new C(C === RegExp ? R.source : R, flags);
   global = !!~flags.indexOf('g');
   fullUnicode = !!~flags.indexOf('u');
