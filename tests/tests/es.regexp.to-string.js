@@ -22,6 +22,11 @@ QUnit.test('RegExp#toString', assert => {
     flags: 'bar',
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
+  assert.same(toString.call(new Proxy(/pattern/, {
+    get(object, key) {
+      return key === 'flags' ? 'x' : object[key];
+    },
+  })), '/pattern/x');
   if (STRICT) {
     assert.throws(() => toString.call(7));
     assert.throws(() => toString.call('a'));
