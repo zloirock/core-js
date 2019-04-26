@@ -1,5 +1,5 @@
 var nativeGetOwnPropertyNames = require('../internals/object-get-own-property-names-external').f;
-var FAILS_ON_PRIMITIVES = require('../internals/fails')(function () { Object.getOwnPropertyNames(1); });
+var FAILS_ON_PRIMITIVES = require('../internals/fails')(function () { return !Object.getOwnPropertyNames(1); });
 
 // `Object.getOwnPropertyNames` method
 // https://tc39.github.io/ecma262/#sec-object.getownpropertynames
