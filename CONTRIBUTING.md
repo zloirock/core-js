@@ -16,7 +16,7 @@ Contributions are always welcome. If you don't know what how you can help, you c
 
 ## Style and standards
 
-Coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run eslint`](#testing). Different places have different syntax and standard library limitations:
+Coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
 - Polyfill implementations should use only ES3 syntax and standard library. Polyfills should not use another polyfill from the global namespace.
 - In unit tests should be used modern syntax with our [minimalistic Babel config](./.babelrc). Unit tests for the `pure` version should not use any modern standard library features.
 - In building tools and tests, performed in Node.js, should be used only available in Node.js 4 syntax and standard library.
