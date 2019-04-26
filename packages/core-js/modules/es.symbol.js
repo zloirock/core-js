@@ -23,6 +23,7 @@ var toPrimitive = require('../internals/to-primitive');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var nativeObjectCreate = require('../internals/object-create');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
+var getOwnPropertySymbolsExternal = require('../internals/object-get-own-property-symbols-external');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
@@ -36,6 +37,7 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
+var nativeGetOwnPropertySymbols = getOwnPropertySymbolsExternal.f;
 var $Symbol = global.Symbol;
 var JSON = global.JSON;
 var nativeJSONStringify = JSON && JSON.stringify;
@@ -238,6 +240,14 @@ $export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertySymbols` method
   // https://tc39.github.io/ecma262/#sec-object.getownpropertysymbols
   getOwnPropertySymbols: $getOwnPropertySymbols
+});
+
+// Chome Mobile 38 and 39 getOwnPropertySymbols fails on primitives
+// https://bugs.chromium.org/p/v8/issues/detail?id=3443
+var FAILS_ON_PRIMITIVES = fails(function () { return !Object.getOwnPropertySymbols(1); });
+
+$export({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
+  getOwnPropertySymbols: nativeGetOwnPropertySymbols
 });
 
 // `JSON.stringify` method behavior with symbols
