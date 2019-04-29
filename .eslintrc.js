@@ -301,6 +301,8 @@ const base = {
   'prefer-arrow-callback': 'error',
   // require const declarations for variables that are never reassigned after declared
   'prefer-const': ['error', { destructuring: 'all' }],
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': 'error',
   // require template literals instead of string concatenation
   'prefer-template': 'error',
   // enforce spacing between rest and spread operators and their expressions
@@ -368,11 +370,11 @@ const es3 = {
   strict: 'off',
   // prefer the exponentiation operator over `Math.pow()`
   'unicorn/prefer-exponentiation-operator': 'off',
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': 'off',
 };
 
 const unit = {
-  // require destructuring from arrays and/or objects
-  'prefer-destructuring': 'error',
   // require strict mode directives
   strict: 'off',
 

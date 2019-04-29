@@ -1,6 +1,6 @@
 /* eslint-disable import/no-dynamic-require */
 'use strict';
-const ok = require('assert').ok;
+const { ok } = require('assert');
 const compat = require('../packages/core-js-compat/data');
 let tested = 0;
 let PATH;

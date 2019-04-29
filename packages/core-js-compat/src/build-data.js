@@ -24,7 +24,7 @@ for (const key in data) {
   const module = data[key];
   if (!has(module, 'edge') && has(module, 'ie')) module.edge = '12';
   if (has(module, 'chrome')) {
-    const chrome = module.chrome;
+    const { chrome } = module;
     if (!has(module, 'opera')) {
       module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
     }
