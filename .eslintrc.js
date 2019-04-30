@@ -345,6 +345,34 @@ const base = {
 
   // optimize regex literals
   'optimize-regex/optimize-regex': 'error',
+
+  // sonarjs
+  // two branches in a conditional structure should not have exactly the same implementation
+  'sonarjs/no-duplicated-branches': 'error',
+  // collection elements should not be replaced unconditionally
+  'sonarjs/no-element-overwrite': 'error',
+  // function calls should not pass extra arguments
+  'sonarjs/no-extra-arguments': 'error',
+  // related `if / else if` statements should not have the same condition
+  'sonarjs/no-identical-conditions': 'error',
+  // functions should not have identical implementations
+  'sonarjs/no-identical-functions': 'error',
+  // boolean checks should not be inverted
+  'sonarjs/no-inverted-boolean-check': 'error',
+  // loops with at most one iteration should be refactored
+  'sonarjs/no-one-iteration-loop': 'error',
+  // boolean literals should not be redundant
+  'sonarjs/no-redundant-boolean': 'error',
+  // the output of functions that don't return anything should not be used
+  'sonarjs/no-use-of-empty-return-value': 'error',
+  // local variables should not be declared and then immediately returned or thrown
+  'sonarjs/prefer-immediate-return': 'error',
+  // object literal syntax should be used
+  'sonarjs/prefer-object-literal': 'error',
+  // return of boolean expressions should not be wrapped into an `if-then-else` statement
+  'sonarjs/prefer-single-boolean-return': 'error',
+  // a `while` loop should be used instead of a `for` loop with condition only
+  'sonarjs/prefer-while': 'error',
 };
 
 const es3 = {
@@ -374,7 +402,7 @@ const es3 = {
   'prefer-destructuring': 'off',
 };
 
-const unit = {
+const tests = {
   // require strict mode directives
   strict: 'off',
 
@@ -399,8 +427,11 @@ const unit = {
   'no-useless-call': 'off',
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': 'off',
+  // functions should not have identical implementations
+  'sonarjs/no-identical-functions': 'off',
+};
 
-  // qunit:
+const qunit = {
   // ensure the correct number of assert arguments is used
   'qunit/assert-args': 'error',
   // forbid the use of assert.equal
@@ -467,6 +498,7 @@ module.exports = {
     'import',
     'optimize-regex',
     'qunit',
+    'sonarjs',
     'unicorn',
   ],
   settings: {
@@ -496,14 +528,23 @@ module.exports = {
         'tests/pure/**',
         'tests/tests/**',
         'tests/wpt-url-resources/**',
+        'tests/commonjs.js',
       ],
       parserOptions: {
         sourceType: 'module',
       },
+      rules: tests,
+    },
+    {
+      files: [
+        'tests/helpers/**',
+        'tests/pure/**',
+        'tests/tests/**',
+      ],
       env: {
         qunit: true,
       },
-      rules: unit,
+      rules: qunit,
     },
     {
       files: [

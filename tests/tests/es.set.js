@@ -1,3 +1,5 @@
+/* eslint-disable sonarjs/no-element-overwrite */
+
 import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 
