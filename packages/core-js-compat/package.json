@@ -8,7 +8,7 @@
   },
   "main": "index.js",
   "dependencies": {
-    "browserslist": "^4.5.4",
+    "browserslist": "^4.5.6",
     "core-js-pure": "3.0.1",
     "semver": "^6.0.0"
   },

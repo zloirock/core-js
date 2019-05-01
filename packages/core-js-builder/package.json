@@ -13,7 +13,7 @@
     "mkdirp": "^0.5.1",
     "temp": "^0.9.0",
     "util.promisify": "^1.0.0",
-    "webpack": "^4.29.6"
+    "webpack": "^4.30.0"
   },
   "license": "MIT"
 }
