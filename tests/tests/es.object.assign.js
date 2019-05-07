@@ -18,6 +18,7 @@ QUnit.test('Object.assign', assert => {
   assert.strictEqual(typeof string, 'object');
   assert.strictEqual(String(string), 'qwe');
   assert.strictEqual(string.q, 1);
+  assert.same(assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug');
   if (DESCRIPTORS) {
     object = { baz: 1 };
     assign(object, defineProperty({}, 'bar', {
