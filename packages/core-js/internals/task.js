@@ -63,7 +63,7 @@ if (!set || !clear) {
   // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if (global.addEventListener && typeof postMessage == 'function' && !global.importScripts) {
     defer = function (id) {
-      global.postMessage(id + '', '*');
+      global.postMessage(id + '', global.location.host);
     };
     global.addEventListener('message', listener, false);
   // IE8-
