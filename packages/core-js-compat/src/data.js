@@ -1252,6 +1252,7 @@ module.exports = {
   'esnext.observable': {
   },
   'esnext.promise.all-settled': {
+    chrome: '76',
   },
   'esnext.promise.any': {
   },
