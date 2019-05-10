@@ -18,6 +18,7 @@ var enumKeys = require('../internals/enum-keys');
 var isArray = require('../internals/is-array');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
+var toObject = require('../internals/to-object');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
@@ -36,6 +37,7 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
+var nativeGetOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var $Symbol = global.Symbol;
 var JSON = global.JSON;
 var nativeJSONStringify = JSON && JSON.stringify;
@@ -172,7 +174,7 @@ if (!NATIVE_SYMBOL) {
   definePropertyModule.f = $defineProperty;
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
   require('../internals/object-get-own-property-names').f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
-  require('../internals/object-get-own-property-symbols').f = $getOwnPropertySymbols;
+  nativeGetOwnPropertySymbolsModule.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
     // https://github.com/tc39/proposal-Symbol-description
@@ -238,6 +240,16 @@ $export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertySymbols` method
   // https://tc39.github.io/ecma262/#sec-object.getownpropertysymbols
   getOwnPropertySymbols: $getOwnPropertySymbols
+});
+
+// Chome Mobile 38 and 39 getOwnPropertySymbols fails on primitives
+// https://bugs.chromium.org/p/v8/issues/detail?id=3443
+var FAILS_ON_PRIMITIVES = fails(function () { return !Object.getOwnPropertySymbols(1); });
+
+$export({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
+  getOwnPropertySymbols: function getOwnPropertySymbols(it) {
+    return nativeGetOwnPropertySymbolsModule.f(toObject(it));
+  }
 });
 
 // `JSON.stringify` method behavior with symbols

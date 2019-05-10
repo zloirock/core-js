@@ -85,6 +85,10 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
   assert.deepEqual(getOwnPropertyNames(object).sort(), ['a', 'd', 's']);
   assert.strictEqual(getOwnPropertySymbols(object).length, 1);
   assert.strictEqual(getOwnPropertySymbols(Object.prototype).length, 0);
+  const primitives = [42, 'foo', false];
+  for (const value of primitives) {
+    assert.notThrows(() => getOwnPropertySymbols(value), `accept ${ typeof value }`);
+  }
 });
 
 if (JSON) {

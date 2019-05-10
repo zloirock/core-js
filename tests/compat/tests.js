@@ -158,6 +158,7 @@ function createStringTrimMethodTest(METHOD_NAME) {
 GLOBAL.tests = {
   'es.symbol': [SYMBOLS_SUPPORT, function () {
     return Object.getOwnPropertySymbols
+      && Object.getOwnPropertySymbols('qwe')
       && Symbol['for']
       && Symbol.keyFor
       && JSON.stringify([Symbol()]) == '[null]'
