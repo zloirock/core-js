@@ -1,5 +1,6 @@
 ## Changelog
 ##### 3.1.0
+- `Promise.allSettled` moved to stage 3, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-476837985)
 - `Promise.any` moved to stage 1, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-477335963)
 - Removed `es.regexp.flags` dependency from `es.regexp.to-string`, [#536](https://github.com/zloirock/core-js/issues/536), [#537](https://github.com/zloirock/core-js/issues/537)
 - Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
