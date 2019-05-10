@@ -37,7 +37,7 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
-var nativeGetOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
+var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var $Symbol = global.Symbol;
 var JSON = global.JSON;
 var nativeJSONStringify = JSON && JSON.stringify;
@@ -174,7 +174,7 @@ if (!NATIVE_SYMBOL) {
   definePropertyModule.f = $defineProperty;
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
   require('../internals/object-get-own-property-names').f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
-  nativeGetOwnPropertySymbolsModule.f = $getOwnPropertySymbols;
+  getOwnPropertySymbolsModule.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
     // https://github.com/tc39/proposal-Symbol-description
@@ -242,13 +242,11 @@ $export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   getOwnPropertySymbols: $getOwnPropertySymbols
 });
 
-// Chome Mobile 38 and 39 getOwnPropertySymbols fails on primitives
+// Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
 // https://bugs.chromium.org/p/v8/issues/detail?id=3443
-var FAILS_ON_PRIMITIVES = fails(function () { return !Object.getOwnPropertySymbols(1); });
-
-$export({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
+$export({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
-    return nativeGetOwnPropertySymbolsModule.f(toObject(it));
+    return getOwnPropertySymbolsModule.f(toObject(it));
   }
 });
 
