@@ -13,8 +13,7 @@ var queue = {};
 var ONREADYSTATECHANGE = 'onreadystatechange';
 var defer, channel, port;
 
-var run = function () {
-  var id = +this;
+var run = function (id) {
   // eslint-disable-next-line no-prototype-builtins
   if (queue.hasOwnProperty(id)) {
     var fn = queue[id];
@@ -23,8 +22,14 @@ var run = function () {
   }
 };
 
+var runner = function (id) {
+  return function () {
+    run(id);
+  };
+};
+
 var listener = function (event) {
-  run.call(event.data);
+  run(event.data);
 };
 
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
@@ -46,12 +51,12 @@ if (!set || !clear) {
   // Node.js 0.8-
   if (classof(process) == 'process') {
     defer = function (id) {
-      process.nextTick(bind(run, id, 1));
+      process.nextTick(runner(id));
     };
   // Sphere (JS game engine) Dispatch API
   } else if (Dispatch && Dispatch.now) {
     defer = function (id) {
-      Dispatch.now(bind(run, id, 1));
+      Dispatch.now(runner(id));
     };
   // Browsers with MessageChannel, includes WebWorkers
   } else if (MessageChannel) {
@@ -71,13 +76,13 @@ if (!set || !clear) {
     defer = function (id) {
       html.appendChild(createElement('script'))[ONREADYSTATECHANGE] = function () {
         html.removeChild(this);
-        run.call(id);
+        run(id);
       };
     };
   // Rest old browsers
   } else {
     defer = function (id) {
-      setTimeout(bind(run, id, 1), 0);
+      setTimeout(runner(id), 0);
     };
   }
 }
