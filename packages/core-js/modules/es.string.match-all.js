@@ -60,7 +60,10 @@ var $matchAll = function (string) {
   var C, flagsValue, flags, matcher, global, fullUnicode;
   C = speciesConstructor(R, RegExp);
   flagsValue = R.flags;
-  flags = flagsValue === undefined ? 'flags' in RegExpPrototype ? '' : getFlags.call(R) : String(flagsValue);
+  if (flagsValue === undefined && R instanceof RegExp && !('flags' in RegExpPrototype)) {
+    flagsValue = getFlags.call(R);
+  }
+  flags = flagsValue === undefined ? '' : String(flagsValue);
   matcher = new C(C === RegExp ? R.source : R, flags);
   global = !!~flags.indexOf('g');
   fullUnicode = !!~flags.indexOf('u');
