@@ -1,4 +1,13 @@
 ## Changelog
+##### 3.1.0
+- `Promise.any` moved to stage 1, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-477335963)
+- Removed `es.regexp.flags` dependency from `es.regexp.to-string`, [#536](https://github.com/zloirock/core-js/issues/536), [#537](https://github.com/zloirock/core-js/issues/537)
+- Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
+- Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
+- `window.postMessage`-based task implementation uses `window.location.host` over `'*'`, [#542](https://github.com/zloirock/core-js/issues/542)
+- Lookup `PromiseConstructor.resolve` only once in `Promise` combinators, [tc39/ecma262#1506](https://github.com/tc39/ecma262/pull/1506)
+- Added compat data for Chrome 76, FF 67, Node 12
+
 ##### 3.0.1 - 2019.04.06
 - Fixed some cases of work with malformed URI sequences in `URLSearchParams`, [#525](https://github.com/zloirock/core-js/issues/525)
 - Added a workaround for a rollup issue, [#513](https://github.com/zloirock/core-js/issues/513)
