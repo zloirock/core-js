@@ -2002,12 +2002,6 @@ class Symbol {
 core-js/proposals/using-statement
 core-js(-pure)/features/symbol/dispose
 ```
-
-#### Stage 0 proposals
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/0
-```
 * `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
 class AggregateError {
@@ -2039,6 +2033,12 @@ Promise.any([
   Promise.reject(2),
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+```
+
+#### Stage 0 proposals
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stage/0
 ```
 * `URL` [proposal](https://github.com/jasnell/proposal-url), see more info [in web standards namespace](#url-and-urlsearchparams)
 * `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3.0.1/packages/core-js/modules/esnext.string.at.js)
