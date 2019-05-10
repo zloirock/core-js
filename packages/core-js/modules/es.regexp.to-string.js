@@ -15,8 +15,9 @@ var INCORRECT_NAME = nativeToString.name != TO_STRING;
 if (NOT_GENERIC || INCORRECT_NAME) {
   require('../internals/redefine')(RegExp.prototype, TO_STRING, function toString() {
     var R = anObject(this);
+    var p = String(R.source);
     var rf = R.flags;
-    return '/'.concat(R.source, '/',
-      rf == null && R instanceof RegExp && !('flags' in RegExpPrototype) ? flags.call(R) : rf);
+    var f = String(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype) ? flags.call(R) : rf);
+    return '/' + p + '/' + f;
   }, { unsafe: true });
 }
