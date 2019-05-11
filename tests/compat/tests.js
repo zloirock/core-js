@@ -1233,6 +1233,9 @@ GLOBAL.tests = {
   'esnext.symbol.pattern-match': function () {
     return Symbol.patternMatch;
   },
+  'esnext.symbol.replace-all': function () {
+    return Symbol.replaceAll;
+  },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
   },
