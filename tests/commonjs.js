@@ -275,6 +275,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/is-concat-spreadable'));
   ok(load('features/symbol/iterator'));
   ok(load('features/symbol/match'));
+  ok(load('features/symbol/match-all'));
   ok(load('features/symbol/replace'));
   ok(load('features/symbol/search'));
   ok(load('features/symbol/species'));
@@ -523,6 +524,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stable/string/ends-with')('qwe', 'we'));
   ok(load('stable/string/includes')('qwe', 'w'));
   ok(load('stable/string/repeat')('q', 3) === 'qqq');
+  ok('next' in load('stable/string/match-all')('a', /./));
   ok(load('stable/string/starts-with')('qwe', 'qw'));
   ok(typeof load('stable/string/anchor') === 'function');
   ok(typeof load('stable/string/big') === 'function');
@@ -593,6 +595,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stable/symbol/is-concat-spreadable'));
   ok(load('stable/symbol/iterator'));
   ok(load('stable/symbol/match'));
+  ok(load('stable/symbol/match-all'));
   ok(load('stable/symbol/replace'));
   ok(load('stable/symbol/search'));
   ok(load('stable/symbol/species'));
@@ -855,6 +858,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/symbol/is-concat-spreadable'));
   ok(load('es/symbol/iterator'));
   ok(load('es/symbol/match'));
+  ok(load('es/symbol/match-all'));
   ok(load('es/symbol/replace'));
   ok(load('es/symbol/search'));
   ok(load('es/symbol/species'));
@@ -1249,7 +1253,17 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof instanceMap([]) === 'function');
   ok(instanceMap([]).call([1, 2, 3], it => it % 2)[1] === 0);
 
-  const instanceMatchAll = load('features/instance/match-all');
+  let instanceMatchAll = load('features/instance/match-all');
+  ok(typeof instanceMatchAll === 'function');
+  ok(instanceMatchAll({}) === undefined);
+  ok(typeof instanceMatchAll('') === 'function');
+  ok(instanceMatchAll('').call('test1test2', /t(e)(st(\d?))/g).next().value[0] === 'test1');
+  instanceMatchAll = load('stable/instance/match-all');
+  ok(typeof instanceMatchAll === 'function');
+  ok(instanceMatchAll({}) === undefined);
+  ok(typeof instanceMatchAll('') === 'function');
+  ok(instanceMatchAll('').call('test1test2', /t(e)(st(\d?))/g).next().value[0] === 'test1');
+  instanceMatchAll = load('es/instance/match-all');
   ok(typeof instanceMatchAll === 'function');
   ok(instanceMatchAll({}) === undefined);
   ok(typeof instanceMatchAll('') === 'function');
@@ -1572,6 +1586,7 @@ load('features/typed-array/to-string');
 load('features/typed-array/values');
 ok(typeof load('features/typed-array').Uint32Array === 'function');
 ok(typeof load('es/string/match') === 'function');
+ok('next' in load('es/string/match-all')('a', /./));
 ok(typeof load('es/string/replace') === 'function');
 ok(typeof load('es/string/search') === 'function');
 ok(load('es/string/split')('a s d', ' ').length === 3);
