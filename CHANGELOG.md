@@ -1,14 +1,15 @@
 ## Changelog
 ##### 3.1.0
-- `String#matchAll` moved to stable ES, exposed `Symbol.matchAll`, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-476783115)
-- `Promise.allSettled` moved to stage 3, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-476837985)
-- `String#replaceAll` moved to stage 2, behavior updated by the spec draft, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-476838130), [`https://tc39.github.io/proposal-string-replaceall/`](https://tc39.github.io/proposal-string-replaceall/)
-- `Promise.any` moved to stage 1, [babel/proposals#57 (comment)](https://github.com/babel/proposals/issues/57#issuecomment-477335963)
+- `String#matchAll` moved to stable ES, exposed `Symbol.matchAll`, [#516](https://github.com/zloirock/core-js/issues/516)
+- `Promise.allSettled` moved to stage 3, [#515](https://github.com/zloirock/core-js/issues/515)
+- `String#replaceAll` moved to stage 2, behavior updated by the spec draft, [#524](https://github.com/zloirock/core-js/issues/524)
+- `Promise.any` moved to stage 1, [#517](https://github.com/zloirock/core-js/issues/517)
 - Removed `es.regexp.flags` dependency from `es.regexp.to-string`, [#536](https://github.com/zloirock/core-js/issues/536), [#537](https://github.com/zloirock/core-js/issues/537)
 - Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
 - Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
 - `window.postMessage`-based task implementation uses `window.location.host` over `'*'`, [#542](https://github.com/zloirock/core-js/issues/542)
 - Lookup `PromiseConstructor.resolve` only once in `Promise` combinators, [tc39/ecma262#1506](https://github.com/tc39/ecma262/pull/1506)
+- Temporarily removed `core-js` dependency from `core-js-compat` since it's required for missed at this moment feature
 - Added compat data for Chrome 76, FF 67, Node 12
 
 ##### 3.0.1 - 2019.04.06
