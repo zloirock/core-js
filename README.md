@@ -115,7 +115,7 @@ npm install --save core-js-bundle@3.0.1
 Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.0.1) ([minified version](https://unpkg.com/core-js-bundle@3.0.1/minified.js)).
 
 ### CommonJS API
-You can import only required for your polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
 // polyfill all `core-js` features:
