@@ -115,7 +115,7 @@ npm install --save core-js-bundle@3.0.1
 Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.0.1) ([minified version](https://unpkg.com/core-js-bundle@3.0.1/minified.js)).
 
 ### CommonJS API
-You can import only required for you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+You can import only required for your polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
 // polyfill all `core-js` features:
@@ -151,7 +151,7 @@ import "core-js/stage/2";
 
 ##### Caveats when using CommonJS API:
 
-* `modules` path is internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
+* `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
 * If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
 * `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
@@ -172,7 +172,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 ### Babel
 
-`core-js` integrated with `babel` and is the base for polyfilling-related `babel` features:
+`core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
 
 #### `@babel/polyfill`
 
@@ -188,7 +188,7 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes work with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: 3` or `corejs: '3.0'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: 3` or `corejs: '3.0'`.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -222,7 +222,7 @@ import "core-js/modules/esnext.set.symmetric-difference";
 import "core-js/modules/esnext.set.union";
 ```
 
-- `useBuiltIns: 'usage'` add at the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
+- `useBuiltIns: 'usage'` adds to the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
 ```js
 // first file:
 var set = new Set([1, 2, 3]);
@@ -243,7 +243,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option polyfill only stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 #### `@babel/runtime`
 
@@ -265,11 +265,11 @@ Array.from(new Set([1, 2, 3, 2, 1]));
 Promise.resolve(32).then(x => console.log(x));
 ```
 
-By default, `@babel/runtime` polyfill only stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
+By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 ### Configurable level of aggressiveness
 
-By default, `core-js` set polyfills only when they required. That means that `core-js` check is a feature available and works correctly or not and if it has no problems, `core-js` use native implementation.
+By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` use native implementation.
 
 But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
 
