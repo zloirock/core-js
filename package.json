@@ -19,7 +19,7 @@
     "@babel/plugin-transform-spread": "^7.2.2",
     "@babel/plugin-transform-template-literals": "^7.4.4",
     "@babel/runtime": "^7.4.4",
-    "babel-loader": "^8.0.5",
+    "babel-loader": "^8.0.6",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
     "eslint": "^5.16.0",
@@ -44,7 +44,7 @@
     "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
-    "puppeteer": "~1.15.0",
+    "puppeteer": "~1.16.0",
     "qunit": "~2.9.2",
     "webpack": "^4.31.0"
   },
