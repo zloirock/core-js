@@ -113,7 +113,7 @@ module.exports = grunt => {
           {
             expand: true,
             src: ['LICENSE'],
-            dest: './packages/core-js-builder/',
+            dest: './packages/core-js-bundle/',
           },
         ],
       },
