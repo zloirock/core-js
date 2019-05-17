@@ -10,6 +10,7 @@
 - `window.postMessage`-based task implementation uses location origin over `'*'`, [#542](https://github.com/zloirock/core-js/issues/542)
 - Lookup `PromiseConstructor.resolve` only once in `Promise` combinators, [tc39/ecma262#1506](https://github.com/tc39/ecma262/pull/1506)
 - Temporarily removed `core-js` dependency from `core-js-compat` since it's required for missed at this moment feature
+- Added showing a message about sponsorship on `postinstall`
 - Added compat data for Chrome 76, FF 67, Node 12
 
 ##### 3.0.1 - 2019.04.06
