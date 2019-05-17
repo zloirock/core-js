@@ -44,5 +44,8 @@
     "polyfill",
     "ponyfill",
     "shim"
-  ]
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall"
+  }
 }

@@ -7,6 +7,7 @@ node_modules/
 
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
+/packages/core-js-bundle/scripts/
 /packages/core-js-bundle/LICENSE
 /packages/core-js-bundle/index.js
 /packages/core-js-bundle/minified.js
@@ -20,6 +21,7 @@ node_modules/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
 /packages/core-js-pure/proposals/
+/packages/core-js-pure/scripts/
 /packages/core-js-pure/stable/
 /packages/core-js-pure/stage/
 /packages/core-js-pure/web/

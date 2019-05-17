@@ -49,6 +49,7 @@ module.exports = grunt => {
         './packages/core-js-builder/LICENSE',
       ],
       'core-js-bundle': [
+        './packages/core-js-bundle/scripts',
         './packages/core-js-bundle/LICENSE',
       ],
       'core-js-compat': [
@@ -84,6 +85,7 @@ module.exports = grunt => {
               'internals/**',
               'modules/**',
               'proposals/**',
+              'scripts/**',
               'stable/**',
               'stage/**',
               'web/**',
@@ -113,6 +115,11 @@ module.exports = grunt => {
           {
             expand: true,
             src: ['LICENSE'],
+            dest: './packages/core-js-bundle/',
+          }, {
+            expand: true,
+            cwd: './packages/core-js/',
+            src: ['scripts/**'],
             dest: './packages/core-js-bundle/',
           },
         ],
