@@ -17,12 +17,14 @@ var enumKeys = require('./_enum-keys');
 var isArray = require('./_is-array');
 var anObject = require('./_an-object');
 var isObject = require('./_is-object');
+var toObject = require('./_to-object');
 var toIObject = require('./_to-iobject');
 var toPrimitive = require('./_to-primitive');
 var createDesc = require('./_property-desc');
 var _create = require('./_object-create');
 var gOPNExt = require('./_object-gopn-ext');
 var $GOPD = require('./_object-gopd');
+var $GOPS = require('./_object-gops');
 var $DP = require('./_object-dp');
 var $keys = require('./_object-keys');
 var gOPD = $GOPD.f;
@@ -149,7 +151,7 @@ if (!USE_NATIVE) {
   $DP.f = $defineProperty;
   require('./_object-gopn').f = gOPNExt.f = $getOwnPropertyNames;
   require('./_object-pie').f = $propertyIsEnumerable;
-  require('./_object-gops').f = $getOwnPropertySymbols;
+  $GOPS.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS && !require('./_library')) {
     redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
@@ -198,6 +200,16 @@ $export($export.S + $export.F * !USE_NATIVE, 'Object', {
   getOwnPropertyNames: $getOwnPropertyNames,
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
   getOwnPropertySymbols: $getOwnPropertySymbols
+});
+
+// Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
+// https://bugs.chromium.org/p/v8/issues/detail?id=3443
+var FAILS_ON_PRIMITIVES = $fails(function () { $GOPS.f(1); });
+
+$export($export.S + $export.F * FAILS_ON_PRIMITIVES, 'Object', {
+  getOwnPropertySymbols: function getOwnPropertySymbols(it) {
+    return $GOPS.f(toObject(it));
+  }
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])

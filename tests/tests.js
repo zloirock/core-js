@@ -8512,7 +8512,7 @@
     assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
   });
   test('Object.getOwnPropertySymbols', function(assert){
-    var getOwnPropertySymbols, getOwnPropertyNames, obj, foo, ref$;
+    var getOwnPropertySymbols, getOwnPropertyNames, obj, foo, ref$, i$, x$, len$;
     getOwnPropertySymbols = Object.getOwnPropertySymbols, getOwnPropertyNames = Object.getOwnPropertyNames;
     assert.isFunction(getOwnPropertySymbols);
     assert.nonEnumerable(Object, 'getOwnPropertySymbols');
@@ -8533,6 +8533,10 @@
     assert.deepEqual(getOwnPropertyNames(foo).sort(), ['a', 'd', 's']);
     assert.strictEqual(getOwnPropertySymbols(foo).length, 1);
     assert.strictEqual(getOwnPropertySymbols(Object.prototype).length, 0);
+    for (i$ = 0, len$ = (ref$ = [42, 'foo', false]).length; i$ < len$; ++i$) {
+      x$ = ref$[i$];
+      assert.ok(getOwnPropertySymbols(x$), "accept " + typeof x$);
+    }
   });
   if (typeof JSON != 'undefined' && JSON !== null) {
     test('Symbols & JSON.stringify', function(assert){

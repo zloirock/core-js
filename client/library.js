@@ -3932,12 +3932,14 @@ var enumKeys = __webpack_require__(128);
 var isArray = __webpack_require__(52);
 var anObject = __webpack_require__(1);
 var isObject = __webpack_require__(3);
+var toObject = __webpack_require__(9);
 var toIObject = __webpack_require__(11);
 var toPrimitive = __webpack_require__(27);
 var createDesc = __webpack_require__(28);
 var _create = __webpack_require__(32);
 var gOPNExt = __webpack_require__(94);
 var $GOPD = __webpack_require__(18);
+var $GOPS = __webpack_require__(51);
 var $DP = __webpack_require__(8);
 var $keys = __webpack_require__(31);
 var gOPD = $GOPD.f;
@@ -4064,7 +4066,7 @@ if (!USE_NATIVE) {
   $DP.f = $defineProperty;
   __webpack_require__(46).f = gOPNExt.f = $getOwnPropertyNames;
   __webpack_require__(45).f = $propertyIsEnumerable;
-  __webpack_require__(51).f = $getOwnPropertySymbols;
+  $GOPS.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS && !__webpack_require__(30)) {
     redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
@@ -4113,6 +4115,16 @@ $export($export.S + $export.F * !USE_NATIVE, 'Object', {
   getOwnPropertyNames: $getOwnPropertyNames,
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
   getOwnPropertySymbols: $getOwnPropertySymbols
+});
+
+// Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
+// https://bugs.chromium.org/p/v8/issues/detail?id=3443
+var FAILS_ON_PRIMITIVES = $fails(function () { $GOPS.f(1); });
+
+$export($export.S + $export.F * FAILS_ON_PRIMITIVES, 'Object', {
+  getOwnPropertySymbols: function getOwnPropertySymbols(it) {
+    return $GOPS.f(toObject(it));
+  }
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])

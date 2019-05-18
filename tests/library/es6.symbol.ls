@@ -52,6 +52,8 @@ test 'Object.getOwnPropertySymbols' (assert)!->
   assert.deepEqual getOwnPropertyNames(foo)sort!, <[a d s]>
   assert.strictEqual getOwnPropertySymbols(foo).length, 1
   assert.strictEqual getOwnPropertySymbols(Object::).length, 0
+  for [42 \foo no]
+    assert.ok getOwnPropertySymbols(..), "accept #{ typeof .. }"
 
 if JSON?
   test 'Symbols & JSON.stringify' (assert)!->

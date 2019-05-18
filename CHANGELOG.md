@@ -1,6 +1,7 @@
 ## Changelog
 ##### 2.6.6 [LEGACY]
 - Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
+- Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
 
 ##### 2.6.5 - 2019.02.15
 - Fixed buggy `String#padStart` and `String#padEnd` mobile Safari implementations, [#414](https://github.com/zloirock/core-js/issues/414).
