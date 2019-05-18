@@ -15,6 +15,7 @@ test 'Object.assign' (assert)!->
   assert.strictEqual typeof str, \object
   assert.strictEqual String(str), \qwe
   assert.strictEqual str.q, 1
+  assert.same assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug'
   if DESCRIPTORS
     foo = baz: 1
     assign foo, defineProperty {}, \bar, get: -> @baz + 1

@@ -3055,6 +3055,9 @@
     assert.strictEqual(typeof str, 'object');
     assert.strictEqual(String(str), 'qwe');
     assert.strictEqual(str.q, 1);
+    assert.same(assign({}, {
+      valueOf: 42
+    }).valueOf, 42, 'IE enum keys bug');
     if (DESCRIPTORS) {
       foo = {
         baz: 1
@@ -7711,6 +7714,9 @@
       s: 5,
       d: 6
     })), [['a', 4], ['s', 5], ['d', 6]]);
+    assert.deepEqual(entries({
+      valueOf: 42
+    }), [['valueOf', 42]], 'IE enum keys bug');
     try {
       assert.deepEqual(Function('return core.Object.entries({a: 1, get b(){delete this.c;return 2},c: 3})')(), [['a', 1], ['b', 2]]);
     } catch (e$) {}
@@ -7863,6 +7869,9 @@
       s: 5,
       d: 6
     })), [4, 5, 6]);
+    assert.deepEqual(values({
+      valueOf: 42
+    }), [42], 'IE enum keys bug');
     try {
       assert.deepEqual(Function('return core.Object.values({a: 1, get b(){delete this.c;return 2},c: 3})')(), [1, 2]);
     } catch (e$) {}
