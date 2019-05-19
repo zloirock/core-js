@@ -1,5 +1,5 @@
 /**
- * core-js 2.6.5
+ * core-js 2.6.6
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2019 Denis Pushkarev
@@ -550,7 +550,7 @@ module.exports = function (TYPE, $create) {
 /* 26 */
 /***/ (function(module, exports) {
 
-var core = module.exports = { version: '2.6.5' };
+var core = module.exports = { version: '2.6.6' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
@@ -3024,6 +3024,7 @@ module.exports.f = function getOwnPropertyNames(it) {
 "use strict";
 
 // 19.1.2.1 Object.assign(target, source, ...)
+var DESCRIPTORS = __webpack_require__(7);
 var getKeys = __webpack_require__(34);
 var gOPS = __webpack_require__(53);
 var pIE = __webpack_require__(49);
@@ -3053,7 +3054,10 @@ module.exports = !$assign || __webpack_require__(3)(function () {
     var length = keys.length;
     var j = 0;
     var key;
-    while (length > j) if (isEnum.call(S, key = keys[j++])) T[key] = S[key];
+    while (length > j) {
+      key = keys[j++];
+      if (!DESCRIPTORS || isEnum.call(S, key)) T[key] = S[key];
+    }
   } return T;
 } : $assign;
 
@@ -3827,6 +3831,7 @@ module.exports = function (that, maxLength, fillString, left) {
 /* 125 */
 /***/ (function(module, exports, __webpack_require__) {
 
+var DESCRIPTORS = __webpack_require__(7);
 var getKeys = __webpack_require__(34);
 var toIObject = __webpack_require__(15);
 var isEnum = __webpack_require__(49).f;
@@ -3838,9 +3843,13 @@ module.exports = function (isEntries) {
     var i = 0;
     var result = [];
     var key;
-    while (length > i) if (isEnum.call(O, key = keys[i++])) {
-      result.push(isEntries ? [key, O[key]] : O[key]);
-    } return result;
+    while (length > i) {
+      key = keys[i++];
+      if (!DESCRIPTORS || isEnum.call(O, key)) {
+        result.push(isEntries ? [key, O[key]] : O[key]);
+      }
+    }
+    return result;
   };
 };
 
@@ -4124,12 +4133,14 @@ var enumKeys = __webpack_require__(132);
 var isArray = __webpack_require__(54);
 var anObject = __webpack_require__(1);
 var isObject = __webpack_require__(4);
+var toObject = __webpack_require__(9);
 var toIObject = __webpack_require__(15);
 var toPrimitive = __webpack_require__(22);
 var createDesc = __webpack_require__(32);
 var _create = __webpack_require__(36);
 var gOPNExt = __webpack_require__(97);
 var $GOPD = __webpack_require__(16);
+var $GOPS = __webpack_require__(53);
 var $DP = __webpack_require__(8);
 var $keys = __webpack_require__(34);
 var gOPD = $GOPD.f;
@@ -4256,7 +4267,7 @@ if (!USE_NATIVE) {
   $DP.f = $defineProperty;
   __webpack_require__(37).f = gOPNExt.f = $getOwnPropertyNames;
   __webpack_require__(49).f = $propertyIsEnumerable;
-  __webpack_require__(53).f = $getOwnPropertySymbols;
+  $GOPS.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS && !__webpack_require__(29)) {
     redefine(ObjectProto, 'propertyIsEnumerable', $propertyIsEnumerable, true);
@@ -4305,6 +4316,16 @@ $export($export.S + $export.F * !USE_NATIVE, 'Object', {
   getOwnPropertyNames: $getOwnPropertyNames,
   // 19.1.2.8 Object.getOwnPropertySymbols(O)
   getOwnPropertySymbols: $getOwnPropertySymbols
+});
+
+// Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
+// https://bugs.chromium.org/p/v8/issues/detail?id=3443
+var FAILS_ON_PRIMITIVES = $fails(function () { $GOPS.f(1); });
+
+$export($export.S + $export.F * FAILS_ON_PRIMITIVES, 'Object', {
+  getOwnPropertySymbols: function getOwnPropertySymbols(it) {
+    return $GOPS.f(toObject(it));
+  }
 });
 
 // 24.3.2 JSON.stringify(value [, replacer [, space]])

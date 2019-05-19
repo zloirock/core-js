@@ -1,5 +1,5 @@
 ## Changelog
-##### 2.6.6 [LEGACY]
+##### 2.6.6 [LEGACY] - 2019.05.20
 - Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
 - Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
 - Show a message on `postinstall`
