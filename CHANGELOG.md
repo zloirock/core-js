@@ -1,5 +1,5 @@
 ## Changelog
-##### 3.1.0
+##### 3.1.0 - 2019.05.20
 - `String#matchAll` moved to stable ES, exposed `Symbol.matchAll`, [#516](https://github.com/zloirock/core-js/issues/516)
 - `Promise.allSettled` moved to stage 3, [#515](https://github.com/zloirock/core-js/issues/515)
 - `String#replaceAll` moved to stage 2, behavior updated by the spec draft, [#524](https://github.com/zloirock/core-js/issues/524)
