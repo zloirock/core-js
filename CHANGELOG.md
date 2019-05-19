@@ -13,6 +13,11 @@
 - Show a message on `postinstall`
 - Added compat data for Chrome 76, FF 67, Node 12
 
+##### 2.6.6 [LEGACY] - 2019.05.20
+- Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
+- Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
+- Show a message on `postinstall`
+
 ##### 3.0.1 - 2019.04.06
 - Fixed some cases of work with malformed URI sequences in `URLSearchParams`, [#525](https://github.com/zloirock/core-js/issues/525)
 - Added a workaround for a rollup issue, [#513](https://github.com/zloirock/core-js/issues/513)
