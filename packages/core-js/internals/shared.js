@@ -1,5 +1,6 @@
 var global = require('../internals/global');
 var setGlobal = require('../internals/set-global');
+var IS_PURE = require('../internals/is-pure');
 var SHARED = '__core-js_shared__';
 var store = global[SHARED] || setGlobal(SHARED, {});
 
@@ -7,6 +8,6 @@ var store = global[SHARED] || setGlobal(SHARED, {});
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
   version: '3.1.0',
-  mode: require('../internals/is-pure') ? 'pure' : 'global',
+  mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2019 Denis Pushkarev (zloirock.ru)'
 });

@@ -1,4 +1,5 @@
 var global = require('../internals/global');
+var shared = require('../internals/shared');
 var hide = require('../internals/hide');
 var has = require('../internals/has');
 var setGlobal = require('../internals/set-global');
@@ -8,7 +9,7 @@ var getInternalState = InternalStateModule.get;
 var enforceInternalState = InternalStateModule.enforce;
 var TEMPLATE = String(nativeFunctionToString).split('toString');
 
-require('../internals/shared')('inspectSource', function (it) {
+shared('inspectSource', function (it) {
   return nativeFunctionToString.call(it);
 });
 

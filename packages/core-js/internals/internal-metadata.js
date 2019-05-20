@@ -1,5 +1,6 @@
 var METADATA = require('../internals/uid')('meta');
 var FREEZING = require('../internals/freezing');
+var hiddenKeys = require('../internals/hidden-keys');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
 var defineProperty = require('../internals/object-define-property').f;
@@ -55,4 +56,4 @@ var meta = module.exports = {
   onFreeze: onFreeze
 };
 
-require('../internals/hidden-keys')[METADATA] = true;
+hiddenKeys[METADATA] = true;

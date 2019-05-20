@@ -1,7 +1,8 @@
 var IS_PURE = require('../internals/is-pure');
 var ITERATOR = require('../internals/well-known-symbol')('iterator');
+var fails = require('../internals/fails');
 
-module.exports = !require('../internals/fails')(function () {
+module.exports = !fails(function () {
   var url = new URL('b?e=1', 'http://a');
   var searchParams = url.searchParams;
   url.pathname = 'c%20d';
