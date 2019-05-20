@@ -4,8 +4,6 @@ module.exports = {
   plugins: [
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
-    // use it instead of webpack es modules for support engines without descriptors
-    ['@babel/transform-modules-commonjs', { loose: true }],
     ['@babel/transform-arrow-functions'],
     ['@babel/transform-block-scoped-functions'],
     ['@babel/transform-block-scoping'],
@@ -20,5 +18,7 @@ module.exports = {
     ['@babel/transform-exponentiation-operator'],
     ['transform-for-of-as-array'],
     ['@babel/plugin-transform-runtime'],
+    // use it instead of webpack es modules for support engines without descriptors
+    ['babel-plugin-transform-es2015-modules-simple-commonjs'],
   ],
 };
