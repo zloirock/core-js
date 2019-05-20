@@ -1,5 +1,5 @@
 /**
- * core-js 2.6.6
+ * core-js 2.6.7
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2019 Denis Pushkarev
@@ -550,7 +550,7 @@ module.exports = function (TYPE, $create) {
 /* 26 */
 /***/ (function(module, exports) {
 
-var core = module.exports = { version: '2.6.6' };
+var core = module.exports = { version: '2.6.7' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
@@ -4157,7 +4157,7 @@ var SymbolRegistry = shared('symbol-registry');
 var AllSymbols = shared('symbols');
 var OPSymbols = shared('op-symbols');
 var ObjectProto = Object[PROTOTYPE];
-var USE_NATIVE = typeof $Symbol == 'function';
+var USE_NATIVE = typeof $Symbol == 'function' && !!$GOPS.f;
 var QObject = global.QObject;
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var setter = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
