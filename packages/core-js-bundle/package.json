@@ -1,7 +1,7 @@
 {
   "name": "core-js-bundle",
   "description": "Standard library",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"

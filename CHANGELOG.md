@@ -1,4 +1,11 @@
 ## Changelog
+##### 3.1.1 - 2019.05.21
+- Added one more workaround of alternative not completely correct `Symbol` polyfills, [#550](https://github.com/zloirock/core-js/issues/550), [#554](https://github.com/zloirock/core-js/issues/554)
+- Reverted `esnext.string.match-all` in some entry points for fix autogeneration of `core-js-compat/entries` and backward `@babel/preset-env` compatibility
+
+##### 2.6.7 [LEGACY] - 2019.05.21
+- Added one more workaround of alternative not completely correct `Symbol` polyfills, [#550](https://github.com/zloirock/core-js/issues/550), [#554](https://github.com/zloirock/core-js/issues/554)
+
 ##### 3.1.0 - 2019.05.20
 - `String#matchAll` moved to stable ES, exposed `Symbol.matchAll`, [#516](https://github.com/zloirock/core-js/issues/516)
 - `Promise.allSettled` moved to stage 3, [#515](https://github.com/zloirock/core-js/issues/515)
