@@ -1,4 +1,10 @@
 ## Changelog
+##### 3.1.2 - 2019.05.22
+- Added a workaround of a strange `npx` bug on `postinstall`, [#551](https://github.com/zloirock/core-js/issues/551)
+
+##### 2.6.8 [LEGACY] - 2019.05.22
+- Added a workaround of a strange `npx` bug on `postinstall`, [#551](https://github.com/zloirock/core-js/issues/551)
+
 ##### 3.1.1 - 2019.05.21
 - Added one more workaround of alternative not completely correct `Symbol` polyfills, [#550](https://github.com/zloirock/core-js/issues/550), [#554](https://github.com/zloirock/core-js/issues/554)
 - Reverted `esnext.string.match-all` in some entry points for fix autogeneration of `core-js-compat/entries` and backward `@babel/preset-env` compatibility
