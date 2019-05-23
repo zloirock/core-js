@@ -37,10 +37,14 @@ var percentDecode = function (sequence) {
 var deserialize = function (it) {
   var result = it.replace(plus, ' ');
   var bytes = 4;
-  while (bytes) {
-    result = result.replace(percentSequence(bytes--), percentDecode);
+  try {
+    return decodeURIComponent(result);
+  } catch (error) {
+    while (bytes) {
+      result = result.replace(percentSequence(bytes--), percentDecode);
+    }
+    return result;
   }
-  return result;
 };
 
 var find = /[!'()~]|%20/g;
