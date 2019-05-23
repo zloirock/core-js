@@ -46,6 +46,6 @@
     "shim"
   ],
   "scripts": {
-    "postinstall": "node -e \"try { require('./scripts/postinstall'); } catch (e) { /* empty */ }\""
+    "postinstall": "node scripts/postinstall || true"
   }
 }
