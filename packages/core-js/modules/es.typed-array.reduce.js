@@ -1,11 +1,10 @@
 'use strict';
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var internalReduce = require('../internals/array-reduce');
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var arrayReduce = [].reduce;
 
 // `%TypedArray%.prototype.reduce` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.reduce
-// eslint-disable-next-line no-unused-vars
 ArrayBufferViewCore.exportProto('reduce', function reduce(callbackfn /* , initialValue */) {
-  return arrayReduce.apply(aTypedArray(this), arguments);
+  return internalReduce(aTypedArray(this), callbackfn, arguments.length, arguments[1], false);
 });
