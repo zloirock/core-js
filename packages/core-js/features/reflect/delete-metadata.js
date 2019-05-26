@@ -1,1 +1,4 @@
-module.exports = require('../../es/reflect/delete-property');
+require('../../modules/esnext.reflect.delete-metadata');
+var path = require('../../internals/path');
+
+module.exports = path.Reflect.deleteMetadata;
