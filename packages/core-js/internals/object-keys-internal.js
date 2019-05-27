@@ -1,7 +1,9 @@
 var has = require('../internals/has');
 var toIndexedObject = require('../internals/to-indexed-object');
-var arrayIndexOf = require('../internals/array-includes')(false);
+var arrayIncludes = require('../internals/array-includes');
 var hiddenKeys = require('../internals/hidden-keys');
+
+var arrayIndexOf = arrayIncludes(false);
 
 module.exports = function (object, names) {
   var O = toIndexedObject(object);

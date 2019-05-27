@@ -1,4 +1,6 @@
+var $ = require('../internals/export');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
+
 var fromCharCode = String.fromCharCode;
 var nativeFromCodePoint = String.fromCodePoint;
 
@@ -7,7 +9,7 @@ var INCORRECT_LENGTH = !!nativeFromCodePoint && nativeFromCodePoint.length != 1;
 
 // `String.fromCodePoint` method
 // https://tc39.github.io/ecma262/#sec-string.fromcodepoint
-require('../internals/export')({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
+$({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
   fromCodePoint: function fromCodePoint(x) { // eslint-disable-line no-unused-vars
     var elements = [];
     var length = arguments.length;

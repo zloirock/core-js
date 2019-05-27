@@ -1,20 +1,24 @@
 'use strict';
+var $ = require('../internals/export');
 var isObject = require('../internals/is-object');
 var isArray = require('../internals/is-array');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 var toIndexedObject = require('../internals/to-indexed-object');
 var createProperty = require('../internals/create-property');
-var SPECIES = require('../internals/well-known-symbol')('species');
+var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var SPECIES = wellKnownSymbol('species');
 var nativeSlice = [].slice;
 var max = Math.max;
 
-var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('slice');
+var SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 // `Array.prototype.slice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.slice
 // fallback for not array-like ES3 strings and DOM objects
-require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
+$({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
   slice: function slice(start, end) {
     var O = toIndexedObject(this);
     var length = toLength(O.length);

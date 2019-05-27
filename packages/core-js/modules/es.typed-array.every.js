@@ -1,6 +1,8 @@
 'use strict';
-var arrayEvery = require('../internals/array-methods')(4);
+var arrayMethods = require('../internals/array-methods');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+
+var arrayEvery = arrayMethods(4);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.every` method

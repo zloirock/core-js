@@ -1,4 +1,5 @@
 var indexOf = require('../array/virtual/index-of');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

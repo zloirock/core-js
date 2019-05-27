@@ -1,7 +1,9 @@
 'use strict';
 require('../../modules/es.weak-set');
 require('../../modules/esnext.weak-set.of');
-var WeakSet = require('../../internals/path').WeakSet;
+var path = require('../../internals/path');
+
+var WeakSet = path.WeakSet;
 var weakSetOf = WeakSet.of;
 
 module.exports = function of() {

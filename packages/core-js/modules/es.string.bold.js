@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var createHTML = require('../internals/create-html');
-var FORCED = require('../internals/forced-string-html-method')('bold');
+var forcedStringHTMLMethod = require('../internals/forced-string-html-method');
 
 // `String.prototype.bold` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.bold
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: forcedStringHTMLMethod('bold') }, {
   bold: function bold() {
     return createHTML(this, 'b', '', '');
   }

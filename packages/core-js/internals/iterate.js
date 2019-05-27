@@ -4,6 +4,7 @@ var toLength = require('../internals/to-length');
 var bind = require('../internals/bind-context');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
+
 var BREAK = {};
 
 var exports = module.exports = function (iterable, fn, that, ENTRIES, ITERATOR) {

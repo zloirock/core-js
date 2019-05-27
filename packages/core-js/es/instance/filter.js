@@ -1,4 +1,5 @@
 var filter = require('../array/virtual/filter');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

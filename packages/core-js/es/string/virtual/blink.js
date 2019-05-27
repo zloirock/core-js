@@ -1,3 +1,4 @@
 require('../../../modules/es.string.blink');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').blink;
+module.exports = entryVirtual('String').blink;

@@ -3,6 +3,7 @@ var global = require('../internals/global');
 var fails = require('../internals/fails');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 var NATIVE_ARRAY_BUFFER_VIEWS = require('../internals/array-buffer-view-core').NATIVE_ARRAY_BUFFER_VIEWS;
+
 var ArrayBuffer = global.ArrayBuffer;
 var Int8Array = global.Int8Array;
 

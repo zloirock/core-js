@@ -1,3 +1,4 @@
 require('../../modules/es.math.imul');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.imul;
+module.exports = path.Math.imul;

@@ -1,3 +1,4 @@
 require('../../modules/es.object.get-prototype-of');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object.getPrototypeOf;
+module.exports = path.Object.getPrototypeOf;

@@ -1,12 +1,14 @@
+var $ = require('../internals/export');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
+
 var toMetadataKey = ReflectMetadataModule.toKey;
 var getOrCreateMetadataMap = ReflectMetadataModule.getMap;
 var store = ReflectMetadataModule.store;
 
 // `Reflect.deleteMetadata` method
 // https://github.com/rbuckton/reflect-metadata
-require('../internals/export')({ target: 'Reflect', stat: true }, {
+$({ target: 'Reflect', stat: true }, {
   deleteMetadata: function deleteMetadata(metadataKey, target /* , targetKey */) {
     var targetKey = arguments.length < 3 ? undefined : toMetadataKey(arguments[2]);
     var metadataMap = getOrCreateMetadataMap(anObject(target), targetKey, false);

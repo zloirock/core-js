@@ -1,3 +1,4 @@
 require('../../../modules/es.string.code-point-at');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').codePointAt;
+module.exports = entryVirtual('String').codePointAt;

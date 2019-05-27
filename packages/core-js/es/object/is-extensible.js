@@ -1,3 +1,4 @@
 require('../../modules/es.object.is-extensible');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object.isExtensible;
+module.exports = path.Object.isExtensible;

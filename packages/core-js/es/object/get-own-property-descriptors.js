@@ -1,3 +1,4 @@
 require('../../modules/es.object.get-own-property-descriptors');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object.getOwnPropertyDescriptors;
+module.exports = path.Object.getOwnPropertyDescriptors;

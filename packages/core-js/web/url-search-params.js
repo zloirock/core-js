@@ -1,3 +1,4 @@
 require('../modules/web.url-search-params');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').URLSearchParams;
+module.exports = path.URLSearchParams;

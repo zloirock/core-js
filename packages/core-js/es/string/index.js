@@ -29,5 +29,6 @@ require('../../modules/es.string.small');
 require('../../modules/es.string.strike');
 require('../../modules/es.string.sub');
 require('../../modules/es.string.sup');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').String;
+module.exports = path.String;

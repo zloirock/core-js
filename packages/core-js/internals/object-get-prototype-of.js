@@ -1,10 +1,12 @@
-// 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
 var has = require('../internals/has');
 var toObject = require('../internals/to-object');
-var IE_PROTO = require('../internals/shared-key')('IE_PROTO');
+var sharedKey = require('../internals/shared-key');
 var CORRECT_PROTOTYPE_GETTER = require('../internals/correct-prototype-getter');
+
+var IE_PROTO = sharedKey('IE_PROTO');
 var ObjectPrototype = Object.prototype;
 
+// 19.1.2.9 / 15.2.3.2 Object.getPrototypeOf(O)
 module.exports = CORRECT_PROTOTYPE_GETTER ? Object.getPrototypeOf : function (O) {
   O = toObject(O);
   if (has(O, IE_PROTO)) return O[IE_PROTO];

@@ -1,21 +1,25 @@
 'use strict';
+var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
+var redefine = require('../internals/redefine');
 var has = require('../internals/has');
 var classof = require('../internals/classof-raw');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
+var create = require('../internals/object-create');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
 var internalStringTrim = require('../internals/string-trim');
+
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 
 // Opera ~12 has broken Object#toString
-var BROKEN_CLASSOF = classof(require('../internals/object-create')(NumberPrototype)) == NUMBER;
+var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
 var NATIVE_TRIM = 'trim' in String.prototype;
 
 // `ToNumber` abstract operation
@@ -58,7 +62,7 @@ if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumb
       && (BROKEN_CLASSOF ? fails(function () { NumberPrototype.valueOf.call(that); }) : classof(that) != NUMBER)
         ? inheritIfRequired(new NativeNumber(toNumber(it)), that, NumberWrapper) : toNumber(it);
   };
-  for (var keys = require('../internals/descriptors') ? getOwnPropertyNames(NativeNumber) : (
+  for (var keys = DESCRIPTORS ? getOwnPropertyNames(NativeNumber) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
     // ES2015 (in case, if modules with ES2015 Number statics required before):
@@ -71,5 +75,5 @@ if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumb
   }
   NumberWrapper.prototype = NumberPrototype;
   NumberPrototype.constructor = NumberWrapper;
-  require('../internals/redefine')(global, NUMBER, NumberWrapper);
+  redefine(global, NUMBER, NumberWrapper);
 }

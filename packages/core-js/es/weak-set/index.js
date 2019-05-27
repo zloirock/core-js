@@ -1,5 +1,6 @@
 require('../../modules/es.object.to-string');
 require('../../modules/es.weak-set');
 require('../../modules/web.dom-collections.iterator');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').WeakSet;
+module.exports = path.WeakSet;

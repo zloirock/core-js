@@ -1,3 +1,4 @@
 require('../../modules/es.object.define-getter');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Object', '__defineGetter__');
+module.exports = entryUnbind('Object', '__defineGetter__');

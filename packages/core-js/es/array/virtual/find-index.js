@@ -1,3 +1,4 @@
 require('../../../modules/es.array.find-index');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').findIndex;
+module.exports = entryVirtual('Array').findIndex;

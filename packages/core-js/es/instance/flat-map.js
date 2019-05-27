@@ -1,4 +1,5 @@
 var flatMap = require('../array/virtual/flat-map');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

@@ -1,6 +1,7 @@
 'use strict';
-var arrayFill = require('../internals/array-fill');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var arrayFill = require('../internals/array-fill');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.fill` method

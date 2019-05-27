@@ -1,4 +1,6 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
@@ -8,7 +10,7 @@ var getSetIterator = require('../internals/get-set-iterator');
 
 // `Set.prototype.filter` method
 // https://github.com/tc39/proposal-collection-methods
-require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);

@@ -5,6 +5,7 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
 var has = require('../internals/has');
 var IE8_DOM_DEFINE = require('../internals/ie8-dom-define');
+
 var nativeGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 exports.f = DESCRIPTORS ? nativeGetOwnPropertyDescriptor : function getOwnPropertyDescriptor(O, P) {

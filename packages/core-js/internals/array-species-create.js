@@ -1,6 +1,8 @@
 var isObject = require('../internals/is-object');
 var isArray = require('../internals/is-array');
-var SPECIES = require('../internals/well-known-symbol')('species');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var SPECIES = wellKnownSymbol('species');
 
 // `ArraySpeciesCreate` abstract operation
 // https://tc39.github.io/ecma262/#sec-arrayspeciescreate

@@ -1,4 +1,5 @@
 var requireObjectCoercible = require('../internals/require-object-coercible');
+
 var quot = /"/g;
 
 // B.2.3.2.1 CreateHTML(string, tag, attribute, value)

@@ -1,3 +1,4 @@
 require('../../modules/es.reflect.is-extensible');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.isExtensible;
+module.exports = path.Reflect.isExtensible;

@@ -1,5 +1,4 @@
 'use strict';
-// 19.1.2.1 Object.assign(target, source, ...)
 var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var objectKeys = require('../internals/object-keys');
@@ -7,8 +6,10 @@ var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
+
 var nativeAssign = Object.assign;
 
+// 19.1.2.1 Object.assign(target, source, ...)
 // should work with symbols and should have deterministic property order (V8 bug)
 module.exports = !nativeAssign || fails(function () {
   var A = {};

@@ -1,3 +1,4 @@
 require('../../modules/es.array.join');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'join');
+module.exports = entryUnbind('Array', 'join');

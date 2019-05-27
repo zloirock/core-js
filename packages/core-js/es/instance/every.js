@@ -1,4 +1,5 @@
 var every = require('../array/virtual/every');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

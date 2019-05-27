@@ -1,3 +1,4 @@
 require('../../modules/esnext.reflect.has-metadata');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.hasMetadata;
+module.exports = path.Reflect.hasMetadata;

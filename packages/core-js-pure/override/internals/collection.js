@@ -1,6 +1,6 @@
 'use strict';
+var $ = require('./export');
 var global = require('../internals/global');
-var $export = require('./export');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var fails = require('../internals/fails');
 var hide = require('../internals/hide');
@@ -9,9 +9,11 @@ var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
-var each = require('../internals/array-methods')(0);
+var arrayMethods = require('../internals/array-methods');
 var DESCRIPTORS = require('../internals/descriptors');
 var InternalStateModule = require('../internals/internal-state');
+
+var forEach = arrayMethods(0);
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 
@@ -39,7 +41,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, IS_MAP, IS_WEAK) {
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
-    each(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
+    forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) hide(Constructor.prototype, KEY, function (a, b) {
         var collection = getInternalState(this).collection;
@@ -59,7 +61,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, IS_MAP, IS_WEAK) {
   setToStringTag(Constructor, CONSTRUCTOR_NAME, false, true);
 
   exported[CONSTRUCTOR_NAME] = Constructor;
-  $export({ global: true, forced: true }, exported);
+  $({ global: true, forced: true }, exported);
 
   if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 

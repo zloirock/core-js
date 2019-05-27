@@ -1,4 +1,6 @@
-var globalIsFinite = require('../internals/global').isFinite;
+var global = require('../internals/global');
+
+var globalIsFinite = global.isFinite;
 
 // `Number.isFinite` method
 // https://tc39.github.io/ecma262/#sec-number.isfinite

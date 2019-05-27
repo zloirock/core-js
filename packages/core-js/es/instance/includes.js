@@ -1,5 +1,6 @@
 var arrayIncludes = require('../array/virtual/includes');
 var stringIncludes = require('../string/virtual/includes');
+
 var ArrayPrototype = Array.prototype;
 var StringPrototype = String.prototype;
 

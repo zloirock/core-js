@@ -1,3 +1,4 @@
 require('../../modules/es.array.reduce-right');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'reduceRight');
+module.exports = entryUnbind('Array', 'reduceRight');

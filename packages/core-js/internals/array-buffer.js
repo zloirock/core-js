@@ -14,6 +14,7 @@ var defineProperty = require('../internals/object-define-property').f;
 var arrayFill = require('../internals/array-fill');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
+
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 var ARRAY_BUFFER = 'ArrayBuffer';

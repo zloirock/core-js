@@ -1,93 +1,96 @@
 'use strict';
-if (require('../internals/descriptors')) {
-  var global = require('../internals/global');
-  var $export = require('../internals/export');
-  var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-arrays-constructors-requires-wrappers');
-  var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-  var ArrayBufferModule = require('../internals/array-buffer');
-  var anInstance = require('../internals/an-instance');
-  var createPropertyDescriptor = require('../internals/create-property-descriptor');
-  var hide = require('../internals/hide');
-  var toLength = require('../internals/to-length');
-  var toIndex = require('../internals/to-index');
-  var toOffset = require('../internals/to-offset');
-  var toPrimitive = require('../internals/to-primitive');
-  var has = require('../internals/has');
-  var classof = require('../internals/classof');
-  var isObject = require('../internals/is-object');
-  var create = require('../internals/object-create');
-  var setPrototypeOf = require('../internals/object-set-prototype-of');
-  var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-  var typedArrayFrom = require('../internals/typed-array-from');
-  var arrayForEach = require('../internals/array-methods')(0);
-  var setSpecies = require('../internals/set-species');
-  var definePropertyModule = require('../internals/object-define-property');
-  var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
-  var InternalStateModule = require('../internals/internal-state');
-  var getInternalState = InternalStateModule.get;
-  var setInternalState = InternalStateModule.set;
-  var nativeDefineProperty = definePropertyModule.f;
-  var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
-  var RangeError = global.RangeError;
-  var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
-  var DataView = ArrayBufferModule.DataView;
-  var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
-  var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
-  var TypedArray = ArrayBufferViewCore.TypedArray;
-  var TypedArrayPrototype = ArrayBufferViewCore.TypedArrayPrototype;
-  var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
-  var isTypedArray = ArrayBufferViewCore.isTypedArray;
-  var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
-  var WRONG_LENGTH = 'Wrong length';
+var $ = require('../internals/export');
+var global = require('../internals/global');
+var DESCRIPTORS = require('../internals/descriptors');
+var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-arrays-constructors-requires-wrappers');
+var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var ArrayBufferModule = require('../internals/array-buffer');
+var anInstance = require('../internals/an-instance');
+var createPropertyDescriptor = require('../internals/create-property-descriptor');
+var hide = require('../internals/hide');
+var toLength = require('../internals/to-length');
+var toIndex = require('../internals/to-index');
+var toOffset = require('../internals/to-offset');
+var toPrimitive = require('../internals/to-primitive');
+var has = require('../internals/has');
+var classof = require('../internals/classof');
+var isObject = require('../internals/is-object');
+var create = require('../internals/object-create');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
+var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
+var typedArrayFrom = require('../internals/typed-array-from');
+var arrayMethods = require('../internals/array-methods');
+var setSpecies = require('../internals/set-species');
+var definePropertyModule = require('../internals/object-define-property');
+var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
+var InternalStateModule = require('../internals/internal-state');
 
-  var fromList = function (C, list) {
-    var index = 0;
-    var length = list.length;
-    var result = new (aTypedArrayConstructor(C))(length);
-    while (length > index) result[index] = list[index++];
-    return result;
-  };
+var getInternalState = InternalStateModule.get;
+var setInternalState = InternalStateModule.set;
+var nativeDefineProperty = definePropertyModule.f;
+var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
+var forEach = arrayMethods(0);
+var RangeError = global.RangeError;
+var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
+var DataView = ArrayBufferModule.DataView;
+var NATIVE_ARRAY_BUFFER_VIEWS = ArrayBufferViewCore.NATIVE_ARRAY_BUFFER_VIEWS;
+var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
+var TypedArray = ArrayBufferViewCore.TypedArray;
+var TypedArrayPrototype = ArrayBufferViewCore.TypedArrayPrototype;
+var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
+var isTypedArray = ArrayBufferViewCore.isTypedArray;
+var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
+var WRONG_LENGTH = 'Wrong length';
 
-  var addGetter = function (it, key) {
-    nativeDefineProperty(it, key, { get: function () {
-      return getInternalState(this)[key];
-    } });
-  };
+var fromList = function (C, list) {
+  var index = 0;
+  var length = list.length;
+  var result = new (aTypedArrayConstructor(C))(length);
+  while (length > index) result[index] = list[index++];
+  return result;
+};
 
-  var isArrayBuffer = function (it) {
-    var klass;
-    return it instanceof ArrayBuffer || (klass = classof(it)) == 'ArrayBuffer' || klass == 'SharedArrayBuffer';
-  };
+var addGetter = function (it, key) {
+  nativeDefineProperty(it, key, { get: function () {
+    return getInternalState(this)[key];
+  } });
+};
 
-  var isTypedArrayIndex = function (target, key) {
-    return isTypedArray(target)
-      && typeof key != 'symbol'
-      && key in target
-      && String(+key) == String(key);
-  };
+var isArrayBuffer = function (it) {
+  var klass;
+  return it instanceof ArrayBuffer || (klass = classof(it)) == 'ArrayBuffer' || klass == 'SharedArrayBuffer';
+};
 
-  var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
-    return isTypedArrayIndex(target, key = toPrimitive(key, true))
-      ? createPropertyDescriptor(2, target[key])
-      : nativeGetOwnPropertyDescriptor(target, key);
-  };
+var isTypedArrayIndex = function (target, key) {
+  return isTypedArray(target)
+    && typeof key != 'symbol'
+    && key in target
+    && String(+key) == String(key);
+};
 
-  var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
-    if (isTypedArrayIndex(target, key = toPrimitive(key, true))
-      && isObject(descriptor)
-      && has(descriptor, 'value')
-      && !has(descriptor, 'get')
-      && !has(descriptor, 'set')
-      // TODO: add validation descriptor w/o calling accessors
-      && !descriptor.configurable
-      && (!has(descriptor, 'writable') || descriptor.writable)
-      && (!has(descriptor, 'enumerable') || descriptor.enumerable)
-    ) {
-      target[key] = descriptor.value;
-      return target;
-    } return nativeDefineProperty(target, key, descriptor);
-  };
+var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
+  return isTypedArrayIndex(target, key = toPrimitive(key, true))
+    ? createPropertyDescriptor(2, target[key])
+    : nativeGetOwnPropertyDescriptor(target, key);
+};
 
+var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
+  if (isTypedArrayIndex(target, key = toPrimitive(key, true))
+    && isObject(descriptor)
+    && has(descriptor, 'value')
+    && !has(descriptor, 'get')
+    && !has(descriptor, 'set')
+    // TODO: add validation descriptor w/o calling accessors
+    && !descriptor.configurable
+    && (!has(descriptor, 'writable') || descriptor.writable)
+    && (!has(descriptor, 'enumerable') || descriptor.enumerable)
+  ) {
+    target[key] = descriptor.value;
+    return target;
+  } return nativeDefineProperty(target, key, descriptor);
+};
+
+if (DESCRIPTORS) {
   if (!NATIVE_ARRAY_BUFFER_VIEWS) {
     getOwnPropertyDescriptorModule.f = wrappedGetOwnPropertyDescriptor;
     definePropertyModule.f = wrappedDefineProperty;
@@ -97,7 +100,7 @@ if (require('../internals/descriptors')) {
     addGetter(TypedArrayPrototype, 'length');
   }
 
-  $export({ target: 'Object', stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
+  $({ target: 'Object', stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
     getOwnPropertyDescriptor: wrappedGetOwnPropertyDescriptor,
     defineProperty: wrappedDefineProperty
   });
@@ -189,7 +192,7 @@ if (require('../internals/descriptors')) {
       });
 
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
-      arrayForEach(getOwnPropertyNames(NativeTypedArrayConstructor), function (key) {
+      forEach(getOwnPropertyNames(NativeTypedArrayConstructor), function (key) {
         if (!(key in TypedArrayConstructor)) hide(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
       });
       TypedArrayConstructor.prototype = TypedArrayConstructorPrototype;
@@ -203,7 +206,7 @@ if (require('../internals/descriptors')) {
 
     exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
-    $export({
+    $({
       global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor, sham: !NATIVE_ARRAY_BUFFER_VIEWS
     }, exported);
 

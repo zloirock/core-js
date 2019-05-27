@@ -1,5 +1,4 @@
 var DESCRIPTORS = require('../internals/descriptors');
-var MATCH = require('../internals/well-known-symbol')('match');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -9,6 +8,10 @@ var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
+var setSpecies = require('../internals/set-species');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 var re1 = /a/g;
@@ -54,4 +57,4 @@ if (FORCED) {
 }
 
 // https://tc39.github.io/ecma262/#sec-get-regexp-@@species
-require('../internals/set-species')('RegExp');
+setSpecies('RegExp');

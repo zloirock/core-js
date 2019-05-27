@@ -1,4 +1,5 @@
 'use strict';
+var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
@@ -7,7 +8,7 @@ var arraySpeciesCreate = require('../internals/array-species-create');
 
 // `Array.prototype.flatMap` method
 // https://github.com/tc39/proposal-flatMap
-require('../internals/export')({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
     var sourceLen = toLength(O.length);

@@ -1,4 +1,5 @@
 var codePointAt = require('../string/virtual/code-point-at');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

@@ -1,6 +1,7 @@
 var global = require('../internals/global');
 var setGlobal = require('../internals/set-global');
 var IS_PURE = require('../internals/is-pure');
+
 var SHARED = '__core-js_shared__';
 var store = global[SHARED] || setGlobal(SHARED, {});
 

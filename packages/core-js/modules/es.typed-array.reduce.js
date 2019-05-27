@@ -1,6 +1,7 @@
 'use strict';
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var internalReduce = require('../internals/array-reduce');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.reduce` method

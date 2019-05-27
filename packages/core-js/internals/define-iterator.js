@@ -1,17 +1,19 @@
 'use strict';
-var $export = require('../internals/export');
+var $ = require('../internals/export');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var setToStringTag = require('../internals/set-to-string-tag');
 var hide = require('../internals/hide');
 var redefine = require('../internals/redefine');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
 var Iterators = require('../internals/iterators');
 var IteratorsCore = require('../internals/iterators-core');
+
 var IteratorPrototype = IteratorsCore.IteratorPrototype;
 var BUGGY_SAFARI_ITERATORS = IteratorsCore.BUGGY_SAFARI_ITERATORS;
+var ITERATOR = wellKnownSymbol('iterator');
 var KEYS = 'keys';
 var VALUES = 'values';
 var ENTRIES = 'entries';
@@ -81,7 +83,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       if (BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME || !(KEY in IterablePrototype)) {
         redefine(IterablePrototype, KEY, methods[KEY]);
       }
-    } else $export({ target: NAME, proto: true, forced: BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME }, methods);
+    } else $({ target: NAME, proto: true, forced: BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME }, methods);
   }
 
   return methods;

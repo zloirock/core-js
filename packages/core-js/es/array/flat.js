@@ -1,4 +1,5 @@
 require('../../modules/es.array.flat');
 require('../../modules/es.array.unscopables.flat');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'flat');
+module.exports = entryUnbind('Array', 'flat');

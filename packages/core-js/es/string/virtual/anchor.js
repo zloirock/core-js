@@ -1,3 +1,4 @@
 require('../../../modules/es.string.anchor');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').anchor;
+module.exports = entryVirtual('String').anchor;

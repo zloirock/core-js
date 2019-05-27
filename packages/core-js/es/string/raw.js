@@ -1,3 +1,4 @@
 require('../../modules/es.string.raw');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').String.raw;
+module.exports = path.String.raw;

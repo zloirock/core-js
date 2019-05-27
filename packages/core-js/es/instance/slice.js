@@ -1,4 +1,5 @@
 var slice = require('../array/virtual/slice');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

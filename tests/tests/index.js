@@ -1,3 +1,4 @@
+/* eslint-disable import/first */
 QUnit.module('ES');
 import './es.array.concat';
 import './es.array.copy-within';

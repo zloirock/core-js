@@ -1,3 +1,4 @@
 require('../../modules/es.symbol.unscopables');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('unscopables');
+module.exports = WrappedWellKnownSymbolModule.f('unscopables');

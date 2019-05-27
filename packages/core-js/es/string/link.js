@@ -1,3 +1,4 @@
 require('../../modules/es.string.link');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'link');
+module.exports = entryUnbind('String', 'link');

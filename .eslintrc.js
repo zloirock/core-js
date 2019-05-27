@@ -1,4 +1,6 @@
 'use strict';
+const webpack = require('./.webpack.config.js');
+
 const base = {
   // possible errors:
   // enforce 'for' loop update clause moving the counter in the right direction
@@ -257,12 +259,18 @@ const base = {
   'unicode-bom': ['error', 'never'],
 
   // commonjs:
+  // require require() calls to be placed at top-level module scope
+  'global-require': 'error',
+  // disallow require calls to be mixed with regular variable declarations
+  'no-mixed-requires': ['error', { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
   'no-new-require': 'error',
   // disallow string concatenation with `__dirname` and `__filename`
   'no-path-concat': 'error',
 
   // import:
+  // ensure all imports appear before other statements
+  'import/first': 'error',
   // forbid AMD imports
   'import/no-amd': 'error',
   // forbid cycle dependencies
@@ -504,7 +512,7 @@ module.exports = {
   settings: {
     'import/resolver': {
       webpack: {
-        config: require('./.webpack.config.js').options,
+        config: webpack.options,
       },
     },
   },

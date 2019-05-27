@@ -1,4 +1,5 @@
 var forEach = require('../array/virtual/for-each');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

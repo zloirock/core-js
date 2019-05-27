@@ -1,3 +1,4 @@
 require('../../modules/es.object.lookup-setter');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Object', '__lookupSetter__');
+module.exports = entryUnbind('Object', '__lookupSetter__');

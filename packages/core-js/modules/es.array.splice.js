@@ -1,21 +1,24 @@
 'use strict';
+var $ = require('../internals/export');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
 var toObject = require('../internals/to-object');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
+var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
+
 var max = Math.max;
 var min = Math.min;
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 var MAXIMUM_ALLOWED_LENGTH_EXCEEDED = 'Maximum allowed length exceeded';
 
-var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('splice');
+var SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('splice');
 
 // `Array.prototype.splice` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.splice
 // with adding support of @@species
-require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
+$({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
   splice: function splice(start, deleteCount /* , ...items */) {
     var O = toObject(this);
     var len = toLength(O.length);

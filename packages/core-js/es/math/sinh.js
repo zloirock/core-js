@@ -1,3 +1,4 @@
 require('../../modules/es.math.sinh');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.sinh;
+module.exports = path.Math.sinh;

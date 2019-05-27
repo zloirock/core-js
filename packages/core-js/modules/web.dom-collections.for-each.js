@@ -1,7 +1,7 @@
+var global = require('../internals/global');
 var DOMIterables = require('../internals/dom-iterables');
 var forEach = require('../internals/array-for-each');
 var hide = require('../internals/hide');
-var global = require('../internals/global');
 
 for (var COLLECTION_NAME in DOMIterables) {
   var Collection = global[COLLECTION_NAME];

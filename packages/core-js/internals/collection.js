@@ -1,7 +1,7 @@
 'use strict';
+var $ = require('../internals/export');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
-var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var iterate = require('../internals/iterate');
@@ -87,7 +87,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, IS_MAP, IS_WEAK) {
   }
 
   exported[CONSTRUCTOR_NAME] = Constructor;
-  $export({ global: true, forced: Constructor != NativeConstructor }, exported);
+  $({ global: true, forced: Constructor != NativeConstructor }, exported);
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME);
 

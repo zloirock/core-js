@@ -1,5 +1,6 @@
-// 7.1.1 ToPrimitive(input [, PreferredType])
 var isObject = require('../internals/is-object');
+
+// 7.1.1 ToPrimitive(input [, PreferredType])
 // instead of the ES6 spec version, we didn't implement @@toPrimitive case
 // and the second argument - flag - preferred type is a string
 module.exports = function (it, S) {

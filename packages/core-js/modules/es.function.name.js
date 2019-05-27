@@ -1,5 +1,6 @@
 var DESCRIPTORS = require('../internals/descriptors');
 var defineProperty = require('../internals/object-define-property').f;
+
 var FunctionPrototype = Function.prototype;
 var FunctionPrototypeToString = FunctionPrototype.toString;
 var nameRE = /^\s*function ([^ (]*)/;

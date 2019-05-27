@@ -1,10 +1,12 @@
 'use strict';
 var speciesConstructor = require('../internals/species-constructor');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var arrayMethods = require('../internals/array-methods');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
 
-var internalTypedArrayMap = require('../internals/array-methods')(1, function (O, length) {
+var internalTypedArrayMap = arrayMethods(1, function (O, length) {
   return new (aTypedArrayConstructor(speciesConstructor(O, O.constructor)))(length);
 });
 

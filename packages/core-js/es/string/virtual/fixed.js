@@ -1,3 +1,4 @@
 require('../../../modules/es.string.fixed');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').fixed;
+module.exports = entryVirtual('String').fixed;

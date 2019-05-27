@@ -1,2 +1,4 @@
 require('../../modules/es.symbol.species');
-module.exports = require('../../internals/wrapped-well-known-symbol').f('species');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
+
+module.exports = WrappedWellKnownSymbolModule.f('species');

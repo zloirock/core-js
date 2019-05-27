@@ -1,10 +1,12 @@
 var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
+var global = require('../internals/global');
 var isObject = require('../internals/is-object');
 var hide = require('../internals/hide');
 var objectHas = require('../internals/has');
 var sharedKey = require('../internals/shared-key');
 var hiddenKeys = require('../internals/hidden-keys');
-var WeakMap = require('../internals/global').WeakMap;
+
+var WeakMap = global.WeakMap;
 var set, get, has;
 
 var enforce = function (it) {

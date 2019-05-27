@@ -9,8 +9,8 @@ var redefine = require('../internals/redefine');
 var defineProperty = require('../internals/object-define-property').f;
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
-var TYPED_ARRAY_TAG = require('../internals/uid')('TYPED_ARRAY_TAG');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+var uid = require('../internals/uid');
 
 var DataView = global.DataView;
 var DataViewPrototype = DataView && DataView.prototype;
@@ -23,6 +23,8 @@ var TypedArrayPrototype = Int8ArrayPrototype && getPrototypeOf(Int8ArrayPrototyp
 var ObjectPrototype = Object.prototype;
 var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
+var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
 var NATIVE_ARRAY_BUFFER = !!(global.ArrayBuffer && global.DataView);
 var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf;
 var TYPED_ARRAY_TAG_REQIRED = false;

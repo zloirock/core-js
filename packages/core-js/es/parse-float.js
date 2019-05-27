@@ -1,3 +1,4 @@
 require('../modules/es.parse-float');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').parseFloat;
+module.exports = path.parseFloat;

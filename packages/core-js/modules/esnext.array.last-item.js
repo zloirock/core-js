@@ -1,5 +1,6 @@
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
+var addToUnscopables = require('../internals/add-to-unscopables');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var defineProperty = require('../internals/object-define-property').f;
@@ -21,5 +22,5 @@ if (DESCRIPTORS && !('lastItem' in [])) {
     }
   });
 
-  require('../internals/add-to-unscopables')('lastItem');
+  addToUnscopables('lastItem');
 }

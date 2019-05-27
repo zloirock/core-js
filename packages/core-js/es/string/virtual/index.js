@@ -27,5 +27,6 @@ require('../../../modules/es.string.small');
 require('../../../modules/es.string.strike');
 require('../../../modules/es.string.sub');
 require('../../../modules/es.string.sup');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String');
+module.exports = entryVirtual('String');

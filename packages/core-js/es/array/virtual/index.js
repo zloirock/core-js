@@ -24,5 +24,6 @@ require('../../../modules/es.array.species');
 require('../../../modules/es.array.splice');
 require('../../../modules/es.array.unscopables.flat');
 require('../../../modules/es.array.unscopables.flat-map');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array');
+module.exports = entryVirtual('Array');

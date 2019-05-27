@@ -1,3 +1,4 @@
 require('../../modules/es.object.prevent-extensions');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object.preventExtensions;
+module.exports = path.Object.preventExtensions;

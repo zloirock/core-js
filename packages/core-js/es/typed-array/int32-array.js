@@ -1,4 +1,5 @@
 require('../../modules/es.typed-array.int32-array');
 require('./methods');
+var global = require('../../internals/global');
 
-module.exports = require('../../internals/global').Int32Array;
+module.exports = global.Int32Array;

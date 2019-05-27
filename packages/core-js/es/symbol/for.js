@@ -1,3 +1,4 @@
 require('../../modules/es.symbol');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Symbol['for'];
+module.exports = path.Symbol['for'];

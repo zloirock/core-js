@@ -1,3 +1,4 @@
 require('../../../modules/es.string.repeat');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').repeat;
+module.exports = entryVirtual('String').repeat;

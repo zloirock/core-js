@@ -1,3 +1,4 @@
 require('../../modules/es.string.fixed');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'fixed');
+module.exports = entryUnbind('String', 'fixed');

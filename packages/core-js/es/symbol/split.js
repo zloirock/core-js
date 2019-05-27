@@ -1,4 +1,5 @@
 require('../../modules/es.symbol.split');
 require('../../modules/es.string.split');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('split');
+module.exports = WrappedWellKnownSymbolModule.f('split');

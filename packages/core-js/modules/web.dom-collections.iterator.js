@@ -1,8 +1,9 @@
+var global = require('../internals/global');
 var DOMIterables = require('../internals/dom-iterables');
 var ArrayIteratorMethods = require('../modules/es.array.iterator');
-var global = require('../internals/global');
 var hide = require('../internals/hide');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+
 var ITERATOR = wellKnownSymbol('iterator');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ArrayValues = ArrayIteratorMethods.values;

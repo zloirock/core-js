@@ -1,3 +1,4 @@
 require('../../modules/es.array.filter');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'filter');
+module.exports = entryUnbind('Array', 'filter');

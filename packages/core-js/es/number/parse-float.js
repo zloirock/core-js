@@ -1,3 +1,4 @@
 require('../../modules/es.number.parse-float');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Number.parseFloat;
+module.exports = path.Number.parseFloat;

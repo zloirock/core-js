@@ -1,4 +1,6 @@
-var MATCH = require('../internals/well-known-symbol')('match');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var MATCH = wellKnownSymbol('match');
 
 module.exports = function (METHOD_NAME) {
   var regexp = /./;

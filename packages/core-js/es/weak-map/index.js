@@ -1,5 +1,6 @@
 require('../../modules/es.object.to-string');
 require('../../modules/es.weak-map');
 require('../../modules/web.dom-collections.iterator');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').WeakMap;
+module.exports = path.WeakMap;

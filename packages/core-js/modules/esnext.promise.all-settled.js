@@ -1,12 +1,13 @@
 'use strict';
-// `Promise.allSettled` method
-// https://github.com/tc39/proposal-promise-allSettled
+var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
 
-require('../internals/export')({ target: 'Promise', stat: true }, {
+// `Promise.allSettled` method
+// https://github.com/tc39/proposal-promise-allSettled
+$({ target: 'Promise', stat: true }, {
   allSettled: function allSettled(iterable) {
     var C = this;
     var capability = newPromiseCapabilityModule.f(C);

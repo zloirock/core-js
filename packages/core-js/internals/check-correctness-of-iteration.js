@@ -1,4 +1,6 @@
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var ITERATOR = wellKnownSymbol('iterator');
 var SAFE_CLOSING = false;
 
 try {

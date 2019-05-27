@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.is-superset-of');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'isSupersetOf');
+module.exports = entryUnbind('Set', 'isSupersetOf');

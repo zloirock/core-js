@@ -1,3 +1,4 @@
 require('../../../modules/es.function.bind');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Function');
+module.exports = entryVirtual('Function');

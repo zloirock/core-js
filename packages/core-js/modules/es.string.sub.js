@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var createHTML = require('../internals/create-html');
-var FORCED = require('../internals/forced-string-html-method')('sub');
+var forcedStringHTMLMethod = require('../internals/forced-string-html-method');
 
 // `String.prototype.sub` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.sub
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: forcedStringHTMLMethod('sub') }, {
   sub: function sub() {
     return createHTML(this, 'sub', '', '');
   }

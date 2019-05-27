@@ -3,6 +3,7 @@ var toLength = require('../internals/to-length');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var speciesConstructor = require('../internals/species-constructor');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.subarray` method

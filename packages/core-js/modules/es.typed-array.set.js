@@ -3,9 +3,11 @@ var toLength = require('../internals/to-length');
 var toOffset = require('../internals/to-offset');
 var toObject = require('../internals/to-object');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var fails = require('../internals/fails');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
-var FORCED = require('../internals/fails')(function () {
+var FORCED = fails(function () {
   // eslint-disable-next-line no-undef
   new Int8Array(1).set({});
 });

@@ -1,4 +1,5 @@
 var lastIndexOf = require('../array/virtual/last-index-of');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

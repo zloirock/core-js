@@ -1,5 +1,4 @@
 'use strict';
-
 var regexpFlags = require('./regexp-flags');
 
 var nativeExec = RegExp.prototype.exec;

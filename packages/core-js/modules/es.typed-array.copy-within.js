@@ -1,6 +1,7 @@
 'use strict';
 var arrayCopyWithin = require('../internals/array-copy-within');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.copyWithin` method

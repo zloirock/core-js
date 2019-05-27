@@ -1,11 +1,13 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var getSetIterator = require('../internals/get-set-iterator');
 
 // `Set.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
-require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);

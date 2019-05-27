@@ -1,3 +1,4 @@
 require('../../modules/es.reflect.prevent-extensions');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.preventExtensions;
+module.exports = path.Reflect.preventExtensions;

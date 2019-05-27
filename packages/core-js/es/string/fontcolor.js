@@ -1,3 +1,4 @@
 require('../../modules/es.string.fontcolor');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'fontcolor');
+module.exports = entryUnbind('String', 'fontcolor');

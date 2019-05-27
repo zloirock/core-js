@@ -1,3 +1,4 @@
 require('../../modules/es.string.pad-end');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'padEnd');
+module.exports = entryUnbind('String', 'padEnd');

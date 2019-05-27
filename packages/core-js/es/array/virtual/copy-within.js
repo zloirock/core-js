@@ -1,3 +1,4 @@
 require('../../../modules/es.array.copy-within');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').copyWithin;
+module.exports = entryVirtual('Array').copyWithin;

@@ -1,5 +1,7 @@
 var classofRaw = require('../internals/classof-raw');
-var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 // ES3 wrong here
 var CORRECT_ARGUMENTS = classofRaw(function () { return arguments; }()) == 'Arguments';
 

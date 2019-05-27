@@ -1,7 +1,9 @@
+var global = require('../internals/global');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var anObject = require('../internals/an-object');
-var Reflect = require('../internals/global').Reflect;
+
+var Reflect = global.Reflect;
 
 // all object keys, includes non-enumerable and symbols
 module.exports = Reflect && Reflect.ownKeys || function ownKeys(it) {

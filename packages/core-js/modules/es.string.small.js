@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var createHTML = require('../internals/create-html');
-var FORCED = require('../internals/forced-string-html-method')('small');
+var forcedStringHTMLMethod = require('../internals/forced-string-html-method');
 
 // `String.prototype.small` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.small
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: forcedStringHTMLMethod('small') }, {
   small: function small() {
     return createHTML(this, 'small', '', '');
   }

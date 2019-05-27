@@ -1,10 +1,12 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 
 // `Set.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods
-require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   update: function update(key, callback /* , thunk */) {
     var map = anObject(this);
     aFunction(callback);

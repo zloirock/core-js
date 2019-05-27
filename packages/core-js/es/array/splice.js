@@ -1,3 +1,4 @@
 require('../../modules/es.array.splice');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'splice');
+module.exports = entryUnbind('Array', 'splice');

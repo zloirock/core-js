@@ -1,4 +1,5 @@
 var reduceRight = require('../array/virtual/reduce-right');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

@@ -1,4 +1,5 @@
 var matchAll = require('../string/virtual/match-all');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

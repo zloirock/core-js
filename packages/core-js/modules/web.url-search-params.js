@@ -1,8 +1,10 @@
 'use strict';
 require('../modules/es.array.iterator');
+var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/native-url');
 var redefine = require('../internals/redefine');
 var redefineAll = require('../internals/redefine-all');
+var setToStringTag = require('../internals/set-to-string-tag');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var InternalStateModule = require('../internals/internal-state');
 var anInstance = require('../internals/an-instance');
@@ -12,7 +14,9 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
@@ -286,9 +290,9 @@ redefine(URLSearchParamsPrototype, 'toString', function toString() {
   } return result.join('&');
 }, { enumerable: true });
 
-require('../internals/set-to-string-tag')(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
+setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
-require('../internals/export')({ global: true, forced: !USE_NATIVE_URL }, {
+$({ global: true, forced: !USE_NATIVE_URL }, {
   URLSearchParams: URLSearchParamsConstructor
 });
 

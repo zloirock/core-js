@@ -1,7 +1,7 @@
-// Works with __proto__ only. Old v8 can't work with null proto objects.
-/* eslint-disable no-proto */
 var validateSetPrototypeOfArguments = require('../internals/validate-set-prototype-of-arguments');
 
+// Works with __proto__ only. Old v8 can't work with null proto objects.
+/* eslint-disable no-proto */
 module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
   var correctSetter = false;
   var test = {};

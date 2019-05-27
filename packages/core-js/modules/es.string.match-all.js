@@ -1,4 +1,5 @@
 'use strict';
+var $ = require('../internals/export');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
@@ -7,13 +8,15 @@ var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var getFlags = require('../internals/regexp-flags');
 var hide = require('../internals/hide');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
-var MATCH_ALL = require('../internals/well-known-symbol')('matchAll');
+var InternalStateModule = require('../internals/internal-state');
 var IS_PURE = require('../internals/is-pure');
+
+var MATCH_ALL = wellKnownSymbol('matchAll');
 var REGEXP_STRING = 'RegExp String';
 var REGEXP_STRING_ITERATOR = REGEXP_STRING + ' Iterator';
-var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
@@ -73,7 +76,7 @@ var $matchAll = function (string) {
 
 // `String.prototype.matchAll` method
 // https://github.com/tc39/proposal-string-matchall
-require('../internals/export')({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
     var S, matcher, rx;

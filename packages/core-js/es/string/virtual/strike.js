@@ -1,3 +1,4 @@
 require('../../../modules/es.string.strike');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').strike;
+module.exports = entryVirtual('String').strike;

@@ -1,3 +1,4 @@
 require('../../modules/es.object.define-setter');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Object', '__defineSetter__');
+module.exports = entryUnbind('Object', '__defineSetter__');

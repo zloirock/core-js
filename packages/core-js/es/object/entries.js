@@ -1,3 +1,4 @@
 require('../../modules/es.object.entries');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object.entries;
+module.exports = path.Object.entries;

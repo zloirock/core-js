@@ -1,3 +1,4 @@
 require('../../modules/es.reflect.set');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.set;
+module.exports = path.Reflect.set;

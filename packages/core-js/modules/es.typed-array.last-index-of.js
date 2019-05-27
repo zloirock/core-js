@@ -1,6 +1,7 @@
 'use strict';
 var arrayLastIndexOf = require('../internals/array-last-index-of');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.lastIndexOf` method

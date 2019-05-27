@@ -1,4 +1,5 @@
 var find = require('../array/virtual/find');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

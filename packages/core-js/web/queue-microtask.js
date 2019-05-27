@@ -1,3 +1,4 @@
 require('../modules/web.queue-microtask');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').queueMicrotask;
+module.exports = path.queueMicrotask;

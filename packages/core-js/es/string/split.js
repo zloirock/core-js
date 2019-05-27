@@ -1,3 +1,4 @@
 require('../../modules/es.string.split');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'split');
+module.exports = entryUnbind('String', 'split');

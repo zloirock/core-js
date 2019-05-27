@@ -2,7 +2,9 @@
 var isObject = require('../internals/is-object');
 var definePropertyModule = require('../internals/object-define-property');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var HAS_INSTANCE = require('../internals/well-known-symbol')('hasInstance');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var HAS_INSTANCE = wellKnownSymbol('hasInstance');
 var FunctionPrototype = Function.prototype;
 
 // `Function.prototype[@@hasInstance]` method

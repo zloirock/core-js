@@ -2,10 +2,11 @@
 var toIndexedObject = require('../internals/to-indexed-object');
 var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
-var nativeLastIndexOf = [].lastIndexOf;
+var sloppyArrayMethod = require('../internals/sloppy-array-method');
 
+var nativeLastIndexOf = [].lastIndexOf;
 var NEGATIVE_ZERO = !!nativeLastIndexOf && 1 / [1].lastIndexOf(1, -0) < 0;
-var SLOPPY_METHOD = require('../internals/sloppy-array-method')('lastIndexOf');
+var SLOPPY_METHOD = sloppyArrayMethod('lastIndexOf');
 
 // `Array.prototype.lastIndexOf` method implementation
 // https://tc39.github.io/ecma262/#sec-array.prototype.lastindexof

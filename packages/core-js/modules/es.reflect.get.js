@@ -1,3 +1,4 @@
+var $ = require('../internals/export');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var has = require('../internals/has');
@@ -18,4 +19,6 @@ function get(target, propertyKey /* , receiver */) {
   if (isObject(prototype = getPrototypeOf(target))) return get(prototype, propertyKey, receiver);
 }
 
-require('../internals/export')({ target: 'Reflect', stat: true }, { get: get });
+$({ target: 'Reflect', stat: true }, {
+  get: get
+});

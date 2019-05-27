@@ -1,4 +1,5 @@
 var endsWith = require('../string/virtual/ends-with');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

@@ -1,3 +1,4 @@
 require('../../modules/es.string.replace');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'replace');
+module.exports = entryUnbind('String', 'replace');

@@ -1,3 +1,4 @@
 require('../../modules/es.array.index-of');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'indexOf');
+module.exports = entryUnbind('Array', 'indexOf');

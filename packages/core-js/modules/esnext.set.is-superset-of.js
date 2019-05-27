@@ -1,12 +1,15 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var iterate = require('../internals/iterate');
+
 var BREAK = iterate.BREAK;
 
 // `Set.prototype.isSupersetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSupersetOf
-require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   isSupersetOf: function isSupersetOf(iterable) {
     var set = anObject(this);
     var hasCheck = aFunction(set.has);

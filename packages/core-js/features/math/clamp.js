@@ -1,3 +1,4 @@
 require('../../modules/esnext.math.clamp');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.clamp;
+module.exports = path.Math.clamp;

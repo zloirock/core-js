@@ -1,8 +1,11 @@
 'use strict';
-var PROMISE = 'Promise';
+var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
-var $export = require('../internals/export');
+var path = require('../internals/path');
+var redefineAll = require('../internals/redefine-all');
+var setToStringTag = require('../internals/set-to-string-tag');
+var setSpecies = require('../internals/set-species');
 var isObject = require('../internals/is-object');
 var aFunction = require('../internals/a-function');
 var anInstance = require('../internals/an-instance');
@@ -17,9 +20,12 @@ var hostReportErrors = require('../internals/host-report-errors');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var userAgent = require('../internals/user-agent');
-var SPECIES = require('../internals/well-known-symbol')('species');
 var InternalStateModule = require('../internals/internal-state');
 var isForced = require('../internals/is-forced');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var SPECIES = wellKnownSymbol('species');
+var PROMISE = 'Promise';
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
@@ -232,7 +238,7 @@ if (FORCED) {
       value: undefined
     });
   };
-  Internal.prototype = require('../internals/redefine-all')(PromiseConstructor.prototype, {
+  Internal.prototype = redefineAll(PromiseConstructor.prototype, {
     // `Promise.prototype.then` method
     // https://tc39.github.io/ecma262/#sec-promise.prototype.then
     then: function then(onFulfilled, onRejected) {
@@ -266,7 +272,7 @@ if (FORCED) {
   };
 
   // wrap fetch result
-  if (!IS_PURE && typeof $fetch == 'function') $export({ global: true, enumerable: true, forced: true }, {
+  if (!IS_PURE && typeof $fetch == 'function') $({ global: true, enumerable: true, forced: true }, {
     // eslint-disable-next-line no-unused-vars
     fetch: function fetch(input) {
       return promiseResolve(PromiseConstructor, $fetch.apply(global, arguments));
@@ -274,15 +280,17 @@ if (FORCED) {
   });
 }
 
-$export({ global: true, wrap: true, forced: FORCED }, { Promise: PromiseConstructor });
+$({ global: true, wrap: true, forced: FORCED }, {
+  Promise: PromiseConstructor
+});
 
-require('../internals/set-to-string-tag')(PromiseConstructor, PROMISE, false, true);
-require('../internals/set-species')(PROMISE);
+setToStringTag(PromiseConstructor, PROMISE, false, true);
+setSpecies(PROMISE);
 
-PromiseWrapper = require('../internals/path')[PROMISE];
+PromiseWrapper = path[PROMISE];
 
 // statics
-$export({ target: PROMISE, stat: true, forced: FORCED }, {
+$({ target: PROMISE, stat: true, forced: FORCED }, {
   // `Promise.reject` method
   // https://tc39.github.io/ecma262/#sec-promise.reject
   reject: function reject(r) {
@@ -292,7 +300,7 @@ $export({ target: PROMISE, stat: true, forced: FORCED }, {
   }
 });
 
-$export({ target: PROMISE, stat: true, forced: IS_PURE || FORCED }, {
+$({ target: PROMISE, stat: true, forced: IS_PURE || FORCED }, {
   // `Promise.resolve` method
   // https://tc39.github.io/ecma262/#sec-promise.resolve
   resolve: function resolve(x) {
@@ -300,7 +308,7 @@ $export({ target: PROMISE, stat: true, forced: IS_PURE || FORCED }, {
   }
 });
 
-$export({ target: PROMISE, stat: true, forced: INCORRECT_ITERATION }, {
+$({ target: PROMISE, stat: true, forced: INCORRECT_ITERATION }, {
   // `Promise.all` method
   // https://tc39.github.io/ecma262/#sec-promise.all
   all: function all(iterable) {

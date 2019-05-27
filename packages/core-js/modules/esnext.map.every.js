@@ -1,11 +1,13 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var bind = require('../internals/bind-context');
 var getMapIterator = require('../internals/get-map-iterator');
 
 // `Map.prototype.every` method
 // https://github.com/tc39/proposal-collection-methods
-require('../internals/export')({ target: 'Map', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   every: function every(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);

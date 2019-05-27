@@ -1,3 +1,4 @@
 require('../../modules/es.string.trim');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'trim');
+module.exports = entryUnbind('String', 'trim');

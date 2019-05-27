@@ -1,4 +1,5 @@
 var padStart = require('../string/virtual/pad-start');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

@@ -1,7 +1,9 @@
 'use strict';
 require('../../modules/es.weak-set');
 require('../../modules/esnext.weak-set.from');
-var WeakSet = require('../../internals/path').WeakSet;
+var path = require('../../internals/path');
+
+var WeakSet = path.WeakSet;
 var weakSetfrom = WeakSet.from;
 
 module.exports = function from(source, mapFn, thisArg) {

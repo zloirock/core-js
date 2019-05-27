@@ -1,9 +1,11 @@
+var $ = require('../internals/export');
+
 var abs = Math.abs;
 var sqrt = Math.sqrt;
 
 // `Math.hypot` method
 // https://tc39.github.io/ecma262/#sec-math.hypot
-require('../internals/export')({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true }, {
   hypot: function hypot(value1, value2) { // eslint-disable-line no-unused-vars
     var sum = 0;
     var i = 0;

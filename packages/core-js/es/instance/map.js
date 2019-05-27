@@ -1,4 +1,5 @@
 var map = require('../array/virtual/map');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

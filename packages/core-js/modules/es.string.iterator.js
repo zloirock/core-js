@@ -2,6 +2,7 @@
 var codePointAt = require('../internals/string-at');
 var InternalStateModule = require('../internals/internal-state');
 var defineIterator = require('../internals/define-iterator');
+
 var STRING_ITERATOR = 'String Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(STRING_ITERATOR);

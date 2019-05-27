@@ -1,3 +1,4 @@
 require('../../../modules/es.string.iterator');
+var Iterators = require('../../../internals/iterators');
 
-module.exports = require('../../../internals/iterators').String;
+module.exports = Iterators.String;

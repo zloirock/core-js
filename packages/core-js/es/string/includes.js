@@ -1,3 +1,4 @@
 require('../../modules/es.string.includes');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'includes');
+module.exports = entryUnbind('String', 'includes');

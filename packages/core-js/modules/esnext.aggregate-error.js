@@ -1,6 +1,8 @@
+var $ = require('../internals/export');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var create = require('../internals/object-create');
+var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
 var hide = require('../internals/hide');
 
@@ -18,10 +20,10 @@ var $AggregateError = function AggregateError(errors, message) {
 };
 
 $AggregateError.prototype = create(Error.prototype, {
-  constructor: { value: $AggregateError, configurable: true, writable: true },
-  name: { value: 'AggregateError', configurable: true, writable: true }
+  constructor: createPropertyDescriptor(5, $AggregateError),
+  name: createPropertyDescriptor(5, 'AggregateError')
 });
 
-require('../internals/export')({ global: true }, {
+$({ global: true }, {
   AggregateError: $AggregateError
 });

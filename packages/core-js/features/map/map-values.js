@@ -1,4 +1,5 @@
 require('../../modules/es.map');
 require('../../modules/esnext.map.map-values');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Map', 'mapValues');
+module.exports = entryUnbind('Map', 'mapValues');

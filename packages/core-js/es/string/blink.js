@@ -1,3 +1,4 @@
 require('../../modules/es.string.blink');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'blink');
+module.exports = entryUnbind('String', 'blink');

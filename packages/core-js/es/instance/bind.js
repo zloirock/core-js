@@ -1,4 +1,5 @@
 var bind = require('../function/virtual/bind');
+
 var FunctionPrototype = Function.prototype;
 
 module.exports = function (it) {

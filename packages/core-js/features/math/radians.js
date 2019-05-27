@@ -1,3 +1,4 @@
 require('../../modules/esnext.math.radians');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.radians;
+module.exports = path.Math.radians;

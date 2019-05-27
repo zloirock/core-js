@@ -1,3 +1,4 @@
 require('../modules/es.parse-int');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').parseInt;
+module.exports = path.parseInt;

@@ -2,7 +2,9 @@
 require('../../modules/es.promise');
 require('../../modules/esnext.aggregate-error');
 require('../../modules/esnext.promise.any');
-var Promise = require('../../internals/path').Promise;
+var path = require('../../internals/path');
+
+var Promise = path.Promise;
 var $any = Promise.any;
 
 module.exports = function any(iterable) {

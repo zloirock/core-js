@@ -1,6 +1,8 @@
 var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
-var MATCH = require('../internals/well-known-symbol')('match');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var MATCH = wellKnownSymbol('match');
 
 // `IsRegExp` abstract operation
 // https://tc39.github.io/ecma262/#sec-isregexp

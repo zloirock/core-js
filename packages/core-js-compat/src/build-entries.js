@@ -4,7 +4,8 @@ const { dirname, resolve } = require('path');
 const detective = require('detective');
 const { sync: glob } = require('glob');
 const intersection = require('core-js-pure/features/set/intersection');
-const order = new Set(Object.keys(require('./data')));
+const data = require('./data');
+const order = new Set(Object.keys(data));
 
 function getModulesForEntryPoint(entry) {
   const match = entry.match(/\/modules\/([^/]+)$/);

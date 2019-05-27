@@ -1,3 +1,4 @@
 require('../../../modules/es.array.index-of');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').indexOf;
+module.exports = entryVirtual('Array').indexOf;

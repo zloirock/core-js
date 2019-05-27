@@ -1,4 +1,5 @@
 var isObject = require('../internals/is-object');
+
 var floor = Math.floor;
 
 // `Number.isInteger` method implementation

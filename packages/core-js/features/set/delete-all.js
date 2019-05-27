@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.delete-all');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'deleteAll');
+module.exports = entryUnbind('Set', 'deleteAll');

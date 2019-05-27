@@ -1,6 +1,8 @@
 'use strict';
-var arrayForEach = require('../internals/array-methods')(0);
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var arrayMethods = require('../internals/array-methods');
+
+var arrayForEach = arrayMethods(0);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.forEach` method

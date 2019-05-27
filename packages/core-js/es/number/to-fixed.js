@@ -1,3 +1,4 @@
 require('../../modules/es.number.to-fixed');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Number', 'toFixed');
+module.exports = entryUnbind('Number', 'toFixed');

@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.is-disjoint-from');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'isDisjointFrom');
+module.exports = entryUnbind('Set', 'isDisjointFrom');

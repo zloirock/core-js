@@ -1,4 +1,5 @@
 var sign = require('../internals/math-sign');
+
 var pow = Math.pow;
 var EPSILON = pow(2, -52);
 var EPSILON32 = pow(2, -23);

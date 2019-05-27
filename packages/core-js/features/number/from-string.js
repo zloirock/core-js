@@ -1,3 +1,4 @@
 require('../../modules/esnext.number.from-string');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Number.fromString;
+module.exports = path.Number.fromString;

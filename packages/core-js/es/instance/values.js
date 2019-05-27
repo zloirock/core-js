@@ -1,4 +1,5 @@
 var values = require('../array/virtual/values');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

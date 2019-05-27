@@ -1,6 +1,8 @@
-var IS_PURE = require('../internals/is-pure');
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
 var fails = require('../internals/fails');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+var IS_PURE = require('../internals/is-pure');
+
+var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = !fails(function () {
   var url = new URL('b?e=1', 'http://a');

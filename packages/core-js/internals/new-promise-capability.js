@@ -1,5 +1,4 @@
 'use strict';
-// 25.4.1.5 NewPromiseCapability(C)
 var aFunction = require('../internals/a-function');
 
 var PromiseCapability = function (C) {
@@ -13,6 +12,7 @@ var PromiseCapability = function (C) {
   this.reject = aFunction(reject);
 };
 
+// 25.4.1.5 NewPromiseCapability(C)
 module.exports.f = function (C) {
   return new PromiseCapability(C);
 };

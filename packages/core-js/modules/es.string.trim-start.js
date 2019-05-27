@@ -1,6 +1,9 @@
 'use strict';
+var $ = require('../internals/export');
 var internalStringTrim = require('../internals/string-trim');
-var FORCED = require('../internals/forced-string-trim-method')('trimStart');
+var forcedStringTrimMethod = require('../internals/forced-string-trim-method');
+
+var FORCED = forcedStringTrimMethod('trimStart');
 
 var trimStart = FORCED ? function trimStart() {
   return internalStringTrim(this, 1);
@@ -8,7 +11,7 @@ var trimStart = FORCED ? function trimStart() {
 
 // `String.prototype.{ trimStart, trimLeft }` methods
 // https://github.com/tc39/ecmascript-string-left-right-trim
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: FORCED }, {
   trimStart: trimStart,
   trimLeft: trimStart
 });

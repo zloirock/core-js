@@ -1,6 +1,8 @@
+var $ = require('../internals/export');
+
 // `Math.imulh` method
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
-require('../internals/export')({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true }, {
   imulh: function imulh(u, v) {
     var UINT16 = 0xFFFF;
     var $u = +u;

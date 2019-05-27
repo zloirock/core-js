@@ -1,7 +1,9 @@
 'use strict';
 var speciesConstructor = require('../internals/species-constructor');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var arrayFilter = require('../internals/array-methods')(2);
+var arrayMethods = require('../internals/array-methods');
+
+var arrayFilter = arrayMethods(2);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
 

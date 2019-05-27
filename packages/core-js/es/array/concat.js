@@ -1,3 +1,4 @@
 require('../../modules/es.array.concat');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'concat');
+module.exports = entryUnbind('Array', 'concat');

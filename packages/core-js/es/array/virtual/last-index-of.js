@@ -1,3 +1,4 @@
 require('../../../modules/es.array.last-index-of');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').lastIndexOf;
+module.exports = entryVirtual('Array').lastIndexOf;

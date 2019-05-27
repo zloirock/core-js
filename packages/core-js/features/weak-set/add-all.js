@@ -1,4 +1,5 @@
 require('../../modules/es.weak-set');
 require('../../modules/esnext.weak-set.add-all');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('WeakSet', 'addAll');
+module.exports = entryUnbind('WeakSet', 'addAll');

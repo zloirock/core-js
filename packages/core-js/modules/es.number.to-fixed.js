@@ -1,7 +1,10 @@
 'use strict';
+var $ = require('../internals/export');
 var toInteger = require('../internals/to-integer');
 var thisNumberValue = require('../internals/this-number-value');
 var repeat = require('../internals/string-repeat');
+var fails = require('../internals/fails');
+
 var nativeToFixed = 1.0.toFixed;
 var floor = Math.floor;
 var data = [0, 0, 0, 0, 0, 0];
@@ -54,17 +57,19 @@ var log = function (x) {
   } return n;
 };
 
-// `Number.prototype.toFixed` method
-// https://tc39.github.io/ecma262/#sec-number.prototype.tofixed
-require('../internals/export')({ target: 'Number', proto: true, forced: nativeToFixed && (
+var FORCED = nativeToFixed && (
   0.00008.toFixed(3) !== '0.000' ||
   0.9.toFixed(0) !== '1' ||
   1.255.toFixed(2) !== '1.25' ||
   1000000000000000128.0.toFixed(0) !== '1000000000000000128'
-) || !require('../internals/fails')(function () {
+) || !fails(function () {
   // V8 ~ Android 4.3-
   nativeToFixed.call({});
-}) }, {
+});
+
+// `Number.prototype.toFixed` method
+// https://tc39.github.io/ecma262/#sec-number.prototype.tofixed
+$({ target: 'Number', proto: true, forced: FORCED }, {
   toFixed: function toFixed(fractionDigits) {
     var x = thisNumberValue(this);
     var f = toInteger(fractionDigits);

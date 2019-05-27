@@ -1,3 +1,4 @@
+var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var ownKeys = require('../internals/own-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
@@ -6,7 +7,7 @@ var createProperty = require('../internals/create-property');
 
 // `Object.getOwnPropertyDescriptors` method
 // https://tc39.github.io/ecma262/#sec-object.getownpropertydescriptors
-require('../internals/export')({ target: 'Object', stat: true, sham: !DESCRIPTORS }, {
+$({ target: 'Object', stat: true, sham: !DESCRIPTORS }, {
   getOwnPropertyDescriptors: function getOwnPropertyDescriptors(object) {
     var O = toIndexedObject(object);
     var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;

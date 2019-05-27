@@ -1,3 +1,4 @@
 require('../../../modules/es.string.trim-end');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').trimRight;
+module.exports = entryVirtual('String').trimRight;

@@ -1,8 +1,10 @@
 var defineProperty = require('../internals/object-define-property').f;
 var hide = require('../internals/hide');
 var has = require('../internals/has');
-var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
 var toString = require('../internals/object-to-string');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var METHOD_REQUIRED = toString !== ({}).toString;
 
 module.exports = function (it, TAG, STATIC, SET_METHOD) {

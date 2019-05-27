@@ -1,4 +1,5 @@
 var fails = require('../internals/fails');
+
 var replacement = /#|\.prototype\./;
 
 var isForced = function (feature, detection) {

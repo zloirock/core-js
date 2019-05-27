@@ -1,4 +1,5 @@
 require('../../modules/es.symbol.match-all');
 require('../../modules/es.string.match-all');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('matchAll');
+module.exports = WrappedWellKnownSymbolModule.f('matchAll');

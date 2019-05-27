@@ -1,6 +1,7 @@
 'use strict';
 var aFunction = require('../internals/a-function');
 var isObject = require('../internals/is-object');
+
 var arraySlice = [].slice;
 var factories = {};
 

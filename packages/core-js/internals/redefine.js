@@ -5,6 +5,7 @@ var has = require('../internals/has');
 var setGlobal = require('../internals/set-global');
 var nativeFunctionToString = require('../internals/function-to-string');
 var InternalStateModule = require('../internals/internal-state');
+
 var getInternalState = InternalStateModule.get;
 var enforceInternalState = InternalStateModule.enforce;
 var TEMPLATE = String(nativeFunctionToString).split('toString');

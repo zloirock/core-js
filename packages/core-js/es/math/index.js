@@ -16,5 +16,6 @@ require('../../modules/es.math.sinh');
 require('../../modules/es.math.tanh');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.math.trunc');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math;
+module.exports = path.Math;

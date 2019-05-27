@@ -1,3 +1,4 @@
 require('../../modules/es.reflect.has');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.has;
+module.exports = path.Reflect.has;

@@ -1,3 +1,4 @@
 require('../../modules/es.array.copy-within');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'copyWithin');
+module.exports = entryUnbind('Array', 'copyWithin');

@@ -1,3 +1,4 @@
 require('../modules/esnext.composite-key');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').compositeKey;
+module.exports = path.compositeKey;

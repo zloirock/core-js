@@ -1,11 +1,13 @@
 'use strict';
 var speciesConstructor = require('../internals/species-constructor');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var fails = require('../internals/fails');
+
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
 var arraySlice = [].slice;
 
-var FORCED = require('../internals/fails')(function () {
+var FORCED = fails(function () {
   // eslint-disable-next-line no-undef
   new Int8Array(1).slice();
 });

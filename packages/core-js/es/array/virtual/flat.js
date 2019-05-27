@@ -1,4 +1,5 @@
 require('../../../modules/es.array.flat');
 require('../../../modules/es.array.unscopables.flat');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').flat;
+module.exports = entryVirtual('Array').flat;

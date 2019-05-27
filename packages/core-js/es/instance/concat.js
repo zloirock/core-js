@@ -1,4 +1,5 @@
 var concat = require('../array/virtual/concat');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

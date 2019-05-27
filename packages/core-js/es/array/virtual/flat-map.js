@@ -1,4 +1,5 @@
 require('../../../modules/es.array.flat-map');
 require('../../../modules/es.array.unscopables.flat-map');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').flatMap;
+module.exports = entryVirtual('Array').flatMap;

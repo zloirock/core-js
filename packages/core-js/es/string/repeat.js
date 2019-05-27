@@ -1,3 +1,4 @@
 require('../../modules/es.string.repeat');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'repeat');
+module.exports = entryUnbind('String', 'repeat');

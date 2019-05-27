@@ -1,4 +1,5 @@
 var reverse = require('../array/virtual/reverse');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

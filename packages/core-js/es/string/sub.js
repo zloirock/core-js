@@ -1,3 +1,4 @@
 require('../../modules/es.string.sub');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'sub');
+module.exports = entryUnbind('String', 'sub');

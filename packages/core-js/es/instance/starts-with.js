@@ -1,4 +1,5 @@
 var startsWith = require('../string/virtual/starts-with');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

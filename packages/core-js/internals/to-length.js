@@ -1,4 +1,5 @@
 var toInteger = require('../internals/to-integer');
+
 var min = Math.min;
 
 // `ToLength` abstract operation

@@ -1,3 +1,4 @@
 require('../../modules/es.string.code-point-at');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'codePointAt');
+module.exports = entryUnbind('String', 'codePointAt');

@@ -4,6 +4,7 @@ var classof = require('../internals/classof-raw');
 var bind = require('../internals/bind-context');
 var html = require('../internals/html');
 var createElement = require('../internals/document-create-element');
+
 var location = global.location;
 var set = global.setImmediate;
 var clear = global.clearImmediate;

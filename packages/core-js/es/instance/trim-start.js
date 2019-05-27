@@ -1,4 +1,5 @@
 var trimStart = require('../string/virtual/trim-start');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

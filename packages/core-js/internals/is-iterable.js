@@ -1,6 +1,8 @@
 var classof = require('../internals/classof');
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var Iterators = require('../internals/iterators');
+
+var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = function (it) {
   var O = Object(it);

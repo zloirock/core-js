@@ -1,5 +1,7 @@
 var fails = require('../internals/fails');
-var SPECIES = require('../internals/well-known-symbol')('species');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var SPECIES = wellKnownSymbol('species');
 
 module.exports = function (METHOD_NAME) {
   return !fails(function () {

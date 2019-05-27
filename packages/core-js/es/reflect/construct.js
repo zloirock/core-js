@@ -1,3 +1,4 @@
 require('../../modules/es.reflect.construct');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect.construct;
+module.exports = path.Reflect.construct;

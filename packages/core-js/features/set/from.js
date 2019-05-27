@@ -1,7 +1,9 @@
 'use strict';
 require('../../modules/es.set');
 require('../../modules/esnext.set.from');
-var Set = require('../../internals/path').Set;
+var path = require('../../internals/path');
+
+var Set = path.Set;
 var setFrom = Set.from;
 
 module.exports = function from(source, mapFn, thisArg) {

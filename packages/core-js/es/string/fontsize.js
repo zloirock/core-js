@@ -1,3 +1,4 @@
 require('../../modules/es.string.fontsize');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'fontsize');
+module.exports = entryUnbind('String', 'fontsize');

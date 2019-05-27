@@ -1,3 +1,4 @@
 require('../../modules/es.string.sup');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'sup');
+module.exports = entryUnbind('String', 'sup');

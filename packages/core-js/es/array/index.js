@@ -28,5 +28,6 @@ require('../../modules/es.array.species');
 require('../../modules/es.array.splice');
 require('../../modules/es.array.unscopables.flat');
 require('../../modules/es.array.unscopables.flat-map');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Array;
+module.exports = path.Array;

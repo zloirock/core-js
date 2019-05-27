@@ -17,5 +17,6 @@ require('../../modules/es.symbol.to-string-tag');
 require('../../modules/es.symbol.unscopables');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.json.to-string-tag');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Symbol;
+module.exports = path.Symbol;

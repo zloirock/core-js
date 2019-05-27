@@ -1,4 +1,5 @@
 var padEnd = require('../string/virtual/pad-end');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

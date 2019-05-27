@@ -1,7 +1,9 @@
 'use strict';
-var Int8Array = require('../internals/global').Int8Array;
+var global = require('../internals/global');
 var fails = require('../internals/fails');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+
+var Int8Array = global.Int8Array;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var arrayToLocaleString = [].toLocaleString;
 var arraySlice = [].slice;

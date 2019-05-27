@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.symmetric-difference');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'symmetricDifference');
+module.exports = entryUnbind('Set', 'symmetricDifference');

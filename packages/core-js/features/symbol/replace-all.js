@@ -1,3 +1,4 @@
 require('../../modules/esnext.symbol.replace-all');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('replaceAll');
+module.exports = WrappedWellKnownSymbolModule.f('replaceAll');

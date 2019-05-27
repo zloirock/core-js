@@ -1,3 +1,4 @@
 require('../../modules/es.math.sign');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.sign;
+module.exports = path.Math.sign;

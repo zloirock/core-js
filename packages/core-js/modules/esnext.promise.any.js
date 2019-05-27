@@ -1,14 +1,16 @@
 'use strict';
-// `Promise.any` method
-// https://github.com/tc39/proposal-promise-any
+var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var getBuiltIn = require('../internals/get-built-in');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
+
 var PROMISE_ANY_ERROR = 'No one promise resolved';
 
-require('../internals/export')({ target: 'Promise', stat: true }, {
+// `Promise.any` method
+// https://github.com/tc39/proposal-promise-any
+$({ target: 'Promise', stat: true }, {
   any: function any(iterable) {
     var C = this;
     var capability = newPromiseCapabilityModule.f(C);

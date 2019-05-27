@@ -1,4 +1,5 @@
 var flags = require('../regexp/flags');
+
 var RegExpPrototype = RegExp.prototype;
 
 module.exports = function (it) {

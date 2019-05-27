@@ -1,5 +1,6 @@
 'use strict';
 var fails = require('../internals/fails');
+
 var prototype = Date.prototype;
 var getTime = prototype.getTime;
 var nativeDateToISOString = prototype.toISOString;

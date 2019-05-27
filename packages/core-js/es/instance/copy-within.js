@@ -1,4 +1,5 @@
 var copyWithin = require('../array/virtual/copy-within');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

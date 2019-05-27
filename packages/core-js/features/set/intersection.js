@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.intersection');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'intersection');
+module.exports = entryUnbind('Set', 'intersection');

@@ -1,5 +1,7 @@
 require('../../modules/es.object.create');
-var Object = require('../../internals/path').Object;
+var path = require('../../internals/path');
+
+var Object = path.Object;
 
 module.exports = function create(P, D) {
   return Object.create(P, D);

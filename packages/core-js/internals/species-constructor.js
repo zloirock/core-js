@@ -1,6 +1,8 @@
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
-var SPECIES = require('../internals/well-known-symbol')('species');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var SPECIES = wellKnownSymbol('species');
 
 // `SpeciesConstructor` abstract operation
 // https://tc39.github.io/ecma262/#sec-speciesconstructor

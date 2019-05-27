@@ -1,3 +1,4 @@
 require('../../modules/es.number.is-integer');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Number.isInteger;
+module.exports = path.Number.isInteger;

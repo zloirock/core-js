@@ -1,4 +1,5 @@
 var fill = require('../array/virtual/fill');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

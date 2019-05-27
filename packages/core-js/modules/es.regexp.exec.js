@@ -1,7 +1,7 @@
 'use strict';
+var $ = require('../internals/export');
+var exec = require('../internals/regexp-exec');
 
-var regexpExec = require('../internals/regexp-exec');
-
-require('../internals/export')({ target: 'RegExp', proto: true, forced: /./.exec !== regexpExec }, {
-  exec: regexpExec
+$({ target: 'RegExp', proto: true, forced: /./.exec !== exec }, {
+  exec: exec
 });

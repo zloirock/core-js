@@ -1,4 +1,5 @@
 var entries = require('../array/virtual/entries');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

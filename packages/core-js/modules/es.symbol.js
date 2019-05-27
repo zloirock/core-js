@@ -1,10 +1,10 @@
 'use strict';
-// ECMAScript 6 symbols shim
+var $ = require('../internals/export');
 var global = require('../internals/global');
 var has = require('../internals/has');
+var NATIVE_SYMBOL = require('../internals/native-symbol');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
-var $export = require('../internals/export');
 var redefine = require('../internals/redefine');
 var hiddenKeys = require('../internals/hidden-keys');
 var fails = require('../internals/fails');
@@ -23,21 +23,24 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var nativeObjectCreate = require('../internals/object-create');
+var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var hide = require('../internals/hide');
 var objectKeys = require('../internals/object-keys');
-var HIDDEN = require('../internals/shared-key')('hidden');
+var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
+var sharedKey = require('../internals/shared-key');
 var InternalStateModule = require('../internals/internal-state');
+
+var HIDDEN = sharedKey('hidden');
 var SYMBOL = 'Symbol';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
-var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var $Symbol = global.Symbol;
 var JSON = global.JSON;
 var nativeJSONStringify = JSON && JSON.stringify;
@@ -50,7 +53,6 @@ var ObjectPrototypeSymbols = shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
 var ObjectPrototype = Object[PROTOTYPE];
 var QObject = global.QObject;
-var NATIVE_SYMBOL = require('../internals/native-symbol');
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
 var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
@@ -173,7 +175,7 @@ if (!NATIVE_SYMBOL) {
   propertyIsEnumerableModule.f = $propertyIsEnumerable;
   definePropertyModule.f = $defineProperty;
   getOwnPropertyDescriptorModule.f = $getOwnPropertyDescriptor;
-  require('../internals/object-get-own-property-names').f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
+  getOwnPropertyNamesModule.f = getOwnPropertyNamesExternal.f = $getOwnPropertyNames;
   getOwnPropertySymbolsModule.f = $getOwnPropertySymbols;
 
   if (DESCRIPTORS) {
@@ -194,13 +196,15 @@ if (!NATIVE_SYMBOL) {
   };
 }
 
-$export({ global: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, { Symbol: $Symbol });
+$({ global: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
+  Symbol: $Symbol
+});
 
 for (var wellKnownSymbols = objectKeys(WellKnownSymbolsStore), k = 0; wellKnownSymbols.length > k;) {
   defineWellKnownSymbol(wellKnownSymbols[k++]);
 }
 
-$export({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
+$({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   // `Symbol.for` method
   // https://tc39.github.io/ecma262/#sec-symbol.for
   'for': function (key) {
@@ -218,7 +222,7 @@ $export({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   useSimple: function () { USE_SETTER = false; }
 });
 
-$export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, {
+$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, {
   // `Object.create` method
   // https://tc39.github.io/ecma262/#sec-object.create
   create: $create,
@@ -233,7 +237,7 @@ $export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTO
   getOwnPropertyDescriptor: $getOwnPropertyDescriptor
 });
 
-$export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
+$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertyNames` method
   // https://tc39.github.io/ecma262/#sec-object.getownpropertynames
   getOwnPropertyNames: $getOwnPropertyNames,
@@ -244,7 +248,7 @@ $export({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
 
 // Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
 // https://bugs.chromium.org/p/v8/issues/detail?id=3443
-$export({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
+$({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
     return getOwnPropertySymbolsModule.f(toObject(it));
   }
@@ -252,7 +256,7 @@ $export({ target: 'Object', stat: true, forced: fails(function () { getOwnProper
 
 // `JSON.stringify` method behavior with symbols
 // https://tc39.github.io/ecma262/#sec-json.stringify
-JSON && $export({ target: 'JSON', stat: true, forced: !NATIVE_SYMBOL || fails(function () {
+JSON && $({ target: 'JSON', stat: true, forced: !NATIVE_SYMBOL || fails(function () {
   var symbol = $Symbol();
   // MS Edge converts symbol values to JSON as {}
   return nativeJSONStringify([symbol]) != '[null]'

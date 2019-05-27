@@ -1,6 +1,8 @@
 'use strict';
 var classof = require('../internals/classof');
-var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var test = {};
 
 test[TO_STRING_TAG] = 'z';

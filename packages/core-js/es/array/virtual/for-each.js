@@ -1,3 +1,4 @@
 require('../../../modules/es.array.for-each');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').forEach;
+module.exports = entryVirtual('Array').forEach;

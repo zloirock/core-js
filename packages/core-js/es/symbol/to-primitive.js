@@ -1,3 +1,4 @@
 require('../../modules/es.symbol.to-primitive');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('toPrimitive');
+module.exports = WrappedWellKnownSymbolModule.f('toPrimitive');

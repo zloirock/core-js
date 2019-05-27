@@ -11,5 +11,6 @@ require('../../modules/es.reflect.own-keys');
 require('../../modules/es.reflect.prevent-extensions');
 require('../../modules/es.reflect.set');
 require('../../modules/es.reflect.set-prototype-of');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Reflect;
+module.exports = path.Reflect;

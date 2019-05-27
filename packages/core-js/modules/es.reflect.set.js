@@ -1,3 +1,4 @@
+var $ = require('../internals/export');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
@@ -30,4 +31,6 @@ function set(target, propertyKey, V /* , receiver */) {
   return ownDescriptor.set === undefined ? false : (ownDescriptor.set.call(receiver, V), true);
 }
 
-require('../internals/export')({ target: 'Reflect', stat: true }, { set: set });
+$({ target: 'Reflect', stat: true }, {
+  set: set
+});

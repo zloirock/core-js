@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var createHTML = require('../internals/create-html');
-var FORCED = require('../internals/forced-string-html-method')('blink');
+var forcedStringHTMLMethod = require('../internals/forced-string-html-method');
 
 // `String.prototype.blink` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.blink
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: forcedStringHTMLMethod('blink') }, {
   blink: function blink() {
     return createHTML(this, 'blink', '', '');
   }

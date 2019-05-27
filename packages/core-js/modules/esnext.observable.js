@@ -1,5 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-observable
+var $ = require('../internals/export');
+var setSpecies = require('../internals/set-species');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -11,10 +13,12 @@ var iterate = require('../internals/iterate');
 var hostReportErrors = require('../internals/host-report-errors');
 var defineProperty = require('../internals/object-define-property').f;
 var InternalStateModule = require('../internals/internal-state');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+var DESCRIPTORS = require('../internals/descriptors');
+
+var OBSERVABLE = wellKnownSymbol('observable');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-var DESCRIPTORS = require('../internals/descriptors');
-var OBSERVABLE = require('../internals/well-known-symbol')('observable');
 var BREAK = iterate.BREAK;
 
 var getMethod = function (fn) {
@@ -195,6 +199,8 @@ redefineAll($Observable, {
 
 hide($Observable.prototype, OBSERVABLE, function () { return this; });
 
-require('../internals/export')({ global: true }, { Observable: $Observable });
+$({ global: true }, {
+  Observable: $Observable
+});
 
-require('../internals/set-species')('Observable');
+setSpecies('Observable');

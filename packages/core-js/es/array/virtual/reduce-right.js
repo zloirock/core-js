@@ -1,3 +1,4 @@
 require('../../../modules/es.array.reduce-right');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').reduceRight;
+module.exports = entryVirtual('Array').reduceRight;

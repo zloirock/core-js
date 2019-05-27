@@ -1,8 +1,9 @@
 // ie9- setTimeout & setInterval additional parameters fix
+var $ = require('../internals/export');
 var global = require('../internals/global');
 var userAgent = require('../internals/user-agent');
-var slice = [].slice;
 
+var slice = [].slice;
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
 
 var wrap = function (set) {
@@ -16,7 +17,7 @@ var wrap = function (set) {
   };
 };
 
-require('../internals/export')({ global: true, bind: true, forced: MSIE }, {
+$({ global: true, bind: true, forced: MSIE }, {
   setTimeout: wrap(global.setTimeout),
   setInterval: wrap(global.setInterval)
 });

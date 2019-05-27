@@ -1,4 +1,5 @@
 var flat = require('../array/virtual/flat');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

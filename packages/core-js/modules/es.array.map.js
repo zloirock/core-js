@@ -1,12 +1,15 @@
 'use strict';
-var internalMap = require('../internals/array-methods')(1);
+var $ = require('../internals/export');
+var arrayMethods = require('../internals/array-methods');
+var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
 
-var SPECIES_SUPPORT = require('../internals/array-method-has-species-support')('map');
+var internalMap = arrayMethods(1);
+var SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('map');
 
 // `Array.prototype.map` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.map
 // with adding support of @@species
-require('../internals/export')({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
+$({ target: 'Array', proto: true, forced: !SPECIES_SUPPORT }, {
   map: function map(callbackfn /* , thisArg */) {
     return internalMap(this, callbackfn, arguments[1]);
   }

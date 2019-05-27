@@ -1,6 +1,8 @@
 'use strict';
-var arrayFindIndex = require('../internals/array-methods')(6);
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var arrayMethods = require('../internals/array-methods');
+
+var arrayFindIndex = arrayMethods(6);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.findIndex` method

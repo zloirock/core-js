@@ -1,5 +1,7 @@
 var requireObjectCoercible = require('../internals/require-object-coercible');
-var whitespace = '[' + require('../internals/whitespaces') + ']';
+var whitespaces = require('../internals/whitespaces');
+
+var whitespace = '[' + whitespaces + ']';
 var ltrim = RegExp('^' + whitespace + whitespace + '*');
 var rtrim = RegExp(whitespace + whitespace + '*$');
 

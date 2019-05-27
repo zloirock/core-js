@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var createHTML = require('../internals/create-html');
-var FORCED = require('../internals/forced-string-html-method')('strike');
+var forcedStringHTMLMethod = require('../internals/forced-string-html-method');
 
 // `String.prototype.strike` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.strike
-require('../internals/export')({ target: 'String', proto: true, forced: FORCED }, {
+$({ target: 'String', proto: true, forced: forcedStringHTMLMethod('strike') }, {
   strike: function strike() {
     return createHTML(this, 'strike', '', '');
   }

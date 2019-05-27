@@ -3,6 +3,7 @@ var getOwnPropertyDescriptor = require('../internals/object-get-own-property-des
 var classof = require('../internals/classof-raw');
 var macrotask = require('../internals/task').set;
 var userAgent = require('../internals/user-agent');
+
 var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
 var process = global.process;
 var Promise = global.Promise;

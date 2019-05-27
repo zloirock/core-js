@@ -1,5 +1,7 @@
 'use strict';
+var $ = require('../internals/export');
 var isArray = require('../internals/is-array');
+
 var nativeReverse = [].reverse;
 var test = [1, 2];
 
@@ -7,7 +9,7 @@ var test = [1, 2];
 // https://tc39.github.io/ecma262/#sec-array.prototype.reverse
 // fix for Safari 12.0 bug
 // https://bugs.webkit.org/show_bug.cgi?id=188794
-require('../internals/export')({ target: 'Array', proto: true, forced: String(test) === String(test.reverse()) }, {
+$({ target: 'Array', proto: true, forced: String(test) === String(test.reverse()) }, {
   reverse: function reverse() {
     if (isArray(this)) this.length = this.length;
     return nativeReverse.call(this);

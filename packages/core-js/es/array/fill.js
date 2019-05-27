@@ -1,3 +1,4 @@
 require('../../modules/es.array.fill');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'fill');
+module.exports = entryUnbind('Array', 'fill');

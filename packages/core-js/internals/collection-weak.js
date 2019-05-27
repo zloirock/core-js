@@ -8,6 +8,7 @@ var iterate = require('../internals/iterate');
 var createArrayMethod = require('../internals/array-methods');
 var $has = require('../internals/has');
 var InternalStateModule = require('../internals/internal-state');
+
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 var arrayFind = createArrayMethod(5);

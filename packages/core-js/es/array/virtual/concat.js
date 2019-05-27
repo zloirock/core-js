@@ -1,3 +1,4 @@
 require('../../../modules/es.array.concat');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').concat;
+module.exports = entryVirtual('Array').concat;

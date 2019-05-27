@@ -10,6 +10,7 @@ var setSpecies = require('../internals/set-species');
 var DESCRIPTORS = require('../internals/descriptors');
 var fastKey = require('../internals/internal-metadata').fastKey;
 var InternalStateModule = require('../internals/internal-state');
+
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 

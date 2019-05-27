@@ -1,8 +1,11 @@
 'use strict';
+var global = require('../internals/global');
 var ArrayIterators = require('../modules/es.array.iterator');
-var Uint8Array = require('../internals/global').Uint8Array;
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var ITERATOR = require('../internals/well-known-symbol')('iterator');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var ITERATOR = wellKnownSymbol('iterator');
+var Uint8Array = global.Uint8Array;
 var arrayValues = ArrayIterators.values;
 var arrayKeys = ArrayIterators.keys;
 var arrayEntries = ArrayIterators.entries;

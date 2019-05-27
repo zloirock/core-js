@@ -1,3 +1,4 @@
 require('../../modules/es.number.is-safe-integer');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Number.isSafeInteger;
+module.exports = path.Number.isSafeInteger;

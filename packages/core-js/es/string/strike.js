@@ -1,3 +1,4 @@
 require('../../modules/es.string.strike');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'strike');
+module.exports = entryUnbind('String', 'strike');

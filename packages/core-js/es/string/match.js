@@ -1,3 +1,4 @@
 require('../../modules/es.string.match');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'match');
+module.exports = entryUnbind('String', 'match');

@@ -1,4 +1,5 @@
 var toInteger = require('../internals/to-integer');
+
 var max = Math.max;
 var min = Math.min;
 

@@ -1,4 +1,5 @@
 var repeat = require('../string/virtual/repeat');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

@@ -1,3 +1,4 @@
 require('../../modules/es.math.tanh');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.tanh;
+module.exports = path.Math.tanh;

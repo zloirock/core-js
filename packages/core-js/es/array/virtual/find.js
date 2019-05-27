@@ -1,3 +1,4 @@
 require('../../../modules/es.array.find');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Array').find;
+module.exports = entryVirtual('Array').find;

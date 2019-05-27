@@ -1,12 +1,15 @@
 'use strict';
+var $ = require('../internals/export');
 var hide = require('../internals/hide');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var anObject = require('../internals/an-object');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-flags');
 var speciesConstructor = require('../internals/species-constructor');
-var REPLACE_ALL = require('../internals/well-known-symbol')('replaceAll');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
+
+var REPLACE_ALL = wellKnownSymbol('replaceAll');
 var RegExpPrototype = RegExp.prototype;
 
 var $replaceAll = function (string, replaceValue) {
@@ -20,7 +23,7 @@ var $replaceAll = function (string, replaceValue) {
 
 // `String.prototype.replaceAll` method
 // https://github.com/tc39/proposal-string-replace-all
-require('../internals/export')({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
     var replacer, string, searchString, template, result, i;

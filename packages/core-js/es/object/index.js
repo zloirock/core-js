@@ -26,5 +26,6 @@ require('../../modules/es.object.lookup-getter');
 require('../../modules/es.object.lookup-setter');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.json.to-string-tag');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Object;
+module.exports = path.Object;

@@ -1,6 +1,8 @@
 var hide = require('../internals/hide');
-var TO_PRIMITIVE = require('../internals/well-known-symbol')('toPrimitive');
 var dateToPrimitive = require('../internals/date-to-primitive');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var TO_PRIMITIVE = wellKnownSymbol('toPrimitive');
 var DatePrototype = Date.prototype;
 
 // `Date.prototype[@@toPrimitive]` method

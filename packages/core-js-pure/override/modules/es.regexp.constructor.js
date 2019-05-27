@@ -1,1 +1,3 @@
-require('../internals/set-species')('RegExp');
+var setSpecies = require('../internals/set-species');
+
+setSpecies('RegExp');

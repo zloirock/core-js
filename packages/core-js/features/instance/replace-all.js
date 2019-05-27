@@ -1,4 +1,5 @@
 var replaceAll = require('../string/virtual/replace-all');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

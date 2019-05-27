@@ -1,3 +1,4 @@
 require('../../modules/es.function.bind');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Function', 'bind');
+module.exports = entryUnbind('Function', 'bind');

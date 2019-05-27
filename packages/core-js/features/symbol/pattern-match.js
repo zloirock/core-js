@@ -1,3 +1,4 @@
 require('../../modules/esnext.symbol.pattern-match');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('patternMatch');
+module.exports = WrappedWellKnownSymbolModule.f('patternMatch');

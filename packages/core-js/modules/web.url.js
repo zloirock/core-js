@@ -1,8 +1,9 @@
 'use strict';
 require('../modules/es.string.iterator');
+var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/native-url');
-var NativeURL = require('../internals/global').URL;
+var global = require('../internals/global');
 var defineProperties = require('../internals/object-define-properties');
 var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
@@ -11,10 +12,13 @@ var assign = require('../internals/object-assign');
 var arrayFrom = require('../internals/array-from');
 var codePointAt = require('../internals/string-at');
 var toASCII = require('../internals/punycode-to-ascii');
+var setToStringTag = require('../internals/set-to-string-tag');
 var URLSearchParamsModule = require('../modules/web.url-search-params');
+var InternalStateModule = require('../internals/internal-state');
+
+var NativeURL = global.URL;
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
-var InternalStateModule = require('../internals/internal-state');
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
 var pow = Math.pow;
@@ -995,8 +999,8 @@ if (NativeURL) {
   });
 }
 
-require('../internals/set-to-string-tag')(URLConstructor, 'URL');
+setToStringTag(URLConstructor, 'URL');
 
-require('../internals/export')({ global: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
+$({ global: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
   URL: URLConstructor
 });

@@ -1,4 +1,5 @@
 var sort = require('../array/virtual/sort');
+
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {

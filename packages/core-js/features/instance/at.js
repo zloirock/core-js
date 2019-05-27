@@ -1,4 +1,5 @@
 var at = require('../string/virtual/at');
+
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {

@@ -1,3 +1,4 @@
 require('../../modules/es.number.to-precision');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Number', 'toPrecision');
+module.exports = entryUnbind('Number', 'toPrecision');

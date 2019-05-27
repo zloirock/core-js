@@ -1,3 +1,4 @@
 require('../../modules/es.symbol.async-iterator');
+var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
 
-module.exports = require('../../internals/wrapped-well-known-symbol').f('asyncIterator');
+module.exports = WrappedWellKnownSymbolModule.f('asyncIterator');

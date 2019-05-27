@@ -1,3 +1,4 @@
 require('../../modules/es.string.starts-with');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'startsWith');
+module.exports = entryUnbind('String', 'startsWith');

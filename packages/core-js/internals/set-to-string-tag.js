@@ -1,6 +1,8 @@
 var defineProperty = require('../internals/object-define-property').f;
 var has = require('../internals/has');
-var TO_STRING_TAG = require('../internals/well-known-symbol')('toStringTag');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (it, TAG, STATIC) {
   if (it && !has(it = STATIC ? it : it.prototype, TO_STRING_TAG)) {

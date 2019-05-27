@@ -1,3 +1,4 @@
 require('../../../modules/es.number.to-precision');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('Number').toPrecision;
+module.exports = entryVirtual('Number').toPrecision;

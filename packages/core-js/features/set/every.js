@@ -1,4 +1,5 @@
 require('../../modules/es.set');
 require('../../modules/esnext.set.every');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Set', 'every');
+module.exports = entryUnbind('Set', 'every');

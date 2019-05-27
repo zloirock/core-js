@@ -1,6 +1,8 @@
-var UNSCOPABLES = require('../internals/well-known-symbol')('unscopables');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var create = require('../internals/object-create');
 var hide = require('../internals/hide');
+
+var UNSCOPABLES = wellKnownSymbol('unscopables');
 var ArrayPrototype = Array.prototype;
 
 // Array.prototype[@@unscopables]

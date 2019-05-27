@@ -1,4 +1,6 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
@@ -7,7 +9,7 @@ var iterate = require('../internals/iterate');
 
 // `Set.prototype.intersection` method
 // https://github.com/tc39/proposal-set-methods
-require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   intersection: function intersection(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();

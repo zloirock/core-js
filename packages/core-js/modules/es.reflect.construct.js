@@ -1,10 +1,13 @@
+var $ = require('../internals/export');
+var global = require('../internals/global');
 var create = require('../internals/object-create');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind');
-var nativeConstruct = (require('../internals/global').Reflect || {}).construct;
+
+var nativeConstruct = (global.Reflect || {}).construct;
 
 // `Reflect.construct` method
 // https://tc39.github.io/ecma262/#sec-reflect.construct
@@ -19,7 +22,7 @@ var ARGS_BUG = !fails(function () {
 });
 var FORCED = NEW_TARGET_BUG || ARGS_BUG;
 
-require('../internals/export')({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
+$({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
   construct: function construct(Target, args /* , newTarget */) {
     aFunction(Target);
     anObject(args);

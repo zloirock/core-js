@@ -1,5 +1,7 @@
 require('../../modules/es.object.define-properties');
-var Object = require('../../internals/path').Object;
+var path = require('../../internals/path');
+
+var Object = path.Object;
 
 var defineProperties = module.exports = function defineProperties(T, D) {
   return Object.defineProperties(T, D);

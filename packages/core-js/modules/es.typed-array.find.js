@@ -1,6 +1,8 @@
 'use strict';
-var arrayFind = require('../internals/array-methods')(5);
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var arrayMethods = require('../internals/array-methods');
+
+var arrayFind = arrayMethods(5);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 
 // `%TypedArray%.prototype.find` method

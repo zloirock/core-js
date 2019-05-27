@@ -1,6 +1,8 @@
+var $ = require('../internals/export');
+
 // `Math.isubh` method
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
-require('../internals/export')({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true }, {
   isubh: function isubh(x0, x1, y0, y1) {
     var $x0 = x0 >>> 0;
     var $x1 = x1 >>> 0;

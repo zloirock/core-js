@@ -1,7 +1,9 @@
 var Map = require('../modules/es.map');
 var WeakMap = require('../modules/es.weak-map');
-var shared = require('../internals/shared')('metadata');
-var store = shared.store || (shared.store = new WeakMap());
+var shared = require('../internals/shared');
+
+var metadata = shared('metadata');
+var store = metadata.store || (metadata.store = new WeakMap());
 
 var getOrCreateMetadataMap = function (target, targetKey, create) {
   var targetMetadata = store.get(target);

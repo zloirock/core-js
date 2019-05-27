@@ -1,3 +1,4 @@
 require('../../modules/es.string.anchor');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'anchor');
+module.exports = entryUnbind('String', 'anchor');

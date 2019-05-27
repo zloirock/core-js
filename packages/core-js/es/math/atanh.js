@@ -1,3 +1,4 @@
 require('../../modules/es.math.atanh');
+var path = require('../../internals/path');
 
-module.exports = require('../../internals/path').Math.atanh;
+module.exports = path.Math.atanh;

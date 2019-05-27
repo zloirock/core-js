@@ -1,3 +1,4 @@
 require('../../modules/es.array.reduce');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('Array', 'reduce');
+module.exports = entryUnbind('Array', 'reduce');

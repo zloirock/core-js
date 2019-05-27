@@ -1,3 +1,4 @@
 require('../../modules/esnext.string.replace-all');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = require('../../internals/entry-unbind')('String', 'replaceAll');
+module.exports = entryUnbind('String', 'replaceAll');

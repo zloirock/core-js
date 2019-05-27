@@ -1,14 +1,17 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var getIterator = require('../internals/get-iterator');
 var iterate = require('../internals/iterate');
+
 var BREAK = iterate.BREAK;
 
 // `Set.prototype.isSubsetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSubsetOf
-require('../internals/export')({ target: 'Set', proto: true, real: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   isSubsetOf: function isSubsetOf(iterable) {
     var iterator = getIterator(this);
     var otherSet = anObject(iterable);

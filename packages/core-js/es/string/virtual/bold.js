@@ -1,3 +1,4 @@
 require('../../../modules/es.string.bold');
+var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = require('../../../internals/entry-virtual')('String').bold;
+module.exports = entryVirtual('String').bold;
