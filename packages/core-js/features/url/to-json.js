@@ -1,1 +1,1 @@
-require('../../modules/web.url.to-json');
+module.exports = require('../../stable/url/to-json');

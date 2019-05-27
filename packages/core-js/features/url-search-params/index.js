@@ -1,3 +1,1 @@
-require('../../modules/web.url-search-params');
-
-module.exports = require('../../internals/path').URLSearchParams;
+module.exports = require('../../stable/url-search-params');
