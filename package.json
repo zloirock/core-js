@@ -24,7 +24,7 @@
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
     "eslint": "^5.16.0",
     "eslint-import-resolver-webpack": "^0.11.1",
-    "eslint-plugin-import": "^2.17.2",
+    "eslint-plugin-import": "^2.17.3",
     "eslint-plugin-optimize-regex": "^1.1.6",
     "eslint-plugin-qunit": "^4.0.0",
     "eslint-plugin-sonarjs": "^0.3.0",
