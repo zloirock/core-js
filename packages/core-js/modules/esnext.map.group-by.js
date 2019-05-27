@@ -1,10 +1,11 @@
 'use strict';
+var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var aFunction = require('../internals/a-function');
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-collection-methods
-require('../internals/export')({ target: 'Map', stat: true, forced: require('../internals/is-pure') }, {
+$({ target: 'Map', stat: true }, {
   groupBy: function groupBy(iterable, keyDerivative) {
     var newMap = new this();
     aFunction(keyDerivative);
