@@ -1,4 +1,9 @@
 ## Changelog
+##### 3.1.3
+- Fixed `core-js/features/reflect/delete-metadata` entry point
+- Some fixes and improvements of the `postinstall` script like support `npm` color config ([#556](https://github.com/zloirock/core-js/issues/556)) or adding support of `ADBLOCK` env variable
+- Refactoring and some minor fixes
+
 ##### 3.1.2 - 2019.05.22
 - Added a workaround of a strange `npx` bug on `postinstall`, [#551](https://github.com/zloirock/core-js/issues/551)
 
