@@ -1,13 +1,12 @@
 'use strict';
 var $ = require('../internals/export');
-var internalReduce = require('../internals/array-reduce');
+var right = require('../internals/array-reduce').right;
 var sloppyArrayMethod = require('../internals/sloppy-array-method');
-var SLOPPY_METHOD = sloppyArrayMethod('reduceRight');
 
 // `Array.prototype.reduceRight` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.reduceright
-$({ target: 'Array', proto: true, forced: SLOPPY_METHOD }, {
+$({ target: 'Array', proto: true, forced: sloppyArrayMethod('reduceRight') }, {
   reduceRight: function reduceRight(callbackfn /* , initialValue */) {
-    return internalReduce(this, callbackfn, arguments.length, arguments[1], true);
+    return right(this, callbackfn, arguments.length, arguments[1]);
   }
 });

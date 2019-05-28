@@ -9,11 +9,10 @@ var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
-var arrayMethods = require('../internals/array-methods');
+var forEach = require('../internals/array-iteration').forEach;
 var DESCRIPTORS = require('../internals/descriptors');
 var InternalStateModule = require('../internals/internal-state');
 
-var forEach = arrayMethods(0);
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 

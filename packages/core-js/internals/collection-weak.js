@@ -5,14 +5,14 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
-var createArrayMethod = require('../internals/array-methods');
+var arrayMethods = require('../internals/array-iteration');
 var $has = require('../internals/has');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
-var arrayFind = createArrayMethod(5);
-var arrayFindIndex = createArrayMethod(6);
+var find = arrayMethods.find;
+var findIndex = arrayMethods.findIndex;
 var id = 0;
 
 // fallback for uncaught frozen keys
@@ -25,7 +25,7 @@ var UncaughtFrozenStore = function () {
 };
 
 var findUncaughtFrozen = function (store, key) {
-  return arrayFind(store.entries, function (it) {
+  return find(store.entries, function (it) {
     return it[0] === key;
   });
 };
@@ -44,7 +44,7 @@ UncaughtFrozenStore.prototype = {
     else this.entries.push([key, value]);
   },
   'delete': function (key) {
-    var index = arrayFindIndex(this.entries, function (it) {
+    var index = findIndex(this.entries, function (it) {
       return it[0] === key;
     });
     if (~index) this.entries.splice(index, 1);
