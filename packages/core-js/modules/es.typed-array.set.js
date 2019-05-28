@@ -16,7 +16,7 @@ var FORCED = fails(function () {
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.set
 ArrayBufferViewCore.exportProto('set', function set(arrayLike /* , offset */) {
   aTypedArray(this);
-  var offset = toOffset(arguments[1], 1);
+  var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1);
   var length = this.length;
   var src = toObject(arrayLike);
   var len = toLength(src.length);

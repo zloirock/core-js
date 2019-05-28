@@ -156,11 +156,11 @@ var $Observable = function Observable(subscriber) {
 
 redefineAll($Observable.prototype, {
   subscribe: function subscribe(observer) {
-    var argumentsLength = arguments.length;
+    var length = arguments.length;
     return new Subscription(typeof observer === 'function' ? {
       next: observer,
-      error: argumentsLength > 1 ? arguments[1] : undefined,
-      complete: argumentsLength > 2 ? arguments[2] : undefined
+      error: length > 1 ? arguments[1] : undefined,
+      complete: length > 2 ? arguments[2] : undefined
     } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
   }
 });
@@ -185,7 +185,7 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    for (var i = 0, argumentsLength = arguments.length, items = new Array(argumentsLength); i < argumentsLength;) {
+    for (var i = 0, length = arguments.length, items = new Array(length); i < length;) {
       items[i] = arguments[i++];
     }
     return new (typeof this === 'function' ? this : $Observable)(function (observer) {

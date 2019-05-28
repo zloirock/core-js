@@ -8,6 +8,6 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 // with adding support of @@species
 $({ target: 'Array', proto: true, forced: !arrayMethodHasSpeciesSupport('map') }, {
   map: function map(callbackfn /* , thisArg */) {
-    return $map(this, callbackfn, arguments[1]);
+    return $map(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
 });

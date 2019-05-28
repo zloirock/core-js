@@ -14,7 +14,7 @@ var InternalWeakMap;
 
 var wrapper = function (get) {
   return function WeakMap() {
-    return get(this, arguments.length > 0 ? arguments[0] : undefined);
+    return get(this, arguments.length ? arguments[0] : undefined);
   };
 };
 

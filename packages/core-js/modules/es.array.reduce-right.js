@@ -7,6 +7,6 @@ var sloppyArrayMethod = require('../internals/sloppy-array-method');
 // https://tc39.github.io/ecma262/#sec-array.prototype.reduceright
 $({ target: 'Array', proto: true, forced: sloppyArrayMethod('reduceRight') }, {
   reduceRight: function reduceRight(callbackfn /* , initialValue */) {
-    return right(this, callbackfn, arguments.length, arguments[1]);
+    return right(this, callbackfn, arguments.length, arguments.length > 1 ? arguments[1] : undefined);
   }
 });

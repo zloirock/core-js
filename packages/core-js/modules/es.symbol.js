@@ -158,7 +158,7 @@ var $getOwnPropertySymbols = function getOwnPropertySymbols(it) {
 if (!NATIVE_SYMBOL) {
   $Symbol = function Symbol() {
     if (this instanceof $Symbol) throw TypeError('Symbol is not a constructor');
-    var description = arguments[0] === undefined ? undefined : String(arguments[0]);
+    var description = !arguments.length || arguments[0] === undefined ? undefined : String(arguments[0]);
     var tag = uid(description);
     var setter = function (value) {
       if (this === ObjectPrototype) setter.call(ObjectPrototypeSymbols, value);

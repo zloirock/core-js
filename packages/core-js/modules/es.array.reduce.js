@@ -7,6 +7,6 @@ var sloppyArrayMethod = require('../internals/sloppy-array-method');
 // https://tc39.github.io/ecma262/#sec-array.prototype.reduce
 $({ target: 'Array', proto: true, forced: sloppyArrayMethod('reduce') }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
-    return left(this, callbackfn, arguments.length, arguments[1]);
+    return left(this, callbackfn, arguments.length, arguments.length > 1 ? arguments[1] : undefined);
   }
 });

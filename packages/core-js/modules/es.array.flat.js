@@ -10,7 +10,7 @@ var arraySpeciesCreate = require('../internals/array-species-create');
 // https://github.com/tc39/proposal-flatMap
 $({ target: 'Array', proto: true }, {
   flat: function flat(/* depthArg = 1 */) {
-    var depthArg = arguments[0];
+    var depthArg = arguments.length ? arguments[0] : undefined;
     var O = toObject(this);
     var sourceLen = toLength(O.length);
     var A = arraySpeciesCreate(O, 0);

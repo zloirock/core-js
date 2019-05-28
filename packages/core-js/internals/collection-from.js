@@ -5,7 +5,8 @@ var bind = require('../internals/bind-context');
 var iterate = require('../internals/iterate');
 
 module.exports = function from(source /* , mapFn, thisArg */) {
-  var mapFn = arguments[1];
+  var length = arguments.length;
+  var mapFn = length > 1 ? arguments[1] : undefined;
   var mapping, A, n, boundFunction;
   aFunction(this);
   mapping = mapFn !== undefined;
@@ -14,7 +15,7 @@ module.exports = function from(source /* , mapFn, thisArg */) {
   A = [];
   if (mapping) {
     n = 0;
-    boundFunction = bind(mapFn, arguments[2], 2);
+    boundFunction = bind(mapFn, length > 2 ? arguments[2] : undefined, 2);
     iterate(source, function (nextItem) {
       A.push(boundFunction(nextItem, n++));
     });
