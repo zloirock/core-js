@@ -7,5 +7,5 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 // `%TypedArray%.prototype.reduceRicht` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.reduceright
 ArrayBufferViewCore.exportProto('reduceRight', function reduceRight(callbackfn /* , initialValue */) {
-  return right(aTypedArray(this), callbackfn, arguments.length, arguments[1]);
+  return right(aTypedArray(this), callbackfn, arguments.length, arguments.length > 1 ? arguments[1] : undefined);
 });
