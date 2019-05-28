@@ -5,14 +5,14 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
-var arrayMethods = require('../internals/array-iteration');
+var ArrayIterationModule = require('../internals/array-iteration');
 var $has = require('../internals/has');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
-var find = arrayMethods.find;
-var findIndex = arrayMethods.findIndex;
+var find = ArrayIterationModule.find;
+var findIndex = ArrayIterationModule.findIndex;
 var id = 0;
 
 // fallback for uncaught frozen keys

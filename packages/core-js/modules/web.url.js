@@ -10,7 +10,7 @@ var anInstance = require('../internals/an-instance');
 var has = require('../internals/has');
 var assign = require('../internals/object-assign');
 var arrayFrom = require('../internals/array-from');
-var codePointAt = require('../internals/string-at');
+var codeAt = require('../internals/string-multibyte').codeAt;
 var toASCII = require('../internals/punycode-to-ascii');
 var setToStringTag = require('../internals/set-to-string-tag');
 var URLSearchParamsModule = require('../modules/web.url-search-params');
@@ -249,7 +249,7 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 });
 
 var percentEncode = function (char, set) {
-  var code = codePointAt(char, 0);
+  var code = codeAt(char, 0);
   return code > 0x20 && code < 0x7F && !has(set, char) ? char : encodeURIComponent(char);
 };
 

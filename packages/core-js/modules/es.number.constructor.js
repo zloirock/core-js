@@ -12,7 +12,7 @@ var create = require('../internals/object-create');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
-var internalStringTrim = require('../internals/string-trim');
+var trim = require('../internals/string-trim').trim;
 
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
@@ -20,7 +20,6 @@ var NumberPrototype = NativeNumber.prototype;
 
 // Opera ~12 has broken Object#toString
 var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
-var NATIVE_TRIM = 'trim' in String.prototype;
 
 // `ToNumber` abstract operation
 // https://tc39.github.io/ecma262/#sec-tonumber
@@ -28,7 +27,7 @@ var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
   var first, third, radix, maxCode, digits, length, i, code;
   if (typeof it == 'string' && it.length > 2) {
-    it = NATIVE_TRIM ? it.trim() : internalStringTrim(it, 3);
+    it = trim(it);
     first = it.charCodeAt(0);
     if (first === 43 || first === 45) {
       third = it.charCodeAt(2);

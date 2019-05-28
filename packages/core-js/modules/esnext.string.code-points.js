@@ -3,8 +3,10 @@ var $ = require('../internals/export');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var InternalStateModule = require('../internals/internal-state');
-var codePointAt = require('../internals/string-at');
+var StringMultibyteModule = require('../internals/string-multibyte');
 
+var codeAt = StringMultibyteModule.codeAt;
+var charAt = StringMultibyteModule.charAt;
 var STRING_ITERATOR = 'String Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(STRING_ITERATOR);
@@ -22,9 +24,9 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
   var index = state.index;
   var point;
   if (index >= string.length) return { value: undefined, done: true };
-  point = codePointAt(string, index, true);
+  point = charAt(string, index);
   state.index += point.length;
-  return { value: { codePoint: codePointAt(point, 0), position: index }, done: false };
+  return { value: { codePoint: codeAt(point, 0), position: index }, done: false };
 });
 
 // `String.prototype.codePoints` method

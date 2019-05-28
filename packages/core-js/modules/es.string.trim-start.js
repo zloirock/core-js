@@ -1,12 +1,12 @@
 'use strict';
 var $ = require('../internals/export');
-var internalStringTrim = require('../internals/string-trim');
+var $trimStart = require('../internals/string-trim').start;
 var forcedStringTrimMethod = require('../internals/forced-string-trim-method');
 
 var FORCED = forcedStringTrimMethod('trimStart');
 
 var trimStart = FORCED ? function trimStart() {
-  return internalStringTrim(this, 1);
+  return $trimStart(this);
 } : ''.trimStart;
 
 // `String.prototype.{ trimStart, trimLeft }` methods

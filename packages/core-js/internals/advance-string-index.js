@@ -1,8 +1,8 @@
 'use strict';
-var codePointAt = require('../internals/string-at');
+var charAt = require('../internals/string-multibyte').charAt;
 
 // `AdvanceStringIndex` abstract operation
 // https://tc39.github.io/ecma262/#sec-advancestringindex
 module.exports = function (S, index, unicode) {
-  return index + (unicode ? codePointAt(S, index, true).length : 1);
+  return index + (unicode ? charAt(S, index).length : 1);
 };

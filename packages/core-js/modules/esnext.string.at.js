@@ -1,11 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
-var codePointAt = require('../internals/string-at');
+var charAt = require('../internals/string-multibyte').charAt;
 
 // `String.prototype.at` method
 // https://github.com/mathiasbynens/String.prototype.at
 $({ target: 'String', proto: true }, {
   at: function at(pos) {
-    return codePointAt(this, pos, true);
+    return charAt(this, pos);
   }
 });
