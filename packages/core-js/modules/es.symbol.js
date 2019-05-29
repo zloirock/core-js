@@ -14,7 +14,6 @@ var uid = require('../internals/uid');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var wrappedWellKnownSymbolModule = require('../internals/wrapped-well-known-symbol');
 var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
-var enumKeys = require('../internals/enum-keys');
 var isArray = require('../internals/is-array');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -105,11 +104,15 @@ var $defineProperty = function defineProperty(it, key, D) {
 
 var $defineProperties = function defineProperties(it, P) {
   anObject(it);
-  var keys = enumKeys(P = toIndexedObject(P));
-  var i = 0;
-  var l = keys.length;
+  var S = toIndexedObject(P);
+  var keys = objectKeys(S).concat($getOwnPropertySymbols(S));
+  var length = keys.length;
+  var j = 0;
   var key;
-  while (l > i) $defineProperty(it, key = keys[i++], P[key]);
+  while (length > j) {
+    key = keys[j++];
+    if (!DESCRIPTORS || $propertyIsEnumerable.call(S, key)) $defineProperty(it, key, S[key]);
+  }
   return it;
 };
 
