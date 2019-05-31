@@ -1,5 +1,5 @@
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var getBuiltIn = require('../internals/get-built-in');
 var create = require('../internals/object-create');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
@@ -7,7 +7,7 @@ var isObject = require('../internals/is-object');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind');
 
-var nativeConstruct = (global.Reflect || {}).construct;
+var nativeConstruct = getBuiltIn('Reflect', 'construct');
 
 // `Reflect.construct` method
 // https://tc39.github.io/ecma262/#sec-reflect.construct

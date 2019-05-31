@@ -24,12 +24,12 @@ var createPropertyDescriptor = require('../internals/create-property-descriptor'
 var nativeObjectCreate = require('../internals/object-create');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
+var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var hide = require('../internals/hide');
 var objectKeys = require('../internals/object-keys');
-var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var sharedKey = require('../internals/shared-key');
 var InternalStateModule = require('../internals/internal-state');
 
@@ -107,10 +107,10 @@ var $defineProperties = function defineProperties(it, P) {
   var S = toIndexedObject(P);
   var keys = objectKeys(S).concat($getOwnPropertySymbols(S));
   var length = keys.length;
-  var j = 0;
+  var index = 0;
   var key;
-  while (length > j) {
-    key = keys[j++];
+  while (length > index) {
+    key = keys[index++];
     if (!DESCRIPTORS || $propertyIsEnumerable.call(S, key)) $defineProperty(it, key, S[key]);
   }
   return it;

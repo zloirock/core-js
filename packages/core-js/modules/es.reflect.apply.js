@@ -1,10 +1,10 @@
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var getBuiltIn = require('../internals/get-built-in');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var fails = require('../internals/fails');
 
-var nativeApply = (global.Reflect || {}).apply;
+var nativeApply = getBuiltIn('Reflect', 'apply');
 var functionApply = Function.apply;
 
 // MS Edge argumentsList argument is optional

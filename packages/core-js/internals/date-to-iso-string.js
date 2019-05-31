@@ -2,9 +2,9 @@
 var fails = require('../internals/fails');
 var padStart = require('../internals/string-pad').start;
 
-var prototype = Date.prototype;
-var getTime = prototype.getTime;
-var nativeDateToISOString = prototype.toISOString;
+var DatePrototype = Date.prototype;
+var getTime = DatePrototype.getTime;
+var nativeDateToISOString = DatePrototype.toISOString;
 
 // `Date.prototype.toISOString` method implementation
 // https://tc39.github.io/ecma262/#sec-date.prototype.toisostring

@@ -25,7 +25,7 @@ var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
-var NATIVE_ARRAY_BUFFER = !!(global.ArrayBuffer && global.DataView);
+var NATIVE_ARRAY_BUFFER = !!(global.ArrayBuffer && DataView);
 var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf;
 var TYPED_ARRAY_TAG_REQIRED = false;
 var NAME;

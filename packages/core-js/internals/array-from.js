@@ -7,7 +7,7 @@ var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var getIteratorMethod = require('../internals/get-iterator-method');
 
-// `Array.from` method
+// `Array.from` method implementation
 // https://tc39.github.io/ecma262/#sec-array.from
 module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var O = toObject(arrayLike);

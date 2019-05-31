@@ -1,5 +1,3 @@
-var global = require('../internals/global');
+var getBuiltIn = require('../internals/get-built-in');
 
-var document = global.document;
-
-module.exports = document && document.documentElement;
+module.exports = getBuiltIn('document', 'documentElement');

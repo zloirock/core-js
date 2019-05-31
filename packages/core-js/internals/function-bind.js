@@ -2,7 +2,7 @@
 var aFunction = require('../internals/a-function');
 var isObject = require('../internals/is-object');
 
-var arraySlice = [].slice;
+var slice = [].slice;
 var factories = {};
 
 var construct = function (C, argsLength, args) {
@@ -17,9 +17,9 @@ var construct = function (C, argsLength, args) {
 // https://tc39.github.io/ecma262/#sec-function.prototype.bind
 module.exports = Function.bind || function bind(that /* , ...args */) {
   var fn = aFunction(this);
-  var partArgs = arraySlice.call(arguments, 1);
+  var partArgs = slice.call(arguments, 1);
   var boundFunction = function bound(/* args... */) {
-    var args = partArgs.concat(arraySlice.call(arguments));
+    var args = partArgs.concat(slice.call(arguments));
     return this instanceof boundFunction ? construct(fn, args.length, args) : fn.apply(that, args);
   };
   if (isObject(fn.prototype)) boundFunction.prototype = fn.prototype;
