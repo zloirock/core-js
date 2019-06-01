@@ -1301,11 +1301,11 @@ GLOBAL.tests = {
           !GLOBAL[collection].prototype[Symbol.iterator] ||
           GLOBAL[collection].prototype[Symbol.iterator] !== [].values
         ) return false;
-        if (DOMIterables[collection]) if (
+        if (DOMIterables[collection] && (
           !GLOBAL[collection].prototype.keys ||
           !GLOBAL[collection].prototype.values ||
           !GLOBAL[collection].prototype.entries
-        ) return false;
+        )) return false;
       }
     }
     return true;

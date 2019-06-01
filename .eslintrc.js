@@ -355,6 +355,8 @@ const base = {
   'optimize-regex/optimize-regex': 'error',
 
   // sonarjs
+  // merging collapsible if statements increases the code's readability
+  'sonarjs/no-collapsible-if': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
   'sonarjs/no-duplicated-branches': 'error',
   // collection elements should not be replaced unconditionally

@@ -71,8 +71,8 @@ var parseHost = function (url, input) {
 var parseIPv4 = function (input) {
   var parts = input.split('.');
   var partsLength, numbers, i, part, R, n, ipv4;
-  if (parts[parts.length - 1] == '') {
-    if (parts.length) parts.pop();
+  if (parts.length && parts[parts.length - 1] == '') {
+    parts.pop();
   }
   partsLength = parts.length;
   if (partsLength > 4) return input;
@@ -373,13 +373,11 @@ var parseURL = function (url, input, stateOverride, base) {
         if (char && (ALPHANUMERIC.test(char) || char == '+' || char == '-' || char == '.')) {
           buffer += char.toLowerCase();
         } else if (char == ':') {
-          if (stateOverride) {
-            if (
-              (isSpecial(url) != has(specialSchemes, buffer)) ||
-              (buffer == 'file' && (includesCredentials(url) || url.port !== null)) ||
-              (url.scheme == 'file' && !url.host)
-            ) return;
-          }
+          if (stateOverride && (
+            (isSpecial(url) != has(specialSchemes, buffer)) ||
+            (buffer == 'file' && (includesCredentials(url) || url.port !== null)) ||
+            (url.scheme == 'file' && !url.host)
+          )) return;
           url.scheme = buffer;
           if (stateOverride) {
             if (isSpecial(url) && specialSchemes[url.scheme] == url.port) url.port = null;
