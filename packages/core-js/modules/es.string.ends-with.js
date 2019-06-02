@@ -1,7 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var toLength = require('../internals/to-length');
-var validateArguments = require('../internals/validate-string-method-arguments');
+var notARegExp = require('../internals/not-a-regexp');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var correctIsRegExpLogic = require('../internals/correct-is-regexp-logic');
 
 var ENDS_WITH = 'endsWith';
@@ -12,7 +13,8 @@ var min = Math.min;
 // https://tc39.github.io/ecma262/#sec-string.prototype.endswith
 $({ target: 'String', proto: true, forced: !correctIsRegExpLogic(ENDS_WITH) }, {
   endsWith: function endsWith(searchString /* , endPosition = @length */) {
-    var that = validateArguments(this, searchString, ENDS_WITH);
+    var that = String(requireObjectCoercible(this));
+    notARegExp(searchString);
     var endPosition = arguments.length > 1 ? arguments[1] : undefined;
     var len = toLength(that.length);
     var end = endPosition === undefined ? len : min(toLength(endPosition), len);
