@@ -46,7 +46,7 @@ var TAB_AND_NEW_LINE = /[\u0009\u000A\u000D]/g;
 var EOF;
 
 var parseHost = function (url, input) {
-  var result, codePoints, i;
+  var result, codePoints, index;
   if (input.charAt(0) == '[') {
     if (input.charAt(input.length - 1) != ']') return INVALID_HOST;
     result = parseIPv6(input.slice(1, -1));
@@ -57,7 +57,9 @@ var parseHost = function (url, input) {
     if (FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT.test(input)) return INVALID_HOST;
     result = '';
     codePoints = arrayFrom(input);
-    for (i = 0; i < codePoints.length; i++) result += percentEncode(codePoints[i], C0ControlPercentEncodeSet);
+    for (index = 0; index < codePoints.length; index++) {
+      result += percentEncode(codePoints[index], C0ControlPercentEncodeSet);
+    }
     url.host = result;
   } else {
     input = toASCII(input);
@@ -70,38 +72,38 @@ var parseHost = function (url, input) {
 
 var parseIPv4 = function (input) {
   var parts = input.split('.');
-  var partsLength, numbers, i, part, R, n, ipv4;
+  var partsLength, numbers, index, part, radix, number, ipv4;
   if (parts.length && parts[parts.length - 1] == '') {
     parts.pop();
   }
   partsLength = parts.length;
   if (partsLength > 4) return input;
   numbers = [];
-  for (i = 0; i < partsLength; i++) {
-    part = parts[i];
+  for (index = 0; index < partsLength; index++) {
+    part = parts[index];
     if (part == '') return input;
-    R = 10;
+    radix = 10;
     if (part.length > 1 && part.charAt(0) == '0') {
-      R = HEX_START.test(part) ? 16 : 8;
-      part = part.slice(R == 8 ? 1 : 2);
+      radix = HEX_START.test(part) ? 16 : 8;
+      part = part.slice(radix == 8 ? 1 : 2);
     }
     if (part === '') {
-      n = 0;
+      number = 0;
     } else {
-      if (!(R == 10 ? DEC : R == 8 ? OCT : HEX).test(part)) return input;
-      n = parseInt(part, R);
+      if (!(radix == 10 ? DEC : radix == 8 ? OCT : HEX).test(part)) return input;
+      number = parseInt(part, radix);
     }
-    numbers.push(n);
+    numbers.push(number);
   }
-  for (i = 0; i < partsLength; i++) {
-    n = numbers[i];
-    if (i == partsLength - 1) {
-      if (n >= pow(256, 5 - partsLength)) return null;
-    } else if (n > 255) return null;
+  for (index = 0; index < partsLength; index++) {
+    number = numbers[index];
+    if (index == partsLength - 1) {
+      if (number >= pow(256, 5 - partsLength)) return null;
+    } else if (number > 255) return null;
   }
   ipv4 = numbers.pop();
-  for (i = 0; i < numbers.length; i++) {
-    ipv4 += numbers[i] * pow(256, 3 - i);
+  for (index = 0; index < numbers.length; index++) {
+    ipv4 += numbers[index] * pow(256, 3 - index);
   }
   return ipv4;
 };
@@ -188,9 +190,9 @@ var findLongestZeroSequence = function (ipv6) {
   var maxLength = 1;
   var currStart = null;
   var currLength = 0;
-  var i = 0;
-  for (; i < 8; i++) {
-    if (ipv6[i] !== 0) {
+  var index = 0;
+  for (; index < 8; index++) {
+    if (ipv6[index] !== 0) {
       if (currLength > maxLength) {
         maxIndex = currStart;
         maxLength = currLength;
@@ -198,7 +200,7 @@ var findLongestZeroSequence = function (ipv6) {
       currStart = null;
       currLength = 0;
     } else {
-      if (currStart === null) currStart = i;
+      if (currStart === null) currStart = index;
       ++currLength;
     }
   }
@@ -210,11 +212,11 @@ var findLongestZeroSequence = function (ipv6) {
 };
 
 var serializeHost = function (host) {
-  var result, i, compress, ignore0;
+  var result, index, compress, ignore0;
   // ipv4
   if (typeof host == 'number') {
     result = [];
-    for (i = 0; i < 4; i++) {
+    for (index = 0; index < 4; index++) {
       result.unshift(host % 256);
       host = Math.floor(host / 256);
     } return result.join('.');
@@ -222,15 +224,15 @@ var serializeHost = function (host) {
   } else if (typeof host == 'object') {
     result = '';
     compress = findLongestZeroSequence(host);
-    for (i = 0; i < 8; i++) {
-      if (ignore0 && host[i] === 0) continue;
+    for (index = 0; index < 8; index++) {
+      if (ignore0 && host[index] === 0) continue;
       if (ignore0) ignore0 = false;
-      if (compress === i) {
-        result += i ? ':' : '::';
+      if (compress === index) {
+        result += index ? ':' : '::';
         ignore0 = true;
       } else {
-        result += host[i].toString(16);
-        if (i < 7) result += ':';
+        result += host[index].toString(16);
+        if (index < 7) result += ':';
       }
     }
     return '[' + result + ']';

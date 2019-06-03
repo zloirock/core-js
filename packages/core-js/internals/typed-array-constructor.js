@@ -178,8 +178,8 @@ if (DESCRIPTORS) {
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
       TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
     } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
-      TypedArrayConstructor = wrapper(function (that, data, typedArrayOffset, $length) {
-        anInstance(that, TypedArrayConstructor, CONSTRUCTOR_NAME);
+      TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, $length) {
+        anInstance(dummy, TypedArrayConstructor, CONSTRUCTOR_NAME);
         if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
         if (isArrayBuffer(data)) return $length !== undefined
           ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)

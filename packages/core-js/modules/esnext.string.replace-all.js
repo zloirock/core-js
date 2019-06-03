@@ -26,7 +26,7 @@ var $replaceAll = function (string, replaceValue) {
 $({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
-    var replacer, string, searchString, template, result, i;
+    var replacer, string, searchString, template, result, index;
     if (searchValue != null) {
       replacer = searchValue[REPLACE_ALL];
       if (replacer !== undefined) {
@@ -42,9 +42,9 @@ $({ target: 'String', proto: true }, {
       return template.join(String(replaceValue));
     }
     result = template[0];
-    for (i = 1; i < template.length; i++) {
-      result += String(replaceValue(searchString, i - 1, string));
-      result += template[i];
+    for (index = 1; index < template.length; index++) {
+      result += String(replaceValue(searchString, index - 1, string));
+      result += template[index];
     }
     return result;
   }

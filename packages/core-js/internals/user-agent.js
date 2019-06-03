@@ -1,5 +1,3 @@
-var global = require('../internals/global');
+var getBuiltIn = require('../internals/get-built-in');
 
-var navigator = global.navigator;
-
-module.exports = navigator && navigator.userAgent || '';
+module.exports = getBuiltIn('navigator', 'userAgent') || '';

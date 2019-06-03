@@ -73,10 +73,10 @@ var serialize = function (it) {
 var parseSearchParams = function (result, query) {
   if (query) {
     var attributes = query.split('&');
-    var i = 0;
+    var index = 0;
     var attribute, entry;
-    while (i < attributes.length) {
-      attribute = attributes[i++];
+    while (index < attributes.length) {
+      attribute = attributes[index++];
       if (attribute.length) {
         entry = attribute.split('=');
         result.push({
@@ -85,7 +85,7 @@ var parseSearchParams = function (result, query) {
         });
       }
     }
-  } return result;
+  }
 };
 
 var updateSearchParams = function (query) {
@@ -125,7 +125,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   setInternalState(that, {
     type: URL_SEARCH_PARAMS,
     entries: entries,
-    updateURL: null,
+    updateURL: function () { /* empty */ },
     updateSearchParams: updateSearchParams
   });
 
@@ -159,7 +159,7 @@ redefineAll(URLSearchParamsPrototype, {
     validateArgumentsLength(arguments.length, 2);
     var state = getInternalParamsState(this);
     state.entries.push({ key: name + '', value: value + '' });
-    if (state.updateURL) state.updateURL();
+    state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
@@ -168,12 +168,12 @@ redefineAll(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     var entries = state.entries;
     var key = name + '';
-    var i = 0;
-    while (i < entries.length) {
-      if (entries[i].key === key) entries.splice(i, 1);
-      else i++;
+    var index = 0;
+    while (index < entries.length) {
+      if (entries[index].key === key) entries.splice(index, 1);
+      else index++;
     }
-    if (state.updateURL) state.updateURL();
+    state.updateURL();
   },
   // `URLSearchParams.prototype.get` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-get
@@ -181,8 +181,10 @@ redefineAll(URLSearchParamsPrototype, {
     validateArgumentsLength(arguments.length, 1);
     var entries = getInternalParamsState(this).entries;
     var key = name + '';
-    var i = 0;
-    for (; i < entries.length; i++) if (entries[i].key === key) return entries[i].value;
+    var index = 0;
+    for (; index < entries.length; index++) {
+      if (entries[index].key === key) return entries[index].value;
+    }
     return null;
   },
   // `URLSearchParams.prototype.getAll` method
@@ -192,8 +194,10 @@ redefineAll(URLSearchParamsPrototype, {
     var entries = getInternalParamsState(this).entries;
     var key = name + '';
     var result = [];
-    var i = 0;
-    for (; i < entries.length; i++) if (entries[i].key === key) result.push(entries[i].value);
+    var index = 0;
+    for (; index < entries.length; index++) {
+      if (entries[index].key === key) result.push(entries[index].value);
+    }
     return result;
   },
   // `URLSearchParams.prototype.has` method
@@ -202,8 +206,10 @@ redefineAll(URLSearchParamsPrototype, {
     validateArgumentsLength(arguments.length, 1);
     var entries = getInternalParamsState(this).entries;
     var key = name + '';
-    var i = 0;
-    while (i < entries.length) if (entries[i++].key === key) return true;
+    var index = 0;
+    while (index < entries.length) {
+      if (entries[index++].key === key) return true;
+    }
     return false;
   },
   // `URLSearchParams.prototype.set` method
@@ -215,12 +221,12 @@ redefineAll(URLSearchParamsPrototype, {
     var found = false;
     var key = name + '';
     var val = value + '';
-    var i = 0;
+    var index = 0;
     var entry;
-    for (; i < entries.length; i++) {
-      entry = entries[i];
+    for (; index < entries.length; index++) {
+      entry = entries[index];
       if (entry.key === key) {
-        if (found) entries.splice(i--, 1);
+        if (found) entries.splice(index--, 1);
         else {
           found = true;
           entry.value = val;
@@ -228,7 +234,7 @@ redefineAll(URLSearchParamsPrototype, {
       }
     }
     if (!found) entries.push({ key: key, value: val });
-    if (state.updateURL) state.updateURL();
+    state.updateURL();
   },
   // `URLSearchParams.prototype.sort` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-sort
@@ -237,26 +243,28 @@ redefineAll(URLSearchParamsPrototype, {
     var entries = state.entries;
     // Array#sort is not stable in some engines
     var slice = entries.slice();
-    var entry, i, j;
+    var entry, entriesIndex, sliceIndex;
     entries.length = 0;
-    for (i = 0; i < slice.length; i++) {
-      entry = slice[i];
-      for (j = 0; j < i; j++) if (entries[j].key > entry.key) {
-        entries.splice(j, 0, entry);
-        break;
+    for (sliceIndex = 0; sliceIndex < slice.length; sliceIndex++) {
+      entry = slice[sliceIndex];
+      for (entriesIndex = 0; entriesIndex < sliceIndex; entriesIndex++) {
+        if (entries[entriesIndex].key > entry.key) {
+          entries.splice(entriesIndex, 0, entry);
+          break;
+        }
       }
-      if (j === i) entries.push(entry);
+      if (entriesIndex === sliceIndex) entries.push(entry);
     }
-    if (state.updateURL) state.updateURL();
+    state.updateURL();
   },
   // `URLSearchParams.prototype.forEach` method
   forEach: function forEach(callback /* , thisArg */) {
     var entries = getInternalParamsState(this).entries;
     var boundFunction = bind(callback, arguments.length > 1 ? arguments[1] : undefined, 3);
-    var i = 0;
+    var index = 0;
     var entry;
-    while (i < entries.length) {
-      entry = entries[i++];
+    while (index < entries.length) {
+      entry = entries[index++];
       boundFunction(entry.value, entry.key, this);
     }
   },
@@ -282,10 +290,10 @@ redefine(URLSearchParamsPrototype, ITERATOR, URLSearchParamsPrototype.entries);
 redefine(URLSearchParamsPrototype, 'toString', function toString() {
   var entries = getInternalParamsState(this).entries;
   var result = [];
-  var i = 0;
+  var index = 0;
   var entry;
-  while (i < entries.length) {
-    entry = entries[i++];
+  while (index < entries.length) {
+    entry = entries[index++];
     result.push(serialize(entry.key) + '=' + serialize(entry.value));
   } return result.join('&');
 }, { enumerable: true });

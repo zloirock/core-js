@@ -2144,7 +2144,7 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 #### `setImmediate`
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v3.1.3/packages/core-js/modules/web.immediate.js). [`setImmediate` proposal](https://developer.mozilla.org/en-US/docs/Web/API/Window.setImmediate) polyfill.
+Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v3.1.3/packages/core-js/modules/web.immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;

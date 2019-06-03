@@ -64,7 +64,7 @@ var adapt = function (delta, numPoints, firstTime) {
   var k = 0;
   delta = firstTime ? floor(delta / damp) : delta >> 1;
   delta += floor(delta / numPoints);
-  for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
+  for (; delta > baseMinusTMin * tMax >> 1; k += base) {
     delta = floor(delta / baseMinusTMin);
   }
   return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
@@ -136,9 +136,7 @@ var encode = function (input) {
         var q = delta;
         for (var k = base; /* no condition */; k += base) {
           var t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
-          if (q < t) {
-            break;
-          }
+          if (q < t) break;
           var qMinusT = q - t;
           var baseMinusT = base - t;
           output.push(stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT)));
