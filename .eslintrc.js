@@ -274,7 +274,7 @@ const base = {
   // forbid AMD imports
   'import/no-amd': 'error',
   // forbid cycle dependencies
-  'import/no-cycle': 'error',
+  'import/no-cycle': ['error', { commonjs: true }],
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': ['error', { commonjs: true }],
   // forbid import of modules using absolute paths
