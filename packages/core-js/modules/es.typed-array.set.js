@@ -1,8 +1,8 @@
 'use strict';
+var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var toLength = require('../internals/to-length');
 var toOffset = require('../internals/to-offset');
 var toObject = require('../internals/to-object');
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var fails = require('../internals/fails');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;

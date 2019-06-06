@@ -1,4 +1,5 @@
 'use strict';
+// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.string.iterator');
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
@@ -21,6 +22,7 @@ var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var setInternalState = InternalStateModule.set;
 var getInternalURLState = InternalStateModule.getterFor('URL');
+var floor = Math.floor;
 var pow = Math.pow;
 
 var INVALID_AUTHORITY = 'Invalid authority';
@@ -218,7 +220,7 @@ var serializeHost = function (host) {
     result = [];
     for (index = 0; index < 4; index++) {
       result.unshift(host % 256);
-      host = Math.floor(host / 256);
+      host = floor(host / 256);
     } return result.join('.');
   // ipv6
   } else if (typeof host == 'object') {

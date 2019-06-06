@@ -1,5 +1,6 @@
 var sign = require('../internals/math-sign');
 
+var abs = Math.abs;
 var pow = Math.pow;
 var EPSILON = pow(2, -52);
 var EPSILON32 = pow(2, -23);
@@ -13,7 +14,7 @@ var roundTiesToEven = function (n) {
 // `Math.fround` method implementation
 // https://tc39.github.io/ecma262/#sec-math.fround
 module.exports = Math.fround || function fround(x) {
-  var $abs = Math.abs(x);
+  var $abs = abs(x);
   var $sign = sign(x);
   var a, result;
   if ($abs < MIN32) return $sign * roundTiesToEven($abs / MIN32 / EPSILON32) * MIN32 * EPSILON32;

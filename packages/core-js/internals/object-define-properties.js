@@ -3,6 +3,8 @@ var definePropertyModule = require('../internals/object-define-property');
 var anObject = require('../internals/an-object');
 var objectKeys = require('../internals/object-keys');
 
+// `Object.defineProperties` method
+// https://tc39.github.io/ecma262/#sec-object.defineproperties
 module.exports = DESCRIPTORS ? Object.defineProperties : function defineProperties(O, Properties) {
   anObject(O);
   var keys = objectKeys(Properties);

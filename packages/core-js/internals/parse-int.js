@@ -6,7 +6,9 @@ var nativeParseInt = global.parseInt;
 var hex = /^[+-]?0[Xx]/;
 var FORCED = nativeParseInt(whitespaces + '08') !== 8 || nativeParseInt(whitespaces + '0x16') !== 22;
 
-module.exports = FORCED ? function parseInt(str, radix) {
-  var string = trim(String(str));
-  return nativeParseInt(string, (radix >>> 0) || (hex.test(string) ? 16 : 10));
+// `parseInt` method
+// https://tc39.github.io/ecma262/#sec-parseint-string-radix
+module.exports = FORCED ? function parseInt(string, radix) {
+  var S = trim(String(string));
+  return nativeParseInt(S, (radix >>> 0) || (hex.test(S) ? 16 : 10));
 } : nativeParseInt;

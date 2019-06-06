@@ -13,10 +13,10 @@ $({ target: 'Object', stat: true, sham: !DESCRIPTORS }, {
     var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
     var keys = ownKeys(O);
     var result = {};
-    var i = 0;
+    var index = 0;
     var key, descriptor;
-    while (keys.length > i) {
-      descriptor = getOwnPropertyDescriptor(O, key = keys[i++]);
+    while (keys.length > index) {
+      descriptor = getOwnPropertyDescriptor(O, key = keys[index++]);
       if (descriptor !== undefined) createProperty(result, key, descriptor);
     }
     return result;

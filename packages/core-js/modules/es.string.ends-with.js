@@ -5,13 +5,12 @@ var notARegExp = require('../internals/not-a-regexp');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var correctIsRegExpLogic = require('../internals/correct-is-regexp-logic');
 
-var ENDS_WITH = 'endsWith';
-var nativeEndsWith = ''[ENDS_WITH];
+var nativeEndsWith = ''.endsWith;
 var min = Math.min;
 
 // `String.prototype.endsWith` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.endswith
-$({ target: 'String', proto: true, forced: !correctIsRegExpLogic(ENDS_WITH) }, {
+$({ target: 'String', proto: true, forced: !correctIsRegExpLogic('endsWith') }, {
   endsWith: function endsWith(searchString /* , endPosition = @length */) {
     var that = String(requireObjectCoercible(this));
     notARegExp(searchString);

@@ -2,6 +2,7 @@
 var fails = require('../internals/fails');
 var padStart = require('../internals/string-pad').start;
 
+var abs = Math.abs;
 var DatePrototype = Date.prototype;
 var getTime = DatePrototype.getTime;
 var nativeDateToISOString = DatePrototype.toISOString;
@@ -19,7 +20,7 @@ module.exports = (fails(function () {
   var year = date.getUTCFullYear();
   var milliseconds = date.getUTCMilliseconds();
   var sign = year < 0 ? '-' : year > 9999 ? '+' : '';
-  return sign + padStart(Math.abs(year), sign ? 6 : 4, 0) +
+  return sign + padStart(abs(year), sign ? 6 : 4, 0) +
     '-' + padStart(date.getUTCMonth() + 1, 2, 0) +
     '-' + padStart(date.getUTCDate(), 2, 0) +
     'T' + padStart(date.getUTCHours(), 2, 0) +

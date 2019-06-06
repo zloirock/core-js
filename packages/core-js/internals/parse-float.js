@@ -5,8 +5,10 @@ var whitespaces = require('../internals/whitespaces');
 var nativeParseFloat = global.parseFloat;
 var FORCED = 1 / nativeParseFloat(whitespaces + '-0') !== -Infinity;
 
-module.exports = FORCED ? function parseFloat(str) {
-  var string = trim(String(str));
-  var result = nativeParseFloat(string);
-  return result === 0 && string.charAt(0) == '-' ? -0 : result;
+// `parseFloat` method
+// https://tc39.github.io/ecma262/#sec-parsefloat-string
+module.exports = FORCED ? function parseFloat(string) {
+  var trimmedString = trim(String(string));
+  var result = nativeParseFloat(trimmedString);
+  return result === 0 && trimmedString.charAt(0) == '-' ? -0 : result;
 } : nativeParseFloat;

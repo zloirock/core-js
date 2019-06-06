@@ -1,6 +1,6 @@
 'use strict';
-var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-arrays-constructors-requires-wrappers');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-arrays-constructors-requires-wrappers');
 
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
 

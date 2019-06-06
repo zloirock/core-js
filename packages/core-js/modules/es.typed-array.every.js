@@ -1,6 +1,6 @@
 'use strict';
-var $every = require('../internals/array-iteration').every;
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var $every = require('../internals/array-iteration').every;
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 

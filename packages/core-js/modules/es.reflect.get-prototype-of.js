@@ -1,6 +1,6 @@
 var $ = require('../internals/export');
-var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
 var anObject = require('../internals/an-object');
+var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
 var CORRECT_PROTOTYPE_GETTER = require('../internals/correct-prototype-getter');
 
 // `Reflect.getPrototypeOf` method

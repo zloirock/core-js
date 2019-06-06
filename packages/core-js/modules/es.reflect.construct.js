@@ -1,11 +1,11 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
-var create = require('../internals/object-create');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var fails = require('../internals/fails');
+var create = require('../internals/object-create');
 var bind = require('../internals/function-bind');
+var fails = require('../internals/fails');
 
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
 

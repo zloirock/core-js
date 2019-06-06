@@ -1,11 +1,11 @@
 'use strict';
-var speciesConstructor = require('../internals/species-constructor');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var speciesConstructor = require('../internals/species-constructor');
 var fails = require('../internals/fails');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
-var arraySlice = [].slice;
+var $slice = [].slice;
 
 var FORCED = fails(function () {
   // eslint-disable-next-line no-undef
@@ -15,7 +15,7 @@ var FORCED = fails(function () {
 // `%TypedArray%.prototype.slice` method
 // https://tc39.github.io/ecma262/#sec-%typedarray%.prototype.slice
 ArrayBufferViewCore.exportProto('slice', function slice(start, end) {
-  var list = arraySlice.call(aTypedArray(this), start, end);
+  var list = $slice.call(aTypedArray(this), start, end);
   var C = speciesConstructor(this, this.constructor);
   var index = 0;
   var length = list.length;

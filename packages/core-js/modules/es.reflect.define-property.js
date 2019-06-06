@@ -1,9 +1,9 @@
 var $ = require('../internals/export');
-var fails = require('../internals/fails');
-var definePropertyModule = require('../internals/object-define-property');
+var DESCRIPTORS = require('../internals/descriptors');
 var anObject = require('../internals/an-object');
 var toPrimitive = require('../internals/to-primitive');
-var DESCRIPTORS = require('../internals/descriptors');
+var definePropertyModule = require('../internals/object-define-property');
+var fails = require('../internals/fails');
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 var ERROR_INSTEAD_OF_FALSE = fails(function () {
@@ -16,10 +16,10 @@ var ERROR_INSTEAD_OF_FALSE = fails(function () {
 $({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE, sham: !DESCRIPTORS }, {
   defineProperty: function defineProperty(target, propertyKey, attributes) {
     anObject(target);
-    propertyKey = toPrimitive(propertyKey, true);
+    var key = toPrimitive(propertyKey, true);
     anObject(attributes);
     try {
-      definePropertyModule.f(target, propertyKey, attributes);
+      definePropertyModule.f(target, key, attributes);
       return true;
     } catch (error) {
       return false;

@@ -1,7 +1,7 @@
 'use strict';
 var global = require('../internals/global');
-var ArrayIterators = require('../modules/es.array.iterator');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var ArrayIterators = require('../modules/es.array.iterator');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');

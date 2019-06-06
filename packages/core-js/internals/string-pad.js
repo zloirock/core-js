@@ -3,6 +3,8 @@ var toLength = require('../internals/to-length');
 var repeat = require('../internals/string-repeat');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
+var ceil = Math.ceil;
+
 // `String.prototype.{ padStart, padEnd }` methods implementation
 var createMethod = function (IS_END) {
   return function ($this, maxLength, fillString) {
@@ -13,7 +15,7 @@ var createMethod = function (IS_END) {
     var fillLen, stringFiller;
     if (intMaxLength <= stringLength || fillStr == '') return S;
     fillLen = intMaxLength - stringLength;
-    stringFiller = repeat.call(fillStr, Math.ceil(fillLen / fillStr.length));
+    stringFiller = repeat.call(fillStr, ceil(fillLen / fillStr.length));
     if (stringFiller.length > fillLen) stringFiller = stringFiller.slice(0, fillLen);
     return IS_END ? S + stringFiller : stringFiller + S;
   };

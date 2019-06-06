@@ -25,7 +25,7 @@ var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
 // https://tc39.github.io/ecma262/#sec-tonumber
 var toNumber = function (argument) {
   var it = toPrimitive(argument, false);
-  var first, third, radix, maxCode, digits, length, i, code;
+  var first, third, radix, maxCode, digits, length, index, code;
   if (typeof it == 'string' && it.length > 2) {
     it = trim(it);
     first = it.charCodeAt(0);
@@ -40,8 +40,8 @@ var toNumber = function (argument) {
       }
       digits = it.slice(2);
       length = digits.length;
-      for (i = 0; i < length; i++) {
-        code = digits.charCodeAt(i);
+      for (index = 0; index < length; index++) {
+        code = digits.charCodeAt(index);
         // parseInt parses a string to a first unavailable symbol
         // but ToNumber should return NaN if a string contains unavailable symbols
         if (code < 48 || code > maxCode) return NaN;

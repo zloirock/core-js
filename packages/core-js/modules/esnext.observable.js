@@ -1,20 +1,20 @@
 'use strict';
 // https://github.com/tc39/proposal-observable
 var $ = require('../internals/export');
+var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
-var redefineAll = require('../internals/redefine-all');
+var defineProperty = require('../internals/object-define-property').f;
 var hide = require('../internals/hide');
+var redefineAll = require('../internals/redefine-all');
 var getIterator = require('../internals/get-iterator');
 var iterate = require('../internals/iterate');
 var hostReportErrors = require('../internals/host-report-errors');
-var defineProperty = require('../internals/object-define-property').f;
-var InternalStateModule = require('../internals/internal-state');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var DESCRIPTORS = require('../internals/descriptors');
+var InternalStateModule = require('../internals/internal-state');
 
 var OBSERVABLE = wellKnownSymbol('observable');
 var getInternalState = InternalStateModule.get;
@@ -104,8 +104,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
       try {
-        var m = getMethod(observer.next);
-        if (m) m.call(observer, value);
+        var nextMethod = getMethod(observer.next);
+        if (nextMethod) nextMethod.call(observer, value);
       } catch (error) {
         hostReportErrors(error);
       }
@@ -118,8 +118,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscriptionState.observer;
       close(subscription, subscriptionState);
       try {
-        var m = getMethod(observer.error);
-        if (m) m.call(observer, value);
+        var errorMethod = getMethod(observer.error);
+        if (errorMethod) errorMethod.call(observer, value);
         else hostReportErrors(value);
       } catch (err) {
         hostReportErrors(err);
@@ -133,8 +133,8 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscriptionState.observer;
       close(subscription, subscriptionState);
       try {
-        var m = getMethod(observer.complete);
-        if (m) m.call(observer);
+        var completeMethod = getMethod(observer.complete);
+        if (completeMethod) completeMethod.call(observer);
       } catch (error) {
         hostReportErrors(error);
       } cleanupSubscription(subscriptionState);
@@ -168,9 +168,9 @@ redefineAll($Observable.prototype, {
 redefineAll($Observable, {
   from: function from(x) {
     var C = typeof this === 'function' ? this : $Observable;
-    var method = getMethod(anObject(x)[OBSERVABLE]);
-    if (method) {
-      var observable = anObject(method.call(x));
+    var observableMethod = getMethod(anObject(x)[OBSERVABLE]);
+    if (observableMethod) {
+      var observable = anObject(observableMethod.call(x));
       return observable.constructor === C ? observable : new C(function (observer) {
         return observable.subscribe(observer);
       });
@@ -185,12 +185,14 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    for (var i = 0, length = arguments.length, items = new Array(length); i < length;) {
-      items[i] = arguments[i++];
-    }
-    return new (typeof this === 'function' ? this : $Observable)(function (observer) {
-      for (var j = 0; j < items.length; ++j) {
-        observer.next(items[j]);
+    var C = typeof this === 'function' ? this : $Observable;
+    var length = arguments.length;
+    var items = new Array(length);
+    var index = 0;
+    while (index < length) items[index] = arguments[index++];
+    return new C(function (observer) {
+      for (var i = 0; i < length; i++) {
+        observer.next(items[i]);
         if (observer.closed) return;
       } observer.complete();
     });

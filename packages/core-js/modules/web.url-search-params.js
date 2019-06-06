@@ -1,4 +1,5 @@
 'use strict';
+// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.array.iterator');
 var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/native-url');
