@@ -1,4 +1,12 @@
 ## Changelog
+##### 3.1.4 - 2019.06.15
+- Refactoring. Many minor internal improvements and fixes like:
+  - Improved `Symbol.keyFor` complexity to `O(1)`
+  - Fixed the order of arguments validation in `String.prototype.{ endsWith, includes, startsWith }`
+  - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly ralated to the `pure` version)
+  - Performace optimizations related old V8
+  - Etc.
+
 ##### 3.1.3 - 2019.05.27
 - Fixed `core-js/features/reflect/delete-metadata` entry point
 - Some fixes and improvements of the `postinstall` script like support `npm` color config ([#556](https://github.com/zloirock/core-js/issues/556)) or adding support of `ADBLOCK` env variable
