@@ -12,7 +12,7 @@
 
 ## Raising funds
 
-`core-js` isn't backed by a company, so the future of this project depends on you. Become a sponsor or a backer [**on Open Collective**](https://opencollective.com/core-js) or [**on Patreon**](https://www.patreon.com/zloirock) if you are interested in `core-js`.
+`core-js` isn't backed by a company, so the future of this project depends on you. Become a sponsor or a backer [**on Open Collective**](https://opencollective.com/core-js), [**on Patreon**](https://www.patreon.com/zloirock) or [**on Tidelift**](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=readme) if you are interested in `core-js`.
 
 ---
 
