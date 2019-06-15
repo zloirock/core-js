@@ -4,6 +4,7 @@ var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var getSetIterator = require('../internals/get-set-iterator');
+var iterate = require('../internals/iterate');
 
 // `Set.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
@@ -11,7 +12,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
-    var accumulator, step, value;
+    var accumulator, step;
     aFunction(callbackfn);
     if (arguments.length > 1) accumulator = arguments[1];
     else {
@@ -19,9 +20,9 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       if (step.done) throw TypeError('Reduce of empty set with no initial value');
       accumulator = step.value;
     }
-    while (!(step = iterator.next()).done) {
-      accumulator = callbackfn(accumulator, value = step.value, value, set);
-    }
+    iterate(iterator, function (value) {
+      accumulator = callbackfn(accumulator, value, value, set);
+    }, undefined, false, true);
     return accumulator;
   }
 });

@@ -4,6 +4,7 @@ var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aFunction = require('../internals/a-function');
 var getMapIterator = require('../internals/get-map-iterator');
+var iterate = require('../internals/iterate');
 
 // `Map.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
@@ -11,7 +12,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
-    var accumulator, step, entry;
+    var accumulator, step;
     aFunction(callbackfn);
     if (arguments.length > 1) accumulator = arguments[1];
     else {
@@ -19,10 +20,9 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
       if (step.done) throw TypeError('Reduce of empty map with no initial value');
       accumulator = step.value[1];
     }
-    while (!(step = iterator.next()).done) {
-      entry = step.value;
-      accumulator = callbackfn(accumulator, entry[1], entry[0], map);
-    }
+    iterate(iterator, function (key, value) {
+      accumulator = callbackfn(accumulator, value, key, map);
+    }, undefined, true, true);
     return accumulator;
   }
 });

@@ -7,6 +7,7 @@ var aFunction = require('../internals/a-function');
 var bind = require('../internals/bind-context');
 var speciesConstructor = require('../internals/species-constructor');
 var getSetIterator = require('../internals/get-set-iterator');
+var iterate = require('../internals/iterate');
 
 // `Set.prototype.filter` method
 // https://github.com/tc39/proposal-collection-methods
@@ -17,10 +18,9 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();
     var adder = aFunction(newSet.add);
-    var step, value;
-    while (!(step = iterator.next()).done) {
-      if (boundFunction(value = step.value, value, set)) adder.call(newSet, value);
-    }
+    iterate(iterator, function (value) {
+      if (boundFunction(value, value, set)) adder.call(newSet, value);
+    }, undefined, false, true);
     return newSet;
   }
 });

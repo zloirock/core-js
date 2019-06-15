@@ -19,7 +19,6 @@ var InternalStateModule = require('../internals/internal-state');
 var OBSERVABLE = wellKnownSymbol('observable');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-var BREAK = iterate.BREAK;
 
 var getMethod = function (fn) {
   return fn == null ? undefined : aFunction(fn);
@@ -179,7 +178,7 @@ redefineAll($Observable, {
     return new C(function (observer) {
       iterate(iterator, function (it) {
         observer.next(it);
-        if (observer.closed) return BREAK;
+        if (observer.closed) return iterate.stop();
       }, undefined, false, true);
       observer.complete();
     });
