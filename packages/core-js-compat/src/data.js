@@ -1260,6 +1260,7 @@ const data = {
   },
   'esnext.promise.all-settled': {
     chrome: '76',
+    safari: '13',
   },
   'esnext.promise.any': {
   },
