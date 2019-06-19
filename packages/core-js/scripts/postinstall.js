@@ -3,6 +3,7 @@ var env = process.env;
 var ADBLOCK = is(env.ADBLOCK);
 var CI = is(env.CI);
 var COLOR = is(env.npm_config_color);
+var DISABLE_OPENCOLLECTIVE = is(env.DISABLE_OPENCOLLECTIVE);
 var SILENT = !!~['silent', 'error', 'warn'].indexOf(env.npm_config_loglevel);
 
 function is(it) {
@@ -14,7 +15,7 @@ function log(it) {
   console.log(COLOR ? it : it.replace(/\u001B\[\d+m/g, ''));
 }
 
-if (!ADBLOCK && !CI && !SILENT) {
+if (!ADBLOCK && !CI && !DISABLE_OPENCOLLECTIVE && !SILENT) {
   log('\u001B[96mThank you for using core-js (\u001B[94m https://github.com/zloirock/core-js \u001B[96m) for polyfilling JavaScript standard library!\u001B[0m\n');
   log('\u001B[96mThe project needs your help! Please consider supporting of core-js on Open Collective or Patreon: \u001B[0m');
   log('\u001B[96m>\u001B[94m https://opencollective.com/core-js \u001B[0m');
