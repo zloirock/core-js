@@ -279,7 +279,7 @@ Sometimes we could have inverse problem - knowingly broken environment with prob
 For those cases, we could redefine this behaviour for certain polyfills:
 
 ```js
-import configurator from 'core-js/configurator';
+const configurator = require('core-js/configurator');
 
 configurator({
   useNative: ['Promise'],                                 // polyfills will be used only if natives completely unavailable
@@ -287,7 +287,7 @@ configurator({
   useFeatureDetection: ['Map', 'Set'],                    // default behaviour
 });
 
-import 'core-js';
+require('core-js');
 ```
 
 It does not work with some features. Also, if you change the default behaviour, even `core-js` internals may not work correctly.
