@@ -6,7 +6,7 @@
 
 **If you looking documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
-## As advertising: the author is looking for a good job -)
+## As advertising: the author is looking for a good job =)
 
 ## [core-js@3, babel and a look into the future](https://github.com/zloirock/core-js/tree/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
 
