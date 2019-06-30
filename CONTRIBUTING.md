@@ -21,7 +21,7 @@ Coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by
 - In unit tests should be used modern syntax with our [minimalistic Babel config](./.babelrc). Unit tests for the `pure` version should not use any modern standard library features.
 - In building tools and tests, performed in Node.js, should be used only available in Node.js 4 syntax and standard library.
 
-File names should be in kebab-case. Name of files with polyfills should follow naming convention `namespace.subnamespase-where-required.feature-name`, for example, `esnext.promise.try`. Top level namespace could be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals, `web` for another web standards and `core` for helpers. Internal `core-js` modules should use `_` prefix.
+File names should be in kebab-case. Name of files with polyfills should follow naming convention `namespace.subnamespase-where-required.feature-name`, for example, `esnext.promise.try`. Top level namespace could be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals, `web` for another web standards and `core` for helpers.
 
 ## Testing
 
