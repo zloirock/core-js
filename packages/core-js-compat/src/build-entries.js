@@ -18,7 +18,8 @@ function getModulesForEntryPoint(entry) {
     const relative = resolve(dir, dependency);
     result.push(...getModulesForEntryPoint(relative));
   }
-  return result.sort((a, b) => order.indexOf(a) > order.indexOf(b) ? 1 : -1);
+  const resultSet = new Set(result);
+  return order.filter(it => resultSet.has(it));
 }
 
 const entries = {};
