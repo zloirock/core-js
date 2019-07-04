@@ -3,7 +3,6 @@ const { coerce, lt, lte } = require('semver');
 const browserslist = require('browserslist');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
-const intersection = require('core-js-pure/features/set/intersection');
 const has = Function.call.bind({}.hasOwnProperty);
 
 const mapping = new Map([
@@ -86,7 +85,8 @@ function compat({ targets, filter, version }) {
   else if (typeof filter == 'string') modules = modules.filter(it => it.startsWith(filter));
 
   if (version) {
-    modules = [...intersection(new Set(getModulesListForTargetVersion(version)), new Set(modules))];
+    const availableModules = new Set(getModulesListForTargetVersion(version));
+    modules = modules.filter(name => availableModules.has(name));
   }
 
   modules.forEach(key => {
