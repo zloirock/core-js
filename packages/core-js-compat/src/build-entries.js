@@ -3,9 +3,8 @@ const { readFileSync, writeFileSync } = require('fs');
 const { dirname, resolve } = require('path');
 const detective = require('detective');
 const { sync: glob } = require('glob');
-const intersection = require('core-js-pure/features/set/intersection');
 const data = require('./data');
-const order = new Set(Object.keys(data));
+const order = Object.keys(data);
 
 function getModulesForEntryPoint(entry) {
   const match = entry.match(/\/modules\/([^/]+)$/);
@@ -19,7 +18,7 @@ function getModulesForEntryPoint(entry) {
     const relative = resolve(dir, dependency);
     result.push(...getModulesForEntryPoint(relative));
   }
-  return [...intersection(new Set(result), order)];
+  return result.sort((a, b) => order.indexOf(a) > order.indexOf(b) ? 1 : -1);
 }
 
 const entries = {};
