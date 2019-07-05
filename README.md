@@ -106,14 +106,14 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 ### Installation:
 ```
 // global version
-npm install --save core-js@3.0.1
+npm install --save core-js@3.1.4
 // version without global namespace pollution
-npm install --save core-js-pure@3.0.1
+npm install --save core-js-pure@3.1.4
 // bundled global version
-npm install --save core-js-bundle@3.0.1
+npm install --save core-js-bundle@3.1.4
 ```
 
-Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.0.1) ([minified version](https://unpkg.com/core-js-bundle@3.0.1/minified.js)).
+Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.1.4) ([minified version](https://unpkg.com/core-js-bundle@3.1.4/minified.js)).
 
 ### CommonJS API
 You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
