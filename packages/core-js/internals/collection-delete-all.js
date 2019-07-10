@@ -7,8 +7,10 @@ module.exports = function (/* ...elements */) {
   var collection = anObject(this);
   var remover = aFunction(collection['delete']);
   var allDeleted = true;
+  var wasDeleted;
   for (var k = 0, len = arguments.length; k < len; k++) {
-    allDeleted = allDeleted && remover.call(collection, arguments[k]);
+    wasDeleted = remover.call(collection, arguments[k]);
+    allDeleted = allDeleted && wasDeleted;
   }
   return !!allDeleted;
 };
