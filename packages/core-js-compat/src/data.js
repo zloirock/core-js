@@ -838,6 +838,7 @@ const data = {
   },
   'es.string.match-all': {
     chrome: '73',
+    firefox: '67',
   },
   'es.string.pad-end': {
     edge: '15',
