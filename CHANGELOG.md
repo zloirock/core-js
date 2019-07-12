@@ -1,4 +1,10 @@
 ## Changelog
+##### Unreleased
+- Fixed incorrect early breaking of `{ Map, Set, WeakMap, WeakSet }.deleteAll`
+- Added compat data for Node 12.5, FF 67, Safari 13
+- Added support of `DISABLE_OPENCOLLECTIVE` env variable to `postinstall` script
+- Removed `core-js-pure` dependency from `core-js-compat`
+
 ##### 3.1.4 - 2019.06.15
 - Refactoring. Many minor internal improvements and fixes like:
   - Improved `Symbol.keyFor` complexity to `O(1)`
