@@ -5,7 +5,7 @@ export const DESCRIPTORS = !!(() => {
         return 7;
       },
     }).a === 7;
-  } catch (error) { /* empty */ }
+  } catch { /* empty */ }
 })();
 
 export const GLOBAL = Function('return this')();
@@ -27,7 +27,7 @@ export const TYPED_ARRAYS = {
 export const LITTLE_ENDIAN = (() => {
   try {
     return new GLOBAL.Uint8Array(new GLOBAL.Uint16Array([1]).buffer)[0] === 1;
-  } catch (error) {
+  } catch {
     return true;
   }
 })();
@@ -41,7 +41,7 @@ export const STRICT = !function () {
 export const FREEZING = !function () {
   try {
     return Object.isExtensible(Object.preventExtensions({}));
-  } catch (error) {
+  } catch {
     return true;
   }
 }();
@@ -51,7 +51,7 @@ export const CORRECT_PROTOTYPE_GETTER = !function () {
     function F() { /* empty */ }
     F.prototype.constructor = null;
     return Object.getPrototypeOf(new F()) !== F.prototype;
-  } catch (error) {
+  } catch {
     return true;
   }
 }();

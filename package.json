@@ -2,6 +2,7 @@
   "devDependencies": {
     "@babel/cli": "^7.5.0",
     "@babel/core": "^7.5.4",
+    "@babel/plugin-proposal-optional-catch-binding": "^7.2.0",
     "@babel/plugin-transform-arrow-functions": "^7.2.0",
     "@babel/plugin-transform-block-scoped-functions": "^7.2.0",
     "@babel/plugin-transform-block-scoping": "^7.4.4",

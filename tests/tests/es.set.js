@@ -47,7 +47,7 @@ QUnit.test('Set', assert => {
         return done = true;
       },
     }));
-  } catch (error) { /* empty */ }
+  } catch { /* empty */ }
   // eslint-disable-next-line no-extend-native
   Set.prototype.add = add;
   assert.ok(done, '.return #throw');

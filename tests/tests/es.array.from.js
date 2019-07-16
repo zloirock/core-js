@@ -75,7 +75,7 @@ QUnit.test('Array.from', assert => {
     }), () => {
       throw new Error();
     });
-  } catch (error) { /* empty */ }
+  } catch { /* empty */ }
   assert.ok(done, '.return #throw');
   class C { /* empty */ }
   let instance = from.call(C, createIterable([1, 2]));
