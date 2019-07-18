@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed incorrect early breaking of `{ Map, Set, WeakMap, WeakSet }.deleteAll`
+- Fixed some missed dependencies in entry points
 - Added compat data for Node 12.5, FF 67, Safari 13
 - Added support of `DISABLE_OPENCOLLECTIVE` env variable to `postinstall` script
 - Removed `core-js-pure` dependency from `core-js-compat`
