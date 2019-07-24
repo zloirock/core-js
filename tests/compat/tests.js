@@ -482,7 +482,7 @@ GLOBAL.tests = {
     return Math.fround;
   },
   'es.math.hypot': function () {
-    return Math.hypot;
+    return Math.hypot && Math.hypot(Infinity, NaN) === Infinity;
   },
   'es.math.imul': function () {
     return Math.imul(0xFFFFFFFF, 5) == -5 && Math.imul.length == 2;
