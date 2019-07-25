@@ -11,6 +11,5 @@ require('../proposals/keys-composition');
 require('../proposals/seeded-random');
 require('../proposals/string-code-points');
 require('../proposals/using-statement');
-require('../proposals/promise-any');
 
 module.exports = require('./2');
