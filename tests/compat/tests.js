@@ -1218,9 +1218,6 @@ GLOBAL.tests = {
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
-  'esnext.string.match-all': function () {
-    return String.prototype.matchAll;
-  },
   'esnext.string.replace-all': function () {
     return String.prototype.replaceAll;
   },
