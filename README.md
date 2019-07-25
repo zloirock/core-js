@@ -909,7 +909,7 @@ new Date(NaN).toString(); // => 'Invalid Date'
 ```
 
 #### ECMAScript: Promise
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/es.promise.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.promise`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/es.promise.all-settled.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/es.promise.finally.js).
 ```js
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -919,12 +919,14 @@ class Promise {
   static resolve(x: any): Promise;
   static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
+  static allSettled(iterable: Iterable): Promise;
   static race(iterable: Iterable): Promise;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/promise
+core-js(-pure)/es|stable|features/promise/all-settled
 core-js(-pure)/es|stable|features/promise/finally
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
@@ -981,6 +983,15 @@ function timeLimit(promise, time) {
 timeLimit(sleepRandom(5), 10).then(x => console.log(x));   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(x => console.log(x)); // Error: Await > 10 sec
 ```
+`Promise.allSettled` [*example*](https://goo.gl/PXXLNJ):
+```js
+Promise.allSettled([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+```
+
 [Example](http://goo.gl/wnQS4j) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time))
@@ -1589,6 +1600,16 @@ class String {
 ```js
 core-js/proposals/string-match-all
 ```
+* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/esnext.promise.all-settled.js)
+```js
+class Promise {
+  static allSettled(iterable: Iterable): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-all-settled
+```
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1607,25 +1628,6 @@ core-js(-pure)/features/global-this
 [*Examples*](https://goo.gl/LAifsc):
 ```js
 globalThis.Array === Array; // => true
-```
-* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/esnext.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable): promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-all-settled
-core-js(-pure)/features/promise/all-settled
-```
-[*Examples*](https://goo.gl/PXXLNJ):
-```js
-Promise.allSettled([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 
 #### Stage 2 proposals

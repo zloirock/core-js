@@ -693,6 +693,10 @@ const data = {
     chrome: '67', // '51',
     safari: '11.0',
   },
+  'es.promise.all-settled': {
+    chrome: '76',
+    safari: '13',
+  },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
     chrome: '67', // '63',
@@ -1259,10 +1263,8 @@ const data = {
   },
   'esnext.observable': {
   },
-  'esnext.promise.all-settled': {
-    chrome: '76',
-    safari: '13',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.promise.all-settled': null,
   'esnext.promise.any': {
   },
   'esnext.promise.try': {
@@ -1325,6 +1327,8 @@ const data = {
   },
   'esnext.string.code-points': {
   },
+  // TODO: Remove from `core-js@4`
+  'esnext.string.match-all': null,
   'esnext.string.replace-all': {
   },
   'esnext.symbol.dispose': {
@@ -1402,6 +1406,7 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 
 module.exports = data;

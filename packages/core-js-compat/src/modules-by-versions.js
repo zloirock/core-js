@@ -5,4 +5,7 @@ module.exports = {
     'es.symbol.match-all',
     'esnext.symbol.replace-all',
   ],
+  3.2: [
+    'es.promise.all-settled',
+  ],
 };

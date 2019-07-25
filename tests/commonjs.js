@@ -619,6 +619,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(new WeakSet([O = {}]).has(O));
   Promise = load('stable/promise');
   ok('all' in Promise);
+  ok(load('stable/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok(typeof load('stable/dom-collections').iterator === 'function');
   ok(typeof load('stable/dom-collections/iterator') === 'function');
   ok(typeof load('stable/set-timeout') === 'function');
@@ -881,7 +882,9 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(new Set([1, 2, 3, 2, 1]).size === 3);
   ok(new WeakMap([[O = {}, 42]]).get(O) === 42);
   ok(new WeakSet([O = {}]).has(O));
-  ok('all' in load('es/promise'));
+  Promise = load('es/promise');
+  ok('all' in Promise);
+  ok(load('es/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok('Map' in load('es'));
   ok('setTimeout' in load('web/timers'));
   ok('setImmediate' in load('web/immediate'));

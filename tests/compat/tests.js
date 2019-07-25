@@ -642,6 +642,9 @@ GLOBAL.tests = {
       && parseInt(WHITESPACES + '0x16') === 22;
   },
   'es.promise': PROMISES_SUPPORT,
+  'es.promise.all-settled': function () {
+    return Promise.allSettled;
+  },
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     return Promise.prototype['finally'];
   }],
@@ -1121,9 +1124,6 @@ GLOBAL.tests = {
   },
   'esnext.observable': function () {
     return Observable;
-  },
-  'esnext.promise.all-settled': function () {
-    return Promise.allSettled;
   },
   'esnext.promise.any': function () {
     return Promise.any;
