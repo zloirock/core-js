@@ -827,10 +827,10 @@ GLOBAL.tests = {
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
-    return Symbol.prototype.trimRight === Symbol.prototype.trimEnd;
+    return String.prototype.trimRight === String.prototype.trimEnd;
   }],
   'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
-    return Symbol.prototype.trimLeft === Symbol.prototype.trimStart;
+    return String.prototype.trimLeft === String.prototype.trimStart;
   }],
   'es.string.anchor': createStringHTMLMethodTest('anchor'),
   'es.string.big': createStringHTMLMethodTest('big'),
