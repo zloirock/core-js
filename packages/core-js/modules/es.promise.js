@@ -59,6 +59,7 @@ var FORCED = isForced(PROMISE, function () {
   // unhandled rejections tracking support, NodeJS Promise without it fails @@species test
   return !((IS_NODE || typeof PromiseRejectionEvent == 'function')
     && (!IS_PURE || promise['finally'])
+    && typeof promise.constructor === 'object'
     && promise.then(empty) instanceof FakePromise
     // v8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
     // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
