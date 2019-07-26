@@ -1716,6 +1716,19 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
+* `Symbol.{ asyncDispose, dispose }` for [`using` statement proposal](https://github.com/tc39/proposal-using-statement) - modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/esnext.symbol.async-dispose.js).
+```js
+class Symbol {
+  static asyncDispose: @@asyncDispose;
+  static dispose: @@dispose;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/using-statement
+core-js(-pure)/features/symbol/async-dispose
+core-js(-pure)/features/symbol/dispose
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -2027,17 +2040,6 @@ class Symbol {
 ```js
 core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
-```
-* `Symbol.dispose` for [`using` statement proposal](https://github.com/tc39/proposal-using-statement) - module [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/v3.1.4/packages/core-js/modules/esnext.symbol.dispose.js).
-```js
-class Symbol {
-  static dispose: @@dispose;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/using-statement
-core-js(-pure)/features/symbol/dispose
 ```
 
 #### Stage 0 proposals

@@ -7,5 +7,6 @@ module.exports = {
   ],
   3.2: [
     'es.promise.all-settled',
+    'esnext.symbol.async-dispose',
   ],
 };

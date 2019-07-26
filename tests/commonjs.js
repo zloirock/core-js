@@ -288,6 +288,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/observable'));
   ok(load('features/symbol/pattern-match'));
   ok(load('features/symbol/replace-all'));
+  ok(load('features/symbol/async-dispose'));
   ok(load('features/symbol/dispose'));
   ok(typeof load('features/symbol/for') === 'function');
   ok(typeof load('features/symbol/key-for') === 'function');

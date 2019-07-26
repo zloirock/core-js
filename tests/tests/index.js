@@ -258,6 +258,7 @@ import './esnext.set.union';
 import './esnext.string.at';
 import './esnext.string.code-points';
 import './esnext.string.replace-all';
+import './esnext.symbol.async-dispose';
 import './esnext.symbol.dispose';
 import './esnext.symbol.observable';
 import './esnext.symbol.pattern-match';

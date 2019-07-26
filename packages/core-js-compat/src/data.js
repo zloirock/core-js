@@ -1331,6 +1331,8 @@ const data = {
   'esnext.string.match-all': null,
   'esnext.string.replace-all': {
   },
+  'esnext.symbol.async-dispose': {
+  },
   'esnext.symbol.dispose': {
   },
   'esnext.symbol.observable': {
