@@ -36,3 +36,20 @@ QUnit.test('Promise#finally, rejected', assert => {
     async();
   });
 });
+
+const promise = (() => {
+  try {
+    return Function('return (async function () { /* empty */ })()')();
+  } catch { /* empty */ }
+})();
+
+if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patched', assert => {
+  assert.isFunction(promise.finally);
+  assert.arity(promise.finally, 1);
+  assert.looksNative(promise.finally);
+  assert.nonEnumerable(promise.constructor.prototype, 'finally');
+  function empty() { /* empty */ }
+  assert.ok(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
+  assert.ok(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+});
+

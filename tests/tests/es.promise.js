@@ -461,3 +461,23 @@ QUnit.skip('Unhandled rejection tracking', assert => {
     done = true;
   }, 3e3);
 });
+
+const promise = (() => {
+  try {
+    return Function('return (async function () { /* empty */ })()')();
+  } catch { /* empty */ }
+})();
+
+if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patched', assert => {
+  assert.isFunction(promise.then);
+  assert.arity(promise.then, 2);
+  assert.looksNative(promise.then);
+  assert.nonEnumerable(promise.constructor.prototype, 'then');
+  function empty() { /* empty */ }
+  assert.ok(promise.then(empty) instanceof Promise, '`.then` returns `Promise` instance #1');
+  assert.ok(new promise.constructor(empty).then(empty) instanceof Promise, '`.then` returns `Promise` instance #2');
+  assert.ok(promise.catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #1');
+  assert.ok(new promise.constructor(empty).catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #2');
+  assert.ok(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
+  assert.ok(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+});

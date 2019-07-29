@@ -5,6 +5,7 @@
 - `using` statement proposal moved to stage 2, added `Symbol.asyncDispose`, per July TC39 meeting
 - Added `Map#updateOrInsert` [stage 1 proposal](https://docs.google.com/presentation/d/1_xtrGSoN1-l2Q74eCXPHBbbrBHsVyqArWN0ebnW-pVQ/), per July TC39 meeting
 - Added a fix for [`Math.hypot` V8 7.7 bug](https://bugs.chromium.org/p/v8/issues/detail?id=9546), since it's still not stable without adding results to `core-js-compat`
+- Added a workaround for APIs where not possible to replace broken native `Promise`, [#579](https://github.com/zloirock/core-js/issues/579) - added `.finally` and patched `.then` to / on native `Promise` prototype
 - Fixed incorrect early breaking of `{ Map, Set, WeakMap, WeakSet }.deleteAll`
 - Fixed some missed dependencies in entry points
 - Added compat data for Node 12.5, FF 67, Safari 13
