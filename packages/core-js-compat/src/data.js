@@ -42,6 +42,7 @@ const data = {
   'es.symbol.match-all': {
     chrome: '73',
     firefox: '67',
+    safari: '13',
   },
   'es.symbol.replace': {
     chrome: '50',
@@ -248,10 +249,12 @@ const data = {
   'es.array.unscopables.flat': {
     firefox: '67',
     chrome: '73',
+    safari: '13',
   },
   'es.array.unscopables.flat-map': {
     firefox: '67',
     chrome: '73',
+    safari: '13',
   },
   'es.array-buffer.constructor': {
     edge: '14',
@@ -843,6 +846,7 @@ const data = {
   'es.string.match-all': {
     chrome: '73',
     firefox: '67',
+    safari: '13',
   },
   'es.string.pad-end': {
     edge: '15',
