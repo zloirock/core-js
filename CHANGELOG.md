@@ -11,7 +11,8 @@
 - Fixed some missed dependencies in entry points
 - Added compat data for Node 12.5, FF 67, Safari 13
 - Added support of `DISABLE_OPENCOLLECTIVE` env variable to `postinstall` script
-- Removed `core-js-pure` dependency from `core-js-compat`
+- Removed `core-js-pure` dependency from `core-js-compat`, [#590](https://github.com/zloirock/core-js/issues/590)
+- Fixed generation of `core-js-compat` on Windows, [#606](https://github.com/zloirock/core-js/issues/606)
 
 ##### 3.1.4 - 2019.06.15
 - Refactoring. Many minor internal improvements and fixes like:
