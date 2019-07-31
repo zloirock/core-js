@@ -3,6 +3,7 @@
 - `Promise.allSettled` moved to stable ES, per July TC39 meeting
 - `Promise.any` moved to stage 2, `.errors` property of `AggregateError` instances maked non-enumerable, per July TC39 meeting
 - `using` statement proposal moved to stage 2, added `Symbol.asyncDispose`, per July TC39 meeting
+- Added `Array.isTemplateObject` [stage 2 proposal](https://github.com/tc39/proposal-array-is-template-object), per June TC39 meeting
 - Added `Map#updateOrInsert` [stage 1 proposal](https://docs.google.com/presentation/d/1_xtrGSoN1-l2Q74eCXPHBbbrBHsVyqArWN0ebnW-pVQ/), per July TC39 meeting
 - Added a fix for [`Math.hypot` V8 7.7 bug](https://bugs.chromium.org/p/v8/issues/detail?id=9546), since it's still not stable without adding results to `core-js-compat`
 - Added a workaround for APIs where not possible to replace broken native `Promise`, [#579](https://github.com/zloirock/core-js/issues/579) - added `.finally` and patched `.then` to / on native `Promise` prototype

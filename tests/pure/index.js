@@ -140,6 +140,7 @@ import './es.weak-set';
 
 QUnit.module('ESNext');
 import './esnext.aggregate-error';
+import './esnext.array.is-template-object';
 import './esnext.composite-key';
 import './esnext.composite-symbol';
 import './esnext.global-this';

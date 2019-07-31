@@ -55,6 +55,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(Function[load('features/symbol/has-instance')](function () { /* empty */ }));
   ok('bind' in load('features/function'));
   ok(load('features/array/is-array')([]));
+  ok(typeof load('features/array/is-template-object') === 'function');
   ok(Array.isArray(load('features/array/from')('qwe')));
   ok(Array.isArray(load('features/array/of')('q', 'w', 'e')));
   ok(load('features/array/join')('qwe', 1) === 'q1w1e');
@@ -895,6 +896,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('web/url') === 'function');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
+  load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
