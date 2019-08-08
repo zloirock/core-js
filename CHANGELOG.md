@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.2.0 - 2019.08.09
 - `Promise.allSettled` moved to stable ES, per July TC39 meeting
 - `Promise.any` moved to stage 2, `.errors` property of `AggregateError` instances maked non-enumerable, per July TC39 meeting
 - `using` statement proposal moved to stage 2, added `Symbol.asyncDispose`, per July TC39 meeting
