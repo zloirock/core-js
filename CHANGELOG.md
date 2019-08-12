@@ -1,4 +1,7 @@
 ## Changelog
+##### 3.2.1 - 2019.08.12
+- Added a workaround for possible recursion in microtasks caused by conflicts with other `Promise` polyfills, [#615](https://github.com/zloirock/core-js/issues/615)
+
 ##### 3.2.0 - 2019.08.09
 - `Promise.allSettled` moved to stable ES, per July TC39 meeting
 - `Promise.any` moved to stage 2, `.errors` property of `AggregateError` instances maked non-enumerable, per July TC39 meeting
