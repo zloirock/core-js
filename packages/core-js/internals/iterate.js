@@ -12,7 +12,7 @@ var Result = function (stopped, result) {
 
 var iterate = module.exports = function (iterable, fn, that, AS_ENTRIES, IS_ITERATOR) {
   var boundFunction = bind(fn, that, AS_ENTRIES ? 2 : 1);
-  var iterator, iterFn, index, length, result, step;
+  var iterator, iterFn, index, length, result, next, step;
 
   if (IS_ITERATOR) {
     iterator = iterable;
@@ -31,9 +31,10 @@ var iterate = module.exports = function (iterable, fn, that, AS_ENTRIES, IS_ITER
     iterator = iterFn.call(iterable);
   }
 
-  while (!(step = iterator.next()).done) {
+  next = iterator.next;
+  while (!(step = next.call(iterator)).done) {
     result = callWithSafeIterationClosing(iterator, boundFunction, step.value, AS_ENTRIES);
-    if (result && result instanceof Result) return result;
+    if (typeof result == 'object' && result && result instanceof Result) return result;
   } return new Result(false);
 };
 
