@@ -605,6 +605,7 @@ module.exports = {
         globalThis: true,
         queueMicrotask: true,
         AggregateError: true,
+        Iterator: true,
         Observable: true,
       },
     },

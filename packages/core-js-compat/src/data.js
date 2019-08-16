@@ -1209,6 +1209,32 @@ const data = {
     firefox: '65',
     safari: '12.1',
   },
+  'esnext.iterator.constructor': {
+  },
+  'esnext.iterator.as-indexed-pairs': {
+  },
+  'esnext.iterator.drop': {
+  },
+  'esnext.iterator.every': {
+  },
+  'esnext.iterator.filter': {
+  },
+  'esnext.iterator.find': {
+  },
+  'esnext.iterator.for-each': {
+  },
+  'esnext.iterator.from': {
+  },
+  'esnext.iterator.map': {
+  },
+  'esnext.iterator.reduce': {
+  },
+  'esnext.iterator.some': {
+  },
+  'esnext.iterator.take': {
+  },
+  'esnext.iterator.to-array': {
+  },
   'esnext.map.delete-all': {
   },
   'esnext.map.every': {

@@ -429,6 +429,46 @@ GLOBAL.tests = {
   'es.function.name': function () {
     return 'name' in Function.prototype;
   },
+  'esnext.iterator.constructor': function () {
+    return typeof Iterator == 'function'
+      && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+  },
+  'esnext.iterator.as-indexed-pairs': function () {
+    return Iterator.prototype.asIndexedPairs;
+  },
+  'esnext.iterator.drop': function () {
+    return Iterator.prototype.drop;
+  },
+  'esnext.iterator.every': function () {
+    return Iterator.prototype.every;
+  },
+  'esnext.iterator.filter': function () {
+    return Iterator.prototype.filter;
+  },
+  'esnext.iterator.find': function () {
+    return Iterator.prototype.find;
+  },
+  'esnext.iterator.for-each': function () {
+    return Iterator.prototype.forEach;
+  },
+  'esnext.iterator.from': function () {
+    return Iterator.from;
+  },
+  'esnext.iterator.map': function () {
+    return Iterator.prototype.map;
+  },
+  'esnext.iterator.reduce': function () {
+    return Iterator.prototype.reduce;
+  },
+  'esnext.iterator.some': function () {
+    return Iterator.prototype.some;
+  },
+  'esnext.iterator.take': function () {
+    return Iterator.prototype.take;
+  },
+  'esnext.iterator.to-array': function () {
+    return Iterator.prototype.toArray;
+  },
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
