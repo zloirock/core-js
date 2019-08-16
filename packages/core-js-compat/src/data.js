@@ -1200,6 +1200,8 @@ const data = {
   },
   'esnext.array.last-item': {
   },
+  'esnext.async-iterator.constructor': {
+  },
   'esnext.composite-key': {
   },
   'esnext.composite-symbol': {

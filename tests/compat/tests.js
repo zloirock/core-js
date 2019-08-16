@@ -399,6 +399,9 @@ GLOBAL.tests = {
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
+  'esnext.async-iterator.constructor': function () {
+    return typeof AsyncIterator == 'function';
+  },
   'es.data-view': ARRAY_BUFFER_SUPPORT,
   'es.date.now': function () {
     return Date.now;
