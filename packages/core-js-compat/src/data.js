@@ -694,15 +694,18 @@ const data = {
   'es.promise': {
     // V8 6.6 has a serious bug
     chrome: '67', // '51',
+    firefox: '69',
     safari: '11.0',
   },
   'es.promise.all-settled': {
     chrome: '76',
+    firefox: '69',
     safari: '13',
   },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
     chrome: '67', // '63',
+    firefox: '69',
     safari: '12.0',
   },
   'es.reflect.apply': {
@@ -1383,6 +1386,7 @@ const data = {
     chrome: '71',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     // Waiting for https://github.com/nodejs/node/pull/25594
+    firefox: '69',
     node: '12.0',
     safari: '12.1',
   },
