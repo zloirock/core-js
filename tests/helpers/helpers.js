@@ -44,7 +44,7 @@ export const nativeSubclass = (() => {
       'use strict';
       return class extends Parent { /* empty */ };
     `);
-  } catch (error) { /* empty */ }
+  } catch { /* empty */ }
 })();
 
 export function timeLimitedPromise(time, fn) {

@@ -144,6 +144,7 @@ require('../modules/es.date.to-string');
 require('../modules/es.date.to-primitive');
 require('../modules/es.json.to-string-tag');
 require('../modules/es.promise');
+require('../modules/es.promise.all-settled');
 require('../modules/es.promise.finally');
 require('../modules/es.map');
 require('../modules/es.set');

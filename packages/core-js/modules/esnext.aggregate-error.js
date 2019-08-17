@@ -14,7 +14,7 @@ var $AggregateError = function AggregateError(errors, message) {
   }
   var errorsArray = [];
   iterate(errors, errorsArray.push, errorsArray);
-  that.errors = errorsArray;
+  hide(that, 'errors', errorsArray);
   if (message !== undefined) hide(that, 'message', String(message));
   return that;
 };

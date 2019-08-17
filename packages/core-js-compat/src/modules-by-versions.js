@@ -5,4 +5,10 @@ module.exports = {
     'es.symbol.match-all',
     'esnext.symbol.replace-all',
   ],
+  3.2: [
+    'es.promise.all-settled',
+    'esnext.array.is-template-object',
+    'esnext.map.update-or-insert',
+    'esnext.symbol.async-dispose',
+  ],
 };

@@ -1,11 +1,4 @@
-'use strict';
-require('../../modules/es.promise');
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.promise.all-settled');
-var path = require('../../internals/path');
 
-var Promise = path.Promise;
-var $allSettled = Promise.allSettled;
-
-module.exports = function allSettled(iterable) {
-  return $allSettled.call(typeof this === 'function' ? this : Promise, iterable);
-};
+module.exports = require('../../es/promise/all-settled');

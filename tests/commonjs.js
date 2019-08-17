@@ -55,6 +55,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(Function[load('features/symbol/has-instance')](function () { /* empty */ }));
   ok('bind' in load('features/function'));
   ok(load('features/array/is-array')([]));
+  ok(typeof load('features/array/is-template-object') === 'function');
   ok(Array.isArray(load('features/array/from')('qwe')));
   ok(Array.isArray(load('features/array/of')('q', 'w', 'e')));
   ok(load('features/array/join')('qwe', 1) === 'q1w1e');
@@ -288,6 +289,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/symbol/observable'));
   ok(load('features/symbol/pattern-match'));
   ok(load('features/symbol/replace-all'));
+  ok(load('features/symbol/async-dispose'));
   ok(load('features/symbol/dispose'));
   ok(typeof load('features/symbol/for') === 'function');
   ok(typeof load('features/symbol/key-for') === 'function');
@@ -323,6 +325,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
   ok(load('features/map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
   ok(load('features/map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
+  ok(load('features/map/update-or-insert')(new Map([[1, 2]]), 1, it => it ** 2, () => 42) === 4);
   ok(load('features/set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
   ok(load('features/set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
   ok(load('features/set/difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
@@ -619,6 +622,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(new WeakSet([O = {}]).has(O));
   Promise = load('stable/promise');
   ok('all' in Promise);
+  ok(load('stable/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok(typeof load('stable/dom-collections').iterator === 'function');
   ok(typeof load('stable/dom-collections/iterator') === 'function');
   ok(typeof load('stable/set-timeout') === 'function');
@@ -881,7 +885,9 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(new Set([1, 2, 3, 2, 1]).size === 3);
   ok(new WeakMap([[O = {}, 42]]).get(O) === 42);
   ok(new WeakSet([O = {}]).has(O));
-  ok('all' in load('es/promise'));
+  Promise = load('es/promise');
+  ok('all' in Promise);
+  ok(load('es/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok('Map' in load('es'));
   ok('setTimeout' in load('web/timers'));
   ok('setImmediate' in load('web/immediate'));
@@ -890,6 +896,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('web/url') === 'function');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
+  load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');

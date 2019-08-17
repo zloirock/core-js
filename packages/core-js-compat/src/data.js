@@ -42,6 +42,7 @@ const data = {
   'es.symbol.match-all': {
     chrome: '73',
     firefox: '67',
+    safari: '13',
   },
   'es.symbol.replace': {
     chrome: '50',
@@ -248,10 +249,12 @@ const data = {
   'es.array.unscopables.flat': {
     firefox: '67',
     chrome: '73',
+    safari: '13',
   },
   'es.array.unscopables.flat-map': {
     firefox: '67',
     chrome: '73',
+    safari: '13',
   },
   'es.array-buffer.constructor': {
     edge: '14',
@@ -694,6 +697,11 @@ const data = {
     firefox: '69',
     safari: '11.0',
   },
+  'es.promise.all-settled': {
+    chrome: '76',
+    firefox: '69',
+    safari: '13',
+  },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
     chrome: '67', // '63',
@@ -840,6 +848,8 @@ const data = {
   },
   'es.string.match-all': {
     chrome: '73',
+    firefox: '67',
+    safari: '13',
   },
   'es.string.pad-end': {
     edge: '15',
@@ -1183,6 +1193,8 @@ const data = {
   },
   'esnext.aggregate-error': {
   },
+  'esnext.array.is-template-object': {
+  },
   'esnext.array.last-index': {
   },
   'esnext.array.last-item': {
@@ -1230,6 +1242,8 @@ const data = {
   },
   'esnext.map.update': {
   },
+  'esnext.map.update-or-insert': {
+  },
   'esnext.math.clamp': {
   },
   'esnext.math.deg-per-rad': {
@@ -1260,11 +1274,8 @@ const data = {
   },
   'esnext.observable': {
   },
-  'esnext.promise.all-settled': {
-    chrome: '76',
-    firefox: '69',
-    safari: '13',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.promise.all-settled': null,
   'esnext.promise.any': {
   },
   'esnext.promise.try': {
@@ -1327,7 +1338,11 @@ const data = {
   },
   'esnext.string.code-points': {
   },
+  // TODO: Remove from `core-js@4`
+  'esnext.string.match-all': null,
   'esnext.string.replace-all': {
+  },
+  'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
   },
@@ -1405,6 +1420,7 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 
 module.exports = data;

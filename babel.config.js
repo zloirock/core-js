@@ -2,6 +2,7 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
+    ['@babel/proposal-optional-catch-binding'],
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
@@ -17,8 +18,7 @@ module.exports = {
     ['@babel/transform-template-literals', { loose: true, spec: true }],
     ['@babel/transform-exponentiation-operator'],
     ['transform-for-of-as-array'],
-    ['@babel/plugin-transform-runtime'],
     // use it instead of webpack es modules for support engines without descriptors
-    ['babel-plugin-transform-es2015-modules-simple-commonjs'],
+    ['transform-es2015-modules-simple-commonjs'],
   ],
 };

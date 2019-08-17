@@ -1,4 +1,4 @@
-import Promise from 'core-js-pure/features/promise';
+import Promise from 'core-js-pure/es/promise';
 
 QUnit.test('Promise.allSettled', assert => {
   assert.isFunction(Promise.allSettled);
