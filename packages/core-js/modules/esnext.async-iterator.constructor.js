@@ -5,6 +5,7 @@ var has = require('../internals/has');
 var hide = require('../internals/hide');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
+var IS_PURE = require('../internals/is-pure');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
@@ -18,6 +19,6 @@ if (!has(AsyncIteratorPrototype, TO_STRING_TAG)) {
   hide(AsyncIteratorPrototype, TO_STRING_TAG, 'AsyncIterator');
 }
 
-$({ global: true }, {
+$({ global: true, forced: IS_PURE }, {
   AsyncIterator: AsyncIteratorConstructor
 });

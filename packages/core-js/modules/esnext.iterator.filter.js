@@ -19,7 +19,7 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-$({ target: 'Iterator', proto: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new IteratorProxy({
       iterator: anObject(this),

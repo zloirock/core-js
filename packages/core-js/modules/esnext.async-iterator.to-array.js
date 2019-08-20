@@ -4,7 +4,7 @@ var getBuiltIn = require('../internals/get-built-in');
 
 var push = [].push;
 
-$({ target: 'AsyncIterator', proto: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   toArray: function toArray() {
     var Promise = getBuiltIn('Promise');
     var iterator = this;

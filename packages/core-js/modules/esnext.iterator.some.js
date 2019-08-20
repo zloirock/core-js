@@ -4,7 +4,7 @@ var iterate = require('../internals/iterate');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 
-$({ target: 'Iterator', proto: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   some: function some(fn) {
     anObject(this);
     aFunction(fn);

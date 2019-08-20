@@ -12,7 +12,7 @@ var IteratorProxy = createIteratorProxy(function () {
   if (!done) return callWithSafeIterationClosing(iterator, this.mapper, result.value);
 });
 
-$({ target: 'Iterator', proto: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   map: function map(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),

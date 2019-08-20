@@ -22,7 +22,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   map: function map(mapper) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
