@@ -1,12 +1,16 @@
 'use strict';
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
+var hide = require('../internals/hide');
 var redefineAll = require('../internals/redefine-all');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.get;
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $return = function (value) {
   var iterator = getInternalState(this).iterator;
@@ -21,7 +25,7 @@ var $throw = function (value) {
   return $$throw.call(iterator, value);
 };
 
-module.exports = function (nextHandler) {
+module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(state) {
     state.next = state.iterator.next;
     state.done = false;
@@ -37,6 +41,10 @@ module.exports = function (nextHandler) {
     'return': $return,
     'throw': $throw
   });
+
+  if (!IS_ITERATOR) {
+    hide(IteratorProxy.prototype, TO_STRING_TAG, 'Generator');
+  }
 
   return IteratorProxy;
 };

@@ -1,13 +1,17 @@
 'use strict';
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
+var hide = require('../internals/hide');
 var redefineAll = require('../internals/redefine-all');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
 
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.get;
+
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $return = function (value) {
   var state = getInternalState(this);
@@ -27,7 +31,7 @@ var $throw = function (value) {
     : $$throw.call(iterator, value);
 };
 
-module.exports = function (nextHandler) {
+module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
     state.Promise = getBuiltIn('Promise');
     state.next = state.iterator.next;
@@ -49,6 +53,10 @@ module.exports = function (nextHandler) {
     'return': $return,
     'throw': $throw
   });
+
+  if (!IS_ITERATOR) {
+    hide(AsyncIteratorProxy.prototype, TO_STRING_TAG, 'Generator');
+  }
 
   return AsyncIteratorProxy;
 };

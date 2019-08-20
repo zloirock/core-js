@@ -14,7 +14,7 @@ var IteratorProxy = createIteratorProxy(function () {
   var result = anObject(this.next.apply(this.iterator, arguments));
   var done = this.done = !!result.done;
   if (!done) return result.value;
-});
+}, true);
 
 $({ target: 'Iterator', stat: true }, {
   from: function from(O) {

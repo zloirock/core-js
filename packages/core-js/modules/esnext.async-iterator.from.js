@@ -14,7 +14,7 @@ AsyncIterator.prototype = AsyncIteratorPrototype;
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
   return this.next.apply(this.iterator, arguments);
-});
+}, true);
 
 $({ target: 'AsyncIterator', stat: true }, {
   from: function from(O) {
