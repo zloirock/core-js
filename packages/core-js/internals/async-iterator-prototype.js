@@ -17,7 +17,7 @@ if (typeof AsyncIterator == 'function') {
     // eslint-disable-next-line no-new-func
     prototype = getPrototypeOf(getPrototypeOf(getPrototypeOf(Function('return async function*(){}()')())));
     if (getPrototypeOf(prototype) === Object.prototype) AsyncIteratorPrototype = prototype;
-  } catch (error) { /* */ }
+  } catch (error) { /* empty */ }
 }
 
 if (!AsyncIteratorPrototype) AsyncIteratorPrototype = {};

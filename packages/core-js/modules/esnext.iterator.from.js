@@ -19,10 +19,10 @@ var IteratorProxy = createIteratorProxy(function () {
 $({ target: 'Iterator', stat: true }, {
   from: function from(O) {
     var object = toObject(O);
-    var iteratorMethod = getIteratorMethod(object);
+    var usingIterator = getIteratorMethod(object);
     var iterator;
-    if (iteratorMethod != null) {
-      iterator = aFunction(iteratorMethod).call(O);
+    if (usingIterator != null) {
+      iterator = aFunction(usingIterator).call(object);
       if (iterator instanceof Iterator) return iterator;
     } else {
       iterator = object;

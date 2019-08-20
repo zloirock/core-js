@@ -402,6 +402,24 @@ GLOBAL.tests = {
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
+  'esnext.async-iterator.drop': function () {
+    return AsyncIterator.prototype.drop;
+  },
+  'esnext.async-iterator.filter': function () {
+    return AsyncIterator.prototype.filter;
+  },
+  'esnext.async-iterator.from': function () {
+    return AsyncIterator.from;
+  },
+  'esnext.async-iterator.map': function () {
+    return AsyncIterator.prototype.map;
+  },
+  'esnext.async-iterator.take': function () {
+    return AsyncIterator.prototype.take;
+  },
+  'esnext.async-iterator.to-array': function () {
+    return AsyncIterator.prototype.toArray;
+  },
   'es.data-view': ARRAY_BUFFER_SUPPORT,
   'es.date.now': function () {
     return Date.now;

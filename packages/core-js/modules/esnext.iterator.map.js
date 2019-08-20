@@ -7,10 +7,9 @@ var callWithSafeIterationClosing = require('../internals/call-with-safe-iteratio
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
-  var mapper = this.mapper;
   var result = anObject(this.next.apply(iterator, arguments));
   var done = this.done = !!result.done;
-  if (!done) return callWithSafeIterationClosing(iterator, mapper, result.value);
+  if (!done) return callWithSafeIterationClosing(iterator, this.mapper, result.value);
 });
 
 $({ target: 'Iterator', proto: true }, {
