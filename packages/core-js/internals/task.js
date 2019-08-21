@@ -66,8 +66,8 @@ if (!set || !clear) {
     defer = function (id) {
       Dispatch.now(runner(id));
     };
-  // Browsers with MessageChannel, includes WebWorkers
-  } else if (MessageChannel) {
+  // Browsers with MessageChannel, includes WebWorkers, except iOS - https://github.com/zloirock/core-js/issues/624
+  } else if (MessageChannel && !/(iphone|ipod|ipad).*applewebkit/i.test(userAgent)) {
     channel = new MessageChannel();
     port = channel.port2;
     channel.port1.onmessage = listener;
