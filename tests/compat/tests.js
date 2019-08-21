@@ -399,27 +399,6 @@ GLOBAL.tests = {
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
-  'esnext.async-iterator.constructor': function () {
-    return typeof AsyncIterator == 'function';
-  },
-  'esnext.async-iterator.drop': function () {
-    return AsyncIterator.prototype.drop;
-  },
-  'esnext.async-iterator.filter': function () {
-    return AsyncIterator.prototype.filter;
-  },
-  'esnext.async-iterator.from': function () {
-    return AsyncIterator.from;
-  },
-  'esnext.async-iterator.map': function () {
-    return AsyncIterator.prototype.map;
-  },
-  'esnext.async-iterator.take': function () {
-    return AsyncIterator.prototype.take;
-  },
-  'esnext.async-iterator.to-array': function () {
-    return AsyncIterator.prototype.toArray;
-  },
   'es.data-view': ARRAY_BUFFER_SUPPORT,
   'es.date.now': function () {
     return Date.now;
@@ -449,46 +428,6 @@ GLOBAL.tests = {
   }],
   'es.function.name': function () {
     return 'name' in Function.prototype;
-  },
-  'esnext.iterator.constructor': function () {
-    return typeof Iterator == 'function'
-      && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
-  },
-  'esnext.iterator.as-indexed-pairs': function () {
-    return Iterator.prototype.asIndexedPairs;
-  },
-  'esnext.iterator.drop': function () {
-    return Iterator.prototype.drop;
-  },
-  'esnext.iterator.every': function () {
-    return Iterator.prototype.every;
-  },
-  'esnext.iterator.filter': function () {
-    return Iterator.prototype.filter;
-  },
-  'esnext.iterator.find': function () {
-    return Iterator.prototype.find;
-  },
-  'esnext.iterator.for-each': function () {
-    return Iterator.prototype.forEach;
-  },
-  'esnext.iterator.from': function () {
-    return Iterator.from;
-  },
-  'esnext.iterator.map': function () {
-    return Iterator.prototype.map;
-  },
-  'esnext.iterator.reduce': function () {
-    return Iterator.prototype.reduce;
-  },
-  'esnext.iterator.some': function () {
-    return Iterator.prototype.some;
-  },
-  'esnext.iterator.take': function () {
-    return Iterator.prototype.take;
-  },
-  'esnext.iterator.to-array': function () {
-    return Iterator.prototype.toArray;
   },
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
@@ -1081,6 +1020,27 @@ GLOBAL.tests = {
   'esnext.array.last-item': function () {
     return [1, 2, 3].lastItem && Array.prototype[Symbol.unscopables].lastItem;
   },
+  'esnext.async-iterator.constructor': function () {
+    return typeof AsyncIterator == 'function';
+  },
+  'esnext.async-iterator.drop': function () {
+    return AsyncIterator.prototype.drop;
+  },
+  'esnext.async-iterator.filter': function () {
+    return AsyncIterator.prototype.filter;
+  },
+  'esnext.async-iterator.from': function () {
+    return AsyncIterator.from;
+  },
+  'esnext.async-iterator.map': function () {
+    return AsyncIterator.prototype.map;
+  },
+  'esnext.async-iterator.take': function () {
+    return AsyncIterator.prototype.take;
+  },
+  'esnext.async-iterator.to-array': function () {
+    return AsyncIterator.prototype.toArray;
+  },
   'esnext.composite-key': function () {
     return compositeKey;
   },
@@ -1089,6 +1049,46 @@ GLOBAL.tests = {
   },
   'esnext.global-this': function () {
     return globalThis;
+  },
+  'esnext.iterator.constructor': function () {
+    return typeof Iterator == 'function'
+      && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+  },
+  'esnext.iterator.as-indexed-pairs': function () {
+    return Iterator.prototype.asIndexedPairs;
+  },
+  'esnext.iterator.drop': function () {
+    return Iterator.prototype.drop;
+  },
+  'esnext.iterator.every': function () {
+    return Iterator.prototype.every;
+  },
+  'esnext.iterator.filter': function () {
+    return Iterator.prototype.filter;
+  },
+  'esnext.iterator.find': function () {
+    return Iterator.prototype.find;
+  },
+  'esnext.iterator.for-each': function () {
+    return Iterator.prototype.forEach;
+  },
+  'esnext.iterator.from': function () {
+    return Iterator.from;
+  },
+  'esnext.iterator.map': function () {
+    return Iterator.prototype.map;
+  },
+  'esnext.iterator.reduce': function () {
+    return Iterator.prototype.reduce;
+  },
+  'esnext.iterator.some': function () {
+    return Iterator.prototype.some;
+  },
+  'esnext.iterator.take': function () {
+    return Iterator.prototype.take;
+  },
+  'esnext.iterator.to-array': function () {
+    return Iterator.prototype.toArray;
   },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;

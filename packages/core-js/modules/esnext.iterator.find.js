@@ -5,7 +5,7 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 
 $({ target: 'Iterator', proto: true, real: true }, {
-  every: function every(fn) {
+  find: function find(fn) {
     anObject(this);
     aFunction(fn);
     return iterate(this, function (value) {
