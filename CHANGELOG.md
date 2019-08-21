@@ -1,4 +1,8 @@
 ## Changelog
+##### Unreleased
+- Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
+- Added compat data for Node 12.9 and FF 69
+
 ##### 3.2.1 - 2019.08.12
 - Added a workaround for possible recursion in microtasks caused by conflicts with other `Promise` polyfills, [#615](https://github.com/zloirock/core-js/issues/615)
 
