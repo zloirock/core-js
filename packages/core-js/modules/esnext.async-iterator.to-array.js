@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var aFunction = require('../internals/a-function');
 var getBuiltIn = require('../internals/get-built-in');
 
 var push = [].push;
@@ -8,7 +9,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   toArray: function toArray() {
     var Promise = getBuiltIn('Promise');
     var iterator = this;
-    var next = iterator.next;
+    var next = aFunction(iterator.next);
     var result = [];
 
     return new Promise(function (resolve, reject) {
