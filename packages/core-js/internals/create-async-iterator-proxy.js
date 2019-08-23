@@ -1,4 +1,5 @@
 'use strict';
+var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var hide = require('../internals/hide');
@@ -34,7 +35,7 @@ var $throw = function (value) {
 module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
     state.Promise = getBuiltIn('Promise');
-    state.next = state.iterator.next;
+    state.next = aFunction(state.iterator.next);
     state.done = false;
     setInternalState(this, state);
   };
