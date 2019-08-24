@@ -1,11 +1,11 @@
 'use strict';
+var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var hide = require('../internals/hide');
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
@@ -33,7 +33,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  IteratorProxy.prototype = redefineAll(create(IteratorPrototype), {
+  IteratorProxy.prototype = redefineAll(create(path.Iterator.prototype), {
     next: function next() {
       var state = getInternalState(this);
       var result = state.done ? undefined : nextHandler.apply(state, arguments);

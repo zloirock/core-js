@@ -1,5 +1,6 @@
 import { DESCRIPTORS } from './constants';
 import isIterable from 'core-js-pure/features/is-iterable';
+import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
@@ -48,6 +49,15 @@ QUnit.assert.isFunction = function (fn, message) {
     actual: false,
     expected: true,
     message: message || 'is function',
+  });
+};
+
+QUnit.assert.isAsyncIterable = function (it, message) {
+  this.pushResult({
+    result: typeof it == 'object' && typeof it[ASYNC_ITERATOR] == 'function',
+    actual: false,
+    expected: true,
+    message: message || 'is async iterable',
   });
 };
 

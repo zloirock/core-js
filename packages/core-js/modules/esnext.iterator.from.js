@@ -1,14 +1,12 @@
 var $ = require('../internals/export');
+var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 var getIteratorMethod = require('../internals/get-iterator-method');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 
-var Iterator = function () { /* empty */ };
-
-Iterator.prototype = IteratorPrototype;
+var Iterator = path.Iterator;
 
 var IteratorProxy = createIteratorProxy(function () {
   var result = anObject(this.next.apply(this.iterator, arguments));

@@ -1,6 +1,22 @@
 import Promise from 'core-js-pure/es/promise';
 import ITERATOR from 'core-js-pure/features/symbol/iterator';
 
+export function createIterator(elements, methods) {
+  let index = 0;
+  const iterator = {
+    called: false,
+    next() {
+      iterator.called = true;
+      return {
+        value: elements[index++],
+        done: index > elements.length,
+      };
+    },
+  };
+  if (methods) for (const key in methods) iterator[key] = methods[key];
+  return iterator;
+}
+
 export function createIterable(elements, methods) {
   const iterable = {
     called: false,
