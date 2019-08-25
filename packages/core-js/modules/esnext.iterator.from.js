@@ -1,3 +1,4 @@
+// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var path = require('../internals/path');
 var aFunction = require('../internals/a-function');

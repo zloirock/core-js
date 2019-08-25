@@ -1,4 +1,5 @@
 'use strict';
+// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/create-iterator-proxy');

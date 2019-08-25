@@ -1,4 +1,5 @@
 'use strict';
+// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');

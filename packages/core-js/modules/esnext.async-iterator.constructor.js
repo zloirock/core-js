@@ -1,4 +1,5 @@
 'use strict';
+// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var anInstance = require('../internals/an-instance');
 var has = require('../internals/has');
