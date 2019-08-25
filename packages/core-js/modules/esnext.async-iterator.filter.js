@@ -4,10 +4,12 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
+var getBuiltIn = require('../internals/get-built-in');
+
+var Promise = getBuiltIn('Promise');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
   var state = this;
-  var Promise = state.Promise;
   var iterator = state.iterator;
   var next = state.next;
   var filterer = state.filterer;

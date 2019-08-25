@@ -3,10 +3,12 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
+var getBuiltIn = require('../internals/get-built-in');
+
+var Promise = getBuiltIn('Promise');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
   var state = this;
-  var Promise = state.Promise;
 
   return new Promise(function (resolve, reject) {
     var loop = function () {
