@@ -17,6 +17,7 @@
     - `Iterator#@@toStringTag`
   - `AsyncIterator`
     - `AsyncIterator.from`
+    - `AsyncIterator#asIndexedPairs`
     - `AsyncIterator#drop`
     - `AsyncIterator#filter`
     - `AsyncIterator#forEach`

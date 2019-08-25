@@ -1023,6 +1023,9 @@ GLOBAL.tests = {
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
+  'esnext.async-iterator.as-indexed-pairs': function () {
+    return AsyncIterator.prototype.asIndexedPairs;
+  },
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
   },

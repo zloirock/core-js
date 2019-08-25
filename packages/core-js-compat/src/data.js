@@ -1202,6 +1202,8 @@ const data = {
   },
   'esnext.async-iterator.constructor': {
   },
+  'esnext.async-iterator.as-indexed-pairs': {
+  },
   'esnext.async-iterator.drop': {
   },
   'esnext.async-iterator.filter': {
