@@ -1206,7 +1206,11 @@ const data = {
   },
   'esnext.async-iterator.drop': {
   },
+  'esnext.async-iterator.every': {
+  },
   'esnext.async-iterator.filter': {
+  },
+  'esnext.async-iterator.find': {
   },
   'esnext.async-iterator.for-each': {
   },
@@ -1215,6 +1219,8 @@ const data = {
   'esnext.async-iterator.map': {
   },
   'esnext.async-iterator.reduce': {
+  },
+  'esnext.async-iterator.some': {
   },
   'esnext.async-iterator.take': {
   },

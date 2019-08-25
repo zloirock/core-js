@@ -1029,8 +1029,14 @@ GLOBAL.tests = {
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
   },
+  'esnext.async-iterator.every': function () {
+    return AsyncIterator.prototype.every;
+  },
   'esnext.async-iterator.filter': function () {
     return AsyncIterator.prototype.filter;
+  },
+  'esnext.async-iterator.find': function () {
+    return AsyncIterator.prototype.find;
   },
   'esnext.async-iterator.for-each': function () {
     return AsyncIterator.prototype.forEach;
@@ -1043,6 +1049,9 @@ GLOBAL.tests = {
   },
   'esnext.async-iterator.reduce': function () {
     return AsyncIterator.prototype.reduce;
+  },
+  'esnext.async-iterator.some': function () {
+    return AsyncIterator.prototype.some;
   },
   'esnext.async-iterator.take': function () {
     return AsyncIterator.prototype.take;

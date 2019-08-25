@@ -19,10 +19,13 @@
     - `AsyncIterator.from`
     - `AsyncIterator#asIndexedPairs`
     - `AsyncIterator#drop`
+    - `AsyncIterator#every`
     - `AsyncIterator#filter`
+    - `AsyncIterator#find`
     - `AsyncIterator#forEach`
     - `AsyncIterator#map`
     - `AsyncIterator#reduce`
+    - `AsyncIterator#some`
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`
     - `AsyncIterator#@@toStringTag`
