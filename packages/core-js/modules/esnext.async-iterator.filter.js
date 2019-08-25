@@ -25,9 +25,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
           var value = step.value;
           Promise.resolve(callWithSafeIterationClosing(iterator, filterer, value)).then(function (selected) {
             selected ? resolve({ done: false, value: value }) : loop();
-          }, reject);
+          }, reject).then(null, reject);
         }
-      }, reject);
+      }, reject).then(null, reject);
     };
 
     loop();

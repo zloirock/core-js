@@ -195,6 +195,7 @@ import './esnext.array.last-index';
 import './esnext.async-iterator.constructor';
 import './esnext.async-iterator.drop';
 import './esnext.async-iterator.filter';
+import './esnext.async-iterator.for-each';
 import './esnext.async-iterator.from';
 import './esnext.async-iterator.map';
 import './esnext.async-iterator.take';

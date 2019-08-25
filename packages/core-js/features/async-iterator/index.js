@@ -4,6 +4,7 @@ require('../../modules/es.string.iterator');
 require('../../modules/esnext.async-iterator.constructor');
 require('../../modules/esnext.async-iterator.drop');
 require('../../modules/esnext.async-iterator.filter');
+require('../../modules/esnext.async-iterator.for-each');
 require('../../modules/esnext.async-iterator.from');
 require('../../modules/esnext.async-iterator.map');
 require('../../modules/esnext.async-iterator.take');

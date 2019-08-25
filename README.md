@@ -1777,8 +1777,9 @@ class Iterator {
 class AsyncIterator {
   static from(iterable: Iterable<mixed>): AsyncIterator<any>;
   drop(limit: uint): AsyncIterator<any>;
-  filter(callbackfn: value: any => boolean): AsyncIterator<any>;
-  map(callbackfn: value => any): AsyncIterator<any>;
+  filter(async callbackfn: value: any => boolean): AsyncIterator<any>;
+  forEach(async callbackfn: value => void): Promise<void>;
+  map(async callbackfn: value => any): AsyncIterator<any>;
   take(limit: uint): AsyncIterator<any>;
   toArray(): Promise<Array>;
   @@toStringTag: 'AsyncIterator'
@@ -1789,6 +1790,7 @@ class AsyncIterator {
 core-js/proposals/iterator-helpers
 core-js(-pure)/features/async-iterator
 core-js(-pure)/features/async-iterator/drop
+core-js(-pure)/features/async-iterator/for-each
 core-js(-pure)/features/async-iterator/filter
 core-js(-pure)/features/async-iterator/from
 core-js(-pure)/features/async-iterator/map

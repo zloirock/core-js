@@ -19,6 +19,7 @@
     - `AsyncIterator.from`
     - `AsyncIterator#drop`
     - `AsyncIterator#filter`
+    - `AsyncIterator#forEach`
     - `AsyncIterator#map`
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`

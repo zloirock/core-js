@@ -1029,6 +1029,9 @@ GLOBAL.tests = {
   'esnext.async-iterator.filter': function () {
     return AsyncIterator.prototype.filter;
   },
+  'esnext.async-iterator.for-each': function () {
+    return AsyncIterator.prototype.forEach;
+  },
   'esnext.async-iterator.from': function () {
     return AsyncIterator.from;
   },

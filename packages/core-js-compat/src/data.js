@@ -1206,6 +1206,8 @@ const data = {
   },
   'esnext.async-iterator.filter': {
   },
+  'esnext.async-iterator.for-each': {
+  },
   'esnext.async-iterator.from': {
   },
   'esnext.async-iterator.map': {

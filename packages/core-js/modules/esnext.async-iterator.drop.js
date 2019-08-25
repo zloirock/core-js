@@ -21,7 +21,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
             resolve({ done: true, value: undefined });
           } else loop();
         } else resolve(step);
-      }, reject);
+      }, reject).then(null, reject);
     };
 
     loop();
