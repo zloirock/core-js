@@ -21,6 +21,7 @@
     - `AsyncIterator#filter`
     - `AsyncIterator#forEach`
     - `AsyncIterator#map`
+    - `AsyncIterator#reduce`
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`
     - `AsyncIterator#@@toStringTag`

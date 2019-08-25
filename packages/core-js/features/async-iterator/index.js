@@ -7,6 +7,7 @@ require('../../modules/esnext.async-iterator.filter');
 require('../../modules/esnext.async-iterator.for-each');
 require('../../modules/esnext.async-iterator.from');
 require('../../modules/esnext.async-iterator.map');
+require('../../modules/esnext.async-iterator.reduce');
 require('../../modules/esnext.async-iterator.take');
 require('../../modules/esnext.async-iterator.to-array');
 require('../../modules/web.dom-collections.iterator');

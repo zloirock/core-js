@@ -1038,6 +1038,9 @@ GLOBAL.tests = {
   'esnext.async-iterator.map': function () {
     return AsyncIterator.prototype.map;
   },
+  'esnext.async-iterator.reduce': function () {
+    return AsyncIterator.prototype.reduce;
+  },
   'esnext.async-iterator.take': function () {
     return AsyncIterator.prototype.take;
   },

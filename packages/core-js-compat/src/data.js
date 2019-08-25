@@ -1212,6 +1212,8 @@ const data = {
   },
   'esnext.async-iterator.map': {
   },
+  'esnext.async-iterator.reduce': {
+  },
   'esnext.async-iterator.take': {
   },
   'esnext.async-iterator.to-array': {
