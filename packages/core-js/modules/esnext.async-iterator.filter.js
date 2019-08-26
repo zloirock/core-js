@@ -9,7 +9,7 @@ var getBuiltIn = require('../internals/get-built-in');
 
 var Promise = getBuiltIn('Promise');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
   var state = this;
   var iterator = state.iterator;
   var next = state.next;
@@ -17,17 +17,21 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
 
   return new Promise(function (resolve, reject) {
     var loop = function () {
-      Promise.resolve(anObject(next.apply(iterator, arguments))).then(function (step) {
-        if (step.done) {
-          state.done = true;
-          resolve({ done: true, value: undefined });
-        } else {
-          var value = step.value;
-          Promise.resolve(callWithSafeIterationClosing(iterator, filterer, value)).then(function (selected) {
-            selected ? resolve({ done: false, value: value }) : loop();
-          }, reject).then(null, reject);
-        }
-      }, reject).then(null, reject);
+      try {
+        Promise.resolve(anObject(next.call(iterator, arg))).then(function (step) {
+          try {
+            if (anObject(step).done) {
+              state.done = true;
+              resolve({ done: true, value: undefined });
+            } else {
+              var value = step.value;
+              Promise.resolve(callWithSafeIterationClosing(iterator, filterer, value)).then(function (selected) {
+                selected ? resolve({ done: false, value: value }) : loop();
+              }, reject);
+            }
+          } catch (err) { reject(err); }
+        }, reject);
+      } catch (error) { reject(error); }
     };
 
     loop();

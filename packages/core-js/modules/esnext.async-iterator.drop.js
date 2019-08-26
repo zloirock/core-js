@@ -8,20 +8,25 @@ var getBuiltIn = require('../internals/get-built-in');
 
 var Promise = getBuiltIn('Promise');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
   var state = this;
 
   return new Promise(function (resolve, reject) {
     var loop = function () {
-      Promise.resolve(anObject(state.next.apply(state.iterator, arguments))).then(function (step) {
-        if (state.remaining) {
-          state.remaining--;
-          if (step.done) {
-            state.done = true;
-            resolve({ done: true, value: undefined });
-          } else loop();
-        } else resolve(step);
-      }, reject).then(null, reject);
+      try {
+        // eslint-disable-next-line max-len
+        Promise.resolve(anObject(state.next.call(state.iterator, state.remaining ? undefined : arg))).then(function (step) {
+          try {
+            if (anObject(step).done) {
+              state.done = true;
+              resolve({ done: true, value: undefined });
+            } else if (state.remaining) {
+              state.remaining--;
+              loop();
+            } else resolve({ done: false, value: step.value });
+          } catch (err) { reject(err); }
+        }, reject);
+      } catch (error) { reject(error); }
     };
 
     loop();

@@ -5,11 +5,11 @@ var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
   if (!this.remaining--) {
     this.done = true;
     return { done: true, value: undefined };
-  } return this.next.apply(this.iterator, arguments);
+  } return this.next.call(this.iterator, arg);
 });
 
 $({ target: 'AsyncIterator', proto: true, real: true }, {

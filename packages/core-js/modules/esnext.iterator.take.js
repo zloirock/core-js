@@ -5,12 +5,12 @@ var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 
-var IteratorProxy = createIteratorProxy(function () {
+var IteratorProxy = createIteratorProxy(function (arg) {
   if (!this.remaining--) {
     this.done = true;
     return;
   }
-  var result = anObject(this.next.apply(this.iterator, arguments));
+  var result = anObject(this.next.call(this.iterator, arg));
   var done = this.done = !!result.done;
   if (!done) return result.value;
 });

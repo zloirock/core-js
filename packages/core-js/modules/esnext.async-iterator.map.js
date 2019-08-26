@@ -9,13 +9,13 @@ var getBuiltIn = require('../internals/get-built-in');
 
 var Promise = getBuiltIn('Promise');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
   var state = this;
   var iterator = state.iterator;
   var mapper = state.mapper;
 
-  return Promise.resolve(anObject(state.next.apply(iterator, arguments))).then(function (step) {
-    if (step.done) {
+  return Promise.resolve(anObject(state.next.call(iterator, arg))).then(function (step) {
+    if (anObject(step).done) {
       state.done = true;
       return { done: true, value: undefined };
     }

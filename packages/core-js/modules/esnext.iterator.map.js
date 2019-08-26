@@ -6,9 +6,9 @@ var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 
-var IteratorProxy = createIteratorProxy(function () {
+var IteratorProxy = createIteratorProxy(function (arg) {
   var iterator = this.iterator;
-  var result = anObject(this.next.apply(iterator, arguments));
+  var result = anObject(this.next.call(iterator, arg));
   var done = this.done = !!result.done;
   if (!done) return callWithSafeIterationClosing(iterator, this.mapper, result.value);
 });

@@ -9,18 +9,17 @@ $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     aFunction(reducer);
-    var hasInitialValue = arguments.length > 1;
-    var accumulator = hasInitialValue ? arguments[1] : undefined;
-    var empty = true;
+    var noInitial = arguments.length < 2;
+    var accumulator = noInitial ? undefined : arguments[1];
     iterate(this, function (value) {
-      if (empty && !hasInitialValue) {
-        empty = false;
+      if (noInitial) {
+        noInitial = false;
         accumulator = value;
       } else {
         accumulator = reducer(accumulator, value);
       }
     }, undefined, false, true);
-    if (empty && !hasInitialValue) throw TypeError('Reduce of empty iterator with no initial value');
+    if (noInitial) throw TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
   }
 });

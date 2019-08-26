@@ -9,8 +9,8 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 
 var Iterator = path.Iterator;
 
-var IteratorProxy = createIteratorProxy(function () {
-  var result = anObject(this.next.apply(this.iterator, arguments));
+var IteratorProxy = createIteratorProxy(function (arg) {
+  var result = anObject(this.next.call(this.iterator, arg));
   var done = this.done = !!result.done;
   if (!done) return result.value;
 }, true);
