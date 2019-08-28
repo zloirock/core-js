@@ -198,6 +198,7 @@ import './esnext.async-iterator.drop';
 import './esnext.async-iterator.every';
 import './esnext.async-iterator.filter';
 import './esnext.async-iterator.find';
+import './esnext.async-iterator.flat-map';
 import './esnext.async-iterator.for-each';
 import './esnext.async-iterator.from';
 import './esnext.async-iterator.map';

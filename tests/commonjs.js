@@ -368,6 +368,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/async-iterator/every') === 'function');
   ok(typeof load('features/async-iterator/filter') === 'function');
   ok(typeof load('features/async-iterator/find') === 'function');
+  ok(typeof load('features/async-iterator/flat-map') === 'function');
   ok(typeof load('features/async-iterator/for-each') === 'function');
   ok(typeof load('features/async-iterator/from') === 'function');
   ok(typeof load('features/async-iterator/map') === 'function');

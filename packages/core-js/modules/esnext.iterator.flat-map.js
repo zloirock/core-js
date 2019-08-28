@@ -8,32 +8,31 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 
-var next = function (arg) {
-  var iterator = this.iterator;
+var IteratorProxy = createIteratorProxy(function (arg) {
+  var state = this;
+  var iterator = state.iterator;
   var result, mapped, iteratorMethod, innerIterator;
 
   while (true) {
-    if (innerIterator = this.innerIterator) {
-      result = anObject(this.innerNext.call(innerIterator));
+    if (innerIterator = state.innerIterator) {
+      result = anObject(state.innerNext.call(innerIterator));
       if (!result.done) return result.value;
-      this.innerIterator = this.innerNext = null;
+      state.innerIterator = state.innerNext = null;
     }
 
-    result = anObject(this.next.call(iterator, arg));
+    result = anObject(state.next.call(iterator, arg));
 
-    if (this.done = !!result.done) return;
+    if (state.done = !!result.done) return;
 
-    mapped = callWithSafeIterationClosing(iterator, this.mapper, result.value);
+    mapped = callWithSafeIterationClosing(iterator, state.mapper, result.value);
 
     if (isObject(mapped) && (iteratorMethod = getIteratorMethod(mapped)) !== undefined) {
-      this.innerIterator = innerIterator = iteratorMethod.call(mapped);
-      this.innerNext = aFunction(innerIterator.next);
+      state.innerIterator = innerIterator = iteratorMethod.call(mapped);
+      state.innerNext = aFunction(innerIterator.next);
       continue;
     } return mapped;
   }
-};
-
-var IteratorProxy = createIteratorProxy(next);
+});
 
 $({ target: 'Iterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {

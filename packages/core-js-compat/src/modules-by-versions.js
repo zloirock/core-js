@@ -18,6 +18,7 @@ module.exports = {
     'esnext.async-iterator.every',
     'esnext.async-iterator.filter',
     'esnext.async-iterator.find',
+    'esnext.async-iterator.flat-map',
     'esnext.async-iterator.for-each',
     'esnext.async-iterator.from',
     'esnext.async-iterator.map',

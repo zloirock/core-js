@@ -23,6 +23,7 @@
     - `AsyncIterator#every`
     - `AsyncIterator#filter`
     - `AsyncIterator#find`
+    - `AsyncIterator#flatMap`
     - `AsyncIterator#forEach`
     - `AsyncIterator#map`
     - `AsyncIterator#reduce`
