@@ -38,6 +38,10 @@ export const STRICT = !function () {
   return this;
 }();
 
+export const STRICT_THIS = (function () {
+  return this;
+})();
+
 export const FREEZING = !function () {
   try {
     return Object.isExtensible(Object.preventExtensions({}));

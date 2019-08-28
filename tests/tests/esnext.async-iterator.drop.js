@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers';
 
 QUnit.test('AsyncIterator#drop', assert => {
-  assert.expect(10);
+  assert.expect(14);
   const async = assert.async();
   const { drop } = AsyncIterator.prototype;
 
@@ -13,8 +13,19 @@ QUnit.test('AsyncIterator#drop', assert => {
 
   drop.call(createIterator([1, 2, 3]), 1).toArray().then(it => {
     assert.arrayEqual(it, [2, 3], 'basic functionality');
-    async();
-  });
+    return drop.call(createIterator([1, 2, 3]), -1).toArray();
+  }).then(it => {
+    assert.arrayEqual(it, [1, 2, 3], 'negative');
+    return drop.call(createIterator([1, 2, 3]), 1.5).toArray();
+  }).then(it => {
+    assert.arrayEqual(it, [2, 3], 'float');
+    return drop.call(createIterator([1, 2, 3]), 4).toArray();
+  }).then(it => {
+    assert.arrayEqual(it, [], 'big');
+    return drop.call(createIterator([1, 2, 3]), 0).toArray();
+  }).then(it => {
+    assert.arrayEqual(it, [1, 2, 3], 'zero');
+  }).then(() => async());
 
   assert.throws(() => drop.call(undefined, 1), TypeError);
   assert.throws(() => drop.call(null, 1), TypeError);
