@@ -3,11 +3,8 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
-var getBuiltIn = require('../internals/get-built-in');
 
-var Promise = getBuiltIn('Promise');
-
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
   var state = this;
   var iterator = state.iterator;
 

@@ -5,14 +5,9 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
-var getBuiltIn = require('../internals/get-built-in');
-var getIteratorMethod = require('../internals/get-iterator-method');
-var wellKnownSymbol = require('../internals/well-known-symbol');
+var getAsyncIteratorMethod = require('../internals/get-async-iterator-method');
 
-var Promise = getBuiltIn('Promise');
-var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
   var state = this;
   var mapper = state.mapper;
   var innerIterator, iteratorMethod;
@@ -28,17 +23,11 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
             } else {
               Promise.resolve(mapper(step.value)).then(function (mapped) {
                 try {
-                  if (isObject(mapped)) {
-                    iteratorMethod = mapped[ASYNC_ITERATOR];
-                    if (iteratorMethod === undefined) iteratorMethod = getIteratorMethod(mapped);
-                    if (iteratorMethod !== undefined) {
-                      state.innerIterator = innerIterator = iteratorMethod.call(mapped);
-                      state.innerNext = aFunction(innerIterator.next);
-                      return innerLoop();
-                    }
-                  }
-
-                  resolve({ done: false, value: mapped });
+                  if (isObject(mapped) && (iteratorMethod = getAsyncIteratorMethod(mapped)) !== undefined) {
+                    state.innerIterator = innerIterator = iteratorMethod.call(mapped);
+                    state.innerNext = aFunction(innerIterator.next);
+                    return innerLoop();
+                  } resolve({ done: false, value: mapped });
                 } catch (error2) { reject(error2); }
               }, reject);
             }

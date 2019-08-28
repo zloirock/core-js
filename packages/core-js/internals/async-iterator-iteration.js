@@ -21,7 +21,7 @@ var createMethod = function (TYPE) {
     return new Promise(function (resolve, reject) {
       var loop = function () {
         try {
-          Promise.resolve(next.call(iterator)).then(function (step) {
+          Promise.resolve(anObject(next.call(iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
                 resolve(IS_TO_ARRAY ? array : IS_SOME ? false : IS_EVERY || undefined);
