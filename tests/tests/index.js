@@ -214,6 +214,7 @@ import './esnext.iterator.drop';
 import './esnext.iterator.every';
 import './esnext.iterator.filter';
 import './esnext.iterator.find';
+import './esnext.iterator.flat-map';
 import './esnext.iterator.for-each';
 import './esnext.iterator.from';
 import './esnext.iterator.map';

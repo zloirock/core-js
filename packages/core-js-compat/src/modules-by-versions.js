@@ -31,6 +31,7 @@ module.exports = {
     'esnext.iterator.every',
     'esnext.iterator.filter',
     'esnext.iterator.find',
+    'esnext.iterator.flat-map',
     'esnext.iterator.for-each',
     'esnext.iterator.from',
     'esnext.iterator.map',

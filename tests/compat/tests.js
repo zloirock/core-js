@@ -1087,6 +1087,9 @@ GLOBAL.tests = {
   'esnext.iterator.find': function () {
     return Iterator.prototype.find;
   },
+  'esnext.iterator.flat-map': function () {
+    return Iterator.prototype.flatMap;
+  },
   'esnext.iterator.for-each': function () {
     return Iterator.prototype.forEach;
   },

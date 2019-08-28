@@ -8,6 +8,7 @@
     - `Iterator#every`
     - `Iterator#filter`
     - `Iterator#find`
+    - `Iterator#flatMap`
     - `Iterator#forEach`
     - `Iterator#map`
     - `Iterator#reduce`

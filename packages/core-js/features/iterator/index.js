@@ -6,6 +6,7 @@ require('../../modules/esnext.iterator.drop');
 require('../../modules/esnext.iterator.every');
 require('../../modules/esnext.iterator.filter');
 require('../../modules/esnext.iterator.find');
+require('../../modules/esnext.iterator.flat-map');
 require('../../modules/esnext.iterator.for-each');
 require('../../modules/esnext.iterator.from');
 require('../../modules/esnext.iterator.map');

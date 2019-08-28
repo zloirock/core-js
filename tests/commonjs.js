@@ -381,6 +381,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/iterator/every') === 'function');
   ok(typeof load('features/iterator/filter') === 'function');
   ok(typeof load('features/iterator/find') === 'function');
+  ok(typeof load('features/iterator/flat-map') === 'function');
   ok(typeof load('features/iterator/for-each') === 'function');
   ok(typeof load('features/iterator/from') === 'function');
   ok(typeof load('features/iterator/map') === 'function');

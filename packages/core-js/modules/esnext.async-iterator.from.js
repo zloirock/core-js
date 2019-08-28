@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
+var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
 var getIteratorMethod = require('../internals/get-iterator-method');
@@ -11,8 +12,8 @@ var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
 var AsyncIterator = path.AsyncIterator;
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
-  return this.next.apply(this.iterator, arguments);
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
+  return anObject(this.next.call(this.iterator, arg));
 }, true);
 
 $({ target: 'AsyncIterator', stat: true }, {
