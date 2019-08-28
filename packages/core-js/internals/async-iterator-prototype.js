@@ -9,10 +9,13 @@ var IS_PURE = require('../internals/is-pure');
 var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 var AsyncIterator = global.AsyncIterator;
+var PassedAsyncIteratorPrototype = shared.AsyncIteratorPrototype;
 var AsyncIteratorPrototype, prototype;
 
 if (!IS_PURE) {
-  if (typeof AsyncIterator == 'function') {
+  if (PassedAsyncIteratorPrototype) {
+    AsyncIteratorPrototype = PassedAsyncIteratorPrototype;
+  } else if (typeof AsyncIterator == 'function') {
     AsyncIteratorPrototype = AsyncIterator.prototype;
   } else if (shared[USE_FUNCTION_CONSTRUCTOR] || global[USE_FUNCTION_CONSTRUCTOR]) {
     try {

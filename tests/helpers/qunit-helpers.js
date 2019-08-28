@@ -1,9 +1,11 @@
-import { DESCRIPTORS } from './constants';
+import { DESCRIPTORS, GLOBAL } from './constants';
 import isIterable from 'core-js-pure/features/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
+
+GLOBAL.USE_FUNCTION_CONSTRUCTOR = true;
 
 QUnit.assert.arity = function (fn, length, message) {
   this.pushResult({
