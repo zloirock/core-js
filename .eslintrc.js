@@ -449,6 +449,8 @@ const tests = {
   'no-new-func': 'off',
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': 'off',
+  // restrict what can be thrown as an exception
+  'no-throw-literal': 'off',
   // disallow usage of expressions in statement position
   'no-unused-expressions': 'off',
   // disallow unnecessary calls to `.call()` and `.apply()`

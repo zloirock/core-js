@@ -4,7 +4,7 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#filter', assert => {
-  assert.expect(14);
+  assert.expect(15);
   const async = assert.async();
   const { filter } = AsyncIterator.prototype;
 
@@ -19,6 +19,10 @@ QUnit.test('AsyncIterator#filter', assert => {
       assert.same(arguments.length, 1, 'arguments length');
       assert.same(arg, 1, 'argument');
     }).toArray();
+  }).then(() => {
+    return filter.call(createIterator([1]), () => { throw 42; }).toArray();
+  }).catch(error => {
+    assert.same(error, 42, 'rejection on a callback error');
   }).then(() => async());
 
   assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
