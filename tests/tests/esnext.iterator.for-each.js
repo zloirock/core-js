@@ -26,4 +26,7 @@ QUnit.test('Iterator#forEach', assert => {
   assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => forEach.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => forEach.call(createIterator([1]), null), TypeError);
+  assert.throws(() => forEach.call(createIterator([1]), {}), TypeError);
 });

@@ -23,4 +23,7 @@ QUnit.test('Iterator#reduce', assert => {
   assert.throws(() => reduce.call(null, (a, b) => a + b, 0), TypeError);
   assert.throws(() => reduce.call({}, (a, b) => a + b, 0), TypeError);
   assert.throws(() => reduce.call([], (a, b) => a + b, 0), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
 });

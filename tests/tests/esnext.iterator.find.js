@@ -21,4 +21,7 @@ QUnit.test('Iterator#find', assert => {
   assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => find.call(createIterator([1]), null), TypeError);
+  assert.throws(() => find.call(createIterator([1]), {}), TypeError);
 });

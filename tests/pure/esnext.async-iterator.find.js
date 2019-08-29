@@ -4,7 +4,7 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#find', assert => {
-  assert.expect(12);
+  assert.expect(15);
   const async = assert.async();
   const { find } = AsyncIterator.prototype;
 
@@ -28,4 +28,7 @@ QUnit.test('AsyncIterator#find', assert => {
   assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => find.call(createIterator([1]), null), TypeError);
+  assert.throws(() => find.call(createIterator([1]), {}), TypeError);
 });

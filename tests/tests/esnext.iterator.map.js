@@ -21,4 +21,7 @@ QUnit.test('Iterator#map', assert => {
   assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => map.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => map.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => map.call(createIterator([1]), null), TypeError);
+  assert.throws(() => map.call(createIterator([1]), {}), TypeError);
 });

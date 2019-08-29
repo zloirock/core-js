@@ -21,4 +21,7 @@ QUnit.test('Iterator#filter', assert => {
   assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), null), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), {}), TypeError);
 });

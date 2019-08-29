@@ -2,7 +2,7 @@ import { createIterator, createIterable } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#flatMap', assert => {
-  assert.expect(13);
+  assert.expect(16);
   const async = assert.async();
   const { flatMap } = AsyncIterator.prototype;
 
@@ -25,4 +25,7 @@ QUnit.test('AsyncIterator#flatMap', assert => {
   assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => flatMap.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => flatMap.call(createIterator([1]), null), TypeError);
+  assert.throws(() => flatMap.call(createIterator([1]), {}), TypeError);
 });

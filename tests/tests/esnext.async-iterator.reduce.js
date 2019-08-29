@@ -2,7 +2,7 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#reduce', assert => {
-  assert.expect(14);
+  assert.expect(17);
   const async = assert.async();
   const { reduce } = AsyncIterator.prototype;
 
@@ -22,8 +22,11 @@ QUnit.test('AsyncIterator#reduce', assert => {
     }, 1);
   }).then(() => async());
 
-  assert.throws(() => reduce.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => reduce.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => reduce.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => reduce.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
 });

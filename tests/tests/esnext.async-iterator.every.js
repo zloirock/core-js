@@ -2,7 +2,7 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#every', assert => {
-  assert.expect(14);
+  assert.expect(17);
   const async = assert.async();
   const { every } = AsyncIterator.prototype;
 
@@ -28,4 +28,7 @@ QUnit.test('AsyncIterator#every', assert => {
   assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
   assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => every.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => every.call(createIterator([1]), null), TypeError);
+  assert.throws(() => every.call(createIterator([1]), {}), TypeError);
 });
