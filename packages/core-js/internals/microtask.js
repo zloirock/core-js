@@ -42,7 +42,7 @@ if (!queueMicrotask) {
   } else if (MutationObserver && !/(iphone|ipod|ipad).*applewebkit/i.test(userAgent)) {
     toggle = true;
     node = document.createTextNode('');
-    new MutationObserver(flush).observe(node, { characterData: true }); // eslint-disable-line no-new
+    new MutationObserver(flush).observe(node, { characterData: true });
     notify = function () {
       node.data = toggle = !toggle;
     };

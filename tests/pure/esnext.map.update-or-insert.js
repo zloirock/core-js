@@ -8,7 +8,6 @@ QUnit.test('Map#updateOrInsert', assert => {
   assert.nonEnumerable(Map.prototype, 'updateOrInsert');
 
   const map = new Map([['a', 2]]);
-  // eslint-disable-next-line prefer-arrow-callback
   assert.same(map.updateOrInsert('a', function (value) {
     assert.same(arguments.length, 1, 'correct number of callback arguments');
     assert.same(value, 2, 'correct value in callback');
@@ -20,7 +19,6 @@ QUnit.test('Map#updateOrInsert', assert => {
   assert.same(map.updateOrInsert('b', value => {
     assert.ok(false, 'should not be called');
     return value ** 2;
-  // eslint-disable-next-line prefer-arrow-callback
   }, function () {
     assert.same(arguments.length, 0, 'correct number of callback arguments');
     return 3;

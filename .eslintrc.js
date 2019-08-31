@@ -518,6 +518,7 @@ module.exports = {
       },
     },
   },
+  reportUnusedDisableDirectives: true,
   rules: base,
   overrides: [
     {

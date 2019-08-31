@@ -109,18 +109,14 @@ const run = assert => {
   assert.strictEqual('asdf'.replace(RegExp('', 'g'), '1'), '1a1s1d1f1', 'S15.5.4.11_A1_T17');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, 'sch'), 'She sells seaschells by the seaschore.', 'S15.5.4.11_A2_T1');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, '$$sch'), 'She sells sea$schells by the sea$schore.', 'S15.5.4.11_A2_T2');
-  // eslint-disable-next-line max-len
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, '$&sch'), 'She sells seashschells by the seashschore.', 'S15.5.4.11_A2_T3');
   // eslint-disable-next-line max-len
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, '$`sch'), 'She sells seaShe sells seaschells by the seaShe sells seashells by the seaschore.', 'S15.5.4.11_A2_T4');
-  // eslint-disable-next-line max-len
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/g, "$'sch"), 'She sells seaells by the seashore.schells by the seaore.schore.', 'S15.5.4.11_A2_T5');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, 'sch'), 'She sells seaschells by the seashore.', 'S15.5.4.11_A2_T6');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, '$$sch'), 'She sells sea$schells by the seashore.', 'S15.5.4.11_A2_T7');
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, '$&sch'), 'She sells seashschells by the seashore.', 'S15.5.4.11_A2_T8');
-  // eslint-disable-next-line max-len
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, '$`sch'), 'She sells seaShe sells seaschells by the seashore.', 'S15.5.4.11_A2_T9');
-  // eslint-disable-next-line max-len
   assert.strictEqual('She sells seashells by the seashore.'.replace(/sh/, "$'sch"), 'She sells seaells by the seashore.schells by the seashore.', 'S15.5.4.11_A2_T10');
   assert.strictEqual('uid=31'.replace(/(uid=)(\d+)/, '$1115'), 'uid=115', 'S15.5.4.11_A3_T1');
   assert.strictEqual('uid=31'.replace(/(uid=)(\d+)/, '$11A15'), 'uid=1A15', 'S15.5.4.11_A3_T3');

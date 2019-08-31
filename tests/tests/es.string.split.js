@@ -60,7 +60,6 @@ const run = assert => {
   // eslint-disable-next-line max-len
   assert.arrayEqual('tesst'.split(/(s)*?/), ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't'], "'tesst'.split(/(s)*?/) results in ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't']");
   assert.arrayEqual('tesst'.split(/(s*)/), ['t', '', 'e', 'ss', 't'], "'tesst'.split(/(s*)/) results in ['t', '', 'e', 'ss', 't']");
-  // eslint-disable-next-line max-len
   assert.arrayEqual('tesst'.split(/(s*?)/), ['t', '', 'e', '', 's', '', 's', '', 't'], "'tesst'.split(/(s*?)/) results in ['t', '', 'e', '', 's', '', 's', '', 't']");
   assert.arrayEqual('tesst'.split(/(?:s)*/), ['t', 'e', 't'], "'tesst'.split(/(?:s)*/) results in ['t', 'e', 't']");
   assert.arrayEqual('tesst'.split(/(?=s+)/), ['te', 's', 'st'], "'tesst'.split(/(?=s+)/) results in ['te', 's', 'st']");
@@ -70,9 +69,7 @@ const run = assert => {
   assert.arrayEqual('test'.split(/es/), ['t', 't'], "'test'.split(/es/) results in ['t', 't']");
   assert.arrayEqual('test'.split(/(t)/), ['', 't', 'es', 't', ''], "'test'.split(/(t)/) results in ['', 't', 'es', 't', '']");
   assert.arrayEqual('test'.split(/(es)/), ['t', 'es', 't'], "'test'.split(/(es)/) results in ['t', 'es', 't']");
-  // eslint-disable-next-line max-len
   assert.arrayEqual('test'.split(/(t)(e)(s)(t)/), ['', 't', 'e', 's', 't', ''], "'test'.split(/(t)(e)(s)(t)/) results in ['', 't', 'e', 's', 't', '']");
-  // eslint-disable-next-line max-len
   assert.arrayEqual('.'.split(/(((.((.??)))))/), ['', '.', '.', '.', '', '', ''], "'.'.split(/(((.((.??)))))/) results in ['', '.', '.', '.', '', '', '']");
   assert.arrayEqual('.'.split(/(((((.??)))))/), ['.'], "'.'.split(/(((((.??)))))/) results in ['.']");
   assert.arrayEqual('a b c d'.split(/ /, -(2 ** 32) + 1), ['a'], "'a b c d'.split(/ /, -(2 ** 32) + 1) results in ['a']");

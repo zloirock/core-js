@@ -105,7 +105,6 @@ if (DESCRIPTORS) {
     defineProperty: wrappedDefineProperty
   });
 
-  // eslint-disable-next-line max-statements
   module.exports = function (TYPE, BYTES, wrapper, CLAMPED) {
     var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
     var GETTER = 'get' + TYPE;
