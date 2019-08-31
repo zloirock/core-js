@@ -9,10 +9,12 @@ var SILENT = !!~['silent', 'error', 'warn'].indexOf(env.npm_config_loglevel);
 var tmpdir = require('os').tmpdir();
 var fs = require('fs');
 
+var minute = 60 * 1000;
+
 var SEEN = false;
 try {
   var delta = Date.now() - fs.statSync(tmpdir + '/core-js-banner').mtime;
-  SEEN = delta < 24 * 60 * 60 * 1000;
+  SEEN = delta < 5 * minute;
 } catch (e) {}
 
 function is(it) {
@@ -31,5 +33,7 @@ if (!ADBLOCK && !CI && !DISABLE_OPENCOLLECTIVE && !SILENT && !SEEN) {
   log('\u001B[96m>\u001B[94m https://www.patreon.com/zloirock \u001B[0m\n');
   log('\u001B[96mAlso, the author of core-js (\u001B[94m https://github.com/zloirock \u001B[96m) is looking for a good job -)\u001B[0m\n');
 
-  fs.writeFileSync(tmpdir + '/core-js-banner', '');
+  try {
+    fs.writeFileSync(tmpdir + '/core-js-banner', '');
+  } catch (e) {}
 }
