@@ -4,10 +4,10 @@ const fs = require('fs');
 const readFile = promisify(fs.readFile);
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
-const { basename, dirname } = require('path');
+const { basename, dirname, join } = require('path');
+const tmpdir = require('os').tmpdir();
 const { sync: mkdirp } = require('mkdirp');
 const webpack = promisify(require('webpack'));
-const temp = require('temp');
 const compat = require('core-js-compat');
 const modulesList = Object.keys(require('core-js-compat/data'));
 const { banner } = require('./config');
@@ -32,7 +32,7 @@ module.exports = function ({ blacklist = [], modules = modulesList.slice(), targ
 
   if (targets) modules = compat({ targets, filter: modules }).list;
 
-  const tempFile = temp.path({ suffix: '.js' });
+  const tempFile = join(tmpdir, `core-js-${ Math.random().toString(36).slice(2) }.js`);
 
   return webpack({
     mode: 'none',
