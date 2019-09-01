@@ -1,8 +1,9 @@
 ## Changelog
 ##### Unreleased
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
-- Added compat data for Node 12.9 and FF 69
-- Fixed unnecessary exposing on `Symbol.matchAll` in `esnext.string.match-all`, [#626](https://github.com/zloirock/core-js/issues/626) 
+- Added compat data for Node 12.9, FF 69 and Phantom 1.9
+- Fixed unnecessary exposing on `Symbol.matchAll` in `esnext.string.match-all`, [#626](https://github.com/zloirock/core-js/issues/626)
+- Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597), thanks [@remy](https://github.com/remy)
 
 ##### 3.2.1 - 2019.08.12
 - Added a workaround for possible recursion in microtasks caused by conflicts with other `Promise` polyfills, [#615](https://github.com/zloirock/core-js/issues/615)

@@ -1385,9 +1385,8 @@ const data = {
   'web.queue-microtask': {
     chrome: '71',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
-    // Waiting for https://github.com/nodejs/node/pull/25594
+    node: '12.0', // '11.0',
     firefox: '69',
-    node: '12.0',
     safari: '12.1',
   },
   'web.timers': {
