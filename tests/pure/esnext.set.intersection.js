@@ -8,7 +8,7 @@ QUnit.test('Set#intersection', assert => {
 
   assert.isFunction(intersection);
   assert.arity(intersection, 1);
-  if ('name' in intersection) assert.name(intersection, 'intersection');
+  assert.name(intersection, 'intersection');
   assert.nonEnumerable(Set.prototype, 'intersection');
 
   const set = new Set([1]);

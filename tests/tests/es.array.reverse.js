@@ -4,7 +4,7 @@ QUnit.test('Array#reverse', assert => {
   const { reverse } = Array.prototype;
   assert.isFunction(reverse);
   assert.arity(reverse, 0);
-  if ('name' in reverse) assert.name(reverse, 'reverse');
+  assert.name(reverse, 'reverse');
   assert.looksNative(reverse);
   assert.nonEnumerable(Array.prototype, 'reverse');
   const a = [1, 2.2, 3.3];

@@ -4,7 +4,7 @@ import freeze from 'core-js-pure/features/object/freeze';
 QUnit.test('Array.isTemplateObject', assert => {
   assert.isFunction(isTemplateObject);
   assert.arity(isTemplateObject, 1);
-  if ('name' in isTemplateObject) assert.name(isTemplateObject, 'isTemplateObject');
+  assert.name(isTemplateObject, 'isTemplateObject');
 
   assert.ok(!isTemplateObject(undefined));
   assert.ok(!isTemplateObject(null));

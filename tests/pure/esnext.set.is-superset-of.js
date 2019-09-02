@@ -7,7 +7,7 @@ QUnit.test('Set#isSupersetOf', assert => {
 
   assert.isFunction(isSupersetOf);
   assert.arity(isSupersetOf, 1);
-  if ('name' in isSupersetOf) assert.name(isSupersetOf, 'isSupersetOf');
+  assert.name(isSupersetOf, 'isSupersetOf');
   assert.nonEnumerable(Set.prototype, 'isSupersetOf');
 
   assert.ok(new Set([1, 2, 3]).isSupersetOf([1]));

@@ -8,7 +8,7 @@ QUnit.test('Set#symmetricDifference', assert => {
 
   assert.isFunction(symmetricDifference);
   assert.arity(symmetricDifference, 1);
-  if ('name' in symmetricDifference) assert.name(symmetricDifference, 'symmetricDifference');
+  assert.name(symmetricDifference, 'symmetricDifference');
   assert.nonEnumerable(Set.prototype, 'symmetricDifference');
 
   const set = new Set([1]);

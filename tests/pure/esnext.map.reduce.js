@@ -5,7 +5,7 @@ QUnit.test('Map#reduce', assert => {
 
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
-  if ('name' in reduce) assert.name(reduce, 'reduce');
+  assert.name(reduce, 'reduce');
   assert.nonEnumerable(Map.prototype, 'reduce');
 
   const set = new Map([['a', 1]]);

@@ -6,7 +6,7 @@ QUnit.test('Map#filter', assert => {
 
   assert.isFunction(filter);
   assert.arity(filter, 1);
-  if ('name' in filter) assert.name(filter, 'filter');
+  assert.name(filter, 'filter');
   assert.nonEnumerable(Map.prototype, 'filter');
 
   const map = new Map([[1, 2]]);

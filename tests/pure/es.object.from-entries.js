@@ -6,7 +6,7 @@ import Set from 'core-js-pure/features/set';
 QUnit.test('Object.fromEntries', assert => {
   assert.isFunction(fromEntries);
   assert.arity(fromEntries, 1);
-  if ('name' in fromEntries) assert.name(fromEntries, 'fromEntries');
+  assert.name(fromEntries, 'fromEntries');
 
   assert.ok(fromEntries([]) instanceof Object);
   assert.same(fromEntries([['foo', 1]]).foo, 1);

@@ -7,7 +7,7 @@ QUnit.test('Set#isDisjointFrom', assert => {
 
   assert.isFunction(isDisjointFrom);
   assert.arity(isDisjointFrom, 1);
-  if ('name' in isDisjointFrom) assert.name(isDisjointFrom, 'isDisjointFrom');
+  assert.name(isDisjointFrom, 'isDisjointFrom');
   assert.nonEnumerable(Set.prototype, 'isDisjointFrom');
 
   assert.ok(new Set([1]).isDisjointFrom([2]));

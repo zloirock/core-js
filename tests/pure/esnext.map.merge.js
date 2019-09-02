@@ -6,7 +6,7 @@ QUnit.test('Map#merge', assert => {
 
   assert.isFunction(merge);
   assert.arity(merge, 1);
-  if ('name' in merge) assert.name(merge, 'merge');
+  assert.name(merge, 'merge');
   assert.nonEnumerable(Map.prototype, 'merge');
 
   const map = new Map([[1, 2]]);

@@ -7,7 +7,7 @@ QUnit.test('Set#isSubsetOf', assert => {
 
   assert.isFunction(isSubsetOf);
   assert.arity(isSubsetOf, 1);
-  if ('name' in isSubsetOf) assert.name(isSubsetOf, 'isSubsetOf');
+  assert.name(isSubsetOf, 'isSubsetOf');
   assert.nonEnumerable(Set.prototype, 'isSubsetOf');
 
   assert.ok(new Set([1]).isSubsetOf([1, 2, 3]));

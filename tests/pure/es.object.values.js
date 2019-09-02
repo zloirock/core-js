@@ -3,7 +3,7 @@ import { values, create, assign } from 'core-js-pure/features/object';
 QUnit.test('Object.values', assert => {
   assert.isFunction(values);
   assert.arity(values, 1);
-  if ('name' in values) assert.name(values, 'values');
+  assert.name(values, 'values');
   assert.deepEqual(values({ q: 1, w: 2, e: 3 }), [1, 2, 3]);
   assert.deepEqual(values(new String('qwe')), ['q', 'w', 'e']);
   assert.deepEqual(values(assign(create({ q: 1, w: 2, e: 3 }), { a: 4, s: 5, d: 6 })), [4, 5, 6]);

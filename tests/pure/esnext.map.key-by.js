@@ -8,7 +8,7 @@ QUnit.test('Map.keyBy', assert => {
 
   assert.isFunction(keyBy);
   assert.arity(keyBy, 2);
-  if ('name' in keyBy) assert.name(keyBy, 'keyBy');
+  assert.name(keyBy, 'keyBy');
 
   assert.ok(Map.keyBy([], it => it) instanceof Map);
 
