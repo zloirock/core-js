@@ -86,12 +86,12 @@ module.exports = grunt => {
               'internals/**',
               'modules/**',
               'proposals/**',
-              'scripts/**',
               'stable/**',
               'stage/**',
               'web/**',
               'index.js',
               'configurator.js',
+              'postinstall.js',
             ],
             dest: './packages/core-js-pure/',
           }, {
@@ -120,7 +120,7 @@ module.exports = grunt => {
           }, {
             expand: true,
             cwd: './packages/core-js/',
-            src: ['scripts/**'],
+            src: ['postinstall.js'],
             dest: './packages/core-js-bundle/',
           },
         ],

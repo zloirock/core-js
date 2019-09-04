@@ -46,6 +46,6 @@
     "shim"
   ],
   "scripts": {
-    "postinstall": "node scripts/postinstall || echo \"ignore\""
+    "postinstall": "node postinstall || echo \"ignore\""
   }
 }
