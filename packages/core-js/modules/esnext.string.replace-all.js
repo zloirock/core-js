@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var hide = require('../internals/hide');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var anObject = require('../internals/an-object');
 var isRegExp = require('../internals/is-regexp');
@@ -50,4 +50,4 @@ $({ target: 'String', proto: true }, {
   }
 });
 
-IS_PURE || REPLACE_ALL in RegExpPrototype || hide(RegExpPrototype, REPLACE_ALL, $replaceAll);
+IS_PURE || REPLACE_ALL in RegExpPrototype || createNonEnumerableProperty(RegExpPrototype, REPLACE_ALL, $replaceAll);

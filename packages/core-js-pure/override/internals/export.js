@@ -4,7 +4,7 @@ var getOwnPropertyDescriptor = require('../internals/object-get-own-property-des
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/bind-context');
-var hide = require('../internals/hide');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var has = require('../internals/has');
 
 var wrapConstructor = function (NativeConstructor) {
@@ -77,18 +77,22 @@ module.exports = function (options, source) {
 
     // add a flag to not completely full polyfills
     if (options.sham || (sourceProperty && sourceProperty.sham) || (targetProperty && targetProperty.sham)) {
-      hide(resultProperty, 'sham', true);
+      createNonEnumerableProperty(resultProperty, 'sham', true);
     }
 
     target[key] = resultProperty;
 
     if (PROTO) {
       VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
-      if (!has(path, VIRTUAL_PROTOTYPE)) hide(path, VIRTUAL_PROTOTYPE, {});
+      if (!has(path, VIRTUAL_PROTOTYPE)) {
+        createNonEnumerableProperty(path, VIRTUAL_PROTOTYPE, {});
+      }
       // export virtual prototype methods
       path[VIRTUAL_PROTOTYPE][key] = sourceProperty;
       // export real prototype methods
-      if (options.real && targetPrototype && !targetPrototype[key]) hide(targetPrototype, key, sourceProperty);
+      if (options.real && targetPrototype && !targetPrototype[key]) {
+        createNonEnumerableProperty(targetPrototype, key, sourceProperty);
+      }
     }
   }
 };

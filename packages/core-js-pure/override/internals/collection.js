@@ -3,7 +3,7 @@ var $ = require('./export');
 var global = require('../internals/global');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var fails = require('../internals/fails');
-var hide = require('../internals/hide');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
@@ -42,12 +42,14 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, IS_MAP, IS_WEAK) {
 
     forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
-      if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) hide(Constructor.prototype, KEY, function (a, b) {
-        var collection = getInternalState(this).collection;
-        if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
-        var result = collection[KEY](a === 0 ? 0 : a, b);
-        return IS_ADDER ? this : result;
-      });
+      if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) {
+        createNonEnumerableProperty(Constructor.prototype, KEY, function (a, b) {
+          var collection = getInternalState(this).collection;
+          if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
+          var result = collection[KEY](a === 0 ? 0 : a, b);
+          return IS_ADDER ? this : result;
+        });
+      }
     });
 
     IS_WEAK || defineProperty(Constructor.prototype, 'size', {

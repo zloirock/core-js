@@ -7,7 +7,7 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var getFlags = require('../internals/regexp-flags');
-var hide = require('../internals/hide');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
@@ -91,4 +91,4 @@ $({ target: 'String', proto: true }, {
   }
 });
 
-IS_PURE || MATCH_ALL in RegExpPrototype || hide(RegExpPrototype, MATCH_ALL, $matchAll);
+IS_PURE || MATCH_ALL in RegExpPrototype || createNonEnumerableProperty(RegExpPrototype, MATCH_ALL, $matchAll);
