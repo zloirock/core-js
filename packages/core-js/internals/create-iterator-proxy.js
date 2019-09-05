@@ -3,7 +3,7 @@ var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
-var hide = require('../internals/hide');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
@@ -44,7 +44,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   });
 
   if (!IS_ITERATOR) {
-    hide(IteratorProxy.prototype, TO_STRING_TAG, 'Generator');
+    createNonEnumerableProperty(IteratorProxy.prototype, TO_STRING_TAG, 'Generator');
   }
 
   return IteratorProxy;

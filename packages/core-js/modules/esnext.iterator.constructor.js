@@ -3,8 +3,8 @@
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var anInstance = require('../internals/an-instance');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var has = require('../internals/has');
-var hide = require('../internals/hide');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var IS_PURE = require('../internals/is-pure');
@@ -23,13 +23,13 @@ var IteratorConstructor = function Iterator() {
 
 if (IS_PURE) {
   IteratorPrototype = {};
-  hide(IteratorPrototype, ITERATOR, function () {
+  createNonEnumerableProperty(IteratorPrototype, ITERATOR, function () {
     return this;
   });
 }
 
 if (!has(IteratorPrototype, TO_STRING_TAG)) {
-  hide(IteratorPrototype, TO_STRING_TAG, 'Iterator');
+  createNonEnumerableProperty(IteratorPrototype, TO_STRING_TAG, 'Iterator');
 }
 
 IteratorConstructor.prototype = IteratorPrototype;
