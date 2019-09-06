@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased [LEGACY]
+- Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597)
+
 ##### 2.6.9 [LEGACY] - 2019.05.27
 - Some fixes and improvements of the `postinstall` script like support `npm` color config ([#556](https://github.com/zloirock/core-js/issues/556)) or adding support of `ADBLOCK` env variable
 
