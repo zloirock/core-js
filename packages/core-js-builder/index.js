@@ -1,11 +1,13 @@
 'use strict';
 const promisify = require('util.promisify');
 const fs = require('fs');
+// TODO: replace by `fs.promises` after dropping NodeJS < 10 support
 const readFile = promisify(fs.readFile);
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
 const { basename, dirname, join } = require('path');
 const tmpdir = require('os').tmpdir();
+// TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
 const { sync: mkdirp } = require('mkdirp');
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat');
