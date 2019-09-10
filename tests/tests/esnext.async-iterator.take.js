@@ -13,9 +13,6 @@ QUnit.test('AsyncIterator#take', assert => {
 
   take.call(createIterator([1, 2, 3]), 2).toArray().then(it => {
     assert.arrayEqual(it, [1, 2], 'basic functionality');
-    return take.call(createIterator([1, 2, 3]), -1).toArray();
-  }).then(it => {
-    assert.arrayEqual(it, [], 'negative');
     return take.call(createIterator([1, 2, 3]), 1.5).toArray();
   }).then(it => {
     assert.arrayEqual(it, [1], 'float');
@@ -31,4 +28,5 @@ QUnit.test('AsyncIterator#take', assert => {
   assert.throws(() => take.call(null, 1), TypeError);
   assert.throws(() => take.call({}, 1), TypeError);
   assert.throws(() => take.call([], 1), TypeError);
+  assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
 });

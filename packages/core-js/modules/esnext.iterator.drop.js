@@ -2,7 +2,7 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
-var toLength = require('../internals/to-length');
+var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 
 var IteratorProxy = createIteratorProxy(function (arg) {
@@ -24,7 +24,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new IteratorProxy({
       iterator: anObject(this),
-      remaining: toLength(limit)
+      remaining: toPositiveInteger(limit)
     });
   }
 });

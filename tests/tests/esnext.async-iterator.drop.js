@@ -13,9 +13,6 @@ QUnit.test('AsyncIterator#drop', assert => {
 
   drop.call(createIterator([1, 2, 3]), 1).toArray().then(it => {
     assert.arrayEqual(it, [2, 3], 'basic functionality');
-    return drop.call(createIterator([1, 2, 3]), -1).toArray();
-  }).then(it => {
-    assert.arrayEqual(it, [1, 2, 3], 'negative');
     return drop.call(createIterator([1, 2, 3]), 1.5).toArray();
   }).then(it => {
     assert.arrayEqual(it, [2, 3], 'float');
@@ -31,4 +28,5 @@ QUnit.test('AsyncIterator#drop', assert => {
   assert.throws(() => drop.call(null, 1), TypeError);
   assert.throws(() => drop.call({}, 1), TypeError);
   assert.throws(() => drop.call([], 1), TypeError);
+  assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
 });
