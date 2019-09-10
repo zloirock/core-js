@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
+- Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640) 
 - Added compat data for Node 12.9, FF 69 and Phantom 1.9
 - Fixed unnecessary exposing on `Symbol.matchAll` in `esnext.string.match-all`, [#626](https://github.com/zloirock/core-js/issues/626)
 - Fixed missed cases [access the `.next` method once, at the beginning, of the iteration protocol](https://github.com/tc39/ecma262/issues/976)
