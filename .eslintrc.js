@@ -288,6 +288,12 @@ const base = {
   // forbid useless path segments
   'import/no-useless-path-segments': 'error',
 
+  // node:
+  // enforce the style of file extensions in `import` declarations
+  'node/file-extension-in-import': ['error', 'never'],
+  // disallow the assignment to `exports`
+  'node/no-exports-assign': 'error',
+
   // es6:
   // require parentheses around arrow function arguments
   'arrow-parens': ['error', 'as-needed'],
@@ -412,6 +418,15 @@ const es3 = {
   'prefer-destructuring': 'off',
 };
 
+const node = {
+  // disallow deprecated APIs
+  'node/no-deprecated-api': 'error',
+  // disallow unsupported ECMAScript built-ins on the specified version
+  'node/no-unsupported-features/es-builtins': ['error', { version: '>=8.0.0' }],
+  // disallow unsupported ECMAScript syntax on the specified version
+  'node/no-unsupported-features/es-syntax': ['error', { version: '>=8.0.0' }],
+};
+
 const tests = {
   // require strict mode directives
   strict: 'off',
@@ -497,7 +512,7 @@ const qunit = {
 module.exports = {
   root: true,
   parserOptions: {
-    ecmaVersion: 2019,
+    ecmaVersion: 2020,
   },
   env: {
     browser: true,
@@ -506,6 +521,7 @@ module.exports = {
   },
   plugins: [
     'import',
+    'node',
     'optimize-regex',
     'qunit',
     'sonarjs',
@@ -561,9 +577,21 @@ module.exports = {
       files: [
         'packages/core-js-builder/**',
         'packages/core-js-compat/**',
+        'tests/commonjs.js',
+        '.eslintrc.js',
+        '.webpack.config.js',
+        'babel.config.js',
+        'Gruntfile.js',
+      ],
+      env: {
+        es6: true,
+      },
+      rules: node,
+    },
+    {
+      files: [
         'tests/tests/**',
         'tests/compat/**',
-        'tests/commonjs.js',
       ],
       env: {
         es6: true,
