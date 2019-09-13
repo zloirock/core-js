@@ -394,7 +394,8 @@ const data = {
   },
   'es.math.hypot': {
     edge: '12',
-    chrome: '38',
+    // https://bugs.chromium.org/p/v8/issues/detail?id=9546
+    chrome: '78', // '38',
     firefox: '27',
     safari: '7.1',
   },
