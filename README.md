@@ -101,7 +101,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
 - [Contributing](./CONTRIBUTING.md)
-- [Security policy](https://github.com/zloirock/core-js/blob/master/SECURITY.md)
+- [Security policy](./SECURITY.md)
 - [Changelog](./CHANGELOG.md)
 
 ## Usage
