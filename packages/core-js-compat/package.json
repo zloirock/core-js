@@ -16,5 +16,8 @@
     "electron-to-chromium": "^1.3.253",
     "glob": "^7.1.4"
   },
+  "engines": {
+    "node": ">=8.0.0"
+  },
   "license": "MIT"
 }

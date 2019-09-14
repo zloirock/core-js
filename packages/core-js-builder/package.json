@@ -14,5 +14,8 @@
     "util.promisify": "^1.0.0",
     "webpack": "^4.39.3"
   },
+  "engines": {
+    "node": ">=8.0.0"
+  },
   "license": "MIT"
 }

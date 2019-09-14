@@ -1,4 +1,5 @@
 'use strict';
+const SUPPORTED_NODE_VERSIONS = require('./package.json').engines.node;
 const webpack = require('./.webpack.config.js');
 
 const base = {
@@ -422,9 +423,9 @@ const node = {
   // disallow deprecated APIs
   'node/no-deprecated-api': 'error',
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/es-builtins': ['error', { version: '>=8.0.0' }],
+  'node/no-unsupported-features/es-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
   // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': ['error', { version: '>=8.0.0' }],
+  'node/no-unsupported-features/es-syntax': ['error', { version: SUPPORTED_NODE_VERSIONS }],
 };
 
 const tests = {
