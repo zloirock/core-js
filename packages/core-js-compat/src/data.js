@@ -700,7 +700,7 @@ const data = {
   },
   'es.promise.all-settled': {
     chrome: '76',
-    firefox: '69',
+    firefox: '71',
     safari: '13',
   },
   'es.promise.finally': {
