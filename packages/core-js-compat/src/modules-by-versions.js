@@ -40,5 +40,6 @@ module.exports = {
     'esnext.iterator.some',
     'esnext.iterator.take',
     'esnext.iterator.to-array',
+    'esnext.map.upsert',
   ],
 };

@@ -17,4 +17,6 @@ require('../../modules/esnext.map.merge');
 require('../../modules/esnext.map.reduce');
 require('../../modules/esnext.map.some');
 require('../../modules/esnext.map.update');
+// TODO: remove from `core-js@4`
 require('../../modules/esnext.map.update-or-insert');
+require('../../modules/esnext.map.upsert');

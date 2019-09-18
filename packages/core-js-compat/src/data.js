@@ -1301,6 +1301,8 @@ const data = {
   },
   'esnext.map.update-or-insert': {
   },
+  'esnext.map.upsert': {
+  },
   'esnext.math.clamp': {
   },
   'esnext.math.deg-per-rad': {

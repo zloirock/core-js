@@ -1165,6 +1165,12 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
+  'esnext.map.update-or-insert': function () {
+    return Map.prototype.updateOrInsert;
+  },
+  'esnext.map.upsert': function () {
+    return Map.prototype.upsert;
+  },
   'esnext.math.clamp': function () {
     return Math.clamp;
   },
