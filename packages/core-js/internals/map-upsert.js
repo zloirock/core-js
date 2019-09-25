@@ -1,14 +1,22 @@
 'use strict';
 var anObject = require('../internals/an-object');
-var aFunction = require('../internals/a-function');
 
 // `Map.prototype.upsert` method
 // https://github.com/thumbsupep/proposal-upsert
-module.exports = function upsert(key, onUpdate, onInsert) {
+module.exports = function upsert(key, updateFn, insertFn) {
   var map = anObject(this);
-  aFunction(onUpdate);
-  aFunction(onInsert);
-  var value = map.has(key) ? onUpdate(map.get(key)) : onInsert();
-  map.set(key, value);
-  return value;
+  if (typeof updateFn != 'function' && typeof insertFn != 'function') {
+    throw TypeError('At least one callback required');
+  }
+  var value;
+  if (map.has(key)) {
+    value = map.get(key);
+    if (typeof updateFn == 'function') {
+      value = updateFn(value);
+      map.set(key, value);
+    }
+  } else if (typeof insertFn == 'function') {
+    value = insertFn();
+    map.set(key, value);
+  } return value;
 };
