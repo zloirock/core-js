@@ -355,6 +355,8 @@ const base = {
   'unicorn/number-literal-case': 'error',
   // prefer the exponentiation operator over `Math.pow()`
   'unicorn/prefer-exponentiation-operator': 'error',
+  // prefer `String#slice` over `String#{ substr, substring }`
+  'unicorn/prefer-string-slice': 'error',
   // enforce the use of regex shorthands to improve readability
   'unicorn/regex-shorthand': 'error',
 
