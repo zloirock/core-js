@@ -1641,6 +1641,21 @@ core-js/proposals/promise-all-settled
 ```js
 core-js(-pure)/stage/3
 ```
+* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.string.replace-all.js)
+```js
+class String {
+  replaceAll(searchValue: string | RegExp, replaceString: string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-replace-all
+core-js/features/string/replace-all
+```
+[*Examples*](https://goo.gl/wUXNXN):
+```js
+'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
+```
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1680,21 +1695,6 @@ new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
-```
-* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-replace-all
-core-js/features/string/replace-all
-```
-[*Examples*](https://goo.gl/wUXNXN):
-```js
-'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
 ```
 * `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
