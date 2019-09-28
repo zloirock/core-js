@@ -6,8 +6,10 @@ var toLength = require('../internals/to-length');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
-var getFlags = require('../internals/regexp-flags');
+var isRegExp = require('../internals/is-regexp');
+var getRegExpFlags = require('../internals/regexp-flags');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
@@ -21,6 +23,11 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
 var regExpBuiltinExec = RegExpPrototype.exec;
+var nativeMatchAll = ''.matchAll;
+
+var WORKS_WITH_NON_GLOBAL_REGEX = !!nativeMatchAll && !fails(function () {
+  'a'.matchAll(/./);
+});
 
 var regExpExec = function (R, S) {
   var exec = R.exec;
@@ -64,7 +71,7 @@ var $matchAll = function (string) {
   C = speciesConstructor(R, RegExp);
   flagsValue = R.flags;
   if (flagsValue === undefined && R instanceof RegExp && !('flags' in RegExpPrototype)) {
-    flagsValue = getFlags.call(R);
+    flagsValue = getRegExpFlags.call(R);
   }
   flags = flagsValue === undefined ? '' : String(flagsValue);
   matcher = new C(C === RegExp ? R.source : R, flags);
@@ -76,15 +83,20 @@ var $matchAll = function (string) {
 
 // `String.prototype.matchAll` method
 // https://github.com/tc39/proposal-string-matchall
-$({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
   matchAll: function matchAll(regexp) {
     var O = requireObjectCoercible(this);
-    var S, matcher, rx;
+    var flags, S, matcher, rx;
     if (regexp != null) {
+      if (isRegExp(regexp)) {
+        flags = String('flags' in RegExpPrototype ? regexp.flags : getRegExpFlags.call(regexp));
+        if (!~flags.indexOf('g')) throw TypeError('`.matchAll` does not allow non-global regexes');
+      }
+      if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
       matcher = regexp[MATCH_ALL];
       if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
       if (matcher != null) return aFunction(matcher).call(regexp, O);
-    }
+    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
     S = String(O);
     rx = new RegExp(regexp, 'g');
     return IS_PURE ? $matchAll.call(rx, S) : rx[MATCH_ALL](S);

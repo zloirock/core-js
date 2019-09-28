@@ -221,7 +221,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/string/trim-end')(' a ') === ' a');
   ok(load('features/string/trim-left')(' a ') === 'a ');
   ok(load('features/string/trim-right')(' a ') === ' a');
-  ok('next' in load('features/string/match-all')('a', /./));
+  ok('next' in load('features/string/match-all')('a', /./g));
   ok(typeof load('features/string/replace-all') === 'function');
   ok('next' in load('features/string/iterator')('qwe'));
   ok(load('features/string/virtual/code-point-at').call('a', 0) === 97);
@@ -250,7 +250,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/string/virtual/trim-end').call(' a ') === ' a');
   ok(load('features/string/virtual/trim-left').call(' a ') === 'a ');
   ok(load('features/string/virtual/trim-right').call(' a ') === ' a');
-  ok('next' in load('features/string/virtual/match-all').call('a', /./));
+  ok('next' in load('features/string/virtual/match-all').call('a', /./g));
   ok(typeof load('features/string/virtual/replace-all') === 'function');
   ok(load('features/string/virtual').at.call('a', 0) === 'a');
   ok('next' in load('features/string/virtual/iterator').call('qwe'));
@@ -559,7 +559,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stable/string/ends-with')('qwe', 'we'));
   ok(load('stable/string/includes')('qwe', 'w'));
   ok(load('stable/string/repeat')('q', 3) === 'qqq');
-  ok('next' in load('stable/string/match-all')('a', /./));
+  ok('next' in load('stable/string/match-all')('a', /./g));
   ok(load('stable/string/starts-with')('qwe', 'qw'));
   ok(typeof load('stable/string/anchor') === 'function');
   ok(typeof load('stable/string/big') === 'function');
@@ -1626,7 +1626,7 @@ load('features/typed-array/to-string');
 load('features/typed-array/values');
 ok(typeof load('features/typed-array').Uint32Array === 'function');
 ok(typeof load('es/string/match') === 'function');
-ok('next' in load('es/string/match-all')('a', /./));
+ok('next' in load('es/string/match-all')('a', /./g));
 ok(typeof load('es/string/replace') === 'function');
 ok(typeof load('es/string/search') === 'function');
 ok(load('es/string/split')('a s d', ' ').length === 3);

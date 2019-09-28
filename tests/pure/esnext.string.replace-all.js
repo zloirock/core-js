@@ -16,7 +16,7 @@ QUnit.test('String#replaceAll', assert => {
     return 'c';
   }), 'aca');
   const searcher = {
-    [Symbol.replaceAll](O, replaceValue) {
+    [Symbol.replace](O, replaceValue) {
       assert.same(this, searcher, '`this` is `searcher`');
       assert.same(String(O), 'aba', '`O` is `aba`');
       assert.same(String(replaceValue), 'c', '`replaceValue` is `c`');
@@ -29,7 +29,7 @@ QUnit.test('String#replaceAll', assert => {
     assert.throws(() => replaceAll(null, 'a', 'b'), TypeError);
     assert.throws(() => replaceAll(undefined, 'a', 'b'), TypeError);
   }
-  assert.same(replaceAll('b.b.b.b.b', /\./, 'a'), 'babababab');
+  assert.throws(() => replaceAll('b.b.b.b.b', /\./, 'a'), TypeError);
   assert.same(replaceAll('b.b.b.b.b', /\./g, 'a'), 'babababab');
   const object = {};
   assert.same(replaceAll('[object Object]', object, 'a'), 'a');
