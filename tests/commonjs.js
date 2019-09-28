@@ -354,6 +354,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/promise/try')(() => 42) instanceof load('features/promise'));
   ok(new (load('features/aggregate-error'))([42]).errors[0] === 42);
   ok('from' in load('features/observable'));
+  ok(load('es/global-this').Math === Math);
+  ok(load('stable/global-this').Math === Math);
   ok(load('features/global-this').Math === Math);
   ok(typeof load('features/dom-collections').iterator === 'function');
   ok(typeof load('features/dom-collections/iterator') === 'function');

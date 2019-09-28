@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - **`String#{ matchAll, replaceAll }` throws an error on non-global regex argument per [this PR](https://github.com/tc39/proposal-string-replaceall/pull/24) and [the decision from TC39 meetings](https://docs.google.com/presentation/d/1OGmV6uVTOEeSYO1nMeLjzflkbRJZ4p9QXlGV8IvDMmU/edit#slide=id.g61f26d86f6_0_2). It's a breaking change, but because it's a breaking change in the ES spec, it's added at the minor release**
+- `globalThis` moved to stable ES
 - Added [iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - `Iterator`
     - `Iterator.from`

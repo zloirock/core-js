@@ -332,6 +332,11 @@ const data = {
     firefox: '4',
     safari: '8.0',
   },
+  'es.global-this': {
+    chrome: '71',
+    firefox: '65',
+    safari: '12.1',
+  },
   'es.json.to-string-tag': {
     edge: '15',
     chrome: '50',
@@ -1233,11 +1238,8 @@ const data = {
   },
   'esnext.composite-symbol': {
   },
-  'esnext.global-this': {
-    chrome: '71',
-    firefox: '65',
-    safari: '12.1',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.global-this': null,
   'esnext.iterator.constructor': {
   },
   'esnext.iterator.as-indexed-pairs': {
@@ -1481,6 +1483,7 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.global-this'] = data['es.global-this'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 

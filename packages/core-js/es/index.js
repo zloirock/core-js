@@ -41,6 +41,7 @@ require('../modules/es.object.lookup-setter');
 require('../modules/es.function.bind');
 require('../modules/es.function.name');
 require('../modules/es.function.has-instance');
+require('../modules/es.global-this');
 require('../modules/es.array.from');
 require('../modules/es.array.is-array');
 require('../modules/es.array.of');
