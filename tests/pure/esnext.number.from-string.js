@@ -2,7 +2,7 @@ import fromString from 'core-js-pure/features/number/from-string';
 
 QUnit.test('Number.fromString', assert => {
   assert.isFunction(fromString);
-  if ('name' in fromString) assert.name(fromString, 'fromString');
+  assert.name(fromString, 'fromString');
   assert.arity(fromString, 2);
   assert.throws(() => fromString(undefined), TypeError, 'The first argument should be a string #1');
   assert.throws(() => fromString(Object('10')), TypeError, 'The first argument should be a string #1');

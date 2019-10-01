@@ -12,19 +12,18 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
-    var hasInitialValue = arguments.length > 1;
-    var accumulator = hasInitialValue ? arguments[1] : undefined;
-    var empty = true;
+    var noInitial = arguments.length < 2;
+    var accumulator = noInitial ? undefined : arguments[1];
     aFunction(callbackfn);
     iterate(iterator, function (value) {
-      if (empty && !hasInitialValue) {
-        empty = false;
+      if (noInitial) {
+        noInitial = false;
         accumulator = value;
       } else {
         accumulator = callbackfn(accumulator, value, value, set);
       }
     }, undefined, false, true);
-    if (empty && !hasInitialValue) throw TypeError('Reduce of empty set with no initial value');
+    if (noInitial) throw TypeError('Reduce of empty set with no initial value');
     return accumulator;
   }
 });

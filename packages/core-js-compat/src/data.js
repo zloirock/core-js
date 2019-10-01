@@ -1200,6 +1200,34 @@ const data = {
   },
   'esnext.array.last-item': {
   },
+  'esnext.async-iterator.constructor': {
+  },
+  'esnext.async-iterator.as-indexed-pairs': {
+  },
+  'esnext.async-iterator.drop': {
+  },
+  'esnext.async-iterator.every': {
+  },
+  'esnext.async-iterator.filter': {
+  },
+  'esnext.async-iterator.find': {
+  },
+  'esnext.async-iterator.flat-map': {
+  },
+  'esnext.async-iterator.for-each': {
+  },
+  'esnext.async-iterator.from': {
+  },
+  'esnext.async-iterator.map': {
+  },
+  'esnext.async-iterator.reduce': {
+  },
+  'esnext.async-iterator.some': {
+  },
+  'esnext.async-iterator.take': {
+  },
+  'esnext.async-iterator.to-array': {
+  },
   'esnext.composite-key': {
   },
   'esnext.composite-symbol': {
@@ -1208,6 +1236,34 @@ const data = {
     chrome: '71',
     firefox: '65',
     safari: '12.1',
+  },
+  'esnext.iterator.constructor': {
+  },
+  'esnext.iterator.as-indexed-pairs': {
+  },
+  'esnext.iterator.drop': {
+  },
+  'esnext.iterator.every': {
+  },
+  'esnext.iterator.filter': {
+  },
+  'esnext.iterator.find': {
+  },
+  'esnext.iterator.flat-map': {
+  },
+  'esnext.iterator.for-each': {
+  },
+  'esnext.iterator.from': {
+  },
+  'esnext.iterator.map': {
+  },
+  'esnext.iterator.reduce': {
+  },
+  'esnext.iterator.some': {
+  },
+  'esnext.iterator.take': {
+  },
+  'esnext.iterator.to-array': {
   },
   'esnext.map.delete-all': {
   },

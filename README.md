@@ -1756,6 +1756,107 @@ core-js(-pure)/features/array/is-template-object
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
+* Iterator helpers [proposal](https://github.com/tc39/proposal-iterator-helpers) - modules [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.as-indexed-pairs.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.constructor.js), [`esnext.iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.as-indexed-pairs.js), [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.drop.js), [`esnext.iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.every.js), [`esnext.iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.filter.js), [`esnext.iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.find.js), [`esnext.iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.flat-map.js), [`esnext.iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.for-each.js), [`esnext.iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.from.js), [`esnext.iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.map.js), [`esnext.iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.reduce.js), [`esnext.iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.some.js), [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.take.js) and [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.iterator.to-array.js)
+```js
+class Iterator {
+  static from(iterable: Iterable<mixed>): Iterator<any>;
+  asIndexedPairs(): Iterator<[index, any]>;
+  drop(limit: uint): Iterator<any>;
+  every(callbackfn: value: any => boolean): boolean;
+  filter(callbackfn: value: any => boolean): Iterator<any>;
+  find(callbackfn: value: any => boolean)): any;
+  flatMap(callbackfn: value => any): Iterator<any>;
+  forEach(callbackfn: value => void): void;
+  map(callbackfn: value => any): Iterator<any>;
+  reduce(callbackfn: (memo: any, value: any) => any, initialValue: any): any;
+  some(callbackfn: value: any => boolean): boolean;
+  take(limit: uint): Iterator<any>;
+  toArray(): Array<any>;
+  @@toStringTag: 'Iterator'
+}
+
+class AsyncIterator {
+  static from(iterable: Iterable<mixed>): AsyncIterator<any>;
+  asIndexedPairs(): AsyncIterator<[index, any]>;
+  drop(limit: uint): AsyncIterator<any>;
+  every(async callbackfn: value: any => boolean): boolean;
+  filter(async callbackfn: value: any => boolean): AsyncIterator<any>;
+  find(async callbackfn: value: any => boolean)): any;
+  flatMap(async callbackfn: value => any): AsyncIterator<any>;
+  forEach(async callbackfn: value => void): Promise<void>;
+  map(async callbackfn: value => any): AsyncIterator<any>;
+  reduce(async callbackfn: (memo: any, value: any) => any, initialValue: any): Promise<any>;
+  some(async callbackfn: value: any => boolean): boolean;
+  take(limit: uint): AsyncIterator<any>;
+  toArray(): Promise<Array>;
+  @@toStringTag: 'AsyncIterator'
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/iterator-helpers
+core-js(-pure)/features/async-iterator
+core-js(-pure)/features/async-iterator/as-indexed-pairs
+core-js(-pure)/features/async-iterator/drop
+core-js(-pure)/features/async-iterator/every
+core-js(-pure)/features/async-iterator/filter
+core-js(-pure)/features/async-iterator/find
+core-js(-pure)/features/async-iterator/flat-map
+core-js(-pure)/features/async-iterator/for-each
+core-js(-pure)/features/async-iterator/from
+core-js(-pure)/features/async-iterator/map
+core-js(-pure)/features/async-iterator/reduce
+core-js(-pure)/features/async-iterator/some
+core-js(-pure)/features/async-iterator/take
+core-js(-pure)/features/async-iterator/to-array
+core-js(-pure)/features/iterator
+core-js(-pure)/features/iterator/as-indexed-pairs
+core-js(-pure)/features/iterator/drop
+core-js(-pure)/features/iterator/every
+core-js(-pure)/features/iterator/filter
+core-js(-pure)/features/iterator/find
+core-js(-pure)/features/iterator/flat-map
+core-js(-pure)/features/iterator/for-each
+core-js(-pure)/features/iterator/from
+core-js(-pure)/features/iterator/map
+core-js(-pure)/features/iterator/reduce
+core-js(-pure)/features/iterator/some
+core-js(-pure)/features/iterator/take
+core-js(-pure)/features/iterator/to-array
+```
+[Examples](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D.values()%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray())%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D%0A%0Alog(Iterator.from(%7B%0A%20%20next%3A%20()%20%3D%3E%20(%7B%20done%3A%20Math.random()%20%3E%20.9%2C%20value%3A%20Math.random()%20*%2010%20%7C%200%20%7D)%0A%7D).toArray())%3B%20%2F%2F%20%3D%3E%20%5B7%2C%206%2C%203%2C%200%2C%202%2C%208%5D%0A%0AAsyncIterator.from(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D)%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray()%0A%20%20.then(log)%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D):
+```js
+[1, 2, 3, 4, 5, 6, 7].values()
+  .drop(1)
+  .take(5)
+  .filter(it => it % 2)
+  .map(it => it ** 2)
+  .toArray(); // => [9, 25]
+
+Iterator.from({
+  next: () => ({ done: Math.random() > .9, value: Math.random() * 10 | 0 })
+}).toArray(); // => [7, 6, 3, 0, 2, 8]
+
+AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
+  .drop(1)
+  .take(5)
+  .filter(it => it % 2)
+  .map(it => it ** 2)
+  .toArray()
+  .then(console.log); // => [9, 25]
+```
+###### Caveats:
+- For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
+- Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
+```js
+const configurator = require('core-js/configurator');
+
+configurator({ USE_FUNCTION_CONSTRUCTOR: true });
+
+require('core-js');
+
+(async function * () { /* empty */ })() instanceof AsyncIterator; // => true
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1816,7 +1917,7 @@ class Set {
   filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Set;
   find(callbackfn: (value: any, key: any, target: any) => boolean), thisArg?: any): any;
   join(separator: string = ','): string;
-  map(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Set;
+  map(callbackfn: (value: any, key: any, target: any) => any, thisArg?: any): Set;
   reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
   some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
 }

@@ -8,7 +8,7 @@ QUnit.test('Map.groupBy', assert => {
 
   assert.isFunction(groupBy);
   assert.arity(groupBy, 2);
-  if ('name' in groupBy) assert.name(groupBy, 'groupBy');
+  assert.name(groupBy, 'groupBy');
 
   assert.ok(Map.groupBy([], it => it) instanceof Map);
 

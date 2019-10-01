@@ -150,8 +150,8 @@ module.exports = grunt => {
       },
       tests: {
         files: [
-          'packages/core-js-bundle/index.js',
           'tests/bundles/qunit-helpers.js',
+          'packages/core-js-bundle/index.js',
           'tests/bundles/tests.js',
         ].map(src => ({ src })),
       },

@@ -5,7 +5,7 @@ QUnit.test('Set#reduce', assert => {
 
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
-  if ('name' in reduce) assert.name(reduce, 'reduce');
+  assert.name(reduce, 'reduce');
   assert.nonEnumerable(Set.prototype, 'reduce');
 
   const set = new Set([1]);

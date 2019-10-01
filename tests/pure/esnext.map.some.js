@@ -4,7 +4,7 @@ QUnit.test('Map#some', assert => {
   const { some } = Map.prototype;
   assert.isFunction(some);
   assert.arity(some, 1);
-  if ('name' in some) assert.name(some, 'some');
+  assert.name(some, 'some');
   assert.nonEnumerable(Map.prototype, 'some');
 
   let map = new Map([[9, 1]]);

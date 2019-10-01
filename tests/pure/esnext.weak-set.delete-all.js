@@ -5,7 +5,7 @@ QUnit.test('WeakSet#deleteAll', assert => {
 
   assert.isFunction(deleteAll);
   assert.arity(deleteAll, 0);
-  if ('name' in deleteAll) assert.name(deleteAll, 'deleteAll');
+  assert.name(deleteAll, 'deleteAll');
   assert.nonEnumerable(WeakSet.prototype, 'deleteAll');
 
   const a = [];

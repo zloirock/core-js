@@ -8,7 +8,7 @@ QUnit.test('Set#union', assert => {
 
   assert.isFunction(union);
   assert.arity(union, 1);
-  if ('name' in union) assert.name(union, 'union');
+  assert.name(union, 'union');
   assert.nonEnumerable(Set.prototype, 'union');
 
   const set = new Set([1]);

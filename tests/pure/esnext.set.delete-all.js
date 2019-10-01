@@ -6,7 +6,7 @@ QUnit.test('Set#deleteAll', assert => {
 
   assert.isFunction(deleteAll);
   assert.arity(deleteAll, 0);
-  if ('name' in deleteAll) assert.name(deleteAll, 'deleteAll');
+  assert.name(deleteAll, 'deleteAll');
   assert.nonEnumerable(Set.prototype, 'deleteAll');
 
   let set = new Set([1, 2, 3]);

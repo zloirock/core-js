@@ -6,7 +6,7 @@ QUnit.test('Set#map', assert => {
 
   assert.isFunction(map);
   assert.arity(map, 1);
-  if ('name' in map) assert.name(map, 'map');
+  assert.name(map, 'map');
   assert.nonEnumerable(Set.prototype, 'map');
 
   const set = new Set([1]);

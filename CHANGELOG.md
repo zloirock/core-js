@@ -1,5 +1,36 @@
 ## Changelog
 ##### Unreleased
+- Added [iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers):
+  - `Iterator`
+    - `Iterator.from`
+    - `Iterator#asIndexedPairs`
+    - `Iterator#drop`
+    - `Iterator#every`
+    - `Iterator#filter`
+    - `Iterator#find`
+    - `Iterator#flatMap`
+    - `Iterator#forEach`
+    - `Iterator#map`
+    - `Iterator#reduce`
+    - `Iterator#some`
+    - `Iterator#take`
+    - `Iterator#toArray`
+    - `Iterator#@@toStringTag`
+  - `AsyncIterator`
+    - `AsyncIterator.from`
+    - `AsyncIterator#asIndexedPairs`
+    - `AsyncIterator#drop`
+    - `AsyncIterator#every`
+    - `AsyncIterator#filter`
+    - `AsyncIterator#find`
+    - `AsyncIterator#flatMap`
+    - `AsyncIterator#forEach`
+    - `AsyncIterator#map`
+    - `AsyncIterator#reduce`
+    - `AsyncIterator#some`
+    - `AsyncIterator#take`
+    - `AsyncIterator#toArray`
+    - `AsyncIterator#@@toStringTag`
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
 - Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640) 
 - Added compat data for Node 12.9, FF 69 and Phantom 1.9

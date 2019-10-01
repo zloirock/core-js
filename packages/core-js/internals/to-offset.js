@@ -1,7 +1,7 @@
-var toInteger = require('../internals/to-integer');
+var toPositiveInteger = require('../internals/to-positive-integer');
 
 module.exports = function (it, BYTES) {
-  var offset = toInteger(it);
-  if (offset < 0 || offset % BYTES) throw RangeError('Wrong offset');
+  var offset = toPositiveInteger(it);
+  if (offset % BYTES) throw RangeError('Wrong offset');
   return offset;
 };

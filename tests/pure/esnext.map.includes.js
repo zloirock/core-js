@@ -3,7 +3,7 @@ import Map from 'core-js-pure/features/map';
 QUnit.test('Map#includes', assert => {
   const { includes } = Map.prototype;
   assert.isFunction(includes);
-  if ('name' in includes) assert.name(includes, 'includes');
+  assert.name(includes, 'includes');
   assert.arity(includes, 1);
   assert.nonEnumerable(Map.prototype, 'includes');
 

@@ -5,7 +5,7 @@ QUnit.test('Set#join', assert => {
 
   assert.isFunction(join);
   assert.arity(join, 1);
-  if ('name' in join) assert.name(join, 'join');
+  assert.name(join, 'join');
   assert.nonEnumerable(Set.prototype, 'join');
 
   assert.strictEqual(new Set([1, 2, 3]).join(), '1,2,3');
