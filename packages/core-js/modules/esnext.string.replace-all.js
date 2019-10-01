@@ -1,38 +1,31 @@
 'use strict';
 var $ = require('../internals/export');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var requireObjectCoercible = require('../internals/require-object-coercible');
-var anObject = require('../internals/an-object');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-flags');
-var speciesConstructor = require('../internals/species-constructor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
-var REPLACE_ALL = wellKnownSymbol('replaceAll');
+var REPLACE = wellKnownSymbol('replace');
 var RegExpPrototype = RegExp.prototype;
-
-var $replaceAll = function (string, replaceValue) {
-  var rx = anObject(this);
-  var flags = String('flags' in RegExpPrototype ? rx.flags : getRegExpFlags.call(rx));
-  if (!~flags.indexOf('g')) {
-    rx = new (speciesConstructor(rx, RegExp))(rx.source, flags + 'g');
-  }
-  return String(string).replace(rx, replaceValue);
-};
 
 // `String.prototype.replaceAll` method
 // https://github.com/tc39/proposal-string-replace-all
 $({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
-    var replacer, string, searchString, template, result, index;
+    var IS_REG_EXP, flags, replacer, string, searchString, template, result, index;
     if (searchValue != null) {
-      replacer = searchValue[REPLACE_ALL];
+      IS_REG_EXP = isRegExp(searchValue);
+      if (IS_REG_EXP) {
+        flags = String('flags' in RegExpPrototype ? searchValue.flags : getRegExpFlags.call(searchValue));
+        if (!~flags.indexOf('g')) throw TypeError('`.replaceAll` does not allow non-global regexes');
+      }
+      replacer = searchValue[REPLACE];
       if (replacer !== undefined) {
         return replacer.call(searchValue, O, replaceValue);
-      } else if (IS_PURE && isRegExp(searchValue)) {
-        return $replaceAll.call(searchValue, O, replaceValue);
+      } else if (IS_PURE && IS_REG_EXP) {
+        return String(O).replace(searchValue, replaceValue);
       }
     }
     string = String(O);
@@ -49,5 +42,3 @@ $({ target: 'String', proto: true }, {
     return result;
   }
 });
-
-IS_PURE || REPLACE_ALL in RegExpPrototype || createNonEnumerableProperty(RegExpPrototype, REPLACE_ALL, $replaceAll);

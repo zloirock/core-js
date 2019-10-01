@@ -69,20 +69,7 @@ QUnit.test('String#matchAll', assert => {
     value: undefined,
     done: true,
   });
-  iterator = '1111a2b3cccc'.matchAll(/(\d)(\D)/);
-  assert.isIterator(iterator);
-  assert.isIterable(iterator);
-  assert.deepEqual(iterator.next(), {
-    value: assign(['1a', '1', 'a'], {
-      input: '1111a2b3cccc',
-      index: 3,
-    }),
-    done: false,
-  });
-  assert.deepEqual(iterator.next(), {
-    value: undefined,
-    done: true,
-  });
+  assert.throws(() => '1111a2b3cccc'.matchAll(/(\d)(\D)/), TypeError);
   iterator = '1111a2b3cccc'.matchAll('(\\d)(\\D)');
   assert.isIterator(iterator);
   assert.isIterable(iterator);

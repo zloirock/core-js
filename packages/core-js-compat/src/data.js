@@ -848,9 +848,10 @@ const data = {
     safari: '10.0',
   },
   'es.string.match-all': {
-    chrome: '73',
-    firefox: '67',
-    safari: '13',
+    // Early implementations does not throw an error on non-global regex
+    // chrome: '73',
+    // firefox: '67',
+    // safari: '13',
   },
   'es.string.pad-end': {
     edge: '15',

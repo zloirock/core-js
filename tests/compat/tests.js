@@ -766,7 +766,11 @@ GLOBAL.tests = {
     return ''.match(O) == 7 && execCalled;
   },
   'es.string.match-all': function () {
-    return String.prototype.matchAll;
+    try {
+      'a'.matchAll(/./);
+    } catch (error) {
+      return 'a'.matchAll(/./g);
+    }
   },
   'es.string.pad-end': function () {
     return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
