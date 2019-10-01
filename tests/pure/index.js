@@ -245,6 +245,7 @@ import './esnext.symbol.replace-all';
 import './esnext.weak-map.delete-all';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
+import './esnext.weak-map.upsert';
 import './esnext.weak-set.add-all';
 import './esnext.weak-set.delete-all';
 import './esnext.weak-set.from';

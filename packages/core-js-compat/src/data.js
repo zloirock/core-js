@@ -1417,6 +1417,8 @@ const data = {
   },
   'esnext.weak-map.of': {
   },
+  'esnext.weak-map.upsert': {
+  },
   'esnext.weak-set.add-all': {
   },
   'esnext.weak-set.delete-all': {

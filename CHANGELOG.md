@@ -31,7 +31,9 @@
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`
     - `AsyncIterator#@@toStringTag`
-- `Map#updateOrInsert` renamed to `Map#upsert`, [stage 1 proposal](https://github.com/thumbsupep/proposal-upsert)
+- Updated `Map#upsert` [stage 1 proposal](https://github.com/thumbsupep/proposal-upsert)
+  - `Map#updateOrInsert` renamed to `Map#upsert`
+  - Added `WeakMap#upsert`
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
 - Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640) 
 - Added compat data for Node 12.9, FF 69 and Phantom 1.9
