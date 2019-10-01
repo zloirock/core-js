@@ -2,7 +2,7 @@ require('../proposals/array-last');
 require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
 require('../proposals/keys-composition');
-require('../proposals/map-update-or-insert');
+require('../proposals/map-upsert');
 require('../proposals/math-extensions');
 require('../proposals/math-signbit');
 require('../proposals/number-from-string');

@@ -2,9 +2,9 @@ QUnit.test('Map#updateOrInsert', assert => {
   const { updateOrInsert } = Map.prototype;
   assert.isFunction(updateOrInsert);
   assert.arity(updateOrInsert, 3);
-  assert.name(updateOrInsert, 'updateOrInsert');
+  assert.name(updateOrInsert, 'upsert');
   assert.looksNative(updateOrInsert);
-  assert.nonEnumerable(Map.prototype, 'updateOrInsert');
+  assert.nonEnumerable(Map.prototype, 'upsert');
 
   const map = new Map([['a', 2]]);
   assert.same(map.updateOrInsert('a', function (value) {
@@ -26,9 +26,10 @@ QUnit.test('Map#updateOrInsert', assert => {
   assert.same(map.get('a'), 4, 'correct result #1');
   assert.same(map.get('b'), 3, 'correct result #2');
 
-  assert.throws(() => new Map([['a', 2]]).updateOrInsert('b', null, () => 3), TypeError);
-  assert.throws(() => new Map([['a', 2]]).updateOrInsert('a', value => value ** 2), TypeError);
+  assert.same(new Map([['a', 2]]).updateOrInsert('b', null, () => 3), 3);
+  assert.same(new Map([['a', 2]]).updateOrInsert('a', value => value ** 2), 4);
 
+  assert.throws(() => new Map().updateOrInsert('a'), TypeError);
   assert.throws(() => updateOrInsert.call({}, 'a', () => { /* empty */ }, () => { /* empty */ }), TypeError);
   assert.throws(() => updateOrInsert.call([], 'a', () => { /* empty */ }, () => { /* empty */ }), TypeError);
   assert.throws(() => updateOrInsert.call(undefined, 'a', () => { /* empty */ }, () => { /* empty */ }), TypeError);

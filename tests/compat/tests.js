@@ -1165,6 +1165,12 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
+  'esnext.map.update-or-insert': function () {
+    return Map.prototype.updateOrInsert;
+  },
+  'esnext.map.upsert': function () {
+    return Map.prototype.upsert;
+  },
   'esnext.math.clamp': function () {
     return Math.clamp;
   },
@@ -1326,6 +1332,9 @@ GLOBAL.tests = {
   },
   'esnext.weak-map.of': function () {
     return WeakMap.of;
+  },
+  'esnext.weak-map.upsert': function () {
+    return WeakMap.prototype.upsert;
   },
   'esnext.weak-set.add-all': function () {
     return WeakSet.prototype.addAll;
