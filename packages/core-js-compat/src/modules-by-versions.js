@@ -12,6 +12,7 @@ module.exports = {
     'esnext.symbol.async-dispose',
   ],
   3.3: [
+    'es.global-this',
     'esnext.async-iterator.constructor',
     'esnext.async-iterator.as-indexed-pairs',
     'esnext.async-iterator.drop',

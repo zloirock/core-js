@@ -429,6 +429,9 @@ GLOBAL.tests = {
   'es.function.name': function () {
     return 'name' in Function.prototype;
   },
+  'es.global-this': function () {
+    return globalThis;
+  },
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
@@ -1071,9 +1074,6 @@ GLOBAL.tests = {
   },
   'esnext.composite-symbol': function () {
     return compositeSymbol;
-  },
-  'esnext.global-this': function () {
-    return globalThis;
   },
   'esnext.iterator.constructor': function () {
     return typeof Iterator == 'function'
