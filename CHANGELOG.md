@@ -2,6 +2,7 @@
 ##### Unreleased
 - **`String#{ matchAll, replaceAll }` throws an error on non-global regex argument per [this PR](https://github.com/tc39/proposal-string-replaceall/pull/24) and [the decision from TC39 meetings](https://github.com/tc39/ecma262/pull/1716). It's a breaking change, but because it's a breaking change in the ES spec, it's added at the minor release**
 - `globalThis` moved to stable ES, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537217903)
+- `String#replaceAll` moved to stage 3, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537530013)
 - Added [iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - `Iterator`
     - `Iterator.from`
