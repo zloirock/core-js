@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
 - **`String#{ matchAll, replaceAll }` throws an error on non-global regex argument per [this PR](https://github.com/tc39/proposal-string-replaceall/pull/24) and [the decision from TC39 meetings](https://docs.google.com/presentation/d/1OGmV6uVTOEeSYO1nMeLjzflkbRJZ4p9QXlGV8IvDMmU/edit#slide=id.g61f26d86f6_0_2). It's a breaking change, but because it's a breaking change in the ES spec, it's added at the minor release**
-- `globalThis` moved to stable ES
+- `globalThis` moved to stable ES, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537217903)
 - Added [iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - `Iterator`
     - `Iterator.from`
@@ -38,7 +38,7 @@
   - Added `WeakMap#upsert`
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624) 
 - Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640) 
-- Added compat data for Node 12.9, 12.11, FF 69 and Phantom 1.9
+- Added compat data for Node to 12.11, FF 69 and Phantom 1.9
 - `Math.hypot` marked as not supported in Chrome 77 since [a bug in this method](https://bugs.chromium.org/p/v8/issues/detail?id=9546) was not fixed before the stable Chrome 77 release
 - Fixed unnecessary exposing on `Symbol.matchAll` in `esnext.string.match-all`, [#626](https://github.com/zloirock/core-js/issues/626)
 - Fixed missed cases [access the `.next` method once, at the beginning, of the iteration protocol](https://github.com/tc39/ecma262/issues/976)
