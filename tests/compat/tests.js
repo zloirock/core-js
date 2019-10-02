@@ -48,7 +48,8 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && new URL('https://a@b').username === 'a'
     && new URLSearchParams(new URLSearchParams('a=b')).get('a') === 'b'
     && new URL('http://тест').host === 'xn--e1aybc'
-    && new URL('http://a#б').hash === '#%D0%B1';
+    && new URL('http://a#б').hash === '#%D0%B1'
+    && new URL('http://x', undefined).host === 'x';
 };
 
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
