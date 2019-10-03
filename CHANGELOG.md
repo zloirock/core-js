@@ -34,7 +34,8 @@
     - `AsyncIterator#take`
     - `AsyncIterator#toArray`
     - `AsyncIterator#@@toStringTag`
-- Updated `Map#upsert` [stage 1 proposal](https://github.com/thumbsupep/proposal-upsert)
+- Updated `Map#upsert` (`Map#updateOrInsert` before) [proposal](https://github.com/thumbsupep/proposal-upsert)
+  - Moved to stage 2, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537606117)
   - `Map#updateOrInsert` renamed to `Map#upsert`
   - Added `WeakMap#upsert`
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624)

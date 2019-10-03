@@ -1857,6 +1857,34 @@ require('core-js');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
+* `Map#upsert` [proposal](https://github.com/thumbsupep/proposal-upsert) - modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.map.upsert.js), [`esnext.map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.map.update-or-insert.js) and [`esnext.weak-map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.weak-map.update-or-insert.js)
+```js
+class Map {
+  updateOrInsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value; (obsolete in favor `.upsert`)
+  upsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
+}
+
+class WeakMap {
+  upsert(key: Object, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/map-upsert
+core-js(-pure)/features/map/update-or-insert
+core-js(-pure)/features/map/upsert
+core-js(-pure)/features/weak-map/upsert
+```
+[*Examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.upsert('a'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.upsert('b'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%203%0A%0Alog(map)%3B%20%2F%2F%20%3D%3E%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D):
+```js
+const map = new Map([['a', 2]]);
+
+map.upsert('a', it => it ** 2, () => 3); // => 4
+
+map.upsert('b', it => it ** 2, () => 3); // => 3
+
+console.log(map); // => Map { 'a': 4, 'b': 3 }
+```
 
 #### Stage 1 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1905,7 +1933,6 @@ Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as $
 ```
 * New collections methods proposals:
 - New `Set` and `Map` methods [proposal](https://github.com/tc39/proposal-collection-methods) - modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-map.delete-all.js)
-- `Map#upsert` [proposal](https://github.com/thumbsupep/proposal-upsert) - modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.map.upsert.js), [`esnext.map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.map.update-or-insert.js) and [`esnext.weak-map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.0/packages/core-js/modules/esnext.weak-map.update-or-insert.js)
 - `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
 class Set {
@@ -1940,8 +1967,6 @@ class Map {
   reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
   some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
   update(key: any, callbackfn: (value: any, key: any, target: any) => any, thunk?: (key: any, target: any) => any): this;
-  updateOrInsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value; (obsolete in favor `.upsert`)
-  upsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
 }
 
 class WeakSet {
@@ -1955,14 +1980,12 @@ class WeakMap {
   static of(...args: Array<[key, value]>): WeakMap;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: Object, value: any], thisArg?: any): WeakMap;
   deleteAll(...args: Array<mixed>): boolean;
-  upsert(key: Object, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/collection-methods
 core-js/proposals/collection-of-from
-core-js/proposals/map-upsert
 core-js(-pure)/features/set/add-all
 core-js(-pure)/features/set/delete-all
 core-js(-pure)/features/set/every
@@ -1991,8 +2014,6 @@ core-js(-pure)/features/map/of
 core-js(-pure)/features/map/reduce
 core-js(-pure)/features/map/some
 core-js(-pure)/features/map/update
-core-js(-pure)/features/map/update-or-insert
-core-js(-pure)/features/map/upsert
 core-js(-pure)/features/weak-set/add-all
 core-js(-pure)/features/weak-set/delete-all
 core-js(-pure)/features/weak-set/of
@@ -2000,17 +2021,6 @@ core-js(-pure)/features/weak-set/from
 core-js(-pure)/features/weak-map/delete-all
 core-js(-pure)/features/weak-map/of
 core-js(-pure)/features/weak-map/from
-core-js(-pure)/features/weak-map/upsert
-```
-`Map#upsert` [*examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.upsert('a'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.upsert('b'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%203%0A%0Alog(map)%3B%20%2F%2F%20%3D%3E%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D):
-```js
-const map = new Map([['a', 2]]);
-
-map.upsert('a', it => it ** 2, () => 3); // => 4
-
-map.upsert('b', it => it ** 2, () => 3); // => 3
-
-console.log(map); // => Map { 'a': 4, 'b': 3 }
 ```
 `.of` / `.from` [*examples*](https://goo.gl/mSC7eU):
 ```js
