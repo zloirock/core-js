@@ -1466,7 +1466,6 @@ const data = {
     chrome: '63',
     node: '10.0',
     firefox: '57',
-    safari: '12.0',
   },
   'web.url.to-json': {
     chrome: '71',
