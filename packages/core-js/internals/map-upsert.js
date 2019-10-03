@@ -3,12 +3,13 @@ var anObject = require('../internals/an-object');
 
 // `Map.prototype.upsert` method
 // https://github.com/thumbsupep/proposal-upsert
-module.exports = function upsert(key, updateFn, insertFn) {
+module.exports = function upsert(key, updateFn /* , insertFn */) {
   var map = anObject(this);
+  var insertFn = arguments.length > 2 ? arguments[2] : undefined;
+  var value;
   if (typeof updateFn != 'function' && typeof insertFn != 'function') {
     throw TypeError('At least one callback required');
   }
-  var value;
   if (map.has(key)) {
     value = map.get(key);
     if (typeof updateFn == 'function') {

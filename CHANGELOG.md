@@ -38,6 +38,7 @@
   - Moved to stage 2, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537606117)
   - `Map#updateOrInsert` renamed to `Map#upsert`
   - Added `WeakMap#upsert`
+  - You can don't pass one of the callbacks
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624)
 - Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640)
 - Replaced broken `URL` constructor in Safari and `URLSearchParams` in Chrome 66-, [#656](https://github.com/zloirock/core-js/issues/656)
