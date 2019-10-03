@@ -1463,7 +1463,7 @@ const data = {
     safari: '1.0',
   },
   'web.url': {
-    chrome: '63',
+    chrome: '67',
     node: '10.0',
     firefox: '57',
   },
@@ -1473,7 +1473,7 @@ const data = {
     firefox: '57',
   },
   'web.url-search-params': {
-    chrome: '63',
+    chrome: '67',
     node: '10.0',
     firefox: '57',
   },
