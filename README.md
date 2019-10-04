@@ -1641,6 +1641,38 @@ core-js/proposals/promise-all-settled
 ```js
 core-js(-pure)/stage/3
 ```
+* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.aggregate-error.js)
+```js
+class AggregateError {
+  constructor(errors: Iterable, message: string): AggregateError;
+  errors: Array<any>;
+  message: string;
+}
+
+class Promise {
+  static any(promises: Iterable): Promise<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-any
+core-js(-pure)/features/promise/any
+core-js(-pure)/features/aggregate-error
+```
+[*Examples*](https://goo.gl/iErvmp):
+```js
+Promise.any([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => 1
+
+Promise.any([
+  Promise.reject(1),
+  Promise.reject(2),
+  Promise.reject(3),
+]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+```
 * `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
@@ -1695,38 +1727,6 @@ new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
 new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
-```
-* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.aggregate-error.js)
-```js
-class AggregateError {
-  constructor(errors: Iterable, message: string): AggregateError;
-  errors: Array<any>;
-  message: string;
-}
-
-class Promise {
-  static any(promises: Iterable): Promise<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-any
-core-js(-pure)/features/promise/any
-core-js(-pure)/features/aggregate-error
-```
-[*Examples*](https://goo.gl/iErvmp):
-```js
-Promise.any([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => 1
-
-Promise.any([
-  Promise.reject(1),
-  Promise.reject(2),
-  Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
 * `Symbol.{ asyncDispose, dispose }` for [`using` statement proposal](https://github.com/tc39/proposal-using-statement) - modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v3.2.1/packages/core-js/modules/esnext.symbol.async-dispose.js).
 ```js
