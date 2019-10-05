@@ -28,7 +28,7 @@
     "eslint-plugin-optimize-regex": "^1.1.7",
     "eslint-plugin-qunit": "^4.0.0",
     "eslint-plugin-sonarjs": "^0.4.0",
-    "eslint-plugin-unicorn": "^12.0.1",
+    "eslint-plugin-unicorn": "^12.0.2",
     "grunt": "^1.0.4",
     "grunt-cli": "^1.3.2",
     "grunt-contrib-clean": "^2.0.0",
