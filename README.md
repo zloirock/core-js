@@ -85,6 +85,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [ECMAScript: Collections](#ecmascript-collections)
     - [ECMAScript: Typed Arrays](#ecmascript-typed-arrays)
     - [ECMAScript: Reflect](#ecmascript-reflect)
+    - [ECMAScript: globalThis](#ecmascript-globalthis)
   - [ECMAScript proposals](#ecmascript-proposals)
     - [stage 4 proposals](#stage-4-proposals)
     - [stage 3 proposals](#stage-3-proposals)
@@ -1591,6 +1592,20 @@ function C(a, b) {
 
 let instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
+```
+
+#### ECMAScript: globalThis
+Module [`es.global-this`](https://github.com/zloirock/core-js/blob/v3.3.4/packages/core-js/modules/es.global-this.js).
+```js
+let globalThis: Object;
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/es|stable|features/global-this
+```
+[*Examples*](https://goo.gl/LAifsc):
+```js
+globalThis.Array === Array; // => true
 ```
 
 ### ECMAScript proposals
