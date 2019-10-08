@@ -33,6 +33,7 @@ $({ target: 'String', proto: true }, {
     }
     string = String(O);
     searchString = String(searchValue);
+    if (searchString === '') return replaceAll.call(O, /(?:)/g, replaceValue);
     template = string.split(searchString);
     if (typeof replaceValue !== 'function') {
       return template.join(String(replaceValue));

@@ -27,6 +27,7 @@ QUnit.test('String#replaceAll', assert => {
   };
   assert.same('aba'.replaceAll(searcher, 'c'), 'foo');
   assert.same('aba'.replaceAll('b'), 'aundefineda');
+  assert.same('xxx'.replaceAll('', '_'), '_x_x_x_');
   if (STRICT) {
     assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);
     assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
