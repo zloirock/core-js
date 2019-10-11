@@ -43,7 +43,7 @@
 - Added a workaround for iOS Safari MessageChannel + bfcache bug, [#624](https://github.com/zloirock/core-js/issues/624)
 - Added a workaround for Chrome 33 / Android 4.4.4 `Promise` bug, [#640](https://github.com/zloirock/core-js/issues/640)
 - Replaced broken `URL` constructor in Safari and `URLSearchParams` in Chrome 66-, [#656](https://github.com/zloirock/core-js/issues/656)
-- Added compat data for Node to 12.11, FF 69 and Phantom 1.9
+- Added compat data for Node up to 12.11, FF 69, Samsung up to 10.2 and Phantom 1.9
 - `Math.hypot` marked as not supported in Chrome 77 since [a bug in this method](https://bugs.chromium.org/p/v8/issues/detail?id=9546) was not fixed before the stable Chrome 77 release
 - Fixed unnecessary exposing on `Symbol.matchAll` in `esnext.string.match-all`, [#626](https://github.com/zloirock/core-js/issues/626)
 - Fixed missed cases [access the `.next` method once, at the beginning, of the iteration protocol](https://github.com/tc39/ecma262/issues/976)
