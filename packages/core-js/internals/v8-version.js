@@ -1,0 +1,16 @@
+var global = require('../internals/global');
+var userAgent = require('../internals/user-agent');
+
+var versions = global.process && process.versions;
+var v8 = versions && versions.v8;
+var match, version;
+
+if (v8) {
+  match = v8.split('.');
+  version = match[0] + match[1];
+} else if (userAgent) {
+  match = userAgent.match(/Chrome\/(\d+)/);
+  if (match) version = match[1];
+}
+
+module.exports = version && +version;
