@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.3.0 - 2019.10.13
 - **`String#{ matchAll, replaceAll }` throws an error on non-global regex argument per [the decision from TC39 meetings](https://github.com/tc39/ecma262/pull/1716) (+ [this PR](https://github.com/tc39/proposal-string-replaceall/pull/24)). It's a breaking change, but since it's a breaking change in the ES spec, it's added at the minor release**
 - `globalThis` moved to stable ES, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-537217903)
 - `Promise.any` moved to stage 3, some minor internal changes, [per October TC39 meeting](https://github.com/babel/proposals/issues/60#issuecomment-538084885)
