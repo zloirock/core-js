@@ -49,6 +49,9 @@
 - Fixed missed cases [access the `.next` method once, at the beginning, of the iteration protocol](https://github.com/tc39/ecma262/issues/976)
 - Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597), thanks [@remy](https://github.com/remy)
 
+##### 2.6.10 [LEGACY] - 2019.10.13
+- Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597)
+
 ##### 3.2.1 - 2019.08.12
 - Added a workaround for possible recursion in microtasks caused by conflicts with other `Promise` polyfills, [#615](https://github.com/zloirock/core-js/issues/615)
 
