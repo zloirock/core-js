@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased [LEGACY]
+##### 2.6.10 [LEGACY] - 2019.10.13
 - Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597)
 
 ##### 2.6.9 [LEGACY] - 2019.05.27
