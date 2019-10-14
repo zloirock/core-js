@@ -1,4 +1,7 @@
 ## Changelog
+##### 3.3.2 - 2019.10.14
+- Fixed compatibility of `core-js-compat` with Node 6 and Yarn, [#669](https://github.com/zloirock/core-js/issues/669) 
+
 ##### 3.3.1 - 2019.10.13
 - Fixed a NPM publishing issue
 
