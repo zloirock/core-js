@@ -98,14 +98,6 @@ export default {
       },
     },
     {
-      href: 'gopher://example.net:1234',
-      newValue: 'file',
-      expected: {
-        href: 'gopher://example.net:1234/',
-        protocol: 'gopher:',
-      },
-    },
-    {
       href: 'wss://x:x@example.net:1234',
       newValue: 'file',
       expected: {
@@ -119,14 +111,6 @@ export default {
       newValue: 'http',
       expected: {
         href: 'file:///',
-        protocol: 'file:',
-      },
-    },
-    {
-      href: 'file:///test',
-      newValue: 'gopher',
-      expected: {
-        href: 'file:///test',
         protocol: 'file:',
       },
     },
@@ -184,14 +168,6 @@ export default {
       comment: 'Can’t switch from non-special scheme to special',
       href: 'ssh://me@example.net',
       newValue: 'http',
-      expected: {
-        href: 'ssh://me@example.net',
-        protocol: 'ssh:',
-      },
-    },
-    {
-      href: 'ssh://me@example.net',
-      newValue: 'gopher',
       expected: {
         href: 'ssh://me@example.net',
         protocol: 'ssh:',

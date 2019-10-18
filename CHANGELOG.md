@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- `gopher` removed from `URL` special cases per [this issue](https://github.com/whatwg/url/issues/342) and [this PR](https://github.com/whatwg/url/pull/453)
+
 ##### 3.3.2 - 2019.10.14
 - Fixed compatibility of `core-js-compat` with Node 6 and Yarn, [#669](https://github.com/zloirock/core-js/issues/669) 
 
