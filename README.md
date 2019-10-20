@@ -2175,7 +2175,7 @@ core-js(-pure)/features/number/from-string
 Module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.code-points.js)
 ```js
 class String {
-  codePoints(): Iterator<codePoint, position>;
+  codePoints(): Iterator<{ codePoint, position }>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
