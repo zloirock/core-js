@@ -1683,7 +1683,7 @@ Promise.any([
 Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string): string;
+  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
