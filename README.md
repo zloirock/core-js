@@ -1603,7 +1603,8 @@ Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be
 ```js
 core-js(-pure)/stage/4
 ```
-* `globalThis` [proposal](https://github.com/tc39/proposal-global) - module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.global-this.js).
+##### [`globalThis`](https://github.com/tc39/proposal-global)
+Module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.global-this.js).
 ```js
 let globalThis: Object;
 ```
@@ -1616,7 +1617,8 @@ core-js(-pure)/features/global-this
 ```js
 globalThis.Array === Array; // => true
 ```
-* `String#matchAll` [proposal](https://github.com/tc39/proposal-string-matchall) - module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.match-all.js).
+##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)
+Module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.match-all.js).
 
 ```js
 class String {
@@ -1627,7 +1629,8 @@ class String {
 ```js
 core-js/proposals/string-match-all
 ```
-* `Promise.allSettled` [proposal](https://github.com/tc39/proposal-promise-allSettled) - module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.all-settled.js)
+##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
+Module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.all-settled.js)
 ```js
 class Promise {
   static allSettled(iterable: Iterable): Promise;
@@ -1643,7 +1646,8 @@ core-js/proposals/promise-all-settled
 ```js
 core-js(-pure)/stage/3
 ```
-* `Promise.any` [proposal](https://github.com/tc39/proposal-promise-any) - modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.aggregate-error.js)
+##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)
+Modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -1675,7 +1679,8 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
-* `String#replaceAll` [proposal](https://github.com/tc39/proposal-string-replace-all) - module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.replace-all.js)
+##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)
+Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.replace-all.js)
 ```js
 class String {
   replaceAll(searchValue: string | RegExp, replaceString: string): string;
@@ -1696,7 +1701,8 @@ core-js/features/string/replace-all
 ```
 core-js(-pure)/stage/2
 ```
-* New `Set` methods [proposal](https://github.com/tc39/proposal-set-methods) - modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.union.js)
+##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)
+Modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.union.js)
 ```js
 class Set {
   difference(iterable: Iterable<mixed>): Set;
@@ -1730,7 +1736,8 @@ new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
 ```
-* `Symbol.{ asyncDispose, dispose }` for [`using` statement proposal](https://github.com/tc39/proposal-using-statement) - modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.async-dispose.js).
+##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)
+Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.async-dispose.js).
 ```js
 class Symbol {
   static asyncDispose: @@asyncDispose;
@@ -1743,7 +1750,8 @@ core-js/proposals/using-statement
 core-js(-pure)/features/symbol/async-dispose
 core-js(-pure)/features/symbol/dispose
 ```
-* `Array.isTemplateObject` [proposal](https://github.com/tc39/proposal-array-is-template-object) - module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.is-template-object.js)
+##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)
+Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.is-template-object.js)
 ```js
 class Array {
   static isTemplateObject(value: any): boolean
@@ -1758,7 +1766,8 @@ core-js(-pure)/features/array/is-template-object
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
-* Iterator helpers [proposal](https://github.com/tc39/proposal-iterator-helpers) - modules [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.as-indexed-pairs.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.constructor.js), [`esnext.iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.as-indexed-pairs.js), [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.drop.js), [`esnext.iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.every.js), [`esnext.iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.filter.js), [`esnext.iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.find.js), [`esnext.iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.flat-map.js), [`esnext.iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.for-each.js), [`esnext.iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.from.js), [`esnext.iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.map.js), [`esnext.iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.reduce.js), [`esnext.iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.some.js), [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.take.js) and [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.to-array.js)
+##### [Iterator helpers](https://github.com/tc39/proposal-iterator-helpers)
+Modules [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.as-indexed-pairs.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.constructor.js), [`esnext.iterator.as-indexed-pairs`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.as-indexed-pairs.js), [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.drop.js), [`esnext.iterator.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.every.js), [`esnext.iterator.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.filter.js), [`esnext.iterator.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.find.js), [`esnext.iterator.flat-map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.flat-map.js), [`esnext.iterator.for-each`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.for-each.js), [`esnext.iterator.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.from.js), [`esnext.iterator.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.map.js), [`esnext.iterator.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.reduce.js), [`esnext.iterator.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.some.js), [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.take.js) and [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.iterator.to-array.js)
 ```js
 class Iterator {
   static from(iterable: Iterable<mixed>): Iterator<any>;
@@ -1859,7 +1868,8 @@ require('core-js');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
-* `Map#upsert` [proposal](https://github.com/thumbsupep/proposal-upsert) - modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.upsert.js), [`esnext.map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.update-or-insert.js) and [`esnext.weak-map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.update-or-insert.js)
+##### [`Map#upsert`](https://github.com/thumbsupep/proposal-upsert)
+Modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.upsert.js), [`esnext.map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.update-or-insert.js) and [`esnext.weak-map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.update-or-insert.js)
 ```js
 class Map {
   updateOrInsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value; (obsolete in favor `.upsert`)
@@ -1893,7 +1903,8 @@ console.log(map); // => Map { 'a': 4, 'b': 3 }
 ```js
 core-js(-pure)/stage/1
 ```
-* Getting last item from `Array` [proposal](https://github.com/keithamus/proposal-array-last) - modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.last-index.js)
+##### [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)
+Modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.array.last-index.js)
 ```js
 class Array {
   attribute lastItem: any;
@@ -1916,7 +1927,8 @@ array.lastItem = 4;
 
 array; // => [1, 2, 4]
 ```
-* `Promise.try` [proposal](https://github.com/tc39/proposal-promise-try) - module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.try.js)
+##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
+Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.promise.try.js)
 ```js
 class Promise {
   static try(callbackfn: Function): promise;
@@ -1933,9 +1945,11 @@ Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
 
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
-* New collections methods proposals:
-- New `Set` and `Map` methods [proposal](https://github.com/tc39/proposal-collection-methods) - modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.delete-all.js)
-- `.of` and `.from` methods on collection constructors [proposal](https://github.com/tc39/proposal-setmap-offrom) - modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.from.js)
+#### New collections methods:
+##### [New `Set` and `Map` methods](https://github.com/tc39/proposal-collection-methods)
+Modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.delete-all.js)
+##### [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)
+Modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
 class Set {
   static of(...args: Array<mixed>): Set;
@@ -2030,7 +2044,8 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1: 4, 9: 16 }
 ```
-* `compositeKey` and `compositeSymbol` methods [proposal](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey) - modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.composite-symbol.js)
+##### [`compositeKey` and `compositeSymbol` methods](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
+Modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.composite-symbol.js)
 ```js
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
@@ -2067,7 +2082,8 @@ console.log(compositeSymbol(1, a) === compositeSymbol(1, a)); // => true
 console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => true
 console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
 ```
-* `Observable` [proposal](https://github.com/zenparsing/es-observable) - modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.observable.js)
+##### [`Observable`](https://github.com/zenparsing/es-observable)
+Modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.observable.js)
 ```js
 class Observable {
   constructor(subscriber: Function): Observable;
@@ -2099,7 +2115,8 @@ new Observable(observer => {
   complete() { console.log('!'); }
 });
 ```
-* `Math` extensions [proposal](https://github.com/rwaldron/proposal-math-extensions) - modules [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.DEG_PER_RAD.js), [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.RAD_PER_DEG.js), [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.scale.js)
+##### [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)
+Modules [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.DEG_PER_RAD`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.DEG_PER_RAD.js), [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.RAD_PER_DEG`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.RAD_PER_DEG.js), [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.scale.js)
 ```js
 namespace Math {
   DEG_PER_RAD: number;
@@ -2122,7 +2139,8 @@ core-js(-pure)/features/math/rad-per-deg
 core-js(-pure)/features/math/radians
 core-js(-pure)/features/math/scale
 ```
-* `Math.signbit` [proposal](https://github.com/tc39/proposal-Math.signbit) - module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.signbit.js)
+##### [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)
+Module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.signbit.js)
 ```js
 namespace Math {
   signbit(x: number): boolean;
@@ -2141,7 +2159,8 @@ Math.signbit(-1);  // => false
 Math.signbit(0);   // => true
 Math.signbit(-0);  // => false
 ```
-* `Number.fromString` [proposal](https://github.com/tc39/proposal-number-fromstring) - module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.number.from-string.js)
+##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
+Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.number.from-string.js)
 ```js
 class Number {
   fromString(string: string, radix: number): number;
@@ -2152,7 +2171,8 @@ class Number {
 core-js/proposals/number-from-string
 core-js(-pure)/features/number/from-string
 ```
-* `String#codePoints` [proposal](https://github.com/tc39/proposal-string-prototype-codepoints) - module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.code-points.js)
+##### [`String#codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)
+Module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.code-points.js)
 ```js
 class String {
   codePoints(): Iterator<codePoint, position>;
@@ -2170,7 +2190,8 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
-* Seeded pseudo-random numbers [proposal](https://github.com/tc39/proposal-seeded-random) - module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.seeded-prng.js)
+##### [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)
+Module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.seeded-prng.js)
 ```js
 class Math {
   seededPRNG({ seed: number }): Iterator<number>;
@@ -2188,7 +2209,8 @@ for (let x of Math.seededPRNG({ seed: 42 })) {
   if (x > .8) break;
 }
 ```
-* `Symbol.patternMatch` for [pattern matching proposal](https://github.com/tc39/proposal-pattern-matching) - module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.pattern-match.js).
+##### [`Symbol.patternMatch` for pattern matching](https://github.com/tc39/proposal-pattern-matching)
+Module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.symbol.pattern-match.js).
 ```js
 class Symbol {
   static patternMatch: @@patternMatch;
@@ -2205,8 +2227,10 @@ core-js(-pure)/features/symbol/pattern-match
 ```js
 core-js(-pure)/stage/0
 ```
-* `URL` [proposal](https://github.com/jasnell/proposal-url), see more info [in web standards namespace](#url-and-urlsearchparams)
-* `String#at` [proposal](https://github.com/mathiasbynens/String.prototype.at) - module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.at.js)
+##### [`URL`](https://github.com/jasnell/proposal-url)
+See more info [in web standards namespace](#url-and-urlsearchparams)
+##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)
+Module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.string.at.js)
 ```js
 class String {
   at(index: number): string;
@@ -2223,7 +2247,8 @@ core-js(-pure)/features/string/virtual/at
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 ```
-* Efficient 64 bit arithmetic [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703) - modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.umulh.js)
+##### [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+Modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.math.umulh.js)
 ```js
 namespace Math {
   iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
@@ -2246,7 +2271,8 @@ core-js(-pure)/features/math/umulh
 ```js
 core-js(-pure)/stage/pre
 ```
-* `Reflect` metadata [proposal](https://github.com/rbuckton/reflect-metadata) - modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.metadata.js).
+##### [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata)
+Modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/v3.3.2/packages/core-js/modules/esnext.reflect.metadata.js).
 ```js
 namespace Reflect {
   defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
