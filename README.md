@@ -1710,7 +1710,7 @@ class Set {
   isDisjointFrom(iterable: Iterable<mixed>): boolean;
   isSubsetOf(iterable: Iterable<mixed>): boolean;
   isSupersetOf(iterable: Iterable<mixed>): boolean;
-  symmetric-difference(iterable: Iterable<mixed>): Set;
+  symmetricDifference(iterable: Iterable<mixed>): Set;
   union(iterable: Iterable<mixed>): Set;
 }
 ```
