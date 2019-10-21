@@ -408,7 +408,7 @@ Since `core-js-compat` contains all the necessary data, in the future, it will b
 
 As explained above, Babel plugins give us different ways of optimizing `core-js` usage, but they are not perfect: we can improve them.
 
-`@babel/preset-env` with `useBuiltIns: usage` now should work much better than before, but it could still fail in some uncommon cases: when the code can't be statically analyzed. For that case, we to find a way for library developers to specify which polyfills are required by their library instead of directly loading them: some kind of metadata, which will be used to inject polyfills when creating the final bundle.
+`@babel/preset-env` with `useBuiltIns: usage` now should work much better than before, but it could still fail in some uncommon cases: when the code can't be statically analyzed. For that case, we need to find a way for library developers to specify which polyfills are required by their library instead of directly loading them: some kind of metadata, which will be used to inject polyfills when creating the final bundle.
 
 Another issue of `useBuiltIns: usage` is the duplication of polyfills import. `useBuiltIns: usage` can inject dozens of `core-js` imports in each file. But what if in our project has thousands of files or even tenths of thousands? In this case, we will have more lines of code with `import "core-js/..."` than lines of code in `core-js` itself: we need a way to collect all imports to one file so that they can be deduplicated.
 
