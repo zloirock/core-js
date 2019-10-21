@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.3.3 - 2019.10.22
 - `gopher` removed from `URL` special cases per [this issue](https://github.com/whatwg/url/issues/342) and [this PR](https://github.com/whatwg/url/pull/453)
 - Added compat data for iOS 13 and Node 13.0
 
