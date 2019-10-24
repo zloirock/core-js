@@ -5,11 +5,11 @@ var SPECIES = wellKnownSymbol('species');
 
 module.exports = function (METHOD_NAME) {
   return !fails(function () {
-    var object = {};
-    var constructor = object.constructor = {};
+    var array = [];
+    var constructor = array.constructor = {};
     constructor[SPECIES] = function () {
       return { foo: 1 };
     };
-    return [][METHOD_NAME].call(object, Boolean).foo !== 1;
+    return array[METHOD_NAME](Boolean).foo !== 1;
   });
 };

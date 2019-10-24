@@ -1,6 +1,5 @@
 ## Changelog
 ##### Unreleased
-- Added a workaround for V8 deoptimization which causes up to 100x+ performance degradation of `Array#{ splice, filter, map }`, [#677](https://github.com/zloirock/core-js/issues/677)
 - Fixed work of `fetch` with polyfilled `URLSearchParams`, [#674](https://github.com/zloirock/core-js/issues/674)
 - `package-lock.json` no longer generated in libraries
 
