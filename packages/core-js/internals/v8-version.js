@@ -1,7 +1,8 @@
 var global = require('../internals/global');
 var userAgent = require('../internals/user-agent');
 
-var versions = global.process && process.versions;
+var process = global.process;
+var versions = process && process.versions;
 var v8 = versions && versions.v8;
 var match, version;
 
