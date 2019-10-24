@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround of V8 deoptimization which causes serious performance degradation (~20x in my tests) of some `RegExp`-related methods like `String#split`, [#306](https://github.com/zloirock/core-js/issues/306)
 - Fixed work of `fetch` with polyfilled `URLSearchParams`, [#674](https://github.com/zloirock/core-js/issues/674)
 - `package-lock.json` no longer generated in libraries
 
