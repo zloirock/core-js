@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added a workaround of V8 deoptimization which causes serious performance degradation (~20x in my tests) of some `RegExp`-related methods like `String#split`, [#306](https://github.com/zloirock/core-js/issues/306)
+- Added a workaround of V8 deoptimization which causes serious performance degradation (up to 100x in my tests) of `Array#splice` and slightly `Array#{ filter, map }`, [#677](https://github.com/zloirock/core-js/issues/677)
 - Fixed work of `fetch` with polyfilled `URLSearchParams`, [#674](https://github.com/zloirock/core-js/issues/674)
 - Fixed an edge case of `String#replaceAll` with an empty search value
 - Added compat data for Chrome 80

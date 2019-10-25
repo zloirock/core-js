@@ -46,8 +46,8 @@ module.exports = function (KEY, length, exec, sham) {
     var re = /a/;
 
     if (KEY === 'split') {
-      // We can't use real regex here since it will cause deoptimization in V8
-      // and serious performance degradation
+      // We can't use real regex here since it causes deoptimization
+      // and serious performance degradation in V8
       // https://github.com/zloirock/core-js/issues/306
       re = {};
       // RegExp[@@split] doesn't call the regex's exec method, but first creates
