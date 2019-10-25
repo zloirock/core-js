@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Added compat data for Chromium-based Edge
+
 ##### 3.3.4 - 2019.10.25
 - Added a workaround of V8 deoptimization which causes serious performance degradation (~20x in my tests) of some `RegExp`-related methods like `String#split`, [#306](https://github.com/zloirock/core-js/issues/306)
 - Added a workaround of V8 deoptimization which causes serious performance degradation (up to 100x in my tests) of `Array#splice` and slightly `Array#{ filter, map }`, [#677](https://github.com/zloirock/core-js/issues/677)

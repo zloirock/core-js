@@ -22,9 +22,14 @@ function map(version, mapping) {
 
 for (const key in data) {
   const module = data[key];
-  if (!has(module, 'edge') && has(module, 'ie')) module.edge = '12';
+  if (!has(module, 'edge') && has(module, 'ie') && key !== 'web.immediate') {
+    module.edge = '12';
+  }
   if (has(module, 'chrome')) {
     const { chrome } = module;
+    if (!has(module, 'edge')) {
+      module.edge = String(Math.max(chrome, 74));
+    }
     if (!has(module, 'opera')) {
       module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
     }
