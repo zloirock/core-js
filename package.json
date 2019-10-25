@@ -21,7 +21,7 @@
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
-    "eslint": "^6.5.1",
+    "eslint": "^6.6.0",
     "eslint-import-resolver-webpack": "^0.11.1",
     "eslint-plugin-import": "^2.18.2",
     "eslint-plugin-node": "^10.0.0",
