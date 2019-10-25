@@ -13,7 +13,7 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.arrayEqual(
     flatMap.call(createIterator([1, [], 2, createIterable([3, 4]), [5, 6], 'ab']), it => typeof it == 'number' ? -it : it).toArray(),
     [-1, -2, 3, 4, 5, 6, 'ab'],
-    'basic functionality'
+    'basic functionality',
   );
   flatMap.call(createIterator([1]), function (arg) {
     assert.same(this, STRICT_THIS, 'this');
