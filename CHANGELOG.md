@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround of V8 deoptimization which causes serious performance degradation (~4x in my tests) of `Array#concat`, [#679](https://github.com/zloirock/core-js/issues/679)
 - Added compat data for Chromium-based Edge
 
 ##### 3.3.4 - 2019.10.25
