@@ -50,7 +50,6 @@ var UNHANDLED = 2;
 var Internal, OwnPromiseCapability, PromiseWrapper, nativeThen;
 
 var FORCED = isForced(PROMISE, function () {
-  if (typeof PromiseConstructor != 'function') return true;
   // V8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
   // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
   // We can't detect it synchronously, so just check versions
@@ -62,14 +61,14 @@ var FORCED = isForced(PROMISE, function () {
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
-  if (V8_VERSION >= 51) return false;
+  if (V8_VERSION >= 51 && /native code/.test(PromiseConstructor)) return false;
   // Detect correctness of subclassing with @@species support
   var promise = PromiseConstructor.resolve(1);
   var FakePromise = function (exec) {
     exec(function () { /* empty */ }, function () { /* empty */ });
   };
-  promise.constructor = {};
-  promise.constructor[SPECIES] = FakePromise;
+  var constructor = promise.constructor = {};
+  constructor[SPECIES] = FakePromise;
   return !(promise.then(function () { /* empty */ }) instanceof FakePromise);
 });
 
