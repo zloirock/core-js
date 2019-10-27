@@ -20,6 +20,10 @@ if (!has(AsyncIteratorPrototype, TO_STRING_TAG)) {
   createNonEnumerableProperty(AsyncIteratorPrototype, TO_STRING_TAG, 'AsyncIterator');
 }
 
+if (!has(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPrototype.constructor === Object) {
+  createNonEnumerableProperty(AsyncIteratorPrototype, 'constructor', AsyncIteratorConstructor);
+}
+
 $({ global: true, forced: IS_PURE }, {
   AsyncIterator: AsyncIteratorConstructor
 });

@@ -32,6 +32,10 @@ if (!has(IteratorPrototype, TO_STRING_TAG)) {
   createNonEnumerableProperty(IteratorPrototype, TO_STRING_TAG, 'Iterator');
 }
 
+if (!has(IteratorPrototype, 'constructor') || IteratorPrototype.constructor === Object) {
+  createNonEnumerableProperty(IteratorPrototype, 'constructor', IteratorConstructor);
+}
+
 IteratorConstructor.prototype = IteratorPrototype;
 
 $({ global: true, forced: FORCED }, {

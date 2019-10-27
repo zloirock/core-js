@@ -25,6 +25,10 @@ QUnit.test('Iterator', assert => {
   assert.throws(() => Iterator(), 'throws w/o `new`');
 });
 
+QUnit.test('Iterator#constructor', assert => {
+  assert.strictEqual(Iterator.prototype.constructor, Iterator, 'Iterator#constructor is AsyncIterator');
+});
+
 QUnit.test('Iterator#@@toStringTag', assert => {
   assert.strictEqual(Iterator.prototype[Symbol.toStringTag], 'Iterator', 'Iterator::@@toStringTag is `Iterator`');
   assert.strictEqual(String(Iterator.from({
