@@ -1,15 +1,15 @@
 {
   "name": "core-js-builder",
   "description": "core-js builder",
-  "version": "3.3.4",
+  "version": "3.3.5",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
   "dependencies": {
-    "core-js": "3.3.4",
-    "core-js-compat": "3.3.4",
+    "core-js": "3.3.5",
+    "core-js-compat": "3.3.5",
     "mkdirp": "^0.5.1",
     "util.promisify": "^1.0.0",
     "webpack": "^4.41.2"
