@@ -1884,10 +1884,9 @@ require('core-js');
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
 ##### [`Map#upsert`](https://github.com/thumbsupep/proposal-upsert)
-Modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.5/packages/core-js/modules/esnext.map.upsert.js), [`esnext.map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.5/packages/core-js/modules/esnext.map.update-or-insert.js) and [`esnext.weak-map.update-or-insert`](https://github.com/zloirock/core-js/blob/v3.3.5/packages/core-js/modules/esnext.weak-map.update-or-insert.js)
+Modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.5/packages/core-js/modules/esnext.map.upsert.js) and [`esnext.weak-map.upsert`](https://github.com/zloirock/core-js/blob/v3.3.5/packages/core-js/modules/esnext.weak-map.upsert.js)
 ```js
 class Map {
-  updateOrInsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value; (obsolete in favor `.upsert`)
   upsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
 }
 
@@ -1898,7 +1897,6 @@ class WeakMap {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/map-upsert
-core-js(-pure)/features/map/update-or-insert
 core-js(-pure)/features/map/upsert
 core-js(-pure)/features/weak-map/upsert
 ```
