@@ -1,7 +1,6 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var fails = require('../internals/fails');
-var IndexedObject = require('../internals/indexed-object');
 
 var $stringify = getBuiltIn('JSON', 'stringify');
 var reg = /[\uD800-\uDFFF]/g;
@@ -10,16 +9,15 @@ var low = /^[\uD800-\uDBFF]$/;
 var hi = /^[\uDC00-\uDFFF]$/;
 
 var fix = function (string) {
-  var indexed = IndexedObject(string);
-  var length = indexed.length;
   var result = '';
+  var length = string.length;
   var i = 0;
   var point, prev, next;
   for (; i < length; i++) {
-    point = indexed[i];
+    point = string.charAt(i);
     if (re.test(point)) {
-      prev = i === 0 ? '' : indexed[i - 1];
-      next = i === length - 1 ? '' : indexed[i + 1];
+      prev = string.charAt(i - 1);
+      next = string.charAt(i + 1);
       if ((low.test(point) && !hi.test(next)) || (hi.test(point) && !low.test(prev))) {
         result += '\\u' + point.charCodeAt(0).toString(16);
         continue;
