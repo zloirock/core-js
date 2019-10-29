@@ -3,27 +3,16 @@ var getBuiltIn = require('../internals/get-built-in');
 var fails = require('../internals/fails');
 
 var $stringify = getBuiltIn('JSON', 'stringify');
-var reg = /[\uD800-\uDFFF]/g;
-var re = /^[\uD800-\uDFFF]$/;
+var re = /[\uD800-\uDFFF]/g;
 var low = /^[\uD800-\uDBFF]$/;
 var hi = /^[\uDC00-\uDFFF]$/;
 
-var fix = function (string) {
-  var result = '';
-  var length = string.length;
-  var i = 0;
-  var point, prev, next;
-  for (; i < length; i++) {
-    point = string.charAt(i);
-    if (re.test(point)) {
-      prev = string.charAt(i - 1);
-      next = string.charAt(i + 1);
-      if ((low.test(point) && !hi.test(next)) || (hi.test(point) && !low.test(prev))) {
-        result += '\\u' + point.charCodeAt(0).toString(16);
-        continue;
-      }
-    } result += point;
-  } return result;
+var fix = function (match, offset, string) {
+  var prev = string.charAt(offset - 1);
+  var next = string.charAt(offset + 1);
+  if ((low.test(match) && !hi.test(next)) || (hi.test(match) && !low.test(prev))) {
+    return '\\u' + match.charCodeAt(0).toString(16);
+  } return match;
 };
 
 var FORCED = fails(function () {
@@ -37,7 +26,7 @@ if ($stringify) {
     // eslint-disable-next-line no-unused-vars
     stringify: function stringify(it, replacer, space) {
       var result = $stringify.apply(null, arguments);
-      return typeof result == 'string' && reg.test(result) ? fix(result) : result;
+      return typeof result == 'string' ? result.replace(re, fix) : result;
     }
   });
 }
