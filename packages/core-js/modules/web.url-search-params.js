@@ -325,7 +325,7 @@ if (!USE_NATIVE_URL && typeof $fetch == 'function' && typeof Headers == 'functio
         if (isObject(init)) {
           body = init.body;
           if (classof(body) === URL_SEARCH_PARAMS) {
-            headers = new Headers(init.headers);
+            headers = init.headers ? new Headers(init.headers) : new Headers();
             if (!headers.has('content-type')) {
               headers.set('content-type', 'application/x-www-form-urlencoded;charset=UTF-8');
             }
