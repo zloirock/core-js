@@ -44,4 +44,7 @@ module.exports = {
     'esnext.map.upsert',
     'esnext.weak-map.upsert',
   ],
+  3.4: [
+    'es.json.stringify',
+  ],
 };

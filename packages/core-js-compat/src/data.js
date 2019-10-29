@@ -337,6 +337,11 @@ const data = {
     firefox: '65',
     safari: '12.1',
   },
+  'es.json.stringify': {
+    chrome: '72',
+    firefox: '64',
+    safari: '12.1',
+  },
   'es.json.to-string-tag': {
     edge: '15',
     chrome: '50',
