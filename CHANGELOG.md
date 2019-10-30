@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Don't detect Chakra-based Edge as Chrome in the `userAgent` parsing
+- Added one more workaround for correct work of early `fetch` implementations with polyfilled `URLSearchParams`, [#680](https://github.com/zloirock/core-js/issues/680)
 
 ##### 3.3.5 - 2019.10.29
 - Added a workaround of V8 deoptimization which causes serious performance degradation (~4x in my tests) of `Array#concat`, [#679](https://github.com/zloirock/core-js/issues/679)
