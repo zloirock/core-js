@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify), ES2019 feature, thanks @ExE-Boss
 - Fixed `Math.signbit`, [#687](https://github.com/zloirock/core-js/issues/687), thanks @chicoxyzzy
 
 ##### 3.3.6 - 2019.11.01
