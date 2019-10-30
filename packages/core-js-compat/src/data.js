@@ -1302,6 +1302,7 @@ const data = {
   },
   'esnext.map.update': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.map.update-or-insert': {
   },
   'esnext.map.upsert': {
@@ -1314,10 +1315,13 @@ const data = {
   },
   'esnext.math.fscale': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.imulh': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.isubh': {
   },
   'esnext.math.rad-per-deg': {
@@ -1330,6 +1334,7 @@ const data = {
   },
   'esnext.math.signbit': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.umulh': {
   },
   'esnext.number.from-string': {
@@ -1412,6 +1417,7 @@ const data = {
   },
   'esnext.symbol.pattern-match': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
   },
   'esnext.weak-map.delete-all': {

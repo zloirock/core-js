@@ -2,6 +2,7 @@ var $ = require('../internals/export');
 
 // `Math.imulh` method
 // https://gist.github.com/BrendanEich/4294d5c212a6d2254703
+// TODO: Remove from `core-js@4`
 $({ target: 'Math', stat: true }, {
   imulh: function imulh(u, v) {
     var UINT16 = 0xFFFF;

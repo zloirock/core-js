@@ -1,3 +1,3 @@
-require('../modules/esnext.global-this');
+require('../modules/es.global-this');
 
 module.exports = require('../internals/global');

@@ -1176,6 +1176,7 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.map.update-or-insert': function () {
     return Map.prototype.updateOrInsert;
   },
@@ -1194,12 +1195,15 @@ GLOBAL.tests = {
   'esnext.math.fscale': function () {
     return Math.fscale;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': function () {
     return Math.iaddh;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.imulh': function () {
     return Math.imulh;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.isubh': function () {
     return Math.isubh;
   },
@@ -1218,6 +1222,7 @@ GLOBAL.tests = {
   'esnext.math.signbit': function () {
     return Math.signbit;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.umulh': function () {
     return Math.umulh;
   },
@@ -1332,6 +1337,7 @@ GLOBAL.tests = {
   'esnext.symbol.pattern-match': function () {
     return Symbol.patternMatch;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': function () {
     return Symbol.replaceAll;
   },
