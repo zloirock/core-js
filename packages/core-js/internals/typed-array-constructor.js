@@ -24,6 +24,7 @@ var setSpecies = require('../internals/set-species');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var InternalStateModule = require('../internals/internal-state');
+var inheritIfRequired = require('../internals/inherit-if-required');
 
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
@@ -180,14 +181,16 @@ if (DESCRIPTORS) {
     } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
       TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, $length) {
         anInstance(dummy, TypedArrayConstructor, CONSTRUCTOR_NAME);
-        if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
-        if (isArrayBuffer(data)) return $length !== undefined
-          ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)
-          : typedArrayOffset !== undefined
-            ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES))
-            : new NativeTypedArrayConstructor(data);
-        if (isTypedArray(data)) return fromList(TypedArrayConstructor, data);
-        return typedArrayFrom.call(TypedArrayConstructor, data);
+        return inheritIfRequired(function () {
+          if (!isObject(data)) return new NativeTypedArrayConstructor(toIndex(data));
+          if (isArrayBuffer(data)) return $length !== undefined
+            ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES), $length)
+            : typedArrayOffset !== undefined
+              ? new NativeTypedArrayConstructor(data, toOffset(typedArrayOffset, BYTES))
+              : new NativeTypedArrayConstructor(data);
+          if (isTypedArray(data)) return fromList(TypedArrayConstructor, data);
+          return typedArrayFrom.call(TypedArrayConstructor, data);
+        }(), dummy, TypedArrayConstructor);
       });
 
       if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
