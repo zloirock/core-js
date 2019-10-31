@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.3.6 - 2019.11.01
 - Don't detect Chakra-based Edge as Chrome in the `userAgent` parsing
 - Fixed inheritance in typed array constructors wrappers, [#683](https://github.com/zloirock/core-js/issues/683)
 - Added one more workaround for correct work of early `fetch` implementations with polyfilled `URLSearchParams`, [#680](https://github.com/zloirock/core-js/issues/680)
