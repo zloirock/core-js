@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Fixed `Math.signbit`, [#687](https://github.com/zloirock/core-js/issues/687), thanks @chicoxyzzy
+
 ##### 3.3.6 - 2019.11.01
 - Don't detect Chakra-based Edge as Chrome in the `userAgent` parsing
 - Fixed inheritance in typed array constructors wrappers, [#683](https://github.com/zloirock/core-js/issues/683)

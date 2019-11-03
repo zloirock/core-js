@@ -2166,11 +2166,11 @@ core-js(-pure)/features/math/signbit
 ```
 [*Examples*](https://goo.gl/rPWbzZ):
 ```js
-Math.signbit(NaN); // => NaN
-Math.signbit(1);   // => true
-Math.signbit(-1);  // => false
-Math.signbit(0);   // => true
-Math.signbit(-0);  // => false
+Math.signbit(NaN); // => false
+Math.signbit(1);   // => false
+Math.signbit(-1);  // => true
+Math.signbit(0);   // => false
+Math.signbit(-0);  // => true
 ```
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/esnext.number.from-string.js)
