@@ -143,7 +143,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/math/radians')(180) === Math.PI);
   ok(load('features/math/scale')(3, 1, 2, 1, 2) === 3);
   ok(load('features/math/umulh')(0xFFFFFFFF, 7) === 6);
-  ok(load('features/math/signbit')(-2) === false);
+  ok(load('features/math/signbit')(-2) === true);
   ok(typeof load('features/math/seeded-prng')({ seed: 42 }).next().value === 'number');
   ok(load('features/number/constructor')('5') === 5);
   ok(load('features/number/epsilon') === 2 ** -52);
