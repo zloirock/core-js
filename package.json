@@ -1,12 +1,12 @@
 {
   "devDependencies": {
-    "@babel/cli": "^7.6.4",
-    "@babel/core": "^7.6.4",
+    "@babel/cli": "^7.7.0",
+    "@babel/core": "^7.7.0",
     "@babel/plugin-proposal-optional-catch-binding": "^7.2.0",
     "@babel/plugin-transform-arrow-functions": "^7.2.0",
     "@babel/plugin-transform-block-scoped-functions": "^7.2.0",
     "@babel/plugin-transform-block-scoping": "^7.6.3",
-    "@babel/plugin-transform-classes": "^7.5.5",
+    "@babel/plugin-transform-classes": "^7.7.0",
     "@babel/plugin-transform-computed-properties": "^7.2.0",
     "@babel/plugin-transform-destructuring": "^7.6.0",
     "@babel/plugin-transform-exponentiation-operator": "^7.2.0",
