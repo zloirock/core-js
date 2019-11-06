@@ -85,6 +85,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [ECMAScript: Collections](#ecmascript-collections)
     - [ECMAScript: Typed Arrays](#ecmascript-typed-arrays)
     - [ECMAScript: Reflect](#ecmascript-reflect)
+    - [ECMAScript: JSON](#ecmascript-json)
     - [ECMAScript: globalThis](#ecmascript-globalthis)
   - [ECMAScript proposals](#ecmascript-proposals)
     - [stage 4 proposals](#stage-4-proposals)
@@ -1068,7 +1069,7 @@ setTimeout(() => promise.catch(() => {}), 1e3);
 ```
 
 #### ECMAScript: Symbol
-Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.description.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.math.to-string-tag.js), [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.3.6/packages/core-js/modules/es.json.to-string-tag.js).
+Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.description.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.math.to-string-tag.js).
 ```js
 class Symbol {
   constructor(description?): symbol;
@@ -1105,10 +1106,6 @@ class Object {
   static getOwnPropertyNames(object: any): Array<string>;
   propertyIsEnumerable(key: PropertyKey): boolean;
 }
-
-namespace JSON {
-  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
-}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
@@ -1130,7 +1127,6 @@ core-js(-pure)/es|stable|features/symbol/for
 core-js(-pure)/es|stable|features/symbol/key-for
 core-js(-pure)/es|stable|features/object/get-own-property-symbols
 core-js(-pure)/es|stable|features/math/to-string-tag
-core-js(-pure)/es|stable|features/json/to-string-tag
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
@@ -1592,6 +1588,26 @@ function C(a, b) {
 
 let instance = Reflect.construct(C, [20, 22]);
 instance.c; // => 42
+```
+
+#### ECMAScript: JSON
+Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON` polyfill, however, fix already existing implementations by the current standard, for example, [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify). `JSON` also fixed in other modules - for example, `Symbol` polyfill fixes `JSON.stringify` for correct work with symbols.
+
+Module [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/v3.4.0/packages/core-js/modules/es.json.stringify.js).
+```js
+namespace JSON {
+  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+  @@toStringTag: 'JSON';
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/es|stable|features/json/stringify
+core-js(-pure)/es|stable|features/json/to-string-tag
+```
+[*Examples*](http://es6.zloirock.ru/#log(JSON.stringify(%7B%20'%F0%A0%AE%B7'%3A%20%5B'%5CuDF06%5CuD834'%5D%20%7D))%3B%20%2F%2F%20%3D%3E%20'%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D'):
+```js
+JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 ```
 
 #### ECMAScript: globalThis

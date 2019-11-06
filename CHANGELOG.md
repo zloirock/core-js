@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Fixed `Math.signbit`, [#687](https://github.com/zloirock/core-js/issues/687), thanks @chicoxyzzy
+- Added [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify), ES2019 feature, thanks [@ExE-Boss](https://github.com/ExE-Boss) and [@WebReflection](https://github.com/WebReflection) for the idea
+- Fixed `Math.signbit`, [#687](https://github.com/zloirock/core-js/issues/687), thanks [@chicoxyzzy](https://github.com/chicoxyzzy)
 
 ##### 3.3.6 - 2019.11.01
 - Don't detect Chakra-based Edge as Chrome in the `userAgent` parsing

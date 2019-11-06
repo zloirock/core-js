@@ -35,6 +35,7 @@ import './es.function.bind';
 import './es.function.has-instance';
 import './es.function.name';
 import './es.global-this';
+import './es.json.stringify';
 import './es.map';
 import './es.math.acosh';
 import './es.math.asinh';

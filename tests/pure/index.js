@@ -35,6 +35,7 @@ import './es.date.to-json';
 import './es.function.bind';
 import './es.function.has-instance';
 import './es.global-this';
+import './es.json.stringify';
 import './es.map';
 import './es.math.acosh';
 import './es.math.asinh';

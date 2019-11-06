@@ -439,6 +439,10 @@ GLOBAL.tests = {
   'es.global-this': function () {
     return globalThis;
   },
+  'es.json.stringify': function () {
+    return JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
+      && JSON.stringify('\uDEAD') === '"\\udead"';
+  },
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
