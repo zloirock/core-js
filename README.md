@@ -1807,7 +1807,7 @@ class Iterator {
   every(callbackfn: value: any => boolean): boolean;
   filter(callbackfn: value: any => boolean): Iterator<any>;
   find(callbackfn: value: any => boolean)): any;
-  flatMap(callbackfn: value => any): Iterator<any>;
+  flatMap(callbackfn: value => any: Iterable): Iterator<any>;
   forEach(callbackfn: value => void): void;
   map(callbackfn: value => any): Iterator<any>;
   reduce(callbackfn: (memo: any, value: any) => any, initialValue: any): any;
@@ -1824,7 +1824,7 @@ class AsyncIterator {
   every(async callbackfn: value: any => boolean): boolean;
   filter(async callbackfn: value: any => boolean): AsyncIterator<any>;
   find(async callbackfn: value: any => boolean)): any;
-  flatMap(async callbackfn: value => any): AsyncIterator<any>;
+  flatMap(async callbackfn: value => any: Iterable): AsyncIterator<any>;
   forEach(async callbackfn: value => void): Promise<void>;
   map(async callbackfn: value => any): AsyncIterator<any>;
   reduce(async callbackfn: (memo: any, value: any) => any, initialValue: any): Promise<any>;

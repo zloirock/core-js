@@ -3,7 +3,6 @@
 var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var isObject = require('../internals/is-object');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/create-iterator-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
@@ -24,12 +23,14 @@ var IteratorProxy = createIteratorProxy(function (arg) {
     if (this.done = !!result.done) return;
 
     mapped = callWithSafeIterationClosing(iterator, this.mapper, result.value);
+    iteratorMethod = getIteratorMethod(mapped);
 
-    if (isObject(mapped) && (iteratorMethod = getIteratorMethod(mapped)) !== undefined) {
-      this.innerIterator = innerIterator = iteratorMethod.call(mapped);
-      this.innerNext = aFunction(innerIterator.next);
-      continue;
-    } return mapped;
+    if (iteratorMethod === undefined) {
+      throw TypeError('.flatMap callback should return an iterable object');
+    }
+
+    this.innerIterator = innerIterator = anObject(iteratorMethod.call(mapped));
+    this.innerNext = aFunction(innerIterator.next);
   }
 });
 
