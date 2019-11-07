@@ -48,6 +48,6 @@
     "shim"
   ],
   "scripts": {
-    "postinstall": "node postinstall || echo \"ignore\""
+    "postinstall": "node -e \"try { require('./scripts/postinstall'); } catch (e) { }; process.exit(0) \""
   }
 }
