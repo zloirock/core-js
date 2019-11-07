@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions are always welcome. If you don't know what how you can help, you can check [issues](https://github.com/zloirock/core-js/issues) or ask @zloirock.
+Contributions are always welcome. If you don't know how you can help, you can check [issues](https://github.com/zloirock/core-js/issues) or ask @zloirock.
 
 ## How to add a new polyfill
 
@@ -8,7 +8,7 @@ Contributions are always welcome. If you don't know what how you can help, you c
 - Any shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory.
 - If the implementation for the `pure` version differs from the global version, add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
 - For export the polyfill, in almost all cases use `internals/export` helper.
-- Add feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js) and compatibility data to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js) and [`packages/core-js-compat/src/modules-by-versions.js`](./packages/core-js-compat/src/modules-by-versions.js) (this data also used for getting default list of polyfills at bundling).
+- Add feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js) and compatibility data to [`packages/core-js-compat/src/data.js`](./packages/core-js-compat/src/data.js) and [`packages/core-js-compat/src/modules-by-versions.js`](./packages/core-js-compat/src/modules-by-versions.js) (this data also used for getting the default list of polyfills at bundling).
 - Add it to entry points where it's required: directories [`packages/core-js/features`](./packages/core-js/features), [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
 - Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
 - Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs).
@@ -16,12 +16,12 @@ Contributions are always welcome. If you don't know what how you can help, you c
 
 ## Style and standards
 
-Coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
+The coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
 - Polyfill implementations should use only ES3 syntax and standard library. Polyfills should not use another polyfill from the global namespace.
-- In unit tests should be used modern syntax with our [minimalistic Babel config](./.babelrc). Unit tests for the `pure` version should not use any modern standard library features.
+- In unit tests should be used modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the `pure` version should not use any modern standard library features.
 - In building tools and tests, performed in Node.js, should be used only available in Node.js 4 syntax and standard library.
 
-File names should be in kebab-case. Name of files with polyfills should follow naming convention `namespace.subnamespase-where-required.feature-name`, for example, `esnext.promise.try`. Top level namespace could be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals, `web` for another web standards and `core` for helpers.
+File names should be in the kebab-case. Name of files with polyfills should follow naming convention `namespace.subnamespase-where-required.feature-name`, for example, `esnext.promise.try`. Top-level namespace could be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals and `web` for other web standards.
 
 ## Testing
 
@@ -62,11 +62,11 @@ If you want to run tests in a certain browser at first you should build packages
 ```
 $ npm run build
 ```
-- For running global version unit test case use this file:
+- For running the global version of the unit test case use this file:
 ```
 tests/tests.html
 ```
-- For running the `pure` version unit test case use this file:
+- For running the pure version of the unit test case use this file:
 ```
 tests/pure.html
 ```
