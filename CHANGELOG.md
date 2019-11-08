@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Throw when `(Async)Iterator#flatMap` mapper returns a non-iterable, per [tc39/proposal-iterator-helpers/55](https://github.com/tc39/proposal-iterator-helpers/issues/55) and [tc39/proposal-iterator-helpers/59](https://github.com/tc39/proposal-iterator-helpers/pull/59)
+- `String#replaceAll` marked as supported by FF72
 
 ##### 3.4.0 - 2019.11.07
 - Added [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify), ES2019 feature, thanks [@ExE-Boss](https://github.com/ExE-Boss) and [@WebReflection](https://github.com/WebReflection) for the idea
