@@ -14,7 +14,7 @@ var RegExpPrototype = RegExp.prototype;
 $({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
-    var IS_REG_EXP, flags, replacer, string, searchString, template, result, index;
+    var IS_REG_EXP, flags, replacer, string, searchString, template, result, position, index;
     if (searchValue != null) {
       IS_REG_EXP = isRegExp(searchValue);
       if (IS_REG_EXP) {
@@ -39,8 +39,10 @@ $({ target: 'String', proto: true }, {
       return template.join(String(replaceValue));
     }
     result = template[0];
+    position = result.length;
     for (index = 1; index < template.length; index++) {
-      result += String(replaceValue(searchString, index - 1, string));
+      result += String(replaceValue(searchString, position, string));
+      position += searchString.length + template[index].length;
       result += template[index];
     }
     return result;

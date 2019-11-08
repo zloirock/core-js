@@ -13,7 +13,7 @@ QUnit.test('String#replaceAll', assert => {
   assert.same(replaceAll.call({}, 'bject', 'lolo'), '[ololo Ololo]');
   assert.same('aba'.replaceAll('b', (search, i, string) => {
     assert.same(search, 'b', '`search` is `b`');
-    assert.same(i, 0, '`i` is 0');
+    assert.same(i, 1, '`i` is 1');
     assert.same(string, 'aba', '`string` is `aba`');
     return 'c';
   }), 'aca');
