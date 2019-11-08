@@ -5,8 +5,8 @@ var toObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 var sloppyArrayMethod = require('../internals/sloppy-array-method');
 
-var nativeSort = [].sort;
-var test = [1, 2, 3];
+var test = [];
+var nativeSort = test.sort;
 
 // IE8-
 var FAILS_ON_UNDEFINED = fails(function () {

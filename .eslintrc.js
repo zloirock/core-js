@@ -366,6 +366,8 @@ const base = {
   // sonarjs
   // merging collapsible if statements increases the code's readability
   'sonarjs/no-collapsible-if': 'error',
+  // collection sizes and array length comparisons should make sense
+  'sonarjs/no-collection-size-mischeck': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
   'sonarjs/no-duplicated-branches': 'error',
   // collection elements should not be replaced unconditionally
@@ -382,6 +384,12 @@ const base = {
   'sonarjs/no-one-iteration-loop': 'error',
   // boolean literals should not be redundant
   'sonarjs/no-redundant-boolean': 'error',
+  // jump statements should not be redundant
+  'sonarjs/no-redundant-jump': 'error',
+  // conditionals should start on new lines
+  'sonarjs/no-same-line-conditional': 'error',
+  // collection and array contents should be used
+  'sonarjs/no-unused-collection': 'error',
   // the output of functions that don't return anything should not be used
   'sonarjs/no-use-of-empty-return-value': 'error',
   // local variables should not be declared and then immediately returned or thrown
