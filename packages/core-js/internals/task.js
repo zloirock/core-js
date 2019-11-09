@@ -4,7 +4,7 @@ var classof = require('../internals/classof-raw');
 var bind = require('../internals/bind-context');
 var html = require('../internals/html');
 var createElement = require('../internals/document-create-element');
-var userAgent = require('../internals/user-agent');
+var IS_IOS = require('../internals/is-ios');
 
 var location = global.location;
 var set = global.setImmediate;
@@ -69,7 +69,7 @@ if (!set || !clear) {
     };
   // Browsers with MessageChannel, includes WebWorkers
   // except iOS - https://github.com/zloirock/core-js/issues/624
-  } else if (MessageChannel && !/(iphone|ipod|ipad).*applewebkit/i.test(userAgent)) {
+  } else if (MessageChannel && !IS_IOS) {
     channel = new MessageChannel();
     port = channel.port2;
     channel.port1.onmessage = listener;
