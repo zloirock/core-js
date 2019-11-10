@@ -7,6 +7,10 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
   "license": "MIT",
   "keywords": [
     "ES3",

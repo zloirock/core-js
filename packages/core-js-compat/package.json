@@ -16,5 +16,9 @@
     "electron-to-chromium": "^1.3.306",
     "glob": "^7.1.6"
   },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
   "license": "MIT"
 }

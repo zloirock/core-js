@@ -17,5 +17,9 @@
   "engines": {
     "node": ">=8.0.0"
   },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
   "license": "MIT"
 }
