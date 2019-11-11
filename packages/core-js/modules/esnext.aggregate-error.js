@@ -8,7 +8,6 @@ var defineProperty = require('../internals/object-define-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var anObject = require('../internals/an-object');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
@@ -31,14 +30,7 @@ var $AggregateError = function AggregateError(errors, message) {
 $AggregateError.prototype = create(Error.prototype, {
   constructor: createPropertyDescriptor(5, $AggregateError),
   message: createPropertyDescriptor(5, ''),
-  name: createPropertyDescriptor(5, 'AggregateError'),
-  toString: createPropertyDescriptor(5, function toString() {
-    var name = anObject(this).name;
-    name = name === undefined ? 'AggregateError' : String(name);
-    var message = this.message;
-    message = message === undefined ? '' : String(message);
-    return name + ': ' + message;
-  })
+  name: createPropertyDescriptor(5, 'AggregateError')
 });
 
 if (DESCRIPTORS) defineProperty.f($AggregateError.prototype, 'errors', {
