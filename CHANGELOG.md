@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.4.1 - 2019.11.12
 - Throw when `(Async)Iterator#flatMap` mapper returns a non-iterable, per [tc39/proposal-iterator-helpers/55](https://github.com/tc39/proposal-iterator-helpers/issues/55) and [tc39/proposal-iterator-helpers/59](https://github.com/tc39/proposal-iterator-helpers/pull/59)
 - Removed own `AggregateError#toString`, per [tc39/proposal-promise-any/49](https://github.com/tc39/proposal-promise-any/pull/49)
 - Global `core-js` `Promise` polyfill passes feature detection in the pure versions
