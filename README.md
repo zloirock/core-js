@@ -24,7 +24,7 @@
 
 ---
 
-## For enterprise
+### For enterprise
 
 Available as part of the Tidelift Subscription.
 
@@ -32,7 +32,7 @@ The maintainers of `core-js` and thousands of other packages are working with Ti
 
 ---
 
-[*Example*](http://goo.gl/a2xexl):
+[*Example of usage*](http://goo.gl/a2xexl):
 ```js
 import 'core-js'; // <- at the top of your entry point
 
