@@ -1413,7 +1413,6 @@ const data = {
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   'esnext.string.replace-all': {
-    firefox: '72',
   },
   'esnext.symbol.async-dispose': {
   },
