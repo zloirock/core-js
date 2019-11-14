@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- `String#replaceAll` is avaivable only in nightly FF builds
+- `String#replaceAll` is available only in nightly FF builds
 
 ##### 3.4.1 - 2019.11.12
 - Throw when `(Async)Iterator#flatMap` mapper returns a non-iterable, per [tc39/proposal-iterator-helpers/55](https://github.com/tc39/proposal-iterator-helpers/issues/55) and [tc39/proposal-iterator-helpers/59](https://github.com/tc39/proposal-iterator-helpers/pull/59)
