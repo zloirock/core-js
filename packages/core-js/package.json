@@ -52,6 +52,6 @@
     "shim"
   ],
   "scripts": {
-    "postinstall": "node postinstall || echo \"ignore\""
+    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   }
 }
