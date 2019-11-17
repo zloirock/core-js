@@ -5,6 +5,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var IS_PURE = require('../internals/is-pure');
 var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_SYMBOL = require('../internals/native-symbol');
+var USE_SYMBOL_AS_UID = require('../internals/use-symbol-as-uid');
 var fails = require('../internals/fails');
 var has = require('../internals/has');
 var isArray = require('../internals/is-array');
@@ -195,7 +196,9 @@ if (!NATIVE_SYMBOL) {
       redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
     }
   }
+}
 
+if (!USE_SYMBOL_AS_UID) {
   wrappedWellKnownSymbolModule.f = function (name) {
     return wrap(wellKnownSymbol(name), name);
   };

@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Don't use polyfilled symbols as internal uids, a workaround for some incorrect use cases
 - `String#replaceAll` is available only in nightly FF builds
 - Returned usage of `node -e` in `postinstall` scripts
 
