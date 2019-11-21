@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.4.2 - 2019.11.22
 - Don't use polyfilled symbols as internal uids, a workaround for some incorrect use cases
 - `String#replaceAll` is available only in nightly FF builds
 - Improved `Promise` feature detection for the case of V8 6.6 with multiple `core-js` copies
