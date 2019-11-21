@@ -2,6 +2,7 @@
 ##### Unreleased
 - Don't use polyfilled symbols as internal uids, a workaround for some incorrect use cases
 - `String#replaceAll` is available only in nightly FF builds
+- Added Node 13.2 -> V8 79 compat data mapping
 - Returned usage of `node -e` in `postinstall` scripts
 
 ##### 3.4.1 - 2019.11.12
