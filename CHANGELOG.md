@@ -2,7 +2,9 @@
 ##### Unreleased
 - Don't use polyfilled symbols as internal uids, a workaround for some incorrect use cases
 - `String#replaceAll` is available only in nightly FF builds
-- Added Node 13.2 -> V8 79 compat data mapping
+- Improved `Promise` feature detection for the case of V8 6.6 with multiple `core-js` copies
+- Some internals optimizations
+- Added Node 13.2 -> V8 7.9 compat data mapping
 - Returned usage of `node -e` in `postinstall` scripts
 
 ##### 3.4.1 - 2019.11.12
