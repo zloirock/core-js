@@ -1,1 +1,3 @@
-module.exports = require('../../../es/array/virtual/map');
+var parent = require('../../../es/array/virtual/map');
+
+module.exports = parent;

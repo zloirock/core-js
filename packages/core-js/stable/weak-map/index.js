@@ -1,1 +1,3 @@
-module.exports = require('../../es/weak-map');
+var parent = require('../../es/weak-map');
+
+module.exports = parent;

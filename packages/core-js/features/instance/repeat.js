@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/repeat');
+var parent = require('../../es/instance/repeat');
+
+module.exports = parent;

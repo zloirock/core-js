@@ -1,5 +1,4 @@
-module.exports = require('../../es/set');
-
+var parent = require('../../es/set');
 require('../../modules/esnext.set.from');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
@@ -18,3 +17,5 @@ require('../../modules/esnext.set.reduce');
 require('../../modules/esnext.set.some');
 require('../../modules/esnext.set.symmetric-difference');
 require('../../modules/esnext.set.union');
+
+module.exports = parent;

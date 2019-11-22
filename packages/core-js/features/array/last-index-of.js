@@ -1,1 +1,3 @@
-module.exports = require('../../es/array/last-index-of');
+var parent = require('../../es/array/last-index-of');
+
+module.exports = parent;

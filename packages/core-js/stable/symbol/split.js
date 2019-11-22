@@ -1,1 +1,3 @@
-module.exports = require('../../es/symbol/split');
+var parent = require('../../es/symbol/split');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/fround');
+var parent = require('../../es/math/fround');
+
+module.exports = parent;

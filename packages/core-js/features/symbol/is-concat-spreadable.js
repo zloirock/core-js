@@ -1,1 +1,3 @@
-module.exports = require('../../es/symbol/is-concat-spreadable');
+var parent = require('../../es/symbol/is-concat-spreadable');
+
+module.exports = parent;

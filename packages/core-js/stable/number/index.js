@@ -1,1 +1,3 @@
-module.exports = require('../../es/number');
+var parent = require('../../es/number');
+
+module.exports = parent;

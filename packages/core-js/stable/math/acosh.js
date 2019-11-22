@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/acosh');
+var parent = require('../../es/math/acosh');
+
+module.exports = parent;

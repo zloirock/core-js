@@ -1,1 +1,3 @@
-module.exports = require('../../es/object/seal');
+var parent = require('../../es/object/seal');
+
+module.exports = parent;

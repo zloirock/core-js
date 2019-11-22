@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/blink');
+var parent = require('../../../es/string/virtual/blink');
+
+module.exports = parent;

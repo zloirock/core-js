@@ -1,1 +1,3 @@
-module.exports = require('../../es/string/fixed');
+var parent = require('../../es/string/fixed');
+
+module.exports = parent;

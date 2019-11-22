@@ -1,1 +1,3 @@
-module.exports = require('../../es/number/epsilon');
+var parent = require('../../es/number/epsilon');
+
+module.exports = parent;

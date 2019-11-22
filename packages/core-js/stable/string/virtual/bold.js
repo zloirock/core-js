@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/bold');
+var parent = require('../../../es/string/virtual/bold');
+
+module.exports = parent;

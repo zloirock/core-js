@@ -1,1 +1,3 @@
-module.exports = require('../../es/string/code-point-at');
+var parent = require('../../es/string/code-point-at');
+
+module.exports = parent;

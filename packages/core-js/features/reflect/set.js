@@ -1,1 +1,3 @@
-module.exports = require('../../es/reflect/set');
+var parent = require('../../es/reflect/set');
+
+module.exports = parent;

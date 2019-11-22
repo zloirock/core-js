@@ -1,5 +1,4 @@
-module.exports = require('../../es/map');
-
+var parent = require('../../es/map');
 require('../../modules/esnext.map.from');
 require('../../modules/esnext.map.of');
 require('../../modules/esnext.map.delete-all');
@@ -20,3 +19,5 @@ require('../../modules/esnext.map.update');
 require('../../modules/esnext.map.upsert');
 // TODO: remove from `core-js@4`
 require('../../modules/esnext.map.update-or-insert');
+
+module.exports = parent;

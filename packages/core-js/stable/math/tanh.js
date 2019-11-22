@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/tanh');
+var parent = require('../../es/math/tanh');
+
+module.exports = parent;

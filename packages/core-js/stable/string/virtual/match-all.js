@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/match-all');
+var parent = require('../../../es/string/virtual/match-all');
+
+module.exports = parent;

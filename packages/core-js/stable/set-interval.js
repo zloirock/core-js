@@ -1,3 +1,4 @@
 require('../modules/web.timers');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').setInterval;
+module.exports = path.setInterval;

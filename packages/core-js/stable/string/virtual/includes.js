@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/includes');
+var parent = require('../../../es/string/virtual/includes');
+
+module.exports = parent;

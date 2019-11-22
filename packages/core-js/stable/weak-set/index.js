@@ -1,1 +1,3 @@
-module.exports = require('../../es/weak-set');
+var parent = require('../../es/weak-set');
+
+module.exports = parent;

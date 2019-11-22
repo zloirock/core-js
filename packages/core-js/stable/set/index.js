@@ -1,1 +1,3 @@
-module.exports = require('../../es/set');
+var parent = require('../../es/set');
+
+module.exports = parent;

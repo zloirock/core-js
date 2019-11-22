@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/imul');
+var parent = require('../../es/math/imul');
+
+module.exports = parent;

@@ -1,3 +1,4 @@
 require('../modules/web.immediate');
+var path = require('../internals/path');
 
-module.exports = require('../internals/path').clearImmediate;
+module.exports = path.clearImmediate;

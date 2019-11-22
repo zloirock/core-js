@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/splice');
+var parent = require('../../es/instance/splice');
+
+module.exports = parent;

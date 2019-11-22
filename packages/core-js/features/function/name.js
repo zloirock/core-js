@@ -1,1 +1,3 @@
-module.exports = require('../../es/function/name');
+var parent = require('../../es/function/name');
+
+module.exports = parent;

@@ -1,5 +1,4 @@
-module.exports = require('../../es/math');
-
+var parent = require('../../es/math');
 require('../../modules/esnext.math.clamp');
 require('../../modules/esnext.math.deg-per-rad');
 require('../../modules/esnext.math.degrees');
@@ -14,3 +13,5 @@ require('../../modules/esnext.math.iaddh');
 require('../../modules/esnext.math.isubh');
 require('../../modules/esnext.math.imulh');
 require('../../modules/esnext.math.umulh');
+
+module.exports = parent;

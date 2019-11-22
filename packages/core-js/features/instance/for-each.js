@@ -1,1 +1,3 @@
-module.exports = require('../../stable/instance/for-each');
+var parent = require('../../stable/instance/for-each');
+
+module.exports = parent;

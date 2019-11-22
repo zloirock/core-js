@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/cosh');
+var parent = require('../../es/math/cosh');
+
+module.exports = parent;

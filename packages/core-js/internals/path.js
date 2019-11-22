@@ -1,1 +1,3 @@
-module.exports = require('../internals/global');
+var global = require('../internals/global');
+
+module.exports = global;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/object/freeze');
+var parent = require('../../es/object/freeze');
+
+module.exports = parent;

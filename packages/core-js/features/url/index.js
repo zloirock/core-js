@@ -1,1 +1,3 @@
-module.exports = require('../../stable/url');
+var parent = require('../../stable/url');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/number/max-safe-integer');
+var parent = require('../../es/number/max-safe-integer');
+
+module.exports = parent;

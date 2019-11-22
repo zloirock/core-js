@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/trunc');
+var parent = require('../../es/math/trunc');
+
+module.exports = parent;

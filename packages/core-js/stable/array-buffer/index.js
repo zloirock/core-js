@@ -1,1 +1,3 @@
-module.exports = require('../../es/array-buffer');
+var parent = require('../../es/array-buffer');
+
+module.exports = parent;

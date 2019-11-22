@@ -1,1 +1,3 @@
-module.exports = require('../es/global-this');
+var parent = require('../es/global-this');
+
+module.exports = parent;

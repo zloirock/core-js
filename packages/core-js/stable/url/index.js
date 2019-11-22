@@ -1,1 +1,3 @@
-module.exports = require('../../web/url');
+var parent = require('../../web/url');
+
+module.exports = parent;

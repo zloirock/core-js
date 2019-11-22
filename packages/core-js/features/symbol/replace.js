@@ -1,1 +1,3 @@
-module.exports = require('../../es/symbol/replace');
+var parent = require('../../es/symbol/replace');
+
+module.exports = parent;

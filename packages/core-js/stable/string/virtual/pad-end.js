@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/pad-end');
+var parent = require('../../../es/string/virtual/pad-end');
+
+module.exports = parent;

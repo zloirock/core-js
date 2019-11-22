@@ -1,1 +1,3 @@
-module.exports = require('../../es/typed-array/int16-array');
+var parent = require('../../es/typed-array/int16-array');
+
+module.exports = parent;

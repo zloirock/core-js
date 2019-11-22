@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/fontcolor');
+var parent = require('../../../es/string/virtual/fontcolor');
+
+module.exports = parent;

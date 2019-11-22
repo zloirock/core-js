@@ -1,1 +1,3 @@
-module.exports = require('../../es/object/define-getter');
+var parent = require('../../es/object/define-getter');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/find-index');
+var parent = require('../../es/instance/find-index');
+
+module.exports = parent;

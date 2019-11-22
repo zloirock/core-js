@@ -1,1 +1,3 @@
-module.exports = require('../../es/object/get-own-property-symbols');
+var parent = require('../../es/object/get-own-property-symbols');
+
+module.exports = parent;

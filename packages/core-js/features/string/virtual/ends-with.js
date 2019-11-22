@@ -1,1 +1,3 @@
-module.exports = require('../../../es/string/virtual/ends-with');
+var parent = require('../../../es/string/virtual/ends-with');
+
+module.exports = parent;

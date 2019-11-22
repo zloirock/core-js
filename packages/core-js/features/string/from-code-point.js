@@ -1,1 +1,3 @@
-module.exports = require('../../es/string/from-code-point');
+var parent = require('../../es/string/from-code-point');
+
+module.exports = parent;

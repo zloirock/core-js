@@ -1,1 +1,3 @@
-module.exports = require('../../../es/array/virtual/reduce');
+var parent = require('../../../es/array/virtual/reduce');
+
+module.exports = parent;

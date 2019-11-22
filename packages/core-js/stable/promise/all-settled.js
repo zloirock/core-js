@@ -1,1 +1,3 @@
-module.exports = require('../../es/promise/all-settled');
+var parent = require('../../es/promise/all-settled');
+
+module.exports = parent;

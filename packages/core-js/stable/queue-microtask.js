@@ -1,1 +1,3 @@
-module.exports = require('../web/queue-microtask');
+var parent = require('../web/queue-microtask');
+
+module.exports = parent;

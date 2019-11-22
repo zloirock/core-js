@@ -1,1 +1,3 @@
-module.exports = require('./pre');
+var proposals = require('./pre');
+
+module.exports = proposals;

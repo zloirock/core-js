@@ -1,1 +1,3 @@
-module.exports = require('../../stable/instance/entries');
+var parent = require('../../stable/instance/entries');
+
+module.exports = parent;

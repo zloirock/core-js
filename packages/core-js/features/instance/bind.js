@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/bind');
+var parent = require('../../es/instance/bind');
+
+module.exports = parent;

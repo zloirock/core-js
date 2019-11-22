@@ -1,1 +1,3 @@
-module.exports = require('../../stable/url-search-params');
+var parent = require('../../stable/url-search-params');
+
+module.exports = parent;

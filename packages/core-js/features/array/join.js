@@ -1,1 +1,3 @@
-module.exports = require('../../es/array/join');
+var parent = require('../../es/array/join');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/sort');
+var parent = require('../../es/instance/sort');
+
+module.exports = parent;

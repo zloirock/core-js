@@ -1,1 +1,3 @@
-module.exports = require('../../es/reflect/own-keys');
+var parent = require('../../es/reflect/own-keys');
+
+module.exports = parent;

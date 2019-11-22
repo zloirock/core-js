@@ -1,1 +1,3 @@
-module.exports = require('../../es/math/clz32');
+var parent = require('../../es/math/clz32');
+
+module.exports = parent;

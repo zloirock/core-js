@@ -1,1 +1,3 @@
-module.exports = require('../../../es/array/virtual/filter');
+var parent = require('../../../es/array/virtual/filter');
+
+module.exports = parent;

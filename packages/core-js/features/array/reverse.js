@@ -1,1 +1,3 @@
-module.exports = require('../../es/array/reverse');
+var parent = require('../../es/array/reverse');
+
+module.exports = parent;

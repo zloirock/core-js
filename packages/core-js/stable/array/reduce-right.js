@@ -1,1 +1,3 @@
-module.exports = require('../../es/array/reduce-right');
+var parent = require('../../es/array/reduce-right');
+
+module.exports = parent;

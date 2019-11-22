@@ -1,1 +1,3 @@
-module.exports = require('../../es/regexp/match');
+var parent = require('../../es/regexp/match');
+
+module.exports = parent;

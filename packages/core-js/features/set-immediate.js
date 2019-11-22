@@ -1,1 +1,3 @@
-module.exports = require('../stable/set-immediate');
+var parent = require('../stable/set-immediate');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-module.exports = require('../../es/number/is-nan');
+var parent = require('../../es/number/is-nan');
+
+module.exports = parent;

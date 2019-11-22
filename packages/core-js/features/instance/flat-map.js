@@ -1,1 +1,3 @@
-module.exports = require('../../es/instance/flat-map');
+var parent = require('../../es/instance/flat-map');
+
+module.exports = parent;
