@@ -50,6 +50,8 @@ const base = {
   'no-prototype-builtins': 'error',
   // disallow multiple spaces in a regular expression literal
   'no-regex-spaces': 'error',
+  // disallow returning values from setters
+  'no-setter-return': 'error',
   // disallow sparse arrays
   'no-sparse-arrays': 'error',
   // disallow template literal placeholder syntax in regular strings
@@ -76,6 +78,8 @@ const base = {
   'no-caller': 'error',
   // disallow lexical declarations in case/default clauses
   'no-case-declarations': 'error',
+  // disallow duplicate conditions in if-else-if chains
+  'no-dupe-else-if': 'error',
   // disallow empty functions, except for standalone funcs/arrows
   'no-empty-function': 'error',
   // disallow empty destructuring patterns
@@ -295,7 +299,7 @@ const base = {
   // disallow the assignment to `exports`
   'node/no-exports-assign': 'error',
 
-  // es6:
+  // es6+:
   // require parentheses around arrow function arguments
   'arrow-parens': ['error', 'as-needed'],
   // enforce consistent spacing before and after the arrow in arrow functions
@@ -318,6 +322,8 @@ const base = {
   'prefer-const': ['error', { destructuring: 'all' }],
   // require destructuring from arrays and/or objects
   'prefer-destructuring': 'error',
+  // prefer the exponentiation operator over `Math.pow()`
+  'prefer-exponentiation-operator': 'error',
   // require template literals instead of string concatenation
   'prefer-template': 'error',
   // enforce spacing between rest and spread operators and their expressions
@@ -353,8 +359,6 @@ const base = {
   'unicorn/no-unused-properties': 'error',
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': 'error',
-  // prefer the exponentiation operator over `Math.pow()`
-  'unicorn/prefer-exponentiation-operator': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
   // enforce the use of regex shorthands to improve readability
@@ -374,8 +378,6 @@ const base = {
   'sonarjs/no-element-overwrite': 'error',
   // function calls should not pass extra arguments
   'sonarjs/no-extra-arguments': 'error',
-  // related `if / else if` statements should not have the same condition
-  'sonarjs/no-identical-conditions': 'error',
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': 'error',
   // boolean checks should not be inverted
@@ -417,16 +419,16 @@ const es3 = {
   'prefer-arrow-callback': 'off',
   // require const declarations for variables that are never reassigned after declared
   'prefer-const': 'off',
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': 'off',
+  // prefer the exponentiation operator over `Math.pow()`
+  'prefer-exponentiation-operator': 'off',
   // require template literals instead of string concatenation
   'prefer-template': 'off',
   // require or disallow use of quotes around object literal property names
   'quote-props': ['error', 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: 'off',
-  // prefer the exponentiation operator over `Math.pow()`
-  'unicorn/prefer-exponentiation-operator': 'off',
-  // require destructuring from arrays and/or objects
-  'prefer-destructuring': 'off',
 };
 
 const node = {
