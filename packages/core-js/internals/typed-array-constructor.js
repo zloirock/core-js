@@ -106,7 +106,8 @@ if (DESCRIPTORS) {
     defineProperty: wrappedDefineProperty
   });
 
-  module.exports = function (TYPE, BYTES, wrapper, CLAMPED) {
+  module.exports = function (TYPE, wrapper, CLAMPED) {
+    var BYTES = TYPE.match(/\d+$/)[0] / 8;
     var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
     var GETTER = 'get' + TYPE;
     var SETTER = 'set' + TYPE;
