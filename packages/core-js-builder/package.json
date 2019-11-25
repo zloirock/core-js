@@ -8,8 +8,8 @@
   },
   "main": "index.js",
   "dependencies": {
-    "core-js": "3.4.1",
-    "core-js-compat": "3.4.1",
+    "core-js": "3.4.2",
+    "core-js-compat": "3.4.2",
     "mkdirp": "^0.5.1",
     "util.promisify": "^1.0.0",
     "webpack": "^4.41.2"
