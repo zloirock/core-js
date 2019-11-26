@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Added a workaround of `String#{ endsWith, startsWith }` MDN polyfills bugs, [#702](https://github.com/zloirock/core-js/issues/702)
+
 ##### 3.4.2 - 2019.11.22
 - Don't use polyfilled symbols as internal uids, a workaround for some incorrect use cases
 - `String#replaceAll` is available only in nightly FF builds
