@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Updated feature detection for Safari [non-generic `Promise#finally` bug](https://bugs.webkit.org/show_bug.cgi?id=200829)
 - Fixed missed `esnext.string.code-points` in `core-js/features/string` entry point
 - Updated `Iterator` proposal feature detection for the case of non-standard `Iterator` in FF44-
 
