@@ -1,5 +1,5 @@
 'use strict';
-const { deepEqual } = require('assert');
+const { deepStrictEqual } = require('assert');
 const data = require('../packages/core-js-compat/data');
 const entries = require('../packages/core-js-compat/entries');
 
@@ -8,7 +8,7 @@ const es = modules.filter(it => /^es\./.test(it));
 const stable = modules.filter(it => !/^esnext\./.test(it));
 
 function sameModules(a, b) {
-  deepEqual(new Set(a), new Set(b));
+  deepStrictEqual(new Set(a), new Set(b));
 }
 
 sameModules(entries['core-js'], modules);
