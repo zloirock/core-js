@@ -143,6 +143,7 @@ require('../modules/es.date.to-json');
 require('../modules/es.date.to-iso-string');
 require('../modules/es.date.to-string');
 require('../modules/es.date.to-primitive');
+require('../modules/es.json.stringiy');
 require('../modules/es.json.to-string-tag');
 require('../modules/es.promise');
 require('../modules/es.promise.all-settled');
