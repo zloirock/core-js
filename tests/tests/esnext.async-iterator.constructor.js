@@ -1,3 +1,5 @@
+const { getPrototypeOf } = Object;
+
 QUnit.test('AsyncIterator', assert => {
   assert.isFunction(AsyncIterator);
   assert.arity(AsyncIterator, 0);
@@ -10,7 +12,12 @@ QUnit.test('AsyncIterator', assert => {
     } catch { /* empty */ }
   })();
 
-  if (asyncGenerator) assert.ok(asyncGenerator instanceof AsyncIterator, 'AsyncGenerator');
+  if (asyncGenerator) {
+    const proto = getPrototypeOf(getPrototypeOf(getPrototypeOf(asyncGenerator)));
+    if (proto !== Object.prototype && proto !== null) {
+      assert.ok(asyncGenerator instanceof AsyncIterator, 'AsyncGenerator');
+    }
+  }
 
   assert.ok(AsyncIterator.from([1, 2, 3]) instanceof AsyncIterator, 'Async From Proxy');
   assert.ok(AsyncIterator.from([1, 2, 3]).drop(1) instanceof AsyncIterator, 'Async Drop Proxy');
