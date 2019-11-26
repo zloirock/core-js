@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.4.3 - 2019.11.26
 - Fixed missed `es.json.stringify` and some modules from iteration helpers proposal in some entry points
 - Added a workaround of `String#{ endsWith, startsWith }` MDN polyfills bugs, [#702](https://github.com/zloirock/core-js/issues/702)
 - Fixed `.size` property descriptor of `Map` / `Set` in the pure version
