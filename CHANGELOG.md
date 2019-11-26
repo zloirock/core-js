@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed missed `esnext.string.code-points` in `core-js/features/string` entry point
+- Updated `Iterator` proposal feature detection for the case of non-standard `Iterator` in FF44-
 
 ##### 3.4.3 - 2019.11.26
 - Fixed missed `es.json.stringify` and some modules from iteration helpers proposal in some entry points
