@@ -3,87 +3,110 @@ const { deepStrictEqual, ok } = require('assert');
 const data = require('../packages/core-js-compat/data');
 const entries = require('../packages/core-js-compat/entries');
 
-const modules = Object.keys(data);
+const allModules = Object.keys(data);
 
-function same(a, b) {
-  deepStrictEqual(new Set(a), new Set(b));
+function filter(regexp) {
+  return allModules.filter(it => regexp.test(it));
 }
 
-function superset(a, b) {
-  const set = new Set(a);
-  for (const module of b) {
-    ok(set.has(module), module);
+function equal(name, required) {
+  const contains = new Set(entries[name]);
+  const shouldContain = new Set(Array.isArray(required) ? required : filter(required));
+  deepStrictEqual(contains, shouldContain);
+}
+
+function superset(name, required) {
+  const contains = new Set(entries[name]);
+  const shouldContain = Array.isArray(required) ? required : filter(required);
+  for (const module of shouldContain) {
+    ok(contains.has(module), module);
   }
 }
 
-same(entries['core-js'], modules);
-same(entries['core-js/es'], modules.filter(it => /^es\./.test(it)));
-superset(entries['core-js/es/array'], modules.filter(it => /^es\.array\./.test(it)));
-superset(entries['core-js/es/array-buffer'], modules.filter(it => /^es\.array-buffer\./.test(it)));
-superset(entries['core-js/es/data-view'], modules.filter(it => /^es\.data-view\./.test(it)));
-superset(entries['core-js/es/date'], modules.filter(it => /^es\.date\./.test(it)));
-superset(entries['core-js/es/function'], modules.filter(it => /^es\.function\./.test(it)));
-superset(entries['core-js/es/json'], modules.filter(it => /^es\.json\./.test(it)));
-superset(entries['core-js/es/map'], modules.filter(it => /^es\.map/.test(it)));
-superset(entries['core-js/es/math'], modules.filter(it => /^es\.math\./.test(it)));
-superset(entries['core-js/es/number'], modules.filter(it => /^es\.number\./.test(it)));
-superset(entries['core-js/es/object'], modules.filter(it => /^es\.object\./.test(it)));
-superset(entries['core-js/es/promise'], modules.filter(it => /^es\.promise/.test(it)));
-superset(entries['core-js/es/reflect'], modules.filter(it => /^es\.reflect\./.test(it)));
-superset(entries['core-js/es/regexp'], modules.filter(it => /^es\.regexp\./.test(it)));
-superset(entries['core-js/es/set'], modules.filter(it => /^es\.set/.test(it)));
-superset(entries['core-js/es/string'], modules.filter(it => /^es\.string\./.test(it)));
-superset(entries['core-js/es/symbol'], modules.filter(it => /^es\.symbol/.test(it)));
-superset(entries['core-js/es/typed-array'], modules.filter(it => /^es\.typed-array\./.test(it)));
-superset(entries['core-js/es/weak-map'], modules.filter(it => /^es\.weak-map/.test(it)));
-superset(entries['core-js/es/weak-set'], modules.filter(it => /^es\.weak-set/.test(it)));
-same(entries['core-js/web'], modules.filter(it => /^web\./.test(it)));
-same(entries['core-js/stable'], modules.filter(it => !/^esnext\./.test(it)));
-superset(entries['core-js/stable/array'], modules.filter(it => /^es\.array\./.test(it)));
-superset(entries['core-js/stable/array-buffer'], modules.filter(it => /^es\.array-buffer\./.test(it)));
-superset(entries['core-js/stable/data-view'], modules.filter(it => /^es\.data-view\./.test(it)));
-superset(entries['core-js/stable/date'], modules.filter(it => /^es\.date\./.test(it)));
-superset(entries['core-js/stable/dom-collections'], modules.filter(it => /^web\.dom-collections\./.test(it)));
-superset(entries['core-js/stable/function'], modules.filter(it => /^es\.function\./.test(it)));
-superset(entries['core-js/stable/json'], modules.filter(it => /^es\.json\./.test(it)));
-superset(entries['core-js/stable/map'], modules.filter(it => /^es\.map/.test(it)));
-superset(entries['core-js/stable/math'], modules.filter(it => /^es\.math\./.test(it)));
-superset(entries['core-js/stable/number'], modules.filter(it => /^es\.number\./.test(it)));
-superset(entries['core-js/stable/object'], modules.filter(it => /^es\.object\./.test(it)));
-superset(entries['core-js/stable/promise'], modules.filter(it => /^es\.promise/.test(it)));
-superset(entries['core-js/stable/reflect'], modules.filter(it => /^es\.reflect\./.test(it)));
-superset(entries['core-js/stable/regexp'], modules.filter(it => /^es\.regexp\./.test(it)));
-superset(entries['core-js/stable/set'], modules.filter(it => /^es\.set/.test(it)));
-superset(entries['core-js/stable/string'], modules.filter(it => /^es\.string\./.test(it)));
-superset(entries['core-js/stable/symbol'], modules.filter(it => /^es\.symbol/.test(it)));
-superset(entries['core-js/stable/typed-array'], modules.filter(it => /^es\.typed-array\./.test(it)));
-superset(entries['core-js/stable/url'], modules.filter(it => /^web\.url(\.|$)/.test(it)));
-superset(entries['core-js/stable/url-search-params'], modules.filter(it => /^web\.url-search-params/.test(it)));
-superset(entries['core-js/stable/weak-map'], modules.filter(it => /^es\.weak-map/.test(it)));
-superset(entries['core-js/stable/weak-set'], modules.filter(it => /^es\.weak-set/.test(it)));
-same(entries['core-js/features'], modules);
-superset(entries['core-js/features/array'], modules.filter(it => /^(es|esnext)\.array\./.test(it)));
-superset(entries['core-js/features/array-buffer'], modules.filter(it => /^(es|esnext)\.array-buffer\./.test(it)));
-superset(entries['core-js/features/async-iterator'], modules.filter(it => /^(es|esnext)\.async-iterator\./.test(it)));
-superset(entries['core-js/features/data-view'], modules.filter(it => /^(es|esnext)\.data-view\./.test(it)));
-superset(entries['core-js/features/date'], modules.filter(it => /^(es|esnext)\.date\./.test(it)));
-superset(entries['core-js/features/dom-collections'], modules.filter(it => /^web\.dom-collections\./.test(it)));
-superset(entries['core-js/features/function'], modules.filter(it => /^(es|esnext)\.function\./.test(it)));
-superset(entries['core-js/features/iterator'], modules.filter(it => /^(es|esnext)\.iterator\./.test(it)));
-superset(entries['core-js/features/json'], modules.filter(it => /^(es|esnext)\.json\./.test(it)));
-superset(entries['core-js/features/map'], modules.filter(it => /^(es|esnext)\.map/.test(it)));
-superset(entries['core-js/features/math'], modules.filter(it => /^(es|esnext)\.math\./.test(it)));
-superset(entries['core-js/features/number'], modules.filter(it => /^(es|esnext)\.number\./.test(it)));
-superset(entries['core-js/features/object'], modules.filter(it => /^(es|esnext)\.object\./.test(it)));
-superset(entries['core-js/features/observable'], modules.filter(it => /^(es|esnext)\.observable/.test(it)));
-superset(entries['core-js/features/promise'], modules.filter(it => /^(es|esnext)\.promise/.test(it)));
-superset(entries['core-js/features/reflect'], modules.filter(it => /^(es|esnext)\.reflect\./.test(it)));
-superset(entries['core-js/features/regexp'], modules.filter(it => /^(es|esnext)\.regexp\./.test(it)));
-superset(entries['core-js/features/set'], modules.filter(it => /^(es|esnext)\.set/.test(it)));
-superset(entries['core-js/features/string'], modules.filter(it => /^(es|esnext)\.string\./.test(it)));
-superset(entries['core-js/features/symbol'], modules.filter(it => /^(es|esnext)\.symbol/.test(it)));
-superset(entries['core-js/features/typed-array'], modules.filter(it => /^(es|esnext)\.typed-array\./.test(it)));
-superset(entries['core-js/features/url'], modules.filter(it => /^web\.url(\.|$)/.test(it)));
-superset(entries['core-js/features/url-search-params'], modules.filter(it => /^web\.url-search-params/.test(it)));
-superset(entries['core-js/features/weak-map'], modules.filter(it => /^(es|esnext)\.weak-map/.test(it)));
-superset(entries['core-js/features/weak-set'], modules.filter(it => /^(es|esnext)\.weak-set/.test(it)));
+function subset(name, required) {
+  const contains = entries[name];
+  const shouldContain = new Set(Array.isArray(required) ? required : filter(required));
+  for (const module of contains) {
+    ok(shouldContain.has(module), module);
+  }
+}
+
+equal('core-js', allModules);
+equal('core-js/es', /^es\./);
+superset('core-js/es/array', /^es\.array\./);
+superset('core-js/es/array-buffer', /^es\.array-buffer\./);
+superset('core-js/es/data-view', /^es\.data-view\./);
+superset('core-js/es/date', /^es\.date\./);
+superset('core-js/es/function', /^es\.function\./);
+superset('core-js/es/json', /^es\.json\./);
+superset('core-js/es/map', /^es\.map/);
+superset('core-js/es/math', /^es\.math\./);
+superset('core-js/es/number', /^es\.number\./);
+superset('core-js/es/object', /^es\.object\./);
+superset('core-js/es/promise', /^es\.promise/);
+superset('core-js/es/reflect', /^es\.reflect\./);
+superset('core-js/es/regexp', /^es\.regexp\./);
+superset('core-js/es/set', /^es\.set/);
+superset('core-js/es/string', /^es\.string\./);
+superset('core-js/es/symbol', /^es\.symbol/);
+superset('core-js/es/typed-array', /^es\.typed-array\./);
+superset('core-js/es/weak-map', /^es\.weak-map/);
+superset('core-js/es/weak-set', /^es\.weak-set/);
+equal('core-js/web', /^web\./);
+equal('core-js/stable', /^(es|web)\./);
+superset('core-js/stable/array', /^es\.array\./);
+superset('core-js/stable/array-buffer', /^es\.array-buffer\./);
+superset('core-js/stable/data-view', /^es\.data-view\./);
+superset('core-js/stable/date', /^es\.date\./);
+superset('core-js/stable/dom-collections', /^web\.dom-collections\./);
+superset('core-js/stable/function', /^es\.function\./);
+superset('core-js/stable/json', /^es\.json\./);
+superset('core-js/stable/map', /^es\.map/);
+superset('core-js/stable/math', /^es\.math\./);
+superset('core-js/stable/number', /^es\.number\./);
+superset('core-js/stable/object', /^es\.object\./);
+superset('core-js/stable/promise', /^es\.promise/);
+superset('core-js/stable/reflect', /^es\.reflect\./);
+superset('core-js/stable/regexp', /^es\.regexp\./);
+superset('core-js/stable/set', /^es\.set/);
+superset('core-js/stable/string', /^es\.string\./);
+superset('core-js/stable/symbol', /^es\.symbol/);
+superset('core-js/stable/typed-array', /^es\.typed-array\./);
+superset('core-js/stable/url', /^web\.url(\.|$)/);
+superset('core-js/stable/url-search-params', /^web\.url-search-params/);
+superset('core-js/stable/weak-map', /^es\.weak-map/);
+superset('core-js/stable/weak-set', /^es\.weak-set/);
+equal('core-js/features', allModules);
+superset('core-js/features/array', /^(es|esnext)\.array\./);
+superset('core-js/features/array-buffer', /^(es|esnext)\.array-buffer\./);
+superset('core-js/features/async-iterator', /^(es|esnext)\.async-iterator\./);
+superset('core-js/features/data-view', /^(es|esnext)\.data-view\./);
+superset('core-js/features/date', /^(es|esnext)\.date\./);
+superset('core-js/features/dom-collections', /^web\.dom-collections\./);
+superset('core-js/features/function', /^(es|esnext)\.function\./);
+superset('core-js/features/iterator', /^(es|esnext)\.iterator\./);
+superset('core-js/features/json', /^(es|esnext)\.json\./);
+superset('core-js/features/map', /^(es|esnext)\.map/);
+superset('core-js/features/math', /^(es|esnext)\.math\./);
+superset('core-js/features/number', /^(es|esnext)\.number\./);
+superset('core-js/features/object', /^(es|esnext)\.object\./);
+superset('core-js/features/observable', /^(es|esnext)\.observable/);
+superset('core-js/features/promise', /^(es|esnext)\.promise/);
+superset('core-js/features/reflect', /^(es|esnext)\.reflect\./);
+superset('core-js/features/regexp', /^(es|esnext)\.regexp\./);
+superset('core-js/features/set', /^(es|esnext)\.set/);
+superset('core-js/features/string', /^(es|esnext)\.string\./);
+superset('core-js/features/symbol', /^(es|esnext)\.symbol/);
+superset('core-js/features/typed-array', /^(es|esnext)\.typed-array\./);
+superset('core-js/features/url', /^web\.url(\.|$)/);
+superset('core-js/features/url-search-params', /^web\.url-search-params/);
+superset('core-js/features/weak-map', /^(es|esnext)\.weak-map/);
+superset('core-js/features/weak-set', /^(es|esnext)\.weak-set/);
+equal('core-js/proposals', /^(esnext\.|web\.url)/);
+equal('core-js/stage', /^(esnext\.|web\.url)/);
+equal('core-js/stage/pre', /^(esnext\.|web\.url)/);
+subset('core-js/stage/0', /^(esnext\.|web\.url)/);
+subset('core-js/stage/1', /^(esnext\.|web\.url)/);
+subset('core-js/stage/2', /^esnext\./);
+subset('core-js/stage/3', /^esnext\./);
+subset('core-js/stage/4', /^esnext\./);
