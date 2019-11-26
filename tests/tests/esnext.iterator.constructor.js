@@ -12,7 +12,7 @@ QUnit.test('Iterator', assert => {
     } catch { /* empty */ }
   })();
 
-  if (generator) assert.ok(generator instanceof Iterator, 'AsyncGenerator');
+  if (generator) assert.ok(generator instanceof Iterator, 'Generator');
 
   assert.ok(''[Symbol.iterator]() instanceof Iterator, 'String Iterator');
   assert.ok([].values() instanceof Iterator, 'Array Iterator');
