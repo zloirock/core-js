@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.4.5 - 2019.11.28
 - Detect incorrect order of operations in `Object.assign`, MS Edge bug
 - Detect usage of `ToLength` in `Array#{ filter, map }`, FF48-49 and MS Edge 14- issues
 - Detect incorrect MS Edge 17-18 `Reflect.set` which allows setting the property to object with non-writable property on the prototype
