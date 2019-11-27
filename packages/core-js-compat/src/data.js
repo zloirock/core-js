@@ -108,7 +108,7 @@ const data = {
     safari: '9.0',
   },
   'es.array.filter': {
-    edge: '13',
+    edge: '15',
     chrome: '51',
     firefox: '48',
     safari: '10.0',
@@ -188,7 +188,7 @@ const data = {
   'es.array.map': {
     edge: '13',
     chrome: '51',
-    firefox: '48',
+    firefox: '50',
     safari: '10.0',
   },
   'es.array.of': {

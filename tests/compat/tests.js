@@ -242,6 +242,7 @@ GLOBAL.tests = {
     return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
   },
   'es.array.filter': function () {
+    [].filter.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
@@ -315,6 +316,7 @@ GLOBAL.tests = {
     }
   },
   'es.array.map': function () {
+    [].map.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {

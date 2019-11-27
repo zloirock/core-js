@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Detect usage of `ToLength` in `Array#{ filter, map }`, FF48-49 and Edge 14- issues
+
 ##### 3.4.4 - 2019.11.27
 - Added feature detection for Safari [non-generic `Promise#finally` bug](https://bugs.webkit.org/show_bug.cgi?id=200829) **(critical for `core-js-pure`)**
 - Fixed missed `esnext.string.code-points` in `core-js/features/string` entry point
