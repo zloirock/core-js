@@ -789,7 +789,9 @@ const data = {
     safari: '10.0',
   },
   'es.reflect.set': {
-    edge: '12',
+    // MS Edge 17-18 Reflect.set allows setting the property to object
+    // with non-writable property on the prototype
+    // edge: '12',
     chrome: '49',
     firefox: '42',
     safari: '10.0',

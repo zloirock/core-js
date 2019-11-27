@@ -2,6 +2,7 @@
 ##### Unreleased
 - Detect incorrect order of operations in `Object.assign`, MS Edge bug
 - Detect usage of `ToLength` in `Array#{ filter, map }`, FF48-49 and MS Edge 14- issues
+- Detect incorrect MS Edge 17-18 `Reflect.set` which allows setting the property to object with non-writable property on the prototype
 - Fixed `inspectSource` helper with multiple `core-js` copies and some related features like some edge cases of `Promise` feature detection
 
 ##### 3.4.4 - 2019.11.27
