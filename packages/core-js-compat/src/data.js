@@ -537,7 +537,8 @@ const data = {
     safari: '8.0',
   },
   'es.object.assign': {
-    edge: '13',
+    // order of operations bug
+    // edge: '13',
     chrome: '49',
     firefox: '36',
     safari: '9.0',

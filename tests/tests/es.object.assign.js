@@ -49,7 +49,7 @@ QUnit.test('Object.assign', assert => {
       assert.strictEqual(Function('assign', `
         return assign({ b: 1 }, { get a() {
           Object.defineProperty(this, "b", {
-            value: 4,
+            value: 3,
             enumerable: false
           });
         }, b: 2 });

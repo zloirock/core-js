@@ -578,6 +578,15 @@ GLOBAL.tests = {
     }
   },
   'es.object.assign': function () {
+    if (DESCRIPTORS_SUPPORT && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
+      enumerable: true,
+      get: function () {
+        Object.defineProperty(this, 'b', {
+          value: 3,
+          enumerable: false
+        });
+      }
+    }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
     var symbol = Symbol();
