@@ -1,11 +1,11 @@
 ## Changelog
 ##### Unreleased
-- Updated feature detection for Safari [non-generic `Promise#finally` bug](https://bugs.webkit.org/show_bug.cgi?id=200829)
+- Added feature detection for Safari [non-generic `Promise#finally` bug](https://bugs.webkit.org/show_bug.cgi?id=200829) **(critical for `core-js-pure`)**
 - Fixed missed `esnext.string.code-points` in `core-js/features/string` entry point
 - Updated `Iterator` proposal feature detection for the case of non-standard `Iterator` in FF44-
 
 ##### 3.4.3 - 2019.11.26
-- Fixed missed `es.json.stringify` and some modules from iteration helpers proposal in some entry points
+- Fixed missed `es.json.stringify` and some modules from iteration helpers proposal in some entry points **(includes the root entry point)**
 - Added a workaround of `String#{ endsWith, startsWith }` MDN polyfills bugs, [#702](https://github.com/zloirock/core-js/issues/702)
 - Fixed `.size` property descriptor of `Map` / `Set` in the pure version
 - Refactoring, some internal improvements

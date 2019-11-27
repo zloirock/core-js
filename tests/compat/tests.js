@@ -660,7 +660,7 @@ GLOBAL.tests = {
     return Promise.allSettled;
   },
   'es.promise.finally': [PROMISES_SUPPORT, function () {
-    return Promise.prototype['finally'].call({ then: function () { /* empty */ } }, function () { /* empty */ });
+    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
   }],
   'es.reflect.apply': function () {
     try {
