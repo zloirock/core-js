@@ -1,6 +1,6 @@
 var global = require('../internals/global');
-var nativeFunctionToString = require('../internals/function-to-string');
+var inspectSource = require('../internals/inspect-source');
 
 var WeakMap = global.WeakMap;
 
-module.exports = typeof WeakMap === 'function' && /native code/.test(nativeFunctionToString.call(WeakMap));
+module.exports = typeof WeakMap === 'function' && /native code/.test(inspectSource(WeakMap));

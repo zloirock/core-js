@@ -2,6 +2,7 @@
 ##### Unreleased
 - Detect incorrect order of operations in `Object.assign`, MS Edge bug
 - Detect usage of `ToLength` in `Array#{ filter, map }`, FF48-49 and MS Edge 14- issues
+- Fixed `inspectSource` helper with multiple `core-js` copies and some related features like some edge cases of `Promise` feature detection
 
 ##### 3.4.4 - 2019.11.27
 - Added feature detection for Safari [non-generic `Promise#finally` bug](https://bugs.webkit.org/show_bug.cgi?id=200829) **(critical for `core-js-pure`)**
