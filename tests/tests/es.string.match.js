@@ -1,5 +1,5 @@
 // TODO: fix escaping in regexps
-/* eslint-disable no-useless-escape, unicorn/no-unsafe-regex, optimize-regex/optimize-regex */
+/* eslint-disable unicorn/no-unsafe-regex */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 
@@ -85,9 +85,9 @@ const run = assert => {
   }
   matches = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
   string = '123456abcde7890';
-  assert.strictEqual(string.match(/\d{1}/g).length, 10, 'S15.5.4.10_A2_T3 #1');
+  assert.strictEqual(string.match(/\d/g).length, 10, 'S15.5.4.10_A2_T3 #1');
   for (let i = 0, { length } = matches; i < length; ++i) {
-    assert.strictEqual(string.match(/\d{1}/g)[i], matches[i], 'S15.5.4.10_A2_T3 #2');
+    assert.strictEqual(string.match(/\d/g)[i], matches[i], 'S15.5.4.10_A2_T3 #2');
   }
   matches = ['12', '34', '56', '78', '90'];
   string = '123456abcde7890';
@@ -102,15 +102,15 @@ const run = assert => {
     assert.strictEqual(string.match(/\D{2}/g)[i], matches[i], 'S15.5.4.10_A2_T5 #2');
   }
   string = 'Boston, Mass. 02134';
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[0], '02134', 'S15.5.4.10_A2_T6 #1');
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[1], '02134', 'S15.5.4.10_A2_T6 #2');
-  if (NATIVE) assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/)[2], undefined, 'S15.5.4.10_A2_T6 #3');
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/)[0], '02134', 'S15.5.4.10_A2_T6 #1');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/)[1], '02134', 'S15.5.4.10_A2_T6 #2');
+  if (NATIVE) assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/)[2], undefined, 'S15.5.4.10_A2_T6 #3');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
   string = 'Boston, Mass. 02134';
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/g).length, 1, 'S15.5.4.10_A2_T7 #1');
-  assert.strictEqual(string.match(/([\d]{5})([-\ ]?[\d]{4})?$/g)[0], '02134', 'S15.5.4.10_A2_T7 #2');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/g).length, 1, 'S15.5.4.10_A2_T7 #1');
+  assert.strictEqual(string.match(/(\d{5})([ -]?\d{4})?$/g)[0], '02134', 'S15.5.4.10_A2_T7 #2');
   /* IE8- buggy here (empty string instead of `undefined`), but we don't polyfill base `.match` logic
   matches = ['02134', '02134', undefined];
   string = 'Boston, MA 02134';
@@ -150,26 +150,26 @@ const run = assert => {
   }
   */
   string = 'Boston, MA 02134';
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/g;
+  regexp = /(\d{5})([ -]?\d{4})?$/g;
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T12 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T12 #2');
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/g;
+  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = 0;
   string = 'Boston, MA 02134';
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T13 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T13 #2');
   string = 'Boston, MA 02134';
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/g;
+  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.length;
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T14 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T14 #2');
   string = 'Boston, MA 02134';
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/g;
+  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.lastIndexOf('0');
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T15 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T15 #2');
   string = 'Boston, MA 02134';
-  regexp = /([\d]{5})([-\ ]?[\d]{4})?$/g;
+  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.lastIndexOf('0') + 1;
   assert.strictEqual(string.match(regexp).length, 1, 'S15.5.4.10_A2_T16 #1');
   assert.strictEqual(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T16 #2');

@@ -1,5 +1,3 @@
-/* eslint-disable optimize-regex/optimize-regex */
-
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 
@@ -61,7 +59,7 @@ const run = assert => {
   assert.arrayEqual('tesst'.split(/(s)*?/), ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't'], "'tesst'.split(/(s)*?/) results in ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't']");
   assert.arrayEqual('tesst'.split(/(s*)/), ['t', '', 'e', 'ss', 't'], "'tesst'.split(/(s*)/) results in ['t', '', 'e', 'ss', 't']");
   assert.arrayEqual('tesst'.split(/(s*?)/), ['t', '', 'e', '', 's', '', 's', '', 't'], "'tesst'.split(/(s*?)/) results in ['t', '', 'e', '', 's', '', 's', '', 't']");
-  assert.arrayEqual('tesst'.split(/(?:s)*/), ['t', 'e', 't'], "'tesst'.split(/(?:s)*/) results in ['t', 'e', 't']");
+  assert.arrayEqual('tesst'.split(/s*/), ['t', 'e', 't'], "'tesst'.split(/(?:s)*/) results in ['t', 'e', 't']");
   assert.arrayEqual('tesst'.split(/(?=s+)/), ['te', 's', 'st'], "'tesst'.split(/(?=s+)/) results in ['te', 's', 'st']");
   assert.arrayEqual('test'.split('t'), ['', 'es', ''], "'test'.split('t') results in ['', 'es', '']");
   assert.arrayEqual('test'.split('es'), ['t', 't'], "'test'.split('es') results in ['t', 't']");
