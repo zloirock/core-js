@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/regex-shorthand */
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('RegExp#toString', assert => {

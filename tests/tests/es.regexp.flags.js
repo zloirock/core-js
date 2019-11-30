@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/regex-shorthand */
 import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
