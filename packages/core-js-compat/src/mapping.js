@@ -1,8 +1,6 @@
 'use strict';
 const ChromeToElectronModule = require('electron-to-chromium/chromium-versions');
-const ChromeToElectron = Object
-  .keys(ChromeToElectronModule)
-  .map(chrome => [chrome, ChromeToElectronModule[chrome]]);
+const ChromeToElectron = Object.entries(ChromeToElectronModule);
 
 module.exports = {
   ChromeToNode: [
