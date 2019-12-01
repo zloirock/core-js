@@ -12,22 +12,14 @@ const {
 console.log(targets);
 /* =>
 {
-  'es.symbol.description': { ios: '12.2-12.4' },
   'es.symbol.match-all': { ios: '12.2-12.4' },
-  'es.array.reverse': { ios: '12.2-12.4' },
   'es.array.unscopables.flat': { ios: '12.2-12.4' },
   'es.array.unscopables.flat-map': { ios: '12.2-12.4' },
-  'es.array-buffer.slice': { ios: '12.2-12.4' },
-  'es.global-this': { ios: '12.2-12.4' },
-  'es.json.stringify': { ios: '12.2-12.4' },
   'es.math.hypot': { chrome: '77' },
-  'es.object.from-entries': { ios: '12.2-12.4' },
   'es.promise.all-settled': { firefox: '69', ios: '12.2-12.4' },
   'es.promise.finally': { ios: '12.2-12.4' },
   'es.string.match-all': { chrome: '77', firefox: '69', ios: '12.2-12.4' },
   'es.string.replace': { firefox: '69', ios: '12.2-12.4' },
-  'es.string.trim': { ios: '12.2-12.4' },
-  'es.string.trim-end': { ios: '12.2-12.4' },
   'es.typed-array.float32-array': { ios: '12.2-12.4' },
   'es.typed-array.float64-array': { ios: '12.2-12.4' },
   'es.typed-array.int8-array': { ios: '12.2-12.4' },
@@ -41,7 +33,6 @@ console.log(targets);
   'es.typed-array.of': { ios: '12.2-12.4' },
   'web.dom-collections.iterator': { ios: '12.2-12.4' },
   'web.immediate': { chrome: '77', firefox: '69', ios: '12.2-12.4' },
-  'web.queue-microtask': { ios: '12.2-12.4' },
   'web.url': { ios: '12.2-12.4' },
   'web.url.to-json': { ios: '12.2-12.4' },
   'web.url-search-params': { ios: '12.2-12.4' }
