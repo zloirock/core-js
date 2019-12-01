@@ -1,6 +1,7 @@
 'use strict';
 const { coerce, lt, lte } = require('semver');
 const browserslist = require('browserslist');
+const { normalizeModulesList } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const has = Function.call.bind({}.hasOwnProperty);
@@ -85,8 +86,7 @@ function compat({ targets, filter, version }) {
   else if (typeof filter == 'string') modules = modules.filter(it => it.startsWith(filter));
 
   if (version) {
-    const availableModules = new Set(getModulesListForTargetVersion(version));
-    modules = modules.filter(name => availableModules.has(name));
+    modules = normalizeModulesList(modules, getModulesListForTargetVersion(version));
   }
 
   modules.forEach(key => {

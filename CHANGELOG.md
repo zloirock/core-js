@@ -2,6 +2,7 @@
 ##### Unreleased
 - Added Safari 13.1 compat data
 - Improved iOS compat data - added mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
+- Normalize the result of `getModulesListForTargetVersion` `core-js-compat` helper
 
 ##### 3.4.5 - 2019.11.28
 - Detect incorrect order of operations in `Object.assign`, MS Edge bug

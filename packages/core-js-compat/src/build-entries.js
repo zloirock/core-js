@@ -3,8 +3,7 @@ const { readFileSync, writeFileSync } = require('fs');
 const { dirname, resolve } = require('path');
 const detective = require('detective');
 const { sync: glob } = require('glob');
-const data = require('./data');
-const order = Object.keys(data);
+const { normalizeModulesList } = require('../helpers');
 
 function getModulesForEntryPoint(entry) {
   const match = entry.match(/[/\\]modules[/\\]([^/\\]+)$/);
@@ -18,8 +17,7 @@ function getModulesForEntryPoint(entry) {
     const relative = resolve(dir, dependency);
     result.push(...getModulesForEntryPoint(relative));
   }
-  const resultSet = new Set(result);
-  return order.filter(it => resultSet.has(it));
+  return normalizeModulesList(result);
 }
 
 const entries = {};

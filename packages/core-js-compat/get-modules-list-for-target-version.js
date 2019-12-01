@@ -1,5 +1,6 @@
 'use strict';
 const { coerce, lte } = require('semver');
+const { normalizeModulesList } = require('./helpers');
 const modulesByVersions = require('./modules-by-versions');
 
 module.exports = function (raw) {
@@ -13,5 +14,5 @@ module.exports = function (raw) {
       result.push(...modulesByVersions[version]);
     }
   }
-  return result;
+  return normalizeModulesList(result);
 };
