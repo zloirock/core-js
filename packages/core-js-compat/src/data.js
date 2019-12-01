@@ -720,7 +720,8 @@ const data = {
     firefox: '69',
     // Previous versions are non-generic
     // https://bugs.webkit.org/show_bug.cgi?id=200788
-    safari: '13.0.3', // '12.0',
+    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
+    ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
   },
   'es.reflect.apply': {
     edge: '15',
