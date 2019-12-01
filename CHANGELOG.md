@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Improved iOS compat data - added mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
+
 ##### 3.4.5 - 2019.11.28
 - Detect incorrect order of operations in `Object.assign`, MS Edge bug
 - Detect usage of `ToLength` in `Array#{ filter, map }`, FF48-49 and MS Edge 14- issues
