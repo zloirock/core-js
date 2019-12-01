@@ -867,7 +867,7 @@ const data = {
     // Early implementations does not throw an error on non-global regex
     chrome: '80', // 73
     // firefox: '67',
-    // safari: '13',
+    safari: '13.1', // 13
   },
   'es.string.pad-end': {
     edge: '15',
@@ -1458,6 +1458,7 @@ const data = {
     chrome: '66',
     node: '0.10',
     firefox: '60',
+    safari: '13.1',
   },
   'web.immediate': {
     ie: '10',

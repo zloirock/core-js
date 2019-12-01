@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added Safari 13.1 compat data
 - Improved iOS compat data - added mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
 
 ##### 3.4.5 - 2019.11.28
