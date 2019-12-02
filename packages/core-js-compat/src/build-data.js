@@ -14,7 +14,7 @@ const {
 
 for (const key in data) {
   const module = data[key];
-  const { chrome, edge, ie, opera, safari } = module;
+  const { chrome, ie, safari } = module;
 
   const map = function (mapping, version, targetKey) {
     if (module[targetKey]) return;
@@ -27,15 +27,15 @@ for (const key in data) {
     }
   };
 
-  if (!edge && ie && key !== 'web.immediate') {
+  if (!module.edge && ie && key !== 'web.immediate') {
     module.edge = '12';
   }
 
   if (chrome) {
-    if (!edge) {
+    if (!module.edge) {
       module.edge = String(Math.max(chrome, 74));
     }
-    if (!opera) {
+    if (!module.opera) {
       module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
     }
     if (key.startsWith('es')) {
