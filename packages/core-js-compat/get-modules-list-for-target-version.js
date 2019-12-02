@@ -1,6 +1,9 @@
 'use strict';
-const { compare, normalizeModulesList, semver } = require('./helpers');
+const { compare, intersection, semver } = require('./helpers');
 const modulesByVersions = require('./modules-by-versions');
+const data = require('./data');
+
+const modules = Object.keys(data);
 
 module.exports = function (raw) {
   const corejs = semver(raw);
@@ -13,5 +16,5 @@ module.exports = function (raw) {
       result.push(...modulesByVersions[version]);
     }
   }
-  return normalizeModulesList(result);
+  return intersection(result, modules);
 };

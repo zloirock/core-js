@@ -1,6 +1,6 @@
 'use strict';
 const browserslist = require('browserslist');
-const { compare, normalizeModulesList } = require('./helpers');
+const { compare, intersection } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const has = Function.call.bind({}.hasOwnProperty);
@@ -78,7 +78,7 @@ function compat({ targets, filter, version }) {
   else if (typeof filter == 'string') modules = modules.filter(it => it.startsWith(filter));
 
   if (version) {
-    modules = normalizeModulesList(modules, getModulesListForTargetVersion(version));
+    modules = intersection(modules, getModulesListForTargetVersion(version));
   }
 
   modules.forEach(key => {
