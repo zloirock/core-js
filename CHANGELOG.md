@@ -1,7 +1,7 @@
 ## Changelog
-##### Unreleased
+##### 3.4.6 - 2019.12.03
+- Improved iOS compat data - added missed mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
 - Added Safari 13.1 compat data
-- Improved iOS compat data - added mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
 - Added missed in `core-js-compat` helpers `ie_mob` normalization
 - Normalize the result of `getModulesListForTargetVersion` `core-js-compat` helper
 - Improved CI detection in the `postinstall` script, [#707](https://github.com/zloirock/core-js/issues/707)
