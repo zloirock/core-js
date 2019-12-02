@@ -5,11 +5,18 @@ var path = require('path');
 var env = process.env;
 
 var ADBLOCK = is(env.ADBLOCK);
-var CI = is(env.CI);
 var COLOR = is(env.npm_config_color);
 var DISABLE_OPENCOLLECTIVE = is(env.DISABLE_OPENCOLLECTIVE);
 var SILENT = ['silent', 'error', 'warn'].indexOf(env.npm_config_loglevel) !== -1;
 var MINUTE = 60 * 1000;
+
+// you could add a PR with an env variable for your CI detection
+var CI = [
+  'BUILD_NUMBER',
+  'CI',
+  'CONTINUOUS_INTEGRATION',
+  'RUN_ID'
+].some(function (it) { return is(env[it]); });
 
 var BANNER = '\u001B[96mThank you for using core-js (\u001B[94m https://github.com/zloirock/core-js \u001B[96m) for polyfilling JavaScript standard library!\u001B[0m\n\n' +
              '\u001B[96mThe project needs your help! Please consider supporting of core-js on Open Collective or Patreon: \u001B[0m\n' +
