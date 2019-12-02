@@ -54,7 +54,6 @@ module.exports = grunt => {
         './packages/core-js-bundle/LICENSE',
       ],
       'core-js-compat': [
-        './packages/core-js-compat/data.json',
         './packages/core-js-compat/LICENSE',
       ],
       tests: [

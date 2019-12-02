@@ -1,6 +1,6 @@
 'use strict';
 const { coerce: semver, cmp } = require('semver');
-const data = require('./src/data');
+const data = require('./data');
 
 const modules = Object.keys(data);
 
