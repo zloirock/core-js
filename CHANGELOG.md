@@ -2,6 +2,7 @@
 ##### Unreleased
 - Added Safari 13.1 compat data
 - Improved iOS compat data - added mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
+- Added missed in `core-js-compat` helpers `ie_mob` normalization
 - Normalize the result of `getModulesListForTargetVersion` `core-js-compat` helper
 
 ##### 3.4.5 - 2019.11.28

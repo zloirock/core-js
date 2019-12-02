@@ -7,9 +7,10 @@ const getModulesListForTargetVersion = require('./get-modules-list-for-target-ve
 const has = Function.call.bind({}.hasOwnProperty);
 
 const mapping = new Map([
-  ['ios_saf', 'ios'],
   ['and_chr', 'chrome'],
   ['and_ff', 'firefox'],
+  ['ie_mob', 'ie'],
+  ['ios_saf', 'ios'],
 ]);
 
 const validTargets = new Set([
