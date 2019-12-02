@@ -1,7 +1,7 @@
 'use strict';
 const { writeFileSync } = require('fs');
 const { resolve } = require('path');
-const { coerce, lte } = require('semver');
+const { compare, semver } = require('../helpers');
 const data = require('./data');
 const {
   ChromeToNode,
@@ -18,9 +18,9 @@ for (const key in data) {
 
   const map = function (mapping, version, targetKey) {
     if (module[targetKey]) return;
-    const coercedVersion = coerce(String(version));
+    const source = semver(version);
     for (const [from, to] of mapping) {
-      if (lte(coercedVersion, coerce(String(from)))) {
+      if (compare(source, '<=', from)) {
         module[targetKey] = to;
         return;
       }

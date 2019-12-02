@@ -1,7 +1,6 @@
 'use strict';
-const { coerce, lt, lte } = require('semver');
 const browserslist = require('browserslist');
-const { normalizeModulesList } = require('./helpers');
+const { compare, normalizeModulesList } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const has = Function.call.bind({}.hasOwnProperty);
@@ -28,19 +27,11 @@ const validTargets = new Set([
   'samsung',
 ]);
 
-function coercedLte(a, b) {
-  return lte(coerce(a), coerce(b));
-}
-
-function coercedLt(a, b) {
-  return lt(coerce(a), coerce(b));
-}
-
 function normalizeBrowsersList(list) {
   return list.map(it => {
     let [engine, version] = it.split(' ');
     if (mapping.has(engine)) engine = mapping.get(engine);
-    else if (engine === 'android' && !coercedLte(version, '4.4.4')) engine = 'chrome';
+    else if (engine === 'android' && compare(version, '>', '4.4.4')) engine = 'chrome';
     return [engine, version];
   }).filter(([engine]) => validTargets.has(engine));
 }
@@ -48,7 +39,7 @@ function normalizeBrowsersList(list) {
 function reduceByMinVersion(list) {
   const targets = new Map();
   for (const [engine, version] of list) {
-    if (!targets.has(engine) || coercedLte(version, targets.get(engine))) {
+    if (!targets.has(engine) || compare(version, '<=', targets.get(engine))) {
       targets.set(engine, version);
     }
   }
@@ -63,7 +54,7 @@ function checkModule(name, targets) {
     targets: {},
   };
   for (const [engine, version] of targets) {
-    if (!has(requirements, engine) || coercedLt(version, requirements[engine])) {
+    if (!has(requirements, engine) || compare(version, '<', requirements[engine])) {
       result.required = true;
       result.targets[engine] = version;
     }

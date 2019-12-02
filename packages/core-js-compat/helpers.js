@@ -1,7 +1,12 @@
 'use strict';
-const data = require('./data');
+const { coerce: semver, cmp } = require('semver');
+const data = require('./src/data');
 
 const modules = Object.keys(data);
+
+function compare(a, operator, b) {
+  return cmp(semver(a), operator, semver(b));
+}
 
 function normalizeModulesList(list, order) {
   const set = new Set(list);
@@ -9,5 +14,7 @@ function normalizeModulesList(list, order) {
 }
 
 module.exports = {
+  compare,
   normalizeModulesList,
+  semver,
 };
