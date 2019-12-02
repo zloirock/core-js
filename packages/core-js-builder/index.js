@@ -11,7 +11,7 @@ const tmpdir = require('os').tmpdir();
 const { sync: mkdirp } = require('mkdirp');
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat');
-const modulesList = Object.keys(require('core-js-compat/data'));
+const modulesList = require('core-js-compat/modules');
 const { banner } = require('./config');
 
 module.exports = function ({ blacklist = [], modules = modulesList.slice(), targets, filename } = {}) {

@@ -12,8 +12,7 @@ const {
   SafariToPhantomJS,
 } = require('./mapping');
 
-for (const key in data) {
-  const module = data[key];
+for (const [key, module] of Object.entries(data)) {
   const { chrome, ie, safari } = module;
 
   const map = function (mapping, version, targetKey) {
@@ -53,3 +52,4 @@ for (const key in data) {
 }
 
 writeFileSync(resolve(__dirname, '../data.json'), JSON.stringify(data, null, '  '));
+writeFileSync(resolve(__dirname, '../modules.json'), JSON.stringify(Object.keys(data), null, '  '));

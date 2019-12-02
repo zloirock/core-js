@@ -4,9 +4,7 @@ const { dirname, resolve } = require('path');
 const detective = require('detective');
 const { sync: glob } = require('glob');
 const { intersection } = require('../helpers');
-const data = require('./data');
-
-const modules = Object.keys(data);
+const modules = require('../modules');
 
 function getModulesForEntryPoint(entry) {
   const match = entry.match(/[/\\]modules[/\\]([^/\\]+)$/);

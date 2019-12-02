@@ -1,9 +1,7 @@
 'use strict';
 const { compare, intersection, semver } = require('./helpers');
 const modulesByVersions = require('./modules-by-versions');
-const data = require('./data');
-
-const modules = Object.keys(data);
+const modules = require('./modules');
 
 module.exports = function (raw) {
   const corejs = semver(raw);
