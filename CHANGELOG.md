@@ -1,4 +1,7 @@
 ## Changelog
+##### 3.4.7 - 2019.12.03
+- Fixed an NPM publishing issue
+
 ##### 3.4.6 - 2019.12.03
 - Improved iOS compat data - added missed mapping iOS 12.2 -> Safari 12.1, added bug fixes from patch releases
 - Added Safari 13.1 compat data
@@ -69,7 +72,7 @@
 - Fixed compatibility of `core-js-compat` with Node 6 and Yarn, [#669](https://github.com/zloirock/core-js/issues/669) 
 
 ##### 3.3.1 - 2019.10.13
-- Fixed a NPM publishing issue
+- Fixed an NPM publishing issue
 
 ##### 3.3.0 - 2019.10.13
 - **`String#{ matchAll, replaceAll }` throws an error on non-global regex argument per [the decision from TC39 meetings](https://github.com/tc39/ecma262/pull/1716) (+ [this PR](https://github.com/tc39/proposal-string-replaceall/pull/24)). It's a breaking change, but since it's a breaking change in the ES spec, it's added at the minor release**
