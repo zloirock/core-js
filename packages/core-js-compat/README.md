@@ -40,4 +40,28 @@ console.log(targets);
 */
 ```
 
+Additional API:
+
+```js
+// full compat data:
+require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
+// or
+require('core-js-compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
+
+// map of modules by `core-js` entry points:
+require('core-js-compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
+// or
+require('core-js-compat').entries; // => { [EntryPoint]: Array<ModuleName> }
+
+// full list of modules:
+require('core-js-compat/modules'); // => Array<ModuleName>
+// or
+require('core-js-compat').modules; // => Array<ModuleName>
+
+// list of modules for passed `core-js` version:
+require('core-js-compat/get-modules-list-for-target-version')('3.3'); // => Array<ModuleName>
+// or
+require('core-js-compat').getModulesListForTargetVersion('3.3'); // => Array<ModuleName>
+```
+
 If you want to add new / update data about modules required for target engines, [follow this instruction](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data).
