@@ -1828,14 +1828,14 @@ class AsyncIterator {
   static from(iterable: Iterable<mixed>): AsyncIterator<any>;
   asIndexedPairs(): AsyncIterator<[index, any]>;
   drop(limit: uint): AsyncIterator<any>;
-  every(async callbackfn: value: any => boolean): boolean;
+  every(async callbackfn: value: any => boolean): Promise<boolean>;
   filter(async callbackfn: value: any => boolean): AsyncIterator<any>;
-  find(async callbackfn: value: any => boolean)): any;
+  find(async callbackfn: value: any => boolean)): Promise<any>;
   flatMap(async callbackfn: value => any: Iterable): AsyncIterator<any>;
   forEach(async callbackfn: value => void): Promise<void>;
   map(async callbackfn: value => any): AsyncIterator<any>;
   reduce(async callbackfn: (memo: any, value: any) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: value: any => boolean): boolean;
+  some(async callbackfn: value: any => boolean): Promise<boolean>;
   take(limit: uint): AsyncIterator<any>;
   toArray(): Promise<Array>;
   @@toStringTag: 'AsyncIterator'
