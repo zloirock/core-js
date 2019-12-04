@@ -3,6 +3,7 @@ module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
     ['@babel/proposal-optional-catch-binding'],
+    ['@babel/proposal-optional-chaining'],
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
