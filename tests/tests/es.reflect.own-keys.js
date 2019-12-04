@@ -22,4 +22,5 @@ QUnit.test('Reflect.ownKeys', assert => {
   keys = ownKeys(create(object));
   assert.strictEqual(keys.length, 0, 'ownKeys return only own keys');
   assert.throws(() => ownKeys(42), TypeError, 'throws on primitive');
+  assert.throws(() => ownKeys(Symbol()), TypeError, 'throws on Symbols');
 });
