@@ -5,8 +5,9 @@ const {
   list,                  // array of required modules
   targets,               // object with targets for each module
 } = require('core-js-compat')({
-  targets: '> 2.5%',     // browserslist query
+  targets: '> 2.5%',     // browserslist query, by default - all engines
   filter: /^(es|web)\./, // optional filter - string-prefix, regexp or list of modules
+  version: '3.4',        // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
@@ -43,6 +44,11 @@ console.log(targets);
 Additional API:
 
 ```js
+// equals of of the method from the example above
+require('core-js-compat/compat')({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+// or
+require('core-js-compat').compat({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+
 // full compat data:
 require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
 // or
@@ -58,7 +64,7 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 // or
 require('core-js-compat').modules; // => Array<ModuleName>
 
-// list of modules for passed `core-js` version:
+// the subset of modules which available in the passed `core-js` version:
 require('core-js-compat/get-modules-list-for-target-version')('3.3'); // => Array<ModuleName>
 // or
 require('core-js-compat').getModulesListForTargetVersion('3.3'); // => Array<ModuleName>
