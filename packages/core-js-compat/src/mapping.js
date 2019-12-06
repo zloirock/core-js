@@ -3,6 +3,7 @@ const ChromeToElectronModule = require('electron-to-chromium/chromium-versions')
 const ChromeToElectron = Object.entries(ChromeToElectronModule);
 
 module.exports = {
+  // https://nodejs.org/dist/index.json
   ChromeToNode: [
     [14, '0.10'],
     [28, '0.12'],
@@ -27,18 +28,21 @@ module.exports = {
     [78, '13.0'],
     [79, '13.2'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
   ChromeToSamsung: [
-    [34, '2.1'],
+    [28, '1.5'],
+    [34, '2.0'],
     [38, '3.0'],
     [42, '3.4'],
     [44, '4.0'],
     [51, '5.0'],
-    [56, '6.2'],
-    [59, '7.2'],
-    [63, '8.2'],
-    [67, '9.2'],
-    [71, '10.2'],
+    [56, '6.0'],
+    [59, '7.0'],
+    [63, '8.0'],
+    [67, '9.0'],
+    [71, '10.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/master/browsers/opera_android.json
   ChromeToOperaMobile: [
     [59, 43],
     [60, 44],
