@@ -63,7 +63,7 @@ module.exports = {
     [33, '4.4.3'],
   ],
   ChromeToElectron,
-  // https://github.com/mdn/browser-compat-data/blob/master/browsers/safari.json
+  // https://github.com/mdn/browser-compat-data/blob/master/browsers/safari_ios.json
   SafariToIOS: [
     ['3.0', '1.0'],
     ['3.1', '2.0'],
