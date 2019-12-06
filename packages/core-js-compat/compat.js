@@ -10,7 +10,6 @@ const mapping = new Map([
   ['and_ff', 'firefox'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
-  ['op_mob', 'opera'],
 ]);
 
 const validTargets = new Set([
