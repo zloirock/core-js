@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added Opera Mobile compat data
 - Generate `core-js-compat/modules` since often we need just the list of `core-js` modules
 
 ##### 3.4.7 - 2019.12.03

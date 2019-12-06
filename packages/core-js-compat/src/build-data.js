@@ -6,6 +6,7 @@ const data = require('./data');
 const {
   ChromeToNode,
   ChromeToSamsung,
+  ChromeToOperaMobile,
   ChromeToAndroid,
   ChromeToElectron,
   SafariToIOS,
@@ -20,7 +21,7 @@ for (const [key, module] of Object.entries(data)) {
     const source = semver(version);
     for (const [from, to] of mapping) {
       if (compare(source, '<=', from)) {
-        module[targetKey] = to;
+        module[targetKey] = String(to);
         return;
       }
     }
@@ -36,6 +37,11 @@ for (const [key, module] of Object.entries(data)) {
     }
     if (!module.opera) {
       module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
+    }
+    if (!module.opera_mobile && module.opera && module.opera <= 42) {
+      module.opera_mobile = module.opera;
+    } else {
+      map(ChromeToOperaMobile, chrome, 'opera_mobile');
     }
     if (key.startsWith('es')) {
       map(ChromeToNode, chrome, 'node');
