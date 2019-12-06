@@ -30,6 +30,7 @@ module.exports = {
   ],
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
   ChromeToSamsung: [
+    [18, '1.0'],
     [28, '1.5'],
     [34, '2.0'],
     [38, '3.0'],
