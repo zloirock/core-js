@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.4.8 - 2019.12.09
 - Added one more workaround for broken in previous versions `inspectSource` helper, [#719](https://github.com/zloirock/core-js/issues/719)
 - Added Opera Mobile compat data
 - Updated Samsung Internet, iOS, old Node and Android compat data mapping
