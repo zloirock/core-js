@@ -6,6 +6,10 @@
 - `es.string.match-all` marked as completely supported in FF73
 - Generate `core-js-compat/modules` since often we need just the list of `core-js` modules
 
+##### 2.6.11 [LEGACY] - 2019.12.09
+- Returned usage of `node -e` in the `postinstall` scripts for better cross-platform compatibility, [#582](https://github.com/zloirock/core-js/issues/582)
+- Improved CI detection in the `postinstall` script, [#707](https://github.com/zloirock/core-js/issues/707)
+
 ##### 3.4.7 - 2019.12.03
 - Fixed an NPM publishing issue
 
