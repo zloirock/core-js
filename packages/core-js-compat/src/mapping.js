@@ -5,7 +5,7 @@ const ChromeToElectron = Object.entries(ChromeToElectronModule);
 module.exports = {
   // https://nodejs.org/dist/index.json
   ChromeToNode: [
-    [3, '0.1.14'],
+    [3, '0.0.3'],
     [4, '0.1.19'],
     [5, '0.1.27'],
     [6, '0.1.90'],
