@@ -1,4 +1,8 @@
 ## Changelog
+##### 2.6.11 [LEGACY] - 2019.12.09
+- Returned usage of `node -e` in `postinstall` scripts for better cross-platform compatibility, [#582](https://github.com/zloirock/core-js/issues/582)
+- Improved CI detection in the `postinstall` script, [#707](https://github.com/zloirock/core-js/issues/707)
+
 ##### 2.6.10 [LEGACY] - 2019.10.13
 - Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597)
 
