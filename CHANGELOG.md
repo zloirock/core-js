@@ -2,7 +2,7 @@
 ##### Unreleased
 - Added one more workaround for broken in previous versions `inspectSource` helper, [#719](https://github.com/zloirock/core-js/issues/719)
 - Added Opera Mobile compat data
-- Updated Samsung Internet, iOS and old Android compat data mapping
+- Updated Samsung Internet, iOS, old Node and Android compat data mapping
 - Generate `core-js-compat/modules` since often we need just the list of `core-js` modules
 
 ##### 3.4.7 - 2019.12.03
