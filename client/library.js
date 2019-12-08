@@ -1,5 +1,5 @@
 /**
- * core-js 2.6.10
+ * core-js 2.6.11
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2019 Denis Pushkarev
@@ -282,7 +282,7 @@ module.exports = function (it) {
 /* 12 */
 /***/ (function(module, exports) {
 
-var core = module.exports = { version: '2.6.10' };
+var core = module.exports = { version: '2.6.11' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
