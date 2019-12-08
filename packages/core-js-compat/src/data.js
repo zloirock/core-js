@@ -862,7 +862,7 @@ const data = {
   'es.string.match-all': {
     // Early implementations does not throw an error on non-global regex
     chrome: '80', // 73
-    // firefox: '67',
+    firefox: '73', // 67
     safari: '13.1', // 13
   },
   'es.string.pad-end': {
