@@ -733,18 +733,26 @@ GLOBAL.tests = {
       && RegExp(re1) === re1
       && RegExp(re2) !== re2
       && RegExp(re1, 'i') == '/a/i'
+      && new RegExp('a', 'y') // just check that it doesn't throw
       && RegExp[Symbol.species];
   },
   'es.regexp.exec': function () {
     var re1 = /a/;
     var re2 = /b*/g;
+    var reSticky = new RegExp('a', 'y');
     re1.exec('a');
     re2.exec('a');
     return re1.lastIndex === 0 && re2.lastIndex === 0
-      && /()??/.exec('')[1] === undefined;
+      && /()??/.exec('')[1] === undefined
+      && reSticky.exec('abc')[0] === 'a'
+      && reSticky.exec('abc') === null
+      && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a');
   },
   'es.regexp.flags': function () {
-    return /./g.flags === 'g';
+    return /./g.flags === 'g' && new RegExp('a', 'y').flags === 'y';
+  },
+  'es.regexp.sticky': function () {
+    return new RegExp('a', 'y').sticky === true;
   },
   'es.regexp.to-string': function () {
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'

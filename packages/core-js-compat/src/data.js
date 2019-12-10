@@ -815,6 +815,12 @@ const data = {
     firefox: '37',
     safari: '9.0',
   },
+  'es.regexp.sticky': {
+    chrome: '49',
+    edge: '13',
+    firefox: '3',
+    safari: '10.0',
+  },
   'es.regexp.to-string': {
     chrome: '50',
     firefox: '46',
