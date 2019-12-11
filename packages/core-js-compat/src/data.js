@@ -1346,6 +1346,12 @@ const data = {
   },
   'esnext.number.from-string': {
   },
+  'esnext.object.iterate-entries': {
+  },
+  'esnext.object.iterate-keys': {
+  },
+  'esnext.object.iterate-values': {
+  },
   'esnext.observable': {
   },
   // TODO: Remove from `core-js@4`
