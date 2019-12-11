@@ -9,23 +9,7 @@ var OBJECT_ITERATOR = 'Object Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(OBJECT_ITERATOR);
 
-var $next = function next() {
-  var state = getInternalState(this);
-  var keys = state.keys;
-  if (keys === null || state.index >= keys.length) {
-    state.object = state.keys = null;
-    return { value: undefined, done: true };
-  }
-  var key = keys[state.index++];
-  var object = state.object;
-  if (!has(object, key)) return $next.call(this);
-  switch (state.mode) {
-    case 'keys': return { value: key, done: false };
-    case 'values': return { value: object[key], done: false };
-  } /* entries */ return { value: [key, object[key]], done: false };
-};
-
-var $ObjectIterator = createIteratorConstructor(function ObjectIterator(source, mode) {
+module.exports = createIteratorConstructor(function ObjectIterator(source, mode) {
   var object = toObject(source);
   setInternalState(this, {
     type: OBJECT_ITERATOR,
@@ -34,6 +18,20 @@ var $ObjectIterator = createIteratorConstructor(function ObjectIterator(source, 
     keys: objectKeys(object),
     index: 0
   });
-}, 'Object', $next);
-
-module.exports = $ObjectIterator;
+}, 'Object', function next() {
+  var state = getInternalState(this);
+  var keys = state.keys;
+  while (true) {
+    if (keys === null || state.index >= keys.length) {
+      state.object = state.keys = null;
+      return { value: undefined, done: true };
+    }
+    var key = keys[state.index++];
+    var object = state.object;
+    if (!has(object, key)) continue;
+    switch (state.mode) {
+      case 'keys': return { value: key, done: false };
+      case 'values': return { value: object[key], done: false };
+    } /* entries */ return { value: [key, object[key]], done: false };
+  }
+});
