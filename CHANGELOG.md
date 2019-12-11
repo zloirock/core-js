@@ -1,4 +1,10 @@
 ## Changelog
+##### Unreleased
+- Added [object iteratoration stage 1 proposal](https://github.com/tc39/proposal-object-iteration):
+  - `Object.iterateKeys`
+  - `Object.iterateValues`
+  - `Object.iterateEntries`
+
 ##### 3.4.8 - 2019.12.09
 - Added one more workaround for broken in previous versions `inspectSource` helper, [#719](https://github.com/zloirock/core-js/issues/719)
 - Added Opera Mobile compat data
