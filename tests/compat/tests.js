@@ -1245,6 +1245,15 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
+  'esnext.object.iterate-entries': function () {
+    return Object.iterateEntries;
+  },
+  'esnext.object.iterate-keys': function () {
+    return Object.iterateKeys;
+  },
+  'esnext.object.iterate-values': function () {
+    return Object.iterateValues;
+  },
   'esnext.observable': function () {
     return Observable;
   },
