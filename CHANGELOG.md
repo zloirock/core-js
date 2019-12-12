@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Added Samsung Internet 11 compat data mapping
+
 ##### 3.5.0 - 2019.12.12
 - Added [object iteratoration stage 1 proposal](https://github.com/tc39/proposal-object-iteration):
   - `Object.iterateKeys`
