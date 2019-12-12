@@ -1,7 +1,7 @@
 {
   "devDependencies": {
-    "@babel/cli": "^7.7.4",
-    "@babel/core": "^7.7.4",
+    "@babel/cli": "^7.7.5",
+    "@babel/core": "^7.7.5",
     "@babel/plugin-proposal-nullish-coalescing-operator": "^7.7.4",
     "@babel/plugin-proposal-optional-catch-binding": "^7.7.4",
     "@babel/plugin-proposal-optional-chaining": "^7.7.5",
@@ -25,7 +25,7 @@
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#bf4d87144b6189e793593868e3c022eb51a7d292",
     "eslint": "^6.7.2",
     "eslint-import-resolver-webpack": "^0.12.0",
-    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-import": "^2.19.1",
     "eslint-plugin-node": "^10.0.0",
     "eslint-plugin-optimize-regex": "^1.1.7",
     "eslint-plugin-qunit": "^4.0.0",
