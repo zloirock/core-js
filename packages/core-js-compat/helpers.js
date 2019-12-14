@@ -1,5 +1,6 @@
 'use strict';
-const { coerce: semver, cmp } = require('semver');
+const cmp = require('semver/functions/cmp');
+const semver = require('semver/functions/coerce');
 
 const has = Function.call.bind({}.hasOwnProperty);
 
