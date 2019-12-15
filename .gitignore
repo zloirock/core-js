@@ -17,6 +17,7 @@ node_modules/
 /packages/core-js-compat/LICENSE
 /packages/core-js-compat/data.json
 /packages/core-js-compat/entries.json
+/packages/core-js-compat/external.json
 /packages/core-js-compat/modules.json
 /packages/core-js-compat/modules-by-versions.json
 /packages/core-js-pure/es/

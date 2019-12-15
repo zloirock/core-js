@@ -10,6 +10,7 @@ for (const version of Object.values(modulesByVersions)) {
   for (const module of version) defaults.delete(module);
 }
 
-writeFileSync(resolve(__dirname, '../modules-by-versions.json'), JSON.stringify(Object.assign({
+writeFileSync(resolve(__dirname, '../modules-by-versions.json'), JSON.stringify({
   '3.0': [...defaults],
-}, modulesByVersions), null, '  '));
+  ...modulesByVersions,
+}, null, '  '));

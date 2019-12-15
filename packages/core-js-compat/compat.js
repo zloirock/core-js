@@ -1,54 +1,9 @@
 'use strict';
-const browserslist = require('browserslist');
 const { compare, has, intersection } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const modules = require('./modules');
-
-const mapping = new Map([
-  ['and_chr', 'chrome'],
-  ['and_ff', 'firefox'],
-  ['ie_mob', 'ie'],
-  ['ios_saf', 'ios'],
-  ['op_mob', 'opera_mobile'],
-]);
-
-const validTargets = new Set([
-  'android',
-  'chrome',
-  'edge',
-  'electron',
-  'firefox',
-  'ie',
-  'ios',
-  'node',
-  'opera',
-  'opera_mobile',
-  'phantom',
-  'safari',
-  'samsung',
-]);
-
-function normalizeBrowsersList(list) {
-  return list.map(([engine, version]) => {
-    if (mapping.has(engine)) {
-      engine = mapping.get(engine);
-    } else if (engine === 'android' && compare(version, '>', '4.4.4')) {
-      engine = 'chrome';
-    }
-    return [engine, version];
-  }).filter(([engine]) => validTargets.has(engine));
-}
-
-function reduceByMinVersion(list) {
-  const targets = new Map();
-  for (const [engine, version] of list) {
-    if (!targets.has(engine) || compare(version, '<=', targets.get(engine))) {
-      targets.set(engine, version);
-    }
-  }
-  return targets;
-}
+const normalizeTargets = require('./normalize-targets');
 
 function checkModule(name, targets) {
   if (!has(data, name)) throw new TypeError(`Incorrect module: ${ name }`);
@@ -70,11 +25,7 @@ function checkModule(name, targets) {
 }
 
 module.exports = function ({ targets, filter, version }) {
-  const list = typeof targets == 'object' && !Array.isArray(targets)
-    ? Object.entries(targets)
-    : browserslist(targets).map(it => it.split(' '));
-  const engines = normalizeBrowsersList(list);
-  const reducedTargets = reduceByMinVersion(engines);
+  const normalizedTargets = normalizeTargets(targets);
 
   const result = {
     list: [],
@@ -94,7 +45,7 @@ module.exports = function ({ targets, filter, version }) {
   }
 
   for (const key of $modules) {
-    const check = checkModule(key, reducedTargets);
+    const check = checkModule(key, normalizedTargets);
     if (check.required) {
       result.list.push(key);
       result.targets[key] = check.targets;

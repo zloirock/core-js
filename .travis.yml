@@ -1,9 +1,9 @@
 language: node_js
 node_js:
   - '13'
-  - '12'
-  - '10'
-  - '8'
+  - '12.10'
+  - '10.17'
+  - '8.9' # TODO: remove from `core-js@4`
 os:
   - windows
   - linux

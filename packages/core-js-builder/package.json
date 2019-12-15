@@ -15,7 +15,7 @@
     "webpack": "^4.41.2"
   },
   "engines": {
-    "node": ">=8.0.0"
+    "node": ">=8.9.0"
   },
   "funding": {
     "type": "opencollective",
