@@ -31,7 +31,7 @@ function browserslistEntries(targets) {
   return browserslist(targets).map(it => it.split(' '));
 }
 
-module.exports = function(targets) {
+module.exports = function (targets) {
   let list;
   if (typeof targets == 'object' && !Array.isArray(targets)) {
     const { esmodules, browsers, node, ...rest } = targets;
