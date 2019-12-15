@@ -30,8 +30,7 @@ const validTargets = new Set([
 ]);
 
 function normalizeBrowsersList(list) {
-  return list.map(it => {
-    let [engine, version] = it.split(' ');
+  return list.map(([engine, version]) => {
     if (mapping.has(engine)) {
       engine = mapping.get(engine);
     } else if (engine === 'android' && compare(version, '>', '4.4.4')) {
@@ -71,7 +70,9 @@ function checkModule(name, targets) {
 }
 
 module.exports = function ({ targets, filter, version }) {
-  const list = browserslist(targets);
+  const list = typeof targets == 'object' && !Array.isArray(targets)
+    ? Object.entries(targets)
+    : browserslist(targets).map(it => it.split(' '));
   const engines = normalizeBrowsersList(list);
   const reducedTargets = reduceByMinVersion(engines);
 

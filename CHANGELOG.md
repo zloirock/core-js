@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Allowed object of minimum environment versions as `core-js-compat/compat` argument
 - Added Samsung Internet 11 compat data mapping
 
 ##### 3.5.0 - 2019.12.12
