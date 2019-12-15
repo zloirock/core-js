@@ -73,6 +73,6 @@
     "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content"
   },
   "engines": {
-    "node": ">=8.9.0"
+    "node": ">=8.16.0"
   }
 }
