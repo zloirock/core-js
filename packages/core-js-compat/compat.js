@@ -3,7 +3,7 @@ const { compare, has, intersection } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const modules = require('./modules');
-const normalizeTargets = require('./normalize-targets');
+const targetsParser = require('./targets-parser');
 
 function checkModule(name, targets) {
   if (!has(data, name)) throw new TypeError(`Incorrect module: ${ name }`);
@@ -25,7 +25,7 @@ function checkModule(name, targets) {
 }
 
 module.exports = function ({ targets, filter, version }) {
-  const normalizedTargets = normalizeTargets(targets);
+  const parsedTargets = targetsParser(targets);
 
   const result = {
     list: [],
@@ -45,7 +45,7 @@ module.exports = function ({ targets, filter, version }) {
   }
 
   for (const key of $modules) {
-    const check = checkModule(key, normalizedTargets);
+    const check = checkModule(key, parsedTargets);
     if (check.required) {
       result.list.push(key);
       result.targets[key] = check.targets;
