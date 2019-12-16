@@ -30,29 +30,43 @@ if (PATCH) {
     var re = this;
     var lastIndex, reCopy, match, i;
     var sticky = UNSUPPORTED_Y && re.sticky;
+    var flags = regexpFlags.call(re);
+    var source = re.source;
+    var charsAdded = 0;
+    var strCopy = str;
 
     if (sticky) {
-      var flags = (re.ignoreCase ? 'i' : '') +
-                  (re.multiline ? 'm' : '') +
-                  (re.unicode ? 'u' : '') +
-                  'g';
+      flags = flags.replace('y', '');
+      if (flags.indexOf('g') === -1) {
+        flags += 'g';
+      }
 
+      strCopy = String(str).slice(re.lastIndex);
+      if (re.lastIndex > 0 && (!re.multiline || re.multiline && str[re.lastIndex - 1] !== '\n')) {
+        source = '(?: ' + source + ')';
+        strCopy = ' ' + strCopy;
+        charsAdded++;
+      }
       // ^(? + rx + ) is needed, in combination with some str slicing, to
       // simulate the 'y' flag.
-      reCopy = new RegExp('^(?:' + re.source + ')', flags);
-      str = String(str).slice(re.lastIndex);
+      reCopy = new RegExp('^(?:' + source + ')', flags);
     }
 
     if (NPCG_INCLUDED) {
-      reCopy = new RegExp('^' + re.source + '$(?!\\s)', regexpFlags.call(re));
+      reCopy = new RegExp('^' + source + '$(?!\\s)', flags);
     }
     if (UPDATES_LAST_INDEX_WRONG) lastIndex = re.lastIndex;
 
-    match = nativeExec.call(sticky ? reCopy : re, str);
+    match = nativeExec.call(sticky ? reCopy : re, strCopy);
 
     if (sticky) {
-      if (match) re.lastIndex += match[0].length;
-      else re.lastIndex = 0;
+      if (match) {
+        match.input = match.input.slice(charsAdded);
+        match[0] = match[0].slice(charsAdded);
+        match.index = re.lastIndex;
+        re.lastIndex += match[0].length;
+      } else re.lastIndex = 0;
+      // console.log('DEBUG:', reCopy.source, reCopy.lastIndex, re.lastIndex, flags, str, match);
     } else if (UPDATES_LAST_INDEX_WRONG && match) {
       re.lastIndex = re.global ? match.index + match[0].length : lastIndex;
     }

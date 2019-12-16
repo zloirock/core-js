@@ -1,5 +1,4 @@
 var DESCRIPTORS = require('../internals/descriptors');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -78,8 +77,6 @@ if (FORCED) {
   RegExpPrototype.constructor = RegExpWrapper;
   RegExpWrapper.prototype = RegExpPrototype;
   redefine(global, 'RegExp', RegExpWrapper);
-
-  if (UNSUPPORTED_Y) createNonEnumerableProperty(RegExpWrapper, 'sham', true);
 }
 
 // https://tc39.github.io/ecma262/#sec-get-regexp-@@species
