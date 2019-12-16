@@ -42,6 +42,7 @@ if (PATCH) {
       }
 
       strCopy = String(str).slice(re.lastIndex);
+      // Support anchored sticky behavior.
       if (re.lastIndex > 0 && (!re.multiline || re.multiline && str[re.lastIndex - 1] !== '\n')) {
         source = '(?: ' + source + ')';
         strCopy = ' ' + strCopy;
@@ -66,7 +67,6 @@ if (PATCH) {
         match.index = re.lastIndex;
         re.lastIndex += match[0].length;
       } else re.lastIndex = 0;
-      // console.log('DEBUG:', reCopy.source, reCopy.lastIndex, re.lastIndex, flags, str, match);
     } else if (UPDATES_LAST_INDEX_WRONG && match) {
       re.lastIndex = re.global ? match.index + match[0].length : lastIndex;
     }
