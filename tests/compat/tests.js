@@ -740,13 +740,15 @@ GLOBAL.tests = {
     var re1 = /a/;
     var re2 = /b*/g;
     var reSticky = new RegExp('a', 'y');
+    var reStickyAnchored = new RegExp('^a', 'y');
     re1.exec('a');
     re2.exec('a');
     return re1.lastIndex === 0 && re2.lastIndex === 0
       && /()??/.exec('')[1] === undefined
       && reSticky.exec('abc')[0] === 'a'
       && reSticky.exec('abc') === null
-      && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a');
+      && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a')
+      && (reStickyAnchored.lastIndex = 2, reStickyAnchored.exec('cba') === null);
   },
   'es.regexp.flags': function () {
     return /./g.flags === 'g' && new RegExp('a', 'y').flags === 'y';
