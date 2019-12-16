@@ -70,7 +70,8 @@
     "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-pure",
     "commonjs-tests": "node tests/commonjs",
     "commonjs-entries-content": "node tests/commonjs-entries-content",
-    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content"
+    "targets-parser-tests": "node tests/targets-parser",
+    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests"
   },
   "engines": {
     "node": ">=8.9.0"

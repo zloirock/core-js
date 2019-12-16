@@ -572,6 +572,7 @@ module.exports = {
         'tests/wpt-url-resources/**',
         'tests/commonjs.js',
         'tests/commonjs-entries-content.js',
+        'tests/targets-parser.js',
       ],
       parserOptions: {
         sourceType: 'module',
@@ -595,6 +596,7 @@ module.exports = {
         'packages/core-js-compat/**',
         'tests/commonjs.js',
         'tests/commonjs-entries-content.js',
+        'tests/targets-parser.js',
         '.eslintrc.js',
         '.webpack.config.js',
         'babel.config.js',
