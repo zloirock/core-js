@@ -756,6 +756,15 @@ GLOBAL.tests = {
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;
   },
+  'es.regexp.test': function () {
+    var execCalled = false;
+    var re = /[ac]/;
+    re.exec = function () {
+      execCalled = true;
+      return /./.exec.apply(this, arguments);
+    };
+    return re.test('abc') === true && execCalled;
+  },
   'es.regexp.to-string': function () {
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
       && RegExp.prototype.toString.name === 'toString';

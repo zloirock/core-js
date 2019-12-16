@@ -821,6 +821,11 @@ const data = {
     firefox: '3',
     safari: '10.0',
   },
+  'es.regexp.test': {
+    chrome: '51',
+    firefox: '46',
+    safari: '10.0',
+  },
   'es.regexp.to-string': {
     chrome: '50',
     firefox: '46',

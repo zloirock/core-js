@@ -106,6 +106,7 @@ require('../modules/es.regexp.constructor');
 require('../modules/es.regexp.exec');
 require('../modules/es.regexp.flags');
 require('../modules/es.regexp.sticky');
+require('../modules/es.regexp.test');
 require('../modules/es.regexp.to-string');
 require('../modules/es.parse-int');
 require('../modules/es.parse-float');
