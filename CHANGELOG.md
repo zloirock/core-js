@@ -3,6 +3,7 @@
 - Allowed object of minimum environment versions as `core-js-compat` and `core-js-builder` `targets` argument
 - Allowed corresponding to Babel `targets.esmodules`, `targets.browsers`, `targets.node` options in `core-js-compat` and `core-js-builder`
 - Engines in compat data and results of targets parsing sorted alphabetically
+- Fixed `features/instance/match-all` entry compat data
 - Added Samsung Internet 11 compat data mapping
 
 ##### 3.5.0 - 2019.12.12
