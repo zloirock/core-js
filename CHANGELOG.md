@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Added support of sticky (`y`) `RegExp` flag, [#372](https://github.com/zloirock/core-js/issues/372), [#732](https://github.com/zloirock/core-js/issues/732), [#492](https://github.com/zloirock/core-js/issues/492), thanks @cvle and @nicolo-ribaudo
+- Added `RegExp#test` delegation to `RegExp#exec`, [#732](https://github.com/zloirock/core-js/issues/732), thanks @cvle
 - Fixed some cases of `Object.create(null)` in IE8-, [#727](https://github.com/zloirock/core-js/issues/727), [#728](https://github.com/zloirock/core-js/issues/728), thanks @aleen42
 - Allowed object of minimum environment versions as `core-js-compat` and `core-js-builder` `targets` argument
 - Allowed corresponding to Babel `targets.esmodules`, `targets.browsers`, `targets.node` options in `core-js-compat` and `core-js-builder`

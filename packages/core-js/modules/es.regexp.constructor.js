@@ -37,6 +37,7 @@ if (FORCED) {
     var thisIsRegExp = this instanceof RegExpWrapper;
     var patternIsRegExp = isRegExp(pattern);
     var flagsAreUndefined = flags === undefined;
+    var sticky;
 
     if (!thisIsRegExp && patternIsRegExp && pattern.constructor === RegExpWrapper && flagsAreUndefined) {
       return pattern;
@@ -50,7 +51,7 @@ if (FORCED) {
     }
 
     if (UNSUPPORTED_Y) {
-      var sticky = !!flags && flags.indexOf('y') > -1;
+      sticky = !!flags && flags.indexOf('y') > -1;
       if (sticky) flags = flags.replace(/y/g, '');
     }
 
@@ -60,7 +61,7 @@ if (FORCED) {
       RegExpWrapper
     );
 
-    if (UNSUPPORTED_Y) setInternalState(result, { sticky: sticky });
+    if (UNSUPPORTED_Y && sticky) setInternalState(result, { sticky: sticky });
 
     return result;
   };

@@ -806,8 +806,8 @@ const data = {
   },
   'es.regexp.exec': {
     chrome: '26',
-    firefox: '44',
     edge: '13',
+    firefox: '44',
     safari: '10.0',
   },
   'es.regexp.flags': {

@@ -265,6 +265,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/regexp/replace') === 'function');
   ok(typeof load('features/regexp/search') === 'function');
   ok(typeof load('features/regexp/split') === 'function');
+  ok(typeof load('features/regexp/sticky') === 'function');
+  ok(typeof load('features/regexp/test') === 'function');
   load('features/regexp');
   ok(load('features/json').stringify([1]) === '[1]');
   ok(load('features/json/stringify')([1]) === '[1]');
@@ -620,6 +622,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('stable/regexp/replace') === 'function');
   ok(typeof load('stable/regexp/search') === 'function');
   ok(typeof load('stable/regexp/split') === 'function');
+  ok(typeof load('stable/regexp/sticky') === 'function');
+  ok(typeof load('stable/regexp/test') === 'function');
   load('stable/regexp');
   ok(load('stable/json').stringify([1]) === '[1]');
   ok(load('stable/json/stringify')([1]) === '[1]');
@@ -885,6 +889,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/regexp/replace') === 'function');
   ok(typeof load('es/regexp/search') === 'function');
   ok(typeof load('es/regexp/split') === 'function');
+  ok(typeof load('es/regexp/sticky') === 'function');
+  ok(typeof load('es/regexp/test') === 'function');
   load('es/regexp');
   ok(load('es/json').stringify([1]) === '[1]');
   ok(load('es/json/stringify')([1]) === '[1]');

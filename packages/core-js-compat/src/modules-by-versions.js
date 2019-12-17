@@ -52,4 +52,8 @@ module.exports = {
     'esnext.object.iterate-keys',
     'esnext.object.iterate-values',
   ],
+  3.6: [
+    'es.regexp.sticky',
+    'es.regexp.test',
+  ],
 };
