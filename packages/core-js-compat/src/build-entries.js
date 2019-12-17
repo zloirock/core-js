@@ -3,7 +3,7 @@ const { readFileSync, writeFileSync } = require('fs');
 const { dirname, resolve } = require('path');
 const detective = require('detective');
 const { sync: glob } = require('glob');
-const { intersection } = require('../helpers');
+const { intersection, sortObjectByKey } = require('../helpers');
 const modules = require('../modules');
 
 function getModulesForEntryPoint(entry) {
@@ -37,4 +37,4 @@ const entries = {};
   entries[entry] = getModulesForEntryPoint(resolve(__dirname, `../../${ entry }`));
 });
 
-writeFileSync(resolve(__dirname, '../entries.json'), JSON.stringify(entries, null, '  '));
+writeFileSync(resolve(__dirname, '../entries.json'), JSON.stringify(sortObjectByKey(entries), null, '  '));

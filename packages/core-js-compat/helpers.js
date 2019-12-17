@@ -13,9 +13,17 @@ function intersection(list, order) {
   return order.filter(name => set.has(name));
 }
 
+function sortObjectByKey(object, fn) {
+  return Object.keys(object).sort(fn).reduce((memo, key) => {
+    memo[key] = object[key];
+    return memo;
+  }, {});
+}
+
 module.exports = {
   compare,
   has,
   intersection,
   semver,
+  sortObjectByKey,
 };

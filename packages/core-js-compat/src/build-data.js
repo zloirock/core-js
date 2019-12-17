@@ -1,7 +1,7 @@
 'use strict';
 const { writeFileSync } = require('fs');
 const { resolve } = require('path');
-const { compare, semver } = require('../helpers');
+const { compare, objectSort, semver } = require('../helpers');
 const data = require('./data');
 const external = require('./external');
 const {
@@ -60,10 +60,7 @@ for (const scope of [data, external]) {
       map(SafariToPhantomJS, safari, 'phantom');
     }
 
-    scope[key] = Object.keys(module).sort().reduce((memo, engine) => {
-      memo[engine] = module[engine];
-      return memo;
-    }, {});
+    scope[key] = sortObjectByKey(module);
   }
 }
 
