@@ -54,7 +54,11 @@ module.exports = function (targets) {
       engine = 'chrome';
     }
     return [engine, String(version)];
-  }).filter(([engine]) => validTargets.has(engine));
+  }).filter(([engine]) => {
+    return validTargets.has(engine);
+  }).sort(([a], [b]) => {
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
 
   const reducedByMinVersion = new Map();
   for (const [engine, version] of normalized) {

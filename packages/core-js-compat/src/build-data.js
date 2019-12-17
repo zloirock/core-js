@@ -59,6 +59,11 @@ for (const scope of [data, external]) {
       map(SafariToIOS, safari, 'ios');
       map(SafariToPhantomJS, safari, 'phantom');
     }
+
+    scope[key] = Object.keys(module).sort().reduce((memo, engine) => {
+      memo[engine] = module[engine];
+      return memo;
+    }, {});
   }
 }
 
