@@ -1,7 +1,7 @@
 'use strict';
 const { writeFileSync } = require('fs');
 const { resolve } = require('path');
-const { compare, objectSort, semver } = require('../helpers');
+const { compare, sortObjectByKey, semver } = require('../helpers');
 const data = require('./data');
 const external = require('./external');
 const {
