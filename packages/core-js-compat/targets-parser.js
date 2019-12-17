@@ -1,9 +1,9 @@
 'use strict';
 const browserslist = require('browserslist');
-const { compare } = require('./helpers');
+const { compare, has } = require('./helpers');
 const external = require('./external');
 
-const mapping = new Map([
+const aliases = new Map([
   ['and_chr', 'chrome'],
   ['and_ff', 'firefox'],
   ['ie_mob', 'ie'],
@@ -48,8 +48,11 @@ module.exports = function (targets) {
   } else list = browserslistEntries(targets);
 
   const normalized = list.map(([engine, version]) => {
-    if (mapping.has(engine)) {
-      engine = mapping.get(engine);
+    if (has(browserslist.aliases, engine)) {
+      engine = browserslist.aliases[engine];
+    }
+    if (aliases.has(engine)) {
+      engine = aliases.get(engine);
     } else if (engine === 'android' && compare(version, '>', '4.4.4')) {
       engine = 'chrome';
     }

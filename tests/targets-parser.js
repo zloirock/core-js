@@ -52,7 +52,7 @@ deepStrictEqual(targetsParser({ node: '13.2' }), new Map([
 // normalization
 deepStrictEqual(targetsParser({
   ie_mob: 11,
-  and_chr: 56,
+  chromeandroid: 56,
   and_ff: 60,
   ios_saf: '12.2',
   op_mob: 40,
@@ -77,7 +77,7 @@ deepStrictEqual(targetsParser({
   ie: 8,
   samsung: 4,
   ie_mob: 11,
-  and_chr: 56,
+  chromeandroid: 56,
   and_ff: 65,
   ios_saf: '12.2',
   op_mob: 40,
