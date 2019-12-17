@@ -6,13 +6,15 @@ var html = require('../internals/html');
 var documentCreateElement = require('../internals/document-create-element');
 var sharedKey = require('../internals/shared-key');
 
-var IE_PROTO = sharedKey('IE_PROTO');
+var GT = '>';
+var LT = '<';
 var PROTOTYPE = 'prototype';
 var SCRIPT = 'script';
+var IE_PROTO = sharedKey('IE_PROTO');
+
 var EmptyConstructor = function () { /* empty */ };
+
 var scriptTag = function (content) {
-  var GT = '>';
-  var LT = '<';
   return LT + SCRIPT + GT + content + LT + '/' + SCRIPT + GT;
 };
 

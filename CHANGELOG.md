@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed some cases of `Object.create(null)` in IE8-, [#727](https://github.com/zloirock/core-js/issues/727), [#728](https://github.com/zloirock/core-js/issues/728), thanks @aleen42
 - Allowed object of minimum environment versions as `core-js-compat` and `core-js-builder` `targets` argument
 - Allowed corresponding to Babel `targets.esmodules`, `targets.browsers`, `targets.node` options in `core-js-compat` and `core-js-builder`
 - Engines in compat data and results of targets parsing sorted alphabetically
