@@ -11,7 +11,6 @@
     "core-js": "3.6.0",
     "core-js-compat": "3.6.0",
     "mkdirp": "^0.5.1",
-    "pify": "^4.0.1",
     "webpack": "^4.41.4"
   },
   "engines": {
