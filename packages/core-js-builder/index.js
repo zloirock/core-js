@@ -5,16 +5,16 @@ const fs = require('fs');
 const readFile = promisify(fs.readFile);
 const unlink = promisify(fs.unlink);
 const writeFile = promisify(fs.writeFile);
-const { basename, dirname, join } = require('path');
+const { dirname, join } = require('path');
 const tmpdir = require('os').tmpdir();
 // TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
-const { sync: mkdirp } = require('mkdirp');
+const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
-const compat = require('core-js-compat');
+const compat = require('core-js-compat/compat');
 const modulesList = require('core-js-compat/modules');
 const { banner } = require('./config');
 
-module.exports = function ({ blacklist = [], modules = modulesList.slice(), targets, filename } = {}) {
+module.exports = async function ({ blacklist = [], modules = modulesList.slice(), targets, filename } = {}) {
   const set = new Set();
 
   function filter(method, list) {
@@ -34,9 +34,10 @@ module.exports = function ({ blacklist = [], modules = modulesList.slice(), targ
 
   if (targets) modules = compat({ targets, filter: modules }).list;
 
-  const tempFile = join(tmpdir, `core-js-${ Math.random().toString(36).slice(2) }.js`);
+  const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
+  const tempFile = join(tmpdir, tempFileName);
 
-  return webpack({
+  await webpack({
     mode: 'none',
     node: {
       global: false,
@@ -45,14 +46,21 @@ module.exports = function ({ blacklist = [], modules = modulesList.slice(), targ
     },
     entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
     output: {
-      path: dirname(tempFile),
-      filename: basename(`./${ tempFile }`),
+      path: tmpdir,
+      filename: tempFileName,
     },
-  }).then(() => readFile(tempFile)).then(script => unlink(tempFile).then(() => {
-    script = `${ banner }\n!function (undefined) { 'use strict'; ${ script } }();`;
-    if (typeof filename != 'undefined') {
-      mkdirp(dirname(filename));
-      return writeFile(filename, script).then(() => script);
-    } return script;
-  }));
+  });
+
+  const file = await readFile(tempFile);
+
+  await unlink(tempFile);
+
+  const script = `${ banner }\n!function (undefined) { 'use strict'; ${ file } }();`;
+
+  if (typeof filename != 'undefined') {
+    await mkdirp(dirname(filename));
+    await writeFile(filename, script);
+  }
+
+  return script;
 };
