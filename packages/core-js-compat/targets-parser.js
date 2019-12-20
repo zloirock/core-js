@@ -27,25 +27,23 @@ const validTargets = new Set([
   'samsung',
 ]);
 
-function browserslistEntries(targets) {
-  return browserslist(targets).map(it => it.split(' '));
-}
-
 module.exports = function (targets) {
-  let list;
-  if (typeof targets == 'object' && !Array.isArray(targets)) {
-    const { esmodules, browsers, node, ...rest } = targets;
-    list = Object.entries(rest);
-    if (esmodules) {
-      list = list.concat(Object.entries(external.modules));
-    }
-    if (browsers) {
-      list = list.concat(browserslistEntries(browsers));
-    }
-    if (node) {
-      list.push(['node', node === 'current' ? process.versions.node : node]);
-    }
-  } else list = browserslistEntries(targets);
+  if (typeof targets !== 'object' || Array.isArray(targets)) {
+    targets = { browsers: targets };
+  }
+
+  const { browsers, esmodules, node, ...rest } = targets;
+  const list = Object.entries(rest);
+
+  if (browsers) {
+    list.push(...browserslist(browsers).map(it => it.split(' ')));
+  }
+  if (esmodules) {
+    list.push(...Object.entries(external.modules));
+  }
+  if (node) {
+    list.push(['node', node === 'current' ? process.versions.node : node]);
+  }
 
   const normalized = list.map(([engine, version]) => {
     if (has(browserslist.aliases, engine)) {
