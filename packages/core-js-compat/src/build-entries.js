@@ -33,6 +33,7 @@ const entries = {};
   ...glob('packages/core-js/web/**/*.js'),
   ...glob('packages/core-js/modules/*.js'),
 ].forEach(file => {
+  // TODO: store entries without the package name in `core-js@4`
   const entry = file.replace(/^packages\/(core-js.+)\.js$/, '$1').replace(/^(.+)\/index$/, '$1');
   entries[entry] = getModulesForEntryPoint(resolve(__dirname, `../../${ entry }`));
 });
