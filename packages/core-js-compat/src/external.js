@@ -1,8 +1,8 @@
 'use strict';
 module.exports = {
   modules: {
-    edge: '16',
     chrome: '61',
+    edge: '16',
     firefox: '60',
     safari: '10.1',
   },

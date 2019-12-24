@@ -21,9 +21,7 @@ function getModulesForEntryPoint(entry) {
   return intersection(result, modules);
 }
 
-const entries = {};
-
-[
+const entries = [
   'packages/core-js/index.js',
   ...glob('packages/core-js/es/**/*.js'),
   ...glob('packages/core-js/features/**/*.js'),
@@ -32,10 +30,11 @@ const entries = {};
   ...glob('packages/core-js/stage/**/*.js'),
   ...glob('packages/core-js/web/**/*.js'),
   ...glob('packages/core-js/modules/*.js'),
-].forEach(file => {
+].reduce((memo, file) => {
   // TODO: store entries without the package name in `core-js@4`
   const entry = file.replace(/^packages\/(core-js.+)\.js$/, '$1').replace(/^(.+)\/index$/, '$1');
-  entries[entry] = getModulesForEntryPoint(resolve(__dirname, `../../${ entry }`));
-});
+  memo[entry] = getModulesForEntryPoint(resolve(__dirname, `../../${ entry }`));
+  return memo;
+}, {});
 
 writeFileSync(resolve(__dirname, '../entries.json'), JSON.stringify(sortObjectByKey(entries), null, '  '));
