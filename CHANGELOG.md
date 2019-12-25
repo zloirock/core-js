@@ -1,4 +1,8 @@
 ## Changelog
+##### Unreleased
+- Fixed a bug related `Symbol` with multiple copies of `core-js` (for `3.4.2-3.6.0`), [#736](https://github.com/zloirock/core-js/issues/736)
+- Refactored some tools
+
 ##### 3.6.0 - 2019.12.19
 - Added support of sticky (`y`) `RegExp` flag, [#372](https://github.com/zloirock/core-js/issues/372), [#732](https://github.com/zloirock/core-js/issues/732), [#492](https://github.com/zloirock/core-js/issues/492), thanks [@cvle](https://github.com/cvle) and [@nicolo-ribaudo](https://github.com/nicolo-ribaudo)
 - Added `RegExp#test` delegation to `RegExp#exec`, [#732](https://github.com/zloirock/core-js/issues/732), thanks [@cvle](https://github.com/cvle)
