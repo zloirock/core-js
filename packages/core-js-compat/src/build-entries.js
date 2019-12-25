@@ -25,11 +25,11 @@ const entries = [
   'packages/core-js/index.js',
   ...glob('packages/core-js/es/**/*.js'),
   ...glob('packages/core-js/features/**/*.js'),
+  ...glob('packages/core-js/modules/*.js'),
   ...glob('packages/core-js/proposals/**/*.js'),
   ...glob('packages/core-js/stable/**/*.js'),
   ...glob('packages/core-js/stage/**/*.js'),
   ...glob('packages/core-js/web/**/*.js'),
-  ...glob('packages/core-js/modules/*.js'),
 ].reduce((memo, file) => {
   // TODO: store entries without the package name in `core-js@4`
   const entry = file.replace(/^packages\/(core-js.+)\.js$/, '$1').replace(/^(.+)\/index$/, '$1');
