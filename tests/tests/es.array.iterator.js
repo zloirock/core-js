@@ -1,4 +1,4 @@
-import { GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL } from '../helpers/constants';
 
 const Symbol = GLOBAL.Symbol || {};
 
@@ -30,14 +30,12 @@ QUnit.test('Array#keys', assert => {
     value: undefined,
     done: true,
   });
-  if (NATIVE) {
-    assert.deepEqual(keys.call({
-      length: -1,
-    }).next(), {
-      value: undefined,
-      done: true,
-    }, 'uses ToLength');
-  }
+  assert.deepEqual(keys.call({
+    length: -1,
+  }).next(), {
+    value: undefined,
+    done: true,
+  }, 'uses ToLength');
   assert.ok('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -68,14 +66,12 @@ QUnit.test('Array#values', assert => {
     value: undefined,
     done: true,
   });
-  if (NATIVE) {
-    assert.deepEqual(values.call({
-      length: -1,
-    }).next(), {
-      value: undefined,
-      done: true,
-    }, 'uses ToLength');
-  }
+  assert.deepEqual(values.call({
+    length: -1,
+  }).next(), {
+    value: undefined,
+    done: true,
+  }, 'uses ToLength');
   assert.ok('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -106,14 +102,12 @@ QUnit.test('Array#entries', assert => {
     value: undefined,
     done: true,
   });
-  if (NATIVE) {
-    assert.deepEqual(entries.call({
-      length: -1,
-    }).next(), {
-      value: undefined,
-      done: true,
-    }, 'uses ToLength');
-  }
+  assert.deepEqual(entries.call({
+    length: -1,
+  }).next(), {
+    value: undefined,
+    done: true,
+  }, 'uses ToLength');
   assert.ok('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -144,12 +138,10 @@ QUnit.test('Array#@@iterator', assert => {
     value: undefined,
     done: true,
   });
-  if (NATIVE) {
-    assert.deepEqual(Array.prototype[Symbol.iterator].call({
-      length: -1,
-    }).next(), {
-      value: undefined,
-      done: true,
-    }, 'uses ToLength');
-  }
+  assert.deepEqual(Array.prototype[Symbol.iterator].call({
+    length: -1,
+  }).next(), {
+    value: undefined,
+    done: true,
+  }, 'uses ToLength');
 });

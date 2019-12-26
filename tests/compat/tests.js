@@ -252,11 +252,13 @@ GLOBAL.tests = {
     return array.filter(Boolean).foo === 1;
   },
   'es.array.find': function () {
+    [].find.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var SKIPS_HOLES = true;
     Array(1).find(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].find;
   },
   'es.array.find-index': function () {
+    [].findIndex.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var SKIPS_HOLES = true;
     Array(1).findIndex(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].findIndex;
@@ -296,7 +298,8 @@ GLOBAL.tests = {
       && [].keys().next()
       && [][Symbol.unscopables].keys
       && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
+      && [][Symbol.unscopables].entries
+      && [].values.call({ length: -1 }).next().done;
   }],
   'es.array.join': function () {
     try {

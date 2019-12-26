@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#find', assert => {
   const { find } = Array.prototype;
@@ -22,13 +22,11 @@ QUnit.test('Array#find', assert => {
     assert.throws(() => find.call(null, 0), TypeError);
     assert.throws(() => find.call(undefined, 0), TypeError);
   }
-  if (NATIVE && DESCRIPTORS) {
-    assert.notThrows(() => find.call({
-      length: -1,
-      0: 1,
-    }, () => {
-      throw new Error();
-    }) === undefined, 'uses ToLength');
-  }
+  assert.notThrows(() => find.call({
+    length: -1,
+    0: 1,
+  }, () => {
+    throw new Error();
+  }) === undefined, 'uses ToLength');
   assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
