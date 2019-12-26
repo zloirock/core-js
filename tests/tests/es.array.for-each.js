@@ -1,4 +1,4 @@
-import { NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#forEach', assert => {
   const { forEach } = Array.prototype;
@@ -51,12 +51,10 @@ QUnit.test('Array#forEach', assert => {
       forEach.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
-  if (NATIVE) {
-    assert.notThrows(() => forEach.call({
-      length: -1,
-      0: 1,
-    }, () => {
-      throw new Error();
-    }) === undefined, 'uses ToLength');
-  }
+  assert.notThrows(() => forEach.call({
+    length: -1,
+    0: 1,
+  }, () => {
+    throw new Error();
+  }) === undefined, 'uses ToLength');
 });

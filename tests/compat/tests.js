@@ -232,6 +232,7 @@ GLOBAL.tests = {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
   'es.array.every': function () {
+    [].every.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.every.call(null, function () { /* empty */ });
       return false;
@@ -267,6 +268,7 @@ GLOBAL.tests = {
     return Array.prototype.flatMap;
   },
   'es.array.for-each': function () {
+    [].forEach.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.forEach.call(null, function () { /* empty */ });
       return false;
@@ -329,6 +331,7 @@ GLOBAL.tests = {
     return Array.of.call(F) instanceof F;
   },
   'es.array.reduce': function () {
+    [].reduce.call({ length: -1, 0: 1 }, function (it) { throw it; }, 1);
     try {
       Array.prototype.reduce.call(null, function () { /* empty */ }, 1);
     } catch (error) {
@@ -336,6 +339,7 @@ GLOBAL.tests = {
     }
   },
   'es.array.reduce-right': function () {
+    [].reduceRight.call({ length: -1, 2147483646: 1, 4294967294: 1 }, function (it) { throw it; }, 1);
     try {
       Array.prototype.reduceRight.call(null, function () { /* empty */ }, 1);
     } catch (error) {
@@ -355,6 +359,7 @@ GLOBAL.tests = {
     return array.slice().foo === 1;
   },
   'es.array.some': function () {
+    [].some.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.some.call(null, function () { /* empty */ });
     } catch (error) {

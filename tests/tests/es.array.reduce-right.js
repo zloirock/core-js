@@ -1,4 +1,4 @@
-import { NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#reduceRight', assert => {
   const { reduceRight } = Array.prototype;
@@ -40,13 +40,11 @@ QUnit.test('Array#reduceRight', assert => {
     assert.throws(() => reduceRight.call(null, () => { /* empty */ }, 1), TypeError);
     assert.throws(() => reduceRight.call(undefined, () => { /* empty */ }, 1), TypeError);
   }
-  if (NATIVE) {
-    assert.notThrows(() => reduceRight.call({
-      length: -1,
-      2147483646: 0,
-      4294967294: 0,
-    }, () => {
-      throw new Error();
-    }, 1) === undefined, 'uses ToLength');
-  }
+  assert.notThrows(() => reduceRight.call({
+    length: -1,
+    2147483646: 1,
+    4294967294: 1,
+  }, () => {
+    throw new Error();
+  }, 1) === 1, 'uses ToLength');
 });

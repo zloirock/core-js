@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Fixed early implementations of `Array#{ every, forEach, reduce, reduceRight, some }` for usage of `ToLength`
+
 ##### 3.6.1 - 2019.12.25
 - Fixed a bug related `Symbol` with multiple copies of `core-js` (for `3.4.2-3.6.0`), [#736](https://github.com/zloirock/core-js/issues/736)
 - Refactored some tools
