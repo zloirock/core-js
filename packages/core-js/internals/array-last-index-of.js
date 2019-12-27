@@ -9,7 +9,7 @@ var min = Math.min;
 var nativeLastIndexOf = [].lastIndexOf;
 var NEGATIVE_ZERO = !!nativeLastIndexOf && 1 / [1].lastIndexOf(1, -0) < 0;
 var SLOPPY_METHOD = sloppyArrayMethod('lastIndexOf');
-var USES_TO_LENGTH = arrayMethodUsesToLength('lastIndexOf', 2147483647, true);
+var USES_TO_LENGTH = arrayMethodUsesToLength('lastIndexOf', { ACCESSORS: true, 1: 2147483647 });
 var FORCED = NEGATIVE_ZERO || SLOPPY_METHOD || !USES_TO_LENGTH;
 
 // `Array.prototype.lastIndexOf` method implementation

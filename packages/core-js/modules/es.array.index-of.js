@@ -8,7 +8,7 @@ var nativeIndexOf = [].indexOf;
 
 var NEGATIVE_ZERO = !!nativeIndexOf && 1 / [1].indexOf(1, -0) < 0;
 var SLOPPY_METHOD = sloppyArrayMethod('indexOf');
-var USES_TO_LENGTH = arrayMethodUsesToLength('indexOf', 0, true);
+var USES_TO_LENGTH = arrayMethodUsesToLength('indexOf', { ACCESSORS: true, 1: 0 });
 
 // `Array.prototype.indexOf` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.indexof

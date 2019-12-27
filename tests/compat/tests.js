@@ -371,6 +371,7 @@ GLOBAL.tests = {
     return String(test) !== String(test.reverse());
   },
   'es.array.slice': function () {
+    if ([].slice.call({ length: -1, 0: 1 }, 0, 1).length) return false;
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
@@ -402,6 +403,10 @@ GLOBAL.tests = {
     return Array[Symbol.species];
   }],
   'es.array.splice': function () {
+    [].splice.call(Object.defineProperty({ length: -1 }, 0, {
+      enumerable: true,
+      get: function (it) { throw it; }
+    }), 0, 1);
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {

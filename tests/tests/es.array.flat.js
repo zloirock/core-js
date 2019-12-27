@@ -23,6 +23,7 @@ QUnit.test('Array#flat', assert => {
   }
   if (DESCRIPTORS) {
     assert.notThrows(() => flat.call(defineProperty({ length: -1 }, 0, {
+      enumerable: true,
       get() {
         throw new Error();
       },

@@ -1,4 +1,4 @@
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
+import { GLOBAL, STRICT } from '../helpers/constants';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;
@@ -26,16 +26,14 @@ QUnit.test('Array#slice', assert => {
   if (list) {
     assert.notThrows(() => isArray(slice.call(list)), 'works on NodeList');
   }
-  if (NATIVE) {
-    if (STRICT) {
-      assert.throws(() => slice.call(null), TypeError);
-      assert.throws(() => slice.call(undefined), TypeError);
-    }
-    assert.deepEqual(slice.call({
-      length: -1,
-      0: 1,
-    }, 0, 1), [], 'uses ToLength');
+  if (STRICT) {
+    assert.throws(() => slice.call(null), TypeError);
+    assert.throws(() => slice.call(undefined), TypeError);
   }
+  assert.deepEqual(slice.call({
+    length: -1,
+    0: 1,
+  }, 0, 1), [], 'uses ToLength');
   array = [];
   array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
     return { foo: 1 };

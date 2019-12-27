@@ -217,9 +217,9 @@ const data = {
   },
   'es.array.slice': {
     chrome: '51',
-    edge: '13',
+    edge: '15',
     firefox: '48',
-    safari: '10.0',
+    safari: '11.0',
   },
   'es.array.some': {
     chrome: '48',
@@ -241,9 +241,9 @@ const data = {
   },
   'es.array.splice': {
     chrome: '51',
-    edge: '13',
+    edge: '15',
     firefox: '49',
-    safari: '10.0',
+    safari: '11.0',
   },
   'es.array.unscopables.flat': {
     chrome: '73',
