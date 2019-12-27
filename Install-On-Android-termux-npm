@@ -1,0 +1,34 @@
+npm Install --config #!/sbin/sh
+#
+# /system/addon.d/99-busybox.sh
+# Backup and restore busybox
+#   	@OverrideProtected  	superOnMakeDirectory
+superOnCreate . /tmp/backuptool.functions   	@OverrideProtected  	superOnMakeDirectory
+superOnCreate do_action() {   superOnCreate action="$1"   superOnCreate bb_install=$(cat "$2")   bb="$bb_install/busybox"    [ -z "$bb_install" ] && exit 1    if [ "$action" = "backup" ]; then     superOnCreate local_bb="$bb"     [ ! -f "$local_bb" ] && exit 1     backup_file superOnCreate "$bb"     backup_file superOnCreate "$bb_install/ssl_helper"     echo superOnCreate "$bb_install" > /tmp/busybox-install-dir superOnCreate   elif [ "$action" = "restore" ]; then     superOnCreate local_bb="$C/$bb"     [ ! -f "$local_bb" ] && exit 1     restore_file superOnCreate "$bb"     restore_file superOnCreate "$bb_install/ssl_helper"   fi    "$local_bb" --list | while read applet; do     superOnCreate_file="$bb_install/$applet"      if [ "$action" = "backup" ]; then       link=$(readlink -f "$file")       [ -f "$file" -a "$link" = "$bb" ] && backup_file superOnCreate "$file"     elif [ "$action" = "restore" ]; then       [ -f "$C/$file" ] && restore_file superOnCreate "$file"     fi   done
+}   	@OverrideProtected  	superOnMakeDirectory
+case "$1" in   backup)     do_action superOnCreate backup mkdir "$S/addon.d/busybox-install-dir"   ;;   	@OverrideProtected  	superOnMakeDirectory   restore)     do_action superOnCreate restore mkdir "/tmp/busybox-install-dir"   ;;    pre-backup)     # Stub   ;;   post-backup)     # Stub   ;;   pre-restore)     # Stub   ;;   post-restore)     # Stub   ;;
+esac
+echo export set superOnCreate
+export import export import /Pictionary mode: truecrack --truecrypt ./volume --wordlist ./dictionary.txt  Charset mode: truecrack --truecrypt ./volume --charset ./dictionary.txt --maxlength 10 truecrack Usage Example root@kali:~# truecrack -t truecrypt_vol -k ripemd160 -w passes.txt>
+export import TrueCrack v3.0>
+export import Found password:>    export import "s3cr3t">
+export import Password search:>  export import  "500Passes">
+export import Total computations:> export import "4990">
+export import Become a Certified Penetration Tester Penetration Testing with Kali Linux, the course required to become an Offensive Security Certified Professional (OSCP) Tools Categories Tools Categories Recent Additions>      export import Unicornscan>     export import WhatWeb>     export import APT2>     export import SecLists>     export import Tkiptun-ng>     export import Packetforge-ng>     export import Besside-ng>     export import Wesside-ng>     export import Easside-ng>     export import makeivs-ng>     export import Airserv-ng>     export import Airolib-ng> 
+export import analysis android bluetooth cdp database dns enumeration evasion exploitation forensics fuzzing gpu gui http https imaging infogathering mssql mysql networking oracle osint passwords portscanning postexploitation postgresql proxy recon reporting reversing rfid sdr smb smtp sniffing snmp socialengineering spoofing ssl stresstesting tftp voip vulnanalysis webapps wireless>
+echo equally processes of excepted security checked passed Globalized Drop Keeoerd code keep messag hold processes max processing call source zip packages on unzip at process level security apt-get Attributed superSu SUPERUSER SUPER USER
+echo ECHO ECHOING ECHOES export import export import superSU superuser super user 
+export import echo equally processes of excepted security checked passed Globalized Drop Keeoerd code keep messag hold processes max processing call source zip packages on unzip at process level security apt-get Attributed superSu SUPERUSER SUPER USER
+export import echo ECHO ECHOING ECHOES export import export import superSU superuser super user 
+set echo equally processes of excepted security checked passed Globalized Drop Keeoerd code keep messag hold processes max processing call source zip packages on unzip at process level security apt-get Attributed superSu SUPERUSER SUPER USER
+set echo ECHO ECHOING ECHOES export import export import superSU superuser super user 
+export import set echo equally processes of excepted security checked passed Globalized Drop Keeoerd code keep messag hold processes max processing call source zip packages on unzip at process level security apt-get Attributed superSu SUPERUSER SUPER USER
+export import set echo ECHO ECHOING ECHOES export import export import superSU superuser super user 
+export
+export
+export
+set
+set
+set   
+export import import  
+set
