@@ -149,15 +149,15 @@ const data = {
   },
   'es.array.includes': {
     chrome: '53',
-    edge: '14',
+    edge: '15',
     firefox: '48',
     safari: '10.0',
   },
   'es.array.index-of': {
     chrome: '51',
-    firefox: '4',
-    ie: '9',
-    safari: '8.0',
+    edge: '15',
+    firefox: '50',
+    safari: '11.0',
   },
   'es.array.is-array': {
     chrome: '5',
@@ -180,9 +180,9 @@ const data = {
   },
   'es.array.last-index-of': {
     chrome: '51',
-    firefox: '4',
-    ie: '9',
-    safari: '8.0',
+    edge: '13',
+    firefox: '50',
+    safari: '11.0',
   },
   'es.array.map': {
     chrome: '51',

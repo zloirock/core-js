@@ -1,4 +1,4 @@
-import { NATIVE, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#copyWithin', assert => {
   const { copyWithin } = Array.prototype;
@@ -24,19 +24,6 @@ QUnit.test('Array#copyWithin', assert => {
   if (STRICT) {
     assert.throws(() => copyWithin.call(null, 0), TypeError);
     assert.throws(() => copyWithin.call(undefined, 0), TypeError);
-  }
-  if (NATIVE) {
-    assert.deepEqual(copyWithin.call({
-      0: 1,
-      1: 2,
-      2: 3,
-      length: -1,
-    }, 1, 2), {
-      0: 1,
-      1: 2,
-      2: 3,
-      length: -1,
-    }, 'uses ToLength');
   }
   assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

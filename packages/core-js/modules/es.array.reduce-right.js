@@ -5,7 +5,7 @@ var sloppyArrayMethod = require('../internals/sloppy-array-method');
 var arrayMethodUsesToLength = require('../internals/array-method-uses-to-length');
 
 var SLOPPY_METHOD = sloppyArrayMethod('reduceRight');
-var USES_TO_LENGTH = arrayMethodUsesToLength('reduceRight');
+var USES_TO_LENGTH = arrayMethodUsesToLength('reduceRight', 0);
 
 // `Array.prototype.reduceRight` method
 // https://tc39.github.io/ecma262/#sec-array.prototype.reduceright

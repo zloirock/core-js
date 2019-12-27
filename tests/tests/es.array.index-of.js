@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 QUnit.test('Array#indexOf', assert => {
   const { indexOf } = Array.prototype;
@@ -20,13 +20,14 @@ QUnit.test('Array#indexOf', assert => {
     assert.throws(() => indexOf.call(null, 0), TypeError);
     assert.throws(() => indexOf.call(undefined, 0), TypeError);
   }
-  if (NATIVE && DESCRIPTORS) {
+  if (DESCRIPTORS) {
     assert.notThrows(() => indexOf.call(Object.defineProperty({
       length: -1,
     }, 0, {
+      enumerable: true,
       get() {
         throw new Error();
       },
-    }), 1) === -1, 'uses ToLength');
+    }), 0) === -1, 'uses ToLength');
   }
 });

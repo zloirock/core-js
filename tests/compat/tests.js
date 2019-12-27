@@ -279,11 +279,19 @@ GLOBAL.tests = {
   },
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
-    return Array.prototype.includes && Array.prototype[Symbol.unscopables].includes;
+    [].includes.call(Object.defineProperty({ length: -1 }, 0, {
+      enumerable: true,
+      get: function (it) { throw it; }
+    }), 0);
+    return Array.prototype[Symbol.unscopables].includes;
   },
   'es.array.index-of': function () {
+    [].indexOf.call(Object.defineProperty({ length: -1 }, 0, {
+      enumerable: true,
+      get: function (it) { throw it; }
+    }), 0);
     try {
-      Array.prototype.indexOf.call(null);
+      [].indexOf.call(null);
     } catch (error) {
       return 1 / [1].indexOf(1, -0) > 0;
     }
@@ -298,8 +306,7 @@ GLOBAL.tests = {
       && [].keys().next()
       && [][Symbol.unscopables].keys
       && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries
-      && [].values.call({ length: -1 }).next().done;
+      && [][Symbol.unscopables].entries;
   }],
   'es.array.join': function () {
     try {
@@ -314,8 +321,18 @@ GLOBAL.tests = {
     return true;
   },
   'es.array.last-index-of': function () {
+    [].lastIndexOf.call(Object.defineProperties({ length: -1 }, {
+      2147483646: {
+        enumerable: true,
+        get: function (it) { throw it; }
+      },
+      4294967294: {
+        enumerable: true,
+        get: function (it) { throw it; }
+      }
+    }), 2147483647);
     try {
-      Array.prototype.lastIndexOf.call(null);
+      [].lastIndexOf.call(null);
     } catch (error) {
       return 1 / [1].lastIndexOf(1, -0) > 0;
     }
