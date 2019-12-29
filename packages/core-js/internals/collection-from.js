@@ -1,7 +1,7 @@
 'use strict';
 // https://tc39.github.io/proposal-setmap-offrom/
 var aFunction = require('../internals/a-function');
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 var iterate = require('../internals/iterate');
 
 module.exports = function from(source /* , mapFn, thisArg */) {

@@ -1,5 +1,5 @@
 'use strict';
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 var toObject = require('../internals/to-object');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');

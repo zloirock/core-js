@@ -1,4 +1,4 @@
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');

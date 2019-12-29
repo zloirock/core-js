@@ -1,5 +1,5 @@
 var global = require('../internals/global');
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 
 var call = Function.call;
 

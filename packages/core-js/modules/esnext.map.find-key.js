@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 var getMapIterator = require('../internals/get-map-iterator');
 var iterate = require('../internals/iterate');
 

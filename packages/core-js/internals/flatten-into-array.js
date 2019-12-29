@@ -1,7 +1,7 @@
 'use strict';
 var isArray = require('../internals/is-array');
 var toLength = require('../internals/to-length');
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 
 // `FlattenIntoArray` abstract operation
 // https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray

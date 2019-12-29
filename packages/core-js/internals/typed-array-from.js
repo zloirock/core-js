@@ -2,7 +2,7 @@ var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
-var bind = require('../internals/bind-context');
+var bind = require('../internals/function-bind-context');
 var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTypedArrayConstructor;
 
 module.exports = function from(source /* , mapfn, thisArg */) {
