@@ -1,5 +1,5 @@
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.symbol.replace-all');
-var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
+var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
 
 module.exports = WrappedWellKnownSymbolModule.f('replaceAll');

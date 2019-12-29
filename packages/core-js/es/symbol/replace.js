@@ -1,5 +1,5 @@
 require('../../modules/es.symbol.replace');
 require('../../modules/es.string.replace');
-var WrappedWellKnownSymbolModule = require('../../internals/wrapped-well-known-symbol');
+var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
 
 module.exports = WrappedWellKnownSymbolModule.f('replace');
