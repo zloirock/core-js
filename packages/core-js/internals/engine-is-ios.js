@@ -1,3 +1,3 @@
-var userAgent = require('../internals/user-agent');
+var userAgent = require('../internals/engine-user-agent');
 
 module.exports = /(iphone|ipod|ipad).*applewebkit/i.test(userAgent);

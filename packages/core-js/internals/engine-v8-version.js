@@ -1,5 +1,5 @@
 var global = require('../internals/global');
-var userAgent = require('../internals/user-agent');
+var userAgent = require('../internals/engine-user-agent');
 
 var process = global.process;
 var versions = process && process.versions;
