@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var $padStart = require('../internals/string-pad').start;
-var WEBKIT_BUG = require('../internals/webkit-string-pad-bug');
+var WEBKIT_BUG = require('../internals/string-pad-webkit-bug');
 
 // `String.prototype.padStart` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.padstart

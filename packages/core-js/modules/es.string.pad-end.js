@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var $padEnd = require('../internals/string-pad').end;
-var WEBKIT_BUG = require('../internals/webkit-string-pad-bug');
+var WEBKIT_BUG = require('../internals/string-pad-webkit-bug');
 
 // `String.prototype.padEnd` method
 // https://tc39.github.io/ecma262/#sec-string.prototype.padend
