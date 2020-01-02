@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var $trimEnd = require('../internals/string-trim').end;
-var forcedStringTrimMethod = require('../internals/forced-string-trim-method');
+var forcedStringTrimMethod = require('../internals/string-trim-forced');
 
 var FORCED = forcedStringTrimMethod('trimEnd');
 
