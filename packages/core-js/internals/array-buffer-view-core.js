@@ -1,4 +1,5 @@
 'use strict';
+var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isObject = require('../internals/is-object');
@@ -25,7 +26,6 @@ var isPrototypeOf = ObjectPrototype.isPrototypeOf;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
-var NATIVE_ARRAY_BUFFER = !!(global.ArrayBuffer && DataView);
 // Fixing native typed arrays in Opera Presto crashes the browser, see #595
 var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf && classof(global.opera) !== 'Opera';
 var TYPED_ARRAY_TAG_REQIRED = false;
@@ -150,7 +150,6 @@ if (NATIVE_ARRAY_BUFFER && setPrototypeOf && getPrototypeOf(DataViewPrototype) !
 }
 
 module.exports = {
-  NATIVE_ARRAY_BUFFER: NATIVE_ARRAY_BUFFER,
   NATIVE_ARRAY_BUFFER_VIEWS: NATIVE_ARRAY_BUFFER_VIEWS,
   TYPED_ARRAY_TAG: TYPED_ARRAY_TAG_REQIRED && TYPED_ARRAY_TAG,
   aTypedArray: aTypedArray,

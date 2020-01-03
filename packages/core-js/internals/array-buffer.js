@@ -1,7 +1,7 @@
 'use strict';
 var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
-var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-view-core').NATIVE_ARRAY_BUFFER;
+var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var fails = require('../internals/fails');
