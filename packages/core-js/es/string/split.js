@@ -1,3 +1,4 @@
+require('../../modules/es.regexp.exec');
 require('../../modules/es.string.split');
 var entryUnbind = require('../../internals/entry-unbind');
 

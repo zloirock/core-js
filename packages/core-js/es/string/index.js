@@ -1,3 +1,4 @@
+require('../../modules/es.regexp.exec');
 require('../../modules/es.string.from-code-point');
 require('../../modules/es.string.raw');
 require('../../modules/es.string.code-point-at');
