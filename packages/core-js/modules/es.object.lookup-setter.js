@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
-var FORCED = require('../internals/forced-object-prototype-accessors-methods');
+var FORCED = require('../internals/object-prototype-accessors-forced');
 var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
 var getPrototypeOf = require('../internals/object-get-prototype-of');

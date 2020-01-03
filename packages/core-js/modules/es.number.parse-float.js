@@ -1,5 +1,5 @@
 var $ = require('../internals/export');
-var parseFloat = require('../internals/parse-float');
+var parseFloat = require('../internals/number-parse-float');
 
 // `Number.parseFloat` method
 // https://tc39.github.io/ecma262/#sec-number.parseFloat

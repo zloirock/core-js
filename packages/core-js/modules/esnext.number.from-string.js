@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var toInteger = require('../internals/to-integer');
-var parseInt = require('../internals/parse-int');
+var parseInt = require('../internals/number-parse-int');
 
 var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
 var INVALID_RADIX = 'Invalid radix';

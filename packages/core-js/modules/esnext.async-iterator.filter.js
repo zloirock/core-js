@@ -3,7 +3,7 @@
 var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
+var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
   var state = this;

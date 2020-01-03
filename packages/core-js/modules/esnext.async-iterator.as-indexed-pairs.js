@@ -2,7 +2,7 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
-var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
+var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
   var state = this;

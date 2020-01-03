@@ -1,5 +1,5 @@
 var $ = require('../internals/export');
-var parseIntImplementation = require('../internals/parse-int');
+var parseIntImplementation = require('../internals/number-parse-int');
 
 // `parseInt` method
 // https://tc39.github.io/ecma262/#sec-parseint-string-radix

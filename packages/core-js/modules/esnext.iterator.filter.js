@@ -3,7 +3,7 @@
 var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var createIteratorProxy = require('../internals/create-iterator-proxy');
+var createIteratorProxy = require('../internals/iterator-create-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 
 var IteratorProxy = createIteratorProxy(function (arg) {

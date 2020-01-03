@@ -3,7 +3,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
-var createIteratorProxy = require('../internals/create-iterator-proxy');
+var createIteratorProxy = require('../internals/iterator-create-proxy');
 
 var IteratorProxy = createIteratorProxy(function (arg) {
   var iterator = this.iterator;

@@ -4,7 +4,7 @@ var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
-var createAsyncIteratorProxy = require('../internals/create-async-iterator-proxy');
+var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIteratorMethod = require('../internals/get-async-iterator-method');
 
 var AsyncIterator = path.AsyncIterator;
