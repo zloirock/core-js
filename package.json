@@ -42,7 +42,7 @@
     "karma-chrome-launcher": "^3.1.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.0.0",
-    "lerna": "^3.20.1",
+    "lerna": "^3.20.2",
     "moon-unit": "^0.2.2",
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
