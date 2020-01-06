@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.6.2 - 2020.01.07
 - Fixed early implementations of `Array#{ every, forEach, includes, indexOf, lastIndexOf, reduce, reduceRight, slice, some, splice }` for the usage of `ToLength`
 - Added `RegExp#exec` dependency to methods which depends on the correctness of logic of this method (`3.6.0-3.6.1` issue), [#741](https://github.com/zloirock/core-js/issues/741)
 - Refactored some internals
