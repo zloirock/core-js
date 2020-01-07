@@ -305,10 +305,11 @@ const data = {
     safari: '10.0',
   },
   'es.date.to-string': {
-    chrome: '26',
-    firefox: '4',
+    chrome: '5',
+    firefox: '2',
     ie: '9',
-    safari: '8.0',
+    opera: '10.50',
+    safari: '3.1',
   },
   'es.function.bind': {
     chrome: '7',
