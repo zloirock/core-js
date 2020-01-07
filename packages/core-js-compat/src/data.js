@@ -325,10 +325,11 @@ const data = {
     safari: '10.0',
   },
   'es.function.name': {
-    chrome: '26',
-    edge: '14',
-    firefox: '4',
-    safari: '7.1',
+    chrome: '5',
+    edge: '12',
+    firefox: '2',
+    opera: '10.50',
+    safari: '4.0',
   },
   'es.global-this': {
     chrome: '71',
