@@ -30,8 +30,8 @@ var REPLACE_KEEPS_$0 = (function () {
 
 // Safari <= 13.0.3(?) substitutes nth capture where n>m with an empty string
 var REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE = (function () {
-  if (RegExp.prototype['Symbol.replace']) {
-    return RegExp.prototype['Symbol.replace'].call(/./, 'a', '$0') === '';
+  if (RegExp.prototype[wellKnownSymbol('replace')]) {
+    return RegExp.prototype[wellKnownSymbol('replace')].call(/./, 'a', '$0') === '';
   }
   return false;
 })();
