@@ -212,7 +212,7 @@ import 'regenerator-runtime/runtime';
 
 [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.6'`.
 
-> Warning! Recommended to specify used minor `core-js` version, like `corejs: '3.6'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.6'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -291,7 +291,7 @@ Promise.resolve(32).then(x => console.log(x));
 
 By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
-**Warning!** If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+> **Warning!** If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 
 ### Configurable level of aggressiveness
 
