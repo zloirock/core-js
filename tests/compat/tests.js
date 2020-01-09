@@ -1148,8 +1148,12 @@ GLOBAL.tests = {
     return compositeSymbol;
   },
   'esnext.iterator.constructor': function () {
-    return typeof Iterator == 'function'
-      && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+    try {
+      Iterator({});
+    } catch (error) {
+      return typeof Iterator == 'function'
+        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+    }
   },
   'esnext.iterator.as-indexed-pairs': function () {
     return Iterator.prototype.asIndexedPairs;
