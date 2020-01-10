@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed replacement of substitutes of undefined capture groups in `.replace` in Safari 13.0-, [#471](https://github.com/zloirock/core-js/issues/471), [#745](https://github.com/zloirock/core-js/issues/745), thanks [@mattclough1](https://github.com/mattclough1)
 - Improved compat data for old engines
 
 ##### 3.6.2 - 2020.01.07

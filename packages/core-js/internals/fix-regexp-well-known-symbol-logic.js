@@ -87,7 +87,7 @@ module.exports = function (KEY, length, exec, sham) {
     (KEY === 'replace' && !(
       REPLACE_SUPPORTS_NAMED_GROUPS &&
       REPLACE_KEEPS_$0 &&
-      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
+      !REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
     )) ||
     (KEY === 'split' && !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC)
   ) {

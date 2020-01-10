@@ -875,7 +875,11 @@ GLOBAL.tests = {
       return result;
     };
 
-    return ''.replace(O) == 7 && execCalled && ''.replace(re2, '$<a>') === '7';
+    return ''.replace(O) == 7
+      && execCalled
+      && ''.replace(re2, '$<a>') === '7'
+      && 'a'.replace(/./, '$0') === '$0'
+      && /./[Symbol.replace]('a', '$0') === '$0';
   },
   'es.string.search': function () {
     var O = {};
