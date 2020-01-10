@@ -28,10 +28,11 @@ var REPLACE_KEEPS_$0 = (function () {
   return 'a'.replace(/./, '$0') === '$0';
 })();
 
+var REPLACE = wellKnownSymbol('replace');
 // Safari <= 13.0.3(?) substitutes nth capture where n>m with an empty string
 var REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE = (function () {
-  if (RegExp.prototype[wellKnownSymbol('replace')]) {
-    return RegExp.prototype[wellKnownSymbol('replace')].call(/./, 'a', '$0') === '';
+  if (/./[REPLACE]) {
+    return /./[REPLACE]('a', '$0') === '';
   }
   return false;
 })();
@@ -83,9 +84,11 @@ module.exports = function (KEY, length, exec, sham) {
   if (
     !DELEGATES_TO_SYMBOL ||
     !DELEGATES_TO_EXEC ||
-    (KEY === 'replace' && !(REPLACE_SUPPORTS_NAMED_GROUPS && (
-      REPLACE_KEEPS_$0 || REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
-    ))) ||
+    (KEY === 'replace' && !(
+      REPLACE_SUPPORTS_NAMED_GROUPS &&
+      REPLACE_KEEPS_$0 &&
+      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
+    )) ||
     (KEY === 'split' && !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC)
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
