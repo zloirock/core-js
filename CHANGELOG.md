@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Prevented a possible almost infinite loop in non-standard implementations of some backward iteration array methods
+
 ##### 3.6.3 - 2020.01.11
 - Fixed replacement of substitutes of undefined capture groups in `.replace` in Safari 13.0-, [#471](https://github.com/zloirock/core-js/issues/471), [#745](https://github.com/zloirock/core-js/issues/745), thanks [@mattclough1](https://github.com/mattclough1)
 - Improved compat data for old engines

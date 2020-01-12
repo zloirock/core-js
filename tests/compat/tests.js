@@ -321,16 +321,10 @@ GLOBAL.tests = {
     return true;
   },
   'es.array.last-index-of': function () {
-    [].lastIndexOf.call(Object.defineProperties({ length: -1 }, {
-      2147483646: {
-        enumerable: true,
-        get: function (it) { throw it; }
-      },
-      4294967294: {
-        enumerable: true,
-        get: function (it) { throw it; }
-      }
-    }), 2147483647);
+    [].indexOf.call(Object.defineProperty({ length: -1 }, 0, {
+      enumerable: true,
+      get: function (it) { throw it; }
+    }), 0);
     try {
       [].lastIndexOf.call(null);
     } catch (error) {
@@ -359,7 +353,7 @@ GLOBAL.tests = {
     }
   },
   'es.array.reduce-right': function () {
-    [].reduceRight.call({ length: -1, 2147483646: 1, 4294967294: 1 }, function (it) { throw it; }, 1);
+    [].reduce.call({ length: -1, 0: 1 }, function (it) { throw it; }, 0);
     try {
       Array.prototype.reduceRight.call(null, function () { /* empty */ }, 1);
     } catch (error) {
