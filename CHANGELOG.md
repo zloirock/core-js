@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.6.4 - 2020.01.14
 - Prevented a possible almost infinite loop in non-standard implementations of some backward iteration array methods
 
 ##### 3.6.3 - 2020.01.11
