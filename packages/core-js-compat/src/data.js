@@ -707,11 +707,13 @@ const data = {
     chrome: '67', // '51',
     firefox: '69',
     safari: '11.0',
+    ie: '11',
   },
   'es.promise.all-settled': {
     chrome: '76',
     firefox: '71',
     safari: '13',
+    ie: '11',
   },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
@@ -721,6 +723,7 @@ const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=200788
     ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
     safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
+    ie: '11',
   },
   'es.reflect.apply': {
     chrome: '49',
