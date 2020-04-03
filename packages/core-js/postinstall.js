@@ -15,6 +15,7 @@ var CI = [
   'BUILD_NUMBER',
   'CI',
   'CONTINUOUS_INTEGRATION',
+  'DRONE',
   'OPEN_SOURCE_CONTRIBUTOR',
   'RUN_ID'
 ].some(function (it) { return is(env[it]); });
