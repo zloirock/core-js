@@ -68,7 +68,6 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 ### Index
 - [Usage](#usage)
   - [Installation](#installation)
-  - [`postinstall` message](#postinstall-message)
   - [CommonJS API](#commonjs-api)
   - [Babel](#babel)
     - [`@babel/polyfill`](#babelpolyfill)
@@ -125,16 +124,6 @@ npm install --save core-js-bundle@3.6.4
 ```
 
 Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.6.4) ([minified version](https://unpkg.com/core-js-bundle@3.6.4/minified.js)).
-
-### `postinstall` message
-The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
-```
-ADBLOCK=true npm install
-// or
-DISABLE_OPENCOLLECTIVE=true npm install
-// or
-npm install --loglevel silent
-```
 
 ### CommonJS API
 You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:

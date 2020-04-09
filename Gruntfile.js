@@ -90,7 +90,6 @@ module.exports = grunt => {
               'web/**',
               'index.js',
               'configurator.js',
-              'postinstall.js',
             ],
             dest: './packages/core-js-pure/',
           }, {
@@ -115,11 +114,6 @@ module.exports = grunt => {
           {
             expand: true,
             src: ['LICENSE'],
-            dest: './packages/core-js-bundle/',
-          }, {
-            expand: true,
-            cwd: './packages/core-js/',
-            src: ['postinstall.js'],
             dest: './packages/core-js-bundle/',
           },
         ],

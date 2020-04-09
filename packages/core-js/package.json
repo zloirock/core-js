@@ -50,8 +50,5 @@
     "polyfill",
     "ponyfill",
     "shim"
-  ],
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
-  }
+  ]
 }
