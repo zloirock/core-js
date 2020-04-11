@@ -3,7 +3,7 @@
 - Updated Browserlist [#755](https://github.com/zloirock/core-js/issues/755)
 - Fixed `setImmediate` in Safari [#770](https://github.com/zloirock/core-js/issues/770), thanks [@dtinth](https://github.com/dtinth)
 - Fixed some regexp, thanks [@scottarc](https://github.com/scottarc)
-- Added OPEN_SOURCE_CONTRIBUTOR detection in `postinstall`
+- Added OPEN_SOURCE_CONTRIBUTOR detection in `postinstall`, thanks [@scottarc](https://github.com/scottarc)
 - Added Drone CI in `postinstall` CI detection [#781](https://github.com/zloirock/core-js/issues/781)
 
 ##### 3.6.4 - 2020.01.14
