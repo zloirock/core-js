@@ -4,6 +4,7 @@ var os = require('os');
 var path = require('path');
 var env = process.env;
 
+var AD_SHOWN = is(env.AD_SHOWN);
 var ADBLOCK = is(env.ADBLOCK);
 var COLOR = is(env.npm_config_color);
 var DISABLE_OPENCOLLECTIVE = is(env.DISABLE_OPENCOLLECTIVE);
@@ -31,7 +32,7 @@ function is(it) {
 }
 
 function isBannerRequired() {
-  if (ADBLOCK || CI || DISABLE_OPENCOLLECTIVE || SILENT || OPEN_SOURCE_CONTRIBUTOR) return false;
+  if (ADBLOCK || CI || DISABLE_OPENCOLLECTIVE || SILENT || OPEN_SOURCE_CONTRIBUTOR || AD_SHOWN) return false;
   var file = path.join(os.tmpdir(), 'core-js-banners');
   var banners = [];
   try {
@@ -53,6 +54,6 @@ function isBannerRequired() {
 function showBanner() {
   // eslint-disable-next-line no-console,no-control-regex
   console.log(COLOR ? BANNER : BANNER.replace(/\u001B\[\d+m/g, ''));
+  process.env.AD_SHOWN = true;
 }
-
 if (isBannerRequired()) showBanner();
