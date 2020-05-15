@@ -11,6 +11,13 @@ const data = {
     firefox: '63',
     safari: '12.1',
   },
+  'es.symbol.for': {
+    chrome: '40',
+    edge: '12',
+    firefox: '36',
+    opera: '27',
+    safari: '9.0',
+  },
   'es.symbol.async-iterator': {
     chrome: '63',
     firefox: '55',
@@ -32,6 +39,13 @@ const data = {
     chrome: '39',
     edge: '13',
     firefox: '36',
+    safari: '9.0',
+  },
+  'es.symbol.key-for': {
+    chrome: '40',
+    edge: '12',
+    firefox: '36',
+    opera: '27',
     safari: '9.0',
   },
   'es.symbol.match': {
@@ -94,6 +108,13 @@ const data = {
     edge: '12',
     firefox: '48',
     safari: '9.0',
+  },
+  'es.array.entries': {
+    chrome: '38',
+    edge: '12',
+    firefox: '28',
+    opera: '25',
+    safari: '8.0',
   },
   'es.array.every': {
     chrome: '48',
@@ -178,6 +199,13 @@ const data = {
     firefox: '4',
     safari: '7.1',
   },
+  'es.array.keys': {
+    chrome: '38',
+    edge: '12',
+    firefox: '28',
+    opera: '25',
+    safari: '8.0',
+  },
   'es.array.last-index-of': {
     chrome: '51',
     edge: '13',
@@ -245,6 +273,13 @@ const data = {
     edge: '15',
     firefox: '49',
     safari: '11.0',
+  },
+  'es.array.values': {
+    chrome: '66',
+    edge: '12',
+    firefox: '60',
+    opera: '53',
+    safari: '9.0',
   },
   'es.array.unscopables.flat': {
     chrome: '73',
@@ -611,6 +646,13 @@ const data = {
     firefox: '34',
     safari: '9.0',
   },
+  'es.object.get-own-property-symbols': {
+    chrome: '38',
+    edge: '12',
+    firefox: '36',
+    opera: '25',
+    safari: '9.0',
+  },
   'es.object.get-prototype-of': {
     chrome: '44',
     edge: '13',
@@ -928,6 +970,16 @@ const data = {
     safari: '12.1',
   },
   'es.string.trim-end': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.1',
+  },
+  'es.string.trim-left': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.0',
+  },
+  'es.string.trim-right': {
     chrome: '66',
     firefox: '61',
     safari: '12.1',
