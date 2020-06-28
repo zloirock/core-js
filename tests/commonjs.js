@@ -581,6 +581,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('stable/string/strike') === 'function');
   ok(typeof load('stable/string/sub') === 'function');
   ok(typeof load('stable/string/sup') === 'function');
+  ok(typeof load('stable/string/replace-all') === 'function');
   ok(load('stable/string/pad-start')('a', 3) === '  a');
   ok(load('stable/string/pad-end')('a', 3) === 'a  ');
   ok(load('stable/string/trim-start')(' a ') === 'a ');
@@ -851,6 +852,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('es/string/strike') === 'function');
   ok(typeof load('es/string/sub') === 'function');
   ok(typeof load('es/string/sup') === 'function');
+  ok(typeof load('es/string/replace-all') === 'function');
   ok(load('es/string/pad-start')('a', 3) === '  a');
   ok(load('es/string/pad-end')('a', 3) === 'a  ');
   ok('next' in load('es/string/iterator')('qwe'));

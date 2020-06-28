@@ -875,6 +875,9 @@ GLOBAL.tests = {
       && 'a'.replace(/./, '$0') === '$0'
       && /./[Symbol.replace]('a', '$0') === '$0';
   },
+  'es.string.replace-all': function () {
+    return String.prototype.replaceAll;
+  },
   'es.string.search': function () {
     var O = {};
     O[Symbol.search] = function () { return 7; };
@@ -1400,9 +1403,6 @@ GLOBAL.tests = {
   },
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
-  },
-  'esnext.string.replace-all': function () {
-    return String.prototype.replaceAll;
   },
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;

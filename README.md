@@ -1693,6 +1693,13 @@ class Promise {
 ```js
 core-js/proposals/promise-all-settled
 ```
+##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)
+Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.string.replace-all.js)
+```js
+class String {
+  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+}
+```
 
 #### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs-api)
@@ -1731,13 +1738,6 @@ Promise.any([
   Promise.reject(2),
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
-```
-##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)
-Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
