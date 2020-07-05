@@ -1,4 +1,4 @@
-# core-js@3, babel展望未来
+# core-js@3, Babel 展望未来
 
 经过一年半的开发，数十个版本，许多不眠之夜，**[`core-js@3`](https://github.com/zloirock/core-js)** 终于发布了。这是 `core-js` 和 **[babel](https://babeljs.io/)** 补丁相关的功能的最大的一次变化。
 
@@ -7,12 +7,12 @@
 - 它是JavaScript标准库的 polyfill，它支持
   - 最新的 [ECMAScript](https://en.wikipedia.org/wiki/ECMAScript) 标准
   - ECMAScript 标准库提案
-  - 一些 [WHATGW](https://en.wikipedia.org/wiki/WHATWG)  / [W3C](https://en.wikipedia.org/wiki/World_Wide_Web_Consortium) 标准（跨平台或者 ECMAScript 相关）
+  - 一些 [WHATWG](https://en.wikipedia.org/wiki/WHATWG)  / [W3C](https://en.wikipedia.org/wiki/World_Wide_Web_Consortium) 标准（跨平台或者 ECMAScript 相关）
 - 它最大限度的模块化：你能仅仅加载你想要使用的功能
 - 它能够不污染全局命名空间
 - 它[和babel紧密集成](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#Babel)：这能够优化`core-js`的导入
 
-它是最普遍、[最流行](https://www.npmtrends.com/core-js-vs-es5-shim-vs-es6-shim-vs-airbnb-js-shims-vs-polyfill-library-vs-polyfill-service-vs-js-polyfills)给 JavaScript 标准库打补丁的方式，但是有很大一部分开发者并不知道他们间接的使用了`core-js`🙂
+它是最普遍、[最流行](https://www.npmtrends.com/core-js-vs-es5-shim-vs-es6-shim-vs-airbnb-js-shims-vs-polyfill-library-vs-polyfill-service-vs-js-polyfills) 的给 JavaScript 标准库打补丁的方式，但是有很大一部分开发者并不知道他们间接的使用了`core-js`🙂
 
 ## 贡献
 
@@ -24,7 +24,7 @@
 
 或者你可以以另一种方式贡献，你可以帮助去改进代码、测试或者文档（现在，`core-js` 的文档还很糟糕！）。
 
-## `core-js@3`有哪些变化？
+## `core-js@3` 有哪些变化？
 
 ### JavaScript 标准库中变化的内容
 
@@ -103,7 +103,7 @@
 - [`compositeKey` 和 `compositeSymbol` 方法](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey) stage 1 提案
 - [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring) stage 1 提案
 - [`Math.seededPRNG`](https://github.com/tc39/proposal-seeded-random) stage 1 提案
-- [`Promise.any` (合并的错误)](https://github.com/tc39/proposal-promise-any) stage 0（ 现在是stage 3 ）提案
+- [`Promise.any` (合并的错误)](https://github.com/tc39/proposal-promise-any) stage 0（ 现在是 stage 3 ）提案
 
 一些提案的变化很大，`core-js` 也将相应的更新：
 
@@ -117,9 +117,9 @@
 
 最重要的一个是 [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL) 和 [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)。他是[最受欢迎的功能请求之一](https://github.com/zloirock/core-js/issues/117)。增加 `URL` 和 `URLSearchParams`，并保证他们最大限度的符合规范，保持源代码足够紧凑来支撑任何环境是 `core-js@3` 开发中[最困难的任务之一](https://github.com/zloirock/core-js/pull/454/files)。
 
-`core-js@3` 包函在JavaScript中创建微任务（ microtask ）的标准方法：[`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing) 。`core-js@2` 提供了  `asap` 函数，提供了同样功能的老的提案。`queueMicrotask` 被定义在 HTML 标准中，它已经能够在现代浏览器比如 Chromium 或者 NodeJS 中使用。
+`core-js@3` 包函在 JavaScript 中创建微任务（ microtask ）的标准方法：[`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing) 。`core-js@2` 提供了  `asap` 函数，提供了同样功能的老的提案。`queueMicrotask` 被定义在 HTML 标准中，它已经能够在现代浏览器比如 Chromium 或者 NodeJS 中使用。
 
-另一个受欢迎的功能请求是支持 [DOM集合的 `.forEach` 方法](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach)。由于 `core-js` 已经针对DOM集合迭代器做了polyfill，为什么不给 `节点列表` 和 [`DOMTokenList`](https://developer.mozilla.org/zh-CN/docs/Web/API/DOMTokenList) 也增加 `.forEach` 呢？
+另一个受欢迎的功能请求是支持 [DOM 集合的 `.forEach` 方法](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach)。由于 `core-js` 已经针对 DOM 集合迭代器做了 polyfill，为什么不给 `节点列表` 和 [`DOMTokenList`](https://developer.mozilla.org/zh-CN/docs/Web/API/DOMTokenList) 也增加 `.forEach` 呢？
 
 #### 移除过时的功能：
 
@@ -134,11 +134,11 @@
 
 #### 不再有非标准、非提案的功能
 
-许多年前，我开始写一个库，他是我的JavaScript程序的核心：这个库包函 polyfills 和一些我需要的工具函数。一段时间后，这个库以 `core-js` 命名发布。我认为现在大多数 `core-js` 用户不需要非标准的 `core-js` 功能，他们大多已经在早期版本移除了，现在是时候将剩余部分从 `core-js` 中移除。从这个版本开始，`core-js` 可以被称为  polyfill 了。
+许多年前，我开始写一个库，他是我的 JavaScript 程序的核心：这个库包函 polyfills 和一些我需要的工具函数。一段时间后，这个库以 `core-js` 命名发布。我认为现在大多数 `core-js` 用户不需要非标准的 `core-js` 功能，他们大多已经在早期版本移除了，现在是时候将剩余部分从 `core-js` 中移除。从这个版本开始，`core-js` 可以被称为  polyfill 了。
 
 ### 包、入口和模块名字
 
-一个issue里提了 `core-js` 包的很大（ ~2MB ），有很多重复文件。因为这个原因，`core-js` 分成了3个包：
+一个 issue 里提了 `core-js` 包的很大（ ~2MB ），有很多重复文件。因为这个原因，`core-js` 分成了 3 个包：
 - [`core-js`](https://www.npmjs.com/package/core-js) 定义全局的 polyfills。（ ~500KB，[压缩并且 gzipped 处理后 40KB](https://bundlephobia.com/result?p=core-js@3.0.0-beta.20) ）
 - [`core-js-pure`](https://www.npmjs.com/package/core-js-pure)，提供了不污染全局变量的 polyfills。它和 `core-js@2` 中的 `core-js/library` 相当。（~440KB）
 - [`core-js-bundle`](https://www.npmjs.com/package/core-js-bundle)：定义了全局填充的打包版本
@@ -190,7 +190,7 @@ import "core-js/stage/2";
 
 不再有 LiveScript! 当我开始写 `core-js` 时，我主要使用的是 [LiveScript](http://livescript.net/) ；一段时间后，我用 JavaScript 重写了全部的 polyfills 。在 `core-js@2` 中测试和帮助的工具函数仍然使用 LiveScript ：它是非常有趣的像 CoffeeScript 一样的语言，有强大的语法糖使你能够写非常紧凑的代码，但是它几乎已经死了。除此之外，它也是为 `core-js` 贡献的屏障，因为大多数 `core-js` 用户不知道这个语言。`core-js@3` 测试和工具函数使用现代 ES 语法：它将成为为 `core-js` 贡献的好时机🙂。
 
-对于大多数用户，为了优化 `core-js` 导入，我建议使用 [babel](#Babel)。当然，有些情况下 [`core-js-builder`](http://npmjs.com/package/core-js-builder) 仍然有用。现在它支持 `target` 参数，使用带有目标引擎的[`浏览器列表`](https://github.com/browserslist/browserslist) 查询 - 你能够创建一个 bundle，仅仅包含目标引擎需要的 polyfills。对于这种情况，我做了 [`core-js-compat`](https://www.npmjs.com/package/core-js-compat)，更多关于它的信息，你能够从 [这篇文章的 `@babel/preset-env` 部分](#babelpreset-env)了解到。
+对于大多数用户，为了优化 `core-js` 导入，我建议使用 [babel](#Babel)。当然，有些情况下 [`core-js-builder`](http://npmjs.com/package/core-js-builder) 仍然有用。现在它支持 `target` 参数，使用带有目标引擎的[`browserslist`](https://github.com/browserslist/browserslist) 查询 - 你能够创建一个 bundle，仅仅包含目标引擎需要的 polyfills。对于这种情况，我做了 [`core-js-compat`](https://www.npmjs.com/package/core-js-compat)，更多关于它的信息，你能够从 [这篇文章的 `@babel/preset-env` 部分](#babelpreset-env)了解到。
 
 ---
 
@@ -210,12 +210,14 @@ import "@babel/polyfill";
 ```
 
 现在使用两行代替：
+
 ```js
 import "core-js/stable";
 import "regenerator-runtime/runtime";
 ```
 
 别忘记直接安装这两个依赖！
+
 ```js
 npm i --save core-js regenerator-runtime
 ```
