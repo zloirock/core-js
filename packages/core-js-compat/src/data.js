@@ -1506,19 +1506,26 @@ const data = {
     safari: '1.0',
   },
   'web.url': {
-    chrome: '67',
-    firefox: '57',
+    chrome: '51',
+    edge: '13',
+    firefox: '54',
     node: '10.0',
+    safari: '10.0'
   },
   'web.url.to-json': {
     chrome: '71',
-    firefox: '57',
+    edge: '17',
+    firefox: '54',
     node: '10.0',
+    safari: '10.0'
   },
   'web.url-search-params': {
-    chrome: '67',
-    firefox: '57',
+    chrome: '61',
+    edge: '17',
+    firefox: '54',
+    ios: '10.3',
     node: '10.0',
+    safari: '10.1'
   },
 };
 
