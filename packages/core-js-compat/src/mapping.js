@@ -91,6 +91,7 @@ module.exports = {
     [12, '4.0'],
     [30, '4.4'],
     [33, '4.4.3'],
+    [81, '81'],
   ],
   ChromeToElectron,
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/safari_ios.json
