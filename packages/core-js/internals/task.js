@@ -80,8 +80,8 @@ if (!set || !clear) {
     global.addEventListener &&
     typeof postMessage == 'function' &&
     !global.importScripts &&
-    !fails(post) &&
-    location.protocol !== 'file:'
+    location.protocol !== 'file:' &&
+    !fails(post)
   ) {
     defer = post;
     global.addEventListener('message', listener, false);
