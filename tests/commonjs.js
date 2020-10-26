@@ -7,7 +7,7 @@ let PATH;
 
 function load(module) {
   tested++;
-  // eslint-disable-next-line global-require
+  // eslint-disable-next-line node/global-require
   return require(`${ PATH }/${ module }`);
 }
 

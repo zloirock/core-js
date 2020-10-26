@@ -60,6 +60,8 @@ const base = {
   'no-unexpected-multiline': 'error',
   // disallow negation of the left operand of an in expression
   'no-unsafe-negation': 'error',
+  // disallow useless backreferences in regular expressions
+  'no-useless-backreference': 'error',
   // disallow comparisons with the value NaN
   'use-isnan': 'error',
   // disallow unreachable statements after a return, throw, continue, or break statement
@@ -70,6 +72,8 @@ const base = {
   // best practices:
   // enforces return statements in callbacks of array's methods
   'array-callback-return': 'error',
+  // enforce default clauses in switch statements to be last
+  'default-case-last': 'error',
   // encourages use of dot notation whenever possible
   'dot-notation': ['error', { allowKeywords: true }],
   // enforce newline before and after dot
@@ -263,16 +267,6 @@ const base = {
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': ['error', 'never'],
 
-  // commonjs:
-  // require require() calls to be placed at top-level module scope
-  'global-require': 'error',
-  // disallow require calls to be mixed with regular variable declarations
-  'no-mixed-requires': ['error', { grouping: true, allowCall: false }],
-  // disallow new operators with calls to require
-  'no-new-require': 'error',
-  // disallow string concatenation with `__dirname` and `__filename`
-  'no-path-concat': 'error',
-
   // import:
   // ensure all imports appear before other statements
   'import/first': 'error',
@@ -296,8 +290,16 @@ const base = {
   // node:
   // enforce the style of file extensions in `import` declarations
   'node/file-extension-in-import': ['error', 'never'],
+  // require require() calls to be placed at top-level module scope
+  'node/global-require': 'error',
   // disallow the assignment to `exports`
   'node/no-exports-assign': 'error',
+  // disallow require calls to be mixed with regular variable declarations
+  'node/no-mixed-requires': ['error', { grouping: true, allowCall: false }],
+  // disallow new operators with calls to require
+  'node/no-new-require': 'error',
+  // disallow string concatenation with `__dirname` and `__filename`
+  'node/no-path-concat': 'error',
 
   // es6+:
   // require parentheses around arrow function arguments

@@ -165,7 +165,7 @@ module.exports = grunt => {
   });
   grunt.registerTask('bundle', function () {
     // some dependencies of this module generated in grunt tasks, so we should load it here
-    // eslint-disable-next-line global-require
+    // eslint-disable-next-line node/global-require
     const builder = require('./packages/core-js-builder');
     const done = this.async();
 
