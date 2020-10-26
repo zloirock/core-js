@@ -1528,9 +1528,9 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
-data['esnext.string.replace-all'] = data['es.string.replace-all'];
 data['esnext.global-this'] = data['es.global-this'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
+data['esnext.string.replace-all'] = data['es.string.replace-all'];
 
 module.exports = data;

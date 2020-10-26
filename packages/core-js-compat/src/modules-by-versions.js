@@ -55,6 +55,8 @@ module.exports = {
   3.6: [
     'es.regexp.sticky',
     'es.regexp.test',
+  ],
+  3.7: [
     'es.string.replace-all',
   ],
 };

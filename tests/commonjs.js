@@ -592,6 +592,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stable/string/virtual/code-point-at').call('a', 0) === 97);
   ok(load('stable/string/virtual/ends-with').call('qwe', 'we'));
   ok(load('stable/string/virtual/includes').call('qwe', 'w'));
+  ok(typeof load('stable/string/virtual/match-all') === 'function');
+  ok(typeof load('stable/string/virtual/replace-all') === 'function');
   ok(load('stable/string/virtual/repeat').call('q', 3) === 'qqq');
   ok(load('stable/string/virtual/starts-with').call('qwe', 'qw'));
   ok(typeof load('stable/string/virtual/anchor') === 'function');
@@ -859,6 +861,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/string/virtual/code-point-at').call('a', 0) === 97);
   ok(load('es/string/virtual/ends-with').call('qwe', 'we'));
   ok(load('es/string/virtual/includes').call('qwe', 'w'));
+  ok(typeof load('es/string/virtual/match-all') === 'function');
+  ok(typeof load('es/string/virtual/replace-all') === 'function');
   ok(load('es/string/virtual/repeat').call('q', 3) === 'qqq');
   ok(load('es/string/virtual/starts-with').call('qwe', 'qw'));
   ok(load('es/string/virtual/trim').call(' ab ') === 'ab');

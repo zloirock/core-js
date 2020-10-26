@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- `String#replaceAll` moved to stage 4, per Jun TC39 meeting
+- `String#replaceAll` moved to the stable ES, [per Jun TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
 
 ##### 3.6.5 - 2020.04.09
 - Updated Browserlist [#755](https://github.com/zloirock/core-js/issues/755)
