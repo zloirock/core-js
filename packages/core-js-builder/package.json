@@ -10,8 +10,8 @@
   "dependencies": {
     "core-js": "3.6.5",
     "core-js-compat": "3.6.5",
-    "mkdirp": "^0.5.1",
-    "webpack": "^4.41.5"
+    "mkdirp": ">=0.5.5 <1",
+    "webpack": ">=4.44.2 <5"
   },
   "engines": {
     "node": ">=8.9.0"

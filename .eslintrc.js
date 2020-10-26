@@ -1,5 +1,5 @@
 'use strict';
-const SUPPORTED_NODE_VERSIONS = require('./package.json').engines.node;
+const SUPPORTED_NODE_VERSIONS = require('./packages/core-js-builder/package.json').engines.node;
 const webpack = require('./.webpack.config.js');
 
 const base = {

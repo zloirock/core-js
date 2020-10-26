@@ -3,7 +3,7 @@ node_js:
   - '13'
   - '12.13'
   - '10.13'
-  - '8.16' # TODO: remove from `core-js@4`
+# - '8.16' # TODO: remove from `core-js@4`
 os:
   - windows
   - linux
