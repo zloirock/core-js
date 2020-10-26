@@ -368,8 +368,8 @@ if (PROTO) QUnit.test('Promise subclassing', assert => {
   assert.strictEqual(promise3.mine, 'subclass');
   assert.ok(promise3 instanceof Promise);
   assert.ok(promise3 instanceof SubPromise);
-  promise3.then(assert.async(), it => {
-    assert.ok(it, false);
+  promise3.then(assert.async(), error => {
+    assert.ok(false, error);
   });
 });
 

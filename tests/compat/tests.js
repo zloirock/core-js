@@ -138,11 +138,11 @@ function createIsRegExpLogicTest(name) {
     var regexp = /./;
     try {
       '/./'[name](regexp);
-    } catch (e) {
+    } catch (error1) {
       try {
         regexp[Symbol.match] = false;
         return '/./'[name](regexp);
-      } catch (f) { /* empty */ }
+      } catch (error2) { /* empty */ }
     } return false;
   };
 }
@@ -384,10 +384,10 @@ GLOBAL.tests = {
   'es.array.sort': function () {
     try {
       Array.prototype.sort.call(null);
-    } catch (e) {
+    } catch (error1) {
       try {
         [1, 2, 3].sort(null);
-      } catch (f) {
+      } catch (error2) {
         [1, 2, 3].sort(undefined);
         return true;
       }

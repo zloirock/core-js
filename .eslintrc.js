@@ -42,6 +42,8 @@ const base = {
   'no-invalid-regexp': 'error',
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': 'error',
+  // disallow literal numbers that lose precision
+  // 'no-loss-of-precision': 'error', // TODO
   // disallow characters which are made with multiple code points in character class syntax
   'no-misleading-character-class': 'error',
   // disallow the use of object properties of the global object (Math and JSON) as functions
@@ -60,6 +62,8 @@ const base = {
   'no-unexpected-multiline': 'error',
   // disallow negation of the left operand of an in expression
   'no-unsafe-negation': 'error',
+  // disallow loops with a body that allows only one iteration
+  'no-unreachable-loop': 'error',
   // disallow useless backreferences in regular expressions
   'no-useless-backreference': 'error',
   // disallow comparisons with the value NaN
@@ -337,8 +341,10 @@ const base = {
   strict: ['error', 'global'],
 
   // unicorn
+  // enforce the use of regex shorthands to improve readability
+  'unicorn/better-regex': 'error',
   // enforce a specific parameter name in catch clauses
-  'unicorn/catch-error-name': ['error', { name: 'error', caughtErrorsIgnorePattern: '^err' }],
+  'unicorn/catch-error-name': ['error', { name: 'error', ignore: [/^err/] }],
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': 'error',
   // require escape sequences to use uppercase values
@@ -363,8 +369,6 @@ const base = {
   'unicorn/number-literal-case': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
-  // enforce the use of regex shorthands to improve readability
-  'unicorn/regex-shorthand': 'error',
 
   // optimize regex literals
   'optimize-regex/optimize-regex': 'error',
@@ -504,6 +508,8 @@ const qunit = {
   'qunit/no-init': 'error',
   // forbid use of QUnit.jsDump
   'qunit/no-jsdump': 'error',
+  // forbid QUnit.test() calls inside callback of another QUnit.test
+  'qunit/no-nested-tests': 'error',
   // forbid equality comparisons in assert.{ok, notOk}
   'qunit/no-ok-equality': 'error',
   // forbid the use of QUnit.push
@@ -529,7 +535,7 @@ const qunit = {
 module.exports = {
   root: true,
   parserOptions: {
-    ecmaVersion: 2020,
+    ecmaVersion: 2021,
   },
   env: {
     browser: true,

@@ -31,10 +31,10 @@ $({ target: 'Promise', stat: true }, {
           if (alreadyRejected || alreadyResolved) return;
           alreadyResolved = true;
           resolve(value);
-        }, function (e) {
+        }, function (error) {
           if (alreadyRejected || alreadyResolved) return;
           alreadyRejected = true;
-          errors[index] = e;
+          errors[index] = error;
           --remaining || reject(new (getBuiltIn('AggregateError'))(errors, PROMISE_ANY_ERROR));
         });
       });

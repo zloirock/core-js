@@ -297,7 +297,7 @@ export default {
     {
       comment: 'UTF-8 percent encoding with the userinfo encode set.',
       href: 'http://example.net',
-      newValue: "\u0000\u0001\t\n\r\u001f !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé",
+      newValue: "\u0000\u0001\t\n\r\u001F !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007F\u0080\u0081Éé",
       expected: {
         href: "http://%00%01%09%0A%0D%1F%20!%22%23$%&'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9@example.net/",
         username: "%00%01%09%0A%0D%1F%20!%22%23$%&'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
@@ -400,7 +400,7 @@ export default {
     {
       comment: 'UTF-8 percent encoding with the userinfo encode set.',
       href: 'http://example.net',
-      newValue: "\u0000\u0001\t\n\r\u001f !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé",
+      newValue: "\u0000\u0001\t\n\r\u001F !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007F\u0080\u0081Éé",
       expected: {
         href: "http://:%00%01%09%0A%0D%1F%20!%22%23$%&'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9@example.net/",
         password: "%00%01%09%0A%0D%1F%20!%22%23$%&'()*+,-.%2F09%3A%3B%3C%3D%3E%3F%40AZ%5B%5C%5D%5E_%60az%7B%7C%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
@@ -1539,7 +1539,7 @@ export default {
     {
       comment: 'UTF-8 percent encoding with the default encode set. Tabs and newlines are removed.',
       href: 'a:/',
-      newValue: "\u0000\u0001\t\n\r\u001f !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé",
+      newValue: "\u0000\u0001\t\n\r\u001F !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007F\u0080\u0081Éé",
       expected: {
         href: "a:/%00%01%1F%20!%22%23$%&'()*+,-./09:;%3C=%3E%3F@AZ[\\]^_%60az%7B|%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
         pathname: "/%00%01%1F%20!%22%23$%&'()*+,-./09:;%3C=%3E%3F@AZ[\\]^_%60az%7B|%7D~%7F%C2%80%C2%81%C3%89%C3%A9",
@@ -1796,7 +1796,7 @@ export default {
     {
       comment: 'Simple percent-encoding; nuls, tabs, and newlines are removed',
       href: 'a:/',
-      newValue: "\u0000\u0001\t\n\r\u001f !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007f\u0080\u0081Éé",
+      newValue: "\u0000\u0001\t\n\r\u001F !\"#$%&'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~\u007F\u0080\u0081Éé",
       expected: {
         href: "a:/#%01%1F%20!%22#$%&'()*+,-./09:;%3C=%3E?@AZ[\\]^_%60az{|}~%7F%C2%80%C2%81%C3%89%C3%A9",
         hash: "#%01%1F%20!%22#$%&'()*+,-./09:;%3C=%3E?@AZ[\\]^_%60az{|}~%7F%C2%80%C2%81%C3%89%C3%A9",
