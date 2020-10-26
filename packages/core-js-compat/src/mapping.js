@@ -73,6 +73,8 @@ module.exports = {
     [67, '9.0'],
     [71, '10.0'],
     [75, '11.0'],
+    [79, '12.0'],
+    [83, '13.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/opera_android.json
   ChromeToOperaMobile: [
