@@ -102,6 +102,7 @@ require('../modules/es.string.small');
 require('../modules/es.string.strike');
 require('../modules/es.string.sub');
 require('../modules/es.string.sup');
+require('../modules/es.string.replace-all');
 require('../modules/es.regexp.constructor');
 require('../modules/es.regexp.exec');
 require('../modules/es.regexp.flags');

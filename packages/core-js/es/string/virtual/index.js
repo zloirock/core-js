@@ -7,6 +7,7 @@ require('../../../modules/es.string.pad-end');
 require('../../../modules/es.string.pad-start');
 require('../../../modules/es.string.repeat');
 require('../../../modules/es.string.replace');
+require('../../../modules/es.string.replace-all');
 require('../../../modules/es.string.search');
 require('../../../modules/es.string.split');
 require('../../../modules/es.string.starts-with');

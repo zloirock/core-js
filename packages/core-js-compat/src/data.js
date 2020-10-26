@@ -1228,6 +1228,12 @@ const data = {
     firefox: '53',
     safari: '10.0',
   },
+  'es.string.replace-all': {
+    chrome: '85',
+    firefox: '77',
+    safari: '13.1',
+    ios: '13.4',
+  },
   'esnext.aggregate-error': {
   },
   'esnext.array.is-template-object': {
@@ -1443,8 +1449,7 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
-  'esnext.string.replace-all': {
-  },
+  'esnext.string.replace-all': null,
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
@@ -1523,6 +1528,7 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.string.replace-all'] = data['es.string.replace-all'];
 data['esnext.global-this'] = data['es.global-this'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
