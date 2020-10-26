@@ -1,6 +1,7 @@
 language: node_js
 node_js:
-  - '13'
+  - '15'
+  - '14.14'
   - '12.13'
   - '10.13'
 # - '8.16' # TODO: remove from `core-js@4`
