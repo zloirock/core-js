@@ -5,6 +5,7 @@ var macrotask = require('../internals/task').set;
 var IS_IOS = require('../internals/engine-is-ios');
 
 var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
+var document = global.document;
 var process = global.process;
 var Promise = global.Promise;
 var IS_NODE = classof(process) == 'process';
@@ -34,7 +35,7 @@ if (!queueMicrotask) {
   };
 
   // browsers with MutationObserver, except iOS - https://github.com/zloirock/core-js/issues/339
-  if (MutationObserver && !IS_IOS && !IS_NODE) {
+  if (!IS_IOS && !IS_NODE && MutationObserver && document) {
     toggle = true;
     node = document.createTextNode('');
     new MutationObserver(flush).observe(node, { characterData: true });

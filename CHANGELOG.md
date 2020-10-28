@@ -2,6 +2,7 @@
 ##### Unreleased
 - `String#replaceAll` moved to the stable ES, [per Jun TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
 - `process.nextTick` have a less priority when `Promise` in the microtask implementation, [#855](https://github.com/zloirock/core-js/issues/855)
+- Fixed microtask implementation in engines with `MutationObserver`, but without `document`, [#865](https://github.com/zloirock/core-js/issues/865), [#866](https://github.com/zloirock/core-js/issues/866)
 - Added a workaround for 3rd party `Reflect.set` polyfill bug, [#847](https://github.com/zloirock/core-js/issues/847)
 
 ##### 3.6.5 - 2020.04.09
