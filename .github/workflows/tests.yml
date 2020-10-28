@@ -1,0 +1,43 @@
+name: Specs
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: Specs
+
+    strategy:
+      matrix:
+        os: [
+          'ubuntu-latest',
+          'windows-latest',
+          'macos-latest',
+        ]
+        node: [
+          '10.13',
+          '12.13',
+          '14.15',
+          #'15' temporarily disabled because of npm@7 bug https://github.com/npm/cli/issues/1865
+        ]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node }}-
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Tests
+        run: npm run test

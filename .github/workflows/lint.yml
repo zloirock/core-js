@@ -1,0 +1,34 @@
+name: JS lint
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: JS Lint
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: [14.x]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node }}-
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
