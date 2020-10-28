@@ -34,28 +34,32 @@ module.exports = async function ({ blacklist = [], modules = modulesList.slice()
 
   if (targets) modules = compat({ targets, filter: modules }).list;
 
-  const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
-  const tempFile = join(tmpdir, tempFileName);
+  let script = banner;
 
-  await webpack({
-    mode: 'none',
-    node: {
-      global: false,
-      process: false,
-      setImmediate: false,
-    },
-    entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
-    output: {
-      path: tmpdir,
-      filename: tempFileName,
-    },
-  });
+  if (modules.length) {
+    const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
+    const tempFile = join(tmpdir, tempFileName);
 
-  const file = await readFile(tempFile);
+    await webpack({
+      mode: 'none',
+      node: {
+        global: false,
+        process: false,
+        setImmediate: false,
+      },
+      entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
+      output: {
+        path: tmpdir,
+        filename: tempFileName,
+      },
+    });
 
-  await unlink(tempFile);
+    const file = await readFile(tempFile);
 
-  const script = `${ banner }\n!function (undefined) { 'use strict'; ${ file } }();`;
+    await unlink(tempFile);
+
+    script += `\n!function (undefined) { 'use strict'; ${ file } }();`;
+  }
 
   if (typeof filename != 'undefined') {
     await mkdirp(dirname(filename));
