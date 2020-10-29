@@ -13,6 +13,7 @@ function load(module) {
 
 for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   PATH = _PATH;
+  ok(new (load('features/aggregate-error'))([42]).errors[0] === 42);
   ok(load('features/object/assign')({ q: 1 }, { w: 2 }).w === 2);
   ok(load('features/object/create')(Array.prototype) instanceof Array);
   ok(load('features/object/define-property')({}, 'a', { value: 42 }).a === 42);
@@ -357,7 +358,6 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/promise/all-settled')([1, 2, 3]) instanceof Promise);
   ok(load('features/promise/any')([1, 2, 3]) instanceof Promise);
   ok(load('features/promise/try')(() => 42) instanceof load('features/promise'));
-  ok(new (load('features/aggregate-error'))([42]).errors[0] === 42);
   ok('from' in load('features/observable'));
   ok(load('es/global-this').Math === Math);
   ok(load('stable/global-this').Math === Math);
@@ -407,6 +407,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/get-iterator')([]));
   ok(load('features'));
 
+  ok(new (load('stable/aggregate-error'))([42]).errors[0] === 42);
   ok(load('stable/object/assign')({ q: 1 }, { w: 2 }).w === 2);
   ok(load('stable/object/create')(Array.prototype) instanceof Array);
   ok(load('stable/object/define-property')({}, 'a', { value: 42 }).a === 42);
@@ -665,6 +666,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   Promise = load('stable/promise');
   ok('all' in Promise);
   ok(load('stable/promise/all-settled')([1, 2, 3]) instanceof Promise);
+  ok(load('stable/promise/any')([1, 2, 3]) instanceof Promise);
   ok(typeof load('stable/dom-collections').iterator === 'function');
   ok(typeof load('stable/dom-collections/iterator') === 'function');
   ok(typeof load('stable/set-timeout') === 'function');
@@ -677,6 +679,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('stable/url-search-params') === 'function');
   ok(load('stable'));
 
+  ok(new (load('es/aggregate-error'))([42]).errors[0] === 42);
   ok(load('es/object/assign')({ q: 1 }, { w: 2 }).w === 2);
   ok(load('es/object/create')(Array.prototype) instanceof Array);
   ok(load('es/object/define-property')({}, 'a', { value: 42 }).a === 42);
@@ -935,6 +938,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   Promise = load('es/promise');
   ok('all' in Promise);
   ok(load('es/promise/all-settled')([1, 2, 3]) instanceof Promise);
+  ok(load('es/promise/any')([1, 2, 3]) instanceof Promise);
   ok('Map' in load('es'));
   ok('setTimeout' in load('web/timers'));
   ok('setImmediate' in load('web/immediate'));

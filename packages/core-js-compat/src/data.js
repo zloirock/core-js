@@ -83,6 +83,8 @@ const data = {
     firefox: '48',
     safari: '9.0',
   },
+  'es.aggregate-error': {
+  },
   'es.array.concat': {
     chrome: '51',
     edge: '15',
@@ -713,6 +715,8 @@ const data = {
     firefox: '71',
     safari: '13',
   },
+  'es.promise.any': {
+  },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
     chrome: '67', // '63',
@@ -1234,8 +1238,8 @@ const data = {
     safari: '13.1',
     ios: '13.4',
   },
-  'esnext.aggregate-error': {
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.aggregate-error': null,
   'esnext.array.is-template-object': {
   },
   'esnext.array.last-index': {
@@ -1385,8 +1389,8 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
-  'esnext.promise.any': {
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.promise.any': null,
   'esnext.promise.try': {
   },
   'esnext.reflect.define-metadata': {
@@ -1528,8 +1532,10 @@ const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.aggregate-error'] = data['es.aggregate-error'];
 data['esnext.global-this'] = data['es.global-this'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
+data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
 

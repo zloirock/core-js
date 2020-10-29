@@ -1,4 +1,4 @@
-import AggregateError from 'core-js-pure/features/aggregate-error';
+import AggregateError from 'core-js-pure/es/aggregate-error';
 
 QUnit.test('AggregateError', assert => {
   assert.isFunction(AggregateError);

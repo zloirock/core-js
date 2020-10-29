@@ -952,10 +952,15 @@ core-js(-pure)/es|stable|features/date/to-primitive
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
-
 #### ECMAScript: Promise
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.all-settled.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.aggregate-error.js), [`es.promise`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/es.promise.finally.js).
 ```js
+class AggregateError {
+  constructor(errors: Iterable, message: string): AggregateError;
+  errors: Array<any>;
+  message: string;
+}
+
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled: Function, onRejected: Function): Promise;
@@ -965,13 +970,16 @@ class Promise {
   static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
+  static any(promises: Iterable): Promise<any>;
   static race(iterable: Iterable): Promise;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
+core-js(-pure)/es|stable|features/aggregate-error
 core-js(-pure)/es|stable|features/promise
 core-js(-pure)/es|stable|features/promise/all-settled
+core-js(-pure)/es|stable|features/promise/any
 core-js(-pure)/es|stable|features/promise/finally
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
@@ -1036,7 +1044,20 @@ Promise.allSettled([
   Promise.resolve(3),
 ]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
+`Promise.any` [*example*](https://goo.gl/iErvmp):
+```js
+Promise.any([
+  Promise.resolve(1),
+  Promise.reject(2),
+  Promise.resolve(3),
+]).then(console.log); // => 1
 
+Promise.any([
+  Promise.reject(1),
+  Promise.reject(2),
+  Promise.reject(3),
+]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+```
 [Example](http://goo.gl/wnQS4j) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time))
@@ -1717,7 +1738,6 @@ class Promise {
 core-js/proposals/promise-all-settled
 ```
 
-#### Stage 3 proposals
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/3
@@ -1755,6 +1775,10 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
+
+#### Stage 3 proposals
+
+None.
 
 #### Stage 2 proposals
 [*CommonJS entry points:*](#commonjs-api)

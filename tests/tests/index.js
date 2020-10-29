@@ -1,5 +1,6 @@
 /* eslint-disable import/first */
 QUnit.module('ES');
+import './es.aggregate-error';
 import './es.array.concat';
 import './es.array.copy-within';
 import './es.array.every';
@@ -95,6 +96,7 @@ import './es.parse-float';
 import './es.parse-int';
 import './es.promise';
 import './es.promise.all-settled';
+import './es.promise.any';
 import './es.promise.finally';
 import './es.reflect.apply';
 import './es.reflect.construct';
@@ -193,7 +195,6 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
-import './esnext.aggregate-error';
 import './esnext.array.is-template-object';
 import './esnext.array.last-item';
 import './esnext.array.last-index';
@@ -247,7 +248,6 @@ import './esnext.object.iterate-entries';
 import './esnext.object.iterate-keys';
 import './esnext.object.iterate-values';
 import './esnext.observable';
-import './esnext.promise.any';
 import './esnext.promise.try';
 import './esnext.reflect.define-metadata';
 import './esnext.reflect.delete-metadata';

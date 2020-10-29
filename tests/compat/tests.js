@@ -216,6 +216,9 @@ GLOBAL.tests = {
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
   }],
+  'es.aggregate-error': function () {
+    return typeof AggregateError === 'function';
+  },
   'es.array.concat': function () {
     var array1 = [];
     array1[Symbol.isConcatSpreadable] = false;
@@ -694,6 +697,9 @@ GLOBAL.tests = {
   'es.promise.all-settled': function () {
     return Promise.allSettled;
   },
+  'es.promise.any': function () {
+    return Promise.any;
+  },
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
   }],
@@ -1091,9 +1097,6 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
-  'esnext.aggregate-error': function () {
-    return typeof AggregateError === 'function';
-  },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
@@ -1310,9 +1313,6 @@ GLOBAL.tests = {
   },
   'esnext.observable': function () {
     return Observable;
-  },
-  'esnext.promise.any': function () {
-    return Promise.any;
   },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
     return Promise['try'];
