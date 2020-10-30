@@ -13,10 +13,10 @@ var $AggregateError = function AggregateError(errors, message) {
   if (setPrototypeOf) {
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
+  if (message !== undefined) createNonEnumerableProperty(that, 'message', String(message));
   var errorsArray = [];
   iterate(errors, errorsArray.push, errorsArray);
   createNonEnumerableProperty(that, 'errors', errorsArray);
-  if (message !== undefined) createNonEnumerableProperty(that, 'message', String(message));
   return that;
 };
 
