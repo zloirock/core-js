@@ -4,13 +4,15 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var iteratorClose = require('../internals/iterator-close');
 
 var IteratorProxy = createIteratorProxy(function (arg) {
+  var iterator = this.iterator;
   if (!this.remaining--) {
     this.done = true;
-    return;
+    return iteratorClose(iterator);
   }
-  var result = anObject(this.next.call(this.iterator, arg));
+  var result = anObject(this.next.call(iterator, arg));
   var done = this.done = !!result.done;
   if (!done) return result.value;
 });
