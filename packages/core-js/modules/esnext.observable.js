@@ -176,10 +176,10 @@ redefineAll($Observable, {
     }
     var iterator = getIterator(x);
     return new C(function (observer) {
-      iterate(iterator, function (it) {
+      iterate(iterator, function (it, stop) {
         observer.next(it);
-        if (observer.closed) return iterate.stop();
-      }, undefined, false, true);
+        if (observer.closed) return stop();
+      }, { IS_ITERATOR: true, INTERRUPTED: true });
       observer.complete();
     });
   },

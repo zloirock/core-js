@@ -15,7 +15,7 @@ var $AggregateError = function AggregateError(errors, message) {
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', String(message));
   var errorsArray = [];
-  iterate(errors, errorsArray.push, errorsArray);
+  iterate(errors, errorsArray.push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
   return that;
 };

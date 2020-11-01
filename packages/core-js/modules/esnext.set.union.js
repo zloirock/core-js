@@ -13,7 +13,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   union: function union(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
-    iterate(iterable, aFunction(newSet.add), newSet);
+    iterate(iterable, aFunction(newSet.add), { that: newSet });
     return newSet;
   }
 });

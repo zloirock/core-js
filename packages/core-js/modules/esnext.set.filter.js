@@ -20,7 +20,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var adder = aFunction(newSet.add);
     iterate(iterator, function (value) {
       if (boundFunction(value, value, set)) adder.call(newSet, value);
-    }, undefined, false, true);
+    }, { IS_ITERATOR: true });
     return newSet;
   }
 });

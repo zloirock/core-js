@@ -13,7 +13,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var iterator = getSetIterator(set);
     var sep = separator === undefined ? ',' : String(separator);
     var result = [];
-    iterate(iterator, result.push, result, false, true);
+    iterate(iterator, result.push, { that: result, IS_ITERATOR: true });
     return result.join(sep);
   }
 });

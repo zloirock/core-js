@@ -9,8 +9,8 @@ $({ target: 'Iterator', proto: true, real: true }, {
   every: function every(fn) {
     anObject(this);
     aFunction(fn);
-    return !iterate(this, function (value) {
-      if (!fn(value)) return iterate.stop();
-    }, undefined, false, true).stopped;
+    return !iterate(this, function (value, stop) {
+      if (!fn(value)) return stop();
+    }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
   }
 });

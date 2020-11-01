@@ -11,7 +11,7 @@ var toMetadataKey = ReflectMetadataModule.toKey;
 
 var from = function (iter) {
   var result = [];
-  iterate(iter, result.push, result);
+  iterate(iter, result.push, { that: result });
   return result;
 };
 

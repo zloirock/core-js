@@ -13,8 +13,8 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var map = anObject(this);
     var iterator = getMapIterator(map);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
-    return iterate(iterator, function (key, value) {
-      if (boundFunction(value, key, map)) return iterate.stop(value);
-    }, undefined, true, true).result;
+    return iterate(iterator, function (key, value, stop) {
+      if (boundFunction(value, key, map)) return stop(value);
+    }, { AS_ENTRIES: true, IS_ITERATOR: true, INTERRUPTED: true }).result;
   }
 });

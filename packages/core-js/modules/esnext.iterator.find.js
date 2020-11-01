@@ -9,8 +9,8 @@ $({ target: 'Iterator', proto: true, real: true }, {
   find: function find(fn) {
     anObject(this);
     aFunction(fn);
-    return iterate(this, function (value) {
-      if (fn(value)) return iterate.stop(value);
-    }, undefined, false, true).result;
+    return iterate(this, function (value, stop) {
+      if (fn(value)) return stop(value);
+    }, { IS_ITERATOR: true, INTERRUPTED: true }).result;
   }
 });

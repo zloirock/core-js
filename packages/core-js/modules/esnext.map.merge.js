@@ -14,7 +14,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var setter = aFunction(map.set);
     var i = 0;
     while (i < arguments.length) {
-      iterate(arguments[i++], setter, map, true);
+      iterate(arguments[i++], setter, { that: map, AS_ENTRIES: true });
     }
     return map;
   }

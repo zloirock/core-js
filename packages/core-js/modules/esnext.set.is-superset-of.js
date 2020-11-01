@@ -11,8 +11,8 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   isSupersetOf: function isSupersetOf(iterable) {
     var set = anObject(this);
     var hasCheck = aFunction(set.has);
-    return !iterate(iterable, function (value) {
-      if (hasCheck.call(set, value) === false) return iterate.stop();
-    }).stopped;
+    return !iterate(iterable, function (value, stop) {
+      if (hasCheck.call(set, value) === false) return stop();
+    }, { INTERRUPTED: true }).stopped;
   }
 });
