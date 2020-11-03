@@ -57,6 +57,8 @@ module.exports = {
     'es.regexp.test',
   ],
   3.7: [
+    'es.aggregate-error',
+    'es.promise.any',
     'es.string.replace-all',
   ],
 };
