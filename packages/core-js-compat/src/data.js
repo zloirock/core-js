@@ -84,6 +84,7 @@ const data = {
     safari: '9.0',
   },
   'es.aggregate-error': {
+    chrome: '85',
   },
   'es.array.concat': {
     chrome: '51',
@@ -716,6 +717,7 @@ const data = {
     safari: '13',
   },
   'es.promise.any': {
+    chrome: '85',
   },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
@@ -909,6 +911,11 @@ const data = {
   },
   'es.string.replace': {
     chrome: '64',
+  },
+  'es.string.replace-all': {
+    chrome: '85',
+    firefox: '77',
+    safari: '13.1',
   },
   'es.string.search': {
     chrome: '51',
@@ -1231,12 +1238,6 @@ const data = {
     edge: '15',
     firefox: '53',
     safari: '10.0',
-  },
-  'es.string.replace-all': {
-    chrome: '85',
-    firefox: '77',
-    safari: '13.1',
-    ios: '13.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
