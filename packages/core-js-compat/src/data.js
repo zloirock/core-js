@@ -85,6 +85,7 @@ const data = {
   },
   'es.aggregate-error': {
     chrome: '85',
+    safari: '14.0',
   },
   'es.array.concat': {
     chrome: '51',
@@ -718,6 +719,7 @@ const data = {
   },
   'es.promise.any': {
     chrome: '85',
+    safari: '14.0',
   },
   'es.promise.finally': {
     // V8 6.6 has a serious bug
