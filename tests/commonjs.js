@@ -317,6 +317,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
   ok(load('features/weak-set/from')([{}, []]) instanceof WeakSet);
   ok(load('features/map/delete-all')(new Map(), 1, 2) === false);
+  ok(load('features/map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
   ok(load('features/map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
   ok(load('features/map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
   ok(load('features/map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
@@ -350,6 +351,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
   ok(load('features/set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
   ok(load('features/weak-map/delete-all')(new WeakMap(), [], {}) === false);
+  ok(load('features/weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
   ok(load('features/weak-map/upsert')(new WeakMap(), {}, null, () => 42) === 42);
   ok(load('features/weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
   ok(load('features/weak-set/delete-all')(new WeakSet(), [], {}) === false);

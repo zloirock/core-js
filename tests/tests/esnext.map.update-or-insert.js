@@ -4,7 +4,7 @@ QUnit.test('Map#updateOrInsert', assert => {
   assert.arity(updateOrInsert, 2);
   assert.name(updateOrInsert, 'upsert');
   assert.looksNative(updateOrInsert);
-  assert.nonEnumerable(Map.prototype, 'upsert');
+  assert.nonEnumerable(Map.prototype, 'updateOrInsert');
 
   const map = new Map([['a', 2]]);
   assert.same(map.updateOrInsert('a', function (value) {

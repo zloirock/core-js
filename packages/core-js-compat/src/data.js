@@ -1310,6 +1310,8 @@ const data = {
   },
   'esnext.map.delete-all': {
   },
+  'esnext.map.emplace': {
+  },
   'esnext.map.every': {
   },
   'esnext.map.filter': {
@@ -1470,6 +1472,8 @@ const data = {
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
+  },
+  'esnext.weak-map.emplace': {
   },
   'esnext.weak-map.upsert': {
   },

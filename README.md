@@ -1952,30 +1952,30 @@ require('core-js');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
-##### [`Map#upsert`](https://github.com/thumbsupep/proposal-upsert)
-Modules [`esnext.map.upsert`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.map.upsert.js) and [`esnext.weak-map.upsert`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.weak-map.upsert.js)
+##### [`Map#emplace`](https://github.com/thumbsupep/proposal-upsert)
+Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/v3.6.5/packages/core-js/modules/esnext.weak-map.emplace.js)
 ```js
 class Map {
-  upsert(key: any, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
+  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
 }
 
 class WeakMap {
-  upsert(key: Object, onUpdate: (value: any) => updated: any, onInsert: () => value: any): updated | value;
+  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/map-upsert
-core-js(-pure)/features/map/upsert
-core-js(-pure)/features/weak-map/upsert
+core-js(-pure)/features/map/emplace
+core-js(-pure)/features/weak-map/emplace
 ```
-[*Examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.upsert('a'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.upsert('b'%2C%20it%20%3D%3E%20it%20**%202%2C%20()%20%3D%3E%203)%3B%20%2F%2F%20%3D%3E%203%0A%0Alog(map)%3B%20%2F%2F%20%3D%3E%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D):
+[*Examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.emplace('a'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.emplace('b'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%203%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20map)%7B%0A%20%20log(key%2C%20value)%3B%20%2F%2F%20%3D%3E%20Map%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D%0A%7D):
 ```js
 const map = new Map([['a', 2]]);
 
-map.upsert('a', it => it ** 2, () => 3); // => 4
+map.emplace('a', { update: it => it ** 2, insert: () => 3}); // => 4
 
-map.upsert('b', it => it ** 2, () => 3); // => 3
+map.emplace('b', { update: it => it ** 2, insert: () => 3}); // => 3
 
 console.log(map); // => Map { 'a': 4, 'b': 3 }
 ```

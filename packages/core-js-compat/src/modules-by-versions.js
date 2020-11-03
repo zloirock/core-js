@@ -60,5 +60,7 @@ module.exports = {
     'es.aggregate-error',
     'es.promise.any',
     'es.string.replace-all',
+    'esnext.map.emplace',
+    'esnext.weak-map.emplace',
   ],
 };

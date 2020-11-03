@@ -259,6 +259,7 @@ import './esnext.reflect.has-metadata';
 import './esnext.reflect.has-own-metadata';
 import './esnext.reflect.metadata';
 import './esnext.map.delete-all';
+import './esnext.map.emplace';
 import './esnext.map.every';
 import './esnext.map.filter';
 import './esnext.map.find';
@@ -306,6 +307,7 @@ import './esnext.weak-map.of';
 import './esnext.weak-map.upsert';
 import './esnext.weak-set.add-all';
 import './esnext.weak-set.delete-all';
+import './esnext.weak-map.emplace';
 import './esnext.weak-set.from';
 import './esnext.weak-set.of';
 

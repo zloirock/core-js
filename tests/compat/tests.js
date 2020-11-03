@@ -1201,6 +1201,9 @@ GLOBAL.tests = {
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },
+  'esnext.map.emplace': function () {
+    return Map.prototype.emplace;
+  },
   'esnext.map.every': function () {
     return Map.prototype.every;
   },
@@ -1253,6 +1256,7 @@ GLOBAL.tests = {
   'esnext.map.update-or-insert': function () {
     return Map.prototype.updateOrInsert;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.map.upsert': function () {
     return Map.prototype.upsert;
   },
@@ -1302,12 +1306,15 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.object.iterate-entries': function () {
     return Object.iterateEntries;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.object.iterate-keys': function () {
     return Object.iterateKeys;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': function () {
     return Object.iterateValues;
   },
@@ -1420,12 +1427,16 @@ GLOBAL.tests = {
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
   },
+  'esnext.weak-map.emplace': function () {
+    return WeakMap.prototype.emplace;
+  },
   'esnext.weak-map.from': function () {
     return WeakMap.from;
   },
   'esnext.weak-map.of': function () {
     return WeakMap.of;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': function () {
     return WeakMap.prototype.upsert;
   },
