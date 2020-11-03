@@ -9,6 +9,18 @@
 - Fixed microtask implementation in engines with `MutationObserver`, but without `document`, [#865](https://github.com/zloirock/core-js/issues/865), [#866](https://github.com/zloirock/core-js/issues/866)
 - Fixed `core-js-builder` with an empty (after the targets engines or another filtration) modules list, [#822](https://github.com/zloirock/core-js/issues/822)
 - Added a workaround for 3rd party `Reflect.set` polyfill bug, [#847](https://github.com/zloirock/core-js/issues/847)
+- Updated compat data:
+  - Chrome up to 86
+  - FF up to 82
+  - Safari up to 14
+- Updated compat data mapping:
+  - iOS up to 14
+  - NodeJS up to 15.0
+  - Electron up to 11.0
+  - Samsung Internet up to 13.0
+  - Opera Android up to 60
+  - The rest automatically
+- Updated all required dependencies
 
 ##### 3.6.5 - 2020.04.09
 - Updated Browserlist [#755](https://github.com/zloirock/core-js/issues/755)
