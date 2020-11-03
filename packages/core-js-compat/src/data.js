@@ -85,6 +85,7 @@ const data = {
   },
   'es.aggregate-error': {
     chrome: '85',
+    firefox: '79',
     safari: '14.0',
   },
   'es.array.concat': {
@@ -719,6 +720,7 @@ const data = {
   },
   'es.promise.any': {
     chrome: '85',
+    firefox: '79',
     safari: '14.0',
   },
   'es.promise.finally': {
@@ -913,6 +915,8 @@ const data = {
   },
   'es.string.replace': {
     chrome: '64',
+    firefox: '78',
+    safari: '14.0',
   },
   'es.string.replace-all': {
     chrome: '85',
