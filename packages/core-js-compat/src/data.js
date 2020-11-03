@@ -929,6 +929,7 @@ const data = {
     chrome: '59',
     edge: '15',
     firefox: '52',
+    ie: '10',
     safari: '12.1',
   },
   'es.string.trim-end': {
