@@ -812,6 +812,11 @@ const data = {
     firefox: '42',
     safari: '10.0',
   },
+  'es.reflect.to-string-tag': {
+    chrome: '86',
+    firefox: '82',
+    safari: '14.0',
+  },
   'es.regexp.constructor': {
     chrome: '51',
     firefox: '49',

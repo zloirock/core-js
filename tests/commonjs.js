@@ -185,6 +185,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/reflect/prevent-extensions')({}));
   ok(load('features/reflect/set')({}, 'a', 42));
   load('features/reflect/set-prototype-of')(O = {}, []);
+  ok(load('features/reflect/to-string-tag') === 'Reflect');
   ok(O instanceof Array);
   ok(typeof load('features/reflect/define-metadata') === 'function');
   ok(typeof load('features/reflect/delete-metadata') === 'function');
@@ -560,6 +561,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('stable/reflect/prevent-extensions')({}));
   ok(load('stable/reflect/set')({}, 'a', 42));
   load('stable/reflect/set-prototype-of')(O = {}, []);
+  ok(load('stable/reflect/to-string-tag') === 'Reflect');
   ok(O instanceof Array);
   ok('has' in load('stable/reflect'));
   ok(load('stable/string/from-code-point')(97) === 'a');
@@ -832,6 +834,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('es/reflect/prevent-extensions')({}));
   ok(load('es/reflect/set')({}, 'a', 42));
   load('es/reflect/set-prototype-of')(O = {}, []);
+  ok(load('es/reflect/to-string-tag') === 'Reflect');
   ok(O instanceof Array);
   ok('has' in load('es/reflect'));
   ok(load('es/string/from-code-point')(97) === 'a');

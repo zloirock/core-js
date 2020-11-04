@@ -2,6 +2,7 @@
 ##### Unreleased
 - `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
 - `Promise.any` and `AggregateError` moved to the stable ES, [per July TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-07/july-21.md#promiseany--aggregateerror-for-stage-4)
+- Added `Reflect[@@toStringTag]`, [per July TC39 meeting](https://github.com/tc39/ecma262/pull/2057)
 - Following the changes in [the `upsert` proposal](https://github.com/tc39/proposal-upsert), `{ Map, WeakMap }#emplace` replace `{ Map, WeakMap }#upsert`, these obsolete methods will be removed in the next major release
 - [By the current spec](https://tc39.es/ecma262/#sec-aggregate-error-constructor), `AggregateError#errors` is own data property
 - Added correct iteration closing in the iteration helpers according to the current version of [the proposal](https://tc39.es/proposal-iterator-helpers)

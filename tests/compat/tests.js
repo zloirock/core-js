@@ -755,6 +755,9 @@ GLOBAL.tests = {
   'es.reflect.set-prototype-of': function () {
     return Reflect.setPrototypeOf;
   },
+  'es.reflect.to-string-tag': function () {
+    return Reflect[Symbol.toStringTag];
+  },
   'es.regexp.constructor': function () {
     var re1 = /a/g;
     var re2 = /a/g;

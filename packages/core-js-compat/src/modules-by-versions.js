@@ -59,6 +59,7 @@ module.exports = {
   3.7: [
     'es.aggregate-error',
     'es.promise.any',
+    'es.reflect.to-string-tag',
     'es.string.replace-all',
     'esnext.map.emplace',
     'esnext.weak-map.emplace',
