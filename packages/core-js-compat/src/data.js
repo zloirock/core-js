@@ -202,15 +202,17 @@ const data = {
     safari: '9.0',
   },
   'es.array.reduce': {
-    chrome: '48',
+    chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
     edge: '15',
     firefox: '50',
+    node: '6.0', // ^^^
     safari: '9.0',
   },
   'es.array.reduce-right': {
-    chrome: '48',
+    chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
     edge: '15',
     firefox: '50',
+    node: '6.0', // ^^^
     safari: '9.0',
   },
   'es.array.reverse': {
