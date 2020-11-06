@@ -9,6 +9,7 @@
 - `process.nextTick` have a less priority when `Promise` in the microtask implementation, [#855](https://github.com/zloirock/core-js/issues/855)
 - Fixed microtask implementation in engines with `MutationObserver`, but without `document`, [#865](https://github.com/zloirock/core-js/issues/865), [#866](https://github.com/zloirock/core-js/issues/866)
 - Fixed `core-js-builder` with an empty (after the targets engines or another filtration) modules list, [#822](https://github.com/zloirock/core-js/issues/822)
+- Fixed possible twice call of `window.onunhandledrejection`, [#760](https://github.com/zloirock/core-js/issues/760)
 - Added a workaround for 3rd party `Reflect.set` polyfill bug, [#847](https://github.com/zloirock/core-js/issues/847)
 - Forced replacement of `Array#{ reduce, reduceRight }` in Chrome 80-82 because of [a bug](https://bugs.chromium.org/p/chromium/issues/detail?id=1049982), [#766](https://github.com/zloirock/core-js/issues/766)
 - Updated compat data:
