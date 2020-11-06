@@ -1,8 +1,9 @@
 ## Changelog
-##### Unreleased
+##### 3.7.0 - 2020.11.06
 - `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
 - `Promise.any` and `AggregateError` moved to the stable ES, [per July TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-07/july-21.md#promiseany--aggregateerror-for-stage-4)
 - Added `Reflect[@@toStringTag]`, [per July TC39 meeting](https://github.com/tc39/ecma262/pull/2057)
+- Forced replacement of `Array#{ reduce, reduceRight }` in Chrome 80-82 because of [a bug](https://bugs.chromium.org/p/chromium/issues/detail?id=1049982), [#766](https://github.com/zloirock/core-js/issues/766)
 - Following the changes in [the `upsert` proposal](https://github.com/tc39/proposal-upsert), `{ Map, WeakMap }#emplace` replace `{ Map, WeakMap }#upsert`, these obsolete methods will be removed in the next major release
 - [By the current spec](https://tc39.es/ecma262/#sec-aggregate-error-constructor), `AggregateError#errors` is own data property
 - Added correct iteration closing in the iteration helpers according to the current version of [the proposal](https://tc39.es/proposal-iterator-helpers)
@@ -12,7 +13,6 @@
 - Fixed possible twice call of `window.onunhandledrejection`, [#760](https://github.com/zloirock/core-js/issues/760)
 - Fixed some possible problems related multiple global copies of `core-js`, [#880](https://github.com/zloirock/core-js/issues/880)
 - Added a workaround for 3rd party `Reflect.set` polyfill bug, [#847](https://github.com/zloirock/core-js/issues/847)
-- Forced replacement of `Array#{ reduce, reduceRight }` in Chrome 80-82 because of [a bug](https://bugs.chromium.org/p/chromium/issues/detail?id=1049982), [#766](https://github.com/zloirock/core-js/issues/766)
 - Updated compat data:
   - Chrome up to 86
   - FF up to 82
