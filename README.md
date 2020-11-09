@@ -321,7 +321,7 @@ It does not work with some features. Also, if you change the default behaviour, 
 
 ### Custom build
 
-For some cases could be useful adding a blacklist of features or generation a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+For some cases could be useful adding a _exclude_ of features or generation a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
 
 ### Compatibility data
 
