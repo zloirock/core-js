@@ -1148,6 +1148,10 @@ GLOBAL.tests = {
   'esnext.async-iterator.to-array': function () {
     return AsyncIterator.prototype.toArray;
   },
+  'esnext.bigint.range': function () {
+    // eslint-disable-next-line no-undef
+    return BigInt.range;
+  },
   'esnext.composite-key': function () {
     return compositeKey;
   },
@@ -1308,6 +1312,9 @@ GLOBAL.tests = {
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
+  },
+  'esnext.number.range': function () {
+    return Number.range;
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-entries': function () {

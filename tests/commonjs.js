@@ -79,6 +79,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/last-index-of') === 'function');
   ok(load('features/array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
   ok(load('features/array/copy-within')([1, 2, 3, 4, 5], 0, 3)[0] === 4);
+  ok(load('features/array/splice')([1, 2, 3], 1, 2)[0] === 2);
   ok('next' in load('features/array/entries')([]));
   load('features/array/last-item');
   load('features/array/last-index');
@@ -117,7 +118,8 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/array/virtual/iterator').call([]));
   ok(load('features/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('features/array'));
-  ok(load('features/array/splice')([1, 2, 3], 1, 2)[0] === 2);
+  load('features/bigint/range');
+  load('features/bigint');
   ok(load('features/math/acosh')(1) === 0);
   ok(Object.is(load('features/math/asinh')(-0), -0));
   ok(load('features/math/atanh')(1) === Infinity);
@@ -162,6 +164,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/number/to-fixed')(1, 1) === '1.0');
   ok(load('features/number/to-precision')(1) === '1');
   ok(load('features/number/from-string')('12', 3) === 5);
+  ok(load('features/number/range')(1, 2).next().value === 1);
   ok(load('features/parse-float')('1.5') === 1.5);
   ok(load('features/parse-int')('2.1') === 2);
   ok(load('features/number/virtual/to-fixed').call(1, 1) === '1.0');
@@ -962,6 +965,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');
+  load('proposals/number-range');
   load('proposals/object-iteration');
   load('proposals/observable');
   load('proposals/pattern-matching');

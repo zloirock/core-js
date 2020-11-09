@@ -2252,6 +2252,29 @@ class Number {
 core-js/proposals/number-from-string
 core-js(-pure)/features/number/from-string
 ```
+##### [`Number.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
+Module [`esnext.number.range`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.number.range.js) and [`esnext.bigint.range`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.bigint.range.js)
+```js
+class Number {
+  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): RangeIterator;
+}
+
+class BigInt {
+  range(start: bigint, end: bigint, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): RangeIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/number-range
+core-js(-pure)/features/bigint/range
+core-js(-pure)/features/number/range
+```
+[*Example*](http://es6.zloirock.ru/#for%20(const%20i%20of%20Number.range(1%2C%2010%2C%20%7B%20step%3A%203%2C%20inclusive%3A%20true%20%7D))%20%7B%0A%20%20log(i)%3B%20%2F%2F%20%3D%3E%201%2C%204%2C%207%2C%2010%0A%7D):
+```js
+for (const i of Number.range(1, 10, { step: 3, inclusive: true })) {
+  console.log(i); // => 1, 4, 7, 10
+}
+```
 ##### [`String#codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)[⬆](#index)
 Module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.string.code-points.js)
 ```js
