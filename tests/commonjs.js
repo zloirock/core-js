@@ -91,6 +91,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/array/values')([]));
   ok(load('features/array/includes')([1, 2, 3], 2));
   ok('next' in load('features/array/iterator')([]));
+  ok(typeof load('features/array/unique-by') === 'function');
   ok(load('features/array/virtual/join').call('qwe', 1) === 'q1w1e');
   ok(load('features/array/virtual/slice').call('qwe', 1)[1] === 'e');
   ok(load('features/array/virtual/splice').call([1, 2, 3], 1, 2)[0] === 2);
@@ -118,6 +119,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok('next' in load('features/array/virtual/values').call([]));
   ok(load('features/array/virtual/includes').call([1, 2, 3], 2));
   ok('next' in load('features/array/virtual/iterator').call([]));
+  ok(typeof load('features/array/virtual/unique-by') === 'function');
   ok(load('features/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('features/array'));
   load('features/bigint/range');
