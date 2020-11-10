@@ -68,6 +68,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/for-each') === 'function');
   ok(typeof load('features/array/map') === 'function');
   ok(typeof load('features/array/filter') === 'function');
+  ok(typeof load('features/array/filter-out') === 'function');
   ok(typeof load('features/array/flat') === 'function');
   ok(typeof load('features/array/flat-map') === 'function');
   ok(typeof load('features/array/some') === 'function');
@@ -1642,6 +1643,7 @@ load('features/typed-array/entries');
 load('features/typed-array/every');
 load('features/typed-array/fill');
 load('features/typed-array/filter');
+load('features/typed-array/filter-out');
 load('features/typed-array/find');
 load('features/typed-array/find-index');
 load('features/typed-array/for-each');

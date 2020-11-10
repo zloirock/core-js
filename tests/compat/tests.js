@@ -1100,6 +1100,9 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
+  'esnext.array.filter-out': function () {
+    return [].filterOut;
+  },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
@@ -1433,6 +1436,9 @@ GLOBAL.tests = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': function () {
     return Symbol.replaceAll;
+  },
+  'esnext.typed-array.filter-out': function () {
+    return Int8Array.prototype.filterOut;
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

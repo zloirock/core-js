@@ -143,6 +143,7 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
+import './esnext.array.filter-out';
 import './esnext.array.is-template-object';
 import './esnext.async-iterator.constructor';
 import './esnext.async-iterator.as-indexed-pairs';
