@@ -19,7 +19,7 @@
     "@babel/plugin-transform-shorthand-properties": "^7.12.1",
     "@babel/plugin-transform-spread": "^7.12.1",
     "@babel/plugin-transform-template-literals": "^7.12.1",
-    "babel-loader": "^8.1.0",
+    "babel-loader": "^8.2.1",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
@@ -47,7 +47,7 @@
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^5.4.1",
-    "qunit": "^2.11.3",
+    "qunit": "^2.12.0",
     "webpack": ">=4.44.2 <5"
   },
   "license": "MIT",
