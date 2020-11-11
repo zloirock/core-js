@@ -1416,7 +1416,17 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof instanceRepeat('') === 'function');
   ok(instanceRepeat('').call('a', 3) === 'aaa');
 
-  const instanceReplaceAll = load('features/instance/replace-all');
+  let instanceReplaceAll = load('features/instance/replace-all');
+  ok(typeof instanceReplaceAll === 'function');
+  ok(instanceReplaceAll({}) === undefined);
+  ok(typeof instanceReplaceAll('') === 'function');
+  ok(instanceReplaceAll('').call('aba', 'a', 'c') === 'cbc');
+  instanceReplaceAll = load('stable/instance/replace-all');
+  ok(typeof instanceReplaceAll === 'function');
+  ok(instanceReplaceAll({}) === undefined);
+  ok(typeof instanceReplaceAll('') === 'function');
+  ok(instanceReplaceAll('').call('aba', 'a', 'c') === 'cbc');
+  instanceReplaceAll = load('es/instance/replace-all');
   ok(typeof instanceReplaceAll === 'function');
   ok(instanceReplaceAll({}) === undefined);
   ok(typeof instanceReplaceAll('') === 'function');
