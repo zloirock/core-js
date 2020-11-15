@@ -1102,6 +1102,9 @@ GLOBAL.tests = {
   }],
   'esnext.array.filter-out': function () {
     return [].filterOut;
+  }
+  'esnext.array.item': function () {
+    return [].item;
   },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
@@ -1427,6 +1430,9 @@ GLOBAL.tests = {
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
+  'esnext.string.item': function () {
+    return ''.item;
+  },
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
@@ -1442,6 +1448,9 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.filter-out': function () {
     return Int8Array.prototype.filterOut;
+  }
+  'esnext.typed-array.item': function () {
+    return Int8Array.prototype.item;
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

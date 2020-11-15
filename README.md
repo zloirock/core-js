@@ -1778,7 +1778,44 @@ Promise.any([
 core-js(-pure)/stage/3
 ```
 
-None.
+##### [`.item()` method on all the built-in indexables](https://github.com/tc39/proposal-item-method)
+Modules [`esnext.array.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.item.js), [`esnext.string.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.string.item.js) and [`esnext.typed-array.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.item.js)
+```js
+class Array {
+  item(index: int): any;
+}
+
+class String {
+  item(index: int): string | undefined;
+}
+
+class [
+  Int8Array,
+  Uint8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array,
+] {
+  item(index: int): any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/item-method
+core-js(-pure)/features/array/item
+core-js(-pure)/features/string/item
+core-js(-pure)/features/typed-array/item
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%5D.item(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(%5B1%2C%202%2C%203%5D.item(-1))%3B%20%2F%2F%20%3D%3E%203%0Alog('123'.item(-1))%3B%20%20%20%20%20%2F%2F%20%3D%3E%20'3'):
+```js
+[1, 2, 3].item(1);  // => 2
+[1, 2, 3].item(-1); // => 3
+'123'.item(-1);     // => '3'
+```
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

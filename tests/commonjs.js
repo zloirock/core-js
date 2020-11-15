@@ -71,6 +71,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/filter-out') === 'function');
   ok(typeof load('features/array/flat') === 'function');
   ok(typeof load('features/array/flat-map') === 'function');
+  ok(load('features/array/item')([1, 2, 3], -2) === 2);
   ok(typeof load('features/array/some') === 'function');
   ok(typeof load('features/array/every') === 'function');
   ok(typeof load('features/array/reduce') === 'function');
@@ -102,6 +103,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof load('features/array/virtual/filter-out') === 'function');
   ok(typeof load('features/array/virtual/flat') === 'function');
   ok(typeof load('features/array/virtual/flat-map') === 'function');
+  ok(load('features/array/virtual/item').call([1, 2, 3], -2) === 2);
   ok(typeof load('features/array/virtual/some') === 'function');
   ok(typeof load('features/array/virtual/every') === 'function');
   ok(typeof load('features/array/virtual/reduce') === 'function');
@@ -210,6 +212,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/string/code-point-at')('a', 0) === 97);
   ok(load('features/string/ends-with')('qwe', 'we'));
   ok(load('features/string/includes')('qwe', 'w'));
+  ok(load('features/string/item')('123', -2) === '2');
   ok(load('features/string/repeat')('q', 3) === 'qqq');
   ok(load('features/string/starts-with')('qwe', 'qw'));
   ok(typeof load('features/string/anchor') === 'function');
@@ -239,6 +242,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(load('features/string/virtual/code-point-at').call('a', 0) === 97);
   ok(load('features/string/virtual/ends-with').call('qwe', 'we'));
   ok(load('features/string/virtual/includes').call('qwe', 'w'));
+  ok(load('features/string/virtual/item').call('123', -2) === '2');
   ok(load('features/string/virtual/repeat').call('q', 3) === 'qqq');
   ok(load('features/string/virtual/starts-with').call('qwe', 'qw'));
   ok(typeof load('features/string/virtual/anchor') === 'function');
@@ -1270,6 +1274,14 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(instanceIncludes([]).call([1, 2, 3], 2));
   ok(instanceIncludes('').call('123', '2'));
 
+  const instanceItem = load('features/instance/item');
+  ok(typeof instanceItem === 'function');
+  ok(instanceItem({}) === undefined);
+  ok(typeof instanceItem([]) === 'function');
+  ok(typeof instanceItem('') === 'function');
+  ok(instanceItem([]).call([1, 2, 3], 2) === 3);
+  ok(instanceItem('').call('123', 2) === '3');
+
   let instanceIndexOf = load('features/instance/index-of');
   ok(typeof instanceIndexOf === 'function');
   ok(instanceIndexOf({}) === undefined);
@@ -1665,6 +1677,7 @@ load('features/typed-array/for-each');
 load('features/typed-array/from');
 load('features/typed-array/includes');
 load('features/typed-array/index-of');
+load('features/typed-array/item');
 load('features/typed-array/iterator');
 load('features/typed-array/join');
 load('features/typed-array/keys');
