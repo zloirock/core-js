@@ -1610,6 +1610,12 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   ok(typeof instanceTrim('') === 'function');
   ok(instanceTrim('').call(' 1 ') === '1');
 
+  const instanceUniqueBy = load('features/instance/unique-by');
+  ok(typeof instanceUniqueBy === 'function');
+  ok(instanceUniqueBy({}) === undefined);
+  ok(typeof instanceUniqueBy([]) === 'function');
+  ok(instanceUniqueBy([]).call([1, 2, 3, 2, 1]).length === 3);
+
   let instanceValues = load('features/instance/values');
   ok(typeof instanceValues === 'function');
   ok(instanceValues({}) === undefined);
