@@ -2361,7 +2361,7 @@ for (const value of Object.iterateValues(obj)) {
   console.log(value);
 }
 ```
-##### [Array filtering](https://github.com/tc39/proposal-array-filtering)
+##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-out`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.filter-out.js) and [`esnext.typed-array.filter-out`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.filter-out.js).
 ```js
 class Array {
