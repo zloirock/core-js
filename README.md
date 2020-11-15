@@ -2394,7 +2394,7 @@ core-js(-pure)/features/typed-array/virtual/filter-out
 ```js
 [1, 2, 3, 4, 5].filterOut(it => it % 2); // => [2, 4]
 ````
-##### [Array deduplication](https://github.com/tc39/proposal-array-unique)
+##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Module [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.unique-by.js)
 ```js
 class Array {
