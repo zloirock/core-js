@@ -27,9 +27,7 @@ QUnit.test('Array#uniqueBy', assert => {
     },
   ];
 
-  assert.deepEqual(array.uniqueBy('id'), array);
-
-  assert.deepEqual(array.uniqueBy('uid'), [
+  assert.deepEqual(array.uniqueBy(it => it.uid), [
     {
       id: 1,
       uid: 10000,
@@ -43,20 +41,15 @@ QUnit.test('Array#uniqueBy', assert => {
   assert.deepEqual(array.uniqueBy(({ id, uid }) => `${ id }-${ uid }`), array);
 
   assert.deepEqual([1, undefined, 2, undefined, null, 1].uniqueBy(), [1, undefined, 2, null]);
-  assert.deepEqual(
-    [{ id: 1 }, undefined, { id: 2 }, undefined, null, { id: 1 }].uniqueBy('id'),
-    [{ id: 1 }, undefined, { id: 2 }, null],
-  );
 
   assert.deepEqual([0, -0].uniqueBy(), [0]);
-  assert.deepEqual([{ count: 0 }, { count: -0 }].uniqueBy('count'), [{ count: 0 }]);
   assert.deepEqual([NaN, NaN].uniqueBy(), [NaN]);
 
   assert.deepEqual(uniqueBy.call({ length: 1, 0: 1 }), [1]);
 
   if (STRICT) {
-    assert.throws(() => uniqueBy.call(null, 0), TypeError);
-    assert.throws(() => uniqueBy.call(undefined, 0), TypeError);
+    assert.throws(() => uniqueBy.call(null), TypeError);
+    assert.throws(() => uniqueBy.call(undefined), TypeError);
   }
   assert.ok('uniqueBy' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

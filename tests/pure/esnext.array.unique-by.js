@@ -23,9 +23,7 @@ QUnit.test('Array#uniqueBy', assert => {
     },
   ];
 
-  assert.deepEqual(uniqueBy(array, 'id'), array);
-
-  assert.deepEqual(uniqueBy(array, 'uid'), [
+  assert.deepEqual(uniqueBy(array, it => it.uid), [
     {
       id: 1,
       uid: 10000,
@@ -39,19 +37,14 @@ QUnit.test('Array#uniqueBy', assert => {
   assert.deepEqual(uniqueBy(array, ({ id, uid }) => `${ id }-${ uid }`), array);
 
   assert.deepEqual(uniqueBy([1, undefined, 2, undefined, null, 1]), [1, undefined, 2, null]);
-  assert.deepEqual(
-    uniqueBy([{ id: 1 }, undefined, { id: 2 }, undefined, null, { id: 1 }], 'id'),
-    [{ id: 1 }, undefined, { id: 2 }, null],
-  );
 
   assert.deepEqual(uniqueBy([0, -0]), [0]);
-  assert.deepEqual(uniqueBy([{ count: 0 }, { count: -0 }], 'count'), [{ count: 0 }]);
   assert.deepEqual(uniqueBy([NaN, NaN]), [NaN]);
 
   assert.deepEqual(uniqueBy({ length: 1, 0: 1 }), [1]);
 
   if (STRICT) {
-    assert.throws(() => uniqueBy(null, 0), TypeError);
-    assert.throws(() => uniqueBy(undefined, 0), TypeError);
+    assert.throws(() => uniqueBy(null), TypeError);
+    assert.throws(() => uniqueBy(undefined), TypeError);
   }
 });

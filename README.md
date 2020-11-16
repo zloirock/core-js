@@ -2409,15 +2409,13 @@ core-js(-pure)/features/array/virtual/unique-by
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%202%2C%201%5D.uniqueBy())%3B%20%20%2F%2F%20%5B1%2C%202%2C%203%5D%0A%0Aconst%20data%20%3D%20%5B%0A%20%20%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%0A%5D%3B%0A%0Alog(data.uniqueBy('uid'))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D%0A%0Alog(data.uniqueBy((%7B%20id%2C%20uid%20%7D)%20%3D%3E%20%60%24%7Bid%7D-%24%7Buid%7D%60))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D):
 ```js
-[1, 2, 3, 2, 1].uniqueBy();  // [1, 2, 3]
+[1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
 
-const data = [
+[
   { id: 1, uid: 10000 },
   { id: 2, uid: 10000 },
   { id: 3, uid: 10001 }
-];
-
-data.uniqueBy(({ id, uid }) => `${id}-${uid}`); // => [{ id: 1, uid: 10000 }, { id: 2, uid: 10000 }, { id: 3, uid: 10001 }]
+].uniqueBy(it => it.id);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
 ```
 
 #### Stage 0 proposals[⬆](#index)

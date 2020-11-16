@@ -17,12 +17,12 @@ $({ target: 'Array', proto: true }, {
     var result = arraySpeciesCreate(that, 0);
     var Map = getBuiltIn('Map');
     var map = new Map();
-    var index, item, key;
-    var resolverFunction = typeof resolver == 'function' ? resolver : resolver == null ? function (value) {
+    var resolverFunction, index, item, key;
+    if (typeof resolver == 'function') resolverFunction = resolver;
+    else if (resolver == null) resolverFunction = function (value) {
       return value;
-    } : function (value) {
-      return value != null ? value[resolver] : value;
     };
+    else throw new TypeError('Incorrect resolver!');
     for (index = 0; index < length; index++) {
       item = that[index];
       key = resolverFunction(item);
