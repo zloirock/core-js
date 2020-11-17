@@ -1730,17 +1730,6 @@ core-js/features/string/replace-all
 ```js
 'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
 ```
-##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
-Module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-all-settled
-```
 ##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
 Modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
