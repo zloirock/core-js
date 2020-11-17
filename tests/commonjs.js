@@ -980,7 +980,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/object-iteration');
   load('proposals/observable');
   load('proposals/pattern-matching');
-  load('proposals/promise-any');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');
