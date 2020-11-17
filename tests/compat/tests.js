@@ -1340,10 +1340,6 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.upsert': function () {
-    return Map.prototype.upsert;
-  },
   'esnext.math.clamp': function () {
     return Math.clamp;
   },
@@ -1540,10 +1536,6 @@ GLOBAL.tests = {
   },
   'esnext.weak-map.of': function () {
     return WeakMap.of;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': function () {
-    return WeakMap.prototype.upsert;
   },
   'esnext.weak-set.add-all': function () {
     return WeakSet.prototype.addAll;
