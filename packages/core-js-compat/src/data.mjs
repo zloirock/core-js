@@ -1645,8 +1645,6 @@ export const data = {
   },
   'esnext.string.code-points': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.string.match-all': null,
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
@@ -1752,6 +1750,5 @@ export const data = {
 // TODO: Remove from `core-js@4`
 data['esnext.aggregate-error'] = data['es.aggregate-error'];
 data['esnext.promise.any'] = data['es.promise.any'];
-data['esnext.string.match-all'] = data['es.string.match-all'];
 
 export const modules = Object.keys(data);
