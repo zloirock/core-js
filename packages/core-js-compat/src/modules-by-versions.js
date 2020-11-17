@@ -39,8 +39,6 @@ module.exports = {
     'esnext.iterator.some',
     'esnext.iterator.take',
     'esnext.iterator.to-array',
-    'esnext.map.upsert',
-    'esnext.weak-map.upsert',
   ],
   3.4: [
     'es.json.stringify',
