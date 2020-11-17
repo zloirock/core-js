@@ -1,14 +1,8 @@
 'use strict';
-const { promisify } = require('util');
-const fs = require('fs');
-// TODO: replace by `fs.promises` after dropping NodeJS < 10 support
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const writeFile = promisify(fs.writeFile);
+const { mkdir, readFile, unlink, writeFile } = require('fs').promises;
 const { dirname, join } = require('path');
+const { promisify } = require('util');
 const tmpdir = require('os').tmpdir();
-// TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
-const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat/compat');
 const modulesList = require('core-js-compat/modules');
@@ -48,11 +42,8 @@ module.exports = async function ({
 
     await webpack({
       mode: 'none',
-      node: {
-        global: false,
-        process: false,
-        setImmediate: false,
-      },
+      node: false,
+      target: ['web', 'es3'],
       entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
         path: tmpdir,
@@ -71,7 +62,7 @@ module.exports = async function ({
   }
 
   if (typeof filename != 'undefined') {
-    await mkdirp(dirname(filename));
+    await mkdir(dirname(filename), { recursive: true });
     await writeFile(filename, script);
   }
 
