@@ -50,6 +50,9 @@ for (const scope of [data, external]) {
       }
       map(ChromeToSamsung, chrome, 'samsung');
       map(ChromeToAndroid, chrome, 'android');
+      if (!module.android) {
+        module.android = String(Math.max(chrome, 37));
+      }
       if (/^(es|esnext|web)\./.test(key)) {
         map(ChromeToElectron, chrome, 'electron');
       }
