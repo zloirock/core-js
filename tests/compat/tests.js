@@ -1435,10 +1435,6 @@ GLOBAL.tests = {
   'esnext.symbol.pattern-match': function () {
     return Symbol.patternMatch;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.replace-all': function () {
-    return Symbol.replaceAll;
-  },
   'esnext.typed-array.at': function () {
     return Int8Array.prototype.at;
   },
