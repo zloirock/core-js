@@ -10,7 +10,10 @@
   "main": "index.js",
   "dependencies": {
     "browserslist": "^4.16.6",
-    "semver": "7.0.0"
+    "semver": "^7.3.2"
+  },
+  "engines": {
+    "node": ">=12.13.0"
   },
   "funding": {
     "type": "opencollective",
