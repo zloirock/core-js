@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added the missed `(es|stable)/instance/replace-all` entries
+- Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
 
 ##### 3.7.0 - 2020.11.06
 - `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)

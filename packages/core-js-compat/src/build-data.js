@@ -38,7 +38,7 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 74));
       }
       if (!module.opera) {
-        module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
+        module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14);
       }
       if (!module.opera_mobile && module.opera && module.opera <= 42) {
         module.opera_mobile = module.opera;
