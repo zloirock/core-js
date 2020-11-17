@@ -67,6 +67,10 @@ for (const scope of [data, external]) {
   }
 }
 
-writeFileSync(resolve(__dirname, '../data.json'), JSON.stringify(data, null, '  '));
-writeFileSync(resolve(__dirname, '../modules.json'), JSON.stringify(Object.keys(data), null, '  '));
-writeFileSync(resolve(__dirname, '../external.json'), JSON.stringify(external, null, '  '));
+function writeJSON(filename, content) {
+  writeFileSync(resolve(__dirname, filename), JSON.stringify(content, null, '  '));
+}
+
+writeJSON('../data.json', data);
+writeJSON('../modules.json', Object.keys(data));
+writeJSON('../external.json', external);
