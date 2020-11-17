@@ -988,7 +988,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-code-points');
-  load('proposals/string-match-all');
   load('proposals/url');
   load('proposals/using-statement');
   load('proposals');
