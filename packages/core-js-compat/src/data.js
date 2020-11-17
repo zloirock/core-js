@@ -1315,8 +1315,6 @@ const data = {
   },
   'esnext.composite-symbol': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.global-this': null,
   'esnext.iterator.constructor': {
   },
   'esnext.iterator.as-indexed-pairs': {
@@ -1589,7 +1587,6 @@ const data = {
 
 // TODO: Remove from `core-js@4`
 data['esnext.aggregate-error'] = data['es.aggregate-error'];
-data['esnext.global-this'] = data['es.global-this'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
