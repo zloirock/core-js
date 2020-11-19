@@ -44,9 +44,6 @@ module.exports = {
     'es.json.stringify',
   ],
   3.5: [
-    'esnext.object.iterate-entries',
-    'esnext.object.iterate-keys',
-    'esnext.object.iterate-values',
   ],
   3.6: [
     'es.regexp.sticky',

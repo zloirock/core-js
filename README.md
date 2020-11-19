@@ -2298,38 +2298,6 @@ class Symbol {
 core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/pattern-match
 ```
-##### [Object iteration](https://github.com/tc39/proposal-object-iteration)[⬆](#index)
-Modules [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-keys.js), [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-values.js), [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-entries.js).
-```js
-class Object {
-  iterateKeys(object: any): Iterator<string>;
-  iterateValues(object: any): Iterator<any>;
-  iterateEntries(object: any): Iterator<[string, any]>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/object-iteration
-core-js(-pure)/features/object/iterate-keys
-core-js(-pure)/features/object/iterate-values
-core-js(-pure)/features/object/iterate-entries
-```
-[*Example*](http://es6.zloirock.ru/#const%20obj%20%3D%20%7B%20foo%3A%20'bar'%2C%20baz%3A%20'blah'%20%7D%3B%0A%0Afor%20(const%20%5Bkey%2C%20value%5D%20of%20Object.iterateEntries(obj))%20%7B%0A%20%20log(%60%24%7Bkey%7D%20-%3E%20%24%7Bvalue%7D%60)%3B%0A%7D%0A%0Afor%20(const%20key%20of%20Object.iterateKeys(obj))%20%7B%0A%20%20log(key)%3B%0A%7D%0A%0Afor%20(const%20value%20of%20Object.iterateValues(obj))%20%7B%0A%20%20log(value)%3B%0A%7D):
-```js
-const obj = { foo: 'bar', baz: 'blah' };
-
-for (const [key, value] of Object.iterateEntries(obj)) {
-  console.log(`${key} -> ${value}`);
-}
-
-for (const key of Object.iterateKeys(obj)) {
-  console.log(key);
-}
-
-for (const value of Object.iterateValues(obj)) {
-  console.log(value);
-}
-```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-out`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.filter-out.js) and [`esnext.typed-array.filter-out`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.filter-out.js).
 ```js

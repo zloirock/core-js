@@ -25,9 +25,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/object/is-extensible')({}));
   ok(!load('features/object/is-frozen')({}));
   ok(!load('features/object/is-sealed')({}));
-  ok(typeof load('features/object/iterate-entries')({}).next === 'function');
-  ok(typeof load('features/object/iterate-keys')({}).next === 'function');
-  ok(typeof load('features/object/iterate-values')({}).next === 'function');
   ok(load('features/object/keys')({ q: 0 })[0] === 'q');
   ok(load('features/object/prevent-extensions')({}));
   ok(load('features/object/seal')({}));
@@ -969,7 +966,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/math-signbit');
   load('proposals/number-from-string');
   load('proposals/number-range');
-  load('proposals/object-iteration');
   load('proposals/observable');
   load('proposals/pattern-matching');
   load('proposals/promise-try');
