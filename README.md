@@ -2404,24 +2404,6 @@ core-js(-pure)/features/string/virtual/at
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
 ```
-##### [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)[⬆](#index)
-Modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.umulh.js)
-```js
-namespace Math {
-  iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  imulh(a: number, b: number): number;
-  umulh(a: number, b: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/efficient-64-bit-arithmetic
-core-js(-pure)/features/math/iaddh
-core-js(-pure)/features/math/isubh
-core-js(-pure)/features/math/imulh
-core-js(-pure)/features/math/umulh
-```
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

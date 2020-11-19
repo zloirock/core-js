@@ -149,13 +149,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/math/deg-per-rad') === Math.PI / 180);
   ok(load('features/math/degrees')(Math.PI) === 180);
   ok(load('features/math/fscale')(3, 1, 2, 1, 2) === 3);
-  ok(load('features/math/iaddh')(3, 2, 0xFFFFFFFF, 4) === 7);
-  ok(load('features/math/isubh')(3, 4, 0xFFFFFFFF, 2) === 1);
-  ok(load('features/math/imulh')(0xFFFFFFFF, 7) === -1);
   ok(load('features/math/rad-per-deg') === 180 / Math.PI);
   ok(load('features/math/radians')(180) === Math.PI);
   ok(load('features/math/scale')(3, 1, 2, 1, 2) === 3);
-  ok(load('features/math/umulh')(0xFFFFFFFF, 7) === 6);
   ok(load('features/math/signbit')(-2) === true);
   ok(typeof load('features/math/seeded-prng')({ seed: 42 }).next().value === 'number');
   ok(load('features/number/constructor')('5') === 5);
@@ -965,7 +961,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-unique');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
-  load('proposals/efficient-64-bit-arithmetic');
   load('proposals/iterator-helpers');
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');
