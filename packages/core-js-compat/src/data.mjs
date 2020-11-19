@@ -1553,15 +1553,6 @@ export const data = {
   },
   'esnext.object.has-own': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-entries': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-values': {
-  },
   'esnext.observable': {
   },
   'esnext.promise.try': {

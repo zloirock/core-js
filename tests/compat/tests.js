@@ -1376,18 +1376,6 @@ GLOBAL.tests = {
   'esnext.object.has-own': function () {
     return Object.hasOwn;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-entries': function () {
-    return Object.iterateEntries;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': function () {
-    return Object.iterateKeys;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-values': function () {
-    return Object.iterateValues;
-  },
   'esnext.observable': function () {
     return Observable;
   },
