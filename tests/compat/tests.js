@@ -1352,18 +1352,6 @@ GLOBAL.tests = {
   'esnext.math.fscale': function () {
     return Math.fscale;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.iaddh': function () {
-    return Math.iaddh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.imulh': function () {
-    return Math.imulh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': function () {
-    return Math.isubh;
-  },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;
   },
@@ -1378,10 +1366,6 @@ GLOBAL.tests = {
   },
   'esnext.math.signbit': function () {
     return Math.signbit;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': function () {
-    return Math.umulh;
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
