@@ -1737,11 +1737,6 @@ class Promise {
 ```js
 core-js/proposals/promise-all-settled
 ```
-
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/3
-```
 ##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
 Modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.aggregate-error.js)
 ```js
@@ -1777,6 +1772,10 @@ Promise.any([
 ```
 
 #### Stage 3 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stage/3
+```
 
 None.
 
