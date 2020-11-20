@@ -1,7 +1,7 @@
 'use strict';
 /* eslint-disable no-console */
 const { promisify } = require('util');
-const lt = require('semver/functions/lt');
+const eq = require('semver/functions/eq');
 const coerce = require('semver/functions/coerce');
 const minVersion = require('semver/ranges/min-version');
 const getDependencies = promisify(require('david').getDependencies);
@@ -16,7 +16,7 @@ async function checkDependencies(pckg, title) {
   Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
     const { required, stable, warn } = dependencies[name];
-    if (warn || !lt(minVersion(required), coerce(stable))) delete dependencies[name];
+    if (warn || eq(minVersion(required), coerce(stable))) delete dependencies[name];
   }
   if (Object.keys(dependencies).length) {
     console.log(`\u001B[94m${ title || pckg.name }:\u001B[0m`);
