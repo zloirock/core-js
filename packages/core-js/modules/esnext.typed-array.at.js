@@ -6,9 +6,9 @@ var toInteger = require('../internals/to-integer');
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
-// `%TypedArray%.prototype.item` method
+// `%TypedArray%.prototype.at` method
 // https://github.com/tc39/proposal-relative-indexing-method
-exportTypedArrayMethod('item', function item(index) {
+exportTypedArrayMethod('at', function at(index) {
   var O = aTypedArray(this);
   var len = toLength(O.length);
   var relativeIndex = toInteger(index);

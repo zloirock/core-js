@@ -1,13 +1,14 @@
+// TODO: disabled by default because of the conflict with another proposal
 'use strict';
 var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 
-// `String.prototype.item` method
+// `String.prototype.at` method
 // https://github.com/tc39/proposal-relative-indexing-method
 $({ target: 'String', proto: true }, {
-  item: function item(index) {
+  at: function at(index) {
     var S = String(requireObjectCoercible(this));
     var len = toLength(S.length);
     var relativeIndex = toInteger(index);

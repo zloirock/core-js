@@ -143,8 +143,8 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
+import './esnext.array.at';
 import './esnext.array.filter-out';
-import './esnext.array.item';
 import './esnext.array.is-template-object';
 import './esnext.array.unique-by';
 import './esnext.async-iterator.constructor';
@@ -246,8 +246,9 @@ import './esnext.set.some';
 import './esnext.set.symmetric-difference';
 import './esnext.set.union';
 import './esnext.string.at';
+// TODO: disabled by default because of the conflict with another proposal
+// import './esnext.string.at-alternative';
 import './esnext.string.code-points';
-import './esnext.string.item';
 import './esnext.symbol.async-dispose';
 import './esnext.symbol.dispose';
 import './esnext.symbol.observable';

@@ -5,10 +5,10 @@ var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
-// `Array.prototype.item` method
+// `Array.prototype.at` method
 // https://github.com/tc39/proposal-relative-indexing-method
 $({ target: 'Array', proto: true }, {
-  item: function item(index) {
+  at: function at(index) {
     var O = toObject(this);
     var len = toLength(O.length);
     var relativeIndex = toInteger(index);
@@ -17,4 +17,4 @@ $({ target: 'Array', proto: true }, {
   }
 });
 
-addToUnscopables('item');
+addToUnscopables('at');

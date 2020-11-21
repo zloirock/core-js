@@ -1,6 +1,8 @@
 ## Changelog
 ##### Unreleased
-- Added [`.item()` method on all the built-in indexables stage 3 proposal](https://github.com/tc39/proposal-relative-indexing-method)
+- Added [relative indexing method stage 3 proposal](https://github.com/tc39/proposal-relative-indexing-method)
+  - `Array#at`
+  - `%TypedArray%#at`
 - Added [`Number.range` stage 1 proposal](https://github.com/tc39/proposal-Number.range)
   - `Number.range`
   - `BigInt.range`

@@ -1258,7 +1258,7 @@ const data = {
   },
   'esnext.array.is-template-object': {
   },
-  'esnext.array.item': {
+  'esnext.array.at': {
   },
   'esnext.array.last-index': {
   },
@@ -1480,8 +1480,6 @@ const data = {
   },
   'esnext.string.code-points': {
   },
-  'esnext.string.item': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   'esnext.string.replace-all': null,
@@ -1496,9 +1494,9 @@ const data = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
   },
-  'esnext.typed-array.filter-out': {
+  'esnext.typed-array.at': {
   }
-  'esnext.typed-array.item': {
+  'esnext.typed-array.filter-out': {
   },
   'esnext.weak-map.delete-all': {
   },
