@@ -1778,7 +1778,7 @@ Promise.any([
 core-js(-pure)/stage/3
 ```
 
-##### [`.item()` method on all the built-in indexables](https://github.com/tc39/proposal-item-method)[⬆](#index)
+##### [`.item()` method on all the built-in indexables](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
 Modules [`esnext.array.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.item.js), [`esnext.string.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.string.item.js) and [`esnext.typed-array.item`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.item.js)
 ```js
 class Array {
@@ -1805,7 +1805,7 @@ class [
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/item-method
+core-js/proposals/relative-indexing-method
 core-js(-pure)/features/array/item
 core-js(-pure)/features/string/item
 core-js(-pure)/features/typed-array/item

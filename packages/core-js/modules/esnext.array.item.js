@@ -6,7 +6,7 @@ var toInteger = require('../internals/to-integer');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
 // `Array.prototype.item` method
-// https://github.com/tc39/proposal-item-method
+// https://github.com/tc39/proposal-relative-indexing-method
 $({ target: 'Array', proto: true }, {
   item: function item(index) {
     var O = toObject(this);

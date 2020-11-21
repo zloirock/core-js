@@ -5,7 +5,7 @@ var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
 
 // `String.prototype.item` method
-// https://github.com/tc39/proposal-item-method
+// https://github.com/tc39/proposal-relative-indexing-method
 $({ target: 'String', proto: true }, {
   item: function item(index) {
     var S = String(requireObjectCoercible(this));

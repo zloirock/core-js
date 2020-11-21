@@ -7,7 +7,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.item` method
-// https://github.com/tc39/proposal-item-method
+// https://github.com/tc39/proposal-relative-indexing-method
 exportTypedArrayMethod('item', function item(index) {
   var O = aTypedArray(this);
   var len = toLength(O.length);

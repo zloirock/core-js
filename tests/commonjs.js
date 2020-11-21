@@ -981,6 +981,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   load('proposals/promise-any');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
+  load('proposals/relative-indexing-method');
   load('proposals/keys-composition');
   load('proposals/seeded-random');
   load('proposals/set-methods');
