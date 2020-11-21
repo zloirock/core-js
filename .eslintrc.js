@@ -128,6 +128,8 @@ const base = {
   'no-new-wrappers': 'error',
   // disallow use of (old style) octal literals
   'no-octal': 'error',
+  // disallow `\8` and `\9` escape sequences in string literals
+  'no-nonoctal-decimal-escape': 'error',
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
   'no-octal-escape': 'error',
   // disallow usage of __proto__ property
