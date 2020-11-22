@@ -1472,23 +1472,23 @@ class [
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
   constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
   copyWithin(target: number, start: number, end?: number): this;
-  every(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): boolean;
+  every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
   fill(value: number, start?: number, end?: number): this;
-  filter(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): %TypedArray%;
-  find(callbackfn: (value: number, index: number, target: any) => boolean), thisArg?: any): any;
-  findIndex(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): number;
-  forEach(callbackfn: (value: number, index: number, target: any) => void, thisArg?: any): void;
+  filter(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+  find(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean), thisArg?: any): any;
+  findIndex(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
+  forEach(callbackfn: (value: number, index: number, target: %TypedArray%) => void, thisArg?: any): void;
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
   join(separator: string = ','): string;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: number, index: number, target: any) => number, thisArg?: any): %TypedArray%;
-  reduce(callbackfn: (memo: any, value: number, index: number, target: any) => any, initialValue?: any): any;
-  reduceRight(callbackfn: (memo: any, value: number, index: number, target: any) => any, initialValue?: any): any;
+  map(mapFn: (value: number, index: number, target: %TypedArray%) => number, thisArg?: any): %TypedArray%;
+  reduce(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
+  reduceRight(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
   reverse(): this;
   set(array: ArrayLike, offset?: number): void;
   slice(start?: number, end?: number): %TypedArray%;
-  some(callbackfn: (value: number, index: number, target: any) => boolean, thisArg?: any): boolean;
+  some(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
   sort(comparefn?: (a: number, b: number) => number): this;
   subarray(begin?: number, end?: number): %TypedArray%;
   toString(): string;
@@ -2360,6 +2360,37 @@ for (const key of Object.iterateKeys(obj)) {
 for (const value of Object.iterateValues(obj)) {
   console.log(value);
 }
+```
+##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
+Modules [`esnext.array.filter-out`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.filter-out.js) and [`esnext.typed-array.filter-out`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.filter-out.js).
+```js
+class Array {
+  filterOut(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
+}
+
+class [
+  Int8Array,
+  Uint8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array,
+] {
+  filterOut(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-filtering
+core-js(-pure)/features/array/filter-out
+core-js(-pure)/features/typed-array/filter-out
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterOut(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
+```js
+[1, 2, 3, 4, 5].filterOut(it => it % 2); // => [2, 4]
 ```
 
 #### Stage 0 proposals[⬆](#index)

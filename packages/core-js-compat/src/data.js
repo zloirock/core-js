@@ -1254,6 +1254,8 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
+  'esnext.array.filter-out': {
+  },
   'esnext.array.is-template-object': {
   },
   'esnext.array.last-index': {
@@ -1487,6 +1489,8 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
+  },
+  'esnext.typed-array.filter-out': {
   },
   'esnext.weak-map.delete-all': {
   },

@@ -197,6 +197,7 @@ import './es.weak-map';
 import './es.weak-set';
 
 QUnit.module('ESNext');
+import './esnext.array.filter-out';
 import './esnext.array.is-template-object';
 import './esnext.array.last-item';
 import './esnext.array.last-index';
@@ -305,6 +306,7 @@ import './esnext.symbol.dispose';
 import './esnext.symbol.observable';
 import './esnext.symbol.pattern-match';
 import './esnext.symbol.replace-all';
+import './esnext.typed-array.filter-out';
 import './esnext.weak-map.delete-all';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';
