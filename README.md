@@ -1780,7 +1780,7 @@ core-js(-pure)/stage/3
 
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
 Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.at.js)
-> **Warning! Because of the conflict with another proposal, this method is not available on `String.prototype` in this version.**
+> **Warning! Because of the conflict with [another proposal](#stringat), this method is not available on `String.prototype` in this version.**
 
 ```js
 class Array {
