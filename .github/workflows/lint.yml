@@ -1,10 +1,10 @@
-name: JS lint
+name: eslint
 
 on: [push, pull_request]
 
 jobs:
   build:
-    name: JS Lint
+    name: eslint
 
     strategy:
       matrix:
