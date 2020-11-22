@@ -57,6 +57,18 @@ module.exports = {
     'es.regexp.test',
   ],
   3.7: [
+    'es.aggregate-error',
+    'es.promise.any',
+    'es.reflect.to-string-tag',
     'es.string.replace-all',
+    'esnext.map.emplace',
+    'esnext.weak-map.emplace',
+  ],
+  3.8: [
+    'esnext.array.filter-out',
+    'esnext.array.unique-by',
+    'esnext.bigint.range',
+    'esnext.number.range',
+    'esnext.typed-array.filter-out',
   ],
 };

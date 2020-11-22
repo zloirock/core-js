@@ -1,8 +1,43 @@
 ## Changelog
 ##### Unreleased
-- `String#replaceAll` moved to the stable ES, [per Jun TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
+- Added [`Number.range` stage 1 proposal](https://github.com/tc39/proposal-Number.range)
+  - `Number.range`
+  - `BigInt.range`
+- Added [array filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering)
+  - `Array#filterOut`
+  - `%TypedArray%#filterOut`
+- Added [array deduplication stage 1 proposal](https://github.com/tc39/proposal-array-unique)
+  - `Array#uniqueBy`
+- Added the missed `(es|stable)/instance/replace-all` entries
+- Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
+- Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
+
+##### 3.7.0 - 2020.11.06
+- `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
+- `Promise.any` and `AggregateError` moved to the stable ES, [per July TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-07/july-21.md#promiseany--aggregateerror-for-stage-4)
+- Added `Reflect[@@toStringTag]`, [per July TC39 meeting](https://github.com/tc39/ecma262/pull/2057)
+- Forced replacement of `Array#{ reduce, reduceRight }` in Chrome 80-82 because of [a bug](https://bugs.chromium.org/p/chromium/issues/detail?id=1049982), [#766](https://github.com/zloirock/core-js/issues/766)
+- Following the changes in [the `upsert` proposal](https://github.com/tc39/proposal-upsert), `{ Map, WeakMap }#emplace` replace `{ Map, WeakMap }#upsert`, these obsolete methods will be removed in the next major release
+- [By the current spec](https://tc39.es/ecma262/#sec-aggregate-error-constructor), `AggregateError#errors` is own data property
+- Added correct iteration closing in the iteration helpers according to the current version of [the proposal](https://tc39.es/proposal-iterator-helpers)
 - `process.nextTick` have a less priority when `Promise` in the microtask implementation, [#855](https://github.com/zloirock/core-js/issues/855)
+- Fixed microtask implementation in engines with `MutationObserver`, but without `document`, [#865](https://github.com/zloirock/core-js/issues/865), [#866](https://github.com/zloirock/core-js/issues/866)
+- Fixed `core-js-builder` with an empty (after the targets engines or another filtration) modules list, [#822](https://github.com/zloirock/core-js/issues/822)
+- Fixed possible twice call of `window.onunhandledrejection`, [#760](https://github.com/zloirock/core-js/issues/760)
+- Fixed some possible problems related multiple global copies of `core-js`, [#880](https://github.com/zloirock/core-js/issues/880)
 - Added a workaround for 3rd party `Reflect.set` polyfill bug, [#847](https://github.com/zloirock/core-js/issues/847)
+- Updated compat data:
+  - Chrome up to 86
+  - FF up to 82
+  - Safari up to 14
+- Updated compat data mapping:
+  - iOS up to 14
+  - NodeJS up to 15.0
+  - Electron up to 11.0
+  - Samsung Internet up to 13.0
+  - Opera Android up to 60
+  - The rest automatically
+- Updated all required dependencies
 
 ##### 3.6.5 - 2020.04.09
 - Updated Browserlist [#755](https://github.com/zloirock/core-js/issues/755)

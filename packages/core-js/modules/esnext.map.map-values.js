@@ -20,7 +20,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var setter = aFunction(newMap.set);
     iterate(iterator, function (key, value) {
       setter.call(newMap, key, boundFunction(value, key, map));
-    }, undefined, true, true);
+    }, { AS_ENTRIES: true, IS_ITERATOR: true });
     return newMap;
   }
 });

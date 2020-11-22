@@ -1,6 +1,6 @@
-require('../modules/web.dom-collections.iterator');
-require('../modules/es.string.iterator');
+// TODO: remove from `core-js@4`
 require('../modules/esnext.aggregate-error');
-var path = require('../internals/path');
 
-module.exports = path.AggregateError;
+var parent = require('../stable/aggregate-error');
+
+module.exports = parent;

@@ -13,8 +13,8 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var set = anObject(this);
     var iterator = getSetIterator(set);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
-    return !iterate(iterator, function (value) {
-      if (!boundFunction(value, value, set)) return iterate.stop();
-    }, undefined, false, true).stopped;
+    return !iterate(iterator, function (value, stop) {
+      if (!boundFunction(value, value, set)) return stop();
+    }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
   }
 });

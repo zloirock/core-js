@@ -38,7 +38,7 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 74));
       }
       if (!module.opera) {
-        module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome - 13);
+        module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14);
       }
       if (!module.opera_mobile && module.opera && module.opera <= 42) {
         module.opera_mobile = module.opera;
@@ -50,6 +50,9 @@ for (const scope of [data, external]) {
       }
       map(ChromeToSamsung, chrome, 'samsung');
       map(ChromeToAndroid, chrome, 'android');
+      if (!module.android) {
+        module.android = String(Math.max(chrome, 37));
+      }
       if (/^(es|esnext|web)\./.test(key)) {
         map(ChromeToElectron, chrome, 'electron');
       }
@@ -64,6 +67,10 @@ for (const scope of [data, external]) {
   }
 }
 
-writeFileSync(resolve(__dirname, '../data.json'), JSON.stringify(data, null, '  '));
-writeFileSync(resolve(__dirname, '../modules.json'), JSON.stringify(Object.keys(data), null, '  '));
-writeFileSync(resolve(__dirname, '../external.json'), JSON.stringify(external, null, '  '));
+function writeJSON(filename, content) {
+  writeFileSync(resolve(__dirname, filename), JSON.stringify(content, null, '  '));
+}
+
+writeJSON('../data.json', data);
+writeJSON('../modules.json', Object.keys(data));
+writeJSON('../external.json', external);

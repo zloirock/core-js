@@ -51,8 +51,6 @@ module.exports = function (targets) {
     }
     if (aliases.has(engine)) {
       engine = aliases.get(engine);
-    } else if (engine === 'android' && compare(version, '>', '4.4.4')) {
-      engine = 'chrome';
     }
     return [engine, String(version)];
   }).filter(([engine]) => {

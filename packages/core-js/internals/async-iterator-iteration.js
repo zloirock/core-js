@@ -19,6 +19,25 @@ var createMethod = function (TYPE) {
     if (!IS_TO_ARRAY) aFunction(fn);
 
     return new Promise(function (resolve, reject) {
+      var closeIteration = function (method, argument) {
+        try {
+          var returnMethod = iterator['return'];
+          if (returnMethod !== undefined) {
+            return Promise.resolve(returnMethod.call(iterator)).then(function () {
+              method(argument);
+            }, function (error) {
+              reject(error);
+            });
+          }
+        } catch (error2) {
+          return reject(error2);
+        } method(argument);
+      };
+
+      var onError = function (error) {
+        closeIteration(reject, error);
+      };
+
       var loop = function () {
         try {
           Promise.resolve(anObject(next.call(iterator))).then(function (step) {
@@ -35,16 +54,16 @@ var createMethod = function (TYPE) {
                     if (IS_FOR_EACH) {
                       loop();
                     } else if (IS_EVERY) {
-                      result ? loop() : resolve(false);
+                      result ? loop() : closeIteration(resolve, false);
                     } else {
-                      result ? resolve(IS_SOME || value) : loop();
+                      result ? closeIteration(resolve, IS_SOME || value) : loop();
                     }
-                  }, reject);
+                  }, onError);
                 }
               }
-            } catch (err) { reject(err); }
-          }, reject);
-        } catch (error) { reject(error); }
+            } catch (error) { onError(error); }
+          }, onError);
+        } catch (error2) { onError(error2); }
       };
 
       loop();

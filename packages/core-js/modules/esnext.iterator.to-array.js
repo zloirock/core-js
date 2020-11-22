@@ -9,7 +9,7 @@ var push = [].push;
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
-    iterate(anObject(this), push, result, false, true);
+    iterate(anObject(this), push, { that: result, IS_ITERATOR: true });
     return result;
   }
 });

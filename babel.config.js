@@ -2,7 +2,9 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
+    ['@babel/proposal-logical-assignment-operators'],
     ['@babel/proposal-nullish-coalescing-operator'],
+    ['@babel/proposal-numeric-separator'],
     ['@babel/proposal-optional-catch-binding'],
     ['@babel/proposal-optional-chaining'],
     ['@babel/transform-member-expression-literals'],

@@ -29,6 +29,7 @@ deepStrictEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), n
 
 // targets.esmodules
 deepStrictEqual(targetsParser({ esmodules: true }), new Map([
+  ['android', '61'],
   ['chrome', '61'],
   ['edge', '16'],
   ['firefox', '60'],

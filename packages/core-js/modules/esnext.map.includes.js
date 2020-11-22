@@ -10,8 +10,8 @@ var iterate = require('../internals/iterate');
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   includes: function includes(searchElement) {
-    return iterate(getMapIterator(anObject(this)), function (key, value) {
-      if (sameValueZero(value, searchElement)) return iterate.stop();
-    }, undefined, true, true).stopped;
+    return iterate(getMapIterator(anObject(this)), function (key, value, stop) {
+      if (sameValueZero(value, searchElement)) return stop();
+    }, { AS_ENTRIES: true, IS_ITERATOR: true, INTERRUPTED: true }).stopped;
   }
 });

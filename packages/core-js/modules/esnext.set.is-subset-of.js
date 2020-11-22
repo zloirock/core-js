@@ -18,8 +18,8 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       otherSet = new (getBuiltIn('Set'))(iterable);
       hasCheck = aFunction(otherSet.has);
     }
-    return !iterate(iterator, function (value) {
-      if (hasCheck.call(otherSet, value) === false) return iterate.stop();
-    }, undefined, false, true).stopped;
+    return !iterate(iterator, function (value, stop) {
+      if (hasCheck.call(otherSet, value) === false) return stop();
+    }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
   }
 });

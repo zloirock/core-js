@@ -6,6 +6,6 @@ var anObject = require('../internals/an-object');
 
 $({ target: 'Iterator', proto: true, real: true }, {
   forEach: function forEach(fn) {
-    iterate(anObject(this), fn, undefined, false, true);
+    iterate(anObject(this), fn, { IS_ITERATOR: true });
   }
 });

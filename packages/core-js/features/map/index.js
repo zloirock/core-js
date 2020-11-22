@@ -2,6 +2,7 @@ var parent = require('../../es/map');
 require('../../modules/esnext.map.from');
 require('../../modules/esnext.map.of');
 require('../../modules/esnext.map.delete-all');
+require('../../modules/esnext.map.emplace');
 require('../../modules/esnext.map.every');
 require('../../modules/esnext.map.filter');
 require('../../modules/esnext.map.find');
@@ -16,6 +17,7 @@ require('../../modules/esnext.map.merge');
 require('../../modules/esnext.map.reduce');
 require('../../modules/esnext.map.some');
 require('../../modules/esnext.map.update');
+// TODO: remove from `core-js@4`
 require('../../modules/esnext.map.upsert');
 // TODO: remove from `core-js@4`
 require('../../modules/esnext.map.update-or-insert');

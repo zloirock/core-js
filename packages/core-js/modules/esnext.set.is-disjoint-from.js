@@ -11,8 +11,8 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   isDisjointFrom: function isDisjointFrom(iterable) {
     var set = anObject(this);
     var hasCheck = aFunction(set.has);
-    return !iterate(iterable, function (value) {
-      if (hasCheck.call(set, value) === true) return iterate.stop();
-    }).stopped;
+    return !iterate(iterable, function (value, stop) {
+      if (hasCheck.call(set, value) === true) return stop();
+    }, { INTERRUPTED: true }).stopped;
   }
 });
