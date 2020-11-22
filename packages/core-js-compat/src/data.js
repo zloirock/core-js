@@ -1495,7 +1495,7 @@ const data = {
   'esnext.symbol.replace-all': {
   },
   'esnext.typed-array.at': {
-  }
+  },
   'esnext.typed-array.filter-out': {
   },
   'esnext.weak-map.delete-all': {
