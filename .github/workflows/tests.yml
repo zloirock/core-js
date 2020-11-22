@@ -1,10 +1,10 @@
-name: Specs
+name: Tests
 
 on: [push, pull_request]
 
 jobs:
   build:
-    name: Specs
+    name: Tests
 
     strategy:
       matrix:
@@ -17,7 +17,7 @@ jobs:
           '10.13',
           '12.13',
           '14.15',
-          #'15' temporarily disabled because of npm@7 bug https://github.com/npm/cli/issues/1865
+          '15',
         ]
 
     runs-on: ${{ matrix.os }}
