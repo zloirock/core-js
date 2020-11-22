@@ -2260,7 +2260,7 @@ class Number {
 }
 
 class BigInt {
-  range(start: bigint, end: bigint, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): RangeIterator;
+  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): RangeIterator;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2271,6 +2271,10 @@ core-js(-pure)/features/number/range
 ```
 [*Example*](http://es6.zloirock.ru/#for%20(const%20i%20of%20Number.range(1%2C%2010%2C%20%7B%20step%3A%203%2C%20inclusive%3A%20true%20%7D))%20%7B%0A%20%20log(i)%3B%20%2F%2F%20%3D%3E%201%2C%204%2C%207%2C%2010%0A%7D):
 ```js
+for (const i of Number.range(1, 10)) {
+  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
+}
+
 for (const i of Number.range(1, 10, { step: 3, inclusive: true })) {
   console.log(i); // => 1, 4, 7, 10
 }
