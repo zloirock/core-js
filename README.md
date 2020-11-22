@@ -2386,11 +2386,36 @@ class [
 ```
 core-js/proposals/array-filtering
 core-js(-pure)/features/array/filter-out
+core-js(-pure)/features/array/virtual/filter-out
 core-js(-pure)/features/typed-array/filter-out
+core-js(-pure)/features/typed-array/virtual/filter-out
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterOut(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
 ```js
 [1, 2, 3, 4, 5].filterOut(it => it % 2); // => [2, 4]
+````
+##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
+Module [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.unique-by.js)
+```js
+class Array {
+  uniqueBy(resolver?: (item: any) => any): Array<mixed>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-unique
+core-js(-pure)/features/array/unique-by
+core-js(-pure)/features/array/virtual/unique-by
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%202%2C%201%5D.uniqueBy())%3B%20%20%2F%2F%20%5B1%2C%202%2C%203%5D%0A%0Aconst%20data%20%3D%20%5B%0A%20%20%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%0A%5D%3B%0A%0Alog(data.uniqueBy('uid'))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D%0A%0Alog(data.uniqueBy((%7B%20id%2C%20uid%20%7D)%20%3D%3E%20%60%24%7Bid%7D-%24%7Buid%7D%60))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D):
+```js
+[1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
+
+[
+  { id: 1, uid: 10000 },
+  { id: 2, uid: 10000 },
+  { id: 3, uid: 10001 }
+].uniqueBy(it => it.id);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
 ```
 
 #### Stage 0 proposals[⬆](#index)

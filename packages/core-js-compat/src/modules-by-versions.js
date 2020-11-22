@@ -66,6 +66,7 @@ module.exports = {
   ],
   3.8: [
     'esnext.array.filter-out',
+    'esnext.array.unique-by',
     'esnext.bigint.range',
     'esnext.number.range',
     'esnext.typed-array.filter-out',

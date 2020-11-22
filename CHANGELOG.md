@@ -6,6 +6,8 @@
 - Added [array filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering)
   - `Array#filterOut`
   - `%TypedArray%#filterOut`
+- Added [array deduplication stage 1 proposal](https://github.com/tc39/proposal-array-unique)
+  - `Array#uniqueBy`
 - Added the missed `(es|stable)/instance/replace-all` entries
 - Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
 - Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
