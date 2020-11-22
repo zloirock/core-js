@@ -1,10 +1,10 @@
-name: Tests
+name: tests
 
 on: [push, pull_request]
 
 jobs:
   build:
-    name: Tests
+    name: tests
 
     strategy:
       matrix:
