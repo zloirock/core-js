@@ -1,8 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Added [`{ Number, BigInt }.range` methods stage 1 proposal](https://github.com/tc39/proposal-Number.range)
 - Added the missed `(es|stable)/instance/replace-all` entries
 - Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
-- Move compat data mapping for modern Android WebView to Chrome from targets parser directly to compat data
+- Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
 
 ##### 3.7.0 - 2020.11.06
 - `String#replaceAll` moved to the stable ES, [per June TC39 meeting](https://github.com/tc39/notes/blob/master/meetings/2020-06/june-2.md#stringprototypereplaceall-for-stage-4)
