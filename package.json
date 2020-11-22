@@ -76,6 +76,7 @@
     "commonjs-tests": "node tests/commonjs",
     "commonjs-entries-content": "node tests/commonjs-entries-content",
     "targets-parser-tests": "node tests/targets-parser",
-    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests"
+    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests",
+    "ci": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt webpack:helpers webpack:tests bundle uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests"
   }
 }

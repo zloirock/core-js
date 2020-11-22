@@ -40,4 +40,4 @@ jobs:
         run: npm install
 
       - name: Tests
-        run: npm run test
+        run: npm run ci
