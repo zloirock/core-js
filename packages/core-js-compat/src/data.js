@@ -1258,6 +1258,8 @@ const data = {
   },
   'esnext.array.is-template-object': {
   },
+  'esnext.array.at': {
+  },
   'esnext.array.last-index': {
   },
   'esnext.array.last-item': {
@@ -1491,6 +1493,8 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
+  },
+  'esnext.typed-array.at': {
   },
   'esnext.typed-array.filter-out': {
   },

@@ -1778,7 +1778,40 @@ Promise.any([
 core-js(-pure)/stage/3
 ```
 
-None.
+##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
+Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.array.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/v3.7.0/packages/core-js/modules/esnext.typed-array.at.js)
+> **Warning! Because of the conflict with [another proposal](#stringat), this method is not available on `String.prototype` in this version.**
+
+```js
+class Array {
+  at(index: int): any;
+}
+
+class [
+  Int8Array,
+  Uint8Array,
+  Uint8ClampedArray,
+  Int16Array,
+  Uint16Array,
+  Int32Array,
+  Uint32Array,
+  Float32Array,
+  Float64Array,
+] {
+  at(index: int): any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/relative-indexing-method
+core-js(-pure)/features/array/at
+core-js(-pure)/features/typed-array/at
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%5D.at(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(%5B1%2C%202%2C%203%5D.at(-1))%3B%20%2F%2F%20%3D%3E%203):
+```js
+[1, 2, 3].at(1);  // => 2
+[1, 2, 3].at(-1); // => 3
+```
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

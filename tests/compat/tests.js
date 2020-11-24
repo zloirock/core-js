@@ -1100,6 +1100,9 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
+  'esnext.array.at': function () {
+    return [].at;
+  },
   'esnext.array.filter-out': function () {
     return [].filterOut;
   },
@@ -1422,7 +1425,7 @@ GLOBAL.tests = {
     return Set.prototype.union;
   },
   'esnext.string.at': function () {
-    return String.prototype.at;
+    return '𠮷'.at(0) === '𠮷';
   },
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
@@ -1439,6 +1442,9 @@ GLOBAL.tests = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': function () {
     return Symbol.replaceAll;
+  },
+  'esnext.typed-array.at': function () {
+    return Int8Array.prototype.at;
   },
   'esnext.typed-array.filter-out': function () {
     return Int8Array.prototype.filterOut;

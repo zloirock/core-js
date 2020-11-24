@@ -65,10 +65,12 @@ module.exports = {
     'esnext.weak-map.emplace',
   ],
   3.8: [
+    'esnext.array.at',
     'esnext.array.filter-out',
     'esnext.array.unique-by',
     'esnext.bigint.range',
     'esnext.number.range',
+    'esnext.typed-array.at',
     'esnext.typed-array.filter-out',
   ],
 };
