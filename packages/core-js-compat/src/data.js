@@ -1254,11 +1254,11 @@ const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
+  'esnext.array.at': {
+  },
   'esnext.array.filter-out': {
   },
   'esnext.array.is-template-object': {
-  },
-  'esnext.array.at': {
   },
   'esnext.array.last-index': {
   },
