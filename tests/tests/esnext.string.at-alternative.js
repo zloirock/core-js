@@ -22,6 +22,7 @@ QUnit.test('String#at', assert => {
   assert.same('1', '1'.at(NaN));
   assert.same('1', '1'.at());
   assert.same('1', '123'.at(-0));
+  assert.same('\uD842', '𠮷'.at());
   assert.same('1', at.call({ toString() { return '123'; } }, 0));
   if (STRICT) {
     assert.throws(() => at.call(null, 0), TypeError);

@@ -1425,7 +1425,7 @@ GLOBAL.tests = {
     return Set.prototype.union;
   },
   'esnext.string.at': function () {
-    return String.prototype.at;
+    return '𠮷'.at(0) === '𠮷';
   },
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
