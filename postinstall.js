@@ -8,6 +8,7 @@ var ADBLOCK = is(env.ADBLOCK);
 var COLOR = is(env.npm_config_color);
 var DISABLE_OPENCOLLECTIVE = is(env.DISABLE_OPENCOLLECTIVE);
 var SILENT = ['silent', 'error', 'warn'].indexOf(env.npm_config_loglevel) !== -1;
+var OPEN_SOURCE_CONTRIBUTOR = is(env.OPEN_SOURCE_CONTRIBUTOR);
 var MINUTE = 60 * 1000;
 
 // you could add a PR with an env variable for your CI detection
@@ -15,6 +16,7 @@ var CI = [
   'BUILD_NUMBER',
   'CI',
   'CONTINUOUS_INTEGRATION',
+  'DRONE',
   'RUN_ID'
 ].some(function (it) { return is(env[it]); });
 
@@ -29,7 +31,7 @@ function is(it) {
 }
 
 function isBannerRequired() {
-  if (ADBLOCK || CI || DISABLE_OPENCOLLECTIVE || SILENT) return false;
+  if (ADBLOCK || CI || DISABLE_OPENCOLLECTIVE || SILENT || OPEN_SOURCE_CONTRIBUTOR) return false;
   var file = path.join(os.tmpdir(), 'core-js-banners');
   var banners = [];
   try {
