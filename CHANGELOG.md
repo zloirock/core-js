@@ -1,7 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Added code points / code units explicit feature detection in `String#at` for preventing breakage code which use obsolete `String#at` proposal polyfill
 - Added `OPEN_SOURCE_CONTRIBUTOR` detection in `postinstall`
-- Added Drone CI in `postinstall` detection
+- Added Drone CI detection in `postinstall`
 
 ##### 2.6.11 [LEGACY] - 2019.12.09
 - Returned usage of `node -e` in `postinstall` scripts for better cross-platform compatibility, [#582](https://github.com/zloirock/core-js/issues/582)
