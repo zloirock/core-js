@@ -14,7 +14,13 @@ const compat = require('core-js-compat/compat');
 const modulesList = require('core-js-compat/modules');
 const { banner } = require('./config');
 
-module.exports = async function ({ blacklist = [], modules = modulesList.slice(), targets, filename } = {}) {
+module.exports = async function ({
+    blacklist, // TODO: Remove from `core-js@4`
+    exclude = [],
+    modules = modulesList.slice(),
+    targets,
+    filename,
+} = {}) {
   const set = new Set();
 
   function filter(method, list) {
@@ -28,7 +34,7 @@ module.exports = async function ({ blacklist = [], modules = modulesList.slice()
   }
 
   filter('add', modules);
-  filter('delete', blacklist);
+  filter('delete', blacklist || exclude);
 
   modules = modulesList.filter(it => set.has(it));
 
