@@ -206,7 +206,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/string/code-point-at')('a', 0) === 97);
   ok(load('features/string/ends-with')('qwe', 'we'));
   ok(load('features/string/includes')('qwe', 'w'));
-  // ok(load('features/string/at-alternative')('123', -2) === '2');
   ok(load('features/string/repeat')('q', 3) === 'qqq');
   ok(load('features/string/starts-with')('qwe', 'qw'));
   ok(typeof load('features/string/anchor') === 'function');
@@ -236,7 +235,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/string/virtual/code-point-at').call('a', 0) === 97);
   ok(load('features/string/virtual/ends-with').call('qwe', 'we'));
   ok(load('features/string/virtual/includes').call('qwe', 'w'));
-  // ok(load('features/string/virtual/at-alternative').call('123', -2) === '2');
   ok(load('features/string/virtual/repeat').call('q', 3) === 'qqq');
   ok(load('features/string/virtual/starts-with').call('qwe', 'qw'));
   ok(typeof load('features/string/virtual/anchor') === 'function');
@@ -973,7 +971,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/relative-indexing-method');
   load('proposals/seeded-random');
   load('proposals/set-methods');
-  load('proposals/string-at');
   load('proposals/string-code-points');
   load('proposals/url');
   load('proposals/using-statement');
