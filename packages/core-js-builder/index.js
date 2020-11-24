@@ -9,7 +9,6 @@ const modulesList = require('core-js-compat/modules');
 const { banner } = require('./config');
 
 module.exports = async function ({
-    blacklist, // TODO: Remove from `core-js@4`
     exclude = [],
     modules = modulesList.slice(),
     targets,
@@ -28,7 +27,7 @@ module.exports = async function ({
   }
 
   filter('add', modules);
-  filter('delete', blacklist || exclude);
+  filter('delete', exclude);
 
   modules = modulesList.filter(it => set.has(it));
 
