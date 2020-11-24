@@ -19,7 +19,6 @@ function normalizeSummary(unit = {}) {
 }
 
 module.exports = async function ({
-  blacklist, // TODO: Remove from `core-js@4`
   exclude = [],
   modules = modulesList.slice(),
   targets,
@@ -46,7 +45,7 @@ module.exports = async function ({
   }
 
   filter('add', modules);
-  filter('delete', blacklist || exclude);
+  filter('delete', exclude);
 
   // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
   modules = modulesList.filter(it => set.has(it));
