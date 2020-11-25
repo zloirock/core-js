@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 3.8.0 - 2020.11.26
 - Added [relative indexing method stage 3 proposal](https://github.com/tc39/proposal-relative-indexing-method)
   - `Array#at`
   - `%TypedArray%#at`
