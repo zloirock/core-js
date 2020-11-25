@@ -1,8 +1,8 @@
 /**
- * core-js 2.6.11
+ * core-js 2.6.12
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
- * © 2019 Denis Pushkarev
+ * © 2020 Denis Pushkarev
  */
 !function(__e, __g, undefined){
 'use strict';
@@ -282,7 +282,7 @@ module.exports = function (it) {
 /* 12 */
 /***/ (function(module, exports) {
 
-var core = module.exports = { version: '2.6.11' };
+var core = module.exports = { version: '2.6.12' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 
@@ -1483,7 +1483,7 @@ var store = global[SHARED] || (global[SHARED] = {});
 })('versions', []).push({
   version: core.version,
   mode: __webpack_require__(30) ? 'pure' : 'global',
-  copyright: '© 2019 Denis Pushkarev (zloirock.ru)'
+  copyright: '© 2020 Denis Pushkarev (zloirock.ru)'
 });
 
 
@@ -6724,8 +6724,13 @@ __webpack_require__(33)('flatten');
 // https://github.com/mathiasbynens/String.prototype.at
 var $export = __webpack_require__(0);
 var $at = __webpack_require__(74)(true);
+var $fails = __webpack_require__(4);
 
-$export($export.P, 'String', {
+var FORCED = $fails(function () {
+  return '𠮷'.at(0) !== '𠮷';
+});
+
+$export($export.P + $export.F * FORCED, 'String', {
   at: function at(pos) {
     return $at(this, pos);
   }

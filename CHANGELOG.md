@@ -1,5 +1,5 @@
 ## Changelog
-##### Unreleased
+##### 2.6.12 [LEGACY] - 2020.11.26
 - Added code points / code units explicit feature detection in `String#at` for preventing breakage code which use obsolete `String#at` proposal polyfill
 - Added `OPEN_SOURCE_CONTRIBUTOR` detection in `postinstall`
 - Added Drone CI detection in `postinstall`
