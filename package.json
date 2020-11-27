@@ -21,7 +21,7 @@
     "@babel/plugin-transform-shorthand-properties": "^7.12.1",
     "@babel/plugin-transform-spread": "^7.12.1",
     "@babel/plugin-transform-template-literals": "^7.12.1",
-    "babel-loader": "^8.2.1",
+    "babel-loader": "^8.2.2",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "david": "^12.0.0",
