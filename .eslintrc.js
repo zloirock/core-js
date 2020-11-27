@@ -484,6 +484,8 @@ const qunit = {
   'qunit/assert-args': 'error',
   // forbid the use of assert.equal
   'qunit/no-assert-equal': 'error',
+  // require use of boolean assertions
+  'qunit/no-assert-equal-boolean': 'error',
   // forbid binary logical expressions in assert arguments
   'qunit/no-assert-logical-expression': 'error',
   // forbid async calls in loops
