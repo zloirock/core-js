@@ -1,6 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4` since it's moved to entry points
-require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
 var isObject = require('../internals/is-object');
 
