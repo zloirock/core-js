@@ -1,7 +1,7 @@
 import detective from 'detective';
 import globby from 'globby';
-import { modules } from 'core-js-compat/src/data.mjs';
-import helpers from 'core-js-compat/helpers.js';
+import { modules } from '../packages/core-js-compat/src/data.mjs';
+import helpers from '../packages/core-js-compat/helpers.js';
 
 async function getModulesForEntryPoint(path, parent) {
   const entry = new URL(path, parent);
