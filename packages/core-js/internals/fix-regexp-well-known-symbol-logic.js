@@ -1,6 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4` since it's moved to entry points
-require('../modules/es.regexp.exec');
 var redefine = require('../internals/redefine');
 var regexpExec = require('../internals/regexp-exec');
 var fails = require('../internals/fails');
