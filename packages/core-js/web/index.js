@@ -1,3 +1,5 @@
+require('../modules/es.array.iterator');
+require('../modules/es.string.iterator');
 require('../modules/web.dom-collections.for-each');
 require('../modules/web.dom-collections.iterator');
 require('../modules/web.immediate');
