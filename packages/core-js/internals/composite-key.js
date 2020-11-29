@@ -1,8 +1,9 @@
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-var Map = require('../modules/es.map');
-var WeakMap = require('../modules/es.weak-map');
+var getBuiltIn = require('../internals/get-built-in');
 var create = require('../internals/object-create');
 var isObject = require('../internals/is-object');
+
+var Map = getBuiltIn('Map');
+var WeakMap = getBuiltIn('WeakMap');
 
 var Node = function () {
   // keys

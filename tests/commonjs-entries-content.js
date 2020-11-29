@@ -105,7 +105,7 @@ subset('core-js/proposals', /^(es\.|esnext\.|web\.url)/);
 subset('core-js/stage', /^(es\.|esnext\.|web\.url)/);
 subset('core-js/stage/pre', /^(es\.|esnext\.|web\.url)/);
 subset('core-js/stage/0', /^(es\.|esnext\.|web\.url)/);
-subset('core-js/stage/1', /^(es\.map|esnext\.|web\.url)/);
+subset('core-js/stage/1', /^(es\.|esnext\.|web\.url)/);
 subset('core-js/stage/2', /^esnext\./);
 subset('core-js/stage/3', /^esnext\./);
 subset('core-js/stage/4', /^esnext\./);
