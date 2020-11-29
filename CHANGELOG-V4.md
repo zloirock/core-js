@@ -1,0 +1,48 @@
+##### Unreleased
+- `String.prototype.at` from [relative indexing method proposal](https://github.com/tc39/proposal-relative-indexing-method) replaced `String.prototype.at` from [obsolete proposal with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+- Removed proposals:
+  - Finished and moved to stable ES:
+    - [`globalThis`](https://github.com/tc39/proposal-global)
+    - [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
+    - [`Promise.any` + `AggregateError`](https://github.com/tc39/proposal-promise-any)
+    - [`String.prototype.matchAll`](https://github.com/tc39/proposal-string-matchall)
+    - [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replaceall)
+  - Withdrawn:
+    - [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+    - [Object iteration](https://github.com/tc39/proposal-object-iteration)
+    - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+- Removed modules:
+  - `esnext.aggregate-error` (moved to stable ES)
+  - `esnext.global-this` (moved to stable ES)
+  - `esnext.map.update-or-insert` (obsolete)
+  - `esnext.map.upsert` (obsolete)
+  - `esnext.math.iaddh` (withdrawn)
+  - `esnext.math.imulh` (withdrawn)
+  - `esnext.math.isubh` (withdrawn)
+  - `esnext.math.umulh` (withdrawn)
+  - `esnext.object.iterate-entries` (withdrawn)
+  - `esnext.object.iterate-keys` (withdrawn)
+  - `esnext.object.iterate-values` (withdrawn)
+  - `esnext.promise.all-settled` (moved to stable ES)
+  - `esnext.promise.any` (moved to stable ES)
+  - `esnext.string.at-alternative` (replaces `esnext.string.at` from the obsolete proposal)
+  - `esnext.string.match-all` (moved to stable ES)
+  - `esnext.string.replace-all` (moved to stable ES)
+  - `esnext.symbol.replace-all` (obsolete)
+  - `esnext.weak-map.upsert` (obsolete)
+- Removed features:
+  - `Map#updateOrInsert` (obsolete)
+  - `Map#upsert` (obsolete)
+  - `Math.iaddh` (withdrawn)
+  - `Math.imulh` (withdrawn)
+  - `Math.isubh` (withdrawn)
+  - `Math.umulh` (withdrawn)
+  - `Object.iterateEntries` (withdrawn)
+  - `Object.iterateKeys` (withdrawn)
+  - `Object.iterateValues` (withdrawn)
+  - `Symbol.replaceAll` (obsolete)
+  - `WeakMap#upsert` (obsolete)
+- Dropped NodeJS 11- support in `core-js-builder` and `core-js-compat`
+- Dropped `core-js-compat` `modules-by-versions` history for `core-js@3`
+- Dropped `core-js-builder` `blacklist` deprecated option
+- Dependencies of many modules (string / regexp methods, `URL`, `Reflect` metadata, keys composition, etc.) moved to entry points for better optimisation by tools
