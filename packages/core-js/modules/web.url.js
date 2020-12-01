@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/native-url');
 var global = require('../internals/global');
 var defineProperties = require('../internals/object-define-properties');
@@ -750,20 +749,6 @@ var URLConstructor = function URL(url /* , base */) {
   searchParamsState.updateURL = function () {
     state.query = String(searchParams) || null;
   };
-  if (!DESCRIPTORS) {
-    that.href = serializeURL.call(that);
-    that.origin = getOrigin.call(that);
-    that.protocol = getProtocol.call(that);
-    that.username = getUsername.call(that);
-    that.password = getPassword.call(that);
-    that.host = getHost.call(that);
-    that.hostname = getHostname.call(that);
-    that.port = getPort.call(that);
-    that.pathname = getPathname.call(that);
-    that.search = getSearch.call(that);
-    that.searchParams = getSearchParams.call(that);
-    that.hash = getHash.call(that);
-  }
 };
 
 var URLPrototype = URLConstructor.prototype;
@@ -861,111 +846,109 @@ var accessorDescriptor = function (getter, setter) {
   return { get: getter, set: setter, configurable: true, enumerable: true };
 };
 
-if (DESCRIPTORS) {
-  defineProperties(URLPrototype, {
-    // `URL.prototype.href` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-href
-    href: accessorDescriptor(serializeURL, function (href) {
-      var url = getInternalURLState(this);
-      var urlString = String(href);
-      var failure = parseURL(url, urlString);
-      if (failure) throw TypeError(failure);
-      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
-    }),
-    // `URL.prototype.origin` getter
-    // https://url.spec.whatwg.org/#dom-url-origin
-    origin: accessorDescriptor(getOrigin),
-    // `URL.prototype.protocol` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-protocol
-    protocol: accessorDescriptor(getProtocol, function (protocol) {
-      var url = getInternalURLState(this);
-      parseURL(url, String(protocol) + ':', SCHEME_START);
-    }),
-    // `URL.prototype.username` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-username
-    username: accessorDescriptor(getUsername, function (username) {
-      var url = getInternalURLState(this);
-      var codePoints = arrayFrom(String(username));
-      if (cannotHaveUsernamePasswordPort(url)) return;
-      url.username = '';
-      for (var i = 0; i < codePoints.length; i++) {
-        url.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
-      }
-    }),
-    // `URL.prototype.password` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-password
-    password: accessorDescriptor(getPassword, function (password) {
-      var url = getInternalURLState(this);
-      var codePoints = arrayFrom(String(password));
-      if (cannotHaveUsernamePasswordPort(url)) return;
-      url.password = '';
-      for (var i = 0; i < codePoints.length; i++) {
-        url.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
-      }
-    }),
-    // `URL.prototype.host` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-host
-    host: accessorDescriptor(getHost, function (host) {
-      var url = getInternalURLState(this);
-      if (url.cannotBeABaseURL) return;
-      parseURL(url, String(host), HOST);
-    }),
-    // `URL.prototype.hostname` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-hostname
-    hostname: accessorDescriptor(getHostname, function (hostname) {
-      var url = getInternalURLState(this);
-      if (url.cannotBeABaseURL) return;
-      parseURL(url, String(hostname), HOSTNAME);
-    }),
-    // `URL.prototype.port` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-port
-    port: accessorDescriptor(getPort, function (port) {
-      var url = getInternalURLState(this);
-      if (cannotHaveUsernamePasswordPort(url)) return;
-      port = String(port);
-      if (port == '') url.port = null;
-      else parseURL(url, port, PORT);
-    }),
-    // `URL.prototype.pathname` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-pathname
-    pathname: accessorDescriptor(getPathname, function (pathname) {
-      var url = getInternalURLState(this);
-      if (url.cannotBeABaseURL) return;
-      url.path = [];
-      parseURL(url, pathname + '', PATH_START);
-    }),
-    // `URL.prototype.search` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-search
-    search: accessorDescriptor(getSearch, function (search) {
-      var url = getInternalURLState(this);
-      search = String(search);
-      if (search == '') {
-        url.query = null;
-      } else {
-        if ('?' == search.charAt(0)) search = search.slice(1);
-        url.query = '';
-        parseURL(url, search, QUERY);
-      }
-      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
-    }),
-    // `URL.prototype.searchParams` getter
-    // https://url.spec.whatwg.org/#dom-url-searchparams
-    searchParams: accessorDescriptor(getSearchParams),
-    // `URL.prototype.hash` accessors pair
-    // https://url.spec.whatwg.org/#dom-url-hash
-    hash: accessorDescriptor(getHash, function (hash) {
-      var url = getInternalURLState(this);
-      hash = String(hash);
-      if (hash == '') {
-        url.fragment = null;
-        return;
-      }
-      if ('#' == hash.charAt(0)) hash = hash.slice(1);
-      url.fragment = '';
-      parseURL(url, hash, FRAGMENT);
-    })
-  });
-}
+defineProperties(URLPrototype, {
+  // `URL.prototype.href` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-href
+  href: accessorDescriptor(serializeURL, function (href) {
+    var url = getInternalURLState(this);
+    var urlString = String(href);
+    var failure = parseURL(url, urlString);
+    if (failure) throw TypeError(failure);
+    getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
+  }),
+  // `URL.prototype.origin` getter
+  // https://url.spec.whatwg.org/#dom-url-origin
+  origin: accessorDescriptor(getOrigin),
+  // `URL.prototype.protocol` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-protocol
+  protocol: accessorDescriptor(getProtocol, function (protocol) {
+    var url = getInternalURLState(this);
+    parseURL(url, String(protocol) + ':', SCHEME_START);
+  }),
+  // `URL.prototype.username` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-username
+  username: accessorDescriptor(getUsername, function (username) {
+    var url = getInternalURLState(this);
+    var codePoints = arrayFrom(String(username));
+    if (cannotHaveUsernamePasswordPort(url)) return;
+    url.username = '';
+    for (var i = 0; i < codePoints.length; i++) {
+      url.username += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+    }
+  }),
+  // `URL.prototype.password` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-password
+  password: accessorDescriptor(getPassword, function (password) {
+    var url = getInternalURLState(this);
+    var codePoints = arrayFrom(String(password));
+    if (cannotHaveUsernamePasswordPort(url)) return;
+    url.password = '';
+    for (var i = 0; i < codePoints.length; i++) {
+      url.password += percentEncode(codePoints[i], userinfoPercentEncodeSet);
+    }
+  }),
+  // `URL.prototype.host` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-host
+  host: accessorDescriptor(getHost, function (host) {
+    var url = getInternalURLState(this);
+    if (url.cannotBeABaseURL) return;
+    parseURL(url, String(host), HOST);
+  }),
+  // `URL.prototype.hostname` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-hostname
+  hostname: accessorDescriptor(getHostname, function (hostname) {
+    var url = getInternalURLState(this);
+    if (url.cannotBeABaseURL) return;
+    parseURL(url, String(hostname), HOSTNAME);
+  }),
+  // `URL.prototype.port` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-port
+  port: accessorDescriptor(getPort, function (port) {
+    var url = getInternalURLState(this);
+    if (cannotHaveUsernamePasswordPort(url)) return;
+    port = String(port);
+    if (port == '') url.port = null;
+    else parseURL(url, port, PORT);
+  }),
+  // `URL.prototype.pathname` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-pathname
+  pathname: accessorDescriptor(getPathname, function (pathname) {
+    var url = getInternalURLState(this);
+    if (url.cannotBeABaseURL) return;
+    url.path = [];
+    parseURL(url, pathname + '', PATH_START);
+  }),
+  // `URL.prototype.search` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-search
+  search: accessorDescriptor(getSearch, function (search) {
+    var url = getInternalURLState(this);
+    search = String(search);
+    if (search == '') {
+      url.query = null;
+    } else {
+      if ('?' == search.charAt(0)) search = search.slice(1);
+      url.query = '';
+      parseURL(url, search, QUERY);
+    }
+    getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
+  }),
+  // `URL.prototype.searchParams` getter
+  // https://url.spec.whatwg.org/#dom-url-searchparams
+  searchParams: accessorDescriptor(getSearchParams),
+  // `URL.prototype.hash` accessors pair
+  // https://url.spec.whatwg.org/#dom-url-hash
+  hash: accessorDescriptor(getHash, function (hash) {
+    var url = getInternalURLState(this);
+    hash = String(hash);
+    if (hash == '') {
+      url.fragment = null;
+      return;
+    }
+    if ('#' == hash.charAt(0)) hash = hash.slice(1);
+    url.fragment = '';
+    parseURL(url, hash, FRAGMENT);
+  })
+});
 
 // `URL.prototype.toJSON` method
 // https://url.spec.whatwg.org/#dom-url-tojson
@@ -998,6 +981,6 @@ if (NativeURL) {
 
 setToStringTag(URLConstructor, 'URL');
 
-$({ global: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
+$({ global: true, forced: !USE_NATIVE_URL }, {
   URL: URLConstructor
 });

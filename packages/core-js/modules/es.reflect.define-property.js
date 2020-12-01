@@ -1,5 +1,4 @@
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var anObject = require('../internals/an-object');
 var toPrimitive = require('../internals/to-primitive');
 var definePropertyModule = require('../internals/object-define-property');
@@ -13,7 +12,7 @@ var ERROR_INSTEAD_OF_FALSE = fails(function () {
 
 // `Reflect.defineProperty` method
 // https://tc39.es/ecma262/#sec-reflect.defineproperty
-$({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE, sham: !DESCRIPTORS }, {
+$({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE }, {
   defineProperty: function defineProperty(target, propertyKey, attributes) {
     anObject(target);
     var key = toPrimitive(propertyKey, true);
