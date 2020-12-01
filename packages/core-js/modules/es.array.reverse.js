@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 
+var isArray = Array.isArray;
 var nativeReverse = [].reverse;
 var test = [1, 2];
 

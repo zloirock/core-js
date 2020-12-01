@@ -1,6 +1,5 @@
 require('../../modules/es.string.iterator');
 require('../../modules/es.array.from');
-require('../../modules/es.array.is-array');
 require('../../modules/es.array.of');
 require('../../modules/es.array.concat');
 require('../../modules/es.array.copy-within');

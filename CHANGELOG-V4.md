@@ -1,4 +1,5 @@
 ##### Unreleased
+- Dropped support engines without basic ES5 support (like IE8-)
 - `String.prototype.at` from [relative indexing method proposal](https://github.com/tc39/proposal-relative-indexing-method) replaced `String.prototype.at` from [obsolete proposal with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
 - Removed proposals:
   - Finished and moved to stable ES:
@@ -12,6 +13,7 @@
     - [Object iteration](https://github.com/tc39/proposal-object-iteration)
     - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
 - Removed modules:
+  - `es.array.is-array` (required for ES3 only)
   - `esnext.aggregate-error` (moved to stable ES)
   - `esnext.global-this` (moved to stable ES)
   - `esnext.map.update-or-insert` (obsolete)
@@ -31,6 +33,7 @@
   - `esnext.symbol.replace-all` (obsolete)
   - `esnext.weak-map.upsert` (obsolete)
 - Removed features:
+  - `Array.isArray` (required for ES3 only)
   - `Map#updateOrInsert` (obsolete)
   - `Map#upsert` (obsolete)
   - `Math.iaddh` (withdrawn)

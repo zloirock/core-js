@@ -178,14 +178,6 @@ export const data = {
     safari: '8.0',
     rhino: '1.7.13',
   },
-  'es.array.is-array': {
-    chrome: '5',
-    firefox: '4',
-    ie: '9',
-    opera: '10.50',
-    safari: '4.0',
-    rhino: '1.7.13',
-  },
   'es.array.iterator': {
     chrome: '66',
     edge: '15',

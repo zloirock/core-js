@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
@@ -11,6 +10,7 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var V8_VERSION = require('../internals/engine-v8-version');
 
+var isArray = Array.isArray;
 var IS_CONCAT_SPREADABLE = wellKnownSymbol('isConcatSpreadable');
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 var MAXIMUM_ALLOWED_INDEX_EXCEEDED = 'Maximum allowed index exceeded';
