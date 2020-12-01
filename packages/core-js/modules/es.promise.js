@@ -100,7 +100,7 @@ var notify = function (state, isReject) {
       var handler = ok ? reaction.ok : reaction.fail;
       var resolve = reaction.resolve;
       var reject = reaction.reject;
-      var domain = reaction.domain;
+      var domainRef = reaction.domain;
       var result, then, exited;
       try {
         if (handler) {
@@ -110,10 +110,10 @@ var notify = function (state, isReject) {
           }
           if (handler === true) result = value;
           else {
-            if (domain) domain.enter();
+            if (domainRef) domainRef.enter();
             result = handler(value); // can throw
-            if (domain) {
-              domain.exit();
+            if (domainRef) {
+              domainRef.exit();
               exited = true;
             }
           }
@@ -124,7 +124,7 @@ var notify = function (state, isReject) {
           } else resolve(result);
         } else reject(value);
       } catch (error) {
-        if (domain && !exited) domain.exit();
+        if (domainRef && !exited) domainRef.exit();
         reject(error);
       }
     }
