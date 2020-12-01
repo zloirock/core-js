@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var objectKeys = require('../internals/object-keys');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
@@ -16,7 +15,7 @@ var defineProperty = Object.defineProperty;
 // https://tc39.es/ecma262/#sec-object.assign
 module.exports = !$assign || fails(function () {
   // should have correct order of operations (Edge bug)
-  if (DESCRIPTORS && $assign({ b: 1 }, $assign(defineProperty({}, 'a', {
+  if ($assign({ b: 1 }, $assign(defineProperty({}, 'a', {
     enumerable: true,
     get: function () {
       defineProperty(this, 'b', {
@@ -48,7 +47,7 @@ module.exports = !$assign || fails(function () {
     var key;
     while (length > j) {
       key = keys[j++];
-      if (!DESCRIPTORS || propertyIsEnumerable.call(S, key)) T[key] = S[key];
+      if (propertyIsEnumerable.call(S, key)) T[key] = S[key];
     }
   } return T;
 } : $assign;

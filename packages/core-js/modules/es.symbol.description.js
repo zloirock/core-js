@@ -2,7 +2,6 @@
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var has = require('../internals/has');
 var isObject = require('../internals/is-object');
@@ -11,7 +10,7 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 
 var NativeSymbol = global.Symbol;
 
-if (DESCRIPTORS && typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.prototype) ||
+if (typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.prototype) ||
   // Safari 12 bug
   NativeSymbol().description !== undefined
 )) {

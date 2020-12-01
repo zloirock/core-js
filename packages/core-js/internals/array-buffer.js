@@ -1,6 +1,5 @@
 'use strict';
 var global = require('../internals/global');
-var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
@@ -91,7 +90,6 @@ if (!NATIVE_ARRAY_BUFFER) {
       bytes: arrayFill.call(new Array(byteLength), 0),
       byteLength: byteLength
     });
-    if (!DESCRIPTORS) this.byteLength = byteLength;
   };
 
   $DataView = function DataView(buffer, byteOffset, byteLength) {
@@ -107,19 +105,12 @@ if (!NATIVE_ARRAY_BUFFER) {
       byteLength: byteLength,
       byteOffset: offset
     });
-    if (!DESCRIPTORS) {
-      this.buffer = buffer;
-      this.byteLength = byteLength;
-      this.byteOffset = offset;
-    }
   };
 
-  if (DESCRIPTORS) {
-    addGetter($ArrayBuffer, 'byteLength');
-    addGetter($DataView, 'buffer');
-    addGetter($DataView, 'byteLength');
-    addGetter($DataView, 'byteOffset');
-  }
+  addGetter($ArrayBuffer, 'byteLength');
+  addGetter($DataView, 'buffer');
+  addGetter($DataView, 'byteLength');
+  addGetter($DataView, 'byteOffset');
 
   redefineAll($DataView[PROTOTYPE], {
     getInt8: function getInt8(byteOffset) {

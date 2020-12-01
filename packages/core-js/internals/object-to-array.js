@@ -1,4 +1,3 @@
-var DESCRIPTORS = require('../internals/descriptors');
 var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
 var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
@@ -14,7 +13,7 @@ var createMethod = function (TO_ENTRIES) {
     var key;
     while (length > i) {
       key = keys[i++];
-      if (!DESCRIPTORS || propertyIsEnumerable.call(O, key)) {
+      if (propertyIsEnumerable.call(O, key)) {
         result.push(TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }

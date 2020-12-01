@@ -3,7 +3,6 @@ var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var isObject = require('../internals/is-object');
 var defineProperties = require('../internals/object-define-properties');
-var DESCRIPTORS = require('../internals/descriptors');
 
 var INCORRECT_RANGE = 'Incorrect Number.range arguments';
 var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
@@ -52,12 +51,6 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     currentCount: zero,
     zero: zero
   });
-  if (!DESCRIPTORS) {
-    this.start = start;
-    this.end = end;
-    this.step = step;
-    this.inclusive = inclusiveEnd;
-  }
 }, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
   if (state.hitsEnd) return { value: undefined, done: true };
@@ -82,21 +75,19 @@ var getter = function (fn) {
   return { get: fn, set: function () { /* empty */ }, configurable: true, enumerable: false };
 };
 
-if (DESCRIPTORS) {
-  defineProperties($RangeIterator.prototype, {
-    start: getter(function () {
-      return getInternalState(this).start;
-    }),
-    end: getter(function () {
-      return getInternalState(this).end;
-    }),
-    inclusive: getter(function () {
-      return getInternalState(this).inclusiveEnd;
-    }),
-    step: getter(function () {
-      return getInternalState(this).step;
-    })
-  });
-}
+defineProperties($RangeIterator.prototype, {
+  start: getter(function () {
+    return getInternalState(this).start;
+  }),
+  end: getter(function () {
+    return getInternalState(this).end;
+  }),
+  inclusive: getter(function () {
+    return getInternalState(this).inclusiveEnd;
+  }),
+  step: getter(function () {
+    return getInternalState(this).step;
+  })
+});
 
 module.exports = $RangeIterator;
