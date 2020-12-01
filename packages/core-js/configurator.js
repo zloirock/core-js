@@ -1,5 +1,4 @@
 var has = require('./internals/has');
-var isArray = require('./internals/is-array');
 var isForced = require('./internals/is-forced');
 var shared = require('./internals/shared-store');
 
@@ -9,7 +8,7 @@ var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR_PROTOTYPE = 'AsyncIteratorPrototype';
 
 var setAggressivenessLevel = function (object, constant) {
-  if (isArray(object)) for (var i = 0; i < object.length; i++) data[normalize(object[i])] = constant;
+  if (Array.isArray(object)) for (var i = 0; i < object.length; i++) data[normalize(object[i])] = constant;
 };
 
 module.exports = function (options) {

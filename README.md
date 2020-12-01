@@ -530,7 +530,6 @@ class Array {
   @@iterator(): Iterator<value>;
   @@unscopables: { [newMethodNames: string]: true };
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
-  static isArray(value: any): boolean;
   static of(...args: Array<mixed>): Array<mixed>;
 }
 

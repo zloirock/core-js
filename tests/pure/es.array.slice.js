@@ -1,6 +1,6 @@
 import { GLOBAL } from '../helpers/constants';
 
-import { slice, isArray } from 'core-js-pure/features/array';
+import { slice } from 'core-js-pure/features/array';
 import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.test('Array#slice', assert => {
@@ -21,7 +21,7 @@ QUnit.test('Array#slice', assert => {
   assert.deepEqual(slice(string, -2, -3), []);
   const list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
-    assert.notThrows(() => isArray(slice(list)), 'works with NodeList');
+    assert.notThrows(() => Array.isArray(slice(list)), 'works with NodeList');
   }
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor

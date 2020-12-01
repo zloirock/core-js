@@ -299,9 +299,6 @@ GLOBAL.tests = {
       return 1 / [1].indexOf(1, -0) > 0;
     }
   },
-  'es.array.is-array': function () {
-    return Array.isArray;
-  },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     return [][Symbol.iterator] === [].values
       && [][Symbol.iterator].name === 'values'
