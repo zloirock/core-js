@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants';
+import { GLOBAL, PROTO, STRICT } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
 import { Promise, Symbol } from 'core-js-pure';
@@ -18,7 +18,7 @@ QUnit.test('Promise', assert => {
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
+QUnit.test('Promise operations order', assert => {
   let resolve, resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';

@@ -1,6 +1,6 @@
-import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
+import { LITTLE_ENDIAN } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Uint32 conversions', assert => {
+QUnit.test('Uint32 conversions', assert => {
   const uint32array = new Uint32Array(1);
   const uint8array = new Uint8Array(uint32array.buffer);
   const dataview = new DataView(uint32array.buffer);

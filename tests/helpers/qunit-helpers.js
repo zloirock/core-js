@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL } from './constants';
+import { GLOBAL } from './constants';
 import isIterable from 'core-js-pure/features/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is } from './helpers';
@@ -109,39 +109,21 @@ QUnit.assert.name = function (fn, name, message) {
 };
 
 QUnit.assert.enumerable = function (O, key, message) {
-  if (DESCRIPTORS) {
-    this.pushResult({
-      result: propertyIsEnumerable.call(O, key),
-      actual: false,
-      expected: true,
-      message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
-    });
-  } else {
-    this.pushResult({
-      result: true,
-      actual: true,
-      expected: true,
-      message: 'Enumerability is not applicable',
-    });
-  }
+  this.pushResult({
+    result: propertyIsEnumerable.call(O, key),
+    actual: false,
+    expected: true,
+    message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
+  });
 };
 
 QUnit.assert.nonEnumerable = function (O, key, message) {
-  if (DESCRIPTORS) {
-    this.pushResult({
-      result: !propertyIsEnumerable.call(O, key),
-      actual: false,
-      expected: true,
-      message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
-    });
-  } else {
-    this.pushResult({
-      result: true,
-      actual: true,
-      expected: true,
-      message: 'Enumerability is not applicable',
-    });
-  }
+  this.pushResult({
+    result: !propertyIsEnumerable.call(O, key),
+    actual: false,
+    expected: true,
+    message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
+  });
 };
 
 QUnit.assert.notThrows = function (fn, message) {

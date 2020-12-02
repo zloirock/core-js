@@ -1,6 +1,6 @@
 /* eslint-disable radar/no-element-overwrite -- required for testing */
 
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -62,12 +62,10 @@ QUnit.test('Set', assert => {
   assert.ok(done);
   const object = {};
   new Set().add(object);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in results) keys.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+  const results = [];
+  for (const key in results) keys.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
@@ -252,12 +250,10 @@ QUnit.test('Set#size', assert => {
   const { size } = set;
   assert.strictEqual(typeof size, 'number', 'size is number');
   assert.strictEqual(size, 1, 'size is correct');
-  if (DESCRIPTORS) {
-    const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
-    assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
-    assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
-    assert.throws(() => Set.prototype.size, TypeError);
-  }
+  const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
+  assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
+  assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
+  assert.throws(() => Set.prototype.size, TypeError);
 });
 
 QUnit.test('Set & -0', assert => {

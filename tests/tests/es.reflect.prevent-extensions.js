@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants';
+import { FREEZING } from '../helpers/constants';
 
 QUnit.test('Reflect.preventExtensions', assert => {
   const { preventExtensions } = Reflect;
@@ -10,9 +10,7 @@ QUnit.test('Reflect.preventExtensions', assert => {
   assert.nonEnumerable(Reflect, 'preventExtensions');
   const object = {};
   assert.ok(preventExtensions(object), true);
-  if (DESCRIPTORS) {
-    assert.ok(!isExtensible(object));
-  }
+  assert.ok(!isExtensible(object));
   assert.throws(() => preventExtensions(42), TypeError, 'throws on primitive');
 });
 
