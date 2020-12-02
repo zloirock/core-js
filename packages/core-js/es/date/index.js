@@ -1,5 +1,4 @@
 require('../../modules/es.date.get-year');
-require('../../modules/es.date.now');
 require('../../modules/es.date.set-year');
 require('../../modules/es.date.to-gmt-string');
 require('../../modules/es.date.to-iso-string');
