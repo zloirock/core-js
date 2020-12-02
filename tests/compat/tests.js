@@ -480,9 +480,6 @@ GLOBAL.tests = {
   'es.escape': function () {
     return escape;
   },
-  'es.function.bind': function () {
-    return Function.prototype.bind;
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],

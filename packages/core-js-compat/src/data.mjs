@@ -369,15 +369,6 @@ export const data = {
     opera: '3',
     safari: '1',
     rhino: '1.7.13',
-  },
-  'es.function.bind': {
-    chrome: '7',
-    firefox: '4',
-    ie: '9',
-    opera: '12',
-    safari: '5.1',
-    rhino: '1.7.13',
-  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',
