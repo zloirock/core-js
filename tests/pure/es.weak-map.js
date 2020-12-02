@@ -1,5 +1,4 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers';
-import { DESCRIPTORS } from '../helpers/constants';
 
 import { Symbol, WeakMap } from 'core-js-pure';
 import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
@@ -47,12 +46,10 @@ QUnit.test('WeakMap', assert => {
   assert.ok(done);
   object = {};
   new WeakMap().set(object, 1);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in object) results.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+  const results = [];
+  for (const key in object) results.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);

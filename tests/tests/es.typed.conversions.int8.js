@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
+import { GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
 
-if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
+QUnit.test('Int8 conversions', assert => {
   const int8array = new Int8Array(1);
   const uint8array = new Uint8Array(int8array.buffer);
   const dataview = new DataView(int8array.buffer);

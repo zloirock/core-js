@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants';
+import { FREEZING } from '../helpers/constants';
 
 import preventExtensions from 'core-js-pure/features/reflect/prevent-extensions';
 import isExtensible from 'core-js-pure/features/object/is-extensible';
@@ -11,9 +11,7 @@ QUnit.test('Reflect.preventExtensions', assert => {
   }
   const object = {};
   assert.ok(preventExtensions(object), true);
-  if (DESCRIPTORS) {
-    assert.ok(!isExtensible(object));
-  }
+  assert.ok(!isExtensible(object));
   assert.throws(() => preventExtensions(42), TypeError, 'throws on primitive');
 });
 

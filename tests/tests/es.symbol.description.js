@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
 QUnit.test('Symbol#description', assert => {
   assert.same(Symbol('foo').description, 'foo');
   assert.same(Symbol('').description, '');
@@ -10,13 +8,11 @@ QUnit.test('Symbol#description', assert => {
   assert.same(Symbol().description, undefined);
   assert.same(Object(Symbol('foo')).description, 'foo');
   assert.same(Object(Symbol()).description, undefined);
-  if (DESCRIPTORS) {
-    assert.ok(!Object.prototype.hasOwnProperty.call(Symbol('foo'), 'description'));
-    const descriptor = Object.getOwnPropertyDescriptor(Symbol.prototype, 'description');
-    assert.same(descriptor.enumerable, false);
-    assert.same(descriptor.configurable, true);
-    assert.same(typeof descriptor.get, 'function');
-  }
+  assert.ok(!Object.prototype.hasOwnProperty.call(Symbol('foo'), 'description'));
+  const descriptor = Object.getOwnPropertyDescriptor(Symbol.prototype, 'description');
+  assert.same(descriptor.enumerable, false);
+  assert.same(descriptor.configurable, true);
+  assert.same(typeof descriptor.get, 'function');
   if (typeof Symbol() == 'symbol') {
     assert.same(Symbol('foo').toString(), 'Symbol(foo)');
     assert.same(String(Symbol('foo')), 'Symbol(foo)');

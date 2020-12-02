@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants';
+import { NATIVE, STRICT } from '../helpers/constants';
 
 QUnit.test('Array#fill', assert => {
   const { fill } = Array.prototype;
@@ -19,7 +19,7 @@ QUnit.test('Array#fill', assert => {
     assert.throws(() => fill.call(null, 0), TypeError);
     assert.throws(() => fill.call(undefined, 0), TypeError);
   }
-  if (NATIVE && DESCRIPTORS) {
+  if (NATIVE) {
     assert.notThrows(() => fill.call(Object.defineProperty({
       length: -1,
     }, 0, {

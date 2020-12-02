@@ -1,13 +1,3 @@
-export const DESCRIPTORS = !!(() => {
-  try {
-    return Object.defineProperty({}, 'a', {
-      get() {
-        return 7;
-      },
-    }).a === 7;
-  } catch { /* empty */ }
-})();
-
 export const GLOBAL = Function('return this')();
 
 export const NATIVE = GLOBAL.NATIVE || false;

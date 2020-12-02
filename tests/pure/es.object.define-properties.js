@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
 import defineProperties from 'core-js-pure/features/object/define-properties';
 
 QUnit.test('Object.defineProperties', assert => {
@@ -10,8 +8,4 @@ QUnit.test('Object.defineProperties', assert => {
   assert.same(result, source);
   assert.same(result.q, 42);
   assert.same(result.w, 33);
-});
-
-QUnit.test('Object.defineProperties.sham flag', assert => {
-  assert.same(defineProperties.sham, DESCRIPTORS ? undefined : true);
 });
