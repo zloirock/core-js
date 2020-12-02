@@ -50,7 +50,7 @@
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^5.5.0",
-    "semver": "^7.3.2",
+    "semver": "^7.3.4",
     "qunit": "^2.13.0",
     "webpack": ">=4.44.2 <5"
   },
