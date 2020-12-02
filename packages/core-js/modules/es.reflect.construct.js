@@ -4,10 +4,10 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var create = require('../internals/object-create');
-var bind = require('../internals/function-bind');
 var fails = require('../internals/fails');
 
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
+var bind = Function.prototype.bind;
 
 // `Reflect.construct` method
 // https://tc39.es/ecma262/#sec-reflect.construct
