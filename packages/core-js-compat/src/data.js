@@ -280,13 +280,6 @@ const data = {
     ie: '10',
     safari: '7.1',
   },
-  'es.date.now': {
-    chrome: '5',
-    firefox: '2',
-    ie: '9',
-    opera: '10.50',
-    safari: '4.0',
-  },
   'es.date.to-iso-string': {
     chrome: '26',
     firefox: '7',

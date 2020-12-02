@@ -14,6 +14,7 @@
     - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
 - Removed modules:
   - `es.array.is-array` (required for ES3 only)
+  - `es.date.now` (required for ES3 only)
   - `esnext.aggregate-error` (moved to stable ES)
   - `esnext.global-this` (moved to stable ES)
   - `esnext.map.update-or-insert` (obsolete)
@@ -34,6 +35,7 @@
   - `esnext.weak-map.upsert` (obsolete)
 - Removed features:
   - `Array.isArray` (required for ES3 only)
+  - `Date.now` (required for ES3 only)
   - `Map#updateOrInsert` (obsolete)
   - `Map#upsert` (obsolete)
   - `Math.iaddh` (withdrawn)

@@ -420,9 +420,6 @@ GLOBAL.tests = {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
   'es.data-view': ARRAY_BUFFER_SUPPORT,
-  'es.date.now': function () {
-    return Date.now;
-  },
   'es.date.to-iso-string': function () {
     try {
       new Date(NaN).toISOString();
