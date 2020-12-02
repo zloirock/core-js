@@ -4,7 +4,6 @@ import { createIterable } from '../helpers/helpers';
 import { Promise, Symbol } from 'core-js-pure';
 import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
 import { setPrototypeOf, create } from 'core-js-pure/features/object';
-import bind from 'core-js-pure/features/function/bind';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);
@@ -204,7 +203,7 @@ QUnit.test('Promise.all', assert => {
   let FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  FakePromise1.resolve = FakePromise2.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = resolve.bind(Promise);
   assert.ok(all.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
@@ -213,7 +212,7 @@ QUnit.test('Promise.all', assert => {
   const FakePromise3 = function (executor) {
     executor(() => { /* empty */ }, null);
   };
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     all.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');
@@ -264,7 +263,7 @@ QUnit.test('Promise.race', assert => {
   let FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  FakePromise1.resolve = FakePromise2.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = resolve.bind(Promise);
   assert.ok(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
@@ -273,7 +272,7 @@ QUnit.test('Promise.race', assert => {
   const FakePromise3 = function (executor) {
     executor(() => { /* empty */ }, null);
   };
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     race.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');

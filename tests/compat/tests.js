@@ -437,9 +437,6 @@ GLOBAL.tests = {
   'es.date.to-string': function () {
     return new Date(NaN).toString() == 'Invalid Date';
   },
-  'es.function.bind': function () {
-    return Function.prototype.bind;
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],

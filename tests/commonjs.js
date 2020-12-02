@@ -39,19 +39,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('features/object/lookup-getter') === 'function');
   ok(typeof load('features/object/lookup-setter') === 'function');
   ok('values' in load('features/object'));
-  ok(load('features/function/bind')(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('features/function/virtual/bind').call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('features/function/virtual').bind.call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
   load('features/function/name');
   load('features/function/has-instance');
   ok(Function[load('features/symbol/has-instance')](it => it));
-  ok('bind' in load('features/function'));
+  load('features/function');
   ok(typeof load('features/array/is-template-object') === 'function');
   ok(Array.isArray(load('features/array/from')('qwe')));
   ok(Array.isArray(load('features/array/of')('q', 'w', 'e')));
@@ -435,19 +426,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('stable/object/lookup-getter') === 'function');
   ok(typeof load('stable/object/lookup-setter') === 'function');
   ok('values' in load('stable/object'));
-  ok(load('stable/function/bind')(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('stable/function/virtual/bind').call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('stable/function/virtual').bind.call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
   load('stable/function/name');
   load('stable/function/has-instance');
   ok(Function[load('stable/symbol/has-instance')](it => it));
-  ok('bind' in load('stable/function'));
+  load('stable/function');
   ok(Array.isArray(load('stable/array/from')('qwe')));
   ok(Array.isArray(load('stable/array/of')('q', 'w', 'e')));
   ok(load('stable/array/join')('qwe', 1) === 'q1w1e');
@@ -705,19 +687,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('es/object/lookup-getter') === 'function');
   ok(typeof load('es/object/lookup-setter') === 'function');
   ok('values' in load('es/object'));
-  ok(load('es/function/bind')(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('es/function/virtual/bind').call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
-  ok(load('es/function/virtual').bind.call(function (a, b) {
-    return this + a + b;
-  }, 1, 2)(3) === 6);
   load('es/function/name');
   load('es/function/has-instance');
   ok(Function[load('es/symbol/has-instance')](it => it));
-  ok('bind' in load('es/function'));
+  load('es/function');
   ok(Array.isArray(load('es/array/from')('qwe')));
   ok(Array.isArray(load('es/array/of')('q', 'w', 'e')));
   ok(load('es/array/join')('qwe', 1) === 'q1w1e');
@@ -985,22 +958,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof instanceAt('') === 'function');
   ok(instanceAt([]).call([1, 2, 3], 2) === 3);
   ok(instanceAt('').call('123', 2) === '3');
-
-  let instanceBind = load('features/instance/bind');
-  ok(typeof instanceBind === 'function');
-  ok(instanceBind({}) === undefined);
-  ok(typeof instanceBind(it => it) === 'function');
-  ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
-  instanceBind = load('stable/instance/bind');
-  ok(typeof instanceBind === 'function');
-  ok(instanceBind({}) === undefined);
-  ok(typeof instanceBind(it => it) === 'function');
-  ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
-  instanceBind = load('es/instance/bind');
-  ok(typeof instanceBind === 'function');
-  ok(instanceBind({}) === undefined);
-  ok(typeof instanceBind(it => it) === 'function');
-  ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
 
   let instanceCodePointAt = load('features/instance/code-point-at');
   ok(typeof instanceCodePointAt === 'function');

@@ -475,11 +475,10 @@ const units = new Set([new Unit(101), new Unit(102)]);
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 #### ECMAScript: Function[⬆](#index)
-Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.bind.js).
+Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.name.js) and [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.has-instance.js).
 ```js
 class Function {
   name: string;
-  bind(thisArg: any, ...args: Array<mixed>): Function;
   @@hasInstance(value: any): boolean;
 }
 ```
@@ -488,14 +487,10 @@ class Function {
 core-js/es|stable|features/function
 core-js/es|stable|features/function/name
 core-js/es|stable|features/function/has-instance
-core-js/es|stable|features/function/bind
-core-js/es|stable|features/function/virtual/bind
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
 (function foo() {}).name // => 'foo'
-
-console.log.bind(console, 42)(43); // => 42 43
 ```
 
 #### ECMAScript: Array[⬆](#index)

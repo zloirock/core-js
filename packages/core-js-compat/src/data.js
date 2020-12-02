@@ -305,13 +305,6 @@ const data = {
     opera: '10.50',
     safari: '3.1',
   },
-  'es.function.bind': {
-    chrome: '7',
-    firefox: '4',
-    ie: '9',
-    opera: '12',
-    safari: '5.1',
-  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',
