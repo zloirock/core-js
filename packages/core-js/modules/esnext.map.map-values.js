@@ -15,7 +15,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   mapValues: function mapValues(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
-    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     var newMap = new (speciesConstructor(map, getBuiltIn('Map')))();
     var setter = aFunction(newMap.set);
     iterate(iterator, function (key, value) {

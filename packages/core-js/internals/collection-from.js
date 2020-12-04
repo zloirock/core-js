@@ -15,7 +15,7 @@ module.exports = function from(source /* , mapFn, thisArg */) {
   array = [];
   if (mapping) {
     n = 0;
-    boundFunction = bind(mapFn, length > 2 ? arguments[2] : undefined, 2);
+    boundFunction = bind(mapFn, length > 2 ? arguments[2] : undefined);
     iterate(source, function (nextItem) {
       array.push(boundFunction(nextItem, n++));
     });

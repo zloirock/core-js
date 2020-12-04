@@ -21,7 +21,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
     }
   }
   if (mapping && argumentsLength > 2) {
-    mapfn = bind(mapfn, arguments[2], 2);
+    mapfn = bind(mapfn, arguments[2]);
   }
   length = toLength(O.length);
   result = new (aTypedArrayConstructor(this))(length);
