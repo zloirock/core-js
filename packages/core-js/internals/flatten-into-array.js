@@ -9,7 +9,7 @@ var isArray = Array.isArray;
 var flattenIntoArray = function (target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
-  var mapFn = mapper ? bind(mapper, thisArg, 3) : false;
+  var mapFn = mapper ? bind(mapper, thisArg) : false;
   var element;
 
   while (sourceIndex < sourceLen) {

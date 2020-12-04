@@ -1,6 +1,5 @@
 var global = require('../internals/global');
 var fails = require('../internals/fails');
-var bind = require('../internals/function-bind-context');
 var html = require('../internals/html');
 var createElement = require('../internals/document-create-element');
 var IS_IOS = require('../internals/engine-is-ios');
@@ -73,7 +72,7 @@ if (!set || !clear) {
     channel = new MessageChannel();
     port = channel.port2;
     channel.port1.onmessage = listener;
-    defer = bind(port.postMessage, port, 1);
+    defer = port.postMessage.bind(port);
   // Browsers with postMessage, skip WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if (

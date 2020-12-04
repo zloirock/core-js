@@ -15,7 +15,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   map: function map(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
-    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();
     var adder = aFunction(newSet.add);
     iterate(iterator, function (value) {

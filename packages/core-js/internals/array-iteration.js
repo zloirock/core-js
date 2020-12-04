@@ -18,7 +18,7 @@ var createMethod = function (TYPE) {
   return function ($this, callbackfn, that, specificCreate) {
     var O = toObject($this);
     var self = IndexedObject(O);
-    var boundFunction = bind(callbackfn, that, 3);
+    var boundFunction = bind(callbackfn, that);
     var length = toLength(self.length);
     var index = 0;
     var create = specificCreate || arraySpeciesCreate;
