@@ -170,7 +170,7 @@ redefineAll(URLSearchParamsPrototype, {
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name) {
+  delete: function (name) {
     validateArgumentsLength(arguments.length, 1);
     var state = getInternalParamsState(this);
     var entries = state.entries;

@@ -43,7 +43,7 @@ UncaughtFrozenStore.prototype = {
     if (entry) entry[1] = value;
     else this.entries.push([key, value]);
   },
-  'delete': function (key) {
+  delete: function (key) {
     var index = findIndex(this.entries, function (it) {
       return it[0] === key;
     });
@@ -77,11 +77,11 @@ module.exports = {
     redefineAll(C.prototype, {
       // 23.3.3.2 WeakMap.prototype.delete(key)
       // 23.4.3.3 WeakSet.prototype.delete(value)
-      'delete': function (key) {
+      delete: function (key) {
         var state = getInternalState(this);
         if (!isObject(key)) return false;
         var data = getWeakData(key);
-        if (data === true) return uncaughtFrozenStore(state)['delete'](key);
+        if (data === true) return uncaughtFrozenStore(state).delete(key);
         return data && $has(data, state.id) && delete data[state.id];
       },
       // 23.3.3.4 WeakMap.prototype.has(key)

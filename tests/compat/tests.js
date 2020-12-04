@@ -55,7 +55,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   var result = '';
   url.pathname = 'c%20d';
   searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+    searchParams.delete('b');
     result += key + value;
   });
   return searchParams.sort
@@ -87,7 +87,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
       next: function () {
         return { done: !!called++ };
       },
-      'return': function () {
+      return: function () {
         SAFE_CLOSING = true;
       }
     };
@@ -179,7 +179,7 @@ GLOBAL.tests = {
   'es.symbol': [SYMBOLS_SUPPORT, function () {
     return Object.getOwnPropertySymbols
       && Object.getOwnPropertySymbols('qwe')
-      && Symbol['for']
+      && Symbol.for
       && Symbol.keyFor
       && JSON.stringify([Symbol()]) == '[null]'
       && JSON.stringify({ a: Symbol() }) == '{}'
@@ -679,7 +679,7 @@ GLOBAL.tests = {
     return Promise.any;
   },
   'es.promise.finally': [PROMISES_SUPPORT, function () {
-    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
+    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
   }],
   'es.reflect.apply': function () {
     try {
@@ -1292,7 +1292,7 @@ GLOBAL.tests = {
     return Observable;
   },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
-    return Promise['try'];
+    return Promise.try;
   }],
   'esnext.reflect.define-metadata': function () {
     return Reflect.defineMetadata;

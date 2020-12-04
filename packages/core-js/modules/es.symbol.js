@@ -213,7 +213,7 @@ $forEach(objectKeys(WellKnownSymbolsStore), function (name) {
 $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   // `Symbol.for` method
   // https://tc39.es/ecma262/#sec-symbol.for
-  'for': function (key) {
+  for: function (key) {
     var string = String(key);
     if (has(StringToSymbolRegistry, string)) return StringToSymbolRegistry[string];
     var symbol = $Symbol(string);

@@ -10,13 +10,13 @@ var redefine = require('../internals/redefine');
 
 // Safari bug https://bugs.webkit.org/show_bug.cgi?id=200829
 var NON_GENERIC = !!NativePromise && fails(function () {
-  NativePromise.prototype['finally'].call({ then: function () { /* empty */ } }, function () { /* empty */ });
+  NativePromise.prototype.finally.call({ then: function () { /* empty */ } }, function () { /* empty */ });
 });
 
 // `Promise.prototype.finally` method
 // https://tc39.es/ecma262/#sec-promise.prototype.finally
 $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
-  'finally': function (onFinally) {
+  finally: function (onFinally) {
     var C = speciesConstructor(this, getBuiltIn('Promise'));
     var isFunction = typeof onFinally == 'function';
     return this.then(
@@ -31,6 +31,6 @@ $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
 });
 
 // patch native Promise.prototype for native async functions
-if (!IS_PURE && typeof NativePromise == 'function' && !NativePromise.prototype['finally']) {
-  redefine(NativePromise.prototype, 'finally', getBuiltIn('Promise').prototype['finally']);
+if (!IS_PURE && typeof NativePromise == 'function' && !NativePromise.prototype.finally) {
+  redefine(NativePromise.prototype, 'finally', getBuiltIn('Promise').prototype.finally);
 }

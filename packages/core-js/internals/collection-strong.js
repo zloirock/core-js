@@ -84,7 +84,7 @@ module.exports = {
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function (key) {
+      delete: function (key) {
         var that = this;
         var state = getInternalState(that);
         var entry = getEntry(that, key);

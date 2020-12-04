@@ -13,7 +13,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   symmetricDifference: function symmetricDifference(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
-    var remover = aFunction(newSet['delete']);
+    var remover = aFunction(newSet.delete);
     var adder = aFunction(newSet.add);
     iterate(iterable, function (value) {
       remover.call(newSet, value) || adder.call(newSet, value);
