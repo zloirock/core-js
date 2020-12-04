@@ -1,9 +1,9 @@
 var getBuiltIn = require('../internals/get-built-in');
-var create = require('../internals/object-create');
 var isObject = require('../internals/is-object');
 
 var Map = getBuiltIn('Map');
 var WeakMap = getBuiltIn('WeakMap');
+var create = Object.create;
 
 var Node = function () {
   // keys

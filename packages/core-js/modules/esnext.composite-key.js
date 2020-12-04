@@ -1,7 +1,8 @@
 var $ = require('../internals/export');
 var getCompositeKeyNode = require('../internals/composite-key');
 var getBuiltIn = require('../internals/get-built-in');
-var create = require('../internals/object-create');
+
+var create = Object.create;
 
 var initializer = function () {
   var freeze = getBuiltIn('Object', 'freeze');

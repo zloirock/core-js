@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
@@ -21,7 +20,7 @@ var $AggregateError = function AggregateError(errors, message) {
   return that;
 };
 
-$AggregateError.prototype = create(Error.prototype, {
+$AggregateError.prototype = Object.create(Error.prototype, {
   constructor: createPropertyDescriptor(5, $AggregateError),
   message: createPropertyDescriptor(5, ''),
   name: createPropertyDescriptor(5, 'AggregateError')

@@ -7,7 +7,6 @@ var classof = require('../internals/classof-raw');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var create = require('../internals/object-create');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
@@ -18,7 +17,7 @@ var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 
 // Opera ~12 has broken Object#toString
-var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
+var BROKEN_CLASSOF = classof(Object.create(NumberPrototype)) == NUMBER;
 
 // `ToNumber` abstract operation
 // https://tc39.es/ecma262/#sec-tonumber
