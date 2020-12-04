@@ -16,5 +16,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     return iterate(iterator, function (key, value, stop) {
       if (boundFunction(value, key, map)) return stop(value);
     }, { AS_ENTRIES: true, IS_ITERATOR: true, INTERRUPTED: true }).result;
-  }
+  },
 });

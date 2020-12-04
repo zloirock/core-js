@@ -27,7 +27,7 @@ $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
         return promiseResolve(C, onFinally()).then(function () { throw e; });
       } : onFinally
     );
-  }
+  },
 });
 
 // patch native Promise.prototype for native async functions

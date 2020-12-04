@@ -11,5 +11,5 @@ $({ target: 'Object', stat: true }, {
       createProperty(obj, k, v);
     }, { AS_ENTRIES: true });
     return obj;
-  }
+  },
 });

@@ -28,5 +28,5 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     return comparefn === undefined
       ? nativeSort.call(toObject(this))
       : nativeSort.call(toObject(this), aFunction(comparefn));
-  }
+  },
 });

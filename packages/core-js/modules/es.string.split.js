@@ -131,6 +131,6 @@ fixRegExpWellKnownSymbolLogic('split', 2, function (SPLIT, nativeSplit, maybeCal
       }
       A.push(S.slice(p));
       return A;
-    }
+    },
   ];
 }, !SUPPORTS_Y);

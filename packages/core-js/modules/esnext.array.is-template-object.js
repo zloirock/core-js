@@ -26,5 +26,5 @@ $({ target: 'Array', stat: true }, {
     var raw = value.raw;
     if (raw.length !== value.length || !isFrozenStringArray(raw, false)) return false;
     return true;
-  }
+  },
 });

@@ -8,5 +8,5 @@ var CORRECT_PROTOTYPE_GETTER = require('../internals/correct-prototype-getter');
 $({ target: 'Reflect', stat: true, sham: !CORRECT_PROTOTYPE_GETTER }, {
   getPrototypeOf: function getPrototypeOf(target) {
     return objectGetPrototypeOf(anObject(target));
-  }
+  },
 });

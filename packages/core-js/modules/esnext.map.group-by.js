@@ -18,5 +18,5 @@ $({ target: 'Map', stat: true }, {
       else get.call(newMap, derivedKey).push(element);
     });
     return newMap;
-  }
+  },
 });

@@ -6,5 +6,5 @@ var forEach = require('../internals/array-for-each');
 // https://tc39.es/ecma262/#sec-array.prototype.foreach
 // eslint-disable-next-line es/no-array-prototype-foreach -- safe
 $({ target: 'Array', proto: true, forced: [].forEach != forEach }, {
-  forEach: forEach
+  forEach: forEach,
 });

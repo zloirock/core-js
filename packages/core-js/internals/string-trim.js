@@ -24,5 +24,5 @@ module.exports = {
   end: createMethod(2),
   // `String.prototype.trim` method
   // https://tc39.es/ecma262/#sec-string.prototype.trim
-  trim: createMethod(3)
+  trim: createMethod(3),
 };

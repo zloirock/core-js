@@ -41,5 +41,5 @@ if ((!IS_PURE || NEW_ITERATOR_PROTOTYPE) && !has(IteratorPrototype, ITERATOR)) {
 
 module.exports = {
   IteratorPrototype: IteratorPrototype,
-  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS
+  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS,
 };

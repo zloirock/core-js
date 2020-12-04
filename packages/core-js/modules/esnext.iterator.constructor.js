@@ -44,5 +44,5 @@ if (FORCED || !has(IteratorPrototype, 'constructor') || IteratorPrototype.constr
 IteratorConstructor.prototype = IteratorPrototype;
 
 $({ global: true, forced: FORCED }, {
-  Iterator: IteratorConstructor
+  Iterator: IteratorConstructor,
 });

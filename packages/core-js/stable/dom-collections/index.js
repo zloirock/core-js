@@ -8,5 +8,5 @@ module.exports = {
   values: ArrayIterators.values,
   entries: ArrayIterators.entries,
   iterator: ArrayIterators.values,
-  forEach: forEach
+  forEach: forEach,
 };

@@ -24,5 +24,5 @@ $({ global: true, bind: true, forced: MSIE }, {
   setTimeout: wrap(global.setTimeout),
   // `setInterval` method
   // https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-setinterval
-  setInterval: wrap(global.setInterval)
+  setInterval: wrap(global.setInterval),
 });

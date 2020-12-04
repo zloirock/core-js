@@ -49,7 +49,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     inclusiveEnd: inclusiveEnd,
     hitsEnd: hitsEnd,
     currentCount: zero,
-    zero: zero
+    zero: zero,
   });
 }, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
@@ -87,7 +87,7 @@ defineProperties($RangeIterator.prototype, {
   }),
   step: getter(function () {
     return getInternalState(this).step;
-  })
+  }),
 });
 
 module.exports = $RangeIterator;

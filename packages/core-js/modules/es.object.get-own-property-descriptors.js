@@ -19,5 +19,5 @@ $({ target: 'Object', stat: true }, {
       if (descriptor !== undefined) createProperty(result, key, descriptor);
     }
     return result;
-  }
+  },
 });

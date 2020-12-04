@@ -15,5 +15,5 @@ $({ target: 'String', stat: true }, {
       elements.push(String(rawTemplate[i++]));
       if (i < argumentsLength) elements.push(String(arguments[i]));
     } return elements.join('');
-  }
+  },
 });

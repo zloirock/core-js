@@ -11,5 +11,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { $isExtensible(1); });
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
   isExtensible: function isExtensible(it) {
     return isObject(it) ? $isExtensible ? $isExtensible(it) : true : false;
-  }
+  },
 });

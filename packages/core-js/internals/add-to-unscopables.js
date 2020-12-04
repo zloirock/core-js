@@ -9,7 +9,7 @@ var ArrayPrototype = Array.prototype;
 if (ArrayPrototype[UNSCOPABLES] == undefined) {
   definePropertyModule.f(ArrayPrototype, UNSCOPABLES, {
     configurable: true,
-    value: Object.create(null)
+    value: Object.create(null),
   });
 }
 

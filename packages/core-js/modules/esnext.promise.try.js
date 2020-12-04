@@ -11,5 +11,5 @@ $({ target: 'Promise', stat: true }, {
     var result = perform(callbackfn);
     (result.error ? promiseCapability.reject : promiseCapability.resolve)(result.value);
     return promiseCapability.promise;
-  }
+  },
 });

@@ -29,6 +29,6 @@ if ($stringify) {
     stringify: function stringify(it, replacer, space) {
       var result = $stringify.apply(null, arguments);
       return typeof result == 'string' ? result.replace(re, fix) : result;
-    }
+    },
   });
 }

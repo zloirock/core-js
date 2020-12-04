@@ -39,6 +39,6 @@ fixRegExpWellKnownSymbolLogic('match', 1, function (MATCH, nativeMatch, maybeCal
         n++;
       }
       return n === 0 ? null : A;
-    }
+    },
   ];
 });

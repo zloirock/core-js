@@ -89,7 +89,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
       },
       return: function () {
         SAFE_CLOSING = true;
-      }
+      },
     };
     iteratorWithReturn[Symbol.iterator] = function () {
       return this;
@@ -113,7 +113,7 @@ var TYPED_ARRAY_CONSTRUCTORS_LIST = {
   Int32Array: 4,
   Uint32Array: 4,
   Float32Array: 4,
-  Float64Array: 8
+  Float64Array: 8,
 };
 
 var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
@@ -136,7 +136,7 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
   var iterable = {
     next: function () {
       return { done: !!called++, value: 1 };
-    }
+    },
   };
   iterable[Symbol.iterator] = function () {
     return this;
@@ -458,7 +458,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [1, 2] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -588,9 +588,9 @@ GLOBAL.tests = {
       get: function () {
         Object.defineProperty(this, 'b', {
           value: 3,
-          enumerable: false
+          enumerable: false,
         });
-      }
+      },
     }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
@@ -786,7 +786,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: 1 };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -921,39 +921,39 @@ GLOBAL.tests = {
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.float64-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-clamped-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.copy-within': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.copyWithin;
@@ -981,7 +981,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.from;
-    }
+    },
   ],
   'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.includes;
@@ -1009,7 +1009,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.of;
-    }
+    },
   ],
   'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.reduce;
@@ -1052,7 +1052,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [key, 1] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1070,7 +1070,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: key };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1462,7 +1462,7 @@ GLOBAL.tests = {
       StyleSheetList: 0,
       TextTrackCueList: 0,
       TextTrackList: 0,
-      TouchList: 0
+      TouchList: 0,
     };
     for (var collection in DOMIterables) {
       if (GLOBAL[collection]) {
@@ -1492,5 +1492,5 @@ GLOBAL.tests = {
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT
+  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
 };

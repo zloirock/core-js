@@ -27,5 +27,5 @@ module.exports = {
   start: createMethod(false),
   // `String.prototype.padEnd` method
   // https://tc39.es/ecma262/#sec-string.prototype.padend
-  end: createMethod(true)
+  end: createMethod(true),
 };

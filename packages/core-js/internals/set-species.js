@@ -12,7 +12,7 @@ module.exports = function (CONSTRUCTOR_NAME) {
   if (Constructor && !Constructor[SPECIES]) {
     defineProperty(Constructor, SPECIES, {
       configurable: true,
-      get: function () { return this; }
+      get: function () { return this; },
     });
   }
 };

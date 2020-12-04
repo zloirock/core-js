@@ -14,7 +14,7 @@ if (FIND in []) Array(1)[FIND](function () { SKIPS_HOLES = false; });
 $({ target: 'Array', proto: true, forced: SKIPS_HOLES }, {
   find: function find(callbackfn /* , that = undefined */) {
     return $find(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });
 
 // https://tc39.es/ecma262/#sec-array.prototype-@@unscopables

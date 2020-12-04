@@ -47,7 +47,7 @@ var Subscription = function (observer, subscriber) {
   var subscriptionState = setInternalState(this, {
     cleanup: undefined,
     observer: anObject(observer),
-    subscriptionObserver: undefined
+    subscriptionObserver: undefined,
   });
   var start;
   try {
@@ -76,14 +76,14 @@ Subscription.prototype = redefineAll({}, {
       close(this, subscriptionState);
       cleanupSubscription(subscriptionState);
     }
-  }
+  },
 });
 
 defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed(getInternalState(this));
-  }
+  },
 });
 
 var SubscriptionObserver = function (subscription) {
@@ -131,14 +131,14 @@ SubscriptionObserver.prototype = redefineAll({}, {
         hostReportErrors(error);
       } cleanupSubscription(subscriptionState);
     }
-  }
+  },
 });
 
 defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed(getInternalState(getInternalState(this).subscription));
-  }
+  },
 });
 
 var $Observable = function Observable(subscriber) {
@@ -152,9 +152,9 @@ redefineAll($Observable.prototype, {
     return new Subscription(typeof observer === 'function' ? {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
-      complete: length > 2 ? arguments[2] : undefined
+      complete: length > 2 ? arguments[2] : undefined,
     } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
-  }
+  },
 });
 
 redefineAll($Observable, {
@@ -188,13 +188,13 @@ redefineAll($Observable, {
         if (observer.closed) return;
       } observer.complete();
     });
-  }
+  },
 });
 
 createNonEnumerableProperty($Observable.prototype, OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
-  Observable: $Observable
+  Observable: $Observable,
 });
 
 setSpecies('Observable');

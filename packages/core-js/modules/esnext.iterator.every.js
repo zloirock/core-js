@@ -12,5 +12,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     return !iterate(this, function (value, stop) {
       if (!fn(value)) return stop();
     }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });

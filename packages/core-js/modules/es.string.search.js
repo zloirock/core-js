@@ -29,6 +29,6 @@ fixRegExpWellKnownSymbolLogic('search', 1, function (SEARCH, nativeSearch, maybe
       var result = regExpExec(rx, S);
       if (!sameValue(rx.lastIndex, previousLastIndex)) rx.lastIndex = previousLastIndex;
       return result === null ? -1 : result.index;
-    }
+    },
   ];
 });

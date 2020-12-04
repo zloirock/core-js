@@ -23,11 +23,11 @@ var $AggregateError = function AggregateError(errors, message) {
 $AggregateError.prototype = Object.create(Error.prototype, {
   constructor: createPropertyDescriptor(5, $AggregateError),
   message: createPropertyDescriptor(5, ''),
-  name: createPropertyDescriptor(5, 'AggregateError')
+  name: createPropertyDescriptor(5, 'AggregateError'),
 });
 
 // `AggregateError` constructor
 // https://tc39.es/ecma262/#sec-aggregate-error-constructor
 $({ global: true }, {
-  AggregateError: $AggregateError
+  AggregateError: $AggregateError,
 });

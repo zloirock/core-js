@@ -22,5 +22,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
       setter.call(newMap, boundFunction(value, key, map), value);
     }, { AS_ENTRIES: true, IS_ITERATOR: true });
     return newMap;
-  }
+  },
 });

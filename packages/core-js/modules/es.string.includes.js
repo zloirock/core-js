@@ -10,5 +10,5 @@ $({ target: 'String', proto: true, forced: !correctIsRegExpLogic('includes') }, 
   includes: function includes(searchString /* , position = 0 */) {
     return !!~String(requireObjectCoercible(this))
       .indexOf(notARegExp(searchString), arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });

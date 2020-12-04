@@ -40,10 +40,10 @@ if (typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.protot
       if (has(EmptyStringDescriptionStore, symbol)) return '';
       var desc = native ? string.slice(7, -1) : string.replace(regexp, '$1');
       return desc === '' ? undefined : desc;
-    }
+    },
   });
 
   $({ global: true, forced: true }, {
-    Symbol: SymbolWrapper
+    Symbol: SymbolWrapper,
   });
 }

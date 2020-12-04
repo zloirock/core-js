@@ -47,5 +47,5 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
     var instance = create(isObject(proto) ? proto : Object.prototype);
     var result = Function.apply.call(Target, instance, args);
     return isObject(result) ? result : instance;
-  }
+  },
 });

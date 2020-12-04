@@ -68,5 +68,5 @@ module.exports = {
   findIndex: createMethod(6),
   // `Array.prototype.filterOut` method
   // https://github.com/tc39/proposal-array-filtering
-  filterOut: createMethod(7)
+  filterOut: createMethod(7),
 };

@@ -17,7 +17,7 @@ var CI = [
   'CI',
   'CONTINUOUS_INTEGRATION',
   'DRONE',
-  'RUN_ID'
+  'RUN_ID',
 ].some(function (it) { return is(env[it]); });
 
 var BANNER = '\u001B[96mThank you for using core-js (\u001B[94m https://github.com/zloirock/core-js \u001B[96m) for polyfilling JavaScript standard library!\u001B[0m\n\n' +

@@ -18,5 +18,5 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     var relativeIndex = toInteger(index);
     var k = relativeIndex >= 0 ? relativeIndex : len + relativeIndex;
     return (k < 0 || k >= len) ? undefined : S.charAt(k);
-  }
+  },
 });

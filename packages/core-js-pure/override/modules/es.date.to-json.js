@@ -20,5 +20,5 @@ $({ target: 'Date', proto: true, forced: FORCED }, {
     var pv = toPrimitive(O);
     return typeof pv == 'number' && !isFinite(pv) ? null :
       (!('toISOString' in O) && classof(O) == 'Date') ? toISOString.call(O) : O.toISOString();
-  }
+  },
 });

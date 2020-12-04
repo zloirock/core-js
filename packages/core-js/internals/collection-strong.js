@@ -21,7 +21,7 @@ module.exports = {
         index: Object.create(null),
         first: undefined,
         last: undefined,
-        size: 0
+        size: 0,
       });
       if (iterable != undefined) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
@@ -43,7 +43,7 @@ module.exports = {
           value: value,
           previous: previous = state.last,
           next: undefined,
-          removed: false
+          removed: false,
         };
         if (!state.first) state.first = entry;
         if (previous) previous.next = entry;
@@ -116,7 +116,7 @@ module.exports = {
       // 23.2.3.7 Set.prototype.has(value)
       has: function has(key) {
         return !!getEntry(this, key);
-      }
+      },
     });
 
     redefineAll(C.prototype, IS_MAP ? {
@@ -128,17 +128,17 @@ module.exports = {
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function set(key, value) {
         return define(this, key === 0 ? 0 : key, value);
-      }
+      },
     } : {
       // 23.2.3.1 Set.prototype.add(value)
       add: function add(value) {
         return define(this, value = value === 0 ? 0 : value, value);
-      }
+      },
     });
     defineProperty(C.prototype, 'size', {
       get: function () {
         return getInternalState(this).size;
-      }
+      },
     });
     return C;
   },
@@ -154,7 +154,7 @@ module.exports = {
         target: iterated,
         state: getInternalCollectionState(iterated),
         kind: kind,
-        last: undefined
+        last: undefined,
       });
     }, function () {
       var state = getInternalIteratorState(this);
@@ -176,5 +176,5 @@ module.exports = {
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     setSpecies(CONSTRUCTOR_NAME);
-  }
+  },
 };

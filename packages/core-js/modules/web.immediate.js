@@ -11,5 +11,5 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
   setImmediate: task.set,
   // `clearImmediate` method
   // http://w3c.github.io/setImmediate/#si-clearImmediate
-  clearImmediate: task.clear
+  clearImmediate: task.clear,
 });

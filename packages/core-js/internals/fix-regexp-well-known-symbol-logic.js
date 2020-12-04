@@ -105,7 +105,7 @@ module.exports = function (KEY, length, exec, sham) {
       return { done: false };
     }, {
       REPLACE_KEEPS_$0: REPLACE_KEEPS_$0,
-      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE: REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
+      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE: REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE,
     });
     var stringMethod = methods[0];
     var regexMethod = methods[1];

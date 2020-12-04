@@ -26,5 +26,5 @@ $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
       throw new Error('RegExp exec method returned something other than an Object or null');
     }
     return !!result;
-  }
+  },
 });

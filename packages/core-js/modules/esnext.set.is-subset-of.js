@@ -21,5 +21,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     return !iterate(iterator, function (value, stop) {
       if (hasCheck.call(otherSet, value) === false) return stop();
     }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });

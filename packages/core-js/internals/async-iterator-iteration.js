@@ -76,5 +76,5 @@ module.exports = {
   forEach: createMethod(1),
   every: createMethod(2),
   some: createMethod(3),
-  find: createMethod(4)
+  find: createMethod(4),
 };

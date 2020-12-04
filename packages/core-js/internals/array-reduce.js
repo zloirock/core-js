@@ -36,5 +36,5 @@ module.exports = {
   left: createMethod(false),
   // `Array.prototype.reduceRight` method
   // https://tc39.es/ecma262/#sec-array.prototype.reduceright
-  right: createMethod(true)
+  right: createMethod(true),
 };

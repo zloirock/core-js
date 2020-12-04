@@ -7,5 +7,5 @@ var getOwnPropertyDescriptorModule = require('../internals/object-get-own-proper
 $({ target: 'Reflect', stat: true }, {
   getOwnPropertyDescriptor: function getOwnPropertyDescriptor(target, propertyKey) {
     return getOwnPropertyDescriptorModule.f(anObject(target), propertyKey);
-  }
+  },
 });

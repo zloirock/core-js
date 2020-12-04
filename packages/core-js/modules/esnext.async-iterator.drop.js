@@ -35,7 +35,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
-      remaining: toPositiveInteger(limit)
+      remaining: toPositiveInteger(limit),
     });
-  }
+  },
 });

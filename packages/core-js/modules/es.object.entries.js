@@ -6,5 +6,5 @@ var $entries = require('../internals/object-to-array').entries;
 $({ target: 'Object', stat: true }, {
   entries: function entries(O) {
     return $entries(O);
-  }
+  },
 });

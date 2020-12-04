@@ -17,5 +17,5 @@ var FORCED = fails(function () {
 $({ target: 'Math', stat: true, forced: FORCED }, {
   sinh: function sinh(x) {
     return abs(x = +x) < 1 ? (expm1(x) - expm1(-x)) / 2 : (exp(x - 1) - exp(-x - 1)) * (E / 2);
-  }
+  },
 });

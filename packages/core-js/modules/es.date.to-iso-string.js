@@ -5,5 +5,5 @@ var toISOString = require('../internals/date-to-iso-string');
 // https://tc39.es/ecma262/#sec-date.prototype.toisostring
 // PhantomJS / old WebKit has a broken implementations
 $({ target: 'Date', proto: true, forced: Date.prototype.toISOString !== toISOString }, {
-  toISOString: toISOString
+  toISOString: toISOString,
 });

@@ -8,5 +8,5 @@ var LOG10E = Math.LOG10E;
 $({ target: 'Math', stat: true }, {
   log10: function log10(x) {
     return log(x) * LOG10E;
-  }
+  },
 });

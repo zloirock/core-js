@@ -22,5 +22,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       adder.call(newSet, boundFunction(value, value, set));
     }, { IS_ITERATOR: true });
     return newSet;
-  }
+  },
 });

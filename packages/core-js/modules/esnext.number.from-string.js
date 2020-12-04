@@ -26,5 +26,5 @@ $({ target: 'Number', stat: true }, {
       throw SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
     return sign * mathNum;
-  }
+  },
 });

@@ -37,7 +37,7 @@ var TypedArrayConstructorsList = {
   Int32Array: 4,
   Uint32Array: 4,
   Float32Array: 4,
-  Float64Array: 8
+  Float64Array: 8,
 };
 
 var BigIntArrayConstructorsList = {
@@ -160,5 +160,5 @@ module.exports = {
   isView: isView,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
-  TypedArrayPrototype: TypedArrayPrototype
+  TypedArrayPrototype: TypedArrayPrototype,
 };

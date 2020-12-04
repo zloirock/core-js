@@ -24,7 +24,7 @@ $({ target: 'AsyncIterator', stat: true }, {
     } else {
       iterator = object;
     } return new AsyncIteratorProxy({
-      iterator: iterator
+      iterator: iterator,
     });
-  }
+  },
 });

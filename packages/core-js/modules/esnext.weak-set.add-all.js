@@ -8,5 +8,5 @@ var collectionAddAll = require('../internals/collection-add-all');
 $({ target: 'WeakSet', proto: true, real: true, forced: IS_PURE }, {
   addAll: function addAll(/* ...elements */) {
     return collectionAddAll.apply(this, arguments);
-  }
+  },
 });

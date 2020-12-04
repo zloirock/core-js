@@ -15,5 +15,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var result = [];
     iterate(iterator, result.push, { that: result, IS_ITERATOR: true });
     return result.join(sep);
-  }
+  },
 });

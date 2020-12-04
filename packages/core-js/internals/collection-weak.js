@@ -49,7 +49,7 @@ UncaughtFrozenStore.prototype = {
     });
     if (~index) this.entries.splice(index, 1);
     return !!~index;
-  }
+  },
 };
 
 module.exports = {
@@ -59,7 +59,7 @@ module.exports = {
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
         id: id++,
-        frozen: undefined
+        frozen: undefined,
       });
       if (iterable != undefined) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
@@ -92,7 +92,7 @@ module.exports = {
         var data = getWeakData(key);
         if (data === true) return uncaughtFrozenStore(state).has(key);
         return data && $has(data, state.id);
-      }
+      },
     });
 
     redefineAll(C.prototype, IS_MAP ? {
@@ -108,14 +108,14 @@ module.exports = {
       // 23.3.3.5 WeakMap.prototype.set(key, value)
       set: function set(key, value) {
         return define(this, key, value);
-      }
+      },
     } : {
       // 23.4.3.1 WeakSet.prototype.add(value)
       add: function add(value) {
         return define(this, value, true);
-      }
+      },
     });
 
     return C;
-  }
+  },
 };

@@ -17,5 +17,5 @@ $({ target: 'Array', proto: true }, {
     A = arraySpeciesCreate(O, 0);
     A.length = flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     return A;
-  }
+  },
 });

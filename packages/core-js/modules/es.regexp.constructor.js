@@ -68,7 +68,7 @@ if (FORCED) {
     key in RegExpWrapper || defineProperty(RegExpWrapper, key, {
       configurable: true,
       get: function () { return NativeRegExp[key]; },
-      set: function (it) { NativeRegExp[key] = it; }
+      set: function (it) { NativeRegExp[key] = it; },
     });
   };
   var keys = getOwnPropertyNames(NativeRegExp);

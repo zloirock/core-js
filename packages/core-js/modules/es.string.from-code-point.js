@@ -25,5 +25,5 @@ $({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
         : fromCharCode(((code -= 0x10000) >> 10) + 0xD800, code % 0x400 + 0xDC00)
       );
     } return elements.join('');
-  }
+  },
 });
