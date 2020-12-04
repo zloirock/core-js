@@ -7,5 +7,5 @@ var DEG_PER_RAD = Math.PI / 180;
 $({ target: 'Math', stat: true }, {
   radians: function radians(degrees) {
     return degrees * DEG_PER_RAD;
-  }
+  },
 });

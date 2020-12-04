@@ -26,7 +26,7 @@ $({ target: 'Iterator', stat: true }, {
     } else {
       iterator = object;
     } return new IteratorProxy({
-      iterator: iterator
+      iterator: iterator,
     });
-  }
+  },
 });

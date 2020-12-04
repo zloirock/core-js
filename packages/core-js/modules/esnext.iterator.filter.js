@@ -24,7 +24,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new IteratorProxy({
       iterator: anObject(this),
-      filterer: aFunction(filterer)
+      filterer: aFunction(filterer),
     });
-  }
+  },
 });

@@ -11,6 +11,6 @@ var FAILS_ON_PRIMITIVES = fails(function () { nativeGetPrototypeOf(1); });
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES, sham: !CORRECT_PROTOTYPE_GETTER }, {
   getPrototypeOf: function getPrototypeOf(it) {
     return nativeGetPrototypeOf(toObject(it));
-  }
+  },
 });
 

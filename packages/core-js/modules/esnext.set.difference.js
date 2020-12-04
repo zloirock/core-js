@@ -18,5 +18,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       remover.call(newSet, value);
     });
     return newSet;
-  }
+  },
 });

@@ -49,7 +49,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       }
     },
     return: $return,
-    throw: $throw
+    throw: $throw,
   });
 
   if (!IS_ITERATOR) {

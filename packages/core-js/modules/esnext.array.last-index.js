@@ -13,7 +13,7 @@ if (!('lastIndex' in [])) {
       var O = toObject(this);
       var len = toLength(O.length);
       return len == 0 ? 0 : len - 1;
-    }
+    },
   });
 
   addToUnscopables('lastIndex');

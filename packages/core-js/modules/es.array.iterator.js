@@ -24,7 +24,7 @@ module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
     type: ARRAY_ITERATOR,
     target: toIndexedObject(iterated), // target
     index: 0,                          // next index
-    kind: kind                         // kind
+    kind: kind,                        // kind
   });
 // `%ArrayIteratorPrototype%.next` method
 // https://tc39.es/ecma262/#sec-%arrayiteratorprototype%.next

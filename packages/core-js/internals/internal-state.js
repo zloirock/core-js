@@ -63,5 +63,5 @@ module.exports = {
   get: get,
   has: has,
   enforce: enforce,
-  getterFor: getterFor
+  getterFor: getterFor,
 };

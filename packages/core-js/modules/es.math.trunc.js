@@ -8,5 +8,5 @@ var floor = Math.floor;
 $({ target: 'Math', stat: true }, {
   trunc: function trunc(it) {
     return (it > 0 ? floor : ceil)(it);
-  }
+  },
 });

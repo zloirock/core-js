@@ -61,7 +61,7 @@ var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChil
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var setSymbolDescriptor = fails(function () {
   return nativeObjectCreate(nativeDefineProperty({}, 'a', {
-    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
+    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; },
   })).a != 7;
 }) ? function (O, P, Attributes) {
   var ObjectPrototypeDescriptor = nativeGetOwnPropertyDescriptor(ObjectPrototype, P);
@@ -77,7 +77,7 @@ var wrap = function (tag, description) {
   setInternalState(symbol, {
     type: SYMBOL,
     tag: tag,
-    description: description
+    description: description,
   });
   return symbol;
 };
@@ -190,7 +190,7 @@ if (!NATIVE_SYMBOL) {
     configurable: true,
     get: function description() {
       return getInternalState(this).description;
-    }
+    },
   });
   if (!IS_PURE) {
     redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
@@ -198,7 +198,7 @@ if (!NATIVE_SYMBOL) {
 }
 
 $({ global: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
-  Symbol: $Symbol
+  Symbol: $Symbol,
 });
 
 $forEach(objectKeys(WellKnownSymbolsStore), function (name) {
@@ -223,7 +223,7 @@ $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
     if (has(SymbolToStringRegistry, sym)) return SymbolToStringRegistry[sym];
   },
   useSetter: function () { USE_SETTER = true; },
-  useSimple: function () { USE_SETTER = false; }
+  useSimple: function () { USE_SETTER = false; },
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
@@ -238,7 +238,7 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   defineProperties: $defineProperties,
   // `Object.getOwnPropertyDescriptor` method
   // https://tc39.es/ecma262/#sec-object.getownpropertydescriptors
-  getOwnPropertyDescriptor: $getOwnPropertyDescriptor
+  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
@@ -247,7 +247,7 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   getOwnPropertyNames: $getOwnPropertyNames,
   // `Object.getOwnPropertySymbols` method
   // https://tc39.es/ecma262/#sec-object.getownpropertysymbols
-  getOwnPropertySymbols: $getOwnPropertySymbols
+  getOwnPropertySymbols: $getOwnPropertySymbols,
 });
 
 // Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
@@ -255,7 +255,7 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
 $({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
     return getOwnPropertySymbolsModule.f(toObject(it));
-  }
+  },
 });
 
 // `JSON.stringify` method behavior with symbols
@@ -286,7 +286,7 @@ if ($stringify) {
       };
       args[1] = replacer;
       return $stringify.apply(null, args);
-    }
+    },
   });
 }
 

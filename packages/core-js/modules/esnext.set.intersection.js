@@ -19,5 +19,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       if (hasCheck.call(set, value)) adder.call(newSet, value);
     });
     return newSet;
-  }
+  },
 });

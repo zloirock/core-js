@@ -15,5 +15,5 @@ if (objectSetPrototypeOf) $({ target: 'Reflect', stat: true }, {
     } catch (error) {
       return false;
     }
-  }
+  },
 });

@@ -64,5 +64,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     }
     O.length = len - actualDeleteCount + insertCount;
     return A;
-  }
+  },
 });

@@ -10,5 +10,5 @@ $({ target: 'Math', stat: true }, {
     var a = expm1(x = +x);
     var b = expm1(-x);
     return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
-  }
+  },
 });

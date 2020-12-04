@@ -8,5 +8,5 @@ $({ target: 'Reflect', stat: true }, {
   deleteProperty: function deleteProperty(target, propertyKey) {
     var descriptor = getOwnPropertyDescriptor(anObject(target), propertyKey);
     return descriptor && !descriptor.configurable ? false : delete target[propertyKey];
-  }
+  },
 });

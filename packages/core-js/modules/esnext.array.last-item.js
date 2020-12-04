@@ -18,7 +18,7 @@ if (!('lastItem' in [])) {
       var O = toObject(this);
       var len = toLength(O.length);
       return O[len == 0 ? 0 : len - 1] = value;
-    }
+    },
   });
 
   addToUnscopables('lastItem');

@@ -88,7 +88,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     var byteLength = toIndex(length);
     setInternalState(this, {
       bytes: arrayFill.call(new Array(byteLength), 0),
-      byteLength: byteLength
+      byteLength: byteLength,
     });
   };
 
@@ -103,7 +103,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     setInternalState(this, {
       buffer: buffer,
       byteLength: byteLength,
-      byteOffset: offset
+      byteOffset: offset,
     });
   };
 
@@ -162,7 +162,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setFloat64: function setFloat64(byteOffset, value /* , littleEndian */) {
       set(this, 8, byteOffset, packFloat64, value, arguments.length > 2 ? arguments[2] : undefined);
-    }
+    },
   });
 } else {
   /* eslint-disable no-new -- required for testing */
@@ -206,7 +206,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setUint8: function setUint8(byteOffset, value) {
       $setInt8.call(this, byteOffset, value << 24 >> 24);
-    }
+    },
   }, { unsafe: true });
 }
 
@@ -215,5 +215,5 @@ setToStringTag($DataView, DATA_VIEW);
 
 module.exports = {
   ArrayBuffer: $ArrayBuffer,
-  DataView: $DataView
+  DataView: $DataView,
 };

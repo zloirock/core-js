@@ -107,7 +107,7 @@ if (!NATIVE_ARRAY_BUFFER_VIEWS) {
 
 $({ target: 'Object', stat: true, forced: !NATIVE_ARRAY_BUFFER_VIEWS }, {
   getOwnPropertyDescriptor: wrappedGetOwnPropertyDescriptor,
-  defineProperty: wrappedDefineProperty
+  defineProperty: wrappedDefineProperty,
 });
 
 module.exports = function (TYPE, wrapper, CLAMPED) {
@@ -139,7 +139,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
       set: function (value) {
         return setter(this, index, value);
       },
-      enumerable: true
+      enumerable: true,
     });
   };
 
@@ -176,7 +176,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
         byteOffset: byteOffset,
         byteLength: byteLength,
         length: length,
-        view: new DataView(buffer)
+        view: new DataView(buffer),
       });
       while (index < length) addElement(that, index++);
     });
@@ -220,7 +220,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
   $({
-    global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor, sham: !NATIVE_ARRAY_BUFFER_VIEWS
+    global: true, forced: TypedArrayConstructor != NativeTypedArrayConstructor, sham: !NATIVE_ARRAY_BUFFER_VIEWS,
   }, exported);
 
   if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {

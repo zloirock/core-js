@@ -25,7 +25,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   take: function take(limit) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
-      remaining: toPositiveInteger(limit)
+      remaining: toPositiveInteger(limit),
     });
-  }
+  },
 });

@@ -16,5 +16,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     return iterate(iterator, function (value, stop) {
       if (boundFunction(value, value, set)) return stop(value);
     }, { IS_ITERATOR: true, INTERRUPTED: true }).result;
-  }
+  },
 });

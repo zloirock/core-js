@@ -25,5 +25,5 @@ if (!has(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPrototype.constr
 }
 
 $({ global: true, forced: IS_PURE }, {
-  AsyncIterator: AsyncIteratorConstructor
+  AsyncIterator: AsyncIteratorConstructor,
 });

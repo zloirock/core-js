@@ -98,5 +98,5 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     while (index < arrayLength) delete array[index++];
 
     return array;
-  }
+  },
 });

@@ -6,5 +6,5 @@ var $emplace = require('../internals/map-emplace');
 // `WeakMap.prototype.emplace` method
 // https://github.com/tc39/proposal-upsert
 $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
-  emplace: $emplace
+  emplace: $emplace,
 });

@@ -5,5 +5,5 @@ var $ = require('../internals/export');
 $({ target: 'Math', stat: true }, {
   signbit: function signbit(x) {
     return (x = +x) == x && x == 0 ? 1 / x == -Infinity : x < 0;
-  }
+  },
 });

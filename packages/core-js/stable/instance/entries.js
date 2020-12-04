@@ -5,7 +5,7 @@ var ArrayPrototype = Array.prototype;
 
 var DOMIterables = {
   DOMTokenList: true,
-  NodeList: true
+  NodeList: true,
 };
 
 module.exports = function (it) {

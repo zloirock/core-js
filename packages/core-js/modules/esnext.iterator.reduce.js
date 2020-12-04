@@ -21,5 +21,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     }, { IS_ITERATOR: true });
     if (noInitial) throw TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
-  }
+  },
 });

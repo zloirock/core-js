@@ -40,6 +40,6 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
         n++;
       }
       return n === 0 ? null : A;
-    }
+    },
   ];
 });

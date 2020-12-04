@@ -13,7 +13,7 @@ var SEED_TYPE_ERROR = 'Math.seededPRNG() argument should have a "seed" field wit
 var $SeededRandomGenerator = createIteratorConstructor(function SeededRandomGenerator(seed) {
   setInternalState(this, {
     type: SEEDED_RANDOM_GENERATOR,
-    seed: seed % 2147483647
+    seed: seed % 2147483647,
   });
 }, SEEDED_RANDOM, function next() {
   var state = getInternalState(this);
@@ -29,5 +29,5 @@ $({ target: 'Math', stat: true, forced: true }, {
     var seed = anObject(it).seed;
     if (!numberIsFinite(seed)) throw TypeError(SEED_TYPE_ERROR);
     return new $SeededRandomGenerator(seed);
-  }
+  },
 });

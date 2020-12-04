@@ -12,5 +12,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     return iterate(getMapIterator(anObject(this)), function (key, value, stop) {
       if (value === searchElement) return stop(key);
     }, { AS_ENTRIES: true, IS_ITERATOR: true, INTERRUPTED: true }).result;
-  }
+  },
 });

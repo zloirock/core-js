@@ -9,5 +9,5 @@ var pow = Math.pow;
 $({ target: 'Math', stat: true }, {
   cbrt: function cbrt(x) {
     return sign(x = +x) * pow(abs(x), 1 / 3);
-  }
+  },
 });

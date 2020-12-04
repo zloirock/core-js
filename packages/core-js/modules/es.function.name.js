@@ -16,6 +16,6 @@ if (!(NAME in FunctionPrototype)) {
       } catch (error) {
         return '';
       }
-    }
+    },
   });
 }

@@ -14,7 +14,7 @@ $({ target: 'Array', proto: true }, {
     var relativeIndex = toInteger(index);
     var k = relativeIndex >= 0 ? relativeIndex : len + relativeIndex;
     return (k < 0 || k >= len) ? undefined : O[k];
-  }
+  },
 });
 
 addToUnscopables('at');

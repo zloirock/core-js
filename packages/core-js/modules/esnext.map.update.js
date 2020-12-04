@@ -18,5 +18,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var value = isPresentInMap ? map.get(key) : aFunction(length > 2 ? arguments[2] : undefined)(key, map);
     map.set(key, callback(value, key, map));
     return map;
-  }
+  },
 });

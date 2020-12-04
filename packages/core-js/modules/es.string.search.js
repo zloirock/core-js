@@ -30,6 +30,6 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
       var result = regExpExec(rx, S);
       if (!sameValue(rx.lastIndex, previousLastIndex)) rx.lastIndex = previousLastIndex;
       return result === null ? -1 : result.index;
-    }
+    },
   ];
 });

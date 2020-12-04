@@ -17,5 +17,5 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
       iterate(arguments[i++], setter, { that: map, AS_ENTRIES: true });
     }
     return map;
-  }
+  },
 });

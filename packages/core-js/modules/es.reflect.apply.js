@@ -21,5 +21,5 @@ $({ target: 'Reflect', stat: true, forced: OPTIONAL_ARGUMENTS_LIST }, {
     return nativeApply
       ? nativeApply(target, thisArgument, argumentsList)
       : functionApply.call(target, thisArgument, argumentsList);
-  }
+  },
 });

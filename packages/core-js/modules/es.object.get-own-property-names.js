@@ -8,5 +8,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { return !Object.getOwnPropertyNames
 // `Object.getOwnPropertyNames` method
 // https://tc39.es/ecma262/#sec-object.getownpropertynames
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
-  getOwnPropertyNames: getOwnPropertyNames
+  getOwnPropertyNames: getOwnPropertyNames,
 });

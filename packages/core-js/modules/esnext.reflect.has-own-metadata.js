@@ -11,5 +11,5 @@ $({ target: 'Reflect', stat: true }, {
   hasOwnMetadata: function hasOwnMetadata(metadataKey, target /* , targetKey */) {
     var targetKey = arguments.length < 3 ? undefined : toMetadataKey(arguments[2]);
     return ordinaryHasOwnMetadata(metadataKey, anObject(target), targetKey);
-  }
+  },
 });

@@ -6,5 +6,5 @@ var $forEach = require('../internals/async-iterator-iteration').forEach;
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   forEach: function forEach(fn) {
     return $forEach(this, fn);
-  }
+  },
 });

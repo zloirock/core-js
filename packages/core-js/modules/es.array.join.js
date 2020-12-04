@@ -14,5 +14,5 @@ var STRICT_METHOD = arrayMethodIsStrict('join', ',');
 $({ target: 'Array', proto: true, forced: ES3_STRINGS || !STRICT_METHOD }, {
   join: function join(separator) {
     return nativeJoin.call(toIndexedObject(this), separator === undefined ? ',' : separator);
-  }
+  },
 });

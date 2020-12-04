@@ -6,6 +6,6 @@ var defineProperty = require('../internals/object-define-property').f;
 module.exports = function (NAME) {
   var Symbol = path.Symbol || (path.Symbol = {});
   if (!has(Symbol, NAME)) defineProperty(Symbol, NAME, {
-    value: wrappedWellKnownSymbolModule.f(NAME)
+    value: wrappedWellKnownSymbolModule.f(NAME),
   });
 };

@@ -15,5 +15,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
     iterate(iterable, aFunction(newSet.add), { that: newSet });
     return newSet;
-  }
+  },
 });

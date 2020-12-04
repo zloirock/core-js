@@ -13,5 +13,5 @@ var initializer = function () {
 $({ global: true }, {
   compositeKey: function compositeKey() {
     return getCompositeKeyNode.apply(Object, arguments).get('object', initializer);
-  }
+  },
 });

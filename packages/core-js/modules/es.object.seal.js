@@ -13,5 +13,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { $seal(1); });
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES, sham: !FREEZING }, {
   seal: function seal(it) {
     return $seal && isObject(it) ? $seal(onFreeze(it)) : it;
-  }
+  },
 });

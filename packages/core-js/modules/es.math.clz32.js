@@ -9,5 +9,5 @@ var LOG2E = Math.LOG2E;
 $({ target: 'Math', stat: true }, {
   clz32: function clz32(x) {
     return (x >>>= 0) ? 31 - floor(log(x + 0.5) * LOG2E) : 32;
-  }
+  },
 });

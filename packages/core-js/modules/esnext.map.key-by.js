@@ -14,5 +14,5 @@ $({ target: 'Map', stat: true }, {
       setter.call(newMap, keyDerivative(element), element);
     });
     return newMap;
-  }
+  },
 });

@@ -29,5 +29,5 @@ $({ target: 'Reflect', stat: true }, {
   getMetadataKeys: function getMetadataKeys(target /* , targetKey */) {
     var targetKey = arguments.length < 2 ? undefined : toMetadataKey(arguments[1]);
     return ordinaryMetadataKeys(anObject(target), targetKey);
-  }
+  },
 });

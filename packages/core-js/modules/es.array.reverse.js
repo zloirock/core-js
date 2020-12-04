@@ -14,5 +14,5 @@ $({ target: 'Array', proto: true, forced: String(test) === String(test.reverse()
     // eslint-disable-next-line no-self-assign -- dirty hack
     if (isArray(this)) this.length = this.length;
     return nativeReverse.call(this);
-  }
+  },
 });

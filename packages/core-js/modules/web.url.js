@@ -240,13 +240,13 @@ var serializeHost = function (host) {
 
 var C0ControlPercentEncodeSet = {};
 var fragmentPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
-  ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1
+  ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1,
 });
 var pathPercentEncodeSet = assign({}, fragmentPercentEncodeSet, {
-  '#': 1, '?': 1, '{': 1, '}': 1
+  '#': 1, '?': 1, '{': 1, '}': 1,
 });
 var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
-  '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1
+  '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1,
 });
 
 var percentEncode = function (char, set) {
@@ -260,7 +260,7 @@ var specialSchemes = {
   http: 80,
   https: 443,
   ws: 80,
-  wss: 443
+  wss: 443,
 };
 
 var isSpecial = function (url) {
@@ -949,7 +949,7 @@ defineProperties(URLPrototype, {
     if ('#' == hash.charAt(0)) hash = hash.slice(1);
     url.fragment = '';
     parseURL(url, hash, FRAGMENT);
-  })
+  }),
 });
 
 // `URL.prototype.toJSON` method
@@ -984,5 +984,5 @@ if (NativeURL) {
 setToStringTag(URLConstructor, 'URL');
 
 $({ global: true, forced: !USE_NATIVE_URL }, {
-  URL: URLConstructor
+  URL: URLConstructor,
 });

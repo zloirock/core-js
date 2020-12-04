@@ -11,5 +11,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { $isFrozen(1); });
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
   isFrozen: function isFrozen(it) {
     return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
-  }
+  },
 });

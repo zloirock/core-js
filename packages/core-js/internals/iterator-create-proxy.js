@@ -40,7 +40,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return { done: state.done, value: result };
     },
     return: $return,
-    throw: $throw
+    throw: $throw,
   });
 
   if (!IS_ITERATOR) {

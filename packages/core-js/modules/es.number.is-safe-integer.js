@@ -8,5 +8,5 @@ var abs = Math.abs;
 $({ target: 'Number', stat: true }, {
   isSafeInteger: function isSafeInteger(number) {
     return isInteger(number) && abs(number) <= 0x1FFFFFFFFFFFFF;
-  }
+  },
 });

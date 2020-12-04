@@ -27,7 +27,7 @@ $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
         return promiseResolve(C, onFinally()).then(function () { throw e; });
       } : onFinally
     );
-  }
+  },
 });
 
 // makes sure that native promise-based APIs `Promise#finally` properly works with patched `Promise#then`

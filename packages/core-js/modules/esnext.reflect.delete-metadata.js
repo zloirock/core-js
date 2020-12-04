@@ -17,5 +17,5 @@ $({ target: 'Reflect', stat: true }, {
     var targetMetadata = store.get(target);
     targetMetadata.delete(targetKey);
     return !!targetMetadata.size || store.delete(target);
-  }
+  },
 });

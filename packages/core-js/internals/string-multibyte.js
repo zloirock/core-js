@@ -24,5 +24,5 @@ module.exports = {
   codeAt: createMethod(false),
   // `String.prototype.at` method
   // https://github.com/mathiasbynens/String.prototype.at
-  charAt: createMethod(true)
+  charAt: createMethod(true),
 };

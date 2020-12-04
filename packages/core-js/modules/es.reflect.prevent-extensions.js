@@ -15,5 +15,5 @@ $({ target: 'Reflect', stat: true, sham: !FREEZING }, {
     } catch (error) {
       return false;
     }
-  }
+  },
 });

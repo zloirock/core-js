@@ -8,5 +8,5 @@ var collectionDeleteAll = require('../internals/collection-delete-all');
 $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   deleteAll: function deleteAll(/* ...elements */) {
     return collectionDeleteAll.apply(this, arguments);
-  }
+  },
 });

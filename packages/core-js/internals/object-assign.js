@@ -20,9 +20,9 @@ module.exports = !$assign || fails(function () {
     get: function () {
       defineProperty(this, 'b', {
         value: 3,
-        enumerable: false
+        enumerable: false,
       });
-    }
+    },
   }), { b: 2 })).b !== 1) return true;
   // should work with symbols and should have deterministic property order (V8 bug)
   var A = {};

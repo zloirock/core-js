@@ -24,7 +24,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   map: function map(mapper) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
-      mapper: aFunction(mapper)
+      mapper: aFunction(mapper),
     });
-  }
+  },
 });

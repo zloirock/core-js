@@ -49,7 +49,7 @@ UncaughtFrozenStore.prototype = {
     });
     if (~index) this.entries.splice(index, 1);
     return !!~index;
-  }
+  },
 };
 
 module.exports = {
@@ -59,7 +59,7 @@ module.exports = {
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
         id: id++,
-        frozen: undefined
+        frozen: undefined,
       });
       if (iterable != undefined) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
@@ -94,7 +94,7 @@ module.exports = {
         var data = getWeakData(key);
         if (data === true) return uncaughtFrozenStore(state).has(key);
         return data && $has(data, state.id);
-      }
+      },
     });
 
     redefineAll(C.prototype, IS_MAP ? {
@@ -112,15 +112,15 @@ module.exports = {
       // https://tc39.es/ecma262/#sec-weakmap.prototype.set
       set: function set(key, value) {
         return define(this, key, value);
-      }
+      },
     } : {
       // `WeakSet.prototype.add(value)` method
       // https://tc39.es/ecma262/#sec-weakset.prototype.add
       add: function add(value) {
         return define(this, value, true);
-      }
+      },
     });
 
     return C;
-  }
+  },
 };

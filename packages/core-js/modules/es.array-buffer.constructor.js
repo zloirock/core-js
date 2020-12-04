@@ -11,7 +11,7 @@ var NativeArrayBuffer = global[ARRAY_BUFFER];
 // `ArrayBuffer` constructor
 // https://tc39.es/ecma262/#sec-arraybuffer-constructor
 $({ global: true, forced: NativeArrayBuffer !== ArrayBuffer }, {
-  ArrayBuffer: ArrayBuffer
+  ArrayBuffer: ArrayBuffer,
 });
 
 setSpecies(ARRAY_BUFFER);

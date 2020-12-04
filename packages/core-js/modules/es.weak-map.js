@@ -63,6 +63,6 @@ if (NATIVE_WEAK_MAP && IS_IE11) {
         nativeHas.call(this, key) ? nativeSet.call(this, key, value) : state.frozen.set(key, value);
       } else nativeSet.call(this, key, value);
       return this;
-    }
+    },
   });
 }

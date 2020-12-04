@@ -16,5 +16,5 @@ $({ target: 'String', stat: true }, {
       elements.push(toString(rawTemplate[i++]));
       if (i < argumentsLength) elements.push(toString(arguments[i]));
     } return elements.join('');
-  }
+  },
 });

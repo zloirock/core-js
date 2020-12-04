@@ -10,5 +10,5 @@ var definePropertyModule = require('../internals/object-define-property');
 $({ target: 'Object', proto: true, forced: FORCED }, {
   __defineSetter__: function __defineSetter__(P, setter) {
     definePropertyModule.f(toObject(this), P, { set: aFunction(setter), enumerable: true, configurable: true });
-  }
+  },
 });

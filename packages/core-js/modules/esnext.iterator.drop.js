@@ -24,7 +24,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new IteratorProxy({
       iterator: anObject(this),
-      remaining: toPositiveInteger(limit)
+      remaining: toPositiveInteger(limit),
     });
-  }
+  },
 });
