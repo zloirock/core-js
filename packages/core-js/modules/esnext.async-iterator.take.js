@@ -11,7 +11,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
   if (!this.remaining--) {
     result = { done: true, value: undefined };
     this.done = true;
-    returnMethod = iterator['return'];
+    returnMethod = iterator.return;
     if (returnMethod !== undefined) {
       return Promise.resolve(returnMethod.call(iterator)).then(function () {
         return result;

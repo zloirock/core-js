@@ -15,13 +15,13 @@ var create = Object.create;
 
 var $return = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$return = iterator['return'];
+  var $$return = iterator.return;
   return $$return === undefined ? { done: true, value: value } : anObject($$return.call(iterator, value));
 };
 
 var $throw = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$throw = iterator['throw'];
+  var $$throw = iterator.throw;
   if ($$throw === undefined) throw value;
   return $$throw.call(iterator, value);
 };
@@ -39,8 +39,8 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       var result = state.done ? undefined : nextHandler.apply(state, arguments);
       return { done: state.done, value: result };
     },
-    'return': $return,
-    'throw': $throw
+    return: $return,
+    throw: $throw
   });
 
   if (!IS_ITERATOR) {

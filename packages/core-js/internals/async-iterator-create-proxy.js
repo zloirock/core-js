@@ -17,7 +17,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $return = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$return = iterator['return'];
+  var $$return = iterator.return;
   return $$return === undefined
     ? Promise.resolve({ done: true, value: value })
     : anObject($$return.call(iterator, value));
@@ -25,7 +25,7 @@ var $return = function (value) {
 
 var $throw = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$throw = iterator['throw'];
+  var $$throw = iterator.throw;
   return $$throw === undefined
     ? Promise.reject(value)
     : $$throw.call(iterator, value);
@@ -48,8 +48,8 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         return Promise.reject(error);
       }
     },
-    'return': $return,
-    'throw': $throw
+    return: $return,
+    throw: $throw
   });
 
   if (!IS_ITERATOR) {

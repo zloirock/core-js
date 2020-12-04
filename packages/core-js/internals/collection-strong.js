@@ -86,7 +86,7 @@ module.exports = {
       // `{ Map, Set }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-map.prototype.delete
       // https://tc39.es/ecma262/#sec-set.prototype.delete
-      'delete': function (key) {
+      delete: function (key) {
         var that = this;
         var state = getInternalState(that);
         var entry = getEntry(that, key);

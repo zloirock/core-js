@@ -10,7 +10,7 @@ module.exports = !fails(function () {
   var result = '';
   url.pathname = 'c%20d';
   searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+    searchParams.delete('b');
     result += key + value;
   });
   return (IS_PURE && !url.toJSON)

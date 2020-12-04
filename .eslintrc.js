@@ -584,8 +584,6 @@ const base = {
 const es3 = {
   // disallow trailing commas in multiline object literals
   'comma-dangle': ['error', 'never'],
-  // encourages use of dot notation whenever possible
-  'dot-notation': ['error', { allowKeywords: false }],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': 'error',
   // require let or const instead of var
@@ -602,8 +600,6 @@ const es3 = {
   'prefer-exponentiation-operator': 'off',
   // require template literals instead of string concatenation
   'prefer-template': 'off',
-  // require or disallow use of quotes around object literal property names
-  'quote-props': ['error', 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: 'off',
   // prefer default parameters over reassignment

@@ -62,7 +62,7 @@ var FORCED = isForced(PROMISE, function () {
   // We can't detect it synchronously, so just check versions
   if (!GLOBAL_CORE_JS_PROMISE && V8_VERSION === 66) return true;
   // We need Promise#finally in the pure version for preventing prototype pollution
-  if (IS_PURE && !PromiseConstructorPrototype['finally']) return true;
+  if (IS_PURE && !PromiseConstructorPrototype.finally) return true;
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
@@ -81,7 +81,7 @@ var FORCED = isForced(PROMISE, function () {
 });
 
 var INCORRECT_ITERATION = FORCED || !checkCorrectnessOfIteration(function (iterable) {
-  PromiseConstructor.all(iterable)['catch'](function () { /* empty */ });
+  PromiseConstructor.all(iterable).catch(function () { /* empty */ });
 });
 
 // helpers
@@ -271,7 +271,7 @@ if (FORCED) {
     },
     // `Promise.prototype.catch` method
     // https://tc39.es/ecma262/#sec-promise.prototype.catch
-    'catch': function (onRejected) {
+    catch: function (onRejected) {
       return this.then(undefined, onRejected);
     }
   });

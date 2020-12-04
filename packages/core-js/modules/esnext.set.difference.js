@@ -13,7 +13,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
   difference: function difference(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
-    var remover = aFunction(newSet['delete']);
+    var remover = aFunction(newSet.delete);
     iterate(iterable, function (value) {
       remover.call(newSet, value);
     });

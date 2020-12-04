@@ -43,7 +43,7 @@ UncaughtFrozenStore.prototype = {
     if (entry) entry[1] = value;
     else this.entries.push([key, value]);
   },
-  'delete': function (key) {
+  delete: function (key) {
     var index = findIndex(this.entries, function (it) {
       return it[0] === key;
     });
@@ -78,11 +78,11 @@ module.exports = {
       // `{ WeakMap, WeakSet }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-weakmap.prototype.delete
       // https://tc39.es/ecma262/#sec-weakset.prototype.delete
-      'delete': function (key) {
+      delete: function (key) {
         var state = getInternalState(this);
         if (!isObject(key)) return false;
         var data = getWeakData(key);
-        if (data === true) return uncaughtFrozenStore(state)['delete'](key);
+        if (data === true) return uncaughtFrozenStore(state).delete(key);
         return data && $has(data, state.id) && delete data[state.id];
       },
       // `{ WeakMap, WeakSet }.prototype.has(key)` methods
