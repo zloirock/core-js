@@ -2,7 +2,6 @@
 var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -12,6 +11,7 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.get;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
+var create = Object.create;
 
 var $return = function (value) {
   var iterator = getInternalState(this).iterator;

@@ -1,6 +1,5 @@
 'use strict';
 var defineProperty = require('../internals/object-define-property').f;
-var create = require('../internals/object-create');
 var redefineAll = require('../internals/redefine-all');
 var bind = require('../internals/function-bind-context');
 var anInstance = require('../internals/an-instance');
@@ -19,7 +18,7 @@ module.exports = {
       anInstance(that, C, CONSTRUCTOR_NAME);
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
-        index: create(null),
+        index: Object.create(null),
         first: undefined,
         last: undefined,
         size: 0

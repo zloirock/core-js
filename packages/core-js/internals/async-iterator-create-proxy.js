@@ -2,7 +2,6 @@
 var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -39,7 +38,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
+  AsyncIteratorProxy.prototype = redefineAll(Object.create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
       if (state.done) return Promise.resolve({ done: true, value: undefined });
