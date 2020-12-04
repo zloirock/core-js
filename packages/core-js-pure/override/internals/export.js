@@ -11,15 +11,7 @@ var bind = FunctionPrototype.bind;
 var call = FunctionPrototype.call;
 
 var wrapConstructor = function (NativeConstructor) {
-  var Wrapper = function (a, b, c) {
-    if (this instanceof NativeConstructor) {
-      switch (arguments.length) {
-        case 0: return new NativeConstructor();
-        case 1: return new NativeConstructor(a);
-        case 2: return new NativeConstructor(a, b);
-      } return new NativeConstructor(a, b, c);
-    } return NativeConstructor.apply(this, arguments);
-  };
+  var Wrapper = bind.call(NativeConstructor);
   Wrapper.prototype = NativeConstructor.prototype;
   return Wrapper;
 };
