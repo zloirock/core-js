@@ -5,7 +5,6 @@ var $ = require('../internals/export');
 var global = require('../internals/global');
 var has = require('../internals/has');
 var isObject = require('../internals/is-object');
-var defineProperty = require('../internals/object-define-property').f;
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
 var NativeSymbol = global.Symbol;
@@ -32,7 +31,7 @@ if (typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.protot
   var symbolToString = symbolPrototype.toString;
   var native = String(NativeSymbol('test')) == 'Symbol(test)';
   var regexp = /^Symbol\((.*)\)[^)]+$/;
-  defineProperty(symbolPrototype, 'description', {
+  Object.defineProperty(symbolPrototype, 'description', {
     configurable: true,
     get: function description() {
       var symbol = isObject(this) ? this.valueOf() : this;

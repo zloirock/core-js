@@ -627,14 +627,6 @@ export const data = {
     safari: '7.1',
     rhino: '1.7.13',
   },
-  'es.object.define-property': {
-    chrome: '5',
-    firefox: '4',
-    ie: '9',
-    opera: '12',
-    safari: '5.1',
-    rhino: '1.7.13',
-  },
   'es.object.define-setter': {
     chrome: '62',
     edge: '16',

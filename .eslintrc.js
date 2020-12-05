@@ -582,6 +582,8 @@ const base = {
 };
 
 const es5 = {
+  // disallow adding to native types
+  'no-extend-native': 'off',
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': 'error',
   // require let or const instead of var
