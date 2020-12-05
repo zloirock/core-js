@@ -8,10 +8,10 @@ var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
-var defineProperty = require('../internals/object-define-property').f;
 var forEach = require('../internals/array-iteration').forEach;
 var InternalStateModule = require('../internals/internal-state');
 
+var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 

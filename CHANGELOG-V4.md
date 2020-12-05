@@ -17,6 +17,7 @@
   - `es.date.now` (required for ES3 only)
   - `es.function.bind` (required for ES3 only)
   - `es.object.create` (required for ES3 only)
+  - `es.object.define-property` (required for ES3 only)
   - `es.object.define-properties` (required for ES3 only)
   - `esnext.aggregate-error` (moved to stable ES)
   - `esnext.global-this` (moved to stable ES)

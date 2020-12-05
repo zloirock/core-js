@@ -1,7 +1,6 @@
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
-var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
@@ -15,6 +14,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
+var defineProperty = Object.defineProperty;
 var re1 = /a/g;
 var re2 = /a/g;
 

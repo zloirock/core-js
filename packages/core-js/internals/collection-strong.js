@@ -1,5 +1,4 @@
 'use strict';
-var defineProperty = require('../internals/object-define-property').f;
 var redefineAll = require('../internals/redefine-all');
 var bind = require('../internals/function-bind-context');
 var anInstance = require('../internals/an-instance');
@@ -9,6 +8,7 @@ var setSpecies = require('../internals/set-species');
 var fastKey = require('../internals/internal-metadata').fastKey;
 var InternalStateModule = require('../internals/internal-state');
 
+var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 

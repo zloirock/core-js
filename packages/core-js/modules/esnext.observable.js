@@ -6,7 +6,6 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
-var defineProperty = require('../internals/object-define-property').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var getIterator = require('../internals/get-iterator');
@@ -16,6 +15,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 
 var OBSERVABLE = wellKnownSymbol('observable');
+var defineProperty = Object.defineProperty;
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 

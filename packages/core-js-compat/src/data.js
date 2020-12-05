@@ -535,13 +535,6 @@ const data = {
     firefox: '48',
     safari: '7.1',
   },
-  'es.object.define-property': {
-    chrome: '5',
-    firefox: '4',
-    ie: '9',
-    opera: '12',
-    safari: '5.1',
-  },
   'es.object.define-setter': {
     chrome: '62',
     edge: '16',
