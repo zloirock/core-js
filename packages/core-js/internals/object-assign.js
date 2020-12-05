@@ -1,11 +1,12 @@
 'use strict';
 var fails = require('../internals/fails');
-var objectKeys = require('../internals/object-keys');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
 
+// eslint-disable-next-line es/no-object-keys -- safe
+var objectKeys = Object.keys;
 // eslint-disable-next-line es/no-object-assign -- safe
 var $assign = Object.assign;
 // eslint-disable-next-line es/no-object-defineproperty -- required for testing
