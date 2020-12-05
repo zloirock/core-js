@@ -19,7 +19,6 @@ var isSymbol = require('../internals/is-symbol');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var typedArrayFrom = require('../internals/typed-array-from');
-var forEach = require('../internals/array-iteration').forEach;
 var setSpecies = require('../internals/set-species');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
@@ -199,7 +198,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
     });
 
     if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
-    forEach(getOwnPropertyNames(NativeTypedArrayConstructor), function (key) {
+    getOwnPropertyNames(NativeTypedArrayConstructor).forEach(function (key) {
       if (!(key in TypedArrayConstructor)) {
         createNonEnumerableProperty(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
       }
