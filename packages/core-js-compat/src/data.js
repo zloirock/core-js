@@ -529,13 +529,6 @@ const data = {
     firefox: '36',
     safari: '9.0',
   },
-  'es.object.create': {
-    chrome: '5',
-    firefox: '4',
-    ie: '9',
-    opera: '12',
-    safari: '4.0',
-  },
   'es.object.define-getter': {
     chrome: '62',
     edge: '16',

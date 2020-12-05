@@ -600,9 +600,6 @@ GLOBAL.tests = {
     alphabet.split('').forEach(function (chr) { B[chr] = chr; });
     return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
   },
-  'es.object.create': function () {
-    return Object.create;
-  },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
     return Object.defineProperties;
