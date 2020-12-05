@@ -1,10 +1,5 @@
-require('../../modules/es.object.define-properties');
-var path = require('../../internals/path');
+var getBuiltIn = require('../../internals/get-built-in');
 
-var Object = path.Object;
-
-var defineProperties = module.exports = function defineProperties(T, D) {
-  return Object.defineProperties(T, D);
+module.exports = function defineProperties(T, D) {
+  return getBuiltIn('Object', 'defineProperties')(T, D);
 };
-
-if (Object.defineProperties.sham) defineProperties.sham = true;

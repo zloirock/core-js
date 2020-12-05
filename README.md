@@ -366,7 +366,6 @@ class Object {
   __lookupGetter__(property: PropertyKey): Function | void;
   __lookupSetter__(property: PropertyKey): Function | void;
   static assign(target: Object, ...sources: Array<Object>): Object;
-  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;
   static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
   static entries(object: Object): Array<[string, mixed]>;
   static freeze(object: any): any;

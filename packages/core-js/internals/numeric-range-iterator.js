@@ -2,7 +2,6 @@
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var isObject = require('../internals/is-object');
-var defineProperties = require('../internals/object-define-properties');
 
 var INCORRECT_RANGE = 'Incorrect Number.range arguments';
 var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
@@ -75,7 +74,7 @@ var getter = function (fn) {
   return { get: fn, set: function () { /* empty */ }, configurable: true, enumerable: false };
 };
 
-defineProperties($RangeIterator.prototype, {
+Object.defineProperties($RangeIterator.prototype, {
   start: getter(function () {
     return getInternalState(this).start;
   }),

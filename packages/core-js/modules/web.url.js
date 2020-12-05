@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/native-url');
 var global = require('../internals/global');
-var defineProperties = require('../internals/object-define-properties');
 var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
 var has = require('../internals/has');
@@ -846,7 +845,7 @@ var accessorDescriptor = function (getter, setter) {
   return { get: getter, set: setter, configurable: true, enumerable: true };
 };
 
-defineProperties(URLPrototype, {
+Object.defineProperties(URLPrototype, {
   // `URL.prototype.href` accessors pair
   // https://url.spec.whatwg.org/#dom-url-href
   href: accessorDescriptor(serializeURL, function (href) {
