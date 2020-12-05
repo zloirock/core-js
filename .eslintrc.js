@@ -62,6 +62,8 @@ const base = {
   'no-unexpected-multiline': 'error',
   // disallow negation of the left operand of an in expression
   'no-unsafe-negation': 'error',
+  // disallow use of optional chaining in contexts where the `undefined` value is not allowed
+  'no-unsafe-optional-chaining': 'error',
   // disallow loops with a body that allows only one iteration
   'no-unreachable-loop': 'error',
   // disallow useless backreferences in regular expressions
