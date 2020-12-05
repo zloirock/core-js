@@ -8,7 +8,6 @@ var objectIsExtensible = Object.isExtensible;
 // https://tc39.es/ecma262/#sec-reflect.isextensible
 $({ target: 'Reflect', stat: true }, {
   isExtensible: function isExtensible(target) {
-    anObject(target);
-    return objectIsExtensible ? objectIsExtensible(target) : true;
+    return objectIsExtensible(anObject(target));
   },
 });
