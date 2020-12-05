@@ -1,6 +1,5 @@
 var global = require('../internals/global');
 var shared = require('../internals/shared-store');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var has = require('../internals/has');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -10,6 +9,7 @@ var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 var AsyncIterator = global.AsyncIterator;
 var PassedAsyncIteratorPrototype = shared.AsyncIteratorPrototype;
+var getPrototypeOf = Object.getPrototypeOf;
 var AsyncIteratorPrototype, prototype;
 
 if (!IS_PURE) {

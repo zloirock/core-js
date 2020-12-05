@@ -3,8 +3,9 @@ var $ = require('../internals/export');
 var FORCED = require('../internals/object-prototype-accessors-forced');
 var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 // `Object.prototype.__lookupSetter__` method
 // https://tc39.es/ecma262/#sec-object.prototype.__lookupSetter__

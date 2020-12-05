@@ -5,8 +5,9 @@ var has = require('../internals/has');
 var fails = require('../internals/fails');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 // `Reflect.set` method
 // https://tc39.es/ecma262/#sec-reflect.set

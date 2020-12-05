@@ -3,7 +3,8 @@ var isObject = require('../internals/is-object');
 var anObject = require('../internals/an-object');
 var has = require('../internals/has');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 // `Reflect.get` method
 // https://tc39.es/ecma262/#sec-reflect.get
