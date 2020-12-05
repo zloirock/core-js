@@ -8,7 +8,6 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 var isSymbol = require('../internals/is-symbol');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var trim = require('../internals/string-trim').trim;
 
@@ -16,6 +15,7 @@ var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 var defineProperty = Object.defineProperty;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 
 // Opera ~12 has broken Object#toString
 var BROKEN_CLASSOF = classof(Object.create(NumberPrototype)) == NUMBER;

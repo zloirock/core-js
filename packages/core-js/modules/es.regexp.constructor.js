@@ -2,7 +2,6 @@ var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
 var getFlags = require('../internals/regexp-flags');
@@ -22,6 +21,7 @@ var RegExpPrototype = NativeRegExp.prototype;
 // TODO: Use only propper RegExpIdentifierName
 var IS_NCG = /^\?<[^\s\d!#%&*+<=>@^][^\s!#%&*+<=>@^]*>/;
 var defineProperty = Object.defineProperty;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 var re1 = /a/g;
 var re2 = /a/g;
 

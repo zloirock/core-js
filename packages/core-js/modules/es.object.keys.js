@@ -1,7 +1,8 @@
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
-var nativeKeys = require('../internals/object-keys');
 var fails = require('../internals/fails');
+
+var nativeKeys = Object.keys;
 
 var FAILS_ON_PRIMITIVES = fails(function () { nativeKeys(1); });
 

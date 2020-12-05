@@ -1,6 +1,7 @@
-var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
 var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
+
+var objectKeys = Object.keys;
 
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
