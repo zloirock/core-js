@@ -9,7 +9,6 @@ var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var IEEE754 = require('../internals/ieee754');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var defineProperty = require('../internals/object-define-property').f;
@@ -30,6 +29,7 @@ var $DataView = global[DATA_VIEW];
 var $DataViewPrototype = $DataView && $DataView[PROTOTYPE];
 var ObjectPrototype = Object.prototype;
 var RangeError = global.RangeError;
+var getPrototypeOf = Object.getPrototypeOf;
 
 var packIEEE754 = IEEE754.pack;
 var unpackIEEE754 = IEEE754.unpack;

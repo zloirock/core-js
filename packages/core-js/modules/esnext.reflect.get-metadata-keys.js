@@ -2,8 +2,9 @@ var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var iterate = require('../internals/iterate');
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 var Set = getBuiltIn('Set');
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;

@@ -1,11 +1,12 @@
 'use strict';
 var $ = require('../internals/export');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
 var toString = require('../internals/to-string');
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 var $AggregateError = function AggregateError(errors, message) {
   var that = this;
