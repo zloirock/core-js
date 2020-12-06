@@ -1,5 +1,4 @@
 var bind = require('../internals/function-bind-context');
-var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var arraySpeciesCreate = require('../internals/array-species-create');
@@ -17,7 +16,7 @@ var createMethod = function (TYPE) {
   var NO_HOLES = TYPE == 5 || IS_FIND_INDEX;
   return function ($this, callbackfn, that, specificCreate) {
     var O = toObject($this);
-    var self = IndexedObject(O);
+    var self = Object(O);
     var boundFunction = bind(callbackfn, that);
     var length = toLength(self.length);
     var index = 0;
