@@ -12,6 +12,7 @@
     - [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
     - [Object iteration](https://github.com/tc39/proposal-object-iteration)
     - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+  - [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random) because of changing of the API, waiting for the spec text
 - Removed modules:
   - `es.array.is-array` (required for ES3 only)
   - `es.date.now` (required for ES3 only)
@@ -27,6 +28,7 @@
   - `esnext.math.iaddh` (withdrawn)
   - `esnext.math.imulh` (withdrawn)
   - `esnext.math.isubh` (withdrawn)
+  - `esnext.math.seeded-prng` (changing of the API, waiting for the spec text)
   - `esnext.math.umulh` (withdrawn)
   - `esnext.object.iterate-entries` (withdrawn)
   - `esnext.object.iterate-keys` (withdrawn)
@@ -48,6 +50,7 @@
   - `Math.iaddh` (withdrawn)
   - `Math.imulh` (withdrawn)
   - `Math.isubh` (withdrawn)
+  - `Math.seededPRNG` (changing of the API, waiting for the spec text)
   - `Math.umulh` (withdrawn)
   - `Object.iterateEntries` (withdrawn)
   - `Object.iterateKeys` (withdrawn)
