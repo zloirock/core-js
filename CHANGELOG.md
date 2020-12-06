@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed work of new `%TypedArray%` methods on `BigInt` arrays
 - Added ESNext methods to ES3 workaround for `Number` constructor wrapper
 
 ##### 3.8.0 - 2020.11.26
