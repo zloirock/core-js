@@ -47,6 +47,7 @@ var BigIntArrayConstructorsList = {
 };
 
 var isView = function isView(it) {
+  if (!isObject(it)) return false;
   var klass = classof(it);
   return klass === 'DataView'
     || has(TypedArrayConstructorsList, klass)
@@ -54,10 +55,10 @@ var isView = function isView(it) {
 };
 
 var isTypedArray = function (it) {
-  return isObject(it) && (
-    has(TypedArrayConstructorsList, classof(it)) ||
-    has(BigIntArrayConstructorsList, classof(it))
-  );
+  if (!isObject(it)) return false;
+  var klass = classof(it);
+  return has(TypedArrayConstructorsList, klass)
+    || has(BigIntArrayConstructorsList, klass);
 };
 
 var aTypedArray = function (it) {
