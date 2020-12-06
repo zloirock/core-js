@@ -42,7 +42,7 @@ var TypedArrayConstructorsList = {
 
 var BigIntArrayConstructorsList = {
   BigInt64Array: 8,
-  BigUint64Array: 8
+  BigUint64Array: 8,
 };
 
 var isView = function isView(it) {
