@@ -11,7 +11,6 @@ require('../proposals/number-range');
 require('../proposals/observable');
 require('../proposals/pattern-matching');
 require('../proposals/promise-try');
-require('../proposals/seeded-random');
 require('../proposals/string-code-points');
 var parent = require('./2');
 
