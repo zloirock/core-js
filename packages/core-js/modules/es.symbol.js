@@ -10,7 +10,6 @@ var has = require('../internals/has');
 var isObject = require('../internals/is-object');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
-var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
@@ -105,7 +104,7 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
 
 var $defineProperties = function defineProperties(O, Properties) {
   anObject(O);
-  var properties = toIndexedObject(Properties);
+  var properties = toObject(Properties);
   var keys = objectKeys(properties).concat($getOwnPropertySymbols(properties));
   forEach.call(keys, function (key) {
     if ($propertyIsEnumerable.call(properties, key)) $defineProperty(O, key, properties[key]);
@@ -125,7 +124,7 @@ var $propertyIsEnumerable = function propertyIsEnumerable(V) {
 };
 
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
-  var it = toIndexedObject(O);
+  var it = toObject(O);
   var key = toPrimitive(P, true);
   if (it === ObjectPrototype && has(AllSymbols, key) && !has(ObjectPrototypeSymbols, key)) return;
   var descriptor = nativeGetOwnPropertyDescriptor(it, key);
@@ -136,7 +135,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
 };
 
 var $getOwnPropertyNames = function getOwnPropertyNames(O) {
-  var names = nativeGetOwnPropertyNames(toIndexedObject(O));
+  var names = nativeGetOwnPropertyNames(toObject(O));
   var result = [];
   forEach.call(names, function (key) {
     if (!has(AllSymbols, key) && !has(hiddenKeys, key)) result.push(key);
@@ -146,7 +145,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(O) {
 
 var $getOwnPropertySymbols = function getOwnPropertySymbols(O) {
   var IS_OBJECT_PROTOTYPE = O === ObjectPrototype;
-  var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toIndexedObject(O));
+  var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toObject(O));
   var result = [];
   forEach.call(names, function (key) {
     if (has(AllSymbols, key) && (!IS_OBJECT_PROTOTYPE || has(ObjectPrototype, key))) {

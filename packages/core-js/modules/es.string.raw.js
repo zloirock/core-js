@@ -1,12 +1,12 @@
 var $ = require('../internals/export');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 
 // `String.raw` method
 // https://tc39.es/ecma262/#sec-string.raw
 $({ target: 'String', stat: true }, {
   raw: function raw(template) {
-    var rawTemplate = toIndexedObject(template.raw);
+    var rawTemplate = toObject(template.raw);
     var literalSegments = toLength(rawTemplate.length);
     var argumentsLength = arguments.length;
     var elements = [];
