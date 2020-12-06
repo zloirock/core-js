@@ -20,15 +20,13 @@ var FORCED = fails(function () {
     || $stringify('\uDEAD') !== '"\\udead"';
 });
 
-if ($stringify) {
-  // `JSON.stringify` method
-  // https://tc39.es/ecma262/#sec-json.stringify
-  // https://github.com/tc39/proposal-well-formed-stringify
-  $({ target: 'JSON', stat: true, forced: FORCED }, {
-    // eslint-disable-next-line no-unused-vars -- required for `.length`
-    stringify: function stringify(it, replacer, space) {
-      var result = $stringify.apply(null, arguments);
-      return typeof result == 'string' ? result.replace(re, fix) : result;
-    },
-  });
-}
+// `JSON.stringify` method, prevent from returning ill-formed Unicode strings
+// https://tc39.es/ecma262/#sec-json.stringify
+// https://github.com/tc39/proposal-well-formed-stringify
+$({ target: 'JSON', stat: true, forced: FORCED }, {
+  // eslint-disable-next-line no-unused-vars -- required for `.length`
+  stringify: function stringify(it, replacer, space) {
+    var result = $stringify.apply(null, arguments);
+    return typeof result == 'string' ? result.replace(re, fix) : result;
+  },
+});

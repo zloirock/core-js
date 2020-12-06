@@ -106,28 +106,26 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
   }
 });
 
-if (JSON) {
-  QUnit.test('Symbols & JSON.stringify', assert => {
-    assert.strictEqual(JSON.stringify([
-      1,
-      Symbol('foo'),
-      false,
-      Symbol('bar'),
-      {},
-    ]), '[1,null,false,null,{}]', 'array value');
-    assert.strictEqual(JSON.stringify({
-      symbol: Symbol('symbol'),
-    }), '{}', 'object value');
-    const object = { bar: 2 };
-    object[Symbol('symbol')] = 1;
-    assert.strictEqual(JSON.stringify(object), '{"bar":2}', 'object key');
-    assert.strictEqual(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
-    if (typeof Symbol() === 'symbol') {
-      assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
-    }
-    assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
-  });
-}
+QUnit.test('Symbols & JSON.stringify', assert => {
+  assert.strictEqual(JSON.stringify([
+    1,
+    Symbol('foo'),
+    false,
+    Symbol('bar'),
+    {},
+  ]), '[1,null,false,null,{}]', 'array value');
+  assert.strictEqual(JSON.stringify({
+    symbol: Symbol('symbol'),
+  }), '{}', 'object value');
+  const object = { bar: 2 };
+  object[Symbol('symbol')] = 1;
+  assert.strictEqual(JSON.stringify(object), '{"bar":2}', 'object key');
+  assert.strictEqual(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
+  if (typeof Symbol() === 'symbol') {
+    assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+  }
+  assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
+});
 
 QUnit.test('Symbols & descriptors', assert => {
   const d = Symbol('d');
