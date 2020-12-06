@@ -298,13 +298,6 @@ const data = {
     firefox: '44',
     safari: '10.0',
   },
-  'es.date.to-string': {
-    chrome: '5',
-    firefox: '2',
-    ie: '9',
-    opera: '10.50',
-    safari: '3.1',
-  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',

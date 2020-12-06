@@ -266,7 +266,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/json').stringify([1]) === '[1]');
   ok(load('features/json/stringify')([1]) === '[1]');
   ok(load('features/json/to-string-tag') === 'JSON');
-  ok(typeof load('features/date/to-string')(new Date()) === 'string');
   ok(typeof load('features/date/to-primitive')(new Date(), 'number') === 'number');
   ok(typeof load('features/date/to-iso-string')(new Date()) === 'string');
   ok(load('features/date/to-json')(Infinity) === null);
@@ -613,7 +612,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stable/json').stringify([1]) === '[1]');
   ok(load('stable/json/stringify')([1]) === '[1]');
   ok(load('stable/json/to-string-tag') === 'JSON');
-  ok(typeof load('stable/date/to-string')(new Date()) === 'string');
   ok(typeof load('stable/date/to-primitive')(new Date(), 'number') === 'number');
   ok(typeof load('stable/date/to-iso-string')(new Date()) === 'string');
   ok(load('stable/date/to-json')(Infinity) === null);
@@ -874,7 +872,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('es/json').stringify([1]) === '[1]');
   ok(load('es/json/stringify')([1]) === '[1]');
   ok(load('es/json/to-string-tag') === 'JSON');
-  ok(typeof load('es/date/to-string')(new Date()) === 'string');
   ok(typeof load('es/date/to-primitive')(new Date(), 'number') === 'number');
   ok(typeof load('es/date/to-iso-string')(new Date()) === 'string');
   ok(load('es/date/to-json')(Infinity) === null);

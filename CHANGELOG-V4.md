@@ -15,6 +15,7 @@
 - Removed modules:
   - `es.array.is-array` (required for ES3 only)
   - `es.date.now` (required for ES3 only)
+  - `es.date.to-string` (required for IE8- only)
   - `es.function.bind` (required for ES3 only)
   - `es.object.create` (required for ES3 only)
   - `es.object.define-property` (required for ES3 only)
@@ -40,6 +41,7 @@
 - Removed features:
   - `Array.isArray` (required for ES3 only)
   - `Date.now` (required for ES3 only)
+  - `Date#toString` (required for IE8- only)
   - `Function#bind` (required for ES3 only)
   - `Map#updateOrInsert` (obsolete)
   - `Map#upsert` (obsolete)

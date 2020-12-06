@@ -434,9 +434,6 @@ GLOBAL.tests = {
   'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
     return Date.prototype[Symbol.toPrimitive];
   }],
-  'es.date.to-string': function () {
-    return new Date(NaN).toString() == 'Invalid Date';
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],
