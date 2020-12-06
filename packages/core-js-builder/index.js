@@ -42,7 +42,7 @@ module.exports = async function ({
     await webpack({
       mode: 'none',
       node: false,
-      target: ['web', 'es3'],
+      target: ['node', 'es5'],
       entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
         path: tmpdir,
