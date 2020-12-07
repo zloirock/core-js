@@ -2,7 +2,6 @@ var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var iterate = require('../internals/iterate');
 
 var getPrototypeOf = Object.getPrototypeOf;
 
@@ -10,9 +9,11 @@ var Set = getBuiltIn('Set');
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
 var toMetadataKey = ReflectMetadataModule.toKey;
 
-var from = function (iter) {
+var from = function (set) {
   var result = [];
-  iterate(iter, result.push, { that: result });
+  set.forEach(function (it) {
+    result.push(it);
+  });
   return result;
 };
 
