@@ -1459,10 +1459,6 @@ GLOBAL.tests = {
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.pattern-match': function () {
-    return Symbol.patternMatch;
-  },
   'esnext.typed-array.at': function () {
     return Int8Array.prototype.at;
   },

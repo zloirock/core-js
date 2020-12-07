@@ -289,7 +289,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/symbol/unscopables'));
   ok(load('features/symbol/async-iterator'));
   ok(load('features/symbol/observable'));
-  ok(load('features/symbol/pattern-match'));
   ok(load('features/symbol/async-dispose'));
   ok(load('features/symbol/dispose'));
   ok(typeof load('features/symbol/for') === 'function');
@@ -935,7 +934,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/number-from-string');
   load('proposals/number-range');
   load('proposals/observable');
-  load('proposals/pattern-matching');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');

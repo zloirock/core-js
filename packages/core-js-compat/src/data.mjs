@@ -1574,9 +1574,6 @@ export const data = {
   },
   'esnext.symbol.observable': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.pattern-match': {
-  },
   'esnext.typed-array.at': {
     chrome: '92',
     firefox: '90',

@@ -38,6 +38,7 @@
   - `esnext.string.at-alternative` (replaces `esnext.string.at` from the obsolete proposal)
   - `esnext.string.match-all` (moved to stable ES)
   - `esnext.string.replace-all` (moved to stable ES)
+  - `esnext.symbol.pattern-match` (is not a part of actual proposal)
   - `esnext.symbol.replace-all` (obsolete)
   - `esnext.weak-map.upsert` (obsolete)
 - Removed features:
@@ -55,6 +56,7 @@
   - `Object.iterateEntries` (withdrawn)
   - `Object.iterateKeys` (withdrawn)
   - `Object.iterateValues` (withdrawn)
+  - `Symbol.patternMatch` (is not a part of actual proposal)
   - `Symbol.replaceAll` (obsolete)
   - `WeakMap#upsert` (obsolete)
 - Dropped NodeJS 11- support in `core-js-builder` and `core-js-compat`
