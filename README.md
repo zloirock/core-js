@@ -2259,18 +2259,6 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
-##### [`Symbol.patternMatch` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
-Module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.symbol.pattern-match.js).
-```js
-class Symbol {
-  static patternMatch: @@patternMatch;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/pattern-matching
-core-js(-pure)/features/symbol/pattern-match
-```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-out`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.filter-out.js) and [`esnext.typed-array.filter-out`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.filter-out.js).
 ```js

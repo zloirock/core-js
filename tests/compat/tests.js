@@ -1374,9 +1374,6 @@ GLOBAL.tests = {
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },
-  'esnext.symbol.pattern-match': function () {
-    return Symbol.patternMatch;
-  },
   'esnext.typed-array.at': function () {
     return Int8Array.prototype.at;
   },

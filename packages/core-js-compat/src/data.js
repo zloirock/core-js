@@ -1416,8 +1416,6 @@ const data = {
   },
   'esnext.symbol.observable': {
   },
-  'esnext.symbol.pattern-match': {
-  },
   'esnext.typed-array.at': {
   },
   'esnext.typed-array.filter-out': {
