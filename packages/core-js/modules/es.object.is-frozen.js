@@ -10,6 +10,6 @@ var FAILS_ON_PRIMITIVES = fails(function () { $isFrozen(1); });
 // https://tc39.es/ecma262/#sec-object.isfrozen
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
   isFrozen: function isFrozen(it) {
-    return isObject(it) ? $isFrozen ? $isFrozen(it) : false : true;
+    return isObject(it) ? $isFrozen(it) : true;
   },
 });

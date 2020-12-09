@@ -10,6 +10,6 @@ var FAILS_ON_PRIMITIVES = fails(function () { $isSealed(1); });
 // https://tc39.es/ecma262/#sec-object.issealed
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES }, {
   isSealed: function isSealed(it) {
-    return isObject(it) ? $isSealed ? $isSealed(it) : false : true;
+    return isObject(it) ? $isSealed(it) : true;
   },
 });

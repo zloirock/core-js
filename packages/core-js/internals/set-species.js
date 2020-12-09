@@ -7,10 +7,9 @@ var SPECIES = wellKnownSymbol('species');
 
 module.exports = function (CONSTRUCTOR_NAME) {
   var Constructor = getBuiltIn(CONSTRUCTOR_NAME);
-  var defineProperty = definePropertyModule.f;
 
   if (Constructor && !Constructor[SPECIES]) {
-    defineProperty(Constructor, SPECIES, {
+    definePropertyModule.f(Constructor, SPECIES, {
       configurable: true,
       get: function () { return this; },
     });
