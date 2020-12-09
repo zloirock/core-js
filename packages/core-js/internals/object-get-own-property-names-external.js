@@ -1,3 +1,4 @@
+// IE strange context bug workaround
 /* eslint-disable es/no-object-getownpropertynames -- safe */
 var toObject = require('../internals/to-object');
 var $getOwnPropertyNames = require('../internals/object-get-own-property-names').f;

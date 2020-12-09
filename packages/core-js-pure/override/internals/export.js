@@ -1,6 +1,5 @@
 'use strict';
 var global = require('../internals/global');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -52,7 +51,7 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.noTargetGet) {
-      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 

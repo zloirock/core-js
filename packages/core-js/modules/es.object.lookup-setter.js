@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var FORCED = require('../internals/object-prototype-accessors-forced');
 var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 
 var getPrototypeOf = Object.getPrototypeOf;
 
@@ -15,7 +15,7 @@ $({ target: 'Object', proto: true, forced: FORCED }, {
     var key = toPrimitive(P, true);
     var desc;
     do {
-      if (desc = getOwnPropertyDescriptor(O, key)) return desc.set;
+      if (desc = getOwnPropertyDescriptorModule.f(O, key)) return desc.set;
     } while (O = getPrototypeOf(O));
   },
 });

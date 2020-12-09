@@ -1,5 +1,4 @@
 var global = require('../internals/global');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefine = require('../internals/redefine');
 var setGlobal = require('../internals/set-global');
@@ -35,7 +34,7 @@ module.exports = function (options, source) {
   if (target) for (key in source) {
     sourceProperty = source[key];
     if (options.noTargetGet) {
-      descriptor = getOwnPropertyDescriptor(target, key);
+      descriptor = Object.getOwnPropertyDescriptor(target, key);
       targetProperty = descriptor && descriptor.value;
     } else targetProperty = target[key];
     FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
