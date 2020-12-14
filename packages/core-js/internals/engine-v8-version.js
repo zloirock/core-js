@@ -17,4 +17,4 @@ if (v8) {
   }
 }
 
-module.exports = version && +version;
+module.exports = (version && +version) || 0;
