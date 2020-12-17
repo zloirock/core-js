@@ -226,8 +226,6 @@ const base = {
   'new-cap': ['error', { newIsCap: true, capIsNew: false }],
   // require parentheses when invoking a constructor with no arguments
   'new-parens': 'error',
-  // disallow if as the only statement in an else block
-  'no-lonely-if': 'error',
   // disallow mixed spaces and tabs for indentation
   'no-mixed-spaces-and-tabs': 'error',
   // disallow multiple empty lines and only one newline at the end
@@ -363,6 +361,8 @@ const base = {
   'unicorn/no-console-spaces': 'error',
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': 'error',
+  // disallow if as the only statement in an else block
+  'unicorn/no-lonely-if': 'error',
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': 'error',
   // disallow unsafe regular expressions
