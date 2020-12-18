@@ -1741,4 +1741,4 @@ load('es/typed-array/values');
 ok(typeof load('es/typed-array').Uint32Array === 'function');
 
 // eslint-disable-next-line no-console
-console.log(`Tested ${ tested } CommonJS entry points`);
+console.log(`\u001B[32mtested ${ tested } commonjs entry points\u001B[0m`);

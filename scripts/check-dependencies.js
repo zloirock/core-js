@@ -28,5 +28,5 @@ async function checkDependencies(pckg, title) {
   await checkDependencies(root, 'root');
   await checkDependencies(builder);
   await checkDependencies(compat);
-  console.log('\u001B[96mchecked\u001B[0m');
+  console.log('\u001B[32mdependencies checked\u001B[0m');
 })();

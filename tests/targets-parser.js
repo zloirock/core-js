@@ -97,3 +97,6 @@ deepStrictEqual(targetsParser({
   ['safari', '5.1'],
   ['samsung', '4'],
 ]));
+
+// eslint-disable-next-line no-console
+console.log('\u001B[32mtargets parser tested\u001B[0m');

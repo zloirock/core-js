@@ -109,3 +109,6 @@ subset('core-js/stage/1', /^(es\.map|esnext\.|web\.url)/);
 subset('core-js/stage/2', /^esnext\./);
 subset('core-js/stage/3', /^esnext\./);
 subset('core-js/stage/4', /^esnext\./);
+
+// eslint-disable-next-line no-console
+console.log('\u001B[32mentry points content tested\u001B[0m');
