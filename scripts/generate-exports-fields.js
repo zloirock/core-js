@@ -13,8 +13,6 @@ const core = entries.reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
   const path = `./${ relative('./packages/core-js', require.resolve(`../packages/${ it }`)).replace(/\\/g, '/') }`;
   accumulator[entry] = path;
-  if (path.endsWith('/index.js')) accumulator[path.replace(/\.js$/, '')] = path;
-  accumulator[path] = path;
   return accumulator;
 }, {});
 
@@ -22,16 +20,13 @@ function expland(array) {
   const map = {};
   for (const it of array) {
     const path = `./${ it }`;
-    if (path.endsWith('/index.js')) map[path.replace(/\/index\.js(on)?$/, '').replace(/^\.$/, './')] = path;
-    map[path.replace(/\.js(on)?$/, '')] = path;
-    map[path] = path;
+    map[path.replace(/(\/index)?\.js(on)?$/, '').replace(/^\.$/, './')] = path;
   } return map;
 }
 
 async function writeExportsField(path, exports) {
   const pkg = JSON.parse(await readFile(path));
   exports['./package'] = './package.json';
-  exports['./package.json'] = './package.json';
   pkg.exports = exports;
   await writeFile(path, `${ JSON.stringify(pkg, null, '  ') }\n`);
 }

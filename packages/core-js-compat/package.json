@@ -27,25 +27,14 @@
   "license": "MIT",
   "exports": {
     "./": "./index.js",
-    "./index": "./index.js",
-    "./index.js": "./index.js",
     "./compat": "./compat.js",
-    "./compat.js": "./compat.js",
     "./get-modules-list-for-target-version": "./get-modules-list-for-target-version.js",
-    "./get-modules-list-for-target-version.js": "./get-modules-list-for-target-version.js",
     "./targets-parser": "./targets-parser.js",
-    "./targets-parser.js": "./targets-parser.js",
     "./data": "./data.json",
-    "./data.json": "./data.json",
     "./entries": "./entries.json",
-    "./entries.json": "./entries.json",
     "./external": "./external.json",
-    "./external.json": "./external.json",
     "./modules-by-versions": "./modules-by-versions.json",
-    "./modules-by-versions.json": "./modules-by-versions.json",
     "./modules": "./modules.json",
-    "./modules.json": "./modules.json",
-    "./package": "./package.json",
-    "./package.json": "./package.json"
+    "./package": "./package.json"
   }
 }
