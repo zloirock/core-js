@@ -1,3 +1,4 @@
 node_modules/
+/exports.json
 *.log
 .*

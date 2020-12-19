@@ -1,0 +1,11 @@
+[
+  "index.js",
+  "compat.js",
+  "get-modules-list-for-target-version.js",
+  "targets-parser.js",
+  "data.json",
+  "entries.json",
+  "external.json",
+  "modules-by-versions.json",
+  "modules.json"
+]
