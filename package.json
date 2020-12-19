@@ -65,8 +65,9 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "init": "run-p generate-indexes bootstrap && run-p clean-and-copy build-compat",
+    "init": "run-s bootstrap generate-indexes clean-and-copy build-compat generate-exports-fields",
     "clean-and-copy": "node scripts/clean-and-copy",
+    "generate-exports-fields": "node scripts/generate-exports-fields",
     "bootstrap": "lerna bootstrap --hoist --no-ci && lerna link",
     "build": "run-s init bundle-package",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",
