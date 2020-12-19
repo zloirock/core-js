@@ -24,6 +24,8 @@
   "exports": {
     "./": "./index.js",
     "./index": "./index.js",
-    "./index.js": "./index.js"
+    "./index.js": "./index.js",
+    "./package": "./package.json",
+    "./package.json": "./package.json"
   }
 }

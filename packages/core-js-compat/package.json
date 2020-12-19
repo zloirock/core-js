@@ -44,6 +44,8 @@
     "./modules-by-versions": "./modules-by-versions.json",
     "./modules-by-versions.json": "./modules-by-versions.json",
     "./modules": "./modules.json",
-    "./modules.json": "./modules.json"
+    "./modules.json": "./modules.json",
+    "./package": "./package.json",
+    "./package.json": "./package.json"
   }
 }

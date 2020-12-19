@@ -60,6 +60,8 @@
     "./index": "./index.js",
     "./index.js": "./index.js",
     "./minified": "./minified.js",
-    "./minified.js": "./minified.js"
+    "./minified.js": "./minified.js",
+    "./package": "./package.json",
+    "./package.json": "./package.json"
   }
 }
