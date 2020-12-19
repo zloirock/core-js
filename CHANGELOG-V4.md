@@ -63,3 +63,4 @@
 - Dropped `core-js-compat` `modules-by-versions` history for `core-js@3`
 - Dropped `core-js-builder` `blacklist` deprecated option
 - Dependencies of many modules (string / regexp methods, `URL`, `Reflect` metadata, keys composition, etc.) moved to entry points for better optimisation by tools
+- Added `exports` fields with all entries to `package.json` of packages
