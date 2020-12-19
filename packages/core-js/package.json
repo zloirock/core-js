@@ -3115,6 +3115,8 @@
     "./web/url-search-params": "./web/url-search-params.js",
     "./web/url-search-params.js": "./web/url-search-params.js",
     "./configurator": "./configurator.js",
-    "./configurator.js": "./configurator.js"
+    "./configurator.js": "./configurator.js",
+    "./package": "./package.json",
+    "./package.json": "./package.json"
   }
 }

@@ -30,6 +30,8 @@ function expland(array) {
 
 async function writeExportsField(path, exports) {
   const pkg = JSON.parse(await readFile(path));
+  exports['./package'] = './package.json';
+  exports['./package.json'] = './package.json';
   pkg.exports = exports;
   await writeFile(path, `${ JSON.stringify(pkg, null, '  ') }\n`);
 }
