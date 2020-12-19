@@ -7,7 +7,7 @@
     "url": "https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-bundle"
   },
-  "main": "index.js",
+  "main": "./index.js",
   "funding": {
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
@@ -54,5 +54,12 @@
   ],
   "scripts": {
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
+  },
+  "exports": {
+    "./": "./index.js",
+    "./index": "./index.js",
+    "./index.js": "./index.js",
+    "./minified": "./minified.js",
+    "./minified.js": "./minified.js"
   }
 }

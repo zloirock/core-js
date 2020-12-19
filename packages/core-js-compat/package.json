@@ -7,7 +7,7 @@
     "url": "https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-compat"
   },
-  "main": "index.js",
+  "main": "./index.js",
   "dependencies": {
     "browserslist": "^4.16.3",
     "semver": "^7.3.4"
@@ -24,5 +24,26 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "exports": {
+    "./": "./index.js",
+    "./index": "./index.js",
+    "./index.js": "./index.js",
+    "./compat": "./compat.js",
+    "./compat.js": "./compat.js",
+    "./get-modules-list-for-target-version": "./get-modules-list-for-target-version.js",
+    "./get-modules-list-for-target-version.js": "./get-modules-list-for-target-version.js",
+    "./targets-parser": "./targets-parser.js",
+    "./targets-parser.js": "./targets-parser.js",
+    "./data": "./data.json",
+    "./data.json": "./data.json",
+    "./entries": "./entries.json",
+    "./entries.json": "./entries.json",
+    "./external": "./external.json",
+    "./external.json": "./external.json",
+    "./modules-by-versions": "./modules-by-versions.json",
+    "./modules-by-versions.json": "./modules-by-versions.json",
+    "./modules": "./modules.json",
+    "./modules.json": "./modules.json"
+  }
 }

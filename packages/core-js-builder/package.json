@@ -7,7 +7,7 @@
     "url": "https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-builder"
   },
-  "main": "index.js",
+  "main": "./index.js",
   "dependencies": {
     "core-js": "3.9.1",
     "core-js-compat": "3.9.1",
@@ -20,5 +20,10 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "exports": {
+    "./": "./index.js",
+    "./index": "./index.js",
+    "./index.js": "./index.js"
+  }
 }
