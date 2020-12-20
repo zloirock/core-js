@@ -1,27 +1,28 @@
 'use strict';
 const { relative } = require('path');
 const { readFile, writeFile } = require('fs').promises;
-const base = require('core-js-compat/entries');
+const entries = require('core-js-compat/entries');
 const builder = require('../packages/core-js-builder/exports');
 const bundle = require('../packages/core-js-bundle/exports');
 const compat = require('../packages/core-js-compat/exports');
 
-const entries = Object.keys(base);
-entries.push('core-js/configurator');
-
-const core = entries.reduce((accumulator, it) => {
+const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
+  if (entry.startsWith('./modules/')) return accumulator;
   const path = `./${ relative('./packages/core-js', require.resolve(`../packages/${ it }`)).replace(/\\/g, '/') }`;
   accumulator[entry] = path;
   return accumulator;
-}, {});
+}, {
+  './modules/*': './modules/*.js',
+  './configurator': './configurator.js',
+});
 
 function expland(array) {
-  const map = {};
-  for (const it of array) {
+  return array.reduce((accumulator, it) => {
     const path = `./${ it }`;
-    map[path.replace(/(\/index)?\.js(on)?$/, '').replace(/^\.$/, './')] = path;
-  } return map;
+    accumulator[path.replace(/(\/index)?\.js(on)?$/, '').replace(/^\.$/, './')] = path;
+    return accumulator;
+  }, {});
 }
 
 async function writeExportsField(path, exports) {
