@@ -1,4 +1,5 @@
 {
+  "version": "3.8.1",
   "devDependencies": {
     "@babel/cli": "^7.12.10",
     "@babel/core": "^7.12.10",
@@ -68,6 +69,7 @@
     "build-compat-modules-by-versions": "node packages/core-js-compat/src/build-modules-by-versions",
     "lint": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./",
     "outdated": "node scripts/check-dependencies",
+    "update-version": "node scripts/update-version",
     "unit-tests": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt bundle webpack:helpers webpack:tests karma:tests",
     "unit-tests-pure": "grunt clean copy && npm run build-compat && grunt webpack:helpers webpack:pure karma:pure",
     "bundle-promises-tests": "grunt webpack:promises-aplus-tests",
