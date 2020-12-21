@@ -10,13 +10,13 @@ const core = Object.keys(entries).reduce((accumulator, it) => {
   accumulator[entry] = path;
   return accumulator;
 }, {
-  './modules/*': './modules/*.js',
+  './package': './package.json',
   './configurator': './configurator.js',
+  './modules/*': './modules/*.js',
 });
 
 async function writeExportsField(path, exports) {
-  const pkg = JSON.parse(await readFile(path));
-  exports['./package'] = './package.json';
+  const pkg = JSON.parse(await readFile(path, 'utf8'));
   pkg.exports = exports;
   await writeFile(path, `${ JSON.stringify(pkg, null, '  ') }\n`);
 }
