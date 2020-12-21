@@ -3,8 +3,8 @@ const { readdir, readFile, writeFile } = require('fs').promises;
 const NEW_VERSION = require('../package').version;
 const PREV_VERSION = require('../packages/core-js/package').version;
 
-const NEW_VERSION_MINOR = NEW_VERSION.replace(/\.\d+$/, '');
-const PREV_VERSION_MINOR = PREV_VERSION.replace(/\.\d+$/, '');
+const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
+const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
 const README = './README.md';
 const SHARED = './packages/core-js/internals/shared.js';
 
