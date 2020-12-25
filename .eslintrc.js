@@ -371,6 +371,8 @@ const base = {
   'unicorn/no-unused-properties': 'error',
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': 'error',
+  // prefer default parameters over reassignment
+  'unicorn/prefer-default-parameters': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
 
@@ -439,6 +441,8 @@ const es3 = {
   'quote-props': ['error', 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: 'off',
+  // prefer default parameters over reassignment
+  'unicorn/prefer-default-parameters': 'off',
 };
 
 const node = {
