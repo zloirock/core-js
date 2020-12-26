@@ -1,4 +1,7 @@
 ## Changelog
+##### Unreleased
+- Fixed iterators dependencies of `Promise.any` and `Promise.allSettled` entries
+
 ##### 3.8.1 - 2020.12.06
 - Fixed work of new `%TypedArray%` methods on `BigInt` arrays
 - Added ESNext methods to ES3 workaround for `Number` constructor wrapper
