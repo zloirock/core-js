@@ -940,7 +940,7 @@ core-js(-pure)/es|stable|features/date/to-primitive
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.aggregate-error.js), [`es.promise`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.aggregate-error.js), [`es.promise.constructor`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.js), [`es.promise.all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.any.js), [`es.promise.catch`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.catch.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.finally.js), [`es.promise.race`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.race.js), [`es.promise.reject`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.reject.js) and [`es.promise.resolve`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.resolve.js).
 ```js
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -953,21 +953,27 @@ class Promise {
   then(onFulfilled: Function, onRejected: Function): Promise;
   catch(onRejected: Function): Promise;
   finally(onFinally: Function): Promise;
-  static resolve(x: any): Promise;
-  static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise<any>;
   static race(iterable: Iterable): Promise;
+  static reject(r: any): Promise;
+  static resolve(x: any): Promise;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/aggregate-error
 core-js(-pure)/es|stable|features/promise
+core-js(-pure)/es|stable|features/promise/constructor
+core-js(-pure)/es|stable|features/promise/all
 core-js(-pure)/es|stable|features/promise/all-settled
 core-js(-pure)/es|stable|features/promise/any
+core-js(-pure)/es|stable|features/promise/catch
 core-js(-pure)/es|stable|features/promise/finally
+core-js(-pure)/es|stable|features/promise/race
+core-js(-pure)/es|stable|features/promise/reject
+core-js(-pure)/es|stable|features/promise/resolve
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
