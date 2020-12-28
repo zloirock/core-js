@@ -27,7 +27,7 @@ var $throw = function (value) {
   var iterator = getInternalState(this).iterator;
   var $$throw = iterator.throw;
   return $$throw === undefined
-    ? Promise.reject(value)
+    ? new Promise(function (resolve, reject) { reject(value); })
     : $$throw.call(iterator, value);
 };
 
@@ -45,7 +45,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       try {
         return Promise.resolve(anObject(nextHandler.call(state, arg, Promise)));
       } catch (error) {
-        return Promise.reject(error);
+        return new Promise(function (resolve, reject) { reject(error); });
       }
     },
     return: $return,

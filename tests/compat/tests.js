@@ -32,6 +32,27 @@ var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', { get: function () { return 7; } }).a == 7;
 };
 
+var SAFE_ITERATION_CLOSING_SUPPORT = function () {
+  var SAFE_CLOSING = false;
+  try {
+    var called = 0;
+    var iteratorWithReturn = {
+      next: function () {
+        return { done: !!called++ };
+      },
+      return: function () {
+        SAFE_CLOSING = true;
+      },
+    };
+    iteratorWithReturn[Symbol.iterator] = function () {
+      return this;
+    };
+    Array.from(iteratorWithReturn, function () { throw Error('close'); });
+  } catch (error) {
+    return SAFE_CLOSING;
+  }
+};
+
 var PROMISES_SUPPORT = function () {
   var promise = new Promise(function (resolve) { resolve(1); });
   var empty = function () { /* empty */ };
@@ -43,6 +64,22 @@ var PROMISES_SUPPORT = function () {
     && V8_VERSION !== 66
     && (IS_NODE || typeof PromiseRejectionEvent == 'function');
 };
+
+var PROMISE_STATICS_ITERATION = [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  var ITERATION_SUPPORT = false;
+  try {
+    var object = {};
+    object[Symbol.iterator] = function () {
+      return {
+        next: function () {
+          return { done: ITERATION_SUPPORT = true };
+        },
+      };
+    };
+    Promise.all(object).then(undefined, function () { /* empty */ });
+  } catch (error) { /* empty */ }
+  return ITERATION_SUPPORT;
+}];
 
 var SYMBOLS_SUPPORT = function () {
   return String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
@@ -75,27 +112,6 @@ var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
   } catch (error) {
     return Object.prototype.__defineSetter__;
-  }
-};
-
-var SAFE_ITERATION_CLOSING_SUPPORT = function () {
-  var SAFE_CLOSING = false;
-  try {
-    var called = 0;
-    var iteratorWithReturn = {
-      next: function () {
-        return { done: !!called++ };
-      },
-      return: function () {
-        SAFE_CLOSING = true;
-      },
-    };
-    iteratorWithReturn[Symbol.iterator] = function () {
-      return this;
-    };
-    Array.from(iteratorWithReturn, function () { throw Error('close'); });
-  } catch (error) {
-    return SAFE_CLOSING;
   }
 };
 
@@ -704,16 +720,21 @@ GLOBAL.tests = {
     return parseInt(WHITESPACES + '08') === 8
       && parseInt(WHITESPACES + '0x16') === 22;
   },
-  'es.promise': PROMISES_SUPPORT,
+  'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise.all': PROMISE_STATICS_ITERATION,
   'es.promise.all-settled': function () {
     return Promise.allSettled;
   },
   'es.promise.any': function () {
     return Promise.any;
   },
+  'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
   }],
+  'es.promise.race': PROMISE_STATICS_ITERATION,
+  'es.promise.reject': PROMISES_SUPPORT,
+  'es.promise.resolve': PROMISES_SUPPORT,
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
