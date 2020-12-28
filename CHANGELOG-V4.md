@@ -63,4 +63,12 @@
 - Dropped `core-js-compat` `modules-by-versions` history for `core-js@3`
 - Dropped `core-js-builder` `blacklist` deprecated option
 - Dependencies of many modules (string / regexp methods, `URL`, `Reflect` metadata, keys composition, etc.) moved to entry points for better optimisation by tools
+- Splitted for better modularity:
+  - `es.promise` to:
+    - `es.promise.constructor`
+    - `es.promise.all`
+    - `es.promise.catch`
+    - `es.promise.race`
+    - `es.promise.reject`
+    - `es.promise.resolve`
 - Added `exports` fields with all entries to `package.json` of packages
