@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed handling of special replacements patterns in `String#replaceAll`, [#900](https://github.com/zloirock/core-js/issues/900)
 - Fixed iterators dependencies of `Promise.any` and `Promise.allSettled` entries
 
 ##### 3.8.1 - 2020.12.06

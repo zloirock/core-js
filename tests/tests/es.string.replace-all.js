@@ -28,6 +28,10 @@ QUnit.test('String#replaceAll', assert => {
   assert.same('aba'.replaceAll(searcher, 'c'), 'foo');
   assert.same('aba'.replaceAll('b'), 'aundefineda');
   assert.same('xxx'.replaceAll('', '_'), '_x_x_x_');
+  assert.same('121314'.replaceAll('1', '$$'), '$2$3$4', '$$');
+  assert.same('121314'.replaceAll('1', '$&'), '121314', '$&');
+  assert.same('121314'.replaceAll('1', '$`'), '212312134', '$`');
+  assert.same('121314'.replaceAll('1', '$\''), '213142314344', '$\'');
   if (STRICT) {
     assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);
     assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
