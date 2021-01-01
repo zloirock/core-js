@@ -18,7 +18,7 @@ var stringIndexOf = function (string, searchValue, fromIndex) {
 };
 
 // `String.prototype.replaceAll` method
-// https://github.com/tc39/proposal-string-replace-all
+// https://tc39.es/ecma262/#sec-string.prototype.replaceall
 $({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);

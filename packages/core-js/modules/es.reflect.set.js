@@ -9,7 +9,7 @@ var getPrototypeOf = require('../internals/object-get-prototype-of');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 
 // `Reflect.set` method
-// https://tc39.github.io/ecma262/#sec-reflect.set
+// https://tc39.es/ecma262/#sec-reflect.set
 function set(target, propertyKey, V /* , receiver */) {
   var receiver = arguments.length < 4 ? target : arguments[3];
   var ownDescriptor = getOwnPropertyDescriptorModule.f(anObject(target), propertyKey);

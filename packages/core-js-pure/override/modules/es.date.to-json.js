@@ -11,6 +11,8 @@ var FORCED = fails(function () {
     || Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) !== 1;
 });
 
+// `Date.prototype.toJSON` method
+// https://tc39.es/ecma262/#sec-date.prototype.tojson
 $({ target: 'Date', proto: true, forced: FORCED }, {
   // eslint-disable-next-line no-unused-vars
   toJSON: function toJSON(key) {

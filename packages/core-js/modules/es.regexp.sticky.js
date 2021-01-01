@@ -5,6 +5,7 @@ var getInternalState = require('../internals/internal-state').get;
 var RegExpPrototype = RegExp.prototype;
 
 // `RegExp.prototype.sticky` getter
+// https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky
 if (DESCRIPTORS && UNSUPPORTED_Y) {
   defineProperty(RegExp.prototype, 'sticky', {
     configurable: true,

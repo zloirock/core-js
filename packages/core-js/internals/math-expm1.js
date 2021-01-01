@@ -2,7 +2,7 @@ var nativeExpm1 = Math.expm1;
 var exp = Math.exp;
 
 // `Math.expm1` method implementation
-// https://tc39.github.io/ecma262/#sec-math.expm1
+// https://tc39.es/ecma262/#sec-math.expm1
 module.exports = (!nativeExpm1
   // Old FF bug
   || nativeExpm1(10) > 22025.465794806719 || nativeExpm1(10) < 22025.4657948067165168

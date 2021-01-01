@@ -16,6 +16,8 @@ var DELEGATES_TO_EXEC = function () {
 
 var nativeTest = /./.test;
 
+// `RegExp.prototype.test` method
+// https://tc39.es/ecma262/#sec-regexp.prototype.test
 $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
   test: function (str) {
     if (typeof this.exec !== 'function') {

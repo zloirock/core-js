@@ -2,7 +2,7 @@ var classof = require('./classof-raw');
 var regexpExec = require('./regexp-exec');
 
 // `RegExpExec` abstract operation
-// https://tc39.github.io/ecma262/#sec-regexpexec
+// https://tc39.es/ecma262/#sec-regexpexec
 module.exports = function (R, S) {
   var exec = R.exec;
   if (typeof exec === 'function') {

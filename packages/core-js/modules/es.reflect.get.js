@@ -6,7 +6,7 @@ var getOwnPropertyDescriptorModule = require('../internals/object-get-own-proper
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 
 // `Reflect.get` method
-// https://tc39.github.io/ecma262/#sec-reflect.get
+// https://tc39.es/ecma262/#sec-reflect.get
 function get(target, propertyKey /* , receiver */) {
   var receiver = arguments.length < 3 ? target : arguments[2];
   var descriptor, prototype;

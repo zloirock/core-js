@@ -7,7 +7,7 @@ var aFunction = require('../internals/a-function');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
 // `Array.prototype.flatMap` method
-// https://github.com/tc39/proposal-flatMap
+// https://tc39.es/ecma262/#sec-array.prototype.flatmap
 $({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);

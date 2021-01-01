@@ -8,7 +8,7 @@ var getPrototypeOf = require('../internals/object-get-prototype-of');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
 // `Object.prototype.__lookupGetter__` method
-// https://tc39.github.io/ecma262/#sec-object.prototype.__lookupGetter__
+// https://tc39.es/ecma262/#sec-object.prototype.__lookupGetter__
 if (DESCRIPTORS) {
   $({ target: 'Object', proto: true, forced: FORCED }, {
     __lookupGetter__: function __lookupGetter__(P) {
