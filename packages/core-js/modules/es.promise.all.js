@@ -7,7 +7,7 @@ var iterate = require('../internals/iterate');
 var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-incorrect-iteration');
 
 // `Promise.all` method
-// https://tc39.github.io/ecma262/#sec-promise.all
+// https://tc39.es/ecma262/#sec-promise.all
 $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   all: function all(iterable) {
     var C = this;

@@ -7,7 +7,7 @@ var iterate = require('../internals/iterate');
 var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-incorrect-iteration');
 
 // `Promise.race` method
-// https://tc39.github.io/ecma262/#sec-promise.race
+// https://tc39.es/ecma262/#sec-promise.race
 $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   race: function race(iterable) {
     var C = this;

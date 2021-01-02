@@ -4,7 +4,7 @@ var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var FORCED_PROMISE_CONSTRUCTOR = require('../internals/promise-forced-constructor');
 
 // `Promise.reject` method
-// https://tc39.github.io/ecma262/#sec-promise.reject
+// https://tc39.es/ecma262/#sec-promise.reject
 $({ target: 'Promise', stat: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
   reject: function reject(r) {
     var capability = newPromiseCapabilityModule.f(this);
