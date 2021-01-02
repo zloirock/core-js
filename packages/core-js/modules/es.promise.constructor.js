@@ -216,7 +216,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
   };
   Internal.prototype = redefineAll(PromiseConstructor.prototype, {
     // `Promise.prototype.then` method
-    // https://tc39.github.io/ecma262/#sec-promise.prototype.then
+    // https://tc39.es/ecma262/#sec-promise.prototype.then
     then: function then(onFulfilled, onRejected) {
       var state = getInternalPromiseState(this);
       var reaction = newPromiseCapability(speciesConstructor(this, PromiseConstructor));

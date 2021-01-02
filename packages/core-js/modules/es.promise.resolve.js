@@ -11,7 +11,7 @@ var CHECK_WRAPPER = IS_PURE && !FORCED_PROMISE_CONSTRUCTOR;
 
 $({ target: 'Promise', stat: true, forced: IS_PURE || FORCED_PROMISE_CONSTRUCTOR }, {
   // `Promise.resolve` method
-  // https://tc39.github.io/ecma262/#sec-promise.resolve
+  // https://tc39.es/ecma262/#sec-promise.resolve
   resolve: function resolve(x) {
     return promiseResolve(CHECK_WRAPPER && this === PromiseWrapper ? Promise : this, x);
   },
