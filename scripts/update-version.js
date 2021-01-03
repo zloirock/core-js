@@ -4,12 +4,14 @@ const { readdir, readFile, writeFile } = require('fs').promises;
 const NEW_VERSION = require('../package').version;
 const PREV_VERSION = require('../packages/core-js/package').version;
 
+const now = new Date();
 const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
 const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
+const CHANGELOG = './CHANGELOG.md';
 const LICENSE = './LICENSE';
 const README = './README.md';
 const SHARED = './packages/core-js/internals/shared.js';
-const CURRENT_YEAR = `${ new Date().getFullYear() }`;
+const CURRENT_YEAR = now.getFullYear();
 
 (async function () {
   const license = await readFile(LICENSE, 'utf8');
@@ -38,6 +40,12 @@ const CURRENT_YEAR = `${ new Date().getFullYear() }`;
     }
     await writeFile(PATH, `${ JSON.stringify(pkg, null, '  ') }\n`);
   }
+  const changelog = await readFile(CHANGELOG, 'utf8');
+  await writeFile(CHANGELOG, changelog.split('##### Unreleased').join(`##### Unreleased\n- Nothing\n\n##### ${
+    NEW_VERSION
+  } - ${
+    now.getFullYear() }.${ String(now.getMonth() + 1).padStart(2, '0') }.${ String(now.getDate()).padStart(2, '0')
+  }`));
   if (CURRENT_YEAR !== OLD_YEAR) console.log('\u001B[32mthe year updated\u001B[0m');
   if (NEW_VERSION !== PREV_VERSION) console.log('\u001B[32mthe version updated\u001B[0m');
 })();
