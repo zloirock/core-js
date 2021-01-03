@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.8.2 - 2021.01.03
 - Fixed handling of special replacements patterns in `String#replaceAll`, [#900](https://github.com/zloirock/core-js/issues/900)
 - Fixed iterators dependencies of `Promise.any` and `Promise.allSettled` entries
 - Fixed microtask implementation on WebOS, [#898](https://github.com/zloirock/core-js/issues/898), [#901](https://github.com/zloirock/core-js/issues/901)
