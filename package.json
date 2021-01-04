@@ -61,7 +61,8 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "bootstrap": "lerna bootstrap --no-ci",
+    "bootstrap": "lerna bootstrap --hoist --no-ci && lerna link",
+    "publish": "lerna publish from-package",
     "build": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt bundle uglify",
     "build-compat": "npm run build-compat-data && npm run build-compat-entries && npm run build-compat-modules-by-versions",
     "build-compat-data": "node packages/core-js-compat/src/build-data",
