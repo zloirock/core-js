@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed some more issues related to FF44- legacy `Iterator`, [#906](https://github.com/zloirock/core-js/issues/906)
 
 ##### 3.8.2 - 2021.01.03
 - Fixed handling of special replacements patterns in `String#replaceAll`, [#900](https://github.com/zloirock/core-js/issues/900)
