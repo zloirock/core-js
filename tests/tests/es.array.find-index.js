@@ -16,7 +16,9 @@ QUnit.test('Array#findIndex', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
+  // eslint-disable-next-line unicorn/prefer-array-index-of
   assert.same([1, 3, NaN, 42, {}].findIndex(it => it === 42), 3);
+  // eslint-disable-next-line unicorn/prefer-array-index-of
   assert.same([1, 3, NaN, 42, {}].findIndex(it => it === 43), -1);
   if (STRICT) {
     assert.throws(() => findIndex.call(null, 0), TypeError);

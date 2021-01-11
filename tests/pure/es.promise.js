@@ -203,7 +203,7 @@ QUnit.test('Promise.all', assert => {
   let FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  FakePromise1.resolve = FakePromise2.resolve = bind(Promise.resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = bind(resolve, Promise);
   assert.ok(all.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
@@ -212,7 +212,7 @@ QUnit.test('Promise.all', assert => {
   const FakePromise3 = function (executor) {
     executor(() => { /* empty */ }, null);
   };
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(Promise.resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
   assert.throws(() => {
     all.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');
@@ -263,7 +263,7 @@ QUnit.test('Promise.race', assert => {
   let FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  FakePromise1.resolve = FakePromise2.resolve = bind(Promise.resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = bind(resolve, Promise);
   assert.ok(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
@@ -272,7 +272,7 @@ QUnit.test('Promise.race', assert => {
   const FakePromise3 = function (executor) {
     executor(() => { /* empty */ }, null);
   };
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(Promise.resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
   assert.throws(() => {
     race.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');

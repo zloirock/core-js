@@ -17,13 +17,13 @@ QUnit.test('String#trimRight', assert => {
 });
 
 QUnit.test('String#trimEnd', assert => {
-  const { trimEnd } = String.prototype;
+  const { trimEnd, trimRight } = String.prototype;
   assert.isFunction(trimEnd);
   assert.arity(trimEnd, 0);
   assert.name(trimEnd, 'trimEnd');
   assert.looksNative(trimEnd);
   assert.nonEnumerable(String.prototype, 'trimEnd');
-  assert.same(trimEnd, String.prototype.trimRight, 'same #trimRight');
+  assert.same(trimEnd, trimRight, 'same #trimRight');
   assert.strictEqual(' \n  q w e \n  '.trimEnd(), ' \n  q w e', 'removes whitespaces at right side of string');
   assert.strictEqual(WHITESPACES.trimEnd(), '', 'removes all whitespaces');
   assert.strictEqual('\u200B\u0085'.trimEnd(), '\u200B\u0085', "shouldn't remove this symbols");

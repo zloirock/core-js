@@ -371,8 +371,12 @@ const base = {
   'unicorn/no-unused-properties': 'error',
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': 'error',
+  // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
+  'unicorn/prefer-array-index-of': 'error',
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': 'error',
+  // prefer `RegExp#test` over `String#match` and `RegExp#exec`
+  'unicorn/prefer-regexp-test': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
 
