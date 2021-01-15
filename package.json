@@ -27,7 +27,7 @@
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "david": "^12.0.0",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
-    "eslint": "^7.17.0",
+    "eslint": "^7.18.0",
     "eslint-import-resolver-webpack": "~0.13.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
