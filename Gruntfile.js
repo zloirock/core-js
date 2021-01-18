@@ -169,10 +169,6 @@ module.exports = grunt => {
     const builder = require('./packages/core-js-builder');
     const done = this.async();
 
-    builder({ filename: './packages/core-js-bundle/index.js' }).then(done).catch(error => {
-      // eslint-disable-next-line no-console
-      console.error(error);
-      process.exit(1);
-    });
+    builder({ filename: './packages/core-js-bundle/index.js' }).then(done, done);
   });
 };
