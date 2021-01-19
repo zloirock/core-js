@@ -62,7 +62,7 @@
   },
   "scripts": {
     "bootstrap": "lerna bootstrap --hoist --no-ci && lerna link",
-    "publish": "lerna publish from-package",
+    "publish": "lerna publish from-package --yes",
     "build": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt bundle uglify",
     "build-compat": "npm run build-compat-data && npm run build-compat-entries && npm run build-compat-modules-by-versions",
     "build-compat-data": "node packages/core-js-compat/src/build-data",
