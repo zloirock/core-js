@@ -110,7 +110,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/array/virtual/includes').call([1, 2, 3], 2));
   ok('next' in load('features/array/virtual/iterator').call([]));
   ok(typeof load('features/array/virtual/unique-by') === 'function');
-  ok(load('features/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('features/array'));
   load('features/bigint/range');
   load('features/bigint');
@@ -158,7 +157,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/parse-int')('2.1') === 2);
   ok(load('features/number/virtual/to-fixed').call(1, 1) === '1.0');
   ok(load('features/number/virtual/to-precision').call(1) === '1');
-  ok(load('features/number/virtual').toFixed.call(42, 2) === '42.00');
   ok('isNaN' in load('features/number'));
   ok(load('features/reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
   ok(load('features/reflect/construct')(function () {
@@ -249,7 +247,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/string/virtual/trim-right').call(' a ') === ' a');
   ok('next' in load('features/string/virtual/match-all').call('a', /./g));
   ok(typeof load('features/string/virtual/replace-all') === 'function');
-  ok(load('features/string/virtual').at.call('a', 0) === 'a');
   ok('next' in load('features/string/virtual/iterator').call('qwe'));
   ok('raw' in load('features/string'));
   ok(String(load('features/regexp/constructor')('a', 'g')) === '/a/g');
@@ -487,7 +484,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok('next' in load('stable/array/virtual/values').call([]));
   ok(load('stable/array/virtual/includes').call([1, 2, 3], 2));
   ok('next' in load('stable/array/virtual/iterator').call([]));
-  ok(load('stable/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('stable/array'));
   ok(load('stable/array/splice')([1, 2, 3], 1, 2)[0] === 2);
   ok(load('stable/math/acosh')(1) === 0);
@@ -524,7 +520,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stable/parse-int')('2.1') === 2);
   ok(load('stable/number/virtual/to-fixed').call(1, 1) === '1.0');
   ok(load('stable/number/virtual/to-precision').call(1) === '1');
-  ok(load('stable/number/virtual').toFixed.call(42, 2) === '42.00');
   ok('isNaN' in load('stable/number'));
   ok(load('stable/reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
   ok(load('stable/reflect/construct')(function () {
@@ -601,7 +596,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stable/string/virtual/trim-end').call(' a ') === ' a');
   ok(load('stable/string/virtual/trim-left').call(' a ') === 'a ');
   ok(load('stable/string/virtual/trim-right').call(' a ') === ' a');
-  ok(load('stable/string/virtual').at.call('a', 0) === 'a');
   ok('next' in load('stable/string/virtual/iterator').call('qwe'));
   ok('raw' in load('stable/string'));
   ok(String(load('stable/regexp/constructor')('a', 'g')) === '/a/g');
@@ -754,7 +748,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok('next' in load('es/array/virtual/values').call([]));
   ok(load('es/array/virtual/includes').call([1, 2, 3], 2));
   ok('next' in load('es/array/virtual/iterator').call([]));
-  ok(load('es/array/virtual').includes.call([1, 2, 3], 2));
   ok('from' in load('es/array'));
   ok(load('es/array/splice')([1, 2, 3], 1, 2)[0] === 2);
   ok(load('es/math/acosh')(1) === 0);
@@ -791,7 +784,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('es/parse-int')('2.1') === 2);
   ok(load('es/number/virtual/to-fixed').call(1, 1) === '1.0');
   ok(load('es/number/virtual/to-precision').call(1) === '1');
-  ok(load('es/number/virtual').toFixed.call(42, 2) === '42.00');
   ok('isNaN' in load('es/number'));
   ok(load('es/reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
   ok(load('es/reflect/construct')(function () {
@@ -868,7 +860,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('es/string/virtual/sup') === 'function');
   ok(load('es/string/virtual/pad-start').call('a', 3) === '  a');
   ok(load('es/string/virtual/pad-end').call('a', 3) === 'a  ');
-  ok(load('es/string/virtual').trim.call(' a') === 'a');
   ok('next' in load('es/string/virtual/iterator').call('qwe'));
   ok('raw' in load('es/string'));
   ok(String(load('es/regexp/constructor')('a', 'g')) === '/a/g');
