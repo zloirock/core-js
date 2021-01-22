@@ -72,3 +72,4 @@
     - `es.promise.reject`
     - `es.promise.resolve`
 - Added `exports` fields with all entries to `package.json` of packages
+- Dropped `*/virtual/index.js` entries

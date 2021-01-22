@@ -5,14 +5,27 @@ const entries = require('core-js-compat/entries');
 
 const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
-  if (entry.startsWith('./modules/')) return accumulator;
-  const path = `./${ relative('./packages/core-js', require.resolve(`../packages/${ it }`)).replace(/\\/g, '/') }`;
-  accumulator[entry] = path;
-  return accumulator;
+  // eslint-disable-next-line unicorn/no-unsafe-regex
+  const match = entry.match(/^(\.\/(?:es|stable|features)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
+  if (match) {
+    const [, scope] = match;
+    if (entry === scope) {
+      const path = `./${ relative('./packages/core-js', require.resolve(`../packages/${ it }`)).replace(/\\/g, '/') }`;
+      accumulator[entry] = path;
+    } else {
+      accumulator[`${ scope }/*`] = `${ scope }/*.js`;
+    }
+  } return accumulator;
 }, {
+  '.': './index.js',
   './package': './package.json',
+  './postinstall': './postinstall.js',
   './configurator': './configurator.js',
   './modules/*': './modules/*.js',
+  './proposals': './proposals/index.js',
+  './proposals/*': './proposals/*.js',
+  './stage': './stage/index.js',
+  './stage/*': './stage/*.js',
 });
 
 async function writeExportsField(path, exports) {
