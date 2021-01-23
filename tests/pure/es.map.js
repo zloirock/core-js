@@ -286,8 +286,7 @@ QUnit.test('Map Iterator', assert => {
   assert.ok(map.delete('b'));
   assert.ok(map.delete('c'));
   map.set('e');
-  results.push(iterator.next().value);
-  results.push(iterator.next().value);
+  results.push(iterator.next().value, iterator.next().value);
   assert.ok(iterator.next().done);
   map.set('f');
   assert.ok(iterator.next().done);

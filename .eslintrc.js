@@ -357,6 +357,8 @@ const base = {
   'unicorn/import-index': 'error',
   // enforce specifying rules to disable in eslint-disable comments
   'unicorn/no-abusive-eslint-disable': 'error',
+  // enforce combining multiple `Array#push` into one call
+  'unicorn/no-array-push-push': 'error',
   // do not use leading/trailing space between `console.log` parameters
   'unicorn/no-console-spaces': 'error',
   // enforce the use of unicode escapes instead of hexadecimal escapes
