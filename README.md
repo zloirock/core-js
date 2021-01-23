@@ -2645,7 +2645,6 @@ core-js(-pure)/web/url-search-params
 core-js(-pure)/stable|features/url
 core-js/stable|features/url/to-json
 core-js(-pure)/stable|features/url-search-params
-core-js/stable|features/url-search-params/sort
 ```
 [*Examples*](https://goo.gl/kksjwV):
 ```js
