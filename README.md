@@ -2364,16 +2364,17 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 core-js(-pure)/web
 ```
 #### `setTimeout` and `setInterval`[⬆](#index)
-Module [`web.timers`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+Modules [`web.set-interval`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-interval.js) and [`web.set-timeout`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-timeout.js). Additional arguments fix for IE9-.
 ```js
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/timers
-core-js(-pure)/stable|features/set-timeout
+core-js(-pure)/web/set-interval
+core-js(-pure)/web/set-timeout
 core-js(-pure)/stable|features/set-interval
+core-js(-pure)/stable|features/set-timeout
 ```
 ```js
 // Before:

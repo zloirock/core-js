@@ -1503,7 +1503,16 @@ const data = {
     node: '12.0', // '11.0',
     safari: '12.1',
   },
-  'web.timers': {
+  'web.set-interval': {
+    android: '1.5',
+    chrome: '1',
+    firefox: '1',
+    ie: '10',
+    node: '0.0.1',
+    opera: '7',
+    safari: '1.0',
+  },
+  'web.set-timeout': {
     android: '1.5',
     chrome: '1',
     firefox: '1',

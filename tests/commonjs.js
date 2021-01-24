@@ -916,7 +916,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('es/promise/resolve')(1) instanceof Promise);
   ok(load('es/promise') === Promise);
   ok('Map' in load('es'));
-  ok('setTimeout' in load('web/timers'));
+  ok(typeof load('web/set-interval') === 'function');
+  ok(typeof load('web/set-timeout') === 'function');
   ok('setImmediate' in load('web/immediate'));
   ok(typeof load('web/queue-microtask') === 'function');
   load('web/dom-collections');
