@@ -28,6 +28,8 @@ var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
+var MSIE9 = /MSIE .\./.test(USERAGENT);
+
 var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', { get: function () { return 7; } }).a == 7;
 };
@@ -1577,8 +1579,11 @@ GLOBAL.tests = {
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
-  'web.timers': function () {
-    return !/MSIE .\./.test(USERAGENT);
+  'web.set-interval': function () {
+    return !MSIE9;
+  },
+  'web.set-timeout': function () {
+    return !MSIE9;
   },
   'web.url': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {

@@ -76,5 +76,8 @@
     - `es.string.trim-left`
     - `es.string.trim-right`
     - `es.string.trim-start`
+  - `web.timers` to:
+    - `web.set-interval`
+    - `web.set-timeout`
 - Added `exports` fields with all entries to `package.json` of packages
 - Dropped `*/virtual/index.js` entries
