@@ -18,14 +18,17 @@ const core = Object.keys(entries).reduce((accumulator, it) => {
   } return accumulator;
 }, {
   '.': './index.js',
+  './configurator': './configurator.js',
+  './internals/*': './internals/*.js',
+  './modules/*': './modules/*.js',
   './package': './package.json',
   './postinstall': './postinstall.js',
-  './configurator': './configurator.js',
-  './modules/*': './modules/*.js',
   './proposals': './proposals/index.js',
   './proposals/*': './proposals/*.js',
   './stage': './stage/index.js',
   './stage/*': './stage/*.js',
+  './web': './web/index.js',
+  './web/*': './web/*.js',
 });
 
 async function writeExportsField(path, exports) {
