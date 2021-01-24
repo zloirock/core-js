@@ -962,12 +962,14 @@ GLOBAL.tests = {
     return ''.substr;
   },
   'es.string.trim': createStringTrimMethodTest('trim'),
-  'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
-    return String.prototype.trimRight === String.prototype.trimEnd;
-  }],
-  'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
+  'es.string.trim-end': createStringTrimMethodTest('trimEnd'),
+  'es.string.trim-left': [createStringTrimMethodTest('trimStart'), function () {
     return String.prototype.trimLeft === String.prototype.trimStart;
   }],
+  'es.string.trim-right': [createStringTrimMethodTest('trimEnd'), function () {
+    return String.prototype.trimRight === String.prototype.trimEnd;
+  }],
+  'es.string.trim-start': createStringTrimMethodTest('trimStart'),
   'es.string.anchor': createStringHTMLMethodTest('anchor'),
   'es.string.big': createStringHTMLMethodTest('big'),
   'es.string.blink': createStringHTMLMethodTest('blink'),
