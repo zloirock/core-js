@@ -934,6 +934,16 @@ const data = {
     firefox: '61',
     safari: '12.1',
   },
+  'es.string.trim-left': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.0',
+  },
+  'es.string.trim-right': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.1',
+  },
   'es.string.trim-start': {
     chrome: '66',
     firefox: '61',

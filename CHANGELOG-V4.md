@@ -71,5 +71,10 @@
     - `es.promise.race`
     - `es.promise.reject`
     - `es.promise.resolve`
+  - `es.string.trim-end` and `es.string.trim-start` to:
+    - `es.string.trim-end`
+    - `es.string.trim-left`
+    - `es.string.trim-right`
+    - `es.string.trim-start`
 - Added `exports` fields with all entries to `package.json` of packages
 - Dropped `*/virtual/index.js` entries
