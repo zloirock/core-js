@@ -1255,7 +1255,6 @@ const data = {
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
   'esnext.array.at': {
-    chrome: '89',
   },
   'esnext.array.filter-out': {
   },
@@ -1496,7 +1495,6 @@ const data = {
   'esnext.symbol.replace-all': {
   },
   'esnext.typed-array.at': {
-    chrome: '89',
   },
   'esnext.typed-array.filter-out': {
   },
