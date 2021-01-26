@@ -13,6 +13,7 @@ var MessageChannel = global.MessageChannel;
 var Dispatch = global.Dispatch;
 var counter = 0;
 var queue = {};
+var FORCED = !set || !clear;
 var ONREADYSTATECHANGE = 'onreadystatechange';
 var defer, channel, port;
 
@@ -41,7 +42,7 @@ var post = function (id) {
 };
 
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
-if (!set || !clear) {
+if (FORCED) {
   set = function setImmediate(fn) {
     var args = [];
     var i = 1;
@@ -101,6 +102,7 @@ if (!set || !clear) {
 }
 
 module.exports = {
+  FORCED: FORCED,
   set: set,
   clear: clear,
 };

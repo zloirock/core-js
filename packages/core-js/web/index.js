@@ -1,9 +1,10 @@
 require('../modules/es.array.iterator');
 require('../modules/es.string.iterator');
+require('../modules/web.clear-immediate');
 require('../modules/web.dom-collections.for-each');
 require('../modules/web.dom-collections.iterator');
-require('../modules/web.immediate');
 require('../modules/web.queue-microtask');
+require('../modules/web.set-immediate');
 require('../modules/web.set-interval');
 require('../modules/web.set-timeout');
 require('../modules/web.url');

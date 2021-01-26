@@ -1479,6 +1479,10 @@ const data = {
   },
   'esnext.weak-set.of': {
   },
+  'web.clear-immediate': {
+    ie: '10',
+    node: '0.9.1',
+  },
   'web.dom-collections.for-each': {
     chrome: '58',
     edge: '16',
@@ -1492,16 +1496,16 @@ const data = {
     node: '0.0.1',
     safari: '13.1',
   },
-  'web.immediate': {
-    ie: '10',
-    node: '0.9.1',
-  },
   'web.queue-microtask': {
     chrome: '71',
     firefox: '69',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
     safari: '12.1',
+  },
+  'web.set-immediate': {
+    ie: '10',
+    node: '0.9.1',
   },
   'web.set-interval': {
     android: '1.5',

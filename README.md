@@ -220,7 +220,8 @@ with `chrome 71` target will be replaced just to:
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.object.from-entries";
-import "core-js/modules/web.immediate";
+import "core-js/modules/web.clear-immediate";
+import "core-js/modules/web.set-immediate";
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
 ```js
@@ -2383,16 +2384,15 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 #### `setImmediate`[⬆](#index)
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
+Modules [`web.clear-immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.clear-immediate.js) and [`web.set-immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/immediate
-core-js(-pure)/stable|features/set-immediate
-core-js(-pure)/stable|features/clear-immediate
+core-js(-pure)/stable|features|web/set-immediate
+core-js(-pure)/stable|features|web/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
