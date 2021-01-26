@@ -76,7 +76,9 @@
     - `es.string.trim-left`
     - `es.string.trim-right`
     - `es.string.trim-start`
-  - `web.timers` to:
+  - `web.immediate` and `web.timers` to:
+    - `web.clear-immediate`
+    - `web.set-immediate`
     - `web.set-interval`
     - `web.set-timeout`
 - Added `exports` fields with all entries to `package.json` of packages
