@@ -66,8 +66,6 @@
     "./proposals/*": "./proposals/*.js",
     "./stage": "./stage/index.js",
     "./stage/*": "./stage/*.js",
-    "./web": "./web/index.js",
-    "./web/*": "./web/*.js",
     "./es": "./es/index.js",
     "./es/aggregate-error": "./es/aggregate-error.js",
     "./es/array": "./es/array/index.js",
@@ -220,6 +218,17 @@
     "./stable/url-search-params": "./stable/url-search-params/index.js",
     "./stable/url/*": "./stable/url/*.js",
     "./stable/weak-map": "./stable/weak-map/index.js",
-    "./stable/weak-set": "./stable/weak-set/index.js"
+    "./stable/weak-set": "./stable/weak-set/index.js",
+    "./web": "./web/index.js",
+    "./web/clear-immediate": "./web/clear-immediate.js",
+    "./web/dom-collections": "./web/dom-collections/index.js",
+    "./web/dom-collections/*": "./web/dom-collections/*.js",
+    "./web/queue-microtask": "./web/queue-microtask.js",
+    "./web/set-immediate": "./web/set-immediate.js",
+    "./web/set-interval": "./web/set-interval.js",
+    "./web/set-timeout": "./web/set-timeout.js",
+    "./web/url": "./web/url/index.js",
+    "./web/url-search-params": "./web/url-search-params/index.js",
+    "./web/url/*": "./web/url/*.js"
   }
 }

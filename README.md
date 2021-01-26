@@ -2461,11 +2461,9 @@ class URLSearchParams {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/url
-core-js(-pure)/web/url
-core-js(-pure)/web/url-search-params
-core-js(-pure)/stable|features/url
-core-js/stable|features/url/to-json
-core-js(-pure)/stable|features/url-search-params
+core-js(-pure)/stable|features|web/url
+core-js/stable|features|web/url/to-json
+core-js(-pure)/stable|features|web/url-search-params
 ```
 [*Examples*](https://goo.gl/kksjwV):
 ```js
@@ -2561,9 +2559,9 @@ class [DOMTokenList, NodeList] {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/dom-collections
-core-js(-pure)/stable|features/dom-collections/iterator
-core-js/stable|features/dom-collections/for-each
+core-js(-pure)/stable|features|web/dom-collections
+core-js(-pure)/stable|features|web/dom-collections/iterator
+core-js(-pure)/stable|features|web/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js

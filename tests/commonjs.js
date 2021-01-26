@@ -355,6 +355,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stable/global-this').Math === Math);
   ok(load('features/global-this').Math === Math);
   ok(typeof load('features/dom-collections').iterator === 'function');
+  ok(typeof load('features/dom-collections/for-each') === 'function');
   ok(typeof load('features/dom-collections/iterator') === 'function');
   ok(typeof load('features/set-timeout') === 'function');
   ok(typeof load('features/set-interval') === 'function');
@@ -652,6 +653,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stable/promise/resolve')(1) instanceof Promise);
   ok(load('stable/promise') === Promise);
   ok(typeof load('stable/dom-collections').iterator === 'function');
+  ok(typeof load('stable/dom-collections/for-each') === 'function');
   ok(typeof load('stable/dom-collections/iterator') === 'function');
   ok(typeof load('stable/set-timeout') === 'function');
   ok(typeof load('stable/set-interval') === 'function');
@@ -921,8 +923,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('web/clear-immediate') === 'function');
   ok(typeof load('web/set-immediate') === 'function');
   ok(typeof load('web/queue-microtask') === 'function');
-  load('web/dom-collections');
+  ok(typeof load('web/dom-collections').iterator === 'function');
+  ok(typeof load('web/dom-collections/for-each') === 'function');
+  ok(typeof load('web/dom-collections/iterator') === 'function');
   ok(typeof load('web/url') === 'function');
+  load('web/url/to-json');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
   load('proposals/array-filtering');

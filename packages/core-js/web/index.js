@@ -1,4 +1,5 @@
 require('../modules/es.array.iterator');
+require('../modules/es.object.to-string');
 require('../modules/es.string.iterator');
 require('../modules/web.clear-immediate');
 require('../modules/web.dom-collections.for-each');
