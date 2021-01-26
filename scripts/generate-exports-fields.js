@@ -6,7 +6,7 @@ const entries = require('core-js-compat/entries');
 const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
   // eslint-disable-next-line unicorn/no-unsafe-regex
-  const match = entry.match(/^(\.\/(?:es|stable|features)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
+  const match = entry.match(/^(\.\/(?:es|stable|features|web)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
   if (match) {
     const [, scope] = match;
     if (entry === scope) {
@@ -27,8 +27,6 @@ const core = Object.keys(entries).reduce((accumulator, it) => {
   './proposals/*': './proposals/*.js',
   './stage': './stage/index.js',
   './stage/*': './stage/*.js',
-  './web': './web/index.js',
-  './web/*': './web/*.js',
 });
 
 async function writeExportsField(path, exports) {
