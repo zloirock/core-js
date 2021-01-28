@@ -1,4 +1,4 @@
-/* eslint-disable sonarjs/no-element-overwrite */
+/* eslint-disable radar/no-element-overwrite */
 
 import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
