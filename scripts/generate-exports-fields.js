@@ -5,7 +5,7 @@ const entries = require('core-js-compat/entries');
 
 const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
-  // eslint-disable-next-line unicorn/no-unsafe-regex
+  // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
   const match = entry.match(/^(\.\/(?:es|stable|features|web)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
   if (match) {
     const [, scope] = match;
@@ -38,6 +38,6 @@ async function writeExportsField(path, exports) {
 (async function () {
   await writeExportsField('./packages/core-js/package.json', core);
   await writeExportsField('./packages/core-js-pure/package.json', core);
-  // eslint-disable-next-line no-console
+  // eslint-disable-next-line no-console -- output
   console.log('\u001B[32m`exports` fields updated\u001B[0m');
 })();
