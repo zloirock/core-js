@@ -777,6 +777,7 @@ GLOBAL.tests = {
     re1.exec('a');
     re2.exec('a');
     return re1.lastIndex === 0 && re2.lastIndex === 0
+      // eslint-disable-next-line regexp/no-assertion-capturing-group, regexp/no-empty-group -- required for testing
       && /()??/.exec('')[1] === undefined
       && reSticky.exec('abc')[0] === 'a'
       && reSticky.exec('abc') === null
@@ -909,6 +910,7 @@ GLOBAL.tests = {
     re.constructor[Symbol.species] = function () { return re; };
     re[Symbol.split]('');
 
+    // eslint-disable-next-line regexp/no-empty-group -- required for testing
     var re2 = /(?:)/;
     var originalExec = re2.exec;
     re2.exec = function () { return originalExec.apply(this, arguments); };

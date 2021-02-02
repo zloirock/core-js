@@ -421,7 +421,44 @@ const base = {
   // a `while` loop should be used instead of a `for` loop with condition only
   'radar/prefer-while': 'error',
 
+  // regexp
+  // enforce match any character style
+  'regexp/match-any': 'error',
+  // disallow capturing group that captures assertions
+  'regexp/no-assertion-capturing-group': 'error',
+  // disallow duplicate characters in the RegExp character class
+  'regexp/no-dupe-characters-character-class': 'error',
+  // disallow empty group
+  'regexp/no-empty-group': 'error',
+  // disallow empty lookahead assertion or empty lookbehind assertion
+  'regexp/no-empty-lookarounds-assertion': 'error',
+  // disallow escape backspace `([\b])`
+  'regexp/no-escape-backspace': 'error',
+  // disallow invisible raw character
+  'regexp/no-invisible-character': 'error',
+  // disallow octal escape sequence
+  'regexp/no-octal': 'error',
+  // disallow useless backreferences in regular expressions
+  'regexp/no-useless-backreference': 'error',
+  // disallow unnecessary exactly quantifier
+  'regexp/no-useless-exactly-quantifier': 'error',
+  // disallow unnecessary `{n,m}`` quantifier
+  'regexp/no-useless-two-nums-quantifier': 'error',
+  // enforce using '\d'
+  'regexp/prefer-d': 'error',
+  // enforce using `+` quantifier
+  'regexp/prefer-plus-quantifier': 'error',
+  // enforce using `?` quantifier
+  'regexp/prefer-question-quantifier': 'error',
+  // enforce using `*` quantifier
+  'regexp/prefer-star-quantifier': 'error',
+  // enforce using `\t`
+  'regexp/prefer-t': 'error',
+  // enforce using `\w`
+  'regexp/prefer-w': 'error',
+
   // eslint-comments
+  // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': 'error',
 };
 
@@ -568,6 +605,7 @@ module.exports = {
     'optimize-regex',
     'qunit',
     'radar',
+    'regexp',
     'unicorn',
   ],
   settings: {
