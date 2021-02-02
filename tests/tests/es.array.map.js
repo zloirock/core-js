@@ -32,7 +32,8 @@ QUnit.test('Array#map', assert => {
     throw new Error();
   }).length === 0, 'uses ToLength');
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(array.map(Boolean).foo, 1, '@@species');

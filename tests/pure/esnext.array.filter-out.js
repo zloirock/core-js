@@ -20,7 +20,8 @@ QUnit.test('Array#filterOut', assert => {
     assert.throws(() => filterOut(undefined, () => { /* empty */ }), TypeError);
   }
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(filterOut(array, Boolean).foo, 1, '@@species');

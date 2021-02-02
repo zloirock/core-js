@@ -10,7 +10,8 @@ var INCORRECT_LENGTH = !!nativeFromCodePoint && nativeFromCodePoint.length != 1;
 // `String.fromCodePoint` method
 // https://tc39.es/ecma262/#sec-string.fromcodepoint
 $({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
-  fromCodePoint: function fromCodePoint(x) { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars -- required for `.length`
+  fromCodePoint: function fromCodePoint(x) {
     var elements = [];
     var length = arguments.length;
     var i = 0;

@@ -1,4 +1,4 @@
-/* eslint-disable radar/no-element-overwrite */
+/* eslint-disable radar/no-element-overwrite -- required for testing */
 
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';

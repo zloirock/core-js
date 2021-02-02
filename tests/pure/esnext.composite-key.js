@@ -1,4 +1,4 @@
-/* eslint-disable no-self-compare */
+/* eslint-disable no-self-compare -- required for testing */
 import { FREEZING } from '../helpers/constants';
 
 import compositeKey from 'core-js-pure/features/composite-key';

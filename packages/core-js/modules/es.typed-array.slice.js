@@ -9,7 +9,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var $slice = [].slice;
 
 var FORCED = fails(function () {
-  // eslint-disable-next-line no-undef
+  /* global Int8Array -- safe */
   new Int8Array(1).slice();
 });
 

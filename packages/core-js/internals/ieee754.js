@@ -1,5 +1,5 @@
 // IEEE754 conversions based on https://github.com/feross/ieee754
-// eslint-disable-next-line no-shadow-restricted-names
+// eslint-disable-next-line no-shadow-restricted-names -- for better compression
 var Infinity = 1 / 0;
 var abs = Math.abs;
 var pow = Math.pow;
@@ -17,9 +17,9 @@ var pack = function (number, mantissaLength, bytes) {
   var index = 0;
   var exponent, mantissa, c;
   number = abs(number);
-  // eslint-disable-next-line no-self-compare
+  // eslint-disable-next-line no-self-compare -- NaN check
   if (number != number || number === Infinity) {
-    // eslint-disable-next-line no-self-compare
+    // eslint-disable-next-line no-self-compare -- NaN check
     mantissa = number != number ? 1 : 0;
     exponent = eMax;
   } else {

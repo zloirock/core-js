@@ -3,13 +3,13 @@
 module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh) {
   if (
     arguments.length === 0
-      /* eslint-disable no-self-compare */
+      /* eslint-disable no-self-compare -- NaN check */
       || x != x
       || inLow != inLow
       || inHigh != inHigh
       || outLow != outLow
       || outHigh != outHigh
-      /* eslint-enable no-self-compare */
+      /* eslint-enable no-self-compare -- NaN check */
   ) return NaN;
   if (x === Infinity || x === -Infinity) return x;
   return (x - inLow) * (outHigh - outLow) / (inHigh - inLow) + outLow;

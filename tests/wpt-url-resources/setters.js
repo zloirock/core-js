@@ -1,4 +1,4 @@
-/* eslint-disable no-script-url */
+/* eslint-disable no-script-url -- required for testing */
 export default {
   protocol: [
     {

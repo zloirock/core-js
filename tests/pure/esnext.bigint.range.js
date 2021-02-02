@@ -1,4 +1,4 @@
-/* global BigInt */
+/* global BigInt -- safe */
 import from from 'core-js-pure/features/array/from';
 import range from 'core-js-pure/features/bigint/range';
 

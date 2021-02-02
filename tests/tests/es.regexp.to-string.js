@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/better-regex */
+/* eslint-disable unicorn/better-regex -- required for testing */
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('RegExp#toString', assert => {

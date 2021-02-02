@@ -1,4 +1,4 @@
-/* eslint-disable import/first */
+/* eslint-disable import/first -- ignore */
 import '../helpers/qunit-helpers';
 import { GLOBAL } from '../helpers/constants';
 

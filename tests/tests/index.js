@@ -1,4 +1,4 @@
-/* eslint-disable import/first */
+/* eslint-disable import/first -- ignore */
 QUnit.module('ES');
 import './es.aggregate-error';
 import './es.array.concat';

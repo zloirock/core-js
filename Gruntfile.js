@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/filename-case */
+/* eslint-disable unicorn/filename-case -- 3rd-party tool */
 'use strict';
 const webpack = require('./.webpack.config.js');
 const { banner } = require('./packages/core-js-builder/config');
@@ -164,8 +164,7 @@ module.exports = grunt => {
     webpack,
   });
   grunt.registerTask('bundle', function () {
-    // some dependencies of this module generated in grunt tasks, so we should load it here
-    // eslint-disable-next-line node/global-require
+    // eslint-disable-next-line node/global-require -- some dependencies of this module generated in grunt tasks
     const builder = require('./packages/core-js-builder');
     const done = this.async();
 

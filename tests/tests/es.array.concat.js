@@ -1,4 +1,4 @@
-/* eslint-disable no-sparse-arrays */
+/* eslint-disable no-sparse-arrays -- required for testing */
 QUnit.test('Array#concat', assert => {
   const { concat } = Array.prototype;
   assert.isFunction(concat);
@@ -26,7 +26,8 @@ QUnit.test('Array#concat', assert => {
     1, 2, 1, , 2, [1, 2], { 0: 1, 1: 2, length: 2 }, 1, 2,
   ], '#11');
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(array.concat().foo, 1, '@@species');

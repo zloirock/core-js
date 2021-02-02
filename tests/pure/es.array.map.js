@@ -24,7 +24,8 @@ QUnit.test('Array#map', assert => {
     assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);
   }
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(map(array, Boolean).foo, 1, '@@species');

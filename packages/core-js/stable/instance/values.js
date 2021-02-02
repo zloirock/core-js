@@ -11,6 +11,6 @@ var DOMIterables = {
 module.exports = function (it) {
   var own = it.values;
   return it === ArrayPrototype || (it instanceof Array && own === ArrayPrototype.values)
-    // eslint-disable-next-line no-prototype-builtins
+    // eslint-disable-next-line no-prototype-builtins -- safe
     || DOMIterables.hasOwnProperty(classof(it)) ? values : own;
 };

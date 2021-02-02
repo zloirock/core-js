@@ -19,7 +19,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.findIndex', assert => {
       assert.same(this, context, 'correct callback context');
     }, context);
     assert.same(new TypedArray([1, 2, 3]).findIndex(it => !(it % 2)), 1);
-    // eslint-disable-next-line unicorn/prefer-array-index-of
+    // eslint-disable-next-line unicorn/prefer-array-index-of -- ignore
     assert.same(new TypedArray([1, 2, 3]).findIndex(it => it === 4), -1);
     let values = '';
     let keys = '';

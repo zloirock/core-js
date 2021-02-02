@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable no-console */
+/* eslint-disable no-console -- output */
 const { readdir, readFile, writeFile } = require('fs').promises;
 const NEW_VERSION = require('../package').version;
 const PREV_VERSION = require('../packages/core-js/package').version;

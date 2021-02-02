@@ -1,4 +1,4 @@
-/* eslint-disable no-self-compare */
+/* eslint-disable no-self-compare -- required for testing */
 import compositeSymbol from 'core-js-pure/features/composite-symbol';
 import Symbol from 'core-js-pure/features/symbol';
 

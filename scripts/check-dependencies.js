@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable no-console */
+/* eslint-disable no-console -- output */
 const { promisify } = require('util');
 const eq = require('semver/functions/eq');
 const coerce = require('semver/functions/coerce');

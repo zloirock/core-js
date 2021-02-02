@@ -1,6 +1,6 @@
 import { WHITESPACES } from '../helpers/constants';
 
-/* eslint-disable radix */
+/* eslint-disable radix -- required for testing */
 QUnit.test('parseInt', assert => {
   assert.isFunction(parseInt);
   assert.name(parseInt, 'parseInt');

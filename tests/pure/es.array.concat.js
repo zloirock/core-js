@@ -1,7 +1,7 @@
 import Symbol from 'core-js-pure/features/symbol';
 import concat from 'core-js-pure/features/array/concat';
 
-/* eslint-disable no-sparse-arrays */
+/* eslint-disable no-sparse-arrays -- required for testing */
 QUnit.test('Array#concat', assert => {
   assert.isFunction(concat);
   let array = [1, 2];
@@ -24,7 +24,8 @@ QUnit.test('Array#concat', assert => {
     1, 2, 1, , 2, [1, 2], { 0: 1, 1: 2, length: 2 }, 1, 2,
   ], '#11');
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(concat(array).foo, 1, '@@species');

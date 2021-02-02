@@ -75,5 +75,5 @@ writeJSON('../data.json', data);
 writeJSON('../modules.json', Object.keys(data));
 writeJSON('../external.json', external);
 
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- output
 console.log('\u001B[32mcompat data rebuilt\u001B[0m');

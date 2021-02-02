@@ -39,5 +39,5 @@ const entries = [
 
 writeFileSync(resolve(__dirname, '../entries.json'), JSON.stringify(sortObjectByKey(entries), null, '  '));
 
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- output
 console.log('\u001B[32mentries data rebuilt\u001B[0m');

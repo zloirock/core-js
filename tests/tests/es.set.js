@@ -1,4 +1,4 @@
-/* eslint-disable radar/no-element-overwrite */
+/* eslint-disable radar/no-element-overwrite -- required for testing */
 
 import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
@@ -37,7 +37,7 @@ QUnit.test('Set', assert => {
   assert.deepEqual(from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   let done = false;
   const { add } = Set.prototype;
-  // eslint-disable-next-line no-extend-native
+  // eslint-disable-next-line no-extend-native -- required for testing
   Set.prototype.add = function () {
     throw new Error();
   };
@@ -48,7 +48,7 @@ QUnit.test('Set', assert => {
       },
     }));
   } catch { /* empty */ }
-  // eslint-disable-next-line no-extend-native
+  // eslint-disable-next-line no-extend-native -- required for testing
   Set.prototype.add = add;
   assert.ok(done, '.return #throw');
   const array = [];

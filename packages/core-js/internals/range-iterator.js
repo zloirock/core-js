@@ -40,7 +40,7 @@ var $RangeIterator = createIteratorConstructor(function RangeIterator(start, end
   if (step === Infinity || step === -Infinity || (step === zero && start !== end)) {
     throw new RangeError(INCORRECT_RANGE);
   }
-  // eslint-disable-next-line no-self-compare
+  // eslint-disable-next-line no-self-compare -- NaN check
   var hitsEnd = start != start || end != end || step != step || (end > start) !== (step > zero);
   setInternalState(this, {
     type: RANGE_ITERATOR,

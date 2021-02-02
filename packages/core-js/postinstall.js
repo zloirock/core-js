@@ -1,4 +1,4 @@
-/* eslint-disable max-len */
+/* eslint-disable max-len -- for better formatting */
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
@@ -51,7 +51,7 @@ function isBannerRequired() {
 }
 
 function showBanner() {
-  // eslint-disable-next-line no-console,no-control-regex
+  // eslint-disable-next-line no-console,no-control-regex -- output
   console.log(COLOR ? BANNER : BANNER.replace(/\u001B\[\d+m/g, ''));
 }
 

@@ -15,5 +15,5 @@ for (var key in tests) {
   }
 }
 
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- output
 console.log(JSON.stringify(result, null, '  '));

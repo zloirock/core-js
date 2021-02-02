@@ -39,7 +39,7 @@ var regExpExec = function (R, S) {
   } return regExpBuiltinExec.call(R, S);
 };
 
-// eslint-disable-next-line max-len
+// eslint-disable-next-line max-len -- ignore
 var $RegExpStringIterator = createIteratorConstructor(function RegExpStringIterator(regexp, string, global, fullUnicode) {
   setInternalState(this, {
     type: REGEXP_STRING_ITERATOR,

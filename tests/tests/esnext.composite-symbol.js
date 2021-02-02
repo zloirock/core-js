@@ -1,4 +1,4 @@
-/* eslint-disable no-self-compare */
+/* eslint-disable no-self-compare -- required for testing */
 QUnit.test('compositeSymbol', assert => {
   assert.isFunction(compositeSymbol);
   assert.name(compositeSymbol, 'compositeSymbol');

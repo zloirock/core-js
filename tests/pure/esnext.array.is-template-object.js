@@ -17,7 +17,7 @@ QUnit.test('Array.isTemplateObject', assert => {
 
   const template = (() => {
     try {
-      // eslint-disable-next-line no-template-curly-in-string
+      // eslint-disable-next-line no-template-curly-in-string -- ignore
       return Function('return (it => it)`qwe${ 123 }asd`')();
     } catch { /* empty */ }
   })();

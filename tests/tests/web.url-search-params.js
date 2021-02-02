@@ -103,7 +103,7 @@ QUnit.test('URLSearchParams', assert => {
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
     { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
     { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
-    // eslint-disable-next-line max-len
+    // eslint-disable-next-line max-len -- ignore
     // !!! { input: { 'a\0b': '42', 'c\uD83D': '23', dሴ: 'foo' }, output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']], name: 'object with NULL, non-ASCII, and surrogate keys' },
   ];
 
@@ -454,8 +454,22 @@ QUnit.test('URLSearchParams#sort', assert => {
     },
     {
       input: 'z=z&a=a&z=y&a=b&z=x&a=c&z=w&a=d&z=v&a=e&z=u&a=f&z=t&a=g',
-      // eslint-disable-next-line max-len
-      output: [['a', 'a'], ['a', 'b'], ['a', 'c'], ['a', 'd'], ['a', 'e'], ['a', 'f'], ['a', 'g'], ['z', 'z'], ['z', 'y'], ['z', 'x'], ['z', 'w'], ['z', 'v'], ['z', 'u'], ['z', 't']],
+      output: [
+        ['a', 'a'],
+        ['a', 'b'],
+        ['a', 'c'],
+        ['a', 'd'],
+        ['a', 'e'],
+        ['a', 'f'],
+        ['a', 'g'],
+        ['z', 'z'],
+        ['z', 'y'],
+        ['z', 'x'],
+        ['z', 'w'],
+        ['z', 'v'],
+        ['z', 'u'],
+        ['z', 't'],
+      ],
     },
     {
       input: 'bbb&bb&aaa&aa=x&aa=y',

@@ -24,7 +24,8 @@ QUnit.test('Array#slice', assert => {
     assert.notThrows(() => isArray(slice(list)), 'works with NodeList');
   }
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(slice(array).foo, 1, '@@species');

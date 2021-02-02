@@ -1,14 +1,14 @@
-/* eslint-disable no-new, radix */
-// eslint-disable-next-line no-new-func
+/* eslint-disable no-new, radix -- required for testing */
+// eslint-disable-next-line no-new-func -- safe
 var GLOBAL = Function('return this')();
-// eslint-disable-next-line max-len
-var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
+var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
+  '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
 
 var NOT_WHITESPACES = '\u200B\u0085\u180E';
 
 var USERAGENT = GLOBAL.navigator && GLOBAL.navigator.userAgent || '';
 
-// eslint-disable-next-line unicorn/no-unsafe-regex
+// eslint-disable-next-line unicorn/no-unsafe-regex -- safe
 var WEBKIT_STRING_PAD_BUG = /Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
 
 var DESCRIPTORS_SUPPORT = function () {
@@ -1158,7 +1158,7 @@ GLOBAL.tests = {
     return AsyncIterator.prototype.toArray;
   },
   'esnext.bigint.range': function () {
-    // eslint-disable-next-line no-undef
+    /* global BigInt -- required for testing */
     return BigInt.range;
   },
   'esnext.composite-key': function () {

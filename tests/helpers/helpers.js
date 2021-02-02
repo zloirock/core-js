@@ -46,7 +46,7 @@ export function includes(target, wanted) {
 }
 
 export function is(a, b) {
-  // eslint-disable-next-line no-self-compare
+  // eslint-disable-next-line no-self-compare -- NaN check
   return a === b ? a !== 0 || 1 / a === 1 / b : a != a && b != b;
 }
 
@@ -76,18 +76,17 @@ export function timeLimitedPromise(time, fn) {
 export function patchRegExp$exec(run) {
   return assert => {
     const originalExec = RegExp.prototype.exec;
-    // eslint-disable-next-line no-extend-native
+    // eslint-disable-next-line no-extend-native -- required for testing
     RegExp.prototype.exec = function () {
       return originalExec.apply(this, arguments);
     };
     try {
       return run(assert);
-    // In very old IE try / finally does not work without catch.
-    // eslint-disable-next-line no-useless-catch
+    // eslint-disable-next-line no-useless-catch -- in very old IE try / finally does not work without catch
     } catch (error) {
       throw error;
     } finally {
-      // eslint-disable-next-line no-extend-native
+      // eslint-disable-next-line no-extend-native -- required for testing
       RegExp.prototype.exec = originalExec;
     }
   };

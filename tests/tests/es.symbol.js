@@ -25,7 +25,7 @@ QUnit.test('Symbol', assert => {
   assert.ok(object[symbol2] !== 42, 'Various symbols from one description are various keys');
   if (DESCRIPTORS) {
     let count = 0;
-    // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars -- required for testing
     for (const key in object) count++;
     assert.ok(count === 0, 'object[Symbol()] is not enumerable');
   }

@@ -1,4 +1,4 @@
-/* eslint-disable max-len */
+/* eslint-disable max-len -- ignore */
 export default [
   {
     comment: 'Label with hyphens in 3rd and 4th position',

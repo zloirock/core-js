@@ -11,7 +11,7 @@ var getTime = DatePrototype.getTime;
 if (new Date(NaN) + '' != INVALID_DATE) {
   redefine(DatePrototype, TO_STRING, function toString() {
     var value = getTime.call(this);
-    // eslint-disable-next-line no-self-compare
+    // eslint-disable-next-line no-self-compare -- NaN check
     return value === value ? nativeDateToString.call(this) : INVALID_DATE;
   });
 }

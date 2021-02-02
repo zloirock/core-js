@@ -25,7 +25,7 @@ if ($stringify) {
   // https://tc39.es/ecma262/#sec-json.stringify
   // https://github.com/tc39/proposal-well-formed-stringify
   $({ target: 'JSON', stat: true, forced: FORCED }, {
-    // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars -- required for `.length`
     stringify: function stringify(it, replacer, space) {
       var result = $stringify.apply(null, arguments);
       return typeof result == 'string' ? result.replace(re, fix) : result;

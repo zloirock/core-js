@@ -420,6 +420,9 @@ const base = {
   'radar/prefer-single-boolean-return': 'error',
   // a `while` loop should be used instead of a `for` loop with condition only
   'radar/prefer-while': 'error',
+
+  // eslint-comments
+  'eslint-comments/require-description': 'error',
 };
 
 const es3 = {
@@ -559,6 +562,7 @@ module.exports = {
     worker: true,
   },
   plugins: [
+    'eslint-comments',
     'import',
     'node',
     'optimize-regex',

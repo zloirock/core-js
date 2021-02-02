@@ -76,7 +76,7 @@ QUnit.test('Reflect.set', assert => {
     });
     assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
     o = defineProperty({}, 'test', {
-      // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars -- required for testing
       set(v) { /* empty */ },
     });
     assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));

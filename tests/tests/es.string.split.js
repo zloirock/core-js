@@ -52,10 +52,10 @@ const run = assert => {
   assert.arrayEqual('.'.split(/(.?)(.?)/), ['', '.', '', ''], "'.'.split(/(.?)(.?)/) results in ['', '.', '', '']");
   assert.arrayEqual('.'.split(/(.??)(.??)/), ['.'], "'.'.split(/(.??)(.??)/) results in ['.']");
   assert.arrayEqual('.'.split(/(.)?(.)?/), ['', '.', undefined, ''], "'.'.split(/(.)?(.)?/) results in ['', '.', undefined, '']");
-  // eslint-disable-next-line max-len
+  // eslint-disable-next-line max-len -- ignore
   assert.arrayEqual('A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\/)?([^<>]+)>/), ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', ''], "'A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\\/)?([^<>]+)>/) results in ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', '']");
   assert.arrayEqual('tesst'.split(/(s)*/), ['t', undefined, 'e', 's', 't'], "'tesst'.split(/(s)*/) results in ['t', undefined, 'e', 's', 't']");
-  // eslint-disable-next-line max-len
+  // eslint-disable-next-line max-len -- ignore
   assert.arrayEqual('tesst'.split(/(s)*?/), ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't'], "'tesst'.split(/(s)*?/) results in ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't']");
   assert.arrayEqual('tesst'.split(/(s*)/), ['t', '', 'e', 'ss', 't'], "'tesst'.split(/(s*)/) results in ['t', '', 'e', 'ss', 't']");
   assert.arrayEqual('tesst'.split(/(s*?)/), ['t', '', 'e', '', 's', '', 's', '', 't'], "'tesst'.split(/(s*?)/) results in ['t', '', 'e', '', 's', '', 's', '', 't']");
@@ -736,7 +736,7 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
     return /./.exec.apply(this, arguments);
   };
   re.constructor = {
-    // eslint-disable-next-line object-shorthand
+    // eslint-disable-next-line object-shorthand -- constructor
     [Symbol.species]: function (source, flags) {
       const re2 = new RegExp(source, flags);
       speciesCalled = true;
@@ -753,7 +753,7 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
   assert.ok(execSpeciesCalled);
 
   re.constructor = {
-    // eslint-disable-next-line object-shorthand
+    // eslint-disable-next-line object-shorthand -- constructor
     [Symbol.species]: function (source, flags) {
       const re2 = new RegExp(source, flags);
       // Not a function, should be ignored
@@ -764,7 +764,7 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
   assert.deepEqual(re[Symbol.split]('123451234'), ['1', '3', '51', '3', '']);
 
   re.constructor = {
-    // eslint-disable-next-line object-shorthand
+    // eslint-disable-next-line object-shorthand -- constructor
     [Symbol.species]: function (source, flags) {
       const re2 = new RegExp(source, flags);
       // Does not return an object, should throw

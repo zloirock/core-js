@@ -1,5 +1,5 @@
 // TODO: fix escaping in regexps
-/* eslint-disable unicorn/no-unsafe-regex */
+/* eslint-disable unicorn/no-unsafe-regex -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 

@@ -29,7 +29,8 @@ QUnit.test('Array#splice', assert => {
     0: 1,
   }), [], 'uses ToLength');
   array = [];
-  array.constructor = { [Symbol.species]: function () { // eslint-disable-line object-shorthand
+  // eslint-disable-next-line object-shorthand -- constructor
+  array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(splice(array).foo, 1, '@@species');

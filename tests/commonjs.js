@@ -1,4 +1,4 @@
-/* eslint-disable import/no-dynamic-require */
+/* eslint-disable import/no-dynamic-require, node/global-require -- required */
 'use strict';
 const { ok } = require('assert');
 const compat = require('../packages/core-js-compat/data');
@@ -7,7 +7,6 @@ let PATH;
 
 function load(module) {
   tested++;
-  // eslint-disable-next-line node/global-require
   return require(`${ PATH }/${ module }`);
 }
 
@@ -55,8 +54,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   }, 1, 2)(3) === 6);
   load('features/function/name');
   load('features/function/has-instance');
-  // eslint-disable-next-line prefer-arrow-callback
-  ok(Function[load('features/symbol/has-instance')](function () { /* empty */ }));
+  ok(Function[load('features/symbol/has-instance')](it => it));
   ok('bind' in load('features/function'));
   ok(load('features/array/is-array')([]));
   ok(typeof load('features/array/is-template-object') === 'function');
@@ -460,8 +458,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   }, 1, 2)(3) === 6);
   load('stable/function/name');
   load('stable/function/has-instance');
-  // eslint-disable-next-line prefer-arrow-callback
-  ok(Function[load('stable/symbol/has-instance')](function () { /* empty */ }));
+  ok(Function[load('stable/symbol/has-instance')](it => it));
   ok('bind' in load('stable/function'));
   ok(load('stable/array/is-array')([]));
   ok(Array.isArray(load('stable/array/from')('qwe')));
@@ -733,8 +730,7 @@ for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
   }, 1, 2)(3) === 6);
   load('es/function/name');
   load('es/function/has-instance');
-  // eslint-disable-next-line prefer-arrow-callback
-  ok(Function[load('es/symbol/has-instance')](function () { /* empty */ }));
+  ok(Function[load('es/symbol/has-instance')](it => it));
   ok('bind' in load('es/function'));
   ok(load('es/array/is-array')([]));
   ok(Array.isArray(load('es/array/from')('qwe')));
@@ -1740,5 +1736,5 @@ load('es/typed-array/to-string');
 load('es/typed-array/values');
 ok(typeof load('es/typed-array').Uint32Array === 'function');
 
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- output
 console.log(`\u001B[32mtested ${ tested } commonjs entry points\u001B[0m`);

@@ -11,7 +11,8 @@ var BUGGY = !!$hypot && $hypot(Infinity, NaN) !== Infinity;
 // `Math.hypot` method
 // https://tc39.es/ecma262/#sec-math.hypot
 $({ target: 'Math', stat: true, forced: BUGGY }, {
-  hypot: function hypot(value1, value2) { // eslint-disable-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars -- required for `.length`
+  hypot: function hypot(value1, value2) {
     var sum = 0;
     var i = 0;
     var aLen = arguments.length;

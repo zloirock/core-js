@@ -19,7 +19,7 @@ if (!IS_PURE) {
     AsyncIteratorPrototype = AsyncIterator.prototype;
   } else if (shared[USE_FUNCTION_CONSTRUCTOR] || global[USE_FUNCTION_CONSTRUCTOR]) {
     try {
-      // eslint-disable-next-line no-new-func
+      // eslint-disable-next-line no-new-func -- we have no alternatives without usage of modern syntax
       prototype = getPrototypeOf(getPrototypeOf(getPrototypeOf(Function('return async function*(){}()')())));
       if (getPrototypeOf(prototype) === Object.prototype) AsyncIteratorPrototype = prototype;
     } catch (error) { /* empty */ }

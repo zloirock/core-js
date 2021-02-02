@@ -15,5 +15,5 @@ writeFileSync(resolve(__dirname, '../modules-by-versions.json'), JSON.stringify(
   ...modulesByVersions,
 }, null, '  '));
 
-// eslint-disable-next-line no-console
+// eslint-disable-next-line no-console -- output
 console.log('\u001B[32mmodules-by-versions data rebuilt\u001B[0m');

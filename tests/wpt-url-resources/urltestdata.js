@@ -1,4 +1,4 @@
-/* eslint-disable no-script-url */
+/* eslint-disable no-script-url -- required for testing */
 export default [
   '# Based on http://trac.webkit.org/browser/trunk/LayoutTests/fast/url/script-tests/segments.js',
   {
