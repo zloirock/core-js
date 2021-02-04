@@ -13,12 +13,6 @@ module.exports = {
         },
       }],
     },
-    resolve: {
-      alias: {
-        'core-js': resolve(__dirname, './packages/core-js'),
-        'core-js-pure': resolve(__dirname, './packages/core-js-pure'),
-      },
-    },
     node: {
       global: false,
       process: false,

@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/filename-case -- 3rd-party tool */
 'use strict';
 const webpack = require('./.webpack.config.js');
-const { banner } = require('./packages/core-js-builder/config');
+const { banner } = require('core-js-builder/config');
 
 process.env.CHROME_BIN = require('puppeteer').executablePath();
 
@@ -165,7 +165,7 @@ module.exports = grunt => {
   });
   grunt.registerTask('bundle', function () {
     // eslint-disable-next-line node/global-require -- some dependencies of this module generated in grunt tasks
-    const builder = require('./packages/core-js-builder');
+    const builder = require('core-js-builder');
     const done = this.async();
 
     builder({ filename: './packages/core-js-bundle/index.js' }).then(done, done);

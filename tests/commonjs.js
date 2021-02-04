@@ -1,7 +1,7 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 'use strict';
 const { ok } = require('assert');
-const compat = require('../packages/core-js-compat/data');
+const compat = require('core-js-compat/data');
 let tested = 0;
 let PATH;
 
@@ -10,8 +10,7 @@ function load(module) {
   return require(`${ PATH }/${ module }`);
 }
 
-for (const _PATH of ['../packages/core-js-pure', '../packages/core-js']) {
-  PATH = _PATH;
+for (PATH of ['core-js-pure', 'core-js']) {
   ok(new (load('features/aggregate-error'))([42]).errors[0] === 42);
   ok(load('features/object/assign')({ q: 1 }, { w: 2 }).w === 2);
   ok(load('features/object/create')(Array.prototype) instanceof Array);

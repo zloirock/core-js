@@ -7,8 +7,8 @@ const minVersion = require('semver/ranges/min-version');
 const getDependencies = promisify(require('david').getDependencies);
 
 const root = require('../package');
-const builder = require('../packages/core-js-builder/package');
-const compat = require('../packages/core-js-compat/package');
+const builder = require('core-js-builder/package');
+const compat = require('core-js-compat/package');
 
 async function checkDependencies(pckg, title) {
   const dependencies = await getDependencies(pckg);
@@ -16,7 +16,9 @@ async function checkDependencies(pckg, title) {
   Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
     const { required, stable, warn } = dependencies[name];
-    if (warn || eq(minVersion(required), coerce(stable))) delete dependencies[name];
+    if (/^(git|file)/.test(required) || warn || eq(minVersion(required), coerce(stable))) {
+      delete dependencies[name];
+    }
   }
   if (Object.keys(dependencies).length) {
     console.log(`\u001B[94m${ title || pckg.name }:\u001B[0m`);

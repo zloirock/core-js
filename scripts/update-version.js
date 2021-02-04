@@ -1,8 +1,8 @@
 'use strict';
 /* eslint-disable no-console -- output */
 const { readdir, readFile, writeFile } = require('fs').promises;
+const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
-const PREV_VERSION = require('../packages/core-js/package').version;
 
 const now = new Date();
 const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
