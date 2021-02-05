@@ -56,7 +56,7 @@
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   },
   "exports": {
-    "./": "./index.js",
+    ".": "./index.js",
     "./minified": "./minified.js",
     "./package": "./package.json"
   }
