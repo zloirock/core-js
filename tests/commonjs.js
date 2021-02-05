@@ -1,14 +1,15 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 'use strict';
 const { ok } = require('assert');
+const { join } = require('path');
 const { cyan, green } = require('chalk');
 const compat = require('core-js-compat/data');
 let tested = 0;
 let PATH;
 
-function load(module) {
+function load(...path) {
   tested++;
-  return require(`${ PATH }/${ module }`);
+  return require(join(PATH, ...path));
 }
 
 for (PATH of ['core-js-pure', 'core-js']) {
@@ -968,7 +969,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stage/0'));
   ok(load('stage/pre'));
   ok(load('stage'));
-  ok(load('index'));
+  ok(load(''));
 
   const instanceAt = load('features/instance/at');
   ok(typeof instanceAt === 'function');
@@ -1623,7 +1624,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(`${ key }/unescape`)('%21q2%u0444') === '!q2ф');
   }
 
-  for (const key in compat) load(`modules/${ key }`);
+  for (const key in compat) load('modules', key);
 }
 
 ok(typeof load('features/string/match') === 'function');
