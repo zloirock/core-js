@@ -46,10 +46,10 @@
     "grunt-contrib-clean": "^2.0.0",
     "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-uglify": "^5.0.0",
-    "grunt-karma": "^4.0.0",
     "grunt-webpack": "^4.0.2",
     "karma": "^5.2.3",
     "karma-chrome-launcher": "^3.1.0",
+    "karma-cli": "^2.0.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "lerna": "^3.22.1",
@@ -78,15 +78,17 @@
     "lint": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./",
     "outdated": "node scripts/check-dependencies",
     "update-version": "node scripts/update-version",
-    "unit-tests": "grunt clean copy && npm run bootstrap && npm run build-compat && npm run bundle && grunt webpack:helpers webpack:tests karma:tests",
-    "unit-tests-pure": "grunt clean copy && npm run build-compat && grunt webpack:helpers webpack:pure karma:pure",
+    "unit-tests": "grunt clean copy && npm run bootstrap && npm run build-compat && npm run bundle && grunt webpack:helpers webpack:tests && npm run karma",
+    "unit-tests-pure": "grunt clean copy && npm run bootstrap && npm run build-compat && grunt webpack:helpers webpack:pure && npm run karma-pure",
+    "karma": "karma start -f=packages/core-js-bundle/index.js,tests/bundles/tests.js",
+    "karma-pure": "karma start -f=tests/bundles/pure.js",
     "bundle-promises-tests": "grunt webpack:promises-aplus-tests",
     "promises-tests": "promises-aplus-tests tests/promises-aplus/adapter --timeout 1000",
     "observables-tests": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-pure",
     "commonjs-tests": "node tests/commonjs",
     "commonjs-entries-content": "node tests/commonjs-entries-content",
     "targets-parser-tests": "node tests/targets-parser",
-    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && npm run bundle && grunt webpack:helpers webpack:tests uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests",
-    "ci": "grunt clean copy && npm run bootstrap && npm run build-compat && npm run bundle && grunt webpack:helpers webpack:tests uglify karma:tests webpack:helpers webpack:pure karma:pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests"
+    "test": "grunt clean copy && npm run bootstrap && npm run build-compat && eslint ./ && npm run bundle && grunt webpack:helpers webpack:tests uglify && npm run karma && grunt webpack:pure && npm run karma-pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests",
+    "ci": "grunt clean copy && npm run bootstrap && npm run build-compat && npm run bundle && grunt webpack:helpers webpack:tests uglify && npm run karma && grunt webpack:pure && npm run karma-pure && npm run promises-tests && npm run observables-tests && npm run commonjs-tests && npm run commonjs-entries-content && npm run targets-parser-tests"
   }
 }

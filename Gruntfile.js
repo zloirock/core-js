@@ -9,7 +9,6 @@ module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-contrib-uglify');
-  grunt.loadNpmTasks('grunt-karma');
   grunt.loadNpmTasks('grunt-webpack');
   grunt.initConfig({
     pkg: grunt.file.readJSON('./package.json'),
@@ -132,33 +131,6 @@ module.exports = grunt => {
             dest: './packages/core-js-compat/',
           },
         ],
-      },
-    },
-    karma: {
-      options: {
-        frameworks: ['qunit'],
-        basePath: '.',
-        browsers: ['HeadlessChrome', 'PhantomJS'],
-        customLaunchers: {
-          HeadlessChrome: {
-            base: 'ChromeHeadless',
-            flags: ['--no-sandbox', '--disable-setuid-sandbox'],
-          },
-        },
-        singleRun: true,
-      },
-      tests: {
-        files: [
-          'tests/bundles/qunit-helpers.js',
-          'packages/core-js-bundle/index.js',
-          'tests/bundles/tests.js',
-        ].map(src => ({ src })),
-      },
-      pure: {
-        files: [
-          'tests/bundles/qunit-helpers.js',
-          'tests/bundles/pure.js',
-        ].map(src => ({ src })),
       },
     },
     webpack,
