@@ -163,11 +163,4 @@ module.exports = grunt => {
     },
     webpack,
   });
-  grunt.registerTask('bundle', function () {
-    // eslint-disable-next-line node/global-require -- some dependencies of this module generated in grunt tasks
-    const builder = require('core-js-builder');
-    const done = this.async();
-
-    builder({ filename: './packages/core-js-bundle/index.js' }).then(done, done);
-  });
 };
