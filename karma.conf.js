@@ -1,4 +1,6 @@
 'use strict';
+process.env.CHROME_BIN = require('puppeteer').executablePath();
+
 module.exports = function (config) {
   const { argv } = process;
   const files = ['tests/bundles/qunit-helpers.js'];

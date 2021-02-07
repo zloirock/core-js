@@ -3,8 +3,6 @@
 const webpack = require('./.webpack.config.js');
 const { banner } = require('core-js-builder/config');
 
-process.env.CHROME_BIN = require('puppeteer').executablePath();
-
 module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
