@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Minified bundle from `core-js-bundle` uses `terser` instead of `uglify-js`
 
 ##### 3.8.3 - 2021.01.19
 - Fixed some more issues related to FF44- legacy `Iterator`, [#906](https://github.com/zloirock/core-js/issues/906)

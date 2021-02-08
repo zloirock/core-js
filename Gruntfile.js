@@ -1,37 +1,12 @@
 /* eslint-disable unicorn/filename-case -- 3rd-party tool */
 'use strict';
 const webpack = require('./.webpack.config.js');
-const { banner } = require('core-js-builder/config');
 
 module.exports = grunt => {
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
-  grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-webpack');
   grunt.initConfig({
-    pkg: grunt.file.readJSON('./package.json'),
-    uglify: {
-      build: {
-        files: {
-          './packages/core-js-bundle/minified.js': './packages/core-js-bundle/index.js',
-        },
-        options: {
-          mangle: {
-            keep_fnames: true,
-          },
-          compress: {
-            keep_fnames: true,
-            pure_getters: true,
-          },
-          output: {
-            max_line_len: 32000,
-          },
-          ie8: true,
-          sourceMap: true,
-          banner,
-        },
-      },
-    },
     clean: {
       'core-js': [
         './packages/core-js/LICENSE',
