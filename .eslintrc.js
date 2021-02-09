@@ -660,6 +660,7 @@ module.exports = {
       files: [
         'packages/core-js-builder/**',
         'packages/core-js-compat/**',
+        'scripts/**',
         'tests/commonjs.js',
         'tests/commonjs-entries-content.js',
         'tests/targets-parser.js',
