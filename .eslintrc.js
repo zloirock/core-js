@@ -1,6 +1,5 @@
 'use strict';
 const SUPPORTED_NODE_VERSIONS = require('./packages/core-js-builder/package.json').engines.node;
-const webpack = require('./.webpack.config.js');
 
 const base = {
   // possible errors:
@@ -608,13 +607,6 @@ module.exports = {
     'regexp',
     'unicorn',
   ],
-  settings: {
-    'import/resolver': {
-      webpack: {
-        config: webpack.options,
-      },
-    },
-  },
   reportUnusedDisableDirectives: true,
   rules: base,
   overrides: [

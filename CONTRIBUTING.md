@@ -70,14 +70,6 @@ tests/tests.html
 ```
 tests/pure.html
 ```
-- Before running [Promises/A+ test case](https://github.com/promises-aplus/promises-tests) in the browser you should bundle it:
-```
-$ npm run bundle-promises-tests
-```
-and after that use this file:
-```
-tests/promises-aplus.html
-```
 
 ## Updating `core-js-compat` data
 
