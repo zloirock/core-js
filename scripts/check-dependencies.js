@@ -10,9 +10,9 @@ const root = require('../package');
 const builder = require('core-js-builder/package');
 const compat = require('core-js-compat/package');
 
-async function checkDependencies(pckg, title) {
-  const dependencies = await getDependencies(pckg);
-  const devDependencies = await getDependencies(pckg, { dev: true });
+async function checkDependencies(pkg, title) {
+  const dependencies = await getDependencies(pkg);
+  const devDependencies = await getDependencies(pkg, { dev: true });
   Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
     const { required, stable, warn } = dependencies[name];
@@ -21,12 +21,12 @@ async function checkDependencies(pckg, title) {
     }
   }
   if (Object.keys(dependencies).length) {
-    console.log(`\u001B[94m${ title || pckg.name }:\u001B[0m`);
+    console.log(`\u001B[94m${ title || pkg.name }:\u001B[0m`);
     console.table(dependencies);
   }
 }
 
-(async function () {
+(async () => {
   await checkDependencies(root, 'root');
   await checkDependencies(builder);
   await checkDependencies(compat);

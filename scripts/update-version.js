@@ -14,7 +14,7 @@ const LERNA = './lerna.json';
 const SHARED = './packages/core-js/internals/shared.js';
 const CURRENT_YEAR = now.getFullYear();
 
-(async function () {
+(async () => {
   const license = await readFile(LICENSE, 'utf8');
   const OLD_YEAR = +license.match(/2014-(\d{4}) D/m)[1];
   if (NEW_VERSION === PREV_VERSION && CURRENT_YEAR === OLD_YEAR) {

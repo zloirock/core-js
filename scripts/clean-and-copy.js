@@ -9,9 +9,8 @@ async function copy(from, to, { force = false } = {}) {
 
   if (source.isDirectory()) {
     if (!exist) await mkdir(to);
-    for (const entry of await readdir(from)) {
-      await copy(`${ from }/${ entry }`, `${ to }/${ entry }`, { force });
-    }
+    const entries = await readdir(from);
+    await Promise.all(entries.map(entry => copy(`${ from }/${ entry }`, `${ to }/${ entry }`, { force })));
   } else {
     if (exist) {
       if (!force) return;
@@ -22,14 +21,12 @@ async function copy(from, to, { force = false } = {}) {
   }
 }
 
-(async function () {
+(async () => {
   // it's available only from Node 14.14, but this step required only for development where we use modern Node
   if (rm) {
-    for (const entry of await readdir('./packages/core-js-pure')) {
-      if (!['override', '.npmignore', 'package.json', 'README.md'].includes(entry)) {
-        await rm(`./packages/core-js-pure/${ entry }`, { force: true, recursive: true });
-      }
-    }
+    await Promise.all((await readdir('./packages/core-js-pure'))
+      .filter(entry => !['override', '.npmignore', 'package.json', 'README.md'].includes(entry))
+      .map(entry => rm(`./packages/core-js-pure/${ entry }`, { force: true, recursive: true })));
 
     await rm('./tests/bundles', { force: true, recursive: true });
 

@@ -40,23 +40,23 @@ $ npm run lint
 ```
 - Global version unit tests:
 ```
-$ npm run unit-tests
+$ npm run test-unit-global-standalone
 ```
 - `pure` version unit tests:
 ```
-$ npm run unit-tests-pure
+$ npm run test-unit-pure-standalone
 ```
 - [Promises/A+ test case](https://github.com/promises-aplus/promises-tests):
 ```
-$ npm run promises-tests
+$ npm run test-promises-standalone
 ```
 - [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable):
 ```
-$ npm run observables-tests
+$ npm run test-observables-standalone
 ```
 - CommonJS entry points tests:
 ```
-$ npm run commonjs-tests
+$ npm run test-entries-standalone
 ```
 If you want to run tests in a certain browser at first you should build packages and test bundles:
 ```
