@@ -90,7 +90,7 @@
     "test-entries": "run-p test-entries-basic test-entries-content",
     "test-entries-basic": "node tests/commonjs",
     "test-entries-content": "node tests/commonjs-entries-content",
-    "test-entries-standalone": "run-p init test-entries",
+    "test-entries-standalone": "run-s init test-entries",
     "test-targets-parser": "node tests/targets-parser",
     "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-targets-parser",
     "ci": "run-s init bundle test-unit test-promises test-observables test-entries test-targets-parser",
