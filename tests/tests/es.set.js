@@ -5,7 +5,7 @@ import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
 const { getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, freeze } = Object;
-const { ownKeys } = Reflect || {};
+const { ownKeys } = GLOBAL.Reflect || {};
 const { from } = Array;
 
 QUnit.test('Set', assert => {
