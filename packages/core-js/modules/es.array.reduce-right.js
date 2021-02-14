@@ -7,8 +7,7 @@ var CHROME_VERSION = require('../internals/engine-v8-version');
 var IS_NODE = require('../internals/engine-is-node');
 
 var STRICT_METHOD = arrayMethodIsStrict('reduceRight');
-// For preventing possible almost infinite loop in non-standard implementations, test the forward version of the method
-var USES_TO_LENGTH = arrayMethodUsesToLength('reduce', { 1: 0 });
+var USES_TO_LENGTH = arrayMethodUsesToLength('reduceRight', { 1: 0 });
 // Chrome 80-82 has a critical bug
 // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
 var CHROME_BUG = !IS_NODE && CHROME_VERSION > 79 && CHROME_VERSION < 83;
