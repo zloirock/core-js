@@ -51,10 +51,4 @@ QUnit.test('Array#forEach', assert => {
       forEach.call(undefined, () => { /* empty */ });
     }, TypeError);
   }
-  assert.notThrows(() => forEach.call({
-    length: -1,
-    0: 1,
-  }, () => {
-    throw new Error();
-  }) === undefined, 'uses ToLength');
 });

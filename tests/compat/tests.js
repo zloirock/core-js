@@ -235,7 +235,6 @@ GLOBAL.tests = {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
   'es.array.every': function () {
-    [].every.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.every.call(null, function () { /* empty */ });
       return false;
@@ -246,7 +245,6 @@ GLOBAL.tests = {
     return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
   },
   'es.array.filter': function () {
-    [].filter.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
@@ -255,13 +253,11 @@ GLOBAL.tests = {
     return array.filter(Boolean).foo === 1;
   },
   'es.array.find': function () {
-    [].find.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var SKIPS_HOLES = true;
     Array(1).find(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].find;
   },
   'es.array.find-index': function () {
-    [].findIndex.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var SKIPS_HOLES = true;
     Array(1).findIndex(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].findIndex;
@@ -273,7 +269,6 @@ GLOBAL.tests = {
     return Array.prototype.flatMap;
   },
   'es.array.for-each': function () {
-    [].forEach.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.forEach.call(null, function () { /* empty */ });
       return false;
@@ -282,17 +277,9 @@ GLOBAL.tests = {
   },
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
-    [].includes.call(Object.defineProperty({ length: -1 }, 0, {
-      enumerable: true,
-      get: function (it) { throw it; }
-    }), 0);
     return Array.prototype[Symbol.unscopables].includes;
   },
   'es.array.index-of': function () {
-    [].indexOf.call(Object.defineProperty({ length: -1 }, 0, {
-      enumerable: true,
-      get: function (it) { throw it; }
-    }), 0);
     try {
       [].indexOf.call(null);
     } catch (error) {
@@ -324,10 +311,6 @@ GLOBAL.tests = {
     return true;
   },
   'es.array.last-index-of': function () {
-    [].indexOf.call(Object.defineProperty({ length: -1 }, 0, {
-      enumerable: true,
-      get: function (it) { throw it; }
-    }), 0);
     try {
       [].lastIndexOf.call(null);
     } catch (error) {
@@ -335,7 +318,6 @@ GLOBAL.tests = {
     }
   },
   'es.array.map': function () {
-    [].map.call({ length: -1, 0: 1 }, function (it) { throw it; });
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
@@ -348,7 +330,6 @@ GLOBAL.tests = {
     return Array.of.call(F) instanceof F;
   },
   'es.array.reduce': function () {
-    [].reduce.call({ length: -1, 0: 1 }, function (it) { throw it; }, 1);
     try {
       Array.prototype.reduce.call(null, function () { /* empty */ }, 1);
     } catch (error) {
@@ -356,7 +337,6 @@ GLOBAL.tests = {
     }
   },
   'es.array.reduce-right': function () {
-    [].reduce.call({ length: -1, 0: 1 }, function (it) { throw it; }, 0);
     try {
       Array.prototype.reduceRight.call(null, function () { /* empty */ }, 1);
     } catch (error) {
@@ -368,7 +348,6 @@ GLOBAL.tests = {
     return String(test) !== String(test.reverse());
   },
   'es.array.slice': function () {
-    if ([].slice.call({ length: -1, 0: 1 }, 0, 1).length) return false;
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
@@ -377,7 +356,6 @@ GLOBAL.tests = {
     return array.slice().foo === 1;
   },
   'es.array.some': function () {
-    [].some.call({ length: -1, 0: 1 }, function (it) { throw it; });
     try {
       Array.prototype.some.call(null, function () { /* empty */ });
     } catch (error) {

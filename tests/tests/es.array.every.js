@@ -32,10 +32,4 @@ QUnit.test('Array#every', assert => {
     assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
     assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
   }
-  assert.notThrows(() => every.call({
-    length: -1,
-    0: 1,
-  }, () => {
-    throw new Error();
-  }), 'uses ToLength');
 });

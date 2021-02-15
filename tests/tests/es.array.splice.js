@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#splice', assert => {
   const { splice } = Array.prototype;
@@ -26,24 +26,10 @@ QUnit.test('Array#splice', assert => {
     assert.throws(() => splice.call(null), TypeError);
     assert.throws(() => splice.call(undefined), TypeError);
   }
-  assert.deepEqual(splice.call({
-    length: -1,
-    0: 1,
-  }), [], 'uses ToLength');
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
   assert.same(array.splice().foo, 1, '@@species');
-  if (DESCRIPTORS) {
-    assert.notThrows(() => splice.call(Object.defineProperty({
-      length: -1,
-    }, 0, {
-      enumerable: true,
-      get() {
-        throw new Error();
-      },
-    }), 0, 2).length === 0, 'uses ToLength');
-  }
 });

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#lastIndexOf', assert => {
   const { lastIndexOf } = Array.prototype;
@@ -19,23 +19,5 @@ QUnit.test('Array#lastIndexOf', assert => {
   if (STRICT) {
     assert.throws(() => lastIndexOf.call(null, 0), TypeError);
     assert.throws(() => lastIndexOf.call(undefined, 0), TypeError);
-  }
-  if (DESCRIPTORS) {
-    assert.notThrows(() => lastIndexOf.call(Object.defineProperties({
-      length: -1,
-    }, {
-      2147483646: {
-        enumerable: true,
-        get() {
-          throw new Error();
-        },
-      },
-      4294967294: {
-        enumerable: true,
-        get() {
-          throw new Error();
-        },
-      },
-    }), 2147483647) === -1, 'uses ToLength');
   }
 });

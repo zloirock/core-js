@@ -40,11 +40,4 @@ QUnit.test('Array#reduceRight', assert => {
     assert.throws(() => reduceRight.call(null, () => { /* empty */ }, 1), TypeError);
     assert.throws(() => reduceRight.call(undefined, () => { /* empty */ }, 1), TypeError);
   }
-  assert.notThrows(() => reduceRight.call({
-    length: -1,
-    2147483646: 1,
-    4294967294: 1,
-  }, () => {
-    throw new Error();
-  }, 1) === 1, 'uses ToLength');
 });
