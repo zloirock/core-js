@@ -378,10 +378,6 @@ GLOBAL.tests = {
     return Array[Symbol.species];
   }],
   'es.array.splice': function () {
-    [].splice.call(Object.defineProperty({ length: -1 }, 0, {
-      enumerable: true,
-      get: function (it) { throw it; }
-    }), 0, 1);
     var array = [];
     var constructor = array.constructor = {};
     constructor[Symbol.species] = function () {
