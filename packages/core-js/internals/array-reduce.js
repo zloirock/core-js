@@ -7,13 +7,12 @@ var createMethod = function (IS_RIGHT) {
   return function (that, callbackfn, argumentsLength, memo) {
     aFunction(callbackfn);
     var O = toObject(that);
-    var self = Object(O);
     var length = toLength(O.length);
     var index = IS_RIGHT ? length - 1 : 0;
     var i = IS_RIGHT ? -1 : 1;
     if (argumentsLength < 2) while (true) {
-      if (index in self) {
-        memo = self[index];
+      if (index in O) {
+        memo = O[index];
         index += i;
         break;
       }
@@ -22,8 +21,8 @@ var createMethod = function (IS_RIGHT) {
         throw TypeError('Reduce of empty array with no initial value');
       }
     }
-    for (;IS_RIGHT ? index >= 0 : length > index; index += i) if (index in self) {
-      memo = callbackfn(memo, self[index], index, O);
+    for (;IS_RIGHT ? index >= 0 : length > index; index += i) if (index in O) {
+      memo = callbackfn(memo, O[index], index, O);
     }
     return memo;
   };

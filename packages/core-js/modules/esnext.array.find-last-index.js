@@ -8,7 +8,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 $({ target: 'Array', proto: true }, {
   findLastIndex: function findLastIndex(callbackfn /* , that = undefined */) {
     return $findLastIndex(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });
 
 addToUnscopables('findLastIndex');

@@ -1,5 +1,4 @@
 var bind = require('../internals/function-bind-context');
-var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 
@@ -8,12 +7,11 @@ var createMethod = function (TYPE) {
   var IS_FIND_INDEX = TYPE == 6;
   return function ($this, callbackfn, that) {
     var O = toObject($this);
-    var self = IndexedObject(O);
     var boundFunction = bind(callbackfn, that, 3);
-    var index = toLength(self.length);
+    var index = toLength(O.length);
     var value, result;
     while (index-- > 0) {
-      value = self[index];
+      value = O[index];
       result = boundFunction(value, index, O);
       if (result) switch (TYPE) {
         case 5: return value; // find
@@ -30,5 +28,5 @@ module.exports = {
   findLast: createMethod(5),
   // `Array.prototype.findLastIndex` method
   // https://github.com/tc39/proposal-array-find-from-last
-  findLastIndex: createMethod(6)
+  findLastIndex: createMethod(6),
 };

@@ -940,7 +940,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-of-from');
   load('proposals/iterator-helpers');
   load('proposals/keys-composition');
-  load('proposals/map-update-or-insert');
   load('proposals/map-upsert');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
