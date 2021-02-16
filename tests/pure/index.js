@@ -145,6 +145,8 @@ import './es.weak-set';
 QUnit.module('ESNext');
 import './esnext.array.at';
 import './esnext.array.filter-out';
+import './esnext.array.find-last';
+import './esnext.array.find-last-index';
 import './esnext.array.is-template-object';
 import './esnext.array.unique-by';
 import './esnext.async-iterator.constructor';

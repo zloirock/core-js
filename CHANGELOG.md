@@ -1,5 +1,10 @@
 ## Changelog
 ##### Unreleased
+- Added [`Array` find from last stage 1 proposal](https://github.com/tc39/proposal-array-find-from-last)
+  - `Array#findLast`
+  - `Array#findLastIndex`
+  - `%TypedArray%#findLast`
+  - `%TypedArray%#findLastIndex`
 - Dropped `ToLength` detection from array methods feature detection which could cause hanging FF11-21 and some versions of old WebKit, [#764](https://github.com/zloirock/core-js/issues/764)
 - Minified bundle from `core-js-bundle` uses `terser` instead of `uglify-js`
 

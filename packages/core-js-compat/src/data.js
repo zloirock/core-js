@@ -1258,6 +1258,10 @@ const data = {
   },
   'esnext.array.filter-out': {
   },
+  'esnext.array.find-last': {
+  },
+  'esnext.array.find-last-index': {
+  },
   'esnext.array.is-template-object': {
   },
   'esnext.array.last-index': {
@@ -1497,6 +1501,10 @@ const data = {
   'esnext.typed-array.at': {
   },
   'esnext.typed-array.filter-out': {
+  },
+  'esnext.typed-array.find-last': {
+  },
+  'esnext.typed-array.find-last-index': {
   },
   'esnext.weak-map.delete-all': {
   },

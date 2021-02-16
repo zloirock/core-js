@@ -1082,6 +1082,12 @@ GLOBAL.tests = {
   'esnext.array.filter-out': function () {
     return [].filterOut;
   },
+  'esnext.array.find-last': function () {
+    return [].findLast;
+  },
+  'esnext.array.find-last-index': function () {
+    return [].findLastIndex;
+  },
   'esnext.array.last-index': function () {
     return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
   },
@@ -1424,6 +1430,12 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.filter-out': function () {
     return Int8Array.prototype.filterOut;
+  },
+  'esnext.typed-array.find-last': function () {
+    return Int8Array.prototype.findLast;
+  },
+  'esnext.typed-array.find-last-index': function () {
+    return Int8Array.prototype.findLastIndex;
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

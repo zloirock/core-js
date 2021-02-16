@@ -85,6 +85,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/array/fill')(Array(5), 2)[0] === 2);
   ok(load('features/array/find')([2, 3, 4], it => it % 2) === 3);
   ok(load('features/array/find-index')([2, 3, 4], it => it % 2) === 1);
+  ok(load('features/array/find-last')([1, 2, 3], it => it % 2) === 3);
+  ok(load('features/array/find-last-index')([1, 2, 3], it => it % 2) === 2);
   ok('next' in load('features/array/keys')([]));
   ok('next' in load('features/array/values')([]));
   ok(load('features/array/includes')([1, 2, 3], 2));
@@ -114,6 +116,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/array/virtual/fill').call(Array(5), 2)[0] === 2);
   ok(load('features/array/virtual/find').call([2, 3, 4], it => it % 2) === 3);
   ok(load('features/array/virtual/find-index').call([2, 3, 4], it => it % 2) === 1);
+  ok(load('features/array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
+  ok(load('features/array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
   ok('next' in load('features/array/virtual/keys').call([]));
   ok('next' in load('features/array/virtual/values').call([]));
   ok(load('features/array/virtual/includes').call([1, 2, 3], 2));
@@ -958,13 +962,19 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('web/url') === 'function');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
+  load('proposals/array-filtering');
+  load('proposals/array-find-from-last');
   load('proposals/array-is-template-object');
   load('proposals/array-last');
+  load('proposals/array-unique');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/global-this');
   load('proposals/iterator-helpers');
+  load('proposals/keys-composition');
+  load('proposals/map-update-or-insert');
+  load('proposals/map-upsert');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');
@@ -977,15 +987,14 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');
-  load('proposals/keys-composition');
   load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-code-points');
   load('proposals/string-match-all');
   load('proposals/string-replace-all');
-  load('proposals/using-statement');
   load('proposals/url');
+  load('proposals/using-statement');
   load('proposals');
   ok(load('stage/4'));
   ok(load('stage/3'));
@@ -1191,6 +1200,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(instanceFind({}) === undefined);
   ok(typeof instanceFind([]) === 'function');
   ok(instanceFind([]).call([1, 2, 3], it => it % 2) === 1);
+
+  const instanceFindLastIndex = load('features/instance/find-last-index');
+  ok(typeof instanceFindLastIndex === 'function');
+  ok(instanceFindLastIndex({}) === undefined);
+  ok(typeof instanceFindLastIndex([]) === 'function');
+  ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
+
+  const instanceFindLast = load('features/instance/find-last');
+  ok(typeof instanceFindLast === 'function');
+  ok(instanceFindLast({}) === undefined);
+  ok(typeof instanceFindLast([]) === 'function');
+  ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
 
   let instanceFlags = load('features/instance/flags');
   ok(typeof instanceFlags === 'function');
@@ -1664,6 +1685,8 @@ load('features/typed-array/filter');
 load('features/typed-array/filter-out');
 load('features/typed-array/find');
 load('features/typed-array/find-index');
+load('features/typed-array/find-last');
+load('features/typed-array/find-last-index');
 load('features/typed-array/for-each');
 load('features/typed-array/from');
 load('features/typed-array/includes');
