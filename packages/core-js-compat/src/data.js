@@ -1506,6 +1506,8 @@ const data = {
   },
   'esnext.typed-array.find-last-index': {
   },
+  'esnext.typed-array.unique-by': {
+  },
   'esnext.weak-map.delete-all': {
   },
   'esnext.weak-map.from': {

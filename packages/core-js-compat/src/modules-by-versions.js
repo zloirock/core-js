@@ -78,5 +78,6 @@ module.exports = {
     'esnext.array.find-last-index',
     'esnext.typed-array.find-last',
     'esnext.typed-array.find-last-index',
+    'esnext.typed-array.unique-by',
   ],
 };

@@ -1468,10 +1468,13 @@ class [
   Uint32Array,
   Float32Array,
   Float64Array,
-] {
+] extends %TypedArray% {
   constructor(length: number): %TypedArray%;
   constructor(object: %TypedArray% | Iterable | ArrayLike): %TypedArray%;
-  constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%;
+  constructor(buffer: ArrayBuffer, byteOffset?: number, length?: number): %TypedArray%
+}
+
+class %TypedArray% {
   copyWithin(target: number, start: number, end?: number): this;
   every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
   fill(value: number, start?: number, end?: number): this;
@@ -1787,17 +1790,7 @@ class Array {
   at(index: int): any;
 }
 
-class [
-  Int8Array,
-  Uint8Array,
-  Uint8ClampedArray,
-  Int16Array,
-  Uint16Array,
-  Int32Array,
-  Uint32Array,
-  Float32Array,
-  Float64Array,
-] {
+class %TypedArray% {
   at(index: int): any;
 }
 ```
@@ -2402,17 +2395,7 @@ class Array {
   filterOut(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
 }
 
-class [
-  Int8Array,
-  Uint8Array,
-  Uint8ClampedArray,
-  Int16Array,
-  Uint16Array,
-  Int32Array,
-  Uint32Array,
-  Float32Array,
-  Float64Array,
-] {
+class %TypedArray% {
   filterOut(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
 }
 ```
@@ -2420,23 +2403,28 @@ class [
 ```
 core-js/proposals/array-filtering
 core-js(-pure)/features/array(/virtual)/filter-out
-core-js(-pure)/features/typed-array/filter-out
+core-js/features/typed-array/filter-out
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterOut(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
 ```js
 [1, 2, 3, 4, 5].filterOut(it => it % 2); // => [2, 4]
 ````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
-Module [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/v3.8.3/packages/core-js/modules/esnext.array.unique-by.js)
+Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/v3.8.3/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/v3.8.3/packages/core-js/modules/esnext.typed-array.unique-by.js)
 ```js
 class Array {
   uniqueBy(resolver?: (item: any) => any): Array<mixed>;
+}
+
+class %TypedArray% {
+  uniqueBy(resolver?: (item: any) => any): %TypedArray%;;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-unique
 core-js(-pure)/features/array(/virtual)/unique-by
+core-js/features/typed-array/unique-by
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%202%2C%201%5D.uniqueBy())%3B%20%20%2F%2F%20%5B1%2C%202%2C%203%5D%0A%0Aconst%20data%20%3D%20%5B%0A%20%20%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%0A%5D%3B%0A%0Alog(data.uniqueBy('uid'))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D%0A%0Alog(data.uniqueBy((%7B%20id%2C%20uid%20%7D)%20%3D%3E%20%60%24%7Bid%7D-%24%7Buid%7D%60))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D):
 ```js
@@ -2456,17 +2444,7 @@ class Array {
   findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
 }
 
-class [
-  Int8Array,
-  Uint8Array,
-  Uint8ClampedArray,
-  Int16Array,
-  Uint16Array,
-  Int32Array,
-  Uint32Array,
-  Float32Array,
-  Float64Array,
-] {
+class %TypedArray% {
   findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
   findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
 }
@@ -2476,8 +2454,8 @@ class [
 core-js/proposals/array-find-from-last
 core-js(-pure)/features(/virtual)/array/find-last
 core-js(-pure)/features(/virtual)/array/find-last-index
-core-js(-pure)/features/typed-array/find-last
-core-js(-pure)/features/typed-array/find-last-index
+core-js/features/typed-array/find-last
+core-js/features/typed-array/find-last-index
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
 ```js

@@ -316,6 +316,7 @@ import './esnext.typed-array.at';
 import './esnext.typed-array.filter-out';
 import './esnext.typed-array.find-last';
 import './esnext.typed-array.find-last-index';
+import './esnext.typed-array.unique-by';
 import './esnext.weak-map.delete-all';
 import './esnext.weak-map.from';
 import './esnext.weak-map.of';

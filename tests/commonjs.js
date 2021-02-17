@@ -1707,6 +1707,7 @@ load('features/typed-array/sort');
 load('features/typed-array/subarray');
 load('features/typed-array/to-locale-string');
 load('features/typed-array/to-string');
+load('features/typed-array/unique-by');
 load('features/typed-array/values');
 ok(typeof load('features/typed-array').Uint32Array === 'function');
 ok(typeof load('es/string/match') === 'function');
