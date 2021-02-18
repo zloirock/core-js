@@ -91,25 +91,25 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       z *= 0x10000000000000;
       e = 52 - e;
       if (e > 0) {
-        multiply(divide, 0, z);
+        multiply(data, 0, z);
         j = fractDigits;
         while (j >= 7) {
-          multiply(divide, 1e7, 0);
+          multiply(data, 1e7, 0);
           j -= 7;
         }
-        multiply(divide, pow(10, j, 1), 0);
+        multiply(data, pow(10, j, 1), 0);
         j = e - 1;
         while (j >= 23) {
           divide(data, 1 << 23);
           j -= 23;
         }
         divide(data, 1 << j);
-        multiply(divide, 1, 1);
+        multiply(data, 1, 1);
         divide(data, 2);
         result = dataToString(data);
       } else {
-        multiply(divide, 0, z);
-        multiply(divide, 1 << -e, 0);
+        multiply(data, 0, z);
+        multiply(data, 1 << -e, 0);
         result = dataToString(data) + repeat.call('0', fractDigits);
       }
     }
