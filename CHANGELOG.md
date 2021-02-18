@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.9.0 - 2021.02.19
 - Added [`Array` find from last stage 1 proposal](https://github.com/tc39/proposal-array-find-from-last)
   - `Array#findLast`
   - `Array#findLastIndex`
