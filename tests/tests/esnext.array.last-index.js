@@ -1,6 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
-if (DESCRIPTORS) QUnit.test('Array#lastIndex', assert => {
+QUnit.test('Array#lastIndex', assert => {
   const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'lastIndex');
   assert.isFunction(descriptor.get);
   assert.same(descriptor.enumerable, false);
