@@ -4,7 +4,6 @@ QUnit.test('Map#upsert', assert => {
   const { upsert } = Map.prototype;
   assert.isFunction(upsert);
   assert.arity(upsert, 2);
-  assert.name(upsert, 'upsert');
   assert.nonEnumerable(Map.prototype, 'upsert');
 
   const map = new Map([['a', 2]]);
