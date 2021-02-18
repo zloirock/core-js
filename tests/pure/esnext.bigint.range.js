@@ -23,8 +23,8 @@ if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   assert.deepEqual(from(range(BigInt(-1), BigInt(5))), [BigInt(-1), BigInt(0), BigInt(1), BigInt(2), BigInt(3), BigInt(4)]);
   assert.deepEqual(from(range(BigInt(-5), BigInt(1))), [BigInt(-5), BigInt(-4), BigInt(-3), BigInt(-2), BigInt(-1), BigInt(0)]);
   assert.deepEqual(
-    from(range(BigInt(2 ** 53 - 1), BigInt(2 ** 53), { inclusive: true })),
-    [BigInt(9007199254740991), BigInt(9007199254740992)],
+    from(range(BigInt('9007199254740991'), BigInt('9007199254740992'), { inclusive: true })),
+    [BigInt('9007199254740991'), BigInt('9007199254740992')],
   );
   assert.deepEqual(from(range(BigInt(0), BigInt(0))), []);
   assert.deepEqual(from(range(BigInt(0), BigInt(-5), BigInt(1))), []);
