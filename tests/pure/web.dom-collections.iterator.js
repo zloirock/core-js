@@ -42,9 +42,11 @@ QUnit.test('Iterable DOM collections', assert => {
   for (const name of collections) {
     const Collection = GLOBAL[name];
     if (Collection) {
-      assert.same(Collection.prototype[Symbol.toStringTag], name, `${ name }::@@toStringTag is '${ name }'`);
-      assert.isFunction(getIteratorMethod(Collection.prototype), `${ name }::@@iterator is function`);
       absent = false;
+      assert.same(Collection.prototype[Symbol.toStringTag], name, `${ name }::@@toStringTag is '${ name }'`);
+      if (Object.prototype.toString.call(Collection.prototype).slice(8, -1) === name) {
+        assert.isFunction(getIteratorMethod(Collection.prototype), `${ name }::@@iterator is function`);
+      }
     }
   }
 
