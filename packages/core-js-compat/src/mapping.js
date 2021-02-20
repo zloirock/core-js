@@ -96,6 +96,7 @@ module.exports = {
     [81, 58],
     [83, 59],
     [85, 60],
+    [86, 61],
   ],
   ChromeToAndroid: [
     [9, '3.0'],
