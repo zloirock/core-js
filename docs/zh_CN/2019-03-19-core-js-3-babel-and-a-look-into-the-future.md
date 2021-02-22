@@ -236,7 +236,7 @@ Babel 7.4.0 引入了两种模式的共同更改，以及每种模式的特定�
 
 - 它包含的数据仅仅关于 ECMAScript 特性和提案，和 web 平台特性例如 `setImmediate` 或者 DOM 集合迭代器没有关系。所以直到现在，`@babel/preset-env` 仍然通过 `core-js` 添加全部的 web 平台特性即使他们已经支持了。
 - 它他不包含任何浏览器（甚至是严重的）bug 信息：例如，上文提到的在 Safari 12 中 `Array#reverse`，但是 `compat-table` 并没有将它标记为不支持。另一方面，`core-js` 已经修复了这个错误实现，但是因为 `compat-table` 关系，并不能使用它。
-- 它仅包函一些基础的、幼稚的测试，没有检查功能在真实环境下是否可以正常工作。例如，老版本 Safari 的破坏的迭代器没有 `.next` 方法，但是 `compat-table` 表明 Safari 支持，因为它用 `typeof` 方法检测迭代器方法返回了 `"function"`。一些像 typed arrays 的功能几乎没有覆盖。
+- 它仅包函一些基础的、简单的测试，没有检查功能在真实环境下是否可以正常工作。例如，老版本 Safari 的破坏的迭代器没有 `.next` 方法，但是 `compat-table` 表明 Safari 支持，因为它用 `typeof` 方法检测迭代器方法返回了 `"function"`。一些像 typed arrays 的功能几乎没有覆盖。
 
 - `compat-table` 不是为了向工具提供数据而设计的。我是 `compat-table` 的维护者之一，但是[其他的维护者反对为维护这个功能](https://github.com/kangax/compat-table/pull/1312)。
 
@@ -469,7 +469,7 @@ StandardLibraryRegistry.set(moduleName, value);
 
 #### 装饰器提案，新的迭代器语法，stage 2
 
-这个提案中的 [新迭代器](https://github.com/tc39/proposal-decorators)，他被很认真的重做了。装饰器定义不再是语法糖，就像内置模块，我们不能在老版本的语言中编写装饰器并将其用作原生装饰器。除此之外，装饰器不仅仅是普通的标识符 - 他们生活在平行的词汇范围内：这意味着已经编译的装饰器不能喝原生装饰器交互。
+这个提案中的 [新迭代器](https://github.com/tc39/proposal-decorators)，他被很认真的重做了。装饰器定义不再是语法糖，就像内置模块，我们不能在老版本的语言中编写装饰器并将其用作原生装饰器。除此之外，装饰器不仅仅是普通的标识符 - 他们生活在平行的词汇范围内：这意味着已经编译的装饰器不能和原生装饰器交互。
 
 提案作者建议使用未编译的装饰器发布包，让包的使用者选择去编译他们的依赖。然而，在不同的情况下是不可能的。当他们被添加到 JS 标准库时，这个方法将阻止 `core-js` polyfill 新的内置装饰器。
 
