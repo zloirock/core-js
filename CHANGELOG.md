@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Updated compat data mapping for mobile Opera
+- Updated compat data mapping for iOS Safari and Opera for Android
 
 ##### 3.9.0 - 2021.02.19
 - Added [`Array` find from last stage 1 proposal](https://github.com/tc39/proposal-array-find-from-last)
