@@ -1052,46 +1052,55 @@ const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.float64-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.int8-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.int16-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.int32-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.uint8-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.uint8-clamped-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.uint16-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.uint32-array': {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.copy-within': {
     chrome: '45',
@@ -1139,6 +1148,7 @@ const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.includes': {
     chrome: '49',
@@ -1180,6 +1190,7 @@ const data = {
     chrome: '54',
     edge: '15',
     firefox: '55',
+    safari: '14.0',
   },
   'es.typed-array.reduce': {
     chrome: '45',

@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- TypedArray constructors marked as supported from Safari 14.0
 - Updated compat data mapping for iOS Safari and Opera for Android
 
 ##### 3.9.0 - 2021.02.19
