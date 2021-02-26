@@ -6,12 +6,12 @@ var defineProperties = require('../internals/object-define-properties');
 var DESCRIPTORS = require('../internals/descriptors');
 
 var INCORRECT_RANGE = 'Incorrect Number.range arguments';
-var RANGE_ITERATOR = 'RangeIterator';
+var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
 
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(RANGE_ITERATOR);
+var getInternalState = InternalStateModule.getterFor(NUMERIC_RANGE_ITERATOR);
 
-var $RangeIterator = createIteratorConstructor(function RangeIterator(start, end, option, type, zero, one) {
+var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(start, end, option, type, zero, one) {
   if (typeof start != type || (end !== Infinity && end !== -Infinity && typeof end != type)) {
     throw new TypeError(INCORRECT_RANGE);
   }
@@ -43,7 +43,7 @@ var $RangeIterator = createIteratorConstructor(function RangeIterator(start, end
   // eslint-disable-next-line no-self-compare -- NaN check
   var hitsEnd = start != start || end != end || step != step || (end > start) !== (step > zero);
   setInternalState(this, {
-    type: RANGE_ITERATOR,
+    type: NUMERIC_RANGE_ITERATOR,
     start: start,
     end: end,
     step: step,
@@ -58,7 +58,7 @@ var $RangeIterator = createIteratorConstructor(function RangeIterator(start, end
     this.step = step;
     this.inclusive = inclusiveEnd;
   }
-}, RANGE_ITERATOR, function next() {
+}, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
   if (state.hitsEnd) return { value: undefined, done: true };
   var start = state.start;

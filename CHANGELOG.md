@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Used `NumericRangeIterator` as toStringTag instead of `RangeIterator` in `{ Number, BigInt }.range` iterator, per [this PR](https://github.com/tc39/proposal-Number.range/pull/46)
 - TypedArray constructors marked as supported from Safari 14.0
 - Updated compat data mapping for iOS Safari and Opera for Android
 
