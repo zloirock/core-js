@@ -64,7 +64,10 @@ module.exports = async function ({
 
     await unlink(tempFile);
 
-    script += `\n!function (undefined) { 'use strict'; ${ file } }();`;
+    script += `\n!function (undefined) { 'use strict'; ${
+      // compress `__webpack_require__` with `keep_fnames` option
+      String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
+    } }();`;
   }
 
   if (typeof filename != 'undefined') {
