@@ -24,12 +24,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@v2
-        with:
-          path: |
-            node_modules
-            packages/*/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('**/package.json') }}
 
       - name: Use Node.js ${{ matrix.node }}
         uses: actions/setup-node@v1
