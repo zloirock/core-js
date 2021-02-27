@@ -447,6 +447,8 @@ const base = {
   'regexp/prefer-d': 'error',
   // enforce using `+` quantifier
   'regexp/prefer-plus-quantifier': 'error',
+  // enforce using quantifier
+  'regexp/prefer-quantifier': 'error',
   // enforce using `?` quantifier
   'regexp/prefer-question-quantifier': 'error',
   // enforce using `*` quantifier
