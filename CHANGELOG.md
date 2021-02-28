@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.9.1 - 2021.03.01
 - Added a workaround for Chrome 38-40 bug which does not allow to inherit symbols (incl. well-known) from DOM collections prototypes to instances, [#37](https://github.com/zloirock/core-js/issues/37)
 - Used `NumericRangeIterator` as toStringTag instead of `RangeIterator` in `{ Number, BigInt }.range` iterator, per [this PR](https://github.com/tc39/proposal-Number.range/pull/46)
 - TypedArray constructors marked as supported from Safari 14.0
