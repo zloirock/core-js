@@ -29,7 +29,7 @@ const data = {
     safari: '10.0',
   },
   'es.symbol.iterator': {
-    chrome: '39',
+    chrome: '41',
     edge: '13',
     firefox: '36',
     safari: '9.0',
@@ -78,7 +78,7 @@ const data = {
     safari: '10.0',
   },
   'es.symbol.unscopables': {
-    chrome: '39',
+    chrome: '41',
     edge: '13',
     firefox: '48',
     safari: '9.0',
@@ -880,7 +880,7 @@ const data = {
     safari: '10.0',
   },
   'es.string.iterator': {
-    chrome: '39',
+    chrome: '41',
     edge: '13',
     firefox: '36',
     safari: '9.0',

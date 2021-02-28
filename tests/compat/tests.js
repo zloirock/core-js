@@ -8,6 +8,24 @@ var NOT_WHITESPACES = '\u200B\u0085\u180E';
 
 var USERAGENT = GLOBAL.navigator && GLOBAL.navigator.userAgent || '';
 
+var process = GLOBAL.process;
+var v8 = process && process.versions && process.versions.v8 || '';
+
+var match, V8_VERSION;
+
+if (v8) {
+  match = v8.split('.');
+  V8_VERSION = +(match[0] + match[1]);
+} else if (USERAGENT) {
+  match = USERAGENT.match(/Edge\/(\d+)/);
+  if (!match || match[1] >= 74) {
+    match = USERAGENT.match(/Chrome\/(\d+)/);
+    if (match) V8_VERSION = +match[1];
+  }
+}
+
+var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
+
 // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
 var WEBKIT_STRING_PAD_BUG = /Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
 
@@ -16,10 +34,6 @@ var DESCRIPTORS_SUPPORT = function () {
 };
 
 var PROMISES_SUPPORT = function () {
-  var process = GLOBAL.process;
-  var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
-  var v8 = process && process.versions && process.versions.v8 || '';
-
   var promise = Promise.resolve(1);
   var empty = function () { /* empty */ };
   var FakePromise = (promise.constructor = {})[Symbol.species] = function (exec) {
@@ -28,12 +42,11 @@ var PROMISES_SUPPORT = function () {
 
   return (IS_NODE || typeof PromiseRejectionEvent == 'function')
     && promise.then(empty) instanceof FakePromise
-    && v8.indexOf('6.6') !== 0
-    && USERAGENT.indexOf('Chrome/66') === -1;
+    && V8_VERSION !== 66;
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return String(Symbol());
+  return Symbol && (IS_NODE ? V8_VERSION !== 38 : V8_VERSION < 38 || V8_VERSION > 40);
 };
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
