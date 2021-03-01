@@ -1,5 +1,6 @@
 'use strict';
-const SUPPORTED_NODE_VERSIONS = require('./packages/core-js-builder/package.json').engines.node;
+const RESTRICTED_GLOBALS = require('confusing-browser-globals');
+const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 
 const base = {
   // possible errors:
@@ -51,6 +52,8 @@ const base = {
   'no-prototype-builtins': 'error',
   // disallow multiple spaces in a regular expression literal
   'no-regex-spaces': 'error',
+  // disallow specific global variables
+  'no-restricted-globals': ['error', ...RESTRICTED_GLOBALS],
   // disallow returning values from setters
   'no-setter-return': 'error',
   // disallow sparse arrays
