@@ -1,4 +1,4 @@
-/* global BigInt -- safe */
+/* eslint-disable es/no-bigint -- safe */
 import from from 'core-js-pure/features/array/from';
 import range from 'core-js-pure/features/bigint/range';
 
@@ -48,6 +48,7 @@ if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   assert.same(iterator.inclusive, true);
 
   iterator = range(BigInt(0), BigInt(5));
+  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').call({}), TypeError);
 
   assert.throws(() => range(Infinity, BigInt(10), BigInt(0)), TypeError);

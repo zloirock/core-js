@@ -44,6 +44,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
   const promise2 = new Promise(r => {
     resolve2 = r;
   });
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
   resolve2(Object.defineProperty({}, 'then', {
     get() {
       result += 'D';

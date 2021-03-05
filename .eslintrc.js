@@ -1,6 +1,14 @@
 'use strict';
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
 const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+const DEV_NODE_VERSIONS = '^10.17';
+
+function disable(rules) {
+  return Object.keys(rules).reduce((memo, rule) => {
+    memo[rule] = 'off';
+    return memo;
+  }, {});
+}
 
 const base = {
   // possible errors:
@@ -296,6 +304,8 @@ const base = {
   'import/no-useless-path-segments': 'error',
 
   // node:
+  // disallow deprecated APIs
+  'node/no-deprecated-api': 'error',
   // enforce the style of file extensions in `import` declarations
   'node/file-extension-in-import': ['error', 'never'],
   // require require() calls to be placed at top-level module scope
@@ -308,6 +318,8 @@ const base = {
   'node/no-new-require': 'error',
   // disallow string concatenation with `__dirname` and `__filename`
   'node/no-path-concat': 'error',
+  // disallow the use of `process.exit()`
+  'node/no-process-exit': 'error',
 
   // es6+:
   // require parentheses around arrow function arguments
@@ -461,6 +473,9 @@ const base = {
   // enforce using `\w`
   'regexp/prefer-w': 'error',
 
+  // disallow \u2028 and \u2029 in string literals
+  'es/no-json-superset': 'error',
+
   // eslint-comments
   // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': 'error',
@@ -495,19 +510,196 @@ const es3 = {
   'unicorn/prefer-default-parameters': 'off',
 };
 
-const node = {
-  // disallow deprecated APIs
-  'node/no-deprecated-api': 'error',
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/es-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
+const forbidES5BuiltIns = {
+  'es/no-array-isarray': 'error',
+  'es/no-array-prototype-every': 'error',
+  'es/no-array-prototype-filter': 'error',
+  'es/no-array-prototype-foreach': 'error',
+  'es/no-array-prototype-indexof': 'error',
+  'es/no-array-prototype-lastindexof': 'error',
+  'es/no-array-prototype-map': 'error',
+  'es/no-array-prototype-reduce': 'error',
+  'es/no-array-prototype-reduceright': 'error',
+  'es/no-array-prototype-some': 'error',
+  'es/no-date-now': 'error',
+  'es/no-json': 'error',
+  'es/no-object-defineproperties': 'error',
+  'es/no-object-defineproperty': 'error',
+  'es/no-object-freeze': 'error',
+  'es/no-object-getownpropertydescriptor': 'error',
+  'es/no-object-getownpropertynames': 'error',
+  'es/no-object-getprototypeof': 'error',
+  'es/no-object-isextensible': 'error',
+  'es/no-object-isfrozen': 'error',
+  'es/no-object-issealed': 'error',
+  'es/no-object-keys': 'error',
+  'es/no-object-preventextensions': 'error',
+  'es/no-object-seal': 'error',
+  'es/no-string-prototype-trim': 'error',
+};
+
+const forbidES2015BuiltIns = {
+  'es/no-array-from': 'error',
+  'es/no-array-of': 'error',
+  'es/no-array-prototype-copywithin': 'error',
+  'es/no-array-prototype-entries': 'error',
+  'es/no-array-prototype-fill': 'error',
+  'es/no-array-prototype-find': 'error',
+  'es/no-array-prototype-findindex': 'error',
+  'es/no-array-prototype-keys': 'error',
+  'es/no-array-prototype-values': 'error',
+  'es/no-map': 'error',
+  'es/no-math-acosh': 'error',
+  'es/no-math-asinh': 'error',
+  'es/no-math-atanh': 'error',
+  'es/no-math-cbrt': 'error',
+  'es/no-math-clz32': 'error',
+  'es/no-math-cosh': 'error',
+  'es/no-math-expm1': 'error',
+  'es/no-math-fround': 'error',
+  'es/no-math-hypot': 'error',
+  'es/no-math-imul': 'error',
+  'es/no-math-log10': 'error',
+  'es/no-math-log1p': 'error',
+  'es/no-math-log2': 'error',
+  'es/no-math-sign': 'error',
+  'es/no-math-sinh': 'error',
+  'es/no-math-tanh': 'error',
+  'es/no-math-trunc': 'error',
+  'es/no-number-epsilon': 'error',
+  'es/no-number-isfinite': 'error',
+  'es/no-number-isinteger': 'error',
+  'es/no-number-isnan': 'error',
+  'es/no-number-issafeinteger': 'error',
+  'es/no-number-maxsafeinteger': 'error',
+  'es/no-number-minsafeinteger': 'error',
+  'es/no-number-parsefloat': 'error',
+  'es/no-number-parseint': 'error',
+  'es/no-object-assign': 'error',
+  'es/no-object-getownpropertysymbols': 'error',
+  'es/no-object-is': 'error',
+  'es/no-object-setprototypeof': 'error',
+  'es/no-promise': 'error',
+  'es/no-proxy': 'error',
+  'es/no-reflect': 'error',
+  'es/no-regexp-prototype-flags': 'error',
+  'es/no-set': 'error',
+  'es/no-string-fromcodepoint': 'error',
+  'es/no-string-prototype-codepointat': 'error',
+  'es/no-string-prototype-endswith': 'error',
+  'es/no-string-prototype-includes': 'error',
+  'es/no-string-prototype-normalize': 'error',
+  'es/no-string-prototype-repeat': 'error',
+  'es/no-string-prototype-startswith': 'error',
+  'es/no-string-raw': 'error',
+  'es/no-symbol': 'error',
+  'es/no-typed-arrays': 'error',
+  'es/no-weak-map': 'error',
+  'es/no-weak-set': 'error',
+};
+
+const forbidES2016BuiltIns = {
+  'es/no-array-prototype-includes': 'error',
+};
+
+const forbidES2017BuiltIns = {
+  'es/no-atomics': 'error',
+  'es/no-object-entries': 'error',
+  'es/no-object-getownpropertydescriptors': 'error',
+  'es/no-object-values': 'error',
+  'es/no-shared-array-buffer': 'error',
+  'es/no-string-prototype-padstart-padend': 'error',
+};
+
+const forbidES2018BuiltIns = {
+  'es/no-promise-prototype-finally': 'error',
+};
+
+const forbidES2019BuiltIns = {
+  'es/no-array-prototype-flat': 'error',
+  'es/no-object-fromentries': 'error',
+  'es/no-string-prototype-trimstart-trimend': 'error',
+  'es/no-symbol-prototype-description': 'error',
+};
+
+const forbidES2020BuiltIns = {
+  'es/no-bigint': 'error',
+  'es/no-global-this': 'error',
+  'es/no-promise-all-settled': 'error',
+  'es/no-string-prototype-matchall': 'error',
+};
+
+const forbidES2021BuiltIns = {
+  'es/no-promise-any': 'error',
+  'es/no-string-prototype-replaceall': 'error',
+  'es/no-weakrefs': 'error',
+};
+
+const forbidModernESBuiltIns = {
+  ...forbidES5BuiltIns,
+  ...forbidES2015BuiltIns,
+  ...forbidES2016BuiltIns,
+  ...forbidES2017BuiltIns,
+  ...forbidES2018BuiltIns,
+  ...forbidES2019BuiltIns,
+  ...forbidES2020BuiltIns,
+  ...forbidES2021BuiltIns,
+};
+
+const transpiledAndPolyfilled = {
+  // disallow accessor properties
+  'es/no-accessor-properties': 'error',
+  // disallow async functions
+  'es/no-async-functions': 'error',
+  // disallow async iteration
+  'es/no-async-iteration': 'error',
+  // disallow generators
+  'es/no-generators': 'error',
+  // unpolyfillable es2015 builtins
+  'es/no-proxy': 'error',
+  'es/no-string-prototype-normalize': 'error',
+  // unpolyfillable es2017 builtins
+  'es/no-atomics': 'error',
+  'es/no-shared-array-buffer': 'error',
+  // unpolyfillable es2020 builtins
+  'es/no-bigint': 'error',
+  // unpolyfillable es2021 builtins
+  'es/no-weakrefs': 'error',
+};
+
+const nodePackages = {
   // disallow unsupported ECMAScript syntax on the specified version
   'node/no-unsupported-features/es-syntax': ['error', { version: SUPPORTED_NODE_VERSIONS }],
+  // disallow unsupported ECMAScript built-ins on the specified version
+  'node/no-unsupported-features/node-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
+  ...disable(forbidES5BuiltIns),
+  ...disable(forbidES2015BuiltIns),
+  ...disable(forbidES2016BuiltIns),
+  ...disable(forbidES2017BuiltIns),
+  'es/no-atomics': 'error',
+  'es/no-shared-array-buffer': 'error',
+  ...forbidES2018BuiltIns,
+  ...forbidES2019BuiltIns,
+  ...forbidES2020BuiltIns,
+  ...forbidES2021BuiltIns,
+};
+
+const nodeDev = {
+  // disallow unsupported ECMAScript syntax on the specified version
+  'node/no-unsupported-features/es-syntax': ['error', { version: DEV_NODE_VERSIONS }],
+  // disallow unsupported ECMAScript built-ins on the specified version
+  'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
+  ...disable(forbidES5BuiltIns),
+  ...disable(forbidES2015BuiltIns),
+  ...disable(forbidES2016BuiltIns),
+  ...disable(forbidES2017BuiltIns),
+  ...disable(forbidES2018BuiltIns),
+  ...forbidES2019BuiltIns,
+  ...forbidES2020BuiltIns,
+  ...forbidES2021BuiltIns,
 };
 
 const tests = {
-  // require strict mode directives
-  strict: 'off',
-
   // relax for testing:
   // enforces return statements in callbacks of array's methods
   'array-callback-return': 'off',
@@ -598,11 +790,14 @@ module.exports = {
     ecmaVersion: 2021,
   },
   env: {
+    // unnececery global builtins disabled by related rules
+    es2021: true,
     browser: true,
     node: true,
     worker: true,
   },
   plugins: [
+    'es',
     'eslint-comments',
     'import',
     'node',
@@ -619,8 +814,8 @@ module.exports = {
       files: [
         'packages/core-js/**',
         'packages/core-js-pure/**',
-        'tests/promises-aplus/**',
         'tests/compat/**',
+        'tests/worker/**',
       ],
       parserOptions: {
         ecmaVersion: 3,
@@ -629,17 +824,45 @@ module.exports = {
     },
     {
       files: [
+        'packages/core-js/**',
+        'packages/core-js-pure/**',
+        'tests/pure/**',
+        'tests/worker/**',
+      ],
+      rules: forbidModernESBuiltIns,
+    },
+    {
+      files: [
+        'packages/core-js/postinstall.js',
+        'packages/core-js-pure/postinstall.js',
+      ],
+      rules: disable(forbidES5BuiltIns),
+    },
+    {
+      files: [
         'tests/helpers/**',
         'tests/pure/**',
         'tests/tests/**',
+        'tests/wpt-url-resources/**',
+      ],
+      parserOptions: {
+        sourceType: 'module',
+      },
+      rules: transpiledAndPolyfilled,
+    },
+    {
+      files: [
+        'tests/helpers/**',
+        'tests/observables/**',
+        'tests/promises-aplus/**',
+        'tests/pure/**',
+        'tests/tests/**',
+        'tests/worker/**',
         'tests/wpt-url-resources/**',
         'tests/commonjs.js',
         'tests/commonjs-entries-content.js',
         'tests/targets-parser.js',
       ],
-      parserOptions: {
-        sourceType: 'module',
-      },
       rules: tests,
     },
     {
@@ -657,7 +880,15 @@ module.exports = {
       files: [
         'packages/core-js-builder/**',
         'packages/core-js-compat/**',
+      ],
+      rules: nodePackages,
+    },
+    {
+      files: [
+        'packages/core-js-compat/src/**',
         'scripts/**',
+        'tests/observables/**',
+        'tests/promises-aplus/**',
         'tests/commonjs.js',
         'tests/commonjs-entries-content.js',
         'tests/targets-parser.js',
@@ -666,25 +897,17 @@ module.exports = {
         'babel.config.js',
         'Gruntfile.js',
       ],
-      env: {
-        es6: true,
-      },
-      rules: node,
+      rules: nodeDev,
     },
     {
       files: [
+        'tests/observables/**',
         'tests/tests/**',
         'tests/compat/**',
       ],
-      env: {
-        es6: true,
-      },
       globals: {
         compositeKey: true,
         compositeSymbol: true,
-        globalThis: true,
-        queueMicrotask: true,
-        AggregateError: true,
         AsyncIterator: true,
         Iterator: true,
         Observable: true,

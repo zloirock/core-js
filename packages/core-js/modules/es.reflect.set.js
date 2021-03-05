@@ -37,7 +37,7 @@ function set(target, propertyKey, V /* , receiver */) {
 var MS_EDGE_BUG = fails(function () {
   var Constructor = function () { /* empty */ };
   var object = definePropertyModule.f(new Constructor(), 'a', { configurable: true });
-  /* global Reflect -- required for testing */
+  // eslint-disable-next-line es/no-reflect -- required for testing
   return Reflect.set(Constructor.prototype, 'a', 1, object) !== false;
 });
 

@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');

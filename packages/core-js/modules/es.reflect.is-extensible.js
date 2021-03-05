@@ -1,6 +1,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 
+// eslint-disable-next-line es/no-object-isextensible -- safe
 var objectIsExtensible = Object.isExtensible;
 
 // `Reflect.isExtensible` method

@@ -1,5 +1,4 @@
-/* global BigInt -- safe */
-
+/* eslint-disable es/no-bigint -- safe */
 if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   const { range } = BigInt;
   const { from } = Array;

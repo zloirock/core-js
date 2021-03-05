@@ -1,3 +1,4 @@
+/* eslint-disable es/no-object-getownpropertydescriptor -- safe */
 import { DESCRIPTORS } from '../helpers/constants';
 import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';

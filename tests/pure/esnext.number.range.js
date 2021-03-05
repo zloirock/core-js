@@ -1,7 +1,7 @@
 import from from 'core-js-pure/features/array/from';
 import range from 'core-js-pure/features/number/range';
 
-if (typeof BigInt === 'function') QUnit.test('range', assert => {
+QUnit.test('range', assert => {
   assert.isFunction(range);
   assert.name(range, 'range');
   assert.arity(range, 3);
@@ -57,6 +57,7 @@ if (typeof BigInt === 'function') QUnit.test('range', assert => {
   assert.same(iterator.inclusive, true);
 
   iterator = range(0, 5);
+  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').call({}), TypeError);
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);

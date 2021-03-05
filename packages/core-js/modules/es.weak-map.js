@@ -9,6 +9,7 @@ var enforceIternalState = require('../internals/internal-state').enforce;
 var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
 
 var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
+// eslint-disable-next-line es/no-object-isextensible -- safe
 var isExtensible = Object.isExtensible;
 var InternalWeakMap;
 

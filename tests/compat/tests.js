@@ -1153,7 +1153,6 @@ GLOBAL.tests = {
     return AsyncIterator.prototype.toArray;
   },
   'esnext.bigint.range': function () {
-    /* global BigInt -- required for testing */
     return BigInt.range;
   },
   'esnext.composite-key': function () {
