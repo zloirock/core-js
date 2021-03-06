@@ -391,8 +391,6 @@ const base = {
   'unicorn/prefer-array-index-of': 'error',
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': 'error',
-  // prefer `RegExp#test` over `String#match` and `RegExp#exec`
-  'unicorn/prefer-regexp-test': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
 
@@ -436,6 +434,11 @@ const base = {
   'radar/prefer-while': 'error',
 
   // regexp
+  // enforce into your favorite case
+  'regexp/letter-case': ['error', {
+    caseInsensitive: 'lowercase',
+    unicodeEscape: 'uppercase',
+  }],
   // enforce match any character style
   'regexp/match-any': 'error',
   // disallow capturing group that captures assertions
@@ -454,8 +457,14 @@ const base = {
   'regexp/no-octal': 'error',
   // disallow useless backreferences in regular expressions
   'regexp/no-useless-backreference': 'error',
+  // disallow character class with one character
+  'regexp/no-useless-character-class': 'error',
   // disallow unnecessary exactly quantifier
   'regexp/no-useless-exactly-quantifier': 'error',
+  // disallow unnecessary quantifier non-greedy (`?`)
+  'regexp/no-useless-non-greedy': 'error',
+  // disallow unnecessary range of characters by using a hyphen
+  'regexp/no-useless-range': 'error',
   // disallow unnecessary `{n,m}`` quantifier
   'regexp/no-useless-two-nums-quantifier': 'error',
   // enforce using '\d'
@@ -466,10 +475,16 @@ const base = {
   'regexp/prefer-quantifier': 'error',
   // enforce using `?` quantifier
   'regexp/prefer-question-quantifier': 'error',
+  // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
+  'regexp/prefer-regexp-exec': 'error',
+  //  enforce that `RegExp#test` is used instead of `String#match` and `RegExp#exec`
+  'regexp/prefer-regexp-test': 'error',
   // enforce using `*` quantifier
   'regexp/prefer-star-quantifier': 'error',
   // enforce using `\t`
   'regexp/prefer-t': 'error',
+  // enforce use of unicode codepoint escapes
+  'regexp/prefer-unicode-codepoint-escapes': 'error',
   // enforce using `\w`
   'regexp/prefer-w': 'error',
 

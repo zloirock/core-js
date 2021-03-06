@@ -40,7 +40,7 @@
     "eslint-plugin-optimize-regex": "^1.2.0",
     "eslint-plugin-qunit": "^5.3.0",
     "eslint-plugin-radar": "~0.2.1",
-    "eslint-plugin-regexp": "~0.2.2",
+    "eslint-plugin-regexp": "~0.3.0",
     "eslint-plugin-unicorn": "^28.0.2",
     "karma": "^6.1.1",
     "karma-chrome-launcher": "^3.1.0",
@@ -56,7 +56,7 @@
     "semver": "^7.3.4",
     "terser": "^5.6.0",
     "qunit": "^2.14.0",
-    "webpack": "^5.24.2",
+    "webpack": "^5.24.3",
     "webpack-cli": "^4.5.0"
   },
   "license": "MIT",

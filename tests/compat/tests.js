@@ -829,6 +829,7 @@ GLOBAL.tests = {
     re.exec = function () { execCalled = true; return null; };
     re[Symbol.match]('');
 
+    // eslint-disable-next-line regexp/prefer-regexp-exec -- required for testing
     return ''.match(O) == 7 && execCalled;
   },
   'es.string.match-all': function () {
