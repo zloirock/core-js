@@ -9,6 +9,7 @@ var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 var AsyncIterator = global.AsyncIterator;
 var PassedAsyncIteratorPrototype = shared.AsyncIteratorPrototype;
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 var AsyncIteratorPrototype, prototype;
 

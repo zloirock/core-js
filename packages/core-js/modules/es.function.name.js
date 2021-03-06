@@ -6,6 +6,7 @@ var NAME = 'name';
 // Function instances `.name` property
 // https://tc39.es/ecma262/#sec-function-instances-name
 if (!(NAME in FunctionPrototype)) {
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
   Object.defineProperty(FunctionPrototype, NAME, {
     configurable: true,
     get: function () {

@@ -21,6 +21,7 @@ QUnit.test('Array#slice', assert => {
   assert.deepEqual(slice(string, -2, -3), []);
   const list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
+    // eslint-disable-next-line es/no-array-isarray -- safe
     assert.notThrows(() => Array.isArray(slice(list)), 'works with NodeList');
   }
   array = [];

@@ -8,6 +8,7 @@ var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR_PROTOTYPE = 'AsyncIteratorPrototype';
 
 var setAggressivenessLevel = function (object, constant) {
+  // eslint-disable-next-line es/no-array-isarray -- safe
   if (Array.isArray(object)) for (var i = 0; i < object.length; i++) data[normalize(object[i])] = constant;
 };
 

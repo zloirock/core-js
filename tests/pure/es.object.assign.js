@@ -40,6 +40,7 @@ QUnit.test('Object.assign', assert => {
   } catch { /* empty */ }
   try {
     assert.strictEqual(assign({ b: 1 }, { get a() {
+      // eslint-disable-next-line es/no-object-defineproperty -- safe
       Object.defineProperty(this, 'b', {
         value: 4,
         enumerable: false,

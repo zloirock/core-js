@@ -1,6 +1,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 
+// eslint-disable-next-line es/no-object-preventextensions -- safe
 var objectPreventExtensions = Object.preventExtensions;
 
 // `Reflect.preventExtensions` method

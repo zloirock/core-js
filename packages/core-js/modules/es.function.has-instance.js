@@ -5,6 +5,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var HAS_INSTANCE = wellKnownSymbol('hasInstance');
 var FunctionPrototype = Function.prototype;
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 // `Function.prototype[@@hasInstance]` method

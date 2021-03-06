@@ -20,7 +20,9 @@ var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 // TODO: Use only propper RegExpIdentifierName
 var IS_NCG = /^\?<[^\s\d!#%&*+<=>@^][^\s!#%&*+<=>@^]*>/;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var re1 = /a/g;
 var re2 = /a/g;

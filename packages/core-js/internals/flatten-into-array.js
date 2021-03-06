@@ -2,6 +2,7 @@
 var toLength = require('../internals/to-length');
 var bind = require('../internals/function-bind-context');
 
+// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
 
 // `FlattenIntoArray` abstract operation

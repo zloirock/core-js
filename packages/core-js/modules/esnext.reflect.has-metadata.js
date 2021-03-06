@@ -2,6 +2,7 @@ var $ = require('../internals/export');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 var ordinaryHasOwnMetadata = ReflectMetadataModule.has;

@@ -51,6 +51,7 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.noTargetGet) {
+      // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
       descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];

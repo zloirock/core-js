@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 
+// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
 var nativeReverse = [].reverse;
 var test = [1, 2];

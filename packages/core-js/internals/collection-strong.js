@@ -8,6 +8,7 @@ var setSpecies = require('../internals/set-species');
 var fastKey = require('../internals/internal-metadata').fastKey;
 var InternalStateModule = require('../internals/internal-state');
 
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;

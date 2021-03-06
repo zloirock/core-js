@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var has = require('../internals/has');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 // `Reflect.get` method

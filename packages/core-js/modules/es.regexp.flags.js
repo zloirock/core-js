@@ -8,6 +8,7 @@ var FORCED = fails(function () {
 
 // `RegExp.prototype.flags` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.flags
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 if (FORCED) Object.defineProperty(RegExp.prototype, 'flags', {
   configurable: true,
   get: regExpFlags,

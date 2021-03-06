@@ -6,6 +6,7 @@ var createPropertyDescriptor = require('../internals/create-property-descriptor'
 var iterate = require('../internals/iterate');
 var toString = require('../internals/to-string');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 var $AggregateError = function AggregateError(errors, message) {

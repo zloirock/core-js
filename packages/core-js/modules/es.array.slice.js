@@ -11,6 +11,7 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
+// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
 var nativeSlice = [].slice;
 var max = Math.max;
