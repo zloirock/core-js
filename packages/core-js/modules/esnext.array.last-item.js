@@ -6,6 +6,7 @@ var toLength = require('../internals/to-length');
 // `Array.prototype.lastIndex` accessor
 // https://github.com/keithamus/proposal-array-last
 if (!('lastItem' in [])) {
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
   Object.defineProperty(Array.prototype, 'lastItem', {
     configurable: true,
     get: function lastItem() {

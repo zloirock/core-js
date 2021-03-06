@@ -13,7 +13,9 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var re1 = /a/g;
 var re2 = /a/g;

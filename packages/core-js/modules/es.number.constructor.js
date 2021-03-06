@@ -12,8 +12,11 @@ var trim = require('../internals/string-trim').trim;
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
+// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 
 // Opera ~12 has broken Object#toString

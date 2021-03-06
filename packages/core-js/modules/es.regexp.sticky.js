@@ -6,6 +6,7 @@ var RegExpPrototype = RegExp.prototype;
 // `RegExp.prototype.sticky` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky
 if (UNSUPPORTED_Y) {
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
   Object.defineProperty(RegExp.prototype, 'sticky', {
     configurable: true,
     get: function () {

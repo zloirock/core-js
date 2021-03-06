@@ -845,6 +845,7 @@ var accessorDescriptor = function (getter, setter) {
   return { get: getter, set: setter, configurable: true, enumerable: true };
 };
 
+// eslint-disable-next-line es/no-object-defineproperties -- safe
 Object.defineProperties(URLPrototype, {
   // `URL.prototype.href` accessors pair
   // https://url.spec.whatwg.org/#dom-url-href

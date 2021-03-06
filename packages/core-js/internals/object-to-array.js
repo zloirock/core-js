@@ -1,6 +1,7 @@
 var toObject = require('../internals/to-object');
 var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
+// eslint-disable-next-line es/no-object-keys -- safe
 var objectKeys = Object.keys;
 
 // `Object.{ entries, values }` methods implementation

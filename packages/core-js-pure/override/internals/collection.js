@@ -10,6 +10,7 @@ var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
@@ -40,6 +41,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
+    // eslint-disable-next-line es/no-array-prototype-foreach -- safe
     ['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'].forEach(function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) {

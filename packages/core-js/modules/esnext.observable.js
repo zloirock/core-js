@@ -15,6 +15,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 
 var OBSERVABLE = wellKnownSymbol('observable');
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;

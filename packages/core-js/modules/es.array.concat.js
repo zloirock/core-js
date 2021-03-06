@@ -10,6 +10,7 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var V8_VERSION = require('../internals/engine-v8-version');
 
+// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
 var IS_CONCAT_SPREADABLE = wellKnownSymbol('isConcatSpreadable');
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;

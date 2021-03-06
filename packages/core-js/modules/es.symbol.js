@@ -39,13 +39,16 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = global.Symbol;
 var $stringify = getBuiltIn('JSON', 'stringify');
+// eslint-disable-next-line es/no-object-keys -- safe
 var objectKeys = Object.keys;
 var nativeObjectCreate = Object.create;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
+// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
+// eslint-disable-next-line es/no-array-prototype-foreach -- safe
 var forEach = [].forEach;
 var AllSymbols = shared('symbols');
 var ObjectPrototypeSymbols = shared('op-symbols');

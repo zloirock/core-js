@@ -31,6 +31,7 @@ if (typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.protot
   var symbolToString = symbolPrototype.toString;
   var native = String(NativeSymbol('test')) == 'Symbol(test)';
   var regexp = /^Symbol\((.*)\)[^)]+$/;
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
   Object.defineProperty(symbolPrototype, 'description', {
     configurable: true,
     get: function description() {

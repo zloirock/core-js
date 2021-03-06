@@ -9,6 +9,7 @@ var document = global.document;
 var process = global.process;
 var Promise = global.Promise;
 // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
+// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var queueMicrotaskDescriptor = Object.getOwnPropertyDescriptor(global, 'queueMicrotask');
 var queueMicrotask = queueMicrotaskDescriptor && queueMicrotaskDescriptor.value;
 

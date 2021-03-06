@@ -27,6 +27,7 @@ var setInternalState = InternalStateModule.set;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var create = Object.create;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var round = Math.round;
 var RangeError = global.RangeError;

@@ -74,6 +74,7 @@ var getter = function (fn) {
   return { get: fn, set: function () { /* empty */ }, configurable: true, enumerable: false };
 };
 
+// eslint-disable-next-line es/no-object-defineproperties -- safe
 Object.defineProperties($RangeIterator.prototype, {
   start: getter(function () {
     return getInternalState(this).start;

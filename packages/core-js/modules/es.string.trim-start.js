@@ -4,6 +4,7 @@ var $trimStart = require('../internals/string-trim-start');
 
 // `String.prototype.trimStart` methods
 // https://tc39.es/ecma262/#sec-string.prototype.trimstart
-$({ target: 'String', proto: true, forced: ''.trimLeft !== $trimStart }, {
+// eslint-disable-next-line es/no-string-prototype-trimstart-trimend -- safe
+$({ target: 'String', proto: true, forced: ''.trimStart !== $trimStart }, {
   trimStart: $trimStart,
 });

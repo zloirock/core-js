@@ -5,6 +5,7 @@ var has = require('../internals/has');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 var ITERATOR = wellKnownSymbol('iterator');

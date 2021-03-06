@@ -13,6 +13,7 @@ var min = Math.min;
 var CORRECT_IS_REGEXP_LOGIC = correctIsRegExpLogic('endsWith');
 // https://github.com/zloirock/core-js/pull/702
 var MDN_POLYFILL_BUG = !IS_PURE && !CORRECT_IS_REGEXP_LOGIC && !!function () {
+  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'endsWith');
   return descriptor && !descriptor.writable;
 }();

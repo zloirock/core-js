@@ -7,6 +7,7 @@ var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 // `Reflect.set` method

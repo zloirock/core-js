@@ -5,6 +5,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 var $AggregateError = function AggregateError(errors, message) {

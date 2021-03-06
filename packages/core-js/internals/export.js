@@ -34,6 +34,7 @@ module.exports = function (options, source) {
   if (target) for (key in source) {
     sourceProperty = source[key];
     if (options.noTargetGet) {
+      // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
       descriptor = Object.getOwnPropertyDescriptor(target, key);
       targetProperty = descriptor && descriptor.value;
     } else targetProperty = target[key];

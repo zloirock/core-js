@@ -5,6 +5,7 @@ var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 // `Object.prototype.__lookupGetter__` method

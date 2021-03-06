@@ -27,8 +27,11 @@ var $DataView = global[DATA_VIEW];
 var $DataViewPrototype = $DataView && $DataView[PROTOTYPE];
 var ObjectPrototype = Object.prototype;
 var RangeError = global.RangeError;
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
 var getOwnPropertyNames = Object.getOwnPropertyNames;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 
 var packIEEE754 = IEEE754.pack;

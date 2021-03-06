@@ -10,6 +10,7 @@ var IS_PURE = require('../internals/is-pure');
 var Iterators = require('../internals/iterators');
 var IteratorsCore = require('../internals/iterators-core');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
 
 var IteratorPrototype = IteratorsCore.IteratorPrototype;
