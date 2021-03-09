@@ -3,7 +3,7 @@ import { STRICT } from '../helpers/constants';
 
 import at from 'core-js-pure/features/string/at';
 
-QUnit.test('String#at', assert => {
+QUnit.skip('String#at', assert => {
   assert.isFunction(at);
   assert.same('1', at('123', 0));
   assert.same('2', at('123', 1));

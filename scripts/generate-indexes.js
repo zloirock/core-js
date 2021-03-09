@@ -1,20 +1,32 @@
 'use strict';
-const { writeFile } = require('fs').promises;
+const { readdir, writeFile } = require('fs').promises;
 const compat = require('core-js-compat/src/data');
 
 const modules = Object.keys(compat);
 
-function generate(ns, filter) {
+async function generateNamespaceIndex(ns, filter) {
   return writeFile(`./packages/core-js/${ ns }/index.js`, `${ modules
     .filter(it => filter.test(it))
     .map(it => `require('../modules/${ it }');\n`)
     .join('') }\nmodule.exports = require('../internals/path');\n`);
 }
 
+async function generateTestsIndex(name, pkg) {
+  const dir = `./tests/${ name }`;
+  const files = await readdir(dir);
+  return writeFile(`${ dir }/index.js`, `${ files
+    .filter(it => /^(es|esnext|web)\./.test(it))
+    .map(it => `import './${ it.slice(0, -3) }';\n`)
+    .join('') }\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n`);
+}
+
 (async () => {
-  await generate('es', /^es\./);
-  await generate('stable', /^(es|web)\./);
-  await generate('features', /^(es|esnext|web)\./);
+  await generateNamespaceIndex('es', /^es\./);
+  await generateNamespaceIndex('stable', /^(es|web)\./);
+  await generateNamespaceIndex('features', /^(es|esnext|web)\./);
+
+  await generateTestsIndex('tests', 'core-js');
+  await generateTestsIndex('pure', 'core-js-pure');
   // eslint-disable-next-line no-console -- output
   console.log('\u001B[32mindexes generated\u001B[0m');
 })();

@@ -81,7 +81,7 @@
     "generate-indexes": "node scripts/generate-indexes",
     "lint": "run-s init test-lint",
     "test-lint": "eslint ./",
-    "test-unit": "run-s test-unit-global test-unit-minified test-unit-pure",
+    "test-unit": "run-p test-unit-global test-unit-minified test-unit-pure",
     "test-unit-global": "karma start -f=packages/core-js-bundle/index.js,tests/bundles/tests.js",
     "test-unit-global-standalone": "run-s init bundle-package bundle-helpers bundle-tests-global test-unit-global",
     "test-unit-minified": "karma start -f=packages/core-js-bundle/minified.js,tests/bundles/tests.js",

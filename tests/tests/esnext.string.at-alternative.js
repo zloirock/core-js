@@ -1,7 +1,7 @@
 // TODO: disabled by default because of the conflict with another proposal
 import { STRICT } from '../helpers/constants';
 
-QUnit.test('String#at', assert => {
+QUnit.skip('String#at', assert => {
   const { at } = String.prototype;
   assert.isFunction(at);
   assert.arity(at, 1);

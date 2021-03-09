@@ -36,3 +36,5 @@ node_modules/
 /packages/core-js-pure/configurator.js
 /packages/core-js-pure/postinstall.js
 /tests/bundles/
+/tests/tests/index.js
+/tests/pure/index.js

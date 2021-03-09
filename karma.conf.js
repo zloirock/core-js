@@ -22,6 +22,7 @@ module.exports = function (config) {
         flags: ['--no-sandbox', '--disable-setuid-sandbox'],
       },
     },
+    logLevel: config.LOG_ERROR,
     singleRun: true,
   });
 };
