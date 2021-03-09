@@ -1,4 +1,5 @@
-import { modules } from 'core-js-compat/src/data.mjs';
+// `core-js-compat/modules` is not generated yet, `core-js-compat/src/data` missed in exports
+import { modules } from '../packages/core-js-compat/src/data.mjs';
 
 async function generateNamespaceIndex(ns, filter) {
   return fs.writeFile(`./packages/core-js/${ ns }/index.js`, `${ modules
