@@ -1,4 +1,4 @@
-import { defineProperty, create } from 'core-js-pure/features/object';
+import { defineProperty, create } from 'core-js-pure/full/object';
 
 QUnit.test('Object.defineProperty', assert => {
   assert.isFunction(defineProperty);

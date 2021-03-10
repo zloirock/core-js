@@ -1,5 +1,5 @@
 import Promise from 'core-js-pure/es/promise';
-import ITERATOR from 'core-js-pure/features/symbol/iterator';
+import ITERATOR from 'core-js-pure/full/symbol/iterator';
 
 export function createIterator(elements, methods) {
   let index = 0;

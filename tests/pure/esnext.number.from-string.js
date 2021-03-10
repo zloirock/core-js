@@ -1,4 +1,4 @@
-import fromString from 'core-js-pure/features/number/from-string';
+import fromString from 'core-js-pure/full/number/from-string';
 
 QUnit.test('Number.fromString', assert => {
   assert.isFunction(fromString);

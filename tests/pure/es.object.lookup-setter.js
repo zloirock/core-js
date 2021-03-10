@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import { __lookupSetter__, __defineSetter__, create } from 'core-js-pure/features/object';
+import { __lookupSetter__, __defineSetter__, create } from 'core-js-pure/full/object';
 
 QUnit.test('Object#__lookupSetter__', assert => {
   assert.isFunction(__lookupSetter__);

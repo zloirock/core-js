@@ -1,4 +1,4 @@
-import uniqueBy from 'core-js-pure/features/array/unique-by';
+import uniqueBy from 'core-js-pure/full/array/unique-by';
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#uniqueBy', assert => {

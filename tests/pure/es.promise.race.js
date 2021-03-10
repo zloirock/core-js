@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
 import { Promise, Symbol } from 'core-js-pure';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
 
 QUnit.test('Promise.race', assert => {
   const { race, resolve } = Promise;

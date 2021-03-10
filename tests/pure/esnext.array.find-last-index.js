@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import findLastIndex from 'core-js-pure/features/array/find-last-index';
+import findLastIndex from 'core-js-pure/full/array/find-last-index';
 
 QUnit.test('Array#findLastIndex', assert => {
   assert.isFunction(findLastIndex);

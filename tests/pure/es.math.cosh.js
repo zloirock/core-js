@@ -1,4 +1,4 @@
-import cosh from 'core-js-pure/features/math/cosh';
+import cosh from 'core-js-pure/full/math/cosh';
 
 QUnit.test('Math.cosh', assert => {
   assert.isFunction(cosh);

@@ -3,10 +3,10 @@
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 
 import { Set, Map, Symbol } from 'core-js-pure';
-import getIterator from 'core-js-pure/features/get-iterator';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
+import getIterator from 'core-js-pure/full/get-iterator';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
+import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/full/object';
+import ownKeys from 'core-js-pure/full/reflect/own-keys';
 
 QUnit.test('Map', assert => {
   assert.isFunction(Map);

@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import flat from 'core-js-pure/features/array/flat';
-import defineProperty from 'core-js-pure/features/object/define-property';
+import flat from 'core-js-pure/full/array/flat';
+import defineProperty from 'core-js-pure/full/object/define-property';
 
 QUnit.test('Array#flat', assert => {
   assert.isFunction(flat);

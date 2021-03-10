@@ -1,7 +1,7 @@
 import { GLOBAL, PROTO, STRICT } from '../helpers/constants';
 
 import { Promise, Symbol } from 'core-js-pure';
-import { setPrototypeOf, create } from 'core-js-pure/features/object';
+import { setPrototypeOf, create } from 'core-js-pure/full/object';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);

@@ -1,4 +1,4 @@
-import blink from 'core-js-pure/features/string/blink';
+import blink from 'core-js-pure/full/string/blink';
 
 QUnit.test('String#blink', assert => {
   assert.isFunction(blink);

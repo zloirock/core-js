@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/features/symbol';
-import { create, getOwnPropertyDescriptors } from 'core-js-pure/features/object';
+import Symbol from 'core-js-pure/full/symbol';
+import { create, getOwnPropertyDescriptors } from 'core-js-pure/full/object';
 
 QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   assert.isFunction(getOwnPropertyDescriptors);

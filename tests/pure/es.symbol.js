@@ -7,10 +7,10 @@ import {
   getOwnPropertySymbols,
   keys,
   create,
-} from 'core-js-pure/features/object';
-import Symbol from 'core-js-pure/features/symbol';
-import stringify from 'core-js-pure/features/json/stringify';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
+} from 'core-js-pure/full/object';
+import Symbol from 'core-js-pure/full/symbol';
+import stringify from 'core-js-pure/full/json/stringify';
+import ownKeys from 'core-js-pure/full/reflect/own-keys';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);

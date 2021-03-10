@@ -1,9 +1,9 @@
 import { createIterable } from '../helpers/helpers';
 
-import Symbol from 'core-js-pure/features/symbol';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import from from 'core-js-pure/features/array/from';
-import defineProperty from 'core-js-pure/features/object/define-property';
+import Symbol from 'core-js-pure/full/symbol';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
+import from from 'core-js-pure/full/array/from';
+import defineProperty from 'core-js-pure/full/object/define-property';
 
 QUnit.test('Array.from', assert => {
   assert.isFunction(from);
