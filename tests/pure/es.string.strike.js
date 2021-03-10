@@ -1,4 +1,4 @@
-import strike from 'core-js-pure/features/string/strike';
+import strike from 'core-js-pure/full/string/strike';
 
 QUnit.test('String#strike', assert => {
   assert.isFunction(strike);

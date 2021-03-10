@@ -1,4 +1,4 @@
-import tanh from 'core-js-pure/features/math/tanh';
+import tanh from 'core-js-pure/full/math/tanh';
 
 QUnit.test('Math.tanh', assert => {
   assert.isFunction(tanh);

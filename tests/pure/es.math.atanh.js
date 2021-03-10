@@ -1,4 +1,4 @@
-import atanh from 'core-js-pure/features/math/atanh';
+import atanh from 'core-js-pure/full/math/atanh';
 
 QUnit.test('Math.atanh', assert => {
   assert.isFunction(atanh);

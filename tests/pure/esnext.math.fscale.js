@@ -1,4 +1,4 @@
-import fscale from 'core-js-pure/features/math/fscale';
+import fscale from 'core-js-pure/full/math/fscale';
 
 QUnit.test('Math.fscale', assert => {
   assert.isFunction(fscale);

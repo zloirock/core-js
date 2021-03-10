@@ -1,5 +1,5 @@
-import Set from 'core-js-pure/features/set';
-import toArray from 'core-js-pure/features/array/from';
+import Set from 'core-js-pure/full/set';
+import toArray from 'core-js-pure/full/array/from';
 
 QUnit.test('Set.of', assert => {
   const { of } = Set;

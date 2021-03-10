@@ -1,5 +1,5 @@
-import Iterator from 'core-js-pure/features/iterator';
-import Symbol from 'core-js-pure/features/symbol';
+import Iterator from 'core-js-pure/full/iterator';
+import Symbol from 'core-js-pure/full/symbol';
 
 import { createIterator } from '../helpers/helpers';
 

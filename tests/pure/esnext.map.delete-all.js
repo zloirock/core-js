@@ -1,5 +1,5 @@
-import Map from 'core-js-pure/features/map';
-import from from 'core-js-pure/features/array/from';
+import Map from 'core-js-pure/full/map';
+import from from 'core-js-pure/full/array/from';
 
 QUnit.test('Map#deleteAll', assert => {
   const { deleteAll } = Map.prototype;

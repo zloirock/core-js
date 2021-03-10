@@ -1,6 +1,6 @@
 import { includes } from '../helpers/helpers';
 
-import keys from 'core-js-pure/features/object/keys';
+import keys from 'core-js-pure/full/object/keys';
 
 QUnit.test('Object.keys', assert => {
   assert.isFunction(keys);

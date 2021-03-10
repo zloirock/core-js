@@ -1,6 +1,6 @@
 /* eslint-disable es/no-bigint -- safe */
-import from from 'core-js-pure/features/array/from';
-import range from 'core-js-pure/features/bigint/range';
+import from from 'core-js-pure/full/array/from';
+import range from 'core-js-pure/full/bigint/range';
 
 if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   assert.isFunction(range);

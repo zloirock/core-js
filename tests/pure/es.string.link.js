@@ -1,4 +1,4 @@
-import link from 'core-js-pure/features/string/link';
+import link from 'core-js-pure/full/string/link';
 
 QUnit.test('String#link', assert => {
   assert.isFunction(link);

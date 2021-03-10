@@ -82,4 +82,5 @@
     - `web.set-interval`
     - `web.set-timeout`
 - Added `exports` fields with all entries to `package.json` of packages
+- Namespace / entries for full set of features (stable ES, ES proposals, web standards) renamed from `/features/` to `/full/` 
 - Dropped `*/virtual/index.js` entries

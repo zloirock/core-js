@@ -8,7 +8,7 @@ node_modules/
 *.swp
 
 /packages/core-js/es/index.js
-/packages/core-js/features/index.js
+/packages/core-js/full/index.js
 /packages/core-js/stable/index.js
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
@@ -24,7 +24,7 @@ node_modules/
 /packages/core-js-compat/modules.json
 /packages/core-js-compat/modules-by-versions.json
 /packages/core-js-pure/es/
-/packages/core-js-pure/features/
+/packages/core-js-pure/full/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
 /packages/core-js-pure/proposals/

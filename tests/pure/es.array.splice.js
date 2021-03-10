@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import splice from 'core-js-pure/features/array/splice';
-import Symbol from 'core-js-pure/features/symbol';
+import splice from 'core-js-pure/full/array/splice';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('Array#splice', assert => {
   assert.isFunction(splice);

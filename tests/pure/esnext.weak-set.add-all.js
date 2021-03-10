@@ -1,4 +1,4 @@
-import WeakSet from 'core-js-pure/features/weak-set';
+import WeakSet from 'core-js-pure/full/weak-set';
 
 QUnit.test('WeakSet#addAll', assert => {
   const { addAll } = WeakSet.prototype;

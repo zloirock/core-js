@@ -1,7 +1,7 @@
-import Symbol from 'core-js-pure/features/symbol';
-import getIterator from 'core-js-pure/features/get-iterator';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import from from 'core-js-pure/features/array/from';
+import Symbol from 'core-js-pure/full/symbol';
+import getIterator from 'core-js-pure/full/get-iterator';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
+import from from 'core-js-pure/full/array/from';
 
 QUnit.test('String#@@iterator', assert => {
   let iterator = getIterator('qwe');

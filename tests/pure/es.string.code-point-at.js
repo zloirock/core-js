@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import codePointAt from 'core-js-pure/features/string/code-point-at';
+import codePointAt from 'core-js-pure/full/string/code-point-at';
 
 QUnit.test('String#codePointAt', assert => {
   assert.isFunction(codePointAt);

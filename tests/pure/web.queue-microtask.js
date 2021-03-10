@@ -1,4 +1,4 @@
-import queueMicrotask from 'core-js-pure/features/queue-microtask';
+import queueMicrotask from 'core-js-pure/full/queue-microtask';
 
 QUnit.test('queueMicrotask', assert => {
   assert.expect(3);

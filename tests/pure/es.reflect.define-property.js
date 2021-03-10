@@ -1,5 +1,5 @@
-import defineProperty from 'core-js-pure/features/reflect/define-property';
-import { getOwnPropertyDescriptor, create } from 'core-js-pure/features/object';
+import defineProperty from 'core-js-pure/full/reflect/define-property';
+import { getOwnPropertyDescriptor, create } from 'core-js-pure/full/object';
 
 QUnit.test('Reflect.defineProperty', assert => {
   assert.isFunction(defineProperty);

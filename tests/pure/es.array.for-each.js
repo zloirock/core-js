@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import forEach from 'core-js-pure/features/array/for-each';
+import forEach from 'core-js-pure/full/array/for-each';
 
 QUnit.test('Array#forEach', assert => {
   assert.isFunction(forEach);

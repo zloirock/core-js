@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import findIndex from 'core-js-pure/features/array/find-index';
+import findIndex from 'core-js-pure/full/array/find-index';
 
 QUnit.test('Array#findIndex', assert => {
   assert.isFunction(findIndex);

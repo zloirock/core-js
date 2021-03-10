@@ -1,8 +1,8 @@
 import { includes } from '../helpers/helpers';
 
-import Symbol from 'core-js-pure/features/symbol';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
-import { defineProperty, create } from 'core-js-pure/features/object';
+import Symbol from 'core-js-pure/full/symbol';
+import ownKeys from 'core-js-pure/full/reflect/own-keys';
+import { defineProperty, create } from 'core-js-pure/full/object';
 
 QUnit.test('Reflect.ownKeys', assert => {
   assert.isFunction(ownKeys);

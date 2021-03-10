@@ -1,4 +1,4 @@
-import WeakSet from 'core-js-pure/features/weak-set';
+import WeakSet from 'core-js-pure/full/weak-set';
 
 QUnit.test('WeakSet#deleteAll', assert => {
   const { deleteAll } = WeakSet.prototype;

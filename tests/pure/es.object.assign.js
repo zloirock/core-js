@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/features/symbol';
-import { assign, keys, defineProperty } from 'core-js-pure/features/object';
+import Symbol from 'core-js-pure/full/symbol';
+import { assign, keys, defineProperty } from 'core-js-pure/full/object';
 
 QUnit.test('Object.assign', assert => {
   assert.isFunction(assign);

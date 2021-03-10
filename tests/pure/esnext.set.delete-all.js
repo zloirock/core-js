@@ -1,5 +1,5 @@
-import Set from 'core-js-pure/features/set';
-import from from 'core-js-pure/features/array/from';
+import Set from 'core-js-pure/full/set';
+import from from 'core-js-pure/full/array/from';
 
 QUnit.test('Set#deleteAll', assert => {
   const { deleteAll } = Set.prototype;

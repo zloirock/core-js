@@ -1,4 +1,4 @@
-import sign from 'core-js-pure/features/math/sign';
+import sign from 'core-js-pure/full/math/sign';
 
 QUnit.test('Math.sign', assert => {
   assert.isFunction(sign);

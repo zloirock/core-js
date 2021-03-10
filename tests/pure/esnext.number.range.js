@@ -1,5 +1,5 @@
-import from from 'core-js-pure/features/array/from';
-import range from 'core-js-pure/features/number/range';
+import from from 'core-js-pure/full/array/from';
+import range from 'core-js-pure/full/number/range';
 
 QUnit.test('range', assert => {
   assert.isFunction(range);

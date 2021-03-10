@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/features/symbol';
-import filter from 'core-js-pure/features/array/filter';
+import Symbol from 'core-js-pure/full/symbol';
+import filter from 'core-js-pure/full/array/filter';
 
 QUnit.test('Array#filter', assert => {
   assert.isFunction(filter);

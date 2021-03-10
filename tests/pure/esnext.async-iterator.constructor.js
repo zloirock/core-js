@@ -1,5 +1,5 @@
-import AsyncIterator from 'core-js-pure/features/async-iterator';
-import Symbol from 'core-js-pure/features/symbol';
+import AsyncIterator from 'core-js-pure/full/async-iterator';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('AsyncIterator', assert => {
   assert.isFunction(AsyncIterator);

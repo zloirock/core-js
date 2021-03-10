@@ -1,4 +1,4 @@
-import toFixed from 'core-js-pure/features/number/to-fixed';
+import toFixed from 'core-js-pure/full/number/to-fixed';
 
 QUnit.test('Number#toFixed', assert => {
   assert.isFunction(toFixed);
