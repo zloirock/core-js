@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/find');
+var parent = require('../../actual/instance/find');
 
 module.exports = parent;

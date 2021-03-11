@@ -1,3 +1,3 @@
-var parent = require('../../es/string/fontsize');
+var parent = require('../../actual/string/fontsize');
 
 module.exports = parent;

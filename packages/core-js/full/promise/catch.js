@@ -1,3 +1,3 @@
-var parent = require('../../stable/promise/catch');
+var parent = require('../../actual/promise/catch');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../../es/array/virtual/entries');
+var parent = require('../../../actual/array/virtual/entries');
 
 module.exports = parent;

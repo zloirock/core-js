@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/reduce-right');
+var parent = require('../../actual/instance/reduce-right');
 
 module.exports = parent;

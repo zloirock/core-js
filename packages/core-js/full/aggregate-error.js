@@ -1,3 +1,3 @@
-var parent = require('../stable/aggregate-error');
+var parent = require('../actual/aggregate-error');
 
 module.exports = parent;

@@ -1,4 +1,4 @@
-var parent = require('../../es/set');
+var parent = require('../../actual/set');
 require('../../modules/esnext.set.from');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');

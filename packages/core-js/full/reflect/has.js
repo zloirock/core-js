@@ -1,3 +1,3 @@
-var parent = require('../../es/reflect/has');
+var parent = require('../../actual/reflect/has');
 
 module.exports = parent;

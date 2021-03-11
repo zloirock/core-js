@@ -1,3 +1,3 @@
-var parent = require('../../es/object');
+var parent = require('../../actual/object');
 
 module.exports = parent;

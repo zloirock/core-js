@@ -1,3 +1,3 @@
-var parent = require('../../es/reflect/define-property');
+var parent = require('../../actual/reflect/define-property');
 
 module.exports = parent;

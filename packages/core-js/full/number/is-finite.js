@@ -1,3 +1,3 @@
-var parent = require('../../es/number/is-finite');
+var parent = require('../../actual/number/is-finite');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../es/number/to-fixed');
+var parent = require('../../actual/number/to-fixed');
 
 module.exports = parent;

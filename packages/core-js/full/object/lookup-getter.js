@@ -1,3 +1,3 @@
-var parent = require('../../es/object/lookup-getter');
+var parent = require('../../actual/object/lookup-getter');
 
 module.exports = parent;

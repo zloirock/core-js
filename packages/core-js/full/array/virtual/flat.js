@@ -1,3 +1,3 @@
-var parent = require('../../../es/array/virtual/flat');
+var parent = require('../../../actual/array/virtual/flat');
 
 module.exports = parent;

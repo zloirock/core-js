@@ -1,3 +1,3 @@
-var parent = require('../../es/string/match');
+var parent = require('../../actual/string/match');
 
 module.exports = parent;

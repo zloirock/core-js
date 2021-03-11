@@ -1,3 +1,3 @@
-var parent = require('../../es/string/replace-all');
+var parent = require('../../actual/string/replace-all');
 
 module.exports = parent;

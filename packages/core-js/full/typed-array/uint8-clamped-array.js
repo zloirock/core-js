@@ -1,3 +1,3 @@
-var parent = require('../../es/typed-array/uint8-clamped-array');
+var parent = require('../../actual/typed-array/uint8-clamped-array');
 
 module.exports = parent;

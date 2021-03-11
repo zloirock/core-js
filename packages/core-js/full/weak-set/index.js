@@ -1,4 +1,4 @@
-var parent = require('../../es/weak-set');
+var parent = require('../../actual/weak-set');
 require('../../modules/esnext.weak-set.add-all');
 require('../../modules/esnext.weak-set.delete-all');
 require('../../modules/esnext.weak-set.from');

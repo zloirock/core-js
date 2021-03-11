@@ -1,3 +1,3 @@
-var parent = require('../../es/array/copy-within');
+var parent = require('../../actual/array/copy-within');
 
 module.exports = parent;
