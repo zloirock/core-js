@@ -1,3 +1,3 @@
-var parent = require('../../es/string/iterator');
+var parent = require('../../actual/string/iterator');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../es/array/iterator');
+var parent = require('../../actual/array/iterator');
 
 module.exports = parent;

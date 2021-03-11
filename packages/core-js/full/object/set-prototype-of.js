@@ -1,3 +1,3 @@
-var parent = require('../../es/object/set-prototype-of');
+var parent = require('../../actual/object/set-prototype-of');
 
 module.exports = parent;

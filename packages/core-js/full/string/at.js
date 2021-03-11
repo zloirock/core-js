@@ -1,4 +1,3 @@
-require('../../modules/esnext.string.at');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/string/at');
 
-module.exports = entryUnbind('String', 'at');
+module.exports = parent;

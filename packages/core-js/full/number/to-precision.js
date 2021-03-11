@@ -1,3 +1,3 @@
-var parent = require('../../es/number/to-precision');
+var parent = require('../../actual/number/to-precision');
 
 module.exports = parent;

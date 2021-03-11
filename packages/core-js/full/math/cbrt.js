@@ -1,3 +1,3 @@
-var parent = require('../../es/math/cbrt');
+var parent = require('../../actual/math/cbrt');
 
 module.exports = parent;

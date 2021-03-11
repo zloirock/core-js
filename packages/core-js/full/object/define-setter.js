@@ -1,3 +1,3 @@
-var parent = require('../../es/object/define-setter');
+var parent = require('../../actual/object/define-setter');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../es/number/parse-int');
+var parent = require('../../actual/number/parse-int');
 
 module.exports = parent;

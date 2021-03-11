@@ -1,3 +1,3 @@
-var parent = require('../../stable/dom-collections');
+var parent = require('../../actual/dom-collections');
 
 module.exports = parent;

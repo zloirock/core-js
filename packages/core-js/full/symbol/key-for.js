@@ -1,3 +1,3 @@
-var parent = require('../../es/symbol/key-for');
+var parent = require('../../actual/symbol/key-for');
 
 module.exports = parent;

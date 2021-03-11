@@ -1,3 +1,3 @@
-var parent = require('../../es/symbol/unscopables');
+var parent = require('../../actual/symbol/unscopables');
 
 module.exports = parent;

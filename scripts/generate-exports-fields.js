@@ -6,7 +6,7 @@ const entries = require('core-js-compat/entries');
 const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
   // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
-  const match = entry.match(/^(\.\/(?:es|stable|full|web)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
+  const match = entry.match(/^(\.\/(?:es|stable|actual|full|web)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
   if (match) {
     const [, scope] = match;
     if (entry === scope) {

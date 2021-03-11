@@ -1,3 +1,3 @@
-var parent = require('../../es/object/to-string');
+var parent = require('../../actual/object/to-string');
 
 module.exports = parent;

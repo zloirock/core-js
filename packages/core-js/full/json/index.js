@@ -1,3 +1,3 @@
-var parent = require('../../es/json');
+var parent = require('../../actual/json');
 
 module.exports = parent;

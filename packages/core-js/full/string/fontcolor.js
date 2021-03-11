@@ -1,3 +1,3 @@
-var parent = require('../../es/string/fontcolor');
+var parent = require('../../actual/string/fontcolor');
 
 module.exports = parent;

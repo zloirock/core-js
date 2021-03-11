@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/code-point-at');
+var parent = require('../../actual/instance/code-point-at');
 
 module.exports = parent;

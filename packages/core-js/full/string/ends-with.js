@@ -1,3 +1,3 @@
-var parent = require('../../es/string/ends-with');
+var parent = require('../../actual/string/ends-with');
 
 module.exports = parent;

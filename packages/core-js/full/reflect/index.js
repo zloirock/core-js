@@ -1,7 +1,7 @@
 require('../../modules/es.map');
 require('../../modules/es.set');
 require('../../modules/es.weak-map');
-var parent = require('../../es/reflect');
+var parent = require('../../actual/reflect');
 require('../../modules/esnext.reflect.define-metadata');
 require('../../modules/esnext.reflect.delete-metadata');
 require('../../modules/esnext.reflect.get-metadata');
