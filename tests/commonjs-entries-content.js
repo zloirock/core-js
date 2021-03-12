@@ -29,7 +29,7 @@ function subset(name, required) {
   }
 }
 
-equal('core-js', allModules);
+superset('core-js', /^(es|web)\./);
 equal('core-js/es', /^es\./);
 superset('core-js/es/array', /^es\.array\./);
 superset('core-js/es/array-buffer', /^es\.array-buffer\./);

@@ -1,5 +1,5 @@
 'use strict';
-importScripts('../../packages/core-js-bundle/index.js');
+importScripts('../../packages/core-js-bundle/full.js');
 
 postMessage(typeof core !== 'undefined');
 

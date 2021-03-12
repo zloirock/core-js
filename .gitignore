@@ -13,9 +13,8 @@ node_modules/
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
-/packages/core-js-bundle/index.js
-/packages/core-js-bundle/minified.js
-/packages/core-js-bundle/minified.js.map
+/packages/core-js-bundle/actual.*
+/packages/core-js-bundle/full.*
 /packages/core-js-bundle/postinstall.js
 /packages/core-js-compat/LICENSE
 /packages/core-js-compat/data.json
