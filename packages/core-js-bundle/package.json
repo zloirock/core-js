@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
-  "main": "./index.js",
+  "main": "./actual.min.js",
   "funding": {
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
@@ -55,8 +55,11 @@
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   },
   "exports": {
-    ".": "./index.js",
-    "./minified": "./minified.js",
+    ".": "./full.js",
+    "./actual": "./actual.js",
+    "./actual.min": "./actual.min.js",
+    "./full": "./full.js",
+    "./full.min": "./full.min.js",
     "./package": "./package.json"
   }
 }

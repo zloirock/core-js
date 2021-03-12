@@ -1,5 +1,5 @@
 'use strict';
-const core = require('core-js-pure');
+const core = require('core-js-pure/full');
 global.Promise = core.Promise;
 global.Symbol = core.Symbol;
 // eslint-disable-next-line import/no-unresolved -- generated later
