@@ -2005,6 +2005,32 @@ map.emplace('b', { update: it => it ** 2, insert: () => 3}); // => 3
 
 console.log(map); // => Map { 'a': 4, 'b': 3 }
 ```
+##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
+Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last-index.js).
+```js
+class Array {
+  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
+}
+
+class %TypedArray% {
+  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-find-from-last
+core-js(-pure)/features(/virtual)/array/find-last
+core-js(-pure)/features(/virtual)/array/find-last-index
+core-js/features/typed-array/find-last
+core-js/features/typed-array/find-last-index
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
+```js
+[1, 2, 3, 4].findLast(it => it % 2);      // => 3
+[1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
+````
 
 #### Stage 1 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -2436,32 +2462,6 @@ core-js/features/typed-array/unique-by
   { id: 3, uid: 10001 }
 ].uniqueBy(it => it.id);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
 ```
-##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
-Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last-index.js).
-```js
-class Array {
-  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
-}
-
-class %TypedArray% {
-  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-find-from-last
-core-js(-pure)/features(/virtual)/array/find-last
-core-js(-pure)/features(/virtual)/array/find-last-index
-core-js/features/typed-array/find-last
-core-js/features/typed-array/find-last-index
-```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
-```js
-[1, 2, 3, 4].findLast(it => it % 2);      // => 3
-[1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
-````
 
 #### Stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

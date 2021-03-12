@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 1, [March TC39 meeting](https://github.com/babel/proposals/issues/71#issuecomment-795916535)
 
 ##### 3.9.1 - 2021.03.01
 - Added a workaround for Chrome 38-40 bug which does not allow to inherit symbols (incl. well-known) from DOM collections prototypes to instances, [#37](https://github.com/zloirock/core-js/issues/37)
