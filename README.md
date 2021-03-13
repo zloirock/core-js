@@ -44,10 +44,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *You can load only required features*:
 ```js
-import 'core-js/stable/array/from'; // <- at the top of your entry point
-import 'core-js/stable/array/flat'; // <- at the top of your entry point
-import 'core-js/stable/set';        // <- at the top of your entry point
-import 'core-js/stable/promise';    // <- at the top of your entry point
+import 'core-js/actual/array/from'; // <- at the top of your entry point
+import 'core-js/actual/array/flat'; // <- at the top of your entry point
+import 'core-js/actual/set';        // <- at the top of your entry point
+import 'core-js/actual/promise';    // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 [1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
@@ -56,10 +56,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *Or use it without global namespace pollution*:
 ```js
-import from from 'core-js-pure/stable/array/from';
-import flat from 'core-js-pure/stable/array/flat';
-import Set from 'core-js-pure/stable/set';
-import Promise from 'core-js-pure/stable/promise';
+import from from 'core-js-pure/actual/array/from';
+import flat from 'core-js-pure/actual/array/flat';
+import Set from 'core-js-pure/actual/set';
+import Promise from 'core-js-pure/actual/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
 flat([1, [2, 3], [4, [5]]], 2);                // => [1, 2, 3, 4, 5]
@@ -143,7 +143,9 @@ You can import only-required-for-you polyfills, like in examples at the top of `
 ```js
 // polyfill all `core-js` features:
 import "core-js";
-// polyfill only stable `core-js` features - ES and web standards:
+// polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
+import "core-js/actual";
+// polyfill only stable features - ES and web standards:
 import "core-js/stable";
 // polyfill only stable ES features:
 import "core-js/es";
@@ -151,8 +153,7 @@ import "core-js/es";
 // if you want to polyfill `Set`:
 // all `Set`-related features, with ES proposals:
 import "core-js/full/set";
-// stable required for `Set` ES features, features from web standards
-// and stage 3 ES proposals:
+// stable required for `Set` ES features, features from web standards and stage 3 ES proposals:
 import "core-js/actual/set";
 // stable required for `Set` ES features and features from web standards
 // (DOM collections iterator in this case):
