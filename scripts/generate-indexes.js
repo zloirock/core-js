@@ -1,6 +1,6 @@
 'use strict';
 const { readdir, writeFile } = require('fs').promises;
-// `core-js-compat/modules` is not generated yet, `core-js-compat/src/data` missed in exports
+// `@core-js/compat/modules` is not generated yet, `@core-js/compat/src/data` missed in exports
 const compat = require('../packages/core-js-compat/src/data');
 
 const modules = Object.keys(compat);

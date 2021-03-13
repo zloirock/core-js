@@ -1,7 +1,7 @@
 'use strict';
 const { relative } = require('path');
 const { readFile, writeFile } = require('fs').promises;
-const entries = require('core-js-compat/entries');
+const entries = require('@core-js/compat/entries');
 
 const core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');

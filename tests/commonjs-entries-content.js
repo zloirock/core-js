@@ -1,7 +1,7 @@
 'use strict';
 const { deepStrictEqual, ok } = require('assert');
-const allModules = require('core-js-compat/modules');
-const entries = require('core-js-compat/entries');
+const allModules = require('@core-js/compat/modules');
+const entries = require('@core-js/compat/entries');
 
 function filter(regexp) {
   return allModules.filter(it => regexp.test(it));

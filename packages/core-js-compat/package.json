@@ -1,11 +1,14 @@
 {
-  "name": "core-js-compat",
+  "name": "@core-js/compat",
   "description": "core-js compat",
   "version": "3.9.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-compat"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "main": "./index.js",
   "dependencies": {

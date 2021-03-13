@@ -71,9 +71,9 @@ tests/tests.html
 tests/pure.html
 ```
 
-## Updating `core-js-compat` data
+## Updating `@core-js/compat` data
 
-For updating `core-js-compat` data:
+For updating `@core-js/compat` data:
 
 - Clone `core-js` repo.
 - If you wanna add new data for a browser, run in this browser `tests/compat/index.html` and you will see which `core-js` modules required for this browser.

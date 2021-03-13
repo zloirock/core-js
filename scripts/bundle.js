@@ -1,9 +1,9 @@
 'use strict';
 const { writeFile } = require('fs').promises;
 const { minify } = require('terser');
-const builder = require('core-js-builder');
-const { banner } = require('core-js-builder/config');
-const actual = require('core-js-compat/entries')['core-js/actual'];
+const builder = require('@core-js/builder');
+const { banner } = require('@core-js/builder/config');
+const actual = require('@core-js/compat/entries')['core-js/actual'];
 
 const PATH = './packages/core-js-bundle/';
 

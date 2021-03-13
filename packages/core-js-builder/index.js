@@ -4,8 +4,8 @@ const { dirname, join } = require('path');
 const { promisify } = require('util');
 const tmpdir = require('os').tmpdir();
 const webpack = promisify(require('webpack'));
-const compat = require('core-js-compat/compat');
-const modulesList = require('core-js-compat/modules');
+const compat = require('@core-js/compat/compat');
+const modulesList = require('@core-js/compat/modules');
 const { banner } = require('./config');
 
 module.exports = async function ({

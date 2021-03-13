@@ -2,7 +2,7 @@
 'use strict';
 const { ok } = require('assert');
 const { join } = require('path');
-const compat = require('core-js-compat/data');
+const compat = require('@core-js/compat/data');
 let tested = 0;
 let PATH;
 

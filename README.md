@@ -322,11 +322,11 @@ It does not work with some features. Also, if you change the default behaviour, 
 
 ### Custom build[⬆](#index)
 
-For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`@core-js/builder`](/packages/core-js-builder) package for that.
 
 ### Compatibility data[⬆](#index)
 
-[`core-js-compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
+[`@core-js/compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
 
 ## Supported engines[⬆](#index)
 **Tested in:**
