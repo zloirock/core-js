@@ -1,5 +1,3 @@
-require('../modules/web.dom-collections.iterator');
-require('../modules/es.string.iterator');
-var getIterator = require('../internals/get-iterator');
+var parent = require('../actual/get-iterator');
 
-module.exports = getIterator;
+module.exports = parent;
