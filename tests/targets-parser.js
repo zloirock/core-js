@@ -1,7 +1,7 @@
 'use strict';
 const { deepStrictEqual } = require('assert');
 const { green } = require('chalk');
-const targetsParser = require('core-js-compat/targets-parser');
+const targetsParser = require('@core-js/compat/targets-parser');
 
 // browserslist
 deepStrictEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([

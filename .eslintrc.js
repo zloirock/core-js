@@ -1,6 +1,6 @@
 'use strict';
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
-const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+const SUPPORTED_NODE_VERSIONS = require('@core-js/builder/package').engines.node;
 
 function disable(rules) {
   return Object.keys(rules).reduce((memo, rule) => {

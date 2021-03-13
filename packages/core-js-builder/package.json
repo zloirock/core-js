@@ -1,11 +1,14 @@
 {
-  "name": "core-js-builder",
+  "name": "@core-js/builder",
   "description": "core-js builder",
   "version": "3.15.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-builder"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "main": "./index.js",
   "dependencies": {

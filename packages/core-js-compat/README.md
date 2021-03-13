@@ -1,10 +1,10 @@
-[`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
+[`@core-js/compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
 const {
   list,                  // array of required modules
   targets,               // object with targets for each module
-} = require('core-js-compat')({
+} = require('@core-js/compat')({
   targets: '> 2.5%',     // browserslist query or object of minimum environment versions to support
   filter: /^(es|web)\./, // optional filter - string-prefix, regexp or list of modules
   version: '3.15',       // used `core-js` version, by default - the latest
@@ -72,29 +72,29 @@ console.log(targets);
 
 ```js
 // equals of of the method from the example above
-require('core-js-compat/compat')({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('@core-js/compat/compat')({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 // or
-require('core-js-compat').compat({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('@core-js/compat').compat({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 
 // full compat data:
-require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
+require('@core-js/compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
 // or
-require('core-js-compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
+require('@core-js/compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
 
 // map of modules by `core-js` entry points:
-require('core-js-compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
+require('@core-js/compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
 // or
-require('core-js-compat').entries; // => { [EntryPoint]: Array<ModuleName> }
+require('@core-js/compat').entries; // => { [EntryPoint]: Array<ModuleName> }
 
 // full list of modules:
-require('core-js-compat/modules'); // => Array<ModuleName>
+require('@core-js/compat/modules'); // => Array<ModuleName>
 // or
-require('core-js-compat').modules; // => Array<ModuleName>
+require('@core-js/compat').modules; // => Array<ModuleName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.15'); // => Array<ModuleName>
+require('@core-js/compat/get-modules-list-for-target-version')('3.15'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.15'); // => Array<ModuleName>
+require('@core-js/compat').getModulesListForTargetVersion('3.15'); // => Array<ModuleName>
 ```
 
 If you want to add new / update data about modules required for target engines, [follow this instruction](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data).
