@@ -171,7 +171,7 @@ const base = {
   // disallow useless string concatenation
   'no-useless-concat': 'error',
   // disallow unnecessary string escaping
-  'no-useless-escape': 'error',
+  // 'no-useless-escape': 'error', // replaced by 'regexp/no-useless-escape'
   // disallow void operators
   'no-void': 'error',
   // disallow use of the with statement
@@ -441,10 +441,14 @@ const base = {
   }],
   // enforce match any character style
   'regexp/match-any': 'error',
+  // enforce use of escapes on negation
+  'regexp/negation': 'error',
   // disallow capturing group that captures assertions
   'regexp/no-assertion-capturing-group': 'error',
   // disallow duplicate characters in the RegExp character class
   'regexp/no-dupe-characters-character-class': 'error',
+  // disallow duplicate disjunctions
+  'regexp/no-dupe-disjunctions': 'error',
   // disallow empty group
   'regexp/no-empty-group': 'error',
   // disallow empty lookahead assertion or empty lookbehind assertion
@@ -459,14 +463,22 @@ const base = {
   'regexp/no-useless-backreference': 'error',
   // disallow character class with one character
   'regexp/no-useless-character-class': 'error',
+  // disallow unnecessary string escaping
+  'regexp/no-useless-escape': 'error',
   // disallow unnecessary exactly quantifier
   'regexp/no-useless-exactly-quantifier': 'error',
+  // disallow unnecessary non-capturing group
+  'regexp/no-useless-non-capturing-group': 'error',
   // disallow unnecessary quantifier non-greedy (`?`)
   'regexp/no-useless-non-greedy': 'error',
   // disallow unnecessary range of characters by using a hyphen
   'regexp/no-useless-range': 'error',
   // disallow unnecessary `{n,m}`` quantifier
   'regexp/no-useless-two-nums-quantifier': 'error',
+  // enforces elements order in character class
+  'regexp/order-in-character-class': 'error',
+  // enforce using character class
+  'regexp/prefer-character-class': 'error',
   // enforce using '\d'
   'regexp/prefer-d': 'error',
   // enforce using `+` quantifier
@@ -475,6 +487,8 @@ const base = {
   'regexp/prefer-quantifier': 'error',
   // enforce using `?` quantifier
   'regexp/prefer-question-quantifier': 'error',
+  // enforce using character class range
+  // 'regexp/prefer-range': 'error', // see https://github.com/ota-meshi/eslint-plugin-regexp/issues/55
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
   'regexp/prefer-regexp-exec': 'error',
   //  enforce that `RegExp#test` is used instead of `String#match` and `RegExp#exec`
@@ -753,8 +767,12 @@ const qunit = {
   'qunit/no-assert-logical-expression': 'error',
   // forbid async calls in loops
   'qunit/no-async-in-loops': 'error',
+  // disallow async module callbacks
+  'qunit/no-async-module-callbacks': 'error',
   // forbid the use of asyncTest
   'qunit/no-async-test': 'error',
+  // disallow the use of hooks from ancestor modules
+  'qunit/no-hooks-from-ancestor-modules': 'error',
   // forbid commented tests
   'qunit/no-commented-tests': 'error',
   // forbid comparing relational expression to boolean in assertions
@@ -795,6 +813,8 @@ const qunit = {
   'qunit/no-test-expect-argument': 'error',
   // forbid assert.throws() with block, string, and message
   'qunit/no-throws-string': 'error',
+  // enforce use of objects as expected value in `assert.propEqual`
+  'qunit/require-object-in-propequal': 'error',
   // require that all async calls should be resolved in tests
   'qunit/resolve-async': 'error',
 };

@@ -1,3 +1,4 @@
+/* eslint-disable regexp/order-in-character-class, regexp/no-dupe-characters-character-class -- safe */
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 import { nativeSubclass } from '../helpers/helpers';
 
@@ -16,11 +17,9 @@ if (DESCRIPTORS) {
     regexp[Symbol.match] = false;
     assert.notStrictEqual(regexp, RegExp(regexp), 'RegExp(regexp) isnt regexp, changed Symbol.match');
     const object = {};
-    // eslint-disable-next-line regexp/no-dupe-characters-character-class -- required for testing
     assert.notStrictEqual(object, RegExp(object), 'RegExp(O) isnt O');
     object[Symbol.match] = true;
     object.constructor = RegExp;
-    // eslint-disable-next-line regexp/no-dupe-characters-character-class -- required for testing
     assert.strictEqual(object, RegExp(object), 'RegExp(O) is O, changed Symbol.match');
     assert.strictEqual(String(regexp), '/a/g', 'b is /a/g');
     assert.strictEqual(String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags');

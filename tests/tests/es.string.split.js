@@ -19,6 +19,7 @@ const run = assert => {
   assert.arrayEqual(''.split(/.??/), [], "''.split(/.??/) results in []");
   assert.arrayEqual('ab'.split(/a*/), ['', 'b'], "'ab'.split(/a*/) results in ['', 'b']");
   assert.arrayEqual('ab'.split(/a*?/), ['a', 'b'], "'ab'.split(/a*?/) results in ['a', 'b']");
+  // eslint-disable-next-line regexp/no-useless-non-capturing-group -- required for testing
   assert.arrayEqual('ab'.split(/(?:ab)/), ['', ''], "'ab'.split(/(?:ab)/) results in ['', '']");
   assert.arrayEqual('ab'.split(/(?:ab)*/), ['', ''], "'ab'.split(/(?:ab)*/) results in ['', '']");
   assert.arrayEqual('ab'.split(/(?:ab)*?/), ['a', 'b'], "'ab'.split(/(?:ab)*?/) results in ['a', 'b']");
