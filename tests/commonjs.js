@@ -266,6 +266,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('es/promise/reject')(1).then(it => it, error => error) instanceof Promise);
   ok(load('es/promise/resolve')(1) instanceof Promise);
   ok(load('es/promise') === Promise);
+  ok(load('es/is-iterable')([]));
+  ok(typeof load('es/get-iterator-method')([]) === 'function');
+  ok('next' in load('es/get-iterator')([]));
+  ok('Map' in load('es'));
 
   ok(load('stable/global-this').Math === Math);
   ok(new (load('stable/aggregate-error'))([42]).errors[0] === 42);
@@ -531,6 +535,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('stable/url') === 'function');
   load('stable/url/to-json');
   ok(typeof load('stable/url-search-params') === 'function');
+  ok(load('stable/is-iterable')([]));
+  ok(typeof load('stable/get-iterator-method')([]) === 'function');
+  ok('next' in load('stable/get-iterator')([]));
   ok(load('stable'));
 
   ok(load('actual/global-this').Math === Math);
@@ -797,6 +804,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('actual/url') === 'function');
   load('actual/url/to-json');
   ok(typeof load('actual/url-search-params') === 'function');
+  ok(load('actual/is-iterable')([]));
+  ok(typeof load('actual/get-iterator-method')([]) === 'function');
+  ok('next' in load('actual/get-iterator')([]));
   ok(load('actual'));
 
   ok(load('full/global-this').Math === Math);
@@ -1185,7 +1195,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok('next' in load('full/get-iterator')([]));
   ok(load('full'));
 
-  ok('Map' in load('es'));
   ok(typeof load('web/set-interval') === 'function');
   ok(typeof load('web/set-timeout') === 'function');
   ok(typeof load('web/clear-immediate') === 'function');

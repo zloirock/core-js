@@ -1,5 +1,5 @@
 import { GLOBAL } from './constants';
-import isIterable from 'core-js-pure/full/is-iterable';
+import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is } from './helpers';
 
