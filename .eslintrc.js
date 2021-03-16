@@ -488,7 +488,7 @@ const base = {
   // enforce using `?` quantifier
   'regexp/prefer-question-quantifier': 'error',
   // enforce using character class range
-  // 'regexp/prefer-range': 'error', // see https://github.com/ota-meshi/eslint-plugin-regexp/issues/55
+  'regexp/prefer-range': ['error', { target: 'alphanumeric' }],
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
   'regexp/prefer-regexp-exec': 'error',
   //  enforce that `RegExp#test` is used instead of `String#match` and `RegExp#exec`
