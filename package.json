@@ -53,10 +53,10 @@
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "^8.0.0",
-    "semver": "^7.3.4",
-    "terser": "^5.6.0",
     "qunit": "^2.14.1",
-    "webpack": "^5.26.1",
+    "semver": "^7.3.4",
+    "terser": "^5.6.1",
+    "webpack": "^5.27.0",
     "webpack-cli": "^4.5.0"
   },
   "license": "MIT",
