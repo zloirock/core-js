@@ -1,6 +1,9 @@
 'use strict';
 var regexpFlags = require('./regexp-flags');
 var stickyHelpers = require('./regexp-sticky-helpers');
+// Ensure sticky flag is correctly patched
+require('../modules/es.regexp.constructor');
+require('../modules/es.regexp.sticky');
 
 var nativeExec = RegExp.prototype.exec;
 // This always refers to the native implementation, because the
@@ -18,19 +21,19 @@ var UPDATES_LAST_INDEX_WRONG = (function () {
   return re1.lastIndex !== 0 || re2.lastIndex !== 0;
 })();
 
-var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y || stickyHelpers.BROKEN_CARET;
+var BROKEN_CARET = stickyHelpers.BROKEN_CARET;
 
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 // eslint-disable-next-line regexp/no-assertion-capturing-group, regexp/no-empty-group -- required for testing
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || BROKEN_CARET;
 
 if (PATCH) {
   patchedExec = function exec(str) {
     var re = this;
     var lastIndex, reCopy, match, i;
-    var sticky = UNSUPPORTED_Y && re.sticky;
+    var sticky = BROKEN_CARET && re.sticky;
     var flags = regexpFlags.call(re);
     var source = re.source;
     var charsAdded = 0;
