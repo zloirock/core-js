@@ -30,6 +30,7 @@
   "license": "MIT",
   "exports": {
     ".": "./index.js",
+    "./built-in-definitions": "./built-in-definitions.js",
     "./compat": "./compat.js",
     "./get-modules-list-for-target-version": "./get-modules-list-for-target-version.js",
     "./targets-parser": "./targets-parser.js",
