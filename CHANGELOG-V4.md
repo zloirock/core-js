@@ -86,3 +86,4 @@
 - Namespace / entries for full set of features (stable ES, ES proposals, web standards) renamed from `/features/` to `/full/`
 - Added `/actual/` namespace for all stable features and stage 3 ES proposals 
 - Dropped `*/virtual/index.js` entries
+- Added built-in definitions to compat data

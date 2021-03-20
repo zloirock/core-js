@@ -1,5 +1,5 @@
 'use strict';
-const entries = require('@core-js/compat/entries');
+const entries = require('./entries');
 
 function map(object) {
   return new Map(Object.entries(object));
@@ -31,7 +31,7 @@ const CommonIteratorsWithTag = [
 const TypedArrayDependencies = [
   'es.array.iterator',
   'es.array-buffer.slice',
-  'es.map',
+  'es.map', // TODO: make conditional
   'es.object.to-string',
   'es.typed-array.copy-within',
   'es.typed-array.every',
@@ -79,11 +79,6 @@ const PromiseDependencies = [
   'es.object.to-string',
 ];
 
-const URLSearchParamsDependencies = [
-  'web.url',
-  ...CommonIteratorsWithTag,
-];
-
 const BuiltIns = map({
   AggregateError: def('aggregate-error'),
   ArrayBuffer: def(null, [
@@ -91,11 +86,28 @@ const BuiltIns = map({
     'es.array-buffer.slice',
     'es.object.to-string',
   ]),
+  AsyncIterator: def('async-iterator'), // TODO: move methods, the problem in conditional dependencies
   DataView: def(null, [
     'es.data-view',
     'es.array-buffer.slice',
     'es.object.to-string',
   ]),
+  Iterator: def('iterator'), // TODO: move methods, the problem in conditional dependencies
+  Number: def(null, ['es.number.constructor']),
+  Observable: def('observable'),
+  Promise: def('promise', PromiseDependencies),
+  RegExp: def(null, [
+    'es.regexp.constructor',
+    'es.regexp.exec',
+    'es.regexp.to-string',
+  ]),
+  Symbol: def('symbol', [
+    'es.symbol',
+    'es.symbol.description',
+    'es.object.to-string',
+  ]),
+  URL: def('url'),
+  URLSearchParams: def('url-search-params'),
   Map: def('map', [
     'es.map',
     'esnext.map.delete-all',
@@ -113,19 +125,6 @@ const BuiltIns = map({
     'esnext.map.some',
     'esnext.map.update',
     ...CommonIteratorsWithTag,
-  ]),
-  Number: def(null, ['es.number.constructor']),
-  Observable: def('observable', [
-    'esnext.observable',
-    'esnext.symbol.observable',
-    'es.object.to-string',
-    ...CommonIteratorsWithTag,
-  ]),
-  Promise: def('promise', PromiseDependencies),
-  RegExp: def(null, [
-    'es.regexp.constructor',
-    'es.regexp.exec',
-    'es.regexp.to-string',
   ]),
   Set: def('set', [
     'es.set',
@@ -147,16 +146,6 @@ const BuiltIns = map({
     'esnext.set.union',
     ...CommonIteratorsWithTag,
   ]),
-  Symbol: def('symbol', [
-    'es.symbol',
-    'es.symbol.description',
-    'es.object.to-string',
-  ]),
-  URL: def('url', [
-    'web.url',
-    ...URLSearchParamsDependencies,
-  ]),
-  URLSearchParams: def('url-search-params', URLSearchParamsDependencies),
   WeakMap: def('weak-map', [
     'es.weak-map',
     'esnext.weak-map.emplace',
@@ -168,6 +157,14 @@ const BuiltIns = map({
     'esnext.weak-set.add-all',
     'esnext.weak-set.delete-all',
     ...CommonIteratorsWithTag,
+  ]),
+  Float32Array: def(null, [
+    'es.typed-array.float32-array',
+    ...TypedArrayDependencies,
+  ]),
+  Float64Array: def(null, [
+    'es.typed-array.float64-array',
+    ...TypedArrayDependencies,
   ]),
   Int8Array: def(null, [
     'es.typed-array.int8-array',
@@ -195,14 +192,6 @@ const BuiltIns = map({
   ]),
   Uint8ClampedArray: def(null, [
     'es.typed-array.uint8-clamped-array',
-    ...TypedArrayDependencies,
-  ]),
-  Float32Array: def(null, [
-    'es.typed-array.float32-array',
-    ...TypedArrayDependencies,
-  ]),
-  Float64Array: def(null, [
-    'es.typed-array.float64-array',
     ...TypedArrayDependencies,
   ]),
   clearImmediate: def('clear-immediate'),
@@ -333,6 +322,9 @@ const StaticProperties = map({
     from: def('array/from'),
     of: def('array/of'),
   }),
+  ArrayBuffer: map({
+    isView: def(null, ['es.array-buffer.is-view']), // ???
+  }),
   BigInt: map({
     range: def('bigint/range'),
   }),
@@ -403,24 +395,6 @@ const StaticProperties = map({
     parseInt: def('number/parse-int'),
     range: def('number/range'),
   }),
-  Map: map({
-    from: def('map/from'),
-    groupBy: def('map/group-by'),
-    keyBy: def('map/key-by'),
-    of: def('map/of'),
-  }),
-  Set: map({
-    from: def('set/from'),
-    of: def('set/of'),
-  }),
-  WeakMap: map({
-    from: def('weak-map/from'),
-    of: def('weak-map/of'),
-  }),
-  WeakSet: map({
-    from: def('weak-set/from'),
-    of: def('weak-set/of'),
-  }),
   Promise: map({
     all: def('promise/all'),
     allSettled: def('promise/all-settled'),
@@ -472,9 +446,26 @@ const StaticProperties = map({
     toStringTag: def('symbol/to-string-tag'),
     unscopables: def('symbol/unscopables'),
   }),
-  ArrayBuffer: map({
-    isView: def(null, ['es.array-buffer.is-view']), // ???
+  Map: map({
+    from: def('map/from'),
+    groupBy: def('map/group-by'),
+    keyBy: def('map/key-by'),
+    of: def('map/of'),
   }),
+  Set: map({
+    from: def('set/from'),
+    of: def('set/of'),
+  }),
+  WeakMap: map({
+    from: def('weak-map/from'),
+    of: def('weak-map/of'),
+  }),
+  WeakSet: map({
+    from: def('weak-set/from'),
+    of: def('weak-set/of'),
+  }),
+  Float32Array: TypedArrayStaticMethods,
+  Float64Array: TypedArrayStaticMethods,
   Int8Array: TypedArrayStaticMethods,
   Int16Array: TypedArrayStaticMethods,
   Int32Array: TypedArrayStaticMethods,
@@ -482,8 +473,6 @@ const StaticProperties = map({
   Uint16Array: TypedArrayStaticMethods,
   Uint32Array: TypedArrayStaticMethods,
   Uint8ClampedArray: TypedArrayStaticMethods,
-  Float32Array: TypedArrayStaticMethods,
-  Float64Array: TypedArrayStaticMethods,
 });
 
 const CommonInstanceDependencies = set([
