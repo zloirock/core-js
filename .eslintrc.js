@@ -379,6 +379,8 @@ const base = {
   'unicorn/no-hex-escape': 'error',
   // disallow if as the only statement in an else block
   'unicorn/no-lonely-if': 'error',
+  // forbid classes that only have static members
+  'unicorn/no-static-only-class': 'error',
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': 'error',
   // disallow unsafe regular expressions
@@ -457,12 +459,18 @@ const base = {
   'regexp/no-escape-backspace': 'error',
   // disallow invisible raw character
   'regexp/no-invisible-character': 'error',
+  // disallow legacy RegExp features
+  'regexp/no-legacy-features': 'error',
   // disallow octal escape sequence
   'regexp/no-octal': 'error',
+  // disallow unused capturing group
+  'regexp/no-unused-capturing-group': 'error',
   // disallow useless backreferences in regular expressions
   'regexp/no-useless-backreference': 'error',
   // disallow character class with one character
   'regexp/no-useless-character-class': 'error',
+  // disallow useless `$` replacements in replacement string
+  'regexp/no-useless-dollar-replacements': 'error',
   // disallow unnecessary string escaping
   'regexp/no-useless-escape': 'error',
   // disallow unnecessary exactly quantifier
@@ -479,8 +487,10 @@ const base = {
   'regexp/order-in-character-class': 'error',
   // enforce using character class
   'regexp/prefer-character-class': 'error',
-  // enforce using '\d'
+  // enforce using `\d`
   'regexp/prefer-d': 'error',
+  // enforces escape of replacement `$` character (`$$`)
+  'regexp/prefer-escape-replacement-dollar-char': 'error',
   // enforce using `+` quantifier
   'regexp/prefer-plus-quantifier': 'error',
   // enforce using quantifier

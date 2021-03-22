@@ -870,6 +870,7 @@ GLOBAL.tests = {
     return ''.replace(O) == 7
       && execCalled
       && ''.replace(re2, '$<a>') === '7'
+      // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
       && 'a'.replace(/./, '$0') === '$0'
       && /./[Symbol.replace]('a', '$0') === '$0';
   },
