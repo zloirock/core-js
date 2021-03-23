@@ -13,7 +13,7 @@
   "main": "./index.js",
   "dependencies": {
     "browserslist": "^4.16.3",
-    "semver": "^7.3.4"
+    "semver": "^7.3.5"
   },
   "devDependencies": {
     "detective": "^5.2.0",
