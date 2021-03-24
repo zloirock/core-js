@@ -788,10 +788,8 @@ load('full/typed-array/find-last');
 load('full/typed-array/find-last-index');
 load('full/typed-array/unique-by');
 
-PATH = 'core-js-bundle';
-load('');
-load('actual');
-load('full');
+load('bundle/actual');
+load('bundle/full');
 
 // eslint-disable-next-line no-console -- output
 console.log(green(`tested ${ cyan(tested) } commonjs entry points`));

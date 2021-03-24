@@ -7,15 +7,12 @@ node_modules/
 *.bak
 *.swp
 
+/packages/core-js/bundle/
 /packages/core-js/es/index.js
 /packages/core-js/full/index.js
 /packages/core-js/stable/index.js
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
-/packages/core-js-bundle/LICENSE
-/packages/core-js-bundle/actual.*
-/packages/core-js-bundle/full.*
-/packages/core-js-bundle/postinstall.js
 /packages/core-js-compat/LICENSE
 /packages/core-js-compat/data.json
 /packages/core-js-compat/entries.json

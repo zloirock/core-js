@@ -11,6 +11,8 @@ function options(overwrite) {
   };
 }
 
+await rm('./packages/core-js/bundle', { force: true, recursive: true });
+
 await Promise.all((await readdir('./packages/core-js-pure'))
   .filter(entry => !['override', '.npmignore', 'package.json', 'README.md'].includes(entry))
   .map(entry => rm(`./packages/core-js-pure/${ entry }`, { force: true, recursive: true })));
