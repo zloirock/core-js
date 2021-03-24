@@ -774,9 +774,7 @@ load('full/typed-array/unique-by');
 PATH = 'core-js-bundle';
 load('');
 load('actual');
-load('actual.min');
 load('full');
-load('full.min');
 
 // eslint-disable-next-line no-console -- output
 console.log(`\u001B[32mtested ${ tested } commonjs entry points\u001B[0m`);
