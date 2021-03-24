@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
-  "main": "./actual.min.js",
+  "main": "./actual.js",
   "funding": {
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
@@ -57,9 +57,7 @@
   "exports": {
     ".": "./full.js",
     "./actual": "./actual.js",
-    "./actual.min": "./actual.min.js",
     "./full": "./full.js",
-    "./full.min": "./full.min.js",
     "./package": "./package.json"
   }
 }
