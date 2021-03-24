@@ -287,6 +287,9 @@
     "./web/set-timeout": "./web/set-timeout.js",
     "./web/url": "./web/url/index.js",
     "./web/url-search-params": "./web/url-search-params/index.js",
-    "./web/url/*": "./web/url/*.js"
+    "./web/url/*": "./web/url/*.js",
+    "./bundle": "./bundle/full.js",
+    "./bundle/actual": "./bundle/actual.js",
+    "./bundle/full": "./bundle/full.js"
   }
 }

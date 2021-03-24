@@ -24,6 +24,8 @@ async function copy(from, to, { force = false } = {}) {
 (async () => {
   // it's available only from Node 14.14, but this step required only for development where we use modern Node
   if (rm) {
+    await rm('./packages/core-js/bundle', { force: true, recursive: true });
+
     await Promise.all((await readdir('./packages/core-js-pure'))
       .filter(entry => !['override', '.npmignore', 'package.json', 'README.md'].includes(entry))
       .map(entry => rm(`./packages/core-js-pure/${ entry }`, { force: true, recursive: true })));
@@ -40,7 +42,6 @@ async function copy(from, to, { force = false } = {}) {
 
   await copy('./packages/core-js', './packages/core-js-pure');
   await copy('./packages/core-js-pure/override', './packages/core-js-pure', { force: true });
-  await copy('./packages/core-js/postinstall.js', './packages/core-js-bundle/postinstall.js', { force: true });
 
   // eslint-disable-next-line no-console -- output
   console.log(`\u001B[32mcopied \u001B[36m${ copied } \u001B[32mfiles\u001B[0m`);

@@ -36,7 +36,12 @@ async function writeExportsField(path, exports) {
 }
 
 (async function () {
-  await writeExportsField('./packages/core-js/package.json', core);
+  await writeExportsField('./packages/core-js/package.json', {
+    ...core,
+    './bundle': './bundle/full.js',
+    './bundle/actual': './bundle/actual.js',
+    './bundle/full': './bundle/full.js',
+  });
   await writeExportsField('./packages/core-js-pure/package.json', core);
   // eslint-disable-next-line no-console -- output
   console.log('\u001B[32m`exports` fields updated\u001B[0m');

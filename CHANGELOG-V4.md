@@ -89,4 +89,7 @@
 - Added built-in definitions to compat data
 - Added `minify` option to `@core-js/builder`, bundles minified by default
 - Added `summary` option to `@core-js/builder`
-- Dropped non-minified bundle from `core-js-bundle` package
+- Bundled versions of `core-js`
+  - Moved back to the main package
+  - Dropped non-minified bundle
+  - 2 versions: `core-js/bundle/actual` and `core-js/bundle/full`
