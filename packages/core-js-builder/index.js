@@ -4,6 +4,7 @@ const { dirname, join } = require('path');
 const { promisify } = require('util');
 const tmpdir = require('os').tmpdir();
 const webpack = promisify(require('webpack'));
+const { minify: terser } = require('terser');
 const compat = require('@core-js/compat/compat');
 const modulesList = require('@core-js/compat/modules');
 const { banner } = require('./config');
@@ -19,9 +20,10 @@ function normalizeSummary(unit = {}) {
 }
 
 module.exports = async function ({
-  exclude = [],
   modules = modulesList.slice(),
+  exclude = [],
   targets,
+  minify = true,
   filename,
   summary = {},
 } = {}) {
@@ -64,7 +66,7 @@ module.exports = async function ({
       mode: 'none',
       node: false,
       target: ['node', 'es5'],
-      entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
+      entry: modules.map(it => require.resolve(`core-js/commonjs/modules/${ it }`)),
       output: {
         path: tmpdir,
         filename: tempFileName,
@@ -79,6 +81,25 @@ module.exports = async function ({
       // compress `__webpack_require__` with `keep_fnames` option
       String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
     } }();`;
+
+    if (minify) {
+      ({ code } = await terser(code, {
+        ecma: 5,
+        keep_fnames: true,
+        compress: {
+          hoist_funs: false,
+          hoist_vars: true,
+          pure_getters: true,
+          passes: 3,
+          unsafe_proto: true,
+          unsafe_undefined: true,
+        },
+        format: {
+          max_line_len: 32000,
+          webkit: false,
+        },
+      }));
+    }
   }
 
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
@@ -96,7 +117,7 @@ module.exports = async function ({
     // eslint-disable-next-line no-console -- output
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, modules:\u001B[0m`);
     // eslint-disable-next-line no-console -- output
-    console.log(JSON.stringify(modulesWithTargets || modules, null, '  '));
+    console.table(modulesWithTargets || modules);
   }
 
   if (typeof filename != 'undefined') {

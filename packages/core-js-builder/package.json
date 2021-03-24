@@ -14,7 +14,8 @@
   "dependencies": {
     "@core-js/compat": "3.15.2",
     "core-js": "3.15.2",
-    "webpack": "^5.41.1"
+    "terser": "^5.6.1",
+    "webpack": "^5.44.0"
   },
   "engines": {
     "node": ">=12.13.0"
