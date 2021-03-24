@@ -10,12 +10,24 @@ const modulesList = require('@core-js/compat/modules');
 const { banner } = require('./config');
 
 module.exports = async function ({
-    exclude = [],
-    modules = modulesList.slice(),
-    targets,
-    minify = true,
-    filename,
+  exclude = [],
+  modules = modulesList.slice(),
+  targets,
+  minify = true,
+  filename,
+  summary = {},
 } = {}) {
+  const TITLE = filename != 'undefined' ? filename : '`core-js`';
+
+  let summarySize, summaryModules, modulesWithTargets;
+  if (typeof summary !== 'object') {
+    summarySize = !!summary;
+    summaryModules = !!summary;
+  } else {
+    summarySize = !!summary.size;
+    summaryModules = !!summary.modules;
+  }
+
   const set = new Set();
 
   function filter(method, list) {
@@ -33,7 +45,18 @@ module.exports = async function ({
 
   modules = modulesList.filter(it => set.has(it));
 
-  if (targets) modules = compat({ targets, filter: modules }).list;
+  if (targets) {
+    const compatResult = compat({ targets, filter: modules });
+    modules = compatResult.list;
+    modulesWithTargets = compatResult.targets;
+  }
+
+  if (summaryModules) {
+    // eslint-disable-next-line no-console -- output
+    console.log(`\u001B[36m${ TITLE }\u001B[32m bundle modules:\u001B[0m`);
+    // eslint-disable-next-line no-console -- output
+    console.table(modulesWithTargets || modules);
+  }
 
   let script = banner;
 
@@ -82,6 +105,13 @@ module.exports = async function ({
     });
 
     script = code;
+  }
+
+  if (summarySize) {
+    // eslint-disable-next-line no-console -- output
+    console.log(`\u001B[32mbundling: \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
+      (script.length / 1024).toFixed(2)
+    }KB\u001B[0m`);
   }
 
   if (typeof filename != 'undefined') {

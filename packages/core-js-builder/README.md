@@ -2,12 +2,13 @@ For some cases could be useful to exclude some `core-js` features or generate a 
 
 ```js
 require('@core-js/builder')({
-  modules: ['es', 'esnext.reflect', 'web'],         // modules / namespaces, by default - all `core-js` modules
-  exclude: ['es.math', 'es.number.constructor'],    // a blacklist of modules / namespaces, by default - empty list
-  targets: '> 0.5%',                                // optional browserslist query
-  minify: true,                                     // minification, `true` by default
-  filename: './my-core-js-bundle.js',               // optional target filename, if it's missed a file will not be created
-}).then(code => {                                   // code of result polyfill
+  modules: ['es', 'esnext.reflect', 'web'],      // modules / namespaces, by default - all `core-js` modules
+  exclude: ['es.math', 'es.number.constructor'], // a blacklist of modules / namespaces, by default - empty list
+  targets: '> 0.5%',                             // optional browserslist query
+  minify: true,                                  // minification, `true` by default
+  summary: { size: true, modules: false }        // shows summary for the bundle, disabled by default, you could specify required parts or set `true` for enable all of them
+  filename: './my-core-js-bundle.js',            // optional target filename, if it's missed a file will not be created
+}).then(code => {                                // code of result polyfill
   // ...
 }).catch(error => {
   // ...

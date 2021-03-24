@@ -88,3 +88,4 @@
 - Dropped `*/virtual/index.js` entries
 - Added built-in definitions to compat data
 - Added `minify` option to `@core-js/builder`, bundles minified by default
+- Added `summary` option to `@core-js/builder`
