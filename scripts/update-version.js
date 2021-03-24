@@ -5,11 +5,12 @@ const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 
 const now = new Date();
-const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
-const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
+const NEW_VERSION_MINOR = `'${ NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
+const PREV_VERSION_MINOR = `'${ PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
 const CHANGELOG = './CHANGELOG.md';
 const LICENSE = './LICENSE';
 const README = './README.md';
+const README_COMPAT = './packages/core-js-compat/README.md';
 const LERNA = './lerna.json';
 const SHARED = './packages/core-js/internals/shared.js';
 const CURRENT_YEAR = now.getFullYear();
@@ -26,6 +27,9 @@ const CURRENT_YEAR = now.getFullYear();
   const readme = await readFile(README, 'utf8');
   await writeFile(README, readme
     .split(PREV_VERSION).join(NEW_VERSION)
+    .split(PREV_VERSION_MINOR).join(NEW_VERSION_MINOR));
+  const readmeCompat = await readFile(README_COMPAT, 'utf8');
+  await writeFile(README_COMPAT, readmeCompat
     .split(PREV_VERSION_MINOR).join(NEW_VERSION_MINOR));
   const shared = await readFile(SHARED, 'utf8');
   await writeFile(SHARED, shared

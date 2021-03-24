@@ -7,7 +7,7 @@ const {
 } = require('core-js-compat')({
   targets: '> 2.5%',     // browserslist query or object of minimum environment versions to support
   filter: /^(es|web)\./, // optional filter - string-prefix, regexp or list of modules
-  version: '3.4',        // used `core-js` version, by default - the latest
+  version: '3.9',        // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
