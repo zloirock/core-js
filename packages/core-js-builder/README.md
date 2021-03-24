@@ -7,6 +7,7 @@ const bundle = await builder({
   modules: ['es', 'esnext.reflect', 'web'],      // modules / namespaces, by default - all `core-js` modules
   exclude: ['es.math', 'es.number.constructor'], // a blacklist of modules / namespaces, by default - empty list
   targets: '> 0.5%, not dead, ie 9-11',          // optional browserslist or core-js-compat format query
+  minify: true,                                  // minification, `true` by default
   summary: {                                     // shows summary for the bundle, disabled by default:
     console: { size: true, modules: false },     // in the console, you could specify required parts or set `true` for enable all of them
     comment: { size: false, modules: true },     // in the comment in the target file, similarly to `summary.console`
