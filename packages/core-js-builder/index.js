@@ -27,12 +27,11 @@ module.exports = async function ({
   filename,
   summary = {},
 } = {}) {
-  const TITLE = filename != 'undefined' ? filename : '`core-js`';
+  const TITLE = filename != null ? filename : '`core-js`';
 
   let summarySize, summaryModules, modulesWithTargets;
   if (typeof summary !== 'object') {
-    summarySize = !!summary;
-    summaryModules = !!summary;
+    summarySize = summaryModules = !!summary;
   } else {
     summarySize = !!summary.size;
     summaryModules = !!summary.modules;
