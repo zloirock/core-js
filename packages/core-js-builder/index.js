@@ -4,6 +4,7 @@ const { dirname, join } = require('path');
 const { promisify } = require('util');
 const tmpdir = require('os').tmpdir();
 const webpack = promisify(require('webpack'));
+const { minify: terser } = require('terser');
 const compat = require('@core-js/compat/compat');
 const modulesList = require('@core-js/compat/modules');
 const { banner } = require('./config');
@@ -12,6 +13,7 @@ module.exports = async function ({
     exclude = [],
     modules = modulesList.slice(),
     targets,
+    minify = true,
     filename,
 } = {}) {
   const set = new Set();
@@ -58,6 +60,28 @@ module.exports = async function ({
       // compress `__webpack_require__` with `keep_fnames` option
       String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
     } }();`;
+  }
+
+  if (minify) {
+    const { code } = await terser(script, {
+      ecma: 5,
+      keep_fnames: true,
+      compress: {
+        hoist_funs: false,
+        hoist_vars: true,
+        pure_getters: true,
+        passes: 3,
+        unsafe_proto: true,
+        unsafe_undefined: true,
+      },
+      format: {
+        max_line_len: 32000,
+        preamble: banner,
+        webkit: false,
+      },
+    });
+
+    script = code;
   }
 
   if (typeof filename != 'undefined') {
