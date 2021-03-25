@@ -42,7 +42,7 @@
     "eslint-plugin-radar": "~0.2.1",
     "eslint-plugin-regexp": "~0.6.3",
     "eslint-plugin-unicorn": "^29.0.0",
-    "karma": "^6.3.0",
+    "karma": "^6.3.1",
     "karma-chrome-launcher": "^3.1.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
