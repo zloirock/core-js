@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var toLength = require('../internals/to-length');
 var notARegExp = require('../internals/not-a-regexp');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -14,7 +13,8 @@ var min = Math.min;
 var CORRECT_IS_REGEXP_LOGIC = correctIsRegExpLogic('endsWith');
 // https://github.com/zloirock/core-js/pull/702
 var MDN_POLYFILL_BUG = !IS_PURE && !CORRECT_IS_REGEXP_LOGIC && !!function () {
-  var descriptor = getOwnPropertyDescriptor(String.prototype, 'endsWith');
+  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
+  var descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'endsWith');
   return descriptor && !descriptor.writable;
 }();
 
@@ -31,5 +31,5 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     return $endsWith
       ? $endsWith.call(that, search, end)
       : that.slice(end - search.length, end) === search;
-  }
+  },
 });

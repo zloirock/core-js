@@ -10,5 +10,5 @@ var INCORRECT_ITERATION = !checkCorrectnessOfIteration(function (iterable) {
 // `Array.from` method
 // https://tc39.es/ecma262/#sec-array.from
 $({ target: 'Array', stat: true, forced: INCORRECT_ITERATION }, {
-  from: from
+  from: from,
 });

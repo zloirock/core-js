@@ -1,6 +1,4 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.array.iterator');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var USE_NATIVE_URL = require('../internals/native-url');
@@ -15,12 +13,12 @@ var bind = require('../internals/function-bind-context');
 var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+var create = Object.create;
 var $fetch = getBuiltIn('fetch');
 var Headers = getBuiltIn('Headers');
 var ITERATOR = wellKnownSymbol('iterator');
@@ -66,7 +64,7 @@ var replace = {
   '(': '%28',
   ')': '%29',
   '~': '%7E',
-  '%20': '+'
+  '%20': '+',
 };
 
 var replacer = function (match) {
@@ -88,7 +86,7 @@ var parseSearchParams = function (result, query) {
         entry = attribute.split('=');
         result.push({
           key: deserialize(entry.shift()),
-          value: deserialize(entry.join('='))
+          value: deserialize(entry.join('=')),
         });
       }
     }
@@ -108,7 +106,7 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
   setInternalState(this, {
     type: URL_SEARCH_PARAMS_ITERATOR,
     iterator: getIterator(getInternalParamsState(params).entries),
-    kind: kind
+    kind: kind,
   });
 }, 'Iterator', function next() {
   var state = getInternalIteratorState(this);
@@ -133,7 +131,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
     type: URL_SEARCH_PARAMS,
     entries: entries,
     updateURL: function () { /* empty */ },
-    updateSearchParams: updateSearchParams
+    updateSearchParams: updateSearchParams,
   });
 
   if (init !== undefined) {
@@ -172,7 +170,7 @@ redefineAll(URLSearchParamsPrototype, {
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name) {
+  delete: function (name) {
     validateArgumentsLength(arguments.length, 1);
     var state = getInternalParamsState(this);
     var entries = state.entries;
@@ -269,7 +267,7 @@ redefineAll(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.forEach` method
   forEach: function forEach(callback /* , thisArg */) {
     var entries = getInternalParamsState(this).entries;
-    var boundFunction = bind(callback, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callback, arguments.length > 1 ? arguments[1] : undefined);
     var index = 0;
     var entry;
     while (index < entries.length) {
@@ -288,7 +286,7 @@ redefineAll(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.entries` method
   entries: function entries() {
     return new URLSearchParamsIterator(this, 'entries');
-  }
+  },
 }, { enumerable: true });
 
 // `URLSearchParams.prototype[@@iterator]` method
@@ -310,7 +308,7 @@ redefine(URLSearchParamsPrototype, 'toString', function toString() {
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
 $({ global: true, forced: !USE_NATIVE_URL }, {
-  URLSearchParams: URLSearchParamsConstructor
+  URLSearchParams: URLSearchParamsConstructor,
 });
 
 // Wrap `fetch` for correct work with polyfilled `URLSearchParams`
@@ -331,17 +329,17 @@ if (!USE_NATIVE_URL && typeof $fetch == 'function' && typeof Headers == 'functio
             }
             init = create(init, {
               body: createPropertyDescriptor(0, String(body)),
-              headers: createPropertyDescriptor(0, headers)
+              headers: createPropertyDescriptor(0, headers),
             });
           }
         }
         args.push(init);
       } return $fetch.apply(this, args);
-    }
+    },
   });
 }
 
 module.exports = {
   URLSearchParams: URLSearchParamsConstructor,
-  getState: getInternalParamsState
+  getState: getInternalParamsState,
 };

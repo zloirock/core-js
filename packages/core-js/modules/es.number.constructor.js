@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var redefine = require('../internals/redefine');
@@ -8,18 +7,20 @@ var classof = require('../internals/classof-raw');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var create = require('../internals/object-create');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
-var defineProperty = require('../internals/object-define-property').f;
 var trim = require('../internals/string-trim').trim;
 
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
+// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 
 // Opera ~12 has broken Object#toString
-var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
+var BROKEN_CLASSOF = classof(Object.create(NumberPrototype)) == NUMBER;
 
 // `ToNumber` abstract operation
 // https://tc39.es/ecma262/#sec-tonumber
@@ -61,15 +62,7 @@ if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumb
       && (BROKEN_CLASSOF ? fails(function () { NumberPrototype.valueOf.call(dummy); }) : classof(dummy) != NUMBER)
         ? inheritIfRequired(new NativeNumber(toNumber(it)), dummy, NumberWrapper) : toNumber(it);
   };
-  for (var keys = DESCRIPTORS ? getOwnPropertyNames(NativeNumber) : (
-    // ES3:
-    'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
-    // ES2015 (in case, if modules with ES2015 Number statics required before):
-    'EPSILON,isFinite,isInteger,isNaN,isSafeInteger,MAX_SAFE_INTEGER,' +
-    'MIN_SAFE_INTEGER,parseFloat,parseInt,isInteger,' +
-    // ESNext
-    'fromString,range'
-  ).split(','), j = 0, key; keys.length > j; j++) {
+  for (var keys = getOwnPropertyNames(NativeNumber), j = 0, key; keys.length > j; j++) {
     if (has(NativeNumber, key = keys[j]) && !has(NumberWrapper, key)) {
       defineProperty(NumberWrapper, key, getOwnPropertyDescriptor(NativeNumber, key));
     }

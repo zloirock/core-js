@@ -32,5 +32,5 @@ $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE },
     while (first < fin) {
       viewTarget.setUint8(index++, viewSource.getUint8(first++));
     } return result;
-  }
+  },
 });

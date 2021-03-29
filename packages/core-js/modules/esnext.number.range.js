@@ -7,5 +7,5 @@ var NumericRangeIterator = require('../internals/numeric-range-iterator');
 $({ target: 'Number', stat: true }, {
   range: function range(start, end, option) {
     return new NumericRangeIterator(start, end, option, 'number', 0, 1);
-  }
+  },
 });

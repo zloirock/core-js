@@ -1,8 +1,6 @@
 /* eslint-disable no-self-compare -- required for testing */
-import { FREEZING } from '../helpers/constants';
-
-import compositeKey from 'core-js-pure/features/composite-key';
-import { getPrototypeOf, isFrozen } from 'core-js-pure/features/object';
+import compositeKey from 'core-js-pure/full/composite-key';
+import { getPrototypeOf, isFrozen } from 'core-js-pure/full/object';
 
 QUnit.test('compositeKey', assert => {
   assert.isFunction(compositeKey);
@@ -12,7 +10,7 @@ QUnit.test('compositeKey', assert => {
   assert.same(typeof key, 'object');
   assert.same({}.toString.call(key), '[object Object]');
   assert.same(getPrototypeOf(key), null);
-  if (FREEZING) assert.ok(isFrozen(key));
+  assert.ok(isFrozen(key));
 
   const a = ['a'];
   const b = ['b'];

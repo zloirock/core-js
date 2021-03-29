@@ -16,7 +16,7 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
   setInternalState(this, {
     type: STRING_ITERATOR,
     string: string,
-    index: 0
+    index: 0,
   });
 }, 'String', function next() {
   var state = getInternalState(this);
@@ -34,5 +34,5 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
 $({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
     return new $StringIterator(String(requireObjectCoercible(this)));
-  }
+  },
 });

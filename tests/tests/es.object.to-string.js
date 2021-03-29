@@ -77,9 +77,7 @@ QUnit.test('Object#toString', assert => {
     assert.strictEqual(`${ new Map().entries() }`, '[object Map Iterator]', 'Map Iterator -> `Map Iterator`');
   }
   assert.strictEqual(`${ Math }`, '[object Math]', 'Math -> `Math`');
-  if (GLOBAL.JSON) {
-    assert.strictEqual(`${ JSON }`, '[object JSON]', 'JSON -> `JSON`');
-  }
+  assert.strictEqual(`${ JSON }`, '[object JSON]', 'JSON -> `JSON`');
   function Class() { /* empty */ }
   Class.prototype[Symbol.toStringTag] = 'Class';
   assert.strictEqual(`${ new Class() }`, '[object Class]', 'user class instance -> [Symbol.toStringTag]');

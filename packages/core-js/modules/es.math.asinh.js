@@ -13,5 +13,5 @@ function asinh(x) {
 // https://tc39.es/ecma262/#sec-math.asinh
 // Tor Browser bug: Math.asinh(0) -> -0
 $({ target: 'Math', stat: true, forced: !($asinh && 1 / $asinh(0) > 0) }, {
-  asinh: asinh
+  asinh: asinh,
 });

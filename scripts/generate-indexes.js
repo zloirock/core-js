@@ -1,6 +1,7 @@
 'use strict';
 const { readdir, writeFile } = require('fs').promises;
-const compat = require('core-js-compat/src/data');
+// `@core-js/compat/modules` is not generated yet, `@core-js/compat/src/data` missed in exports
+const compat = require('../packages/core-js-compat/src/data');
 
 const modules = Object.keys(compat);
 
@@ -23,7 +24,7 @@ async function generateTestsIndex(name, pkg) {
 (async () => {
   await generateNamespaceIndex('es', /^es\./);
   await generateNamespaceIndex('stable', /^(es|web)\./);
-  await generateNamespaceIndex('features', /^(es|esnext|web)\./);
+  await generateNamespaceIndex('full', /^(es|esnext|web)\./);
 
   await generateTestsIndex('tests', 'core-js');
   await generateTestsIndex('pure', 'core-js-pure');

@@ -1,4 +1,4 @@
-import imul from 'core-js-pure/features/math/imul';
+import imul from 'core-js-pure/full/math/imul';
 
 QUnit.test('Math.imul', assert => {
   assert.isFunction(imul);

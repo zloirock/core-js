@@ -8,5 +8,5 @@ var WEBKIT_BUG = require('../internals/string-pad-webkit-bug');
 $({ target: 'String', proto: true, forced: WEBKIT_BUG }, {
   padEnd: function padEnd(maxLength /* , fillString = ' ' */) {
     return $padEnd(this, maxLength, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });

@@ -1,13 +1,11 @@
 'use strict';
 // https://github.com/tc39/proposal-observable
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
-var defineProperty = require('../internals/object-define-property').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var getIterator = require('../internals/get-iterator');
@@ -17,6 +15,8 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 
 var OBSERVABLE = wellKnownSymbol('observable');
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 
@@ -41,21 +41,16 @@ var subscriptionClosed = function (subscriptionState) {
 };
 
 var close = function (subscription, subscriptionState) {
-  if (!DESCRIPTORS) {
-    subscription.closed = true;
-    var subscriptionObserver = subscriptionState.subscriptionObserver;
-    if (subscriptionObserver) subscriptionObserver.closed = true;
-  } subscriptionState.observer = undefined;
+  subscriptionState.observer = undefined;
 };
 
 var Subscription = function (observer, subscriber) {
   var subscriptionState = setInternalState(this, {
     cleanup: undefined,
     observer: anObject(observer),
-    subscriptionObserver: undefined
+    subscriptionObserver: undefined,
   });
   var start;
-  if (!DESCRIPTORS) this.closed = false;
   try {
     if (start = getMethod(observer.start)) start.call(observer, this);
   } catch (error) {
@@ -82,19 +77,18 @@ Subscription.prototype = redefineAll({}, {
       close(this, subscriptionState);
       cleanupSubscription(subscriptionState);
     }
-  }
+  },
 });
 
-if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
+defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed(getInternalState(this));
-  }
+  },
 });
 
 var SubscriptionObserver = function (subscription) {
   setInternalState(this, { subscription: subscription });
-  if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
@@ -138,14 +132,14 @@ SubscriptionObserver.prototype = redefineAll({}, {
         hostReportErrors(error);
       } cleanupSubscription(subscriptionState);
     }
-  }
+  },
 });
 
-if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
+defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
     return subscriptionClosed(getInternalState(getInternalState(this).subscription));
-  }
+  },
 });
 
 var $Observable = function Observable(subscriber) {
@@ -159,9 +153,9 @@ redefineAll($Observable.prototype, {
     return new Subscription(typeof observer === 'function' ? {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
-      complete: length > 2 ? arguments[2] : undefined
+      complete: length > 2 ? arguments[2] : undefined,
     } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
-  }
+  },
 });
 
 redefineAll($Observable, {
@@ -195,13 +189,13 @@ redefineAll($Observable, {
         if (observer.closed) return;
       } observer.complete();
     });
-  }
+  },
 });
 
 createNonEnumerableProperty($Observable.prototype, OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
-  Observable: $Observable
+  Observable: $Observable,
 });
 
 setSpecies('Observable');

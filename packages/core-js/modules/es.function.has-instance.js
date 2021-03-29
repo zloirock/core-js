@@ -1,11 +1,12 @@
 'use strict';
 var isObject = require('../internals/is-object');
 var definePropertyModule = require('../internals/object-define-property');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var HAS_INSTANCE = wellKnownSymbol('hasInstance');
 var FunctionPrototype = Function.prototype;
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
+var getPrototypeOf = Object.getPrototypeOf;
 
 // `Function.prototype[@@hasInstance]` method
 // https://tc39.es/ecma262/#sec-function.prototype-@@hasinstance

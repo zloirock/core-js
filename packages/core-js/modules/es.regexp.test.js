@@ -1,6 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4` since it's moved to entry points
-require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
 var isObject = require('../internals/is-object');
 
@@ -28,5 +26,5 @@ $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
       throw new Error('RegExp exec method returned something other than an Object or null');
     }
     return !!result;
-  }
+  },
 });

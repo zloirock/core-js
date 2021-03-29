@@ -1,4 +1,4 @@
-import WeakMap from 'core-js-pure/features/weak-map';
+import WeakMap from 'core-js-pure/full/weak-map';
 
 QUnit.test('WeakMap#deleteAll', assert => {
   const { deleteAll } = WeakMap.prototype;

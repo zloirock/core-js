@@ -1,10 +1,12 @@
 'use strict';
 var fails = require('../internals/fails');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var has = require('../internals/has');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
+
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
+var getPrototypeOf = Object.getPrototypeOf;
 
 var ITERATOR = wellKnownSymbol('iterator');
 var BUGGY_SAFARI_ITERATORS = false;
@@ -41,5 +43,5 @@ if ((!IS_PURE || NEW_ITERATOR_PROTOTYPE) && !has(IteratorPrototype, ITERATOR)) {
 
 module.exports = {
   IteratorPrototype: IteratorPrototype,
-  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS
+  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS,
 };

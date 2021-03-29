@@ -1,10 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
 var isObject = require('../internals/is-object');
-var isArray = require('../internals/is-array');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var createProperty = require('../internals/create-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
@@ -12,6 +11,8 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
+// eslint-disable-next-line es/no-array-isarray -- safe
+var isArray = Array.isArray;
 var nativeSlice = [].slice;
 var max = Math.max;
 
@@ -20,7 +21,7 @@ var max = Math.max;
 // fallback for not array-like ES3 strings and DOM objects
 $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   slice: function slice(start, end) {
-    var O = toIndexedObject(this);
+    var O = toObject(this);
     var length = toLength(O.length);
     var k = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
@@ -43,5 +44,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     for (n = 0; k < fin; k++, n++) if (k in O) createProperty(result, n, O[k]);
     result.length = n;
     return result;
-  }
+  },
 });

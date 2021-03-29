@@ -7,8 +7,8 @@ const minVersion = require('semver/ranges/min-version');
 const getDependencies = promisify(require('david').getDependencies);
 
 const root = require('../package');
-const builder = require('core-js-builder/package');
-const compat = require('core-js-compat/package');
+const builder = require('@core-js/builder/package');
+const compat = require('@core-js/compat/package');
 
 async function checkDependencies(pkg, title) {
   const dependencies = await getDependencies(pkg);

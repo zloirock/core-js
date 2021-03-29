@@ -1,7 +1,7 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
+QUnit.test('%TypedArray%.from', assert => {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
   for (const name in TYPED_ARRAYS) {
     const TypedArray = GLOBAL[name];

@@ -6,5 +6,5 @@ var $find = require('../internals/async-iterator-iteration').find;
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   find: function find(fn) {
     return $find(this, fn);
-  }
+  },
 });

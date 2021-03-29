@@ -1,6 +1,5 @@
 'use strict';
 var global = require('../internals/global');
-var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
@@ -10,10 +9,7 @@ var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var IEEE754 = require('../internals/ieee754');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-var defineProperty = require('../internals/object-define-property').f;
 var arrayFill = require('../internals/array-fill');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
@@ -31,6 +27,12 @@ var $DataView = global[DATA_VIEW];
 var $DataViewPrototype = $DataView && $DataView[PROTOTYPE];
 var ObjectPrototype = Object.prototype;
 var RangeError = global.RangeError;
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
+var getPrototypeOf = Object.getPrototypeOf;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
+var getOwnPropertyNames = Object.getOwnPropertyNames;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 
 var packIEEE754 = IEEE754.pack;
 var unpackIEEE754 = IEEE754.unpack;
@@ -89,9 +91,8 @@ if (!NATIVE_ARRAY_BUFFER) {
     var byteLength = toIndex(length);
     setInternalState(this, {
       bytes: arrayFill.call(new Array(byteLength), 0),
-      byteLength: byteLength
+      byteLength: byteLength,
     });
-    if (!DESCRIPTORS) this.byteLength = byteLength;
   };
 
   $DataView = function DataView(buffer, byteOffset, byteLength) {
@@ -105,21 +106,14 @@ if (!NATIVE_ARRAY_BUFFER) {
     setInternalState(this, {
       buffer: buffer,
       byteLength: byteLength,
-      byteOffset: offset
+      byteOffset: offset,
     });
-    if (!DESCRIPTORS) {
-      this.buffer = buffer;
-      this.byteLength = byteLength;
-      this.byteOffset = offset;
-    }
   };
 
-  if (DESCRIPTORS) {
-    addGetter($ArrayBuffer, 'byteLength');
-    addGetter($DataView, 'buffer');
-    addGetter($DataView, 'byteLength');
-    addGetter($DataView, 'byteOffset');
-  }
+  addGetter($ArrayBuffer, 'byteLength');
+  addGetter($DataView, 'buffer');
+  addGetter($DataView, 'byteLength');
+  addGetter($DataView, 'byteOffset');
 
   redefineAll($DataView[PROTOTYPE], {
     getInt8: function getInt8(byteOffset) {
@@ -171,7 +165,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setFloat64: function setFloat64(byteOffset, value /* , littleEndian */) {
       set(this, 8, byteOffset, packFloat64, value, arguments.length > 2 ? arguments[2] : undefined);
-    }
+    },
   });
 } else {
   /* eslint-disable no-new -- required for testing */
@@ -215,7 +209,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setUint8: function setUint8(byteOffset, value) {
       $setInt8.call(this, byteOffset, value << 24 >> 24);
-    }
+    },
   }, { unsafe: true });
 }
 
@@ -224,5 +218,5 @@ setToStringTag($DataView, DATA_VIEW);
 
 module.exports = {
   ArrayBuffer: $ArrayBuffer,
-  DataView: $DataView
+  DataView: $DataView,
 };

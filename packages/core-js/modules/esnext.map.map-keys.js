@@ -15,12 +15,12 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   mapKeys: function mapKeys(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
-    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+    var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     var newMap = new (speciesConstructor(map, getBuiltIn('Map')))();
     var setter = aFunction(newMap.set);
     iterate(iterator, function (key, value) {
       setter.call(newMap, boundFunction(value, key, map), value);
     }, { AS_ENTRIES: true, IS_ITERATOR: true });
     return newMap;
-  }
+  },
 });

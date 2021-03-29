@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE } from '../helpers/constants';
 
 QUnit.test('ArrayBuffer', assert => {
   const Symbol = GLOBAL.Symbol || {};
@@ -15,5 +15,5 @@ QUnit.test('ArrayBuffer', assert => {
   assert.throws(() => new ArrayBuffer(-1), RangeError, 'negative length');
   assert.notThrows(() => new ArrayBuffer(0.5), 'fractional length');
   assert.notThrows(() => new ArrayBuffer(), 'missed length');
-  if (DESCRIPTORS) assert.same(ArrayBuffer[Symbol.species], ArrayBuffer, '@@species');
+  assert.same(ArrayBuffer[Symbol.species], ArrayBuffer, '@@species');
 });

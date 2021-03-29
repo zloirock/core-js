@@ -1,16 +1,15 @@
 'use strict';
-var defineProperty = require('../internals/object-define-property').f;
-var create = require('../internals/object-create');
 var redefineAll = require('../internals/redefine-all');
 var bind = require('../internals/function-bind-context');
 var anInstance = require('../internals/an-instance');
 var iterate = require('../internals/iterate');
 var defineIterator = require('../internals/define-iterator');
 var setSpecies = require('../internals/set-species');
-var DESCRIPTORS = require('../internals/descriptors');
 var fastKey = require('../internals/internal-metadata').fastKey;
 var InternalStateModule = require('../internals/internal-state');
 
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 
@@ -20,12 +19,11 @@ module.exports = {
       anInstance(that, C, CONSTRUCTOR_NAME);
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
-        index: create(null),
+        index: Object.create(null),
         first: undefined,
         last: undefined,
-        size: 0
+        size: 0,
       });
-      if (!DESCRIPTORS) that.size = 0;
       if (iterable != undefined) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 
@@ -46,12 +44,11 @@ module.exports = {
           value: value,
           previous: previous = state.last,
           next: undefined,
-          removed: false
+          removed: false,
         };
         if (!state.first) state.first = entry;
         if (previous) previous.next = entry;
-        if (DESCRIPTORS) state.size++;
-        else that.size++;
+        state.size++;
         // add to index
         if (index !== 'F') state.index[index] = entry;
       } return that;
@@ -84,12 +81,11 @@ module.exports = {
           entry = entry.next;
         }
         state.first = state.last = undefined;
-        if (DESCRIPTORS) state.size = 0;
-        else that.size = 0;
+        state.size = 0;
       },
       // 23.1.3.3 Map.prototype.delete(key)
       // 23.2.3.4 Set.prototype.delete(value)
-      'delete': function (key) {
+      delete: function (key) {
         var that = this;
         var state = getInternalState(that);
         var entry = getEntry(that, key);
@@ -102,15 +98,14 @@ module.exports = {
           if (next) next.previous = prev;
           if (state.first == entry) state.first = next;
           if (state.last == entry) state.last = prev;
-          if (DESCRIPTORS) state.size--;
-          else that.size--;
+          state.size--;
         } return !!entry;
       },
       // 23.2.3.6 Set.prototype.forEach(callbackfn, thisArg = undefined)
       // 23.1.3.5 Map.prototype.forEach(callbackfn, thisArg = undefined)
       forEach: function forEach(callbackfn /* , that = undefined */) {
         var state = getInternalState(this);
-        var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined, 3);
+        var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
         var entry;
         while (entry = entry ? entry.next : state.first) {
           boundFunction(entry.value, entry.key, this);
@@ -122,7 +117,7 @@ module.exports = {
       // 23.2.3.7 Set.prototype.has(value)
       has: function has(key) {
         return !!getEntry(this, key);
-      }
+      },
     });
 
     redefineAll(C.prototype, IS_MAP ? {
@@ -134,17 +129,17 @@ module.exports = {
       // 23.1.3.9 Map.prototype.set(key, value)
       set: function set(key, value) {
         return define(this, key === 0 ? 0 : key, value);
-      }
+      },
     } : {
       // 23.2.3.1 Set.prototype.add(value)
       add: function add(value) {
         return define(this, value = value === 0 ? 0 : value, value);
-      }
+      },
     });
-    if (DESCRIPTORS) defineProperty(C.prototype, 'size', {
+    defineProperty(C.prototype, 'size', {
       get: function () {
         return getInternalState(this).size;
-      }
+      },
     });
     return C;
   },
@@ -160,7 +155,7 @@ module.exports = {
         target: iterated,
         state: getInternalCollectionState(iterated),
         kind: kind,
-        last: undefined
+        last: undefined,
       });
     }, function () {
       var state = getInternalIteratorState(this);
@@ -182,5 +177,5 @@ module.exports = {
 
     // add [@@species], 23.1.2.2, 23.2.2.2
     setSpecies(CONSTRUCTOR_NAME);
-  }
+  },
 };

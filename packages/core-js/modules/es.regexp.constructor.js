@@ -1,9 +1,6 @@
-var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
-var defineProperty = require('../internals/object-define-property').f;
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
 var getFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
@@ -16,6 +13,10 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
+// eslint-disable-next-line es/no-object-getownpropertynames -- safe
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 var re1 = /a/g;
 var re2 = /a/g;
 
@@ -24,7 +25,7 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
-var FORCED = DESCRIPTORS && isForced('RegExp', (!CORRECT_NEW || UNSUPPORTED_Y || fails(function () {
+var FORCED = isForced('RegExp', (!CORRECT_NEW || UNSUPPORTED_Y || fails(function () {
   re2[MATCH] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
@@ -69,7 +70,7 @@ if (FORCED) {
     key in RegExpWrapper || defineProperty(RegExpWrapper, key, {
       configurable: true,
       get: function () { return NativeRegExp[key]; },
-      set: function (it) { NativeRegExp[key] = it; }
+      set: function (it) { NativeRegExp[key] = it; },
     });
   };
   var keys = getOwnPropertyNames(NativeRegExp);

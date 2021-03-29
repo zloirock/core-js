@@ -8,11 +8,10 @@ var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isObject = require('../internals/is-object');
 var setToStringTag = require('../internals/set-to-string-tag');
-var defineProperty = require('../internals/object-define-property').f;
-var forEach = require('../internals/array-iteration').forEach;
-var DESCRIPTORS = require('../internals/descriptors');
 var InternalStateModule = require('../internals/internal-state');
 
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 
@@ -25,7 +24,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var exported = {};
   var Constructor;
 
-  if (!DESCRIPTORS || typeof NativeConstructor != 'function'
+  if (typeof NativeConstructor != 'function'
     || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
   ) {
     // create collection constructor
@@ -35,14 +34,15 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     Constructor = wrapper(function (target, iterable) {
       setInternalState(anInstance(target, Constructor, CONSTRUCTOR_NAME), {
         type: CONSTRUCTOR_NAME,
-        collection: new NativeConstructor()
+        collection: new NativeConstructor(),
       });
       if (iterable != undefined) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
     });
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
-    forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
+    // eslint-disable-next-line es/no-array-prototype-foreach -- safe
+    ['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'].forEach(function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) {
         createNonEnumerableProperty(Constructor.prototype, KEY, function (a, b) {
@@ -58,7 +58,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
       configurable: true,
       get: function () {
         return getInternalState(this).collection.size;
-      }
+      },
     });
   }
 

@@ -6,7 +6,7 @@ const modules = require('./modules');
 module.exports = function (raw) {
   const corejs = semver(raw);
   if (corejs.major !== 3) {
-    throw RangeError('This version of `core-js-compat` works only with `core-js@3`.');
+    throw RangeError('This version of `@core-js/compat` works only with `core-js@3`.');
   }
   const result = [];
   for (const version of Object.keys(modulesByVersions)) {

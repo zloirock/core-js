@@ -1,5 +1,4 @@
 var bind = require('../internals/function-bind-context');
-var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var arraySpeciesCreate = require('../internals/array-species-create');
@@ -17,15 +16,14 @@ var createMethod = function (TYPE) {
   var NO_HOLES = TYPE == 5 || IS_FIND_INDEX;
   return function ($this, callbackfn, that, specificCreate) {
     var O = toObject($this);
-    var self = IndexedObject(O);
-    var boundFunction = bind(callbackfn, that, 3);
-    var length = toLength(self.length);
+    var boundFunction = bind(callbackfn, that);
+    var length = toLength(O.length);
     var index = 0;
     var create = specificCreate || arraySpeciesCreate;
     var target = IS_MAP ? create($this, length) : IS_FILTER || IS_FILTER_OUT ? create($this, 0) : undefined;
     var value, result;
-    for (;length > index; index++) if (NO_HOLES || index in self) {
-      value = self[index];
+    for (;length > index; index++) if (NO_HOLES || index in O) {
+      value = O[index];
       result = boundFunction(value, index, O);
       if (TYPE) {
         if (IS_MAP) target[index] = result; // map
@@ -68,5 +66,5 @@ module.exports = {
   findIndex: createMethod(6),
   // `Array.prototype.filterOut` method
   // https://github.com/tc39/proposal-array-filtering
-  filterOut: createMethod(7)
+  filterOut: createMethod(7),
 };

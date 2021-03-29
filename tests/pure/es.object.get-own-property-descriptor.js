@@ -1,6 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
-import getOwnPropertyDescriptor from 'core-js-pure/features/object/get-own-property-descriptor';
+import getOwnPropertyDescriptor from 'core-js-pure/full/object/get-own-property-descriptor';
 
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.isFunction(getOwnPropertyDescriptor);
@@ -18,8 +16,4 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   }
   assert.throws(() => getOwnPropertyDescriptor(null), TypeError, 'throws on null');
   assert.throws(() => getOwnPropertyDescriptor(undefined), TypeError, 'throws on undefined');
-});
-
-QUnit.test('Object.getOwnPropertyDescriptor.sham flag', assert => {
-  assert.same(getOwnPropertyDescriptor.sham, DESCRIPTORS ? undefined : true);
 });

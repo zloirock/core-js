@@ -13,7 +13,7 @@ defineIterator(String, 'String', function (iterated) {
   setInternalState(this, {
     type: STRING_ITERATOR,
     string: String(iterated),
-    index: 0
+    index: 0,
   });
 // `%StringIteratorPrototype%.next` method
 // https://tc39.es/ecma262/#sec-%stringiteratorprototype%.next

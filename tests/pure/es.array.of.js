@@ -1,7 +1,5 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
-import of from 'core-js-pure/features/array/of';
-import defineProperty from 'core-js-pure/features/object/define-property';
+import of from 'core-js-pure/full/array/of';
+import defineProperty from 'core-js-pure/full/object/define-property';
 
 QUnit.test('Array.of', assert => {
   assert.isFunction(of);
@@ -14,14 +12,12 @@ QUnit.test('Array.of', assert => {
   assert.strictEqual(instance[0], 1);
   assert.strictEqual(instance[1], 2);
   assert.strictEqual(instance.length, 2);
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    of.call(C, 1, 2, 3);
-    assert.ok(!called, 'Should not call prototype accessors');
-  }
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  of.call(C, 1, 2, 3);
+  assert.ok(!called, 'Should not call prototype accessors');
 });

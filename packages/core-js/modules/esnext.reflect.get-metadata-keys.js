@@ -1,17 +1,20 @@
 var $ = require('../internals/export');
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-var Set = require('../modules/es.set');
+var getBuiltIn = require('../internals/get-built-in');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
-var iterate = require('../internals/iterate');
 
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
+var getPrototypeOf = Object.getPrototypeOf;
+
+var Set = getBuiltIn('Set');
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
 var toMetadataKey = ReflectMetadataModule.toKey;
 
-var from = function (iter) {
+var from = function (set) {
   var result = [];
-  iterate(iter, result.push, { that: result });
+  set.forEach(function (it) {
+    result.push(it);
+  });
   return result;
 };
 
@@ -29,5 +32,5 @@ $({ target: 'Reflect', stat: true }, {
   getMetadataKeys: function getMetadataKeys(target /* , targetKey */) {
     var targetKey = arguments.length < 2 ? undefined : toMetadataKey(arguments[1]);
     return ordinaryMetadataKeys(anObject(target), targetKey);
-  }
+  },
 });

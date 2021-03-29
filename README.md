@@ -44,10 +44,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *You can load only required features*:
 ```js
-import 'core-js/features/array/from'; // <- at the top of your entry point
-import 'core-js/features/array/flat'; // <- at the top of your entry point
-import 'core-js/features/set';        // <- at the top of your entry point
-import 'core-js/features/promise';    // <- at the top of your entry point
+import 'core-js/actual/array/from'; // <- at the top of your entry point
+import 'core-js/actual/array/flat'; // <- at the top of your entry point
+import 'core-js/actual/set';        // <- at the top of your entry point
+import 'core-js/actual/promise';    // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 [1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
@@ -56,10 +56,10 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 
 *Or use it without global namespace pollution*:
 ```js
-import from from 'core-js-pure/features/array/from';
-import flat from 'core-js-pure/features/array/flat';
-import Set from 'core-js-pure/features/set';
-import Promise from 'core-js-pure/features/promise';
+import from from 'core-js-pure/actual/array/from';
+import flat from 'core-js-pure/actual/array/flat';
+import Set from 'core-js-pure/actual/set';
+import Promise from 'core-js-pure/actual/promise';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
 flat([1, [2, 3], [4, [5]]], 2);                // => [1, 2, 3, 4, 5]
@@ -125,7 +125,7 @@ npm install --save core-js-pure@3.9.1
 npm install --save core-js-bundle@3.9.1
 ```
 
-Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.9.1) ([minified version](https://unpkg.com/core-js-bundle@3.9.1/minified.js)).
+Already bundled versions of `core-js` on CDN: [actual](https://unpkg.com/core-js-bundle@3.9.1/actual.js), [full](https://unpkg.com/core-js-bundle@3.9.1/full.js).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
@@ -143,26 +143,32 @@ You can import only-required-for-you polyfills, like in examples at the top of `
 ```js
 // polyfill all `core-js` features:
 import "core-js";
-// polyfill only stable `core-js` features - ES and web standards:
+// polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
+import "core-js/actual";
+// polyfill only stable features - ES and web standards:
 import "core-js/stable";
 // polyfill only stable ES features:
 import "core-js/es";
 
 // if you want to polyfill `Set`:
 // all `Set`-related features, with ES proposals:
-import "core-js/features/set";
+import "core-js/full/set";
+// stable required for `Set` ES features, features from web standards and stage 3 ES proposals:
+import "core-js/actual/set";
 // stable required for `Set` ES features and features from web standards
 // (DOM collections iterator in this case):
 import "core-js/stable/set";
 // only stable ES features required for `Set`:
 import "core-js/es/set";
 // the same without global namespace pollution:
-import Set from "core-js-pure/features/set";
+import Set from "core-js-pure/full/set";
+import Set from "core-js-pure/actual/set";
 import Set from "core-js-pure/stable/set";
 import Set from "core-js-pure/es/set";
 
 // if you want to polyfill just required methods:
-import "core-js/features/set/intersection";
+import "core-js/full/set/intersection";
+import "core-js/actual/array/at";
 import "core-js/stable/queue-microtask";
 import "core-js/es/array/from";
 
@@ -183,14 +189,8 @@ import "core-js/stage/2";
 #### CommonJS and prototype methods without global namespace pollution[⬆](#index)
 In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```js
-import fill from 'core-js-pure/features/array/virtual/fill';
-import findIndex from 'core-js-pure/features/array/virtual/find-index';
-
-Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
-
-// or
-
-import { fill, findIndex } from 'core-js-pure/features/array/virtual';
+import fill from 'core-js-pure/full/array/virtual/fill';
+import findIndex from 'core-js-pure/full/array/virtual/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
@@ -226,13 +226,14 @@ with `chrome 71` target will be replaced just to:
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.object.from-entries";
-import "core-js/modules/web.immediate";
+import "core-js/modules/web.clear-immediate";
+import "core-js/modules/web.set-immediate";
 ```
 It works for all entry points of global version of `core-js` and their combinations, for example for
 ```js
 import 'core-js/es';
 import 'core-js/proposals/set-methods';
-import 'core-js/features/set/map';
+import 'core-js/full/set/map';
 ```
 with `chrome 71` target you will have as a result:
 ```js
@@ -322,23 +323,22 @@ It does not work with some features. Also, if you change the default behaviour, 
 
 ### Custom build[⬆](#index)
 
-For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`@core-js/builder`](/packages/core-js-builder) package for that.
 
 ### Compatibility data[⬆](#index)
 
-[`core-js-compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
+[`@core-js/compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
 
 ## Supported engines[⬆](#index)
 **Tested in:**
 - Chrome 26+
 - Firefox 4+
-- Safari 5+
+- Safari 5.1+
 - Opera 12+
-- Internet Explorer 8+ (sure, IE8 with ES3 limitations; IE7- also should work, but no longer tested)
+- Internet Explorer 9+
 - Edge
-- Android Browser 2.3+
 - iOS Safari 5.1+
-- PhantomJS 1.9+
+- PhantomJS 2.1
 - NodeJS 0.8+
 
 ...and it doesn't mean `core-js` will not work in other engines, they just have not been tested.
@@ -357,8 +357,6 @@ core-js(-pure)/es
 #### ECMAScript: Object[⬆](#index)
 Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.entries.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.get-own-property-names.js) and [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.from-entries.js).
 
-Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.es.object.define-properties.js).
-
 [ES2017 Annex B](https://tc39.es/ecma262/#sec-object.prototype.__defineGetter__) - modules [`es.object.define-setter`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.define-setter.js), [`es.object.define-getter`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.define-getter.js), [`es.object.lookup-setter`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.lookup-setter.js) and [`es.object.lookup-getter`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.object.lookup-getter.js)
 ```js
 class Object {
@@ -368,9 +366,6 @@ class Object {
   __lookupGetter__(property: PropertyKey): Function | void;
   __lookupSetter__(property: PropertyKey): Function | void;
   static assign(target: Object, ...sources: Array<Object>): Object;
-  static create(prototype: Object | null, properties?: { [property: PropertyKey]: PropertyDescriptor }): Object;
-  static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;
-  static defineProperty(object: Object, property: PropertyKey, attributes: PropertyDescriptor): Object;
   static entries(object: Object): Array<[string, mixed]>;
   static freeze(object: any): any;
   static fromEntries(iterable: Iterable<[key, value]>): Object;
@@ -391,32 +386,32 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/object
-core-js(-pure)/es|stable|features/object/assign
-core-js(-pure)/es|stable|features/object/is
-core-js(-pure)/es|stable|features/object/set-prototype-of
-core-js(-pure)/es|stable|features/object/get-prototype-of
-core-js(-pure)/es|stable|features/object/create
-core-js(-pure)/es|stable|features/object/define-property
-core-js(-pure)/es|stable|features/object/define-properties
-core-js(-pure)/es|stable|features/object/get-own-property-descriptor
-core-js(-pure)/es|stable|features/object/get-own-property-descriptors
-core-js(-pure)/es|stable|features/object/keys
-core-js(-pure)/es|stable|features/object/values
-core-js(-pure)/es|stable|features/object/entries
-core-js(-pure)/es|stable|features/object/get-own-property-names
-core-js(-pure)/es|stable|features/object/freeze
-core-js(-pure)/es|stable|features/object/from-entries
-core-js(-pure)/es|stable|features/object/seal
-core-js(-pure)/es|stable|features/object/prevent-extensions
-core-js(-pure)/es|stable|features/object/is-frozen
-core-js(-pure)/es|stable|features/object/is-sealed
-core-js(-pure)/es|stable|features/object/is-extensible
-core-js/es|stable|features/object/to-string
-core-js(-pure)/es|stable|features/object/define-getter
-core-js(-pure)/es|stable|features/object/define-setter
-core-js(-pure)/es|stable|features/object/lookup-getter
-core-js(-pure)/es|stable|features/object/lookup-setter
+core-js(-pure)/es|stable|actual|full/object
+core-js(-pure)/es|stable|actual|full/object/assign
+core-js(-pure)/es|stable|actual|full/object/is
+core-js(-pure)/es|stable|actual|full/object/set-prototype-of
+core-js(-pure)/es|stable|actual|full/object/get-prototype-of
+core-js(-pure)/es|stable|actual|full/object/create
+core-js(-pure)/es|stable|actual|full/object/define-property
+core-js(-pure)/es|stable|actual|full/object/define-properties
+core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptor
+core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptors
+core-js(-pure)/es|stable|actual|full/object/keys
+core-js(-pure)/es|stable|actual|full/object/values
+core-js(-pure)/es|stable|actual|full/object/entries
+core-js(-pure)/es|stable|actual|full/object/get-own-property-names
+core-js(-pure)/es|stable|actual|full/object/freeze
+core-js(-pure)/es|stable|actual|full/object/from-entries
+core-js(-pure)/es|stable|actual|full/object/seal
+core-js(-pure)/es|stable|actual|full/object/prevent-extensions
+core-js(-pure)/es|stable|actual|full/object/is-frozen
+core-js(-pure)/es|stable|actual|full/object/is-sealed
+core-js(-pure)/es|stable|actual|full/object/is-extensible
+core-js/es|stable|actual|full/object/to-string
+core-js(-pure)/es|stable|actual|full/object/define-getter
+core-js(-pure)/es|stable|actual|full/object/define-setter
+core-js(-pure)/es|stable|actual|full/object/lookup-getter
+core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
 [*Examples*](https://goo.gl/sqY5mD):
 ```js
@@ -475,27 +470,22 @@ const units = new Set([new Unit(101), new Unit(102)]);
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
 ```
 #### ECMAScript: Function[⬆](#index)
-Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.bind.js).
+Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.name.js) and [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.function.has-instance.js).
 ```js
 class Function {
   name: string;
-  bind(thisArg: any, ...args: Array<mixed>): Function;
   @@hasInstance(value: any): boolean;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/function
-core-js/es|stable|features/function/name
-core-js/es|stable|features/function/has-instance
-core-js/es|stable|features/function/bind
-core-js/es|stable|features/function/virtual/bind
+core-js/es|stable|actual|full/function
+core-js/es|stable|actual|full/function/name
+core-js/es|stable|actual|full/function/has-instance
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
 (function foo() {}).name // => 'foo'
-
-console.log.bind(console, 42)(43); // => 42 43
 ```
 
 #### ECMAScript: Array[⬆](#index)
@@ -530,7 +520,6 @@ class Array {
   @@iterator(): Iterator<value>;
   @@unscopables: { [newMethodNames: string]: true };
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
-  static isArray(value: any): boolean;
   static of(...args: Array<mixed>): Array<mixed>;
 }
 
@@ -540,62 +529,62 @@ class Arguments {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/array
-core-js(-pure)/es|stable|features/array/from
-core-js(-pure)/es|stable|features/array/of
-core-js(-pure)/es|stable|features/array/is-array
-core-js(-pure)/es|stable|features/array/concat
-core-js(-pure)/es|stable|features/array/entries
-core-js(-pure)/es|stable|features/array/every
-core-js(-pure)/es|stable|features/array/copy-within
-core-js(-pure)/es|stable|features/array/fill
-core-js(-pure)/es|stable|features/array/filter
-core-js(-pure)/es|stable|features/array/find
-core-js(-pure)/es|stable|features/array/find-index
-core-js(-pure)/es|stable|features/array/flat
-core-js(-pure)/es|stable|features/array/flat-map
-core-js(-pure)/es|stable|features/array/for-each
-core-js(-pure)/es|stable|features/array/includes
-core-js(-pure)/es|stable|features/array/index-of
-core-js(-pure)/es|stable|features/array/iterator
-core-js(-pure)/es|stable|features/array/join
-core-js(-pure)/es|stable|features/array/keys
-core-js(-pure)/es|stable|features/array/last-index-of
-core-js(-pure)/es|stable|features/array/map
-core-js(-pure)/es|stable|features/array/reduce
-core-js(-pure)/es|stable|features/array/reduce-right
-core-js(-pure)/es|stable|features/array/reverse
-core-js(-pure)/es|stable|features/array/slice
-core-js(-pure)/es|stable|features/array/splice
-core-js(-pure)/es|stable|features/array/some
-core-js(-pure)/es|stable|features/array/sort
-core-js(-pure)/es|stable|features/array/values
-core-js(-pure)/es|stable|features/array/virtual/concat
-core-js(-pure)/es|stable|features/array/virtual/copy-within
-core-js(-pure)/es|stable|features/array/virtual/entries
-core-js(-pure)/es|stable|features/array/virtual/every
-core-js(-pure)/es|stable|features/array/virtual/fill
-core-js(-pure)/es|stable|features/array/virtual/filter
-core-js(-pure)/es|stable|features/array/virtual/find
-core-js(-pure)/es|stable|features/array/virtual/find-index
-core-js(-pure)/es|stable|features/array/virtual/flat
-core-js(-pure)/es|stable|features/array/virtual/flat-map
-core-js(-pure)/es|stable|features/array/virtual/for-each
-core-js(-pure)/es|stable|features/array/virtual/includes
-core-js(-pure)/es|stable|features/array/virtual/index-of
-core-js(-pure)/es|stable|features/array/virtual/iterator
-core-js(-pure)/es|stable|features/array/virtual/join
-core-js(-pure)/es|stable|features/array/virtual/keys
-core-js(-pure)/es|stable|features/array/virtual/last-index-of
-core-js(-pure)/es|stable|features/array/virtual/map
-core-js(-pure)/es|stable|features/array/virtual/reduce
-core-js(-pure)/es|stable|features/array/virtual/reduce-right
-core-js(-pure)/es|stable|features/array/virtual/reverse
-core-js(-pure)/es|stable|features/array/virtual/slice
-core-js(-pure)/es|stable|features/array/virtual/some
-core-js(-pure)/es|stable|features/array/virtual/sort
-core-js(-pure)/es|stable|features/array/virtual/splice
-core-js(-pure)/es|stable|features/array/virtual/values
+core-js(-pure)/es|stable|actual|full/array
+core-js(-pure)/es|stable|actual|full/array/from
+core-js(-pure)/es|stable|actual|full/array/of
+core-js(-pure)/es|stable|actual|full/array/is-array
+core-js(-pure)/es|stable|actual|full/array/concat
+core-js(-pure)/es|stable|actual|full/array/entries
+core-js(-pure)/es|stable|actual|full/array/every
+core-js(-pure)/es|stable|actual|full/array/copy-within
+core-js(-pure)/es|stable|actual|full/array/fill
+core-js(-pure)/es|stable|actual|full/array/filter
+core-js(-pure)/es|stable|actual|full/array/find
+core-js(-pure)/es|stable|actual|full/array/find-index
+core-js(-pure)/es|stable|actual|full/array/flat
+core-js(-pure)/es|stable|actual|full/array/flat-map
+core-js(-pure)/es|stable|actual|full/array/for-each
+core-js(-pure)/es|stable|actual|full/array/includes
+core-js(-pure)/es|stable|actual|full/array/index-of
+core-js(-pure)/es|stable|actual|full/array/iterator
+core-js(-pure)/es|stable|actual|full/array/join
+core-js(-pure)/es|stable|actual|full/array/keys
+core-js(-pure)/es|stable|actual|full/array/last-index-of
+core-js(-pure)/es|stable|actual|full/array/map
+core-js(-pure)/es|stable|actual|full/array/reduce
+core-js(-pure)/es|stable|actual|full/array/reduce-right
+core-js(-pure)/es|stable|actual|full/array/reverse
+core-js(-pure)/es|stable|actual|full/array/slice
+core-js(-pure)/es|stable|actual|full/array/splice
+core-js(-pure)/es|stable|actual|full/array/some
+core-js(-pure)/es|stable|actual|full/array/sort
+core-js(-pure)/es|stable|actual|full/array/values
+core-js(-pure)/es|stable|actual|full/array/virtual/concat
+core-js(-pure)/es|stable|actual|full/array/virtual/copy-within
+core-js(-pure)/es|stable|actual|full/array/virtual/entries
+core-js(-pure)/es|stable|actual|full/array/virtual/every
+core-js(-pure)/es|stable|actual|full/array/virtual/fill
+core-js(-pure)/es|stable|actual|full/array/virtual/filter
+core-js(-pure)/es|stable|actual|full/array/virtual/find
+core-js(-pure)/es|stable|actual|full/array/virtual/find-index
+core-js(-pure)/es|stable|actual|full/array/virtual/flat
+core-js(-pure)/es|stable|actual|full/array/virtual/flat-map
+core-js(-pure)/es|stable|actual|full/array/virtual/for-each
+core-js(-pure)/es|stable|actual|full/array/virtual/includes
+core-js(-pure)/es|stable|actual|full/array/virtual/index-of
+core-js(-pure)/es|stable|actual|full/array/virtual/iterator
+core-js(-pure)/es|stable|actual|full/array/virtual/join
+core-js(-pure)/es|stable|actual|full/array/virtual/keys
+core-js(-pure)/es|stable|actual|full/array/virtual/last-index-of
+core-js(-pure)/es|stable|actual|full/array/virtual/map
+core-js(-pure)/es|stable|actual|full/array/virtual/reduce
+core-js(-pure)/es|stable|actual|full/array/virtual/reduce-right
+core-js(-pure)/es|stable|actual|full/array/virtual/reverse
+core-js(-pure)/es|stable|actual|full/array/virtual/slice
+core-js(-pure)/es|stable|actual|full/array/virtual/some
+core-js(-pure)/es|stable|actual|full/array/virtual/sort
+core-js(-pure)/es|stable|actual|full/array/virtual/splice
+core-js(-pure)/es|stable|actual|full/array/virtual/values
 ```
 [*Examples*](https://goo.gl/Tegvq4):
 ```js
@@ -647,7 +636,7 @@ Array(1).includes(undefined); // => true
 ```
 
 #### ECMAScript: String and RegExp[⬆](#index)
-The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.replace-all.js).
+The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-end.js), [`es.string.trim-left`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-left.js), [`es.string.trim-right`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-right.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.trim-start.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.replace-all.js).
 
 Adding support of well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.string.split.js).
 
@@ -708,75 +697,75 @@ class RegExp {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/string
-core-js(-pure)/es|stable|features/string/from-code-point
-core-js(-pure)/es|stable|features/string/raw
-core-js(-pure)/es|stable|features/string/code-point-at
-core-js(-pure)/es|stable|features/string/ends-with
-core-js(-pure)/es|stable|features/string/includes
-core-js(-pure)/es|stable|features/string/starts-with
-core-js/es|stable|features/string/match
-core-js(-pure)/es|stable|features/string/match-all
-core-js(-pure)/es|stable|features/string/pad-start
-core-js(-pure)/es|stable|features/string/pad-end
-core-js(-pure)/es|stable|features/string/repeat
-core-js/es|stable|features/string/replace
-core-js(-pure)/es|stable|features/string/replace-all
-core-js/es|stable|features/string/search
-core-js/es|stable|features/string/split
-core-js(-pure)/es|stable|features/string/trim
-core-js(-pure)/es|stable|features/string/trim-start
-core-js(-pure)/es|stable|features/string/trim-end
-core-js(-pure)/es|stable|features/string/trim-left
-core-js(-pure)/es|stable|features/string/trim-right
-core-js(-pure)/es|stable|features/string/anchor
-core-js(-pure)/es|stable|features/string/big
-core-js(-pure)/es|stable|features/string/blink
-core-js(-pure)/es|stable|features/string/bold
-core-js(-pure)/es|stable|features/string/fixed
-core-js(-pure)/es|stable|features/string/fontcolor
-core-js(-pure)/es|stable|features/string/fontsize
-core-js(-pure)/es|stable|features/string/italics
-core-js(-pure)/es|stable|features/string/link
-core-js(-pure)/es|stable|features/string/small
-core-js(-pure)/es|stable|features/string/strike
-core-js(-pure)/es|stable|features/string/sub
-core-js(-pure)/es|stable|features/string/sup
-core-js(-pure)/es|stable|features/string/iterator
-core-js(-pure)/es|stable|features/string/virtual/includes
-core-js(-pure)/es|stable|features/string/virtual/starts-with
-core-js(-pure)/es|stable|features/string/virtual/ends-with
-core-js(-pure)/es|stable|features/string/virtual/match-all
-core-js(-pure)/es|stable|features/string/virtual/repeat
-core-js(-pure)/es|stable|features/string/virtual/replace-all
-core-js(-pure)/es|stable|features/string/virtual/pad-start
-core-js(-pure)/es|stable|features/string/virtual/pad-end
-core-js(-pure)/es|stable|features/string/virtual/code-point-at
-core-js(-pure)/es|stable|features/string/virtual/trim
-core-js(-pure)/es|stable|features/string/virtual/trim-start
-core-js(-pure)/es|stable|features/string/virtual/trim-end
-core-js(-pure)/es|stable|features/string/virtual/trim-left
-core-js(-pure)/es|stable|features/string/virtual/trim-right
-core-js(-pure)/es|stable|features/string/virtual/anchor
-core-js(-pure)/es|stable|features/string/virtual/big
-core-js(-pure)/es|stable|features/string/virtual/blink
-core-js(-pure)/es|stable|features/string/virtual/bold
-core-js(-pure)/es|stable|features/string/virtual/fixed
-core-js(-pure)/es|stable|features/string/virtual/fontcolor
-core-js(-pure)/es|stable|features/string/virtual/fontsize
-core-js(-pure)/es|stable|features/string/virtual/italics
-core-js(-pure)/es|stable|features/string/virtual/link
-core-js(-pure)/es|stable|features/string/virtual/small
-core-js(-pure)/es|stable|features/string/virtual/strike
-core-js(-pure)/es|stable|features/string/virtual/sub
-core-js(-pure)/es|stable|features/string/virtual/sup
-core-js(-pure)/es|stable|features/string/virtual/iterator
-core-js/es|stable|features/regexp
-core-js/es|stable|features/regexp/constructor
-core-js(-pure)/es|stable|features/regexp/flags
-core-js/es|stable|features/regexp/sticky
-core-js/es|stable|features/regexp/test
-core-js/es|stable|features/regexp/to-string
+core-js(-pure)/es|stable|actual|full/string
+core-js(-pure)/es|stable|actual|full/string/from-code-point
+core-js(-pure)/es|stable|actual|full/string/raw
+core-js(-pure)/es|stable|actual|full/string/code-point-at
+core-js(-pure)/es|stable|actual|full/string/ends-with
+core-js(-pure)/es|stable|actual|full/string/includes
+core-js(-pure)/es|stable|actual|full/string/starts-with
+core-js/es|stable|actual|full/string/match
+core-js(-pure)/es|stable|actual|full/string/match-all
+core-js(-pure)/es|stable|actual|full/string/pad-start
+core-js(-pure)/es|stable|actual|full/string/pad-end
+core-js(-pure)/es|stable|actual|full/string/repeat
+core-js/es|stable|actual|full/string/replace
+core-js(-pure)/es|stable|actual|full/string/replace-all
+core-js/es|stable|actual|full/string/search
+core-js/es|stable|actual|full/string/split
+core-js(-pure)/es|stable|actual|full/string/trim
+core-js(-pure)/es|stable|actual|full/string/trim-start
+core-js(-pure)/es|stable|actual|full/string/trim-end
+core-js(-pure)/es|stable|actual|full/string/trim-left
+core-js(-pure)/es|stable|actual|full/string/trim-right
+core-js(-pure)/es|stable|actual|full/string/anchor
+core-js(-pure)/es|stable|actual|full/string/big
+core-js(-pure)/es|stable|actual|full/string/blink
+core-js(-pure)/es|stable|actual|full/string/bold
+core-js(-pure)/es|stable|actual|full/string/fixed
+core-js(-pure)/es|stable|actual|full/string/fontcolor
+core-js(-pure)/es|stable|actual|full/string/fontsize
+core-js(-pure)/es|stable|actual|full/string/italics
+core-js(-pure)/es|stable|actual|full/string/link
+core-js(-pure)/es|stable|actual|full/string/small
+core-js(-pure)/es|stable|actual|full/string/strike
+core-js(-pure)/es|stable|actual|full/string/sub
+core-js(-pure)/es|stable|actual|full/string/sup
+core-js(-pure)/es|stable|actual|full/string/iterator
+core-js(-pure)/es|stable|actual|full/string/virtual/includes
+core-js(-pure)/es|stable|actual|full/string/virtual/starts-with
+core-js(-pure)/es|stable|actual|full/string/virtual/ends-with
+core-js(-pure)/es|stable|actual|full/string/virtual/match-all
+core-js(-pure)/es|stable|actual|full/string/virtual/repeat
+core-js(-pure)/es|stable|actual|full/string/virtual/replace-all
+core-js(-pure)/es|stable|actual|full/string/virtual/pad-start
+core-js(-pure)/es|stable|actual|full/string/virtual/pad-end
+core-js(-pure)/es|stable|actual|full/string/virtual/code-point-at
+core-js(-pure)/es|stable|actual|full/string/virtual/trim
+core-js(-pure)/es|stable|actual|full/string/virtual/trim-start
+core-js(-pure)/es|stable|actual|full/string/virtual/trim-end
+core-js(-pure)/es|stable|actual|full/string/virtual/trim-left
+core-js(-pure)/es|stable|actual|full/string/virtual/trim-right
+core-js(-pure)/es|stable|actual|full/string/virtual/anchor
+core-js(-pure)/es|stable|actual|full/string/virtual/big
+core-js(-pure)/es|stable|actual|full/string/virtual/blink
+core-js(-pure)/es|stable|actual|full/string/virtual/bold
+core-js(-pure)/es|stable|actual|full/string/virtual/fixed
+core-js(-pure)/es|stable|actual|full/string/virtual/fontcolor
+core-js(-pure)/es|stable|actual|full/string/virtual/fontsize
+core-js(-pure)/es|stable|actual|full/string/virtual/italics
+core-js(-pure)/es|stable|actual|full/string/virtual/link
+core-js(-pure)/es|stable|actual|full/string/virtual/small
+core-js(-pure)/es|stable|actual|full/string/virtual/strike
+core-js(-pure)/es|stable|actual|full/string/virtual/sub
+core-js(-pure)/es|stable|actual|full/string/virtual/sup
+core-js(-pure)/es|stable|actual|full/string/virtual/iterator
+core-js/es|stable|actual|full/regexp
+core-js/es|stable|actual|full/regexp/constructor
+core-js(-pure)/es|stable|actual|full/regexp/flags
+core-js/es|stable|actual|full/regexp/sticky
+core-js/es|stable|actual|full/regexp/test
+core-js/es|stable|actual|full/regexp/to-string
 ```
 [*Examples*](http://es6.zloirock.ru/#for(var%20val%20of%20'a%F0%A0%AE%B7b')%7B%0A%20%20log(val)%3B%20%2F%2F%20%3D%3E%20'a'%2C%20'%F0%A0%AE%B7'%2C%20'b'%0A%7D%0A%0Alog('foobarbaz'.includes('bar'))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.includes('bar'%2C%204))%3B%20%20%20%2F%2F%20%3D%3E%20false%0Alog('foobarbaz'.startsWith('foo'))%3B%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.startsWith('bar'%2C%203))%3B%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.endsWith('baz'))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.endsWith('bar'%2C%206))%3B%20%20%20%2F%2F%20%3D%3E%20true%0A%0Alog('string'.repeat(3))%3B%20%2F%2F%20%3D%3E%20'stringstringstring'%0A%0Alog('hello'.padStart(10))%3B%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%20%20%20%20%20hello'%0Alog('hello'.padStart(10%2C%20'1234'))%3B%20%2F%2F%20%3D%3E%20'12341hello'%0Alog('hello'.padEnd(10))%3B%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'hello%20%20%20%20%20'%0Alog('hello'.padEnd(10%2C%20'1234'))%3B%20%20%20%2F%2F%20%3D%3E%20'hello12341'%0A%0Alog('%F0%A0%AE%B7'.codePointAt(0))%3B%20%2F%2F%20%3D%3E%20134071%0A%0Avar%20name%20%3D%20'Bob'%3B%0Alog(String.raw%60Hi%5Cn%24%7Bname%7D!%60)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'Hi%5C%5CnBob!'%20(ES6%20template%20string%20syntax)%0Alog(String.raw(%7B%20raw%3A%20'test'%20%7D%2C%200%2C%201%2C%202))%3B%20%2F%2F%20%3D%3E%20%2F%2F%20't0e1s2t'%0A%0Alog('foo'.bold())%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Cb%3Efoo%3C%2Fb%3E'%0Alog('bar'.anchor('a%22b'))%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Ca%20name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E'%0Alog('baz'.link('http%3A%2F%2Fexample.com'))%3B%20%2F%2F%20%3D%3E%20'%3Ca%20href%3D%22http%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E'%0A%0Alog(RegExp(%2F.%2Fg%2C%20'm'))%3B%20%2F%2F%20%3D%3E%20%2F.%2Fm%0A%0Alog(%2Ffoo%2F.flags)%3B%20%20%20%20%2F%2F%20%3D%3E%20''%0Alog(%2Ffoo%2Fgim.flags)%3B%20%2F%2F%20%3D%3E%20'gim'%0A%0Alog(RegExp('foo'%2C%20'y').sticky)%3B%20%2F%2F%20%3D%3E%20true%0A%0Aconst%20text%20%3D%20'First%20line%5CnSecond%20line'%3B%0Aconst%20regex%20%3D%20RegExp('(%5C%5CS%2B)%20line%5C%5Cn%3F'%2C%20'y')%3B%0A%0Alog(regex.exec(text)%5B1%5D)%3B%20%2F%2F%20%3D%3E%20'First'%0Alog(regex.exec(text)%5B1%5D)%3B%20%2F%2F%20%3D%3E%20'Second'%0Alog(regex.exec(text))%3B%20%20%20%20%2F%2F%20%3D%3E%20null%0A%0Alog('foo'.match(%7B%5BSymbol.match%5D%3A%20_%20%3D%3E%201%7D))%3B%20%20%20%20%20%2F%2F%20%3D%3E%201%0Alog('foo'.replace(%7B%5BSymbol.replace%5D%3A%20_%20%3D%3E%202%7D))%3B%20%2F%2F%20%3D%3E%202%0Alog('foo'.search(%7B%5BSymbol.search%5D%3A%20_%20%3D%3E%203%7D))%3B%20%20%20%2F%2F%20%3D%3E%203%0Alog('foo'.split(%7B%5BSymbol.split%5D%3A%20_%20%3D%3E%204%7D))%3B%20%20%20%20%20%2F%2F%20%3D%3E%204%0A%0Alog(RegExp.prototype.toString.call(%7Bsource%3A%20'foo'%2C%20flags%3A%20'bar'%7D))%3B%0A%0Alog('%20%20%20hello%20%20%20'.trimLeft())%3B%20%20%2F%2F%20%3D%3E%20'hello%20%20%20'%0Alog('%20%20%20hello%20%20%20'.trimRight())%3B%20%2F%2F%20%3D%3E%20'%20%20%20hello'%0Alog('%20%20%20hello%20%20%20'.trimStart())%3B%20%2F%2F%20%3D%3E%20'hello%20%20%20'%0Alog('%20%20%20hello%20%20%20'.trimEnd())%3B%20%20%20%2F%2F%20%3D%3E%20'%20%20%20hello'%0A%0Afor%20(let%20%5B_%2C%20d%2C%20D%5D%20of%20'1111a2b3cccc'.matchAll(%2F(%5Cd)(%5CD)%2Fg))%20%7B%0A%20%20log(d%2C%20D)%3B%20%2F%2F%20%3D%3E%201%20a%2C%202%20b%2C%203%20c%0A%7D%0A%0Alog('Test%20abc%20test%20test%20abc%20test.'.replaceAll('abc'%2C%20'foo'))%3B%20%2F%2F%20-%3E%20'Test%20foo%20test%20test%20foo%20test.'):
 ```js
@@ -869,21 +858,21 @@ function parseInt(string: string, radix?: number = 10): number;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/number
-core-js/es|stable|features/number/constructor
-core-js(-pure)/es|stable|features/number/is-finite
-core-js(-pure)/es|stable|features/number/is-nan
-core-js(-pure)/es|stable|features/number/is-integer
-core-js(-pure)/es|stable|features/number/is-safe-integer
-core-js(-pure)/es|stable|features/number/parse-float
-core-js(-pure)/es|stable|features/number/parse-int
-core-js(-pure)/es|stable|features/number/epsilon
-core-js(-pure)/es|stable|features/number/max-safe-integer
-core-js(-pure)/es|stable|features/number/min-safe-integer
-core-js(-pure)/es|stable|features/number/to-fixed
-core-js(-pure)/es|stable|features/number/to-precision
-core-js(-pure)/es|stable|features/parse-float
-core-js(-pure)/es|stable|features/parse-int
+core-js(-pure)/es|stable|actual|full/number
+core-js/es|stable|actual|full/number/constructor
+core-js(-pure)/es|stable|actual|full/number/is-finite
+core-js(-pure)/es|stable|actual|full/number/is-nan
+core-js(-pure)/es|stable|actual|full/number/is-integer
+core-js(-pure)/es|stable|actual|full/number/is-safe-integer
+core-js(-pure)/es|stable|actual|full/number/parse-float
+core-js(-pure)/es|stable|actual|full/number/parse-int
+core-js(-pure)/es|stable|actual|full/number/epsilon
+core-js(-pure)/es|stable|actual|full/number/max-safe-integer
+core-js(-pure)/es|stable|actual|full/number/min-safe-integer
+core-js(-pure)/es|stable|actual|full/number/to-fixed
+core-js(-pure)/es|stable|actual|full/number/to-precision
+core-js(-pure)/es|stable|actual|full/parse-float
+core-js(-pure)/es|stable|actual|full/parse-int
 ```
 #### ECMAScript: Math[⬆](#index)
 Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.fround.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.math.trunc.js).
@@ -910,51 +899,49 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/math
-core-js(-pure)/es|stable|features/math/acosh
-core-js(-pure)/es|stable|features/math/asinh
-core-js(-pure)/es|stable|features/math/atanh
-core-js(-pure)/es|stable|features/math/cbrt
-core-js(-pure)/es|stable|features/math/clz32
-core-js(-pure)/es|stable|features/math/cosh
-core-js(-pure)/es|stable|features/math/expm1
-core-js(-pure)/es|stable|features/math/fround
-core-js(-pure)/es|stable|features/math/hypot
-core-js(-pure)/es|stable|features/math/imul
-core-js(-pure)/es|stable|features/math/log1p
-core-js(-pure)/es|stable|features/math/log10
-core-js(-pure)/es|stable|features/math/log2
-core-js(-pure)/es|stable|features/math/sign
-core-js(-pure)/es|stable|features/math/sinh
-core-js(-pure)/es|stable|features/math/tanh
-core-js(-pure)/es|stable|features/math/trunc
+core-js(-pure)/es|stable|actual|full/math
+core-js(-pure)/es|stable|actual|full/math/acosh
+core-js(-pure)/es|stable|actual|full/math/asinh
+core-js(-pure)/es|stable|actual|full/math/atanh
+core-js(-pure)/es|stable|actual|full/math/cbrt
+core-js(-pure)/es|stable|actual|full/math/clz32
+core-js(-pure)/es|stable|actual|full/math/cosh
+core-js(-pure)/es|stable|actual|full/math/expm1
+core-js(-pure)/es|stable|actual|full/math/fround
+core-js(-pure)/es|stable|actual|full/math/hypot
+core-js(-pure)/es|stable|actual|full/math/imul
+core-js(-pure)/es|stable|actual|full/math/log1p
+core-js(-pure)/es|stable|actual|full/math/log10
+core-js(-pure)/es|stable|actual|full/math/log2
+core-js(-pure)/es|stable|actual|full/math/sign
+core-js(-pure)/es|stable|actual|full/math/sinh
+core-js(-pure)/es|stable|actual|full/math/tanh
+core-js(-pure)/es|stable|actual|full/math/trunc
 ```
 #### ECMAScript: Date[⬆](#index)
-Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-primitive.js).
+Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.date.to-primitive.js).
 ```js
 class Date {
   toISOString(): string;
   toJSON(): string;
   toString(): string;
   @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
-  static now(): number;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/date
-core-js/es|stable|features/date/to-string
-core-js(-pure)/es|stable|features/date/now
-core-js(-pure)/es|stable|features/date/to-iso-string
-core-js(-pure)/es|stable|features/date/to-json
-core-js(-pure)/es|stable|features/date/to-primitive
+core-js/es|stable|actual|full/date
+core-js/es|stable|actual|full/date/to-string
+core-js(-pure)/es|stable|actual|full/date/to-iso-string
+core-js(-pure)/es|stable|actual|full/date/to-json
+core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 [*Example*](http://goo.gl/haeHLR):
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.aggregate-error.js), [`es.promise`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.aggregate-error.js), [`es.promise.constructor`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.js), [`es.promise.all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.any.js), [`es.promise.catch`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.catch.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.finally.js), [`es.promise.race`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.race.js), [`es.promise.reject`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.reject.js) and [`es.promise.resolve`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.promise.resolve.js).
 ```js
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -967,21 +954,27 @@ class Promise {
   then(onFulfilled: Function, onRejected: Function): Promise;
   catch(onRejected: Function): Promise;
   finally(onFinally: Function): Promise;
-  static resolve(x: any): Promise;
-  static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise<any>;
   static race(iterable: Iterable): Promise;
+  static reject(r: any): Promise;
+  static resolve(x: any): Promise;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/aggregate-error
-core-js(-pure)/es|stable|features/promise
-core-js(-pure)/es|stable|features/promise/all-settled
-core-js(-pure)/es|stable|features/promise/any
-core-js(-pure)/es|stable|features/promise/finally
+core-js(-pure)/es|stable|actual|full/aggregate-error
+core-js(-pure)/es|stable|actual|full/promise
+core-js(-pure)/es|stable|actual|full/promise/constructor
+core-js(-pure)/es|stable|actual|full/promise/all
+core-js(-pure)/es|stable|actual|full/promise/all-settled
+core-js(-pure)/es|stable|actual|full/promise/any
+core-js(-pure)/es|stable|actual|full/promise/catch
+core-js(-pure)/es|stable|actual|full/promise/finally
+core-js(-pure)/es|stable|actual|full/promise/race
+core-js(-pure)/es|stable|actual|full/promise/reject
+core-js(-pure)/es|stable|actual|full/promise/resolve
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
@@ -1160,24 +1153,24 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/symbol
-core-js(-pure)/es|stable|features/symbol/async-iterator
-core-js/es|stable|features/symbol/description
-core-js(-pure)/es|stable|features/symbol/has-instance
-core-js(-pure)/es|stable|features/symbol/is-concat-spreadable
-core-js(-pure)/es|stable|features/symbol/iterator
-core-js(-pure)/es|stable|features/symbol/match
-core-js(-pure)/es|stable|features/symbol/replace
-core-js(-pure)/es|stable|features/symbol/search
-core-js(-pure)/es|stable|features/symbol/species
-core-js(-pure)/es|stable|features/symbol/split
-core-js(-pure)/es|stable|features/symbol/to-primitive
-core-js(-pure)/es|stable|features/symbol/to-string-tag
-core-js(-pure)/es|stable|features/symbol/unscopables
-core-js(-pure)/es|stable|features/symbol/for
-core-js(-pure)/es|stable|features/symbol/key-for
-core-js(-pure)/es|stable|features/object/get-own-property-symbols
-core-js(-pure)/es|stable|features/math/to-string-tag
+core-js(-pure)/es|stable|actual|full/symbol
+core-js(-pure)/es|stable|actual|full/symbol/async-iterator
+core-js/es|stable|actual|full/symbol/description
+core-js(-pure)/es|stable|actual|full/symbol/has-instance
+core-js(-pure)/es|stable|actual|full/symbol/is-concat-spreadable
+core-js(-pure)/es|stable|actual|full/symbol/iterator
+core-js(-pure)/es|stable|actual|full/symbol/match
+core-js(-pure)/es|stable|actual|full/symbol/replace
+core-js(-pure)/es|stable|actual|full/symbol/search
+core-js(-pure)/es|stable|actual|full/symbol/species
+core-js(-pure)/es|stable|actual|full/symbol/split
+core-js(-pure)/es|stable|actual|full/symbol/to-primitive
+core-js(-pure)/es|stable|actual|full/symbol/to-string-tag
+core-js(-pure)/es|stable|actual|full/symbol/unscopables
+core-js(-pure)/es|stable|actual|full/symbol/for
+core-js(-pure)/es|stable|actual|full/symbol/key-for
+core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
+core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
@@ -1266,7 +1259,7 @@ class Map {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/map
+core-js(-pure)/es|stable|actual|full/map
 ```
 [*Examples*](http://goo.gl/GWR7NI):
 ```js
@@ -1320,7 +1313,7 @@ class Set {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/set
+core-js(-pure)/es|stable|actual|full/set
 ```
 [*Examples*](http://goo.gl/bmhLwg):
 ```js
@@ -1359,7 +1352,7 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/weak-map
+core-js(-pure)/es|stable|actual|full/weak-map
 ```
 [*Examples*](http://goo.gl/SILXyw):
 ```js
@@ -1404,7 +1397,7 @@ class WeakSet {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/weak-set
+core-js(-pure)/es|stable|actual|full/weak-set
 ```
 [*Examples*](http://goo.gl/TdFbEx):
 ```js
@@ -1424,7 +1417,7 @@ console.log(weakset.has(b));   // => false
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
 
 #### ECMAScript: Typed Arrays[⬆](#index)
-Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
+Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods.
 
 Modules [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.array-buffer.constructor.js), [`es.array-buffer.is-view`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.array-buffer.is-view.js), [`es.array-buffer.slice`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.array-buffer.slice.js), [`es.data-view`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.data-view.js), [`es.typed-array.int8-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed.int32-array.js), [`es.typed-array.uint32-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.for-each`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.last-index-of`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.to-locale-string.js) and [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/es.typed-array.to-string.js).
 ```js
@@ -1513,49 +1506,49 @@ class %TypedArray% {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/array-buffer
-core-js/es|stable|features/array-buffer/constructor
-core-js/es|stable|features/array-buffer/is-view
-core-js/es|stable|features/array-buffer/slice
-core-js/es|stable|features/data-view
-core-js/es|stable|features/typed-array
-core-js/es|stable|features/typed-array/int8-array
-core-js/es|stable|features/typed-array/uint8-array
-core-js/es|stable|features/typed-array/uint8-clamped-array
-core-js/es|stable|features/typed-array/int16-array
-core-js/es|stable|features/typed-array/uint16-array
-core-js/es|stable|features/typed-array/int32-array
-core-js/es|stable|features/typed-array/uint32-array
-core-js/es|stable|features/typed-array/float32-array
-core-js/es|stable|features/typed-array/float64-array
-core-js/es|stable|features/typed-array/copy-within
-core-js/es|stable|features/typed-array/entries
-core-js/es|stable|features/typed-array/every
-core-js/es|stable|features/typed-array/fill
-core-js/es|stable|features/typed-array/filter
-core-js/es|stable|features/typed-array/find
-core-js/es|stable|features/typed-array/find-index
-core-js/es|stable|features/typed-array/for-each
-core-js/es|stable|features/typed-array/from
-core-js/es|stable|features/typed-array/includes
-core-js/es|stable|features/typed-array/index-of
-core-js/es|stable|features/typed-array/iterator
-core-js/es|stable|features/typed-array/join
-core-js/es|stable|features/typed-array/keys
-core-js/es|stable|features/typed-array/last-index-of
-core-js/es|stable|features/typed-array/map
-core-js/es|stable|features/typed-array/of
-core-js/es|stable|features/typed-array/reduce
-core-js/es|stable|features/typed-array/reduce-right
-core-js/es|stable|features/typed-array/reverse
-core-js/es|stable|features/typed-array/set
-core-js/es|stable|features/typed-array/slice
-core-js/es|stable|features/typed-array/some
-core-js/es|stable|features/typed-array/sort
-core-js/es|stable|features/typed-array/subarray
-core-js/es|stable|features/typed-array/to-locale-string
-core-js/es|stable|features/typed-array/to-string
-core-js/es|stable|features/typed-array/values
+core-js/es|stable|actual|full/array-buffer
+core-js/es|stable|actual|full/array-buffer/constructor
+core-js/es|stable|actual|full/array-buffer/is-view
+core-js/es|stable|actual|full/array-buffer/slice
+core-js/es|stable|actual|full/data-view
+core-js/es|stable|actual|full/typed-array
+core-js/es|stable|actual|full/typed-array/int8-array
+core-js/es|stable|actual|full/typed-array/uint8-array
+core-js/es|stable|actual|full/typed-array/uint8-clamped-array
+core-js/es|stable|actual|full/typed-array/int16-array
+core-js/es|stable|actual|full/typed-array/uint16-array
+core-js/es|stable|actual|full/typed-array/int32-array
+core-js/es|stable|actual|full/typed-array/uint32-array
+core-js/es|stable|actual|full/typed-array/float32-array
+core-js/es|stable|actual|full/typed-array/float64-array
+core-js/es|stable|actual|full/typed-array/copy-within
+core-js/es|stable|actual|full/typed-array/entries
+core-js/es|stable|actual|full/typed-array/every
+core-js/es|stable|actual|full/typed-array/fill
+core-js/es|stable|actual|full/typed-array/filter
+core-js/es|stable|actual|full/typed-array/find
+core-js/es|stable|actual|full/typed-array/find-index
+core-js/es|stable|actual|full/typed-array/for-each
+core-js/es|stable|actual|full/typed-array/from
+core-js/es|stable|actual|full/typed-array/includes
+core-js/es|stable|actual|full/typed-array/index-of
+core-js/es|stable|actual|full/typed-array/iterator
+core-js/es|stable|actual|full/typed-array/join
+core-js/es|stable|actual|full/typed-array/keys
+core-js/es|stable|actual|full/typed-array/last-index-of
+core-js/es|stable|actual|full/typed-array/map
+core-js/es|stable|actual|full/typed-array/of
+core-js/es|stable|actual|full/typed-array/reduce
+core-js/es|stable|actual|full/typed-array/reduce-right
+core-js/es|stable|actual|full/typed-array/reverse
+core-js/es|stable|actual|full/typed-array/set
+core-js/es|stable|actual|full/typed-array/slice
+core-js/es|stable|actual|full/typed-array/some
+core-js/es|stable|actual|full/typed-array/sort
+core-js/es|stable|actual|full/typed-array/subarray
+core-js/es|stable|actual|full/typed-array/to-locale-string
+core-js/es|stable|actual|full/typed-array/to-string
+core-js/es|stable|actual|full/typed-array/values
 ```
 [*Examples*](http://goo.gl/yla75z):
 ```js
@@ -1614,20 +1607,20 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/reflect
-core-js(-pure)/es|stable|features/reflect/apply
-core-js(-pure)/es|stable|features/reflect/construct
-core-js(-pure)/es|stable|features/reflect/define-property
-core-js(-pure)/es|stable|features/reflect/delete-property
-core-js(-pure)/es|stable|features/reflect/get
-core-js(-pure)/es|stable|features/reflect/get-own-property-descriptor
-core-js(-pure)/es|stable|features/reflect/get-prototype-of
-core-js(-pure)/es|stable|features/reflect/has
-core-js(-pure)/es|stable|features/reflect/is-extensible
-core-js(-pure)/es|stable|features/reflect/own-keys
-core-js(-pure)/es|stable|features/reflect/prevent-extensions
-core-js(-pure)/es|stable|features/reflect/set
-core-js(-pure)/es|stable|features/reflect/set-prototype-of
+core-js(-pure)/es|stable|actual|full/reflect
+core-js(-pure)/es|stable|actual|full/reflect/apply
+core-js(-pure)/es|stable|actual|full/reflect/construct
+core-js(-pure)/es|stable|actual|full/reflect/define-property
+core-js(-pure)/es|stable|actual|full/reflect/delete-property
+core-js(-pure)/es|stable|actual|full/reflect/get
+core-js(-pure)/es|stable|actual|full/reflect/get-own-property-descriptor
+core-js(-pure)/es|stable|actual|full/reflect/get-prototype-of
+core-js(-pure)/es|stable|actual|full/reflect/has
+core-js(-pure)/es|stable|actual|full/reflect/is-extensible
+core-js(-pure)/es|stable|actual|full/reflect/own-keys
+core-js(-pure)/es|stable|actual|full/reflect/prevent-extensions
+core-js(-pure)/es|stable|actual|full/reflect/set
+core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
 ```
 [*Examples*](http://goo.gl/gVT0cH):
 ```js
@@ -1656,8 +1649,8 @@ namespace JSON {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/es|stable|features/json/stringify
-core-js(-pure)/es|stable|features/json/to-string-tag
+core-js(-pure)/es|stable|actual|full/json/stringify
+core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 [*Examples*](http://es6.zloirock.ru/#log(JSON.stringify(%7B%20'%F0%A0%AE%B7'%3A%20%5B'%5CuDF06%5CuD834'%5D%20%7D))%3B%20%2F%2F%20%3D%3E%20'%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D'):
 ```js
@@ -1671,7 +1664,7 @@ let globalThis: Object;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/es|stable|features/global-this
+core-js(-pure)/es|stable|actual|full/global-this
 ```
 [*Examples*](https://goo.gl/LAifsc):
 ```js
@@ -1688,92 +1681,8 @@ Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be
 ```js
 core-js(-pure)/stage/4
 ```
-##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
-Module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.global-this.js).
-```js
-let globalThis: Object;
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/global-this
-core-js(-pure)/features/global-this
-```
-[*Examples*](https://goo.gl/LAifsc):
-```js
-globalThis.Array === Array; // => true
-```
-##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index)
-Module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.string.match-all.js).
 
-```js
-class String {
-  matchAll(regexp: RegExp): Iterator;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-match-all
-```
-##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
-Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-replace-all
-core-js/features/string/replace-all
-```
-[*Examples*](https://goo.gl/wUXNXN):
-```js
-'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
-```
-##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
-Module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-all-settled
-```
-##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
-Modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.aggregate-error.js)
-```js
-class AggregateError {
-  constructor(errors: Iterable, message: string): AggregateError;
-  errors: Array<any>;
-  message: string;
-}
-
-class Promise {
-  static any(promises: Iterable): Promise<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-any
-core-js(-pure)/features/promise/any
-core-js(-pure)/features/aggregate-error
-```
-[*Examples*](https://goo.gl/iErvmp):
-```js
-Promise.any([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => 1
-
-Promise.any([
-  Promise.reject(1),
-  Promise.reject(2),
-  Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
-```
+None.
 
 #### Stage 3 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -1782,12 +1691,15 @@ core-js(-pure)/stage/3
 ```
 
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
-Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.at.js)
-> **Warning! Because of the conflict with [another proposal](#stringat), this method is not available on `String.prototype` in this version.**
+Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.at.js), [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.string.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.at.js)
 
 ```js
 class Array {
   at(index: int): any;
+}
+
+class String {
+  at(index: int): string | undefined;
 }
 
 class %TypedArray% {
@@ -1797,13 +1709,16 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/relative-indexing-method
-core-js(-pure)/features/array/at
-core-js(-pure)/features/typed-array/at
+core-js(-pure)/actual|full/array/at
+core-js(-pure)/actual|full/string/at
+core-js(-pure)/actual|full/typed-array/at
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%5D.at(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(%5B1%2C%202%2C%203%5D.at(-1))%3B%20%2F%2F%20%3D%3E%203):
 ```js
 [1, 2, 3].at(1);  // => 2
 [1, 2, 3].at(-1); // => 3
+
+'123'.at(-1);     // => '3'
 ```
 
 #### Stage 2 proposals[⬆](#index)
@@ -1827,13 +1742,13 @@ class Set {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/set-methods
-core-js(-pure)/features/set/difference
-core-js(-pure)/features/set/intersection
-core-js(-pure)/features/set/is-disjoint-from
-core-js(-pure)/features/set/is-subset-of
-core-js(-pure)/features/set/is-superset-of
-core-js(-pure)/features/set/symmetric-difference
-core-js(-pure)/features/set/union
+core-js(-pure)/full/set/difference
+core-js(-pure)/full/set/intersection
+core-js(-pure)/full/set/is-disjoint-from
+core-js(-pure)/full/set/is-subset-of
+core-js(-pure)/full/set/is-superset-of
+core-js(-pure)/full/set/symmetric-difference
+core-js(-pure)/full/set/union
 ```
 [*Examples*](https://goo.gl/QMQdaJ):
 ```js
@@ -1857,8 +1772,8 @@ class Symbol {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/using-statement
-core-js(-pure)/features/symbol/async-dispose
-core-js(-pure)/features/symbol/dispose
+core-js(-pure)/full/symbol/async-dispose
+core-js(-pure)/full/symbol/dispose
 ```
 ##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
 Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.is-template-object.js)
@@ -1870,7 +1785,7 @@ class Array {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-is-template-object
-core-js(-pure)/features/array/is-template-object
+core-js(-pure)/full/array/is-template-object
 ```
 *Example*:
 ```js
@@ -1916,34 +1831,34 @@ class AsyncIterator {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/iterator-helpers
-core-js(-pure)/features/async-iterator
-core-js(-pure)/features/async-iterator/as-indexed-pairs
-core-js(-pure)/features/async-iterator/drop
-core-js(-pure)/features/async-iterator/every
-core-js(-pure)/features/async-iterator/filter
-core-js(-pure)/features/async-iterator/find
-core-js(-pure)/features/async-iterator/flat-map
-core-js(-pure)/features/async-iterator/for-each
-core-js(-pure)/features/async-iterator/from
-core-js(-pure)/features/async-iterator/map
-core-js(-pure)/features/async-iterator/reduce
-core-js(-pure)/features/async-iterator/some
-core-js(-pure)/features/async-iterator/take
-core-js(-pure)/features/async-iterator/to-array
-core-js(-pure)/features/iterator
-core-js(-pure)/features/iterator/as-indexed-pairs
-core-js(-pure)/features/iterator/drop
-core-js(-pure)/features/iterator/every
-core-js(-pure)/features/iterator/filter
-core-js(-pure)/features/iterator/find
-core-js(-pure)/features/iterator/flat-map
-core-js(-pure)/features/iterator/for-each
-core-js(-pure)/features/iterator/from
-core-js(-pure)/features/iterator/map
-core-js(-pure)/features/iterator/reduce
-core-js(-pure)/features/iterator/some
-core-js(-pure)/features/iterator/take
-core-js(-pure)/features/iterator/to-array
+core-js(-pure)/full/async-iterator
+core-js(-pure)/full/async-iterator/as-indexed-pairs
+core-js(-pure)/full/async-iterator/drop
+core-js(-pure)/full/async-iterator/every
+core-js(-pure)/full/async-iterator/filter
+core-js(-pure)/full/async-iterator/find
+core-js(-pure)/full/async-iterator/flat-map
+core-js(-pure)/full/async-iterator/for-each
+core-js(-pure)/full/async-iterator/from
+core-js(-pure)/full/async-iterator/map
+core-js(-pure)/full/async-iterator/reduce
+core-js(-pure)/full/async-iterator/some
+core-js(-pure)/full/async-iterator/take
+core-js(-pure)/full/async-iterator/to-array
+core-js(-pure)/full/iterator
+core-js(-pure)/full/iterator/as-indexed-pairs
+core-js(-pure)/full/iterator/drop
+core-js(-pure)/full/iterator/every
+core-js(-pure)/full/iterator/filter
+core-js(-pure)/full/iterator/find
+core-js(-pure)/full/iterator/flat-map
+core-js(-pure)/full/iterator/for-each
+core-js(-pure)/full/iterator/from
+core-js(-pure)/full/iterator/map
+core-js(-pure)/full/iterator/reduce
+core-js(-pure)/full/iterator/some
+core-js(-pure)/full/iterator/take
+core-js(-pure)/full/iterator/to-array
 ```
 [Examples](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D.values()%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray())%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D%0A%0Alog(Iterator.from(%7B%0A%20%20next%3A%20()%20%3D%3E%20(%7B%20done%3A%20Math.random()%20%3E%20.9%2C%20value%3A%20Math.random()%20*%2010%20%7C%200%20%7D)%0A%7D).toArray())%3B%20%2F%2F%20%3D%3E%20%5B7%2C%206%2C%203%2C%200%2C%202%2C%208%5D%0A%0AAsyncIterator.from(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D)%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray()%0A%20%20.then(log)%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D):
 ```js
@@ -1992,8 +1907,8 @@ class WeakMap {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/map-upsert
-core-js(-pure)/features/map/emplace
-core-js(-pure)/features/weak-map/emplace
+core-js(-pure)/full/map/emplace
+core-js(-pure)/full/weak-map/emplace
 ```
 [*Examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.emplace('a'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.emplace('b'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%203%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20map)%7B%0A%20%20log(key%2C%20value)%3B%20%2F%2F%20%3D%3E%20Map%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D%0A%7D):
 ```js
@@ -2031,6 +1946,32 @@ core-js/features/typed-array/find-last-index
 [1, 2, 3, 4].findLast(it => it % 2);      // => 3
 [1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
 ````
+##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
+Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.typed-array.find-last-index.js).
+```js
+class Array {
+  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
+}
+
+class %TypedArray% {
+  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-find-from-last
+core-js(-pure)/full(/virtual)/array/find-last
+core-js(-pure)/full(/virtual)/array/find-last-index
+core-js/full/typed-array/find-last
+core-js/full/typed-array/find-last-index
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
+```js
+[1, 2, 3, 4].findLast(it => it % 2);      // => 3
+[1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
+````
 
 #### Stage 1 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -2048,8 +1989,8 @@ class Array {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-last
-core-js/features/array/last-item
-core-js/features/array/last-index
+core-js/full/array/last-item
+core-js/full/array/last-index
 ```
 [*Examples*](https://goo.gl/2TmcMT):
 ```js
@@ -2071,7 +2012,7 @@ class Promise {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-try
-core-js(-pure)/features/promise/try
+core-js(-pure)/full/promise/try
 ```
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
@@ -2136,41 +2077,41 @@ class WeakMap {
 ```js
 core-js/proposals/collection-methods
 core-js/proposals/collection-of-from
-core-js(-pure)/features/set/add-all
-core-js(-pure)/features/set/delete-all
-core-js(-pure)/features/set/every
-core-js(-pure)/features/set/filter
-core-js(-pure)/features/set/find
-core-js(-pure)/features/set/from
-core-js(-pure)/features/set/join
-core-js(-pure)/features/set/map
-core-js(-pure)/features/set/of
-core-js(-pure)/features/set/reduce
-core-js(-pure)/features/set/some
-core-js(-pure)/features/map/delete-all
-core-js(-pure)/features/map/every
-core-js(-pure)/features/map/filter
-core-js(-pure)/features/map/find
-core-js(-pure)/features/map/find-key
-core-js(-pure)/features/map/from
-core-js(-pure)/features/map/group-by
-core-js(-pure)/features/map/includes
-core-js(-pure)/features/map/key-by
-core-js(-pure)/features/map/key-of
-core-js(-pure)/features/map/map-keys
-core-js(-pure)/features/map/map-values
-core-js(-pure)/features/map/merge
-core-js(-pure)/features/map/of
-core-js(-pure)/features/map/reduce
-core-js(-pure)/features/map/some
-core-js(-pure)/features/map/update
-core-js(-pure)/features/weak-set/add-all
-core-js(-pure)/features/weak-set/delete-all
-core-js(-pure)/features/weak-set/of
-core-js(-pure)/features/weak-set/from
-core-js(-pure)/features/weak-map/delete-all
-core-js(-pure)/features/weak-map/of
-core-js(-pure)/features/weak-map/from
+core-js(-pure)/full/set/add-all
+core-js(-pure)/full/set/delete-all
+core-js(-pure)/full/set/every
+core-js(-pure)/full/set/filter
+core-js(-pure)/full/set/find
+core-js(-pure)/full/set/from
+core-js(-pure)/full/set/join
+core-js(-pure)/full/set/map
+core-js(-pure)/full/set/of
+core-js(-pure)/full/set/reduce
+core-js(-pure)/full/set/some
+core-js(-pure)/full/map/delete-all
+core-js(-pure)/full/map/every
+core-js(-pure)/full/map/filter
+core-js(-pure)/full/map/find
+core-js(-pure)/full/map/find-key
+core-js(-pure)/full/map/from
+core-js(-pure)/full/map/group-by
+core-js(-pure)/full/map/includes
+core-js(-pure)/full/map/key-by
+core-js(-pure)/full/map/key-of
+core-js(-pure)/full/map/map-keys
+core-js(-pure)/full/map/map-values
+core-js(-pure)/full/map/merge
+core-js(-pure)/full/map/of
+core-js(-pure)/full/map/reduce
+core-js(-pure)/full/map/some
+core-js(-pure)/full/map/update
+core-js(-pure)/full/weak-set/add-all
+core-js(-pure)/full/weak-set/delete-all
+core-js(-pure)/full/weak-set/of
+core-js(-pure)/full/weak-set/from
+core-js(-pure)/full/weak-map/delete-all
+core-js(-pure)/full/weak-map/of
+core-js(-pure)/full/weak-map/from
 ```
 `.of` / `.from` [*examples*](https://goo.gl/mSC7eU):
 ```js
@@ -2187,8 +2128,8 @@ function compositeSymbol(...args: Array<mixed>): symbol;
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/keys-composition
-core-js(-pure)/features/composite-key
-core-js(-pure)/features/composite-symbol
+core-js(-pure)/full/composite-key
+core-js(-pure)/full/composite-symbol
 ```
 [*Examples*](https://goo.gl/2oPAH7):
 ```js
@@ -2235,8 +2176,8 @@ class Symbol {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/observable
-core-js(-pure)/features/observable
-core-js(-pure)/features/symbol/observable
+core-js(-pure)/full/observable
+core-js(-pure)/full/symbol/observable
 ```
 [*Examples*](http://goo.gl/1LDywi):
 ```js
@@ -2265,13 +2206,13 @@ namespace Math {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/math-extensions
-core-js(-pure)/features/math/clamp
-core-js(-pure)/features/math/deg-per-rad
-core-js(-pure)/features/math/degrees
-core-js(-pure)/features/math/fscale
-core-js(-pure)/features/math/rad-per-deg
-core-js(-pure)/features/math/radians
-core-js(-pure)/features/math/scale
+core-js(-pure)/full/math/clamp
+core-js(-pure)/full/math/deg-per-rad
+core-js(-pure)/full/math/degrees
+core-js(-pure)/full/math/fscale
+core-js(-pure)/full/math/rad-per-deg
+core-js(-pure)/full/math/radians
+core-js(-pure)/full/math/scale
 ```
 ##### [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)[⬆](#index)
 Module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.signbit.js)
@@ -2283,7 +2224,7 @@ namespace Math {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/math-signbit
-core-js(-pure)/features/math/signbit
+core-js(-pure)/full/math/signbit
 ```
 [*Examples*](https://goo.gl/rPWbzZ):
 ```js
@@ -2303,7 +2244,7 @@ class Number {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/number-from-string
-core-js(-pure)/features/number/from-string
+core-js(-pure)/full/number/from-string
 ```
 ##### [`Number.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
 Module [`esnext.number.range`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.number.range.js) and [`esnext.bigint.range`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.bigint.range.js)
@@ -2319,8 +2260,8 @@ class BigInt {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/number-range
-core-js(-pure)/features/bigint/range
-core-js(-pure)/features/number/range
+core-js(-pure)/full/bigint/range
+core-js(-pure)/full/number/range
 ```
 [*Example*](http://es6.zloirock.ru/#for%20(const%20i%20of%20Number.range(1%2C%2010%2C%20%7B%20step%3A%203%2C%20inclusive%3A%20true%20%7D))%20%7B%0A%20%20log(i)%3B%20%2F%2F%20%3D%3E%201%2C%204%2C%207%2C%2010%0A%7D):
 ```js
@@ -2342,76 +2283,13 @@ class String {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/string-code-points
-core-js(-pure)/features/string/code-points
+core-js(-pure)/full/string/code-points
 ```
 [*Example*](https://goo.gl/Jt7SsD):
 ```js
 for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(codePoint); // => 113, 119, 101
   console.log(position);  // => 0, 1, 2
-}
-```
-##### [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)[⬆](#index)
-Module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.seeded-prng.js)
-```js
-class Math {
-  seededPRNG({ seed: number }): Iterator<number>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/seeded-random
-core-js(-pure)/features/math/seeded-prng
-```
-[*Example*](https://goo.gl/oj3WgQ):
-```js
-for (let x of Math.seededPRNG({ seed: 42 })) {
-  console.log(x); // => 0.16461519912315087, 0.2203933906000046, 0.8249682894209105
-  if (x > .8) break;
-}
-```
-##### [`Symbol.patternMatch` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
-Module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.symbol.pattern-match.js).
-```js
-class Symbol {
-  static patternMatch: @@patternMatch;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/pattern-matching
-core-js(-pure)/features/symbol/pattern-match
-```
-##### [Object iteration](https://github.com/tc39/proposal-object-iteration)[⬆](#index)
-Modules [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-keys.js), [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-values.js), [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.object.iterate-entries.js).
-```js
-class Object {
-  iterateKeys(object: any): Iterator<string>;
-  iterateValues(object: any): Iterator<any>;
-  iterateEntries(object: any): Iterator<[string, any]>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/object-iteration
-core-js(-pure)/features/object/iterate-keys
-core-js(-pure)/features/object/iterate-values
-core-js(-pure)/features/object/iterate-entries
-```
-[*Example*](http://es6.zloirock.ru/#const%20obj%20%3D%20%7B%20foo%3A%20'bar'%2C%20baz%3A%20'blah'%20%7D%3B%0A%0Afor%20(const%20%5Bkey%2C%20value%5D%20of%20Object.iterateEntries(obj))%20%7B%0A%20%20log(%60%24%7Bkey%7D%20-%3E%20%24%7Bvalue%7D%60)%3B%0A%7D%0A%0Afor%20(const%20key%20of%20Object.iterateKeys(obj))%20%7B%0A%20%20log(key)%3B%0A%7D%0A%0Afor%20(const%20value%20of%20Object.iterateValues(obj))%20%7B%0A%20%20log(value)%3B%0A%7D):
-```js
-const obj = { foo: 'bar', baz: 'blah' };
-
-for (const [key, value] of Object.iterateEntries(obj)) {
-  console.log(`${key} -> ${value}`);
-}
-
-for (const key of Object.iterateKeys(obj)) {
-  console.log(key);
-}
-
-for (const value of Object.iterateValues(obj)) {
-  console.log(value);
 }
 ```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
@@ -2428,8 +2306,8 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-filtering
-core-js(-pure)/features/array(/virtual)/filter-out
-core-js/features/typed-array/filter-out
+core-js(-pure)/full/array(/virtual)/filter-out
+core-js/full/typed-array/filter-out
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterOut(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
 ```js
@@ -2449,8 +2327,8 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-unique
-core-js(-pure)/features/array(/virtual)/unique-by
-core-js/features/typed-array/unique-by
+core-js(-pure)/full/array(/virtual)/unique-by
+core-js/full/typed-array/unique-by
 ```
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%202%2C%201%5D.uniqueBy())%3B%20%20%2F%2F%20%5B1%2C%202%2C%203%5D%0A%0Aconst%20data%20%3D%20%5B%0A%20%20%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%0A%5D%3B%0A%0Alog(data.uniqueBy('uid'))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D%0A%0Alog(data.uniqueBy((%7B%20id%2C%20uid%20%7D)%20%3D%3E%20%60%24%7Bid%7D-%24%7Buid%7D%60))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D):
 ```js
@@ -2470,42 +2348,6 @@ core-js(-pure)/stage/0
 ```
 ##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
 See more info [in web standards namespace](#url-and-urlsearchparams)
-##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)[⬆](#index)
-Module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.string.at.js)
-```js
-class String {
-  at(index: number): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-at
-core-js(-pure)/features/string/at
-core-js(-pure)/features/string/virtual/at
-```
-[*Examples*](http://goo.gl/XluXI8):
-```js
-'a𠮷b'.at(1);        // => '𠮷'
-'a𠮷b'.at(1).length; // => 2
-```
-##### [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)[⬆](#index)
-Modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/esnext.math.umulh.js)
-```js
-namespace Math {
-  iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  imulh(a: number, b: number): number;
-  umulh(a: number, b: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/efficient-64-bit-arithmetic
-core-js(-pure)/features/math/iaddh
-core-js(-pure)/features/math/isubh
-core-js(-pure)/features/math/imulh
-core-js(-pure)/features/math/umulh
-```
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -2530,15 +2372,15 @@ namespace Reflect {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/reflect-metadata
-core-js(-pure)/features/reflect/define-metadata
-core-js(-pure)/features/reflect/delete-metadata
-core-js(-pure)/features/reflect/get-metadata
-core-js(-pure)/features/reflect/get-metadata-keys
-core-js(-pure)/features/reflect/get-own-metadata
-core-js(-pure)/features/reflect/get-own-metadata-keys
-core-js(-pure)/features/reflect/has-metadata
-core-js(-pure)/features/reflect/has-own-metadata
-core-js(-pure)/features/reflect/metadata
+core-js(-pure)/full/reflect/define-metadata
+core-js(-pure)/full/reflect/delete-metadata
+core-js(-pure)/full/reflect/get-metadata
+core-js(-pure)/full/reflect/get-metadata-keys
+core-js(-pure)/full/reflect/get-own-metadata
+core-js(-pure)/full/reflect/get-own-metadata-keys
+core-js(-pure)/full/reflect/has-metadata
+core-js(-pure)/full/reflect/has-own-metadata
+core-js(-pure)/full/reflect/metadata
 ```
 [*Examples*](http://goo.gl/KCo3PS):
 ```js
@@ -2555,16 +2397,17 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 core-js(-pure)/web
 ```
 #### `setTimeout` and `setInterval`[⬆](#index)
-Module [`web.timers`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+Modules [`web.set-interval`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-interval.js) and [`web.set-timeout`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-timeout.js). Additional arguments fix for IE9-.
 ```js
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/timers
-core-js(-pure)/stable|features/set-timeout
-core-js(-pure)/stable|features/set-interval
+core-js(-pure)/web/set-interval
+core-js(-pure)/web/set-timeout
+core-js(-pure)/stable|actual|full/set-interval
+core-js(-pure)/stable|actual|full/set-timeout
 ```
 ```js
 // Before:
@@ -2573,16 +2416,15 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 #### `setImmediate`[⬆](#index)
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
+Modules [`web.clear-immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.clear-immediate.js) and [`web.set-immediate`](https://github.com/zloirock/core-js/blob/v3.9.1/packages/core-js/modules/web.set-immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/immediate
-core-js(-pure)/stable|features/set-immediate
-core-js(-pure)/stable|features/clear-immediate
+core-js(-pure)/stable|actual|full|web/set-immediate
+core-js(-pure)/stable|actual|full|web/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
@@ -2603,7 +2445,7 @@ function queueMicrotask(fn: Function): void;
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/web/queue-microtask
-core-js(-pure)/stable|features/queue-microtask
+core-js(-pure)/stable|actual|full/queue-microtask
 ```
 [*Examples*](https://goo.gl/nsW8P9):
 ```js
@@ -2651,11 +2493,9 @@ class URLSearchParams {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/url
-core-js(-pure)/web/url
-core-js(-pure)/web/url-search-params
-core-js(-pure)/stable|features/url
-core-js/stable|features/url/to-json
-core-js(-pure)/stable|features/url-search-params
+core-js(-pure)/stable|actual|full|web/url
+core-js/stable|actual|full|web/url/to-json
+core-js(-pure)/stable|actual|full|web/url-search-params
 ```
 [*Examples*](https://goo.gl/kksjwV):
 ```js
@@ -2701,7 +2541,6 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 ```
 
 ##### Caveats when using `URL` and `URLSearchParams`:[⬆](#index)
-- IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
 - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
 - `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
@@ -2752,9 +2591,9 @@ class [DOMTokenList, NodeList] {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/dom-collections
-core-js(-pure)/stable|features/dom-collections/iterator
-core-js/stable|features/dom-collections/for-each
+core-js(-pure)/stable|full|web/dom-collections
+core-js(-pure)/stable|full|web/dom-collections/iterator
+core-js(-pure)/stable|full|web/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js
@@ -2777,15 +2616,15 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js-pure/features/is-iterable
-core-js-pure/features/get-iterator
-core-js-pure/features/get-iterator-method
+core-js-pure/full/is-iterable
+core-js-pure/full/get-iterator
+core-js-pure/full/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js
-import isIterable from 'core-js-pure/features/is-iterable';
-import getIterator from 'core-js-pure/features/get-iterator';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
+import isIterable from 'core-js-pure/full/is-iterable';
+import getIterator from 'core-js-pure/full/get-iterator';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
 
 let list = (function () {
   return arguments;

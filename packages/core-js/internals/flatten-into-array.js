@@ -1,14 +1,16 @@
 'use strict';
-var isArray = require('../internals/is-array');
 var toLength = require('../internals/to-length');
 var bind = require('../internals/function-bind-context');
+
+// eslint-disable-next-line es/no-array-isarray -- safe
+var isArray = Array.isArray;
 
 // `FlattenIntoArray` abstract operation
 // https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
 var flattenIntoArray = function (target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
-  var mapFn = mapper ? bind(mapper, thisArg, 3) : false;
+  var mapFn = mapper ? bind(mapper, thisArg) : false;
   var element;
 
   while (sourceIndex < sourceLen) {

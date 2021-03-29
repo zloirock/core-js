@@ -1,10 +1,9 @@
-import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-import Symbol from 'core-js-pure/features/symbol';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import from from 'core-js-pure/features/array/from';
-import defineProperty from 'core-js-pure/features/object/define-property';
+import Symbol from 'core-js-pure/full/symbol';
+import getIteratorMethod from 'core-js-pure/full/get-iterator-method';
+import from from 'core-js-pure/full/array/from';
+import defineProperty from 'core-js-pure/full/object/define-property';
 
 QUnit.test('Array.from', assert => {
   assert.isFunction(from);
@@ -111,14 +110,12 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
   assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    from.call(C, [1, 2, 3]);
-    assert.ok(!called, 'Should not call prototype accessors');
-  }
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  from.call(C, [1, 2, 3]);
+  assert.ok(!called, 'Should not call prototype accessors');
 });

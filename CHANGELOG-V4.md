@@ -1,0 +1,95 @@
+##### Unreleased
+- Dropped support engines without basic ES5 support (like IE8-)
+- `String.prototype.at` from [relative indexing method proposal](https://github.com/tc39/proposal-relative-indexing-method) replaced `String.prototype.at` from [obsolete proposal with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+- Removed proposals:
+  - Finished and moved to stable ES:
+    - [`globalThis`](https://github.com/tc39/proposal-global)
+    - [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
+    - [`Promise.any` + `AggregateError`](https://github.com/tc39/proposal-promise-any)
+    - [`String.prototype.matchAll`](https://github.com/tc39/proposal-string-matchall)
+    - [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replaceall)
+  - Withdrawn:
+    - [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+    - [Object iteration](https://github.com/tc39/proposal-object-iteration)
+    - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+  - [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random) because of changing of the API, waiting for the spec text
+- Removed modules:
+  - `es.array.is-array` (required for ES3 only)
+  - `es.date.now` (required for ES3 only)
+  - `es.date.to-string` (required for IE8- only)
+  - `es.function.bind` (required for ES3 only)
+  - `es.object.create` (required for ES3 only)
+  - `es.object.define-property` (required for ES3 only)
+  - `es.object.define-properties` (required for ES3 only)
+  - `esnext.aggregate-error` (moved to stable ES)
+  - `esnext.global-this` (moved to stable ES)
+  - `esnext.map.update-or-insert` (obsolete)
+  - `esnext.map.upsert` (obsolete)
+  - `esnext.math.iaddh` (withdrawn)
+  - `esnext.math.imulh` (withdrawn)
+  - `esnext.math.isubh` (withdrawn)
+  - `esnext.math.seeded-prng` (changing of the API, waiting for the spec text)
+  - `esnext.math.umulh` (withdrawn)
+  - `esnext.object.iterate-entries` (withdrawn)
+  - `esnext.object.iterate-keys` (withdrawn)
+  - `esnext.object.iterate-values` (withdrawn)
+  - `esnext.promise.all-settled` (moved to stable ES)
+  - `esnext.promise.any` (moved to stable ES)
+  - `esnext.string.at-alternative` (replaces `esnext.string.at` from the obsolete proposal)
+  - `esnext.string.match-all` (moved to stable ES)
+  - `esnext.string.replace-all` (moved to stable ES)
+  - `esnext.symbol.pattern-match` (is not a part of actual proposal)
+  - `esnext.symbol.replace-all` (obsolete)
+  - `esnext.weak-map.upsert` (obsolete)
+- Removed features:
+  - `Array.isArray` (required for ES3 only)
+  - `Date.now` (required for ES3 only)
+  - `Date#toString` (required for IE8- only)
+  - `Function#bind` (required for ES3 only)
+  - `Map#updateOrInsert` (obsolete)
+  - `Map#upsert` (obsolete)
+  - `Math.iaddh` (withdrawn)
+  - `Math.imulh` (withdrawn)
+  - `Math.isubh` (withdrawn)
+  - `Math.seededPRNG` (changing of the API, waiting for the spec text)
+  - `Math.umulh` (withdrawn)
+  - `Object.iterateEntries` (withdrawn)
+  - `Object.iterateKeys` (withdrawn)
+  - `Object.iterateValues` (withdrawn)
+  - `Symbol.patternMatch` (is not a part of actual proposal)
+  - `Symbol.replaceAll` (obsolete)
+  - `WeakMap#upsert` (obsolete)
+- Tools moved to scoped packages, `core-js-builder` and `core-js-compat` renamed to `@core-js/builder` and `@core-js/compat` respectively
+- Dropped NodeJS 11- support in `@core-js/builder` and `@core-js/compat`
+- Dropped `@core-js/compat` `modules-by-versions` history for `core-js@3`
+- Dropped `@core-js/builder` `blacklist` deprecated option
+- Dependencies of many modules (string / regexp methods, `URL`, `Reflect` metadata, keys composition, etc.) moved to entry points for better optimisation by tools
+- Splitted for better modularity:
+  - `es.promise` to:
+    - `es.promise.constructor`
+    - `es.promise.all`
+    - `es.promise.catch`
+    - `es.promise.race`
+    - `es.promise.reject`
+    - `es.promise.resolve`
+  - `es.string.trim-end` and `es.string.trim-start` to:
+    - `es.string.trim-end`
+    - `es.string.trim-left`
+    - `es.string.trim-right`
+    - `es.string.trim-start`
+  - `web.immediate` and `web.timers` to:
+    - `web.clear-immediate`
+    - `web.set-immediate`
+    - `web.set-interval`
+    - `web.set-timeout`
+- Added `exports` fields with all entries to `package.json` of packages
+- Namespace / entries for full set of features (stable ES, ES proposals, web standards) renamed from `/features/` to `/full/`
+- Added `/actual/` namespace for all stable features and stage 3 ES proposals 
+- Dropped `*/virtual/index.js` entries
+- Added built-in definitions to compat data
+- Added `minify` option to `@core-js/builder`, bundles minified by default
+- Added `summary` option to `@core-js/builder`
+- Bundled versions of `core-js`
+  - Moved back to the main package
+  - Dropped non-minified bundle
+  - 2 versions: `core-js/bundle/actual` and `core-js/bundle/full`

@@ -29,8 +29,31 @@ var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
 var WEBKIT_STRING_PAD_BUG = /Version\/10\.\d+(\.\d+)?( Mobile\/\w+)? Safari\//.test(USERAGENT);
 
+var MSIE9 = /MSIE .\./.test(USERAGENT);
+
 var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', { get: function () { return 7; } }).a == 7;
+};
+
+var SAFE_ITERATION_CLOSING_SUPPORT = function () {
+  var SAFE_CLOSING = false;
+  try {
+    var called = 0;
+    var iteratorWithReturn = {
+      next: function () {
+        return { done: !!called++ };
+      },
+      return: function () {
+        SAFE_CLOSING = true;
+      },
+    };
+    iteratorWithReturn[Symbol.iterator] = function () {
+      return this;
+    };
+    Array.from(iteratorWithReturn, function () { throw Error('close'); });
+  } catch (error) {
+    return SAFE_CLOSING;
+  }
 };
 
 var PROMISES_SUPPORT = function () {
@@ -45,6 +68,22 @@ var PROMISES_SUPPORT = function () {
     && V8_VERSION !== 66;
 };
 
+var PROMISE_STATICS_ITERATION = [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  var ITERATION_SUPPORT = false;
+  try {
+    var object = {};
+    object[Symbol.iterator] = function () {
+      return {
+        next: function () {
+          return { done: ITERATION_SUPPORT = true };
+        },
+      };
+    };
+    Promise.all(object).then(undefined, function () { /* empty */ });
+  } catch (error) { /* empty */ }
+  return ITERATION_SUPPORT;
+}];
+
 var SYMBOLS_SUPPORT = function () {
   return Symbol && (IS_NODE ? V8_VERSION !== 38 : V8_VERSION < 38 || V8_VERSION > 40);
 };
@@ -55,7 +94,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   var result = '';
   url.pathname = 'c%20d';
   searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+    searchParams.delete('b');
     result += key + value;
   });
   return searchParams.sort
@@ -79,27 +118,6 @@ var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
   }
 };
 
-var SAFE_ITERATION_CLOSING_SUPPORT = function () {
-  var SAFE_CLOSING = false;
-  try {
-    var called = 0;
-    var iteratorWithReturn = {
-      next: function () {
-        return { done: !!called++ };
-      },
-      'return': function () {
-        SAFE_CLOSING = true;
-      }
-    };
-    iteratorWithReturn[Symbol.iterator] = function () {
-      return this;
-    };
-    Array.from(iteratorWithReturn, function () { throw Error('close'); });
-  } catch (error) {
-    return SAFE_CLOSING;
-  }
-};
-
 var ARRAY_BUFFER_SUPPORT = function () {
   return ArrayBuffer && DataView;
 };
@@ -113,7 +131,7 @@ var TYPED_ARRAY_CONSTRUCTORS_LIST = {
   Int32Array: 4,
   Uint32Array: 4,
   Float32Array: 4,
-  Float64Array: 8
+  Float64Array: 8,
 };
 
 var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
@@ -136,7 +154,7 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
   var iterable = {
     next: function () {
       return { done: !!called++, value: 1 };
-    }
+    },
   };
   iterable[Symbol.iterator] = function () {
     return this;
@@ -179,7 +197,7 @@ GLOBAL.tests = {
   'es.symbol': [SYMBOLS_SUPPORT, function () {
     return Object.getOwnPropertySymbols
       && Object.getOwnPropertySymbols('qwe')
-      && Symbol['for']
+      && Symbol.for
       && Symbol.keyFor
       && JSON.stringify([Symbol()]) == '[null]'
       && JSON.stringify({ a: Symbol() }) == '{}'
@@ -298,9 +316,6 @@ GLOBAL.tests = {
     } catch (error) {
       return 1 / [1].indexOf(1, -0) > 0;
     }
-  },
-  'es.array.is-array': function () {
-    return Array.isArray;
   },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     return [][Symbol.iterator] === [].values
@@ -423,9 +438,6 @@ GLOBAL.tests = {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
   'es.data-view': ARRAY_BUFFER_SUPPORT,
-  'es.date.now': function () {
-    return Date.now;
-  },
   'es.date.to-iso-string': function () {
     try {
       new Date(NaN).toISOString();
@@ -440,12 +452,6 @@ GLOBAL.tests = {
   'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
     return Date.prototype[Symbol.toPrimitive];
   }],
-  'es.date.to-string': function () {
-    return new Date(NaN).toString() == 'Invalid Date';
-  },
-  'es.function.bind': function () {
-    return Function.prototype.bind;
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],
@@ -467,7 +473,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [1, 2] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -597,9 +603,9 @@ GLOBAL.tests = {
       get: function () {
         Object.defineProperty(this, 'b', {
           value: 3,
-          enumerable: false
+          enumerable: false,
         });
-      }
+      },
     }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
@@ -609,14 +615,7 @@ GLOBAL.tests = {
     alphabet.split('').forEach(function (chr) { B[chr] = chr; });
     return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
   },
-  'es.object.create': function () {
-    return Object.create;
-  },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
-    return Object.defineProperties;
-  }],
-  'es.object.define-property': DESCRIPTORS_SUPPORT,
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
@@ -680,16 +679,21 @@ GLOBAL.tests = {
     return parseInt(WHITESPACES + '08') === 8
       && parseInt(WHITESPACES + '0x16') === 22;
   },
-  'es.promise': PROMISES_SUPPORT,
+  'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise.all': PROMISE_STATICS_ITERATION,
   'es.promise.all-settled': function () {
     return Promise.allSettled;
   },
   'es.promise.any': function () {
     return Promise.any;
   },
+  'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
-    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
+    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
   }],
+  'es.promise.race': PROMISE_STATICS_ITERATION,
+  'es.promise.reject': PROMISES_SUPPORT,
+  'es.promise.resolve': PROMISES_SUPPORT,
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
@@ -795,7 +799,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: 1 };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -909,12 +913,14 @@ GLOBAL.tests = {
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.trim': createStringTrimMethodTest('trim'),
-  'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
-    return String.prototype.trimRight === String.prototype.trimEnd;
-  }],
-  'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
+  'es.string.trim-end': createStringTrimMethodTest('trimEnd'),
+  'es.string.trim-left': [createStringTrimMethodTest('trimStart'), function () {
     return String.prototype.trimLeft === String.prototype.trimStart;
   }],
+  'es.string.trim-right': [createStringTrimMethodTest('trimEnd'), function () {
+    return String.prototype.trimRight === String.prototype.trimEnd;
+  }],
+  'es.string.trim-start': createStringTrimMethodTest('trimStart'),
   'es.string.anchor': createStringHTMLMethodTest('anchor'),
   'es.string.big': createStringHTMLMethodTest('big'),
   'es.string.blink': createStringHTMLMethodTest('blink'),
@@ -930,39 +936,39 @@ GLOBAL.tests = {
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.float64-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-clamped-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.copy-within': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.copyWithin;
@@ -990,7 +996,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.from;
-    }
+    },
   ],
   'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.includes;
@@ -1018,7 +1024,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.of;
-    }
+    },
   ],
   'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.reduce;
@@ -1061,7 +1067,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [key, 1] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1079,7 +1085,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: key };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1264,14 +1270,6 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.update-or-insert': function () {
-    return Map.prototype.updateOrInsert;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.upsert': function () {
-    return Map.prototype.upsert;
-  },
   'esnext.math.clamp': function () {
     return Math.clamp;
   },
@@ -1284,18 +1282,6 @@ GLOBAL.tests = {
   'esnext.math.fscale': function () {
     return Math.fscale;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.iaddh': function () {
-    return Math.iaddh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.imulh': function () {
-    return Math.imulh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': function () {
-    return Math.isubh;
-  },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;
   },
@@ -1305,15 +1291,8 @@ GLOBAL.tests = {
   'esnext.math.scale': function () {
     return Math.scale;
   },
-  'esnext.math.seeded-prng': function () {
-    return Math.seededPRNG;
-  },
   'esnext.math.signbit': function () {
     return Math.signbit;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': function () {
-    return Math.umulh;
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
@@ -1321,23 +1300,11 @@ GLOBAL.tests = {
   'esnext.number.range': function () {
     return Number.range;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-entries': function () {
-    return Object.iterateEntries;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': function () {
-    return Object.iterateKeys;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-values': function () {
-    return Object.iterateValues;
-  },
   'esnext.observable': function () {
     return Observable;
   },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
-    return Promise['try'];
+    return Promise.try;
   }],
   'esnext.reflect.define-metadata': function () {
     return Reflect.defineMetadata;
@@ -1421,7 +1388,7 @@ GLOBAL.tests = {
     return Set.prototype.union;
   },
   'esnext.string.at': function () {
-    return '𠮷'.at(0) === '𠮷';
+    return '𠮷'.at(0) === '\uD842';
   },
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
@@ -1431,13 +1398,6 @@ GLOBAL.tests = {
   },
   'esnext.symbol.observable': function () {
     return Symbol.observable;
-  },
-  'esnext.symbol.pattern-match': function () {
-    return Symbol.patternMatch;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.replace-all': function () {
-    return Symbol.replaceAll;
   },
   'esnext.typed-array.at': function () {
     return Int8Array.prototype.at;
@@ -1463,10 +1423,6 @@ GLOBAL.tests = {
   'esnext.weak-map.of': function () {
     return WeakMap.of;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': function () {
-    return WeakMap.prototype.upsert;
-  },
   'esnext.weak-set.add-all': function () {
     return WeakSet.prototype.addAll;
   },
@@ -1478,6 +1434,9 @@ GLOBAL.tests = {
   },
   'esnext.weak-set.of': function () {
     return WeakSet.of;
+  },
+  'web.clear-immediate': function () {
+    return setImmediate && clearImmediate;
   },
   'web.dom-collections.for-each': function () {
     return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
@@ -1515,7 +1474,7 @@ GLOBAL.tests = {
       StyleSheetList: 0,
       TextTrackCueList: 0,
       TextTrackList: 0,
-      TouchList: 0
+      TouchList: 0,
     };
     for (var collection in DOMIterables) {
       if (GLOBAL[collection]) {
@@ -1532,18 +1491,21 @@ GLOBAL.tests = {
     }
     return true;
   },
-  'web.immediate': function () {
-    return setImmediate && clearImmediate;
-  },
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
-  'web.timers': function () {
-    return !/MSIE .\./.test(USERAGENT);
+  'web.set-immediate': function () {
+    return setImmediate && clearImmediate;
+  },
+  'web.set-interval': function () {
+    return !MSIE9;
+  },
+  'web.set-timeout': function () {
+    return !MSIE9;
   },
   'web.url': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT
+  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
 };

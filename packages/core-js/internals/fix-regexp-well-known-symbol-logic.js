@@ -1,6 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4` since it's moved to entry points
-require('../modules/es.regexp.exec');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -107,7 +105,7 @@ module.exports = function (KEY, length, exec, sham) {
       return { done: false };
     }, {
       REPLACE_KEEPS_$0: REPLACE_KEEPS_$0,
-      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE: REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE
+      REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE: REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE,
     });
     var stringMethod = methods[0];
     var regexMethod = methods[1];

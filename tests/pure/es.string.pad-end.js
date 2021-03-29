@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import padEnd from 'core-js-pure/features/string/pad-end';
+import padEnd from 'core-js-pure/full/string/pad-end';
 
 QUnit.test('String#padEnd', assert => {
   assert.isFunction(padEnd);

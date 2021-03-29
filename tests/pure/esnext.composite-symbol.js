@@ -1,6 +1,6 @@
 /* eslint-disable no-self-compare -- required for testing */
-import compositeSymbol from 'core-js-pure/features/composite-symbol';
-import Symbol from 'core-js-pure/features/symbol';
+import compositeSymbol from 'core-js-pure/full/composite-symbol';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('compositeSymbol', assert => {
   assert.isFunction(compositeSymbol);

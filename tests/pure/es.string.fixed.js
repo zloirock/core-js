@@ -1,4 +1,4 @@
-import fixed from 'core-js-pure/features/string/fixed';
+import fixed from 'core-js-pure/full/string/fixed';
 
 QUnit.test('String#fixed', assert => {
   assert.isFunction(fixed);

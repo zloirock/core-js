@@ -1,12 +1,11 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
-var objectKeys = require('../internals/object-keys');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
-var IndexedObject = require('../internals/indexed-object');
 
+// eslint-disable-next-line es/no-object-keys -- safe
+var objectKeys = Object.keys;
 // eslint-disable-next-line es/no-object-assign -- safe
 var $assign = Object.assign;
 // eslint-disable-next-line es/no-object-defineproperty -- required for testing
@@ -16,14 +15,14 @@ var defineProperty = Object.defineProperty;
 // https://tc39.es/ecma262/#sec-object.assign
 module.exports = !$assign || fails(function () {
   // should have correct order of operations (Edge bug)
-  if (DESCRIPTORS && $assign({ b: 1 }, $assign(defineProperty({}, 'a', {
+  if ($assign({ b: 1 }, $assign(defineProperty({}, 'a', {
     enumerable: true,
     get: function () {
       defineProperty(this, 'b', {
         value: 3,
-        enumerable: false
+        enumerable: false,
       });
-    }
+    },
   }), { b: 2 })).b !== 1) return true;
   // should work with symbols and should have deterministic property order (V8 bug)
   var A = {};
@@ -41,14 +40,14 @@ module.exports = !$assign || fails(function () {
   var getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
   var propertyIsEnumerable = propertyIsEnumerableModule.f;
   while (argumentsLength > index) {
-    var S = IndexedObject(arguments[index++]);
+    var S = Object(arguments[index++]);
     var keys = getOwnPropertySymbols ? objectKeys(S).concat(getOwnPropertySymbols(S)) : objectKeys(S);
     var length = keys.length;
     var j = 0;
     var key;
     while (length > j) {
       key = keys[j++];
-      if (!DESCRIPTORS || propertyIsEnumerable.call(S, key)) T[key] = S[key];
+      if (propertyIsEnumerable.call(S, key)) T[key] = S[key];
     }
   } return T;
 } : $assign;

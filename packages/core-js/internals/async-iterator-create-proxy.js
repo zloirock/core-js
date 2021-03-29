@@ -2,7 +2,6 @@
 var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -18,7 +17,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $return = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$return = iterator['return'];
+  var $$return = iterator.return;
   return $$return === undefined
     ? Promise.resolve({ done: true, value: value })
     : anObject($$return.call(iterator, value));
@@ -26,9 +25,9 @@ var $return = function (value) {
 
 var $throw = function (value) {
   var iterator = getInternalState(this).iterator;
-  var $$throw = iterator['throw'];
+  var $$throw = iterator.throw;
   return $$throw === undefined
-    ? Promise.reject(value)
+    ? new Promise(function (resolve, reject) { reject(value); })
     : $$throw.call(iterator, value);
 };
 
@@ -39,18 +38,18 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
+  AsyncIteratorProxy.prototype = redefineAll(Object.create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
       if (state.done) return Promise.resolve({ done: true, value: undefined });
       try {
         return Promise.resolve(anObject(nextHandler.call(state, arg, Promise)));
       } catch (error) {
-        return Promise.reject(error);
+        return new Promise(function (resolve, reject) { reject(error); });
       }
     },
-    'return': $return,
-    'throw': $throw
+    return: $return,
+    throw: $throw,
   });
 
   if (!IS_ITERATOR) {

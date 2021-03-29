@@ -1,6 +1,6 @@
 import { createIterable } from '../helpers/helpers';
 
-import Set from 'core-js-pure/features/set';
+import Set from 'core-js-pure/full/set';
 
 QUnit.test('Set#isSubsetOf', assert => {
   const { isSubsetOf } = Set.prototype;

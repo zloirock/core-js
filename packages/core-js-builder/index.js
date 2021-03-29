@@ -1,26 +1,32 @@
 'use strict';
-const { promisify } = require('util');
-const fs = require('fs');
-// TODO: replace by `fs.promises` after dropping NodeJS < 10 support
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const writeFile = promisify(fs.writeFile);
+const { mkdir, readFile, unlink, writeFile } = require('fs').promises;
 const { dirname, join } = require('path');
+const { promisify } = require('util');
 const tmpdir = require('os').tmpdir();
-// TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
-const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
-const compat = require('core-js-compat/compat');
-const modulesList = require('core-js-compat/modules');
+const { minify: terser } = require('terser');
+const compat = require('@core-js/compat/compat');
+const modulesList = require('@core-js/compat/modules');
 const { banner } = require('./config');
 
 module.exports = async function ({
-    blacklist, // TODO: Remove from `core-js@4`
-    exclude = [],
-    modules = modulesList.slice(),
-    targets,
-    filename,
+  exclude = [],
+  modules = modulesList.slice(),
+  targets,
+  minify = true,
+  filename,
+  summary = {},
 } = {}) {
+  const TITLE = filename != null ? filename : '`core-js`';
+
+  let summarySize, summaryModules, modulesWithTargets;
+  if (typeof summary !== 'object') {
+    summarySize = summaryModules = !!summary;
+  } else {
+    summarySize = !!summary.size;
+    summaryModules = !!summary.modules;
+  }
+
   const set = new Set();
 
   function filter(method, list) {
@@ -34,11 +40,22 @@ module.exports = async function ({
   }
 
   filter('add', modules);
-  filter('delete', blacklist || exclude);
+  filter('delete', exclude);
 
   modules = modulesList.filter(it => set.has(it));
 
-  if (targets) modules = compat({ targets, filter: modules }).list;
+  if (targets) {
+    const compatResult = compat({ targets, filter: modules });
+    modules = compatResult.list;
+    modulesWithTargets = compatResult.targets;
+  }
+
+  if (summaryModules) {
+    // eslint-disable-next-line no-console -- output
+    console.log(`\u001B[36m${ TITLE }\u001B[32m bundle modules:\u001B[0m`);
+    // eslint-disable-next-line no-console -- output
+    console.table(modulesWithTargets || modules);
+  }
 
   let script = banner;
 
@@ -48,11 +65,8 @@ module.exports = async function ({
 
     await webpack({
       mode: 'none',
-      node: {
-        global: false,
-        process: false,
-        setImmediate: false,
-      },
+      node: false,
+      target: ['node', 'es5'],
       entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
         path: tmpdir,
@@ -70,8 +84,37 @@ module.exports = async function ({
     } }();`;
   }
 
+  if (minify) {
+    const { code } = await terser(script, {
+      ecma: 5,
+      keep_fnames: true,
+      compress: {
+        hoist_funs: false,
+        hoist_vars: true,
+        pure_getters: true,
+        passes: 3,
+        unsafe_proto: true,
+        unsafe_undefined: true,
+      },
+      format: {
+        max_line_len: 32000,
+        preamble: banner,
+        webkit: false,
+      },
+    });
+
+    script = code;
+  }
+
+  if (summarySize) {
+    // eslint-disable-next-line no-console -- output
+    console.log(`\u001B[32mbundling: \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
+      (script.length / 1024).toFixed(2)
+    }KB\u001B[0m`);
+  }
+
   if (typeof filename != 'undefined') {
-    await mkdirp(dirname(filename));
+    await mkdir(dirname(filename), { recursive: true });
     await writeFile(filename, script);
   }
 

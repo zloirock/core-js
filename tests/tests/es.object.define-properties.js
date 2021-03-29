@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
 QUnit.test('Object.defineProperties', assert => {
   const { defineProperties } = Object;
   assert.isFunction(defineProperties);
@@ -12,8 +10,4 @@ QUnit.test('Object.defineProperties', assert => {
   assert.same(result, source);
   assert.same(result.q, 42);
   assert.same(result.w, 33);
-});
-
-QUnit.test('Object.defineProperties.sham flag', assert => {
-  assert.same(Object.defineProperties.sham, DESCRIPTORS ? undefined : true);
 });

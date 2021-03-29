@@ -36,7 +36,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
-      filterer: aFunction(filterer)
+      filterer: aFunction(filterer),
     });
-  }
+  },
 });

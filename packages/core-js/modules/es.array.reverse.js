@@ -1,7 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 
+// eslint-disable-next-line es/no-array-isarray -- safe
+var isArray = Array.isArray;
 var nativeReverse = [].reverse;
 var test = [1, 2];
 
@@ -14,5 +15,5 @@ $({ target: 'Array', proto: true, forced: String(test) === String(test.reverse()
     // eslint-disable-next-line no-self-assign -- dirty hack
     if (isArray(this)) this.length = this.length;
     return nativeReverse.call(this);
-  }
+  },
 });

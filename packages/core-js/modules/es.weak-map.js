@@ -30,16 +30,16 @@ if (NATIVE_WEAK_MAP && IS_IE11) {
   InternalWeakMap = collectionWeak.getConstructor(wrapper, 'WeakMap', true);
   InternalMetadataModule.REQUIRED = true;
   var WeakMapPrototype = $WeakMap.prototype;
-  var nativeDelete = WeakMapPrototype['delete'];
+  var nativeDelete = WeakMapPrototype.delete;
   var nativeHas = WeakMapPrototype.has;
   var nativeGet = WeakMapPrototype.get;
   var nativeSet = WeakMapPrototype.set;
   redefineAll(WeakMapPrototype, {
-    'delete': function (key) {
+    delete: function (key) {
       if (isObject(key) && !isExtensible(key)) {
         var state = enforceIternalState(this);
         if (!state.frozen) state.frozen = new InternalWeakMap();
-        return nativeDelete.call(this, key) || state.frozen['delete'](key);
+        return nativeDelete.call(this, key) || state.frozen.delete(key);
       } return nativeDelete.call(this, key);
     },
     has: function has(key) {
@@ -63,6 +63,6 @@ if (NATIVE_WEAK_MAP && IS_IE11) {
         nativeHas.call(this, key) ? nativeSet.call(this, key, value) : state.frozen.set(key, value);
       } else nativeSet.call(this, key, value);
       return this;
-    }
+    },
   });
 }

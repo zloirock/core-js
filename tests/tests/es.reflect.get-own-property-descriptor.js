@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
 QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
   const { getOwnPropertyDescriptor } = Reflect;
   assert.isFunction(getOwnPropertyDescriptor);
@@ -11,8 +9,4 @@ QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
   const descriptor = getOwnPropertyDescriptor(object, 'baz');
   assert.strictEqual(descriptor.value, 789);
   assert.throws(() => getOwnPropertyDescriptor(42, 'constructor'), TypeError, 'throws on primitive');
-});
-
-QUnit.test('Reflect.getOwnPropertyDescriptor.sham flag', assert => {
-  assert.same(Reflect.getOwnPropertyDescriptor.sham, DESCRIPTORS ? undefined : true);
 });

@@ -25,5 +25,5 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     }, { IS_ITERATOR: true });
     if (noInitial) throw TypeError('Reduce of empty set with no initial value');
     return accumulator;
-  }
+  },
 });

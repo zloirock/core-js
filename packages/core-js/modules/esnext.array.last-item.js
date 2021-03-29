@@ -1,14 +1,13 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
-var defineProperty = require('../internals/object-define-property').f;
 
 // `Array.prototype.lastIndex` accessor
 // https://github.com/keithamus/proposal-array-last
-if (DESCRIPTORS && !('lastItem' in [])) {
-  defineProperty(Array.prototype, 'lastItem', {
+if (!('lastItem' in [])) {
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
+  Object.defineProperty(Array.prototype, 'lastItem', {
     configurable: true,
     get: function lastItem() {
       var O = toObject(this);
@@ -18,8 +17,8 @@ if (DESCRIPTORS && !('lastItem' in [])) {
     set: function lastItem(value) {
       var O = toObject(this);
       var len = toLength(O.length);
-      return O[len == 0 ? 0 : len - 1] = value;
-    }
+      O[len == 0 ? 0 : len - 1] = value;
+    },
   });
 
   addToUnscopables('lastItem');

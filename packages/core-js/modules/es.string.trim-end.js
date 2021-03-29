@@ -1,19 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
-var $trimEnd = require('../internals/string-trim').end;
-var forcedStringTrimMethod = require('../internals/string-trim-forced');
+var $trimEnd = require('../internals/string-trim-end');
 
-var FORCED = forcedStringTrimMethod('trimEnd');
-
-var trimEnd = FORCED ? function trimEnd() {
-  return $trimEnd(this);
-// eslint-disable-next-line es/no-string-prototype-trimstart-trimend -- safe
-} : ''.trimEnd;
-
-// `String.prototype.{ trimEnd, trimRight }` methods
+// `String.prototype.trimEnd` methods
 // https://tc39.es/ecma262/#sec-string.prototype.trimend
-// https://tc39.es/ecma262/#String.prototype.trimright
-$({ target: 'String', proto: true, forced: FORCED }, {
-  trimEnd: trimEnd,
-  trimRight: trimEnd
+// eslint-disable-next-line es/no-string-prototype-trimstart-trimend -- safe
+$({ target: 'String', proto: true, forced: ''.trimEnd !== $trimEnd }, {
+  trimEnd: $trimEnd,
 });

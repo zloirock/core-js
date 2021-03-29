@@ -8,5 +8,5 @@ var LN2 = Math.LN2;
 $({ target: 'Math', stat: true }, {
   log2: function log2(x) {
     return log(x) / LN2;
-  }
+  },
 });

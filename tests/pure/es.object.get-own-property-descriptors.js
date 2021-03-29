@@ -1,7 +1,5 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
-import Symbol from 'core-js-pure/features/symbol';
-import { create, getOwnPropertyDescriptors } from 'core-js-pure/features/object';
+import Symbol from 'core-js-pure/full/symbol';
+import { create, getOwnPropertyDescriptors } from 'core-js-pure/full/object';
 
 QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   assert.isFunction(getOwnPropertyDescriptors);
@@ -17,24 +15,11 @@ QUnit.test('Object.getOwnPropertyDescriptors', assert => {
     writable: true,
     value: 2,
   });
-  if (DESCRIPTORS) {
-    assert.deepEqual(descriptors.e, {
-      enumerable: false,
-      configurable: false,
-      writable: false,
-      value: 3,
-    });
-  } else {
-    assert.deepEqual(descriptors.e, {
-      enumerable: true,
-      configurable: true,
-      writable: true,
-      value: 3,
-    });
-  }
+  assert.deepEqual(descriptors.e, {
+    enumerable: false,
+    configurable: false,
+    writable: false,
+    value: 3,
+  });
   assert.strictEqual(descriptors[symbol].value, 4);
-});
-
-QUnit.test('Object.getOwnPropertyDescriptors.sham flag', assert => {
-  assert.same(getOwnPropertyDescriptors.sham, DESCRIPTORS ? undefined : true);
 });

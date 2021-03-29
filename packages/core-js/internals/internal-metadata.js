@@ -1,22 +1,20 @@
 var hiddenKeys = require('../internals/hidden-keys');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
-var defineProperty = require('../internals/object-define-property').f;
 var uid = require('../internals/uid');
-var FREEZING = require('../internals/freezing');
 
 var METADATA = uid('meta');
 var id = 0;
 
+// eslint-disable-next-line es/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 // eslint-disable-next-line es/no-object-isextensible -- safe
-var isExtensible = Object.isExtensible || function () {
-  return true;
-};
+var isExtensible = Object.isExtensible;
 
 var setMetadata = function (it) {
   defineProperty(it, METADATA, { value: {
     objectID: 'O' + ++id, // object ID
-    weakData: {}          // weak collections IDs
+    weakData: {},         // weak collections IDs
   } });
 };
 
@@ -48,7 +46,7 @@ var getWeakData = function (it, create) {
 
 // add metadata on freeze-family methods calling
 var onFreeze = function (it) {
-  if (FREEZING && meta.REQUIRED && isExtensible(it) && !has(it, METADATA)) setMetadata(it);
+  if (meta.REQUIRED && isExtensible(it) && !has(it, METADATA)) setMetadata(it);
   return it;
 };
 
@@ -56,7 +54,7 @@ var meta = module.exports = {
   REQUIRED: false,
   fastKey: fastKey,
   getWeakData: getWeakData,
-  onFreeze: onFreeze
+  onFreeze: onFreeze,
 };
 
 hiddenKeys[METADATA] = true;

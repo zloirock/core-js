@@ -11,5 +11,5 @@ $({ global: true, enumerable: true, noTargetGet: true }, {
   queueMicrotask: function queueMicrotask(fn) {
     var domain = IS_NODE && process.domain;
     microtask(domain ? domain.bind(fn) : fn);
-  }
+  },
 });

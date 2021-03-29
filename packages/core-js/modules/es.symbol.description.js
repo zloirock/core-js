@@ -2,16 +2,14 @@
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var has = require('../internals/has');
 var isObject = require('../internals/is-object');
-var defineProperty = require('../internals/object-define-property').f;
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
 var NativeSymbol = global.Symbol;
 
-if (DESCRIPTORS && typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.prototype) ||
+if (typeof NativeSymbol == 'function' && (!('description' in NativeSymbol.prototype) ||
   // Safari 12 bug
   NativeSymbol().description !== undefined
 )) {
@@ -33,7 +31,8 @@ if (DESCRIPTORS && typeof NativeSymbol == 'function' && (!('description' in Nati
   var symbolToString = symbolPrototype.toString;
   var native = String(NativeSymbol('test')) == 'Symbol(test)';
   var regexp = /^Symbol\((.*)\)[^)]+$/;
-  defineProperty(symbolPrototype, 'description', {
+  // eslint-disable-next-line es/no-object-defineproperty -- safe
+  Object.defineProperty(symbolPrototype, 'description', {
     configurable: true,
     get: function description() {
       var symbol = isObject(this) ? this.valueOf() : this;
@@ -41,10 +40,10 @@ if (DESCRIPTORS && typeof NativeSymbol == 'function' && (!('description' in Nati
       if (has(EmptyStringDescriptionStore, symbol)) return '';
       var desc = native ? string.slice(7, -1) : string.replace(regexp, '$1');
       return desc === '' ? undefined : desc;
-    }
+    },
   });
 
   $({ global: true, forced: true }, {
-    Symbol: SymbolWrapper
+    Symbol: SymbolWrapper,
   });
 }

@@ -63,5 +63,5 @@ $({ target: 'String', proto: true }, {
       result += string.slice(endOfLastMatch);
     }
     return result;
-  }
+  },
 });

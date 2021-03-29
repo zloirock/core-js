@@ -11,7 +11,7 @@ for (const version of Object.values(modulesByVersions)) {
 }
 
 writeFileSync(resolve(__dirname, '../modules-by-versions.json'), JSON.stringify({
-  '3.0': [...defaults],
+  '4.0': [...defaults],
   ...modulesByVersions,
 }, null, '  '));
 

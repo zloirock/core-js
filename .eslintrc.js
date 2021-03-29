@@ -1,7 +1,6 @@
 'use strict';
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
-const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
-const DEV_NODE_VERSIONS = '^10.17';
+const SUPPORTED_NODE_VERSIONS = require('@core-js/builder/package').engines.node;
 
 function disable(rules) {
   return Object.keys(rules).reduce((memo, rule) => {
@@ -520,11 +519,9 @@ const base = {
   'eslint-comments/require-description': 'error',
 };
 
-const es3 = {
-  // disallow trailing commas in multiline object literals
-  'comma-dangle': ['error', 'never'],
-  // encourages use of dot notation whenever possible
-  'dot-notation': ['error', { allowKeywords: false }],
+const es5 = {
+  // disallow adding to native types
+  'no-extend-native': 'off',
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': 'error',
   // require let or const instead of var
@@ -541,8 +538,6 @@ const es3 = {
   'prefer-exponentiation-operator': 'off',
   // require template literals instead of string concatenation
   'prefer-template': 'off',
-  // require or disallow use of quotes around object literal property names
-  'quote-props': ['error', 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: 'off',
   // prefer default parameters over reassignment
@@ -686,8 +681,6 @@ const forbidModernESBuiltIns = {
 };
 
 const transpiledAndPolyfilled = {
-  // disallow accessor properties
-  'es/no-accessor-properties': 'error',
   // disallow async functions
   'es/no-async-functions': 'error',
   // disallow async iteration
@@ -706,7 +699,7 @@ const transpiledAndPolyfilled = {
   'es/no-weakrefs': 'error',
 };
 
-const nodePackages = {
+const node = {
   // disallow unsupported ECMAScript syntax on the specified version
   'node/no-unsupported-features/es-syntax': ['error', { version: SUPPORTED_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
@@ -715,26 +708,9 @@ const nodePackages = {
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
   ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': 'error',
-  'es/no-shared-array-buffer': 'error',
-  ...forbidES2018BuiltIns,
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
-};
-
-const nodeDev = {
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': ['error', { version: DEV_NODE_VERSIONS }],
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
   ...disable(forbidES2018BuiltIns),
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
+  ...disable(forbidES2019BuiltIns),
+  ...disable(forbidES2020BuiltIns),
   ...forbidES2021BuiltIns,
 };
 
@@ -863,9 +839,9 @@ module.exports = {
         'tests/worker/**',
       ],
       parserOptions: {
-        ecmaVersion: 3,
+        ecmaVersion: 5,
       },
-      rules: es3,
+      rules: es5,
     },
     {
       files: [
@@ -923,13 +899,10 @@ module.exports = {
     },
     {
       files: [
+        // packages
         'packages/core-js-builder/**',
         'packages/core-js-compat/**',
-      ],
-      rules: nodePackages,
-    },
-    {
-      files: [
+        // dev
         'packages/core-js-compat/src/**',
         'scripts/**',
         'tests/observables/**',
@@ -942,7 +915,7 @@ module.exports = {
         'babel.config.js',
         'Gruntfile.js',
       ],
-      rules: nodeDev,
+      rules: node,
     },
     {
       files: [

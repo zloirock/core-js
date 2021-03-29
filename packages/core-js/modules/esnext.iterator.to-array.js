@@ -11,5 +11,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     var result = [];
     iterate(anObject(this), push, { that: result, IS_ITERATOR: true });
     return result;
-  }
+  },
 });

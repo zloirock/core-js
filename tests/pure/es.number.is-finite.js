@@ -1,5 +1,5 @@
-import isFinite from 'core-js-pure/features/number/is-finite';
-import create from 'core-js-pure/features/object/create';
+import isFinite from 'core-js-pure/full/number/is-finite';
+import create from 'core-js-pure/full/object/create';
 
 QUnit.test('Number.isFinite', assert => {
   assert.isFunction(isFinite);

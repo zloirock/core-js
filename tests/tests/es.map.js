@@ -1,6 +1,6 @@
 /* eslint-disable radar/no-element-overwrite -- required for testing */
 
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -41,12 +41,10 @@ QUnit.test('Map', assert => {
   assert.ok(done);
   const object = {};
   new Map().set(object, 1);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in object) results.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+  const results = [];
+  for (const key in object) results.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
@@ -267,12 +265,10 @@ QUnit.test('Map#size', assert => {
   const { size } = map;
   assert.strictEqual(typeof size, 'number', 'size is number');
   assert.strictEqual(size, 1, 'size is correct');
-  if (DESCRIPTORS) {
-    const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
-    assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
-    assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
-    assert.throws(() => Map.prototype.size, TypeError);
-  }
+  const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
+  assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
+  assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
+  assert.throws(() => Map.prototype.size, TypeError);
 });
 
 QUnit.test('Map & -0', assert => {

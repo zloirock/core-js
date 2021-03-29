@@ -14,7 +14,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   asIndexedPairs: function asIndexedPairs() {
     return new IteratorProxy({
       iterator: anObject(this),
-      index: 0
+      index: 0,
     });
-  }
+  },
 });

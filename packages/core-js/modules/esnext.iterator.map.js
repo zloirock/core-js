@@ -17,7 +17,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   map: function map(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),
-      mapper: aFunction(mapper)
+      mapper: aFunction(mapper),
     });
-  }
+  },
 });

@@ -1,6 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
-if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
+QUnit.test('Uint8Clamped conversions', assert => {
   const uint8clamped = new Uint8ClampedArray(1);
   const uint8array = new Uint8Array(uint8clamped.buffer);
 

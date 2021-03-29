@@ -1,12 +1,13 @@
-var DESCRIPTORS = require('../internals/descriptors');
-var objectKeys = require('../internals/object-keys');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
+
+// eslint-disable-next-line es/no-object-keys -- safe
+var objectKeys = Object.keys;
 
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
   return function (it) {
-    var O = toIndexedObject(it);
+    var O = toObject(it);
     var keys = objectKeys(O);
     var length = keys.length;
     var i = 0;
@@ -14,7 +15,7 @@ var createMethod = function (TO_ENTRIES) {
     var key;
     while (length > i) {
       key = keys[i++];
-      if (!DESCRIPTORS || propertyIsEnumerable.call(O, key)) {
+      if (propertyIsEnumerable.call(O, key)) {
         result.push(TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }
@@ -28,5 +29,5 @@ module.exports = {
   entries: createMethod(true),
   // `Object.values` method
   // https://tc39.es/ecma262/#sec-object.values
-  values: createMethod(false)
+  values: createMethod(false),
 };

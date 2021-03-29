@@ -1,7 +1,9 @@
 var $ = require('../internals/export');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
+
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
+var getPrototypeOf = Object.getPrototypeOf;
 
 var ordinaryHasOwnMetadata = ReflectMetadataModule.has;
 var toMetadataKey = ReflectMetadataModule.toKey;
@@ -19,5 +21,5 @@ $({ target: 'Reflect', stat: true }, {
   hasMetadata: function hasMetadata(metadataKey, target /* , targetKey */) {
     var targetKey = arguments.length < 3 ? undefined : toMetadataKey(arguments[2]);
     return ordinaryHasMetadata(metadataKey, anObject(target), targetKey);
-  }
+  },
 });

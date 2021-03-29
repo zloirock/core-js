@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import flatMap from 'core-js-pure/features/array/flat-map';
+import flatMap from 'core-js-pure/full/array/flat-map';
 
 QUnit.test('Array#flatMap', assert => {
   assert.isFunction(flatMap);

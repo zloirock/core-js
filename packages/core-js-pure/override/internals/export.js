@@ -1,22 +1,16 @@
 'use strict';
 var global = require('../internals/global');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
-var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var has = require('../internals/has');
 
+var FunctionPrototype = Function.prototype;
+var bind = FunctionPrototype.bind;
+var call = FunctionPrototype.call;
+
 var wrapConstructor = function (NativeConstructor) {
-  var Wrapper = function (a, b, c) {
-    if (this instanceof NativeConstructor) {
-      switch (arguments.length) {
-        case 0: return new NativeConstructor();
-        case 1: return new NativeConstructor(a);
-        case 2: return new NativeConstructor(a, b);
-      } return new NativeConstructor(a, b, c);
-    } return NativeConstructor.apply(this, arguments);
-  };
+  var Wrapper = bind.call(NativeConstructor);
   Wrapper.prototype = NativeConstructor.prototype;
   return Wrapper;
 };
@@ -57,7 +51,8 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.noTargetGet) {
-      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
+      descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 
@@ -67,11 +62,11 @@ module.exports = function (options, source) {
     if (USE_NATIVE && typeof targetProperty === typeof sourceProperty) continue;
 
     // bind timers to global for call from export context
-    if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, global);
+    if (options.bind && USE_NATIVE) resultProperty = bind.call(sourceProperty, global);
     // wrap global constructors for prevent changs in this version
     else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
     // make static versions for prototype methods
-    else if (PROTO && typeof sourceProperty == 'function') resultProperty = bind(Function.call, sourceProperty);
+    else if (PROTO && typeof sourceProperty == 'function') resultProperty = bind.call(call, sourceProperty);
     // default case
     else resultProperty = sourceProperty;
 

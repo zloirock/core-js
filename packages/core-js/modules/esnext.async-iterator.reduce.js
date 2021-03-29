@@ -42,5 +42,5 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 
       loop();
     });
-  }
+  },
 });

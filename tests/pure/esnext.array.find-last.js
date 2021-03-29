@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import findLast from 'core-js-pure/features/array/find-last';
+import findLast from 'core-js-pure/full/array/find-last';
 
 QUnit.test('Array#findLast', assert => {
   assert.isFunction(findLast);

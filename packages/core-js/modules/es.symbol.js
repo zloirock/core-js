@@ -3,20 +3,15 @@ var $ = require('../internals/export');
 var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
 var IS_PURE = require('../internals/is-pure');
-var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_SYMBOL = require('../internals/native-symbol');
 var USE_SYMBOL_AS_UID = require('../internals/use-symbol-as-uid');
 var fails = require('../internals/fails');
 var has = require('../internals/has');
-var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
-var toIndexedObject = require('../internals/to-indexed-object');
 var toPrimitive = require('../internals/to-primitive');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var nativeObjectCreate = require('../internals/object-create');
-var objectKeys = require('../internals/object-keys');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
@@ -34,7 +29,6 @@ var wrappedWellKnownSymbolModule = require('../internals/well-known-symbol-wrapp
 var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
-var $forEach = require('../internals/array-iteration').forEach;
 
 var HIDDEN = sharedKey('hidden');
 var SYMBOL = 'Symbol';
@@ -45,10 +39,17 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = global.Symbol;
 var $stringify = getBuiltIn('JSON', 'stringify');
+// eslint-disable-next-line es/no-object-keys -- safe
+var objectKeys = Object.keys;
+var nativeObjectCreate = Object.create;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
+// eslint-disable-next-line es/no-array-isarray -- safe
+var isArray = Array.isArray;
+// eslint-disable-next-line es/no-array-prototype-foreach -- safe
+var forEach = [].forEach;
 var AllSymbols = shared('symbols');
 var ObjectPrototypeSymbols = shared('op-symbols');
 var StringToSymbolRegistry = shared('string-to-symbol-registry');
@@ -59,9 +60,9 @@ var QObject = global.QObject;
 var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
-var setSymbolDescriptor = DESCRIPTORS && fails(function () {
+var setSymbolDescriptor = fails(function () {
   return nativeObjectCreate(nativeDefineProperty({}, 'a', {
-    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
+    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; },
   })).a != 7;
 }) ? function (O, P, Attributes) {
   var ObjectPrototypeDescriptor = nativeGetOwnPropertyDescriptor(ObjectPrototype, P);
@@ -77,9 +78,8 @@ var wrap = function (tag, description) {
   setInternalState(symbol, {
     type: SYMBOL,
     tag: tag,
-    description: description
+    description: description,
   });
-  if (!DESCRIPTORS) symbol.description = description;
   return symbol;
 };
 
@@ -107,10 +107,10 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
 
 var $defineProperties = function defineProperties(O, Properties) {
   anObject(O);
-  var properties = toIndexedObject(Properties);
+  var properties = toObject(Properties);
   var keys = objectKeys(properties).concat($getOwnPropertySymbols(properties));
-  $forEach(keys, function (key) {
-    if (!DESCRIPTORS || $propertyIsEnumerable.call(properties, key)) $defineProperty(O, key, properties[key]);
+  forEach.call(keys, function (key) {
+    if ($propertyIsEnumerable.call(properties, key)) $defineProperty(O, key, properties[key]);
   });
   return O;
 };
@@ -127,7 +127,7 @@ var $propertyIsEnumerable = function propertyIsEnumerable(V) {
 };
 
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
-  var it = toIndexedObject(O);
+  var it = toObject(O);
   var key = toPrimitive(P, true);
   if (it === ObjectPrototype && has(AllSymbols, key) && !has(ObjectPrototypeSymbols, key)) return;
   var descriptor = nativeGetOwnPropertyDescriptor(it, key);
@@ -138,9 +138,9 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
 };
 
 var $getOwnPropertyNames = function getOwnPropertyNames(O) {
-  var names = nativeGetOwnPropertyNames(toIndexedObject(O));
+  var names = nativeGetOwnPropertyNames(toObject(O));
   var result = [];
-  $forEach(names, function (key) {
+  forEach.call(names, function (key) {
     if (!has(AllSymbols, key) && !has(hiddenKeys, key)) result.push(key);
   });
   return result;
@@ -148,9 +148,9 @@ var $getOwnPropertyNames = function getOwnPropertyNames(O) {
 
 var $getOwnPropertySymbols = function getOwnPropertySymbols(O) {
   var IS_OBJECT_PROTOTYPE = O === ObjectPrototype;
-  var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toIndexedObject(O));
+  var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toObject(O));
   var result = [];
-  $forEach(names, function (key) {
+  forEach.call(names, function (key) {
     if (has(AllSymbols, key) && (!IS_OBJECT_PROTOTYPE || has(ObjectPrototype, key))) {
       result.push(AllSymbols[key]);
     }
@@ -170,7 +170,7 @@ if (!NATIVE_SYMBOL) {
       if (has(this, HIDDEN) && has(this[HIDDEN], tag)) this[HIDDEN][tag] = false;
       setSymbolDescriptor(this, tag, createPropertyDescriptor(1, value));
     };
-    if (DESCRIPTORS && USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
+    if (USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
     return wrap(tag, description);
   };
 
@@ -192,32 +192,30 @@ if (!NATIVE_SYMBOL) {
     return wrap(wellKnownSymbol(name), name);
   };
 
-  if (DESCRIPTORS) {
-    // https://github.com/tc39/proposal-Symbol-description
-    nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
-      configurable: true,
-      get: function description() {
-        return getInternalState(this).description;
-      }
-    });
-    if (!IS_PURE) {
-      redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
-    }
+  // https://github.com/tc39/proposal-Symbol-description
+  nativeDefineProperty($Symbol[PROTOTYPE], 'description', {
+    configurable: true,
+    get: function description() {
+      return getInternalState(this).description;
+    },
+  });
+  if (!IS_PURE) {
+    redefine(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
   }
 }
 
 $({ global: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
-  Symbol: $Symbol
+  Symbol: $Symbol,
 });
 
-$forEach(objectKeys(WellKnownSymbolsStore), function (name) {
+forEach.call(objectKeys(WellKnownSymbolsStore), function (name) {
   defineWellKnownSymbol(name);
 });
 
 $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   // `Symbol.for` method
   // https://tc39.es/ecma262/#sec-symbol.for
-  'for': function (key) {
+  for: function (key) {
     var string = String(key);
     if (has(StringToSymbolRegistry, string)) return StringToSymbolRegistry[string];
     var symbol = $Symbol(string);
@@ -232,10 +230,10 @@ $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
     if (has(SymbolToStringRegistry, sym)) return SymbolToStringRegistry[sym];
   },
   useSetter: function () { USE_SETTER = true; },
-  useSimple: function () { USE_SETTER = false; }
+  useSimple: function () { USE_SETTER = false; },
 });
 
-$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, {
+$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.create` method
   // https://tc39.es/ecma262/#sec-object.create
   create: $create,
@@ -247,7 +245,7 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, 
   defineProperties: $defineProperties,
   // `Object.getOwnPropertyDescriptor` method
   // https://tc39.es/ecma262/#sec-object.getownpropertydescriptors
-  getOwnPropertyDescriptor: $getOwnPropertyDescriptor
+  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
@@ -256,7 +254,7 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   getOwnPropertyNames: $getOwnPropertyNames,
   // `Object.getOwnPropertySymbols` method
   // https://tc39.es/ecma262/#sec-object.getownpropertysymbols
-  getOwnPropertySymbols: $getOwnPropertySymbols
+  getOwnPropertySymbols: $getOwnPropertySymbols,
 });
 
 // Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
@@ -264,40 +262,38 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
 $({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
     return getOwnPropertySymbolsModule.f(toObject(it));
-  }
+  },
 });
 
 // `JSON.stringify` method behavior with symbols
 // https://tc39.es/ecma262/#sec-json.stringify
-if ($stringify) {
-  var FORCED_JSON_STRINGIFY = !NATIVE_SYMBOL || fails(function () {
-    var symbol = $Symbol();
-    // MS Edge converts symbol values to JSON as {}
-    return $stringify([symbol]) != '[null]'
-      // WebKit converts symbol values to JSON as null
-      || $stringify({ a: symbol }) != '{}'
-      // V8 throws on boxed symbols
-      || $stringify(Object(symbol)) != '{}';
-  });
+var FORCED_JSON_STRINGIFY = !NATIVE_SYMBOL || fails(function () {
+  var symbol = $Symbol();
+  // MS Edge converts symbol values to JSON as {}
+  return $stringify([symbol]) != '[null]'
+    // WebKit converts symbol values to JSON as null
+    || $stringify({ a: symbol }) != '{}'
+    // V8 throws on boxed symbols
+    || $stringify(Object(symbol)) != '{}';
+});
 
-  $({ target: 'JSON', stat: true, forced: FORCED_JSON_STRINGIFY }, {
-    // eslint-disable-next-line no-unused-vars -- required for `.length`
-    stringify: function stringify(it, replacer, space) {
-      var args = [it];
-      var index = 1;
-      var $replacer;
-      while (arguments.length > index) args.push(arguments[index++]);
-      $replacer = replacer;
-      if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
-      if (!isArray(replacer)) replacer = function (key, value) {
-        if (typeof $replacer == 'function') value = $replacer.call(this, key, value);
-        if (!isSymbol(value)) return value;
-      };
-      args[1] = replacer;
-      return $stringify.apply(null, args);
-    }
-  });
-}
+$({ target: 'JSON', stat: true, forced: FORCED_JSON_STRINGIFY }, {
+  // eslint-disable-next-line no-unused-vars -- required for `.length`
+  stringify: function stringify(it, replacer, space) {
+    var args = [it];
+    var index = 1;
+    var $replacer;
+    while (arguments.length > index) args.push(arguments[index++]);
+    $replacer = replacer;
+    if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
+    if (!isArray(replacer)) replacer = function (key, value) {
+      if (typeof $replacer == 'function') value = $replacer.call(this, key, value);
+      if (!isSymbol(value)) return value;
+    };
+    args[1] = replacer;
+    return $stringify.apply(null, args);
+  },
+});
 
 // `Symbol.prototype[@@toPrimitive]` method
 // https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive

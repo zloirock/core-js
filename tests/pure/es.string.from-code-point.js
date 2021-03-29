@@ -1,4 +1,4 @@
-import fromCodePoint from 'core-js-pure/features/string/from-code-point';
+import fromCodePoint from 'core-js-pure/full/string/from-code-point';
 
 QUnit.test('String.fromCodePoint', assert => {
   assert.isFunction(fromCodePoint);
