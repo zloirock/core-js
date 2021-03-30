@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 2, [March TC39 meeting](https://github.com/babel/proposals/issues/71#issuecomment-795916535)
+- Prevented possible `RegExp#exec` problems in some old engines, [#920](https://github.com/zloirock/core-js/issues/920)
 - Updated Samsung Internet compat data mapping to 14.0
 
 ##### 3.9.1 - 2021.03.01
