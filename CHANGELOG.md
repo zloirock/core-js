@@ -6,6 +6,8 @@
   - NodeJS up to 16.0
   - Electron up to 13.0
   - Samsung Internet up to 14.0
+  - Opera Android up to 62
+  - The rest automatically
 
 ##### 3.9.1 - 2021.03.01
 - Added a workaround for Chrome 38-40 bug which does not allow to inherit symbols (incl. well-known) from DOM collections prototypes to instances, [#37](https://github.com/zloirock/core-js/issues/37)
