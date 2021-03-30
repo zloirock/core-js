@@ -1,5 +1,6 @@
 'use strict';
 const { copyFile, lstat, mkdir, readdir, rm, unlink } = require('fs').promises;
+const { cyan, green } = require('chalk');
 
 let copied = 0;
 
@@ -31,7 +32,7 @@ async function copy(from, to, { force = false } = {}) {
     await rm('./tests/bundles', { force: true, recursive: true });
 
     // eslint-disable-next-line no-console -- output
-    console.log('\u001B[32mold copies removed\u001B[0m');
+    console.log(green('old copies removed'));
   }
 
   for (const pkg of await readdir('./packages')) {
@@ -43,5 +44,5 @@ async function copy(from, to, { force = false } = {}) {
   await copy('./packages/core-js/postinstall.js', './packages/core-js-bundle/postinstall.js', { force: true });
 
   // eslint-disable-next-line no-console -- output
-  console.log(`\u001B[32mcopied \u001B[36m${ copied } \u001B[32mfiles\u001B[0m`);
+  console.log(green(`copied ${ cyan(copied) } files`));
 })();

@@ -1,7 +1,8 @@
 'use strict';
 /* eslint-disable no-console -- output */
-const puppeteer = require('puppeteer');
 const os = require('os');
+const { cyan, green, gray, red } = require('chalk');
+const puppeteer = require('puppeteer');
 const sites = require('./sites');
 const { argv } = process;
 
@@ -11,7 +12,6 @@ const { argv } = process;
   let limit = sites.length;
   let index = 0;
   let tested = 0;
-  let errors = 0;
   let withCoreJS = 0;
 
   for (const arg of argv) {
@@ -28,6 +28,7 @@ const { argv } = process;
         } catch {
           await page.goto(`http://${ site }`);
         }
+
         const { core, vm, vl } = await page.evaluate(`({
           core: !!window['__core-js_shared__'] || !!window.core,
           vm: window['__core-js_shared__']?.versions,
@@ -36,28 +37,22 @@ const { argv } = process;
         const versions = vm ? vm.map(({ version, mode }) => `${ version } (${ mode } mode)`) : vl ? [vl] : [];
         tested++;
         if (core) withCoreJS++;
-        console.log(`\u001B[36m${ site }: ${ core
-          ? `\u001B[32m\`core-js\` is detected, ${ versions.length > 1
-              ? `\u001B[36m${ versions.length }\u001B[32m versions: \u001B[36m${ versions.join(', ') }`
-              : `version \u001B[36m${ versions[0] }`
-            }`
-          : '\u001B[90m`core-js` is not detected'
-        }\u001B[0m`);
+
+        console.log(`${ cyan(`${ site }:`) } ${ core
+          ? green(`\`core-js\` is detected, ${ versions.length > 1
+              ? `${ cyan(versions.length) } versions: ${ cyan(versions.join(', ')) }`
+              : `version ${ cyan(versions[0]) }` }`)
+          : gray('`core-js` is not detected') }`);
       } catch {
-        errors++;
-        console.log(`\u001B[36m${ site }:\u001B[91m problems with access\u001B[0m`);
+        console.log(`${ cyan(`${ site }:`) } ${ red('problems with access') }`);
       }
     }
   }));
 
-  console.log(`\u001B[32m\n\`core-js\` is used on \u001B[36m${
-    withCoreJS
-  }\u001B[32m from \u001B[36m${
-    tested
-  }\u001B[32m tested websites, \u001B[36m${
-    (withCoreJS / tested * 100).toFixed(2)
-  }%\u001B[32m, problems with access to \u001B[36m${
-    errors
-  }\u001B[32m websites\u001B[0m`);
+  const percent = (withCoreJS / tested * 100).toFixed(2);
+
+  console.log(green(`\n\`core-js\` is used on ${ cyan(withCoreJS) } from ${ cyan(tested) } tested websites, ${
+    cyan(`${ percent }%`) }, problems with access to ${ cyan(limit - tested) } websites`));
+
   await browser.close();
 })();

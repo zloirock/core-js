@@ -1,6 +1,7 @@
 'use strict';
 const { writeFileSync } = require('fs');
 const { resolve } = require('path');
+const { green } = require('chalk');
 const { compare, sortObjectByKey, semver } = require('../helpers');
 const data = require('./data');
 const external = require('./external');
@@ -76,4 +77,4 @@ writeJSON('../modules.json', Object.keys(data));
 writeJSON('../external.json', external);
 
 // eslint-disable-next-line no-console -- output
-console.log('\u001B[32mcompat data rebuilt\u001B[0m');
+console.log(green('compat data rebuilt'));

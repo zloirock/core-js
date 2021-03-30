@@ -1,6 +1,7 @@
 'use strict';
 const { readFileSync, writeFileSync } = require('fs');
 const { dirname, resolve } = require('path');
+const { green } = require('chalk');
 const detective = require('detective');
 const { sync: glob } = require('glob');
 const { intersection, sortObjectByKey } = require('../helpers');
@@ -40,4 +41,4 @@ const entries = [
 writeFileSync(resolve(__dirname, '../entries.json'), JSON.stringify(sortObjectByKey(entries), null, '  '));
 
 // eslint-disable-next-line no-console -- output
-console.log('\u001B[32mentries data rebuilt\u001B[0m');
+console.log(green('entries data rebuilt'));

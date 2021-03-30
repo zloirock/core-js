@@ -25,6 +25,7 @@
     "babel-loader": "^8.2.2",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
+    "chalk": "^4.1.0",
     "confusing-browser-globals": "^1.0.10",
     "core-js": "file:./packages/core-js",
     "core-js-builder": "file:./packages/core-js-builder",

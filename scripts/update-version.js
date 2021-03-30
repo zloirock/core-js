@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable no-console -- output */
 const { readdir, readFile, writeFile } = require('fs').promises;
+const { green, red } = require('chalk');
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 
@@ -19,7 +20,7 @@ const CURRENT_YEAR = now.getFullYear();
   const license = await readFile(LICENSE, 'utf8');
   const OLD_YEAR = +license.match(/2014-(\d{4}) D/m)[1];
   if (NEW_VERSION === PREV_VERSION && CURRENT_YEAR === OLD_YEAR) {
-    return console.log('\u001B[31mupdate is not required\u001B[0m');
+    return console.log(red('update is not required'));
   }
   await writeFile(LICENSE, license.split(OLD_YEAR).join(CURRENT_YEAR));
   const lerna = await readFile(LERNA, 'utf8');
@@ -55,6 +56,6 @@ const CURRENT_YEAR = now.getFullYear();
       CURRENT_YEAR }.${ String(now.getMonth() + 1).padStart(2, '0') }.${ String(now.getDate()).padStart(2, '0')
     }`));
   }
-  if (CURRENT_YEAR !== OLD_YEAR) console.log('\u001B[32mthe year updated\u001B[0m');
-  if (NEW_VERSION !== PREV_VERSION) console.log('\u001B[32mthe version updated\u001B[0m');
+  if (CURRENT_YEAR !== OLD_YEAR) console.log(green('the year updated'));
+  if (NEW_VERSION !== PREV_VERSION) console.log(green('the version updated'));
 })();

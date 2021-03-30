@@ -1,5 +1,6 @@
 'use strict';
 const { writeFile } = require('fs').promises;
+const { cyan, green } = require('chalk');
 const { minify } = require('terser');
 const builder = require('core-js-builder');
 const { banner } = require('core-js-builder/config');
@@ -7,9 +8,9 @@ const { banner } = require('core-js-builder/config');
 const PATH = './packages/core-js-bundle/';
 
 function log(kind, name, code) {
+  const size = (code.length / 1024).toFixed(2);
   // eslint-disable-next-line no-console -- output
-  console.log(`\u001B[32m${ kind }: \u001B[36m${ PATH }${ name }.js\u001B[32m, size: \u001B[36m${
-    (code.length / 1024).toFixed(2) }KB\u001B[0m`);
+  console.log(green(`${ kind }: ${ cyan(`${ PATH }${ name }.js`) }, size: ${ cyan(`${ size }KB`) }`));
 }
 
 async function bundle({ bundled, minified, options = {} }) {

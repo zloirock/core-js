@@ -1,5 +1,6 @@
 'use strict';
 const { readdir, writeFile } = require('fs').promises;
+const { green } = require('chalk');
 const compat = require('core-js-compat/src/data');
 
 const modules = Object.keys(compat);
@@ -28,5 +29,5 @@ async function generateTestsIndex(name, pkg) {
   await generateTestsIndex('tests', 'core-js');
   await generateTestsIndex('pure', 'core-js-pure');
   // eslint-disable-next-line no-console -- output
-  console.log('\u001B[32mindexes generated\u001B[0m');
+  console.log(green('indexes generated'));
 })();

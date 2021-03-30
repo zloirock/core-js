@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable no-console -- output */
 const { promisify } = require('util');
+const { cyan, green } = require('chalk');
 const eq = require('semver/functions/eq');
 const coerce = require('semver/functions/coerce');
 const minVersion = require('semver/ranges/min-version');
@@ -21,7 +22,7 @@ async function checkDependencies(pkg, title) {
     }
   }
   if (Object.keys(dependencies).length) {
-    console.log(`\u001B[94m${ title || pkg.name }:\u001B[0m`);
+    console.log(cyan(`${ title || pkg.name }:`));
     console.table(dependencies);
   }
 }
@@ -30,5 +31,5 @@ async function checkDependencies(pkg, title) {
   await checkDependencies(root, 'root');
   await checkDependencies(builder);
   await checkDependencies(compat);
-  console.log('\u001B[32mdependencies checked\u001B[0m');
+  console.log(green('dependencies checked'));
 })();

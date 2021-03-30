@@ -1,5 +1,6 @@
 'use strict';
 /* eslint-disable no-console -- output */
+const { cyan, green } = require('chalk');
 const fetch = require('node-fetch');
 const coerce = require('semver/functions/coerce');
 
@@ -23,7 +24,7 @@ const coerce = require('semver/functions/coerce');
   }
 
   function log(kind, map) {
-    console.log(`\u001B[32mdownloads for 7 days by ${ kind } releases:\u001B[0m`);
+    console.log(green(`downloads for 7 days by ${ cyan(kind) } releases:`));
     console.table(Object.keys(map).sort().reduce((memo, version) => {
       const downloads = map[version];
       memo[version] = { downloads, '%': `${ (downloads / total * 100).toFixed(2).padStart(5) } %` };
