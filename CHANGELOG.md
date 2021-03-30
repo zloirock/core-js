@@ -2,7 +2,10 @@
 ##### Unreleased
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 2, [March TC39 meeting](https://github.com/babel/proposals/issues/71#issuecomment-795916535)
 - Prevented possible `RegExp#exec` problems in some old engines, [#920](https://github.com/zloirock/core-js/issues/920)
-- Updated Samsung Internet compat data mapping to 14.0
+- Updated compat data mapping:
+  - NodeJS up to 16.0
+  - Electron up to 13.0
+  - Samsung Internet up to 14.0
 
 ##### 3.9.1 - 2021.03.01
 - Added a workaround for Chrome 38-40 bug which does not allow to inherit symbols (incl. well-known) from DOM collections prototypes to instances, [#37](https://github.com/zloirock/core-js/issues/37)

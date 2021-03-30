@@ -57,6 +57,7 @@ module.exports = {
     [83, '14.5'],
     [84, '14.6'],
     [86, '15.0'],
+    [90, '16.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
   ChromeToSamsung: [
