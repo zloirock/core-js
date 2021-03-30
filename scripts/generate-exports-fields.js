@@ -1,6 +1,7 @@
 'use strict';
 const { relative } = require('path');
 const { readFile, writeFile } = require('fs').promises;
+const { green } = require('chalk');
 const entries = require('@core-js/compat/entries');
 
 const core = Object.keys(entries).reduce((accumulator, it) => {
@@ -44,5 +45,5 @@ async function writeExportsField(path, exports) {
   });
   await writeExportsField('./packages/core-js-pure/package.json', core);
   // eslint-disable-next-line no-console -- output
-  console.log('\u001B[32m`exports` fields updated\u001B[0m');
+  console.log(green('`exports` fields updated'));
 })();
