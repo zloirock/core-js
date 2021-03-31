@@ -102,6 +102,7 @@
     "clean-dependencies": "node scripts/clean-dependencies",
     "refresh": "npm run clean-dependencies && npm i && npm t",
     "downloads": "node scripts/downloads-by-versions",
+    "downloads-main-only": "node scripts/downloads-by-versions --main-only=true",
     "usage-100": "node scripts/usage -l=100",
     "usage-1000": "node scripts/usage -l=1000",
     "outdated": "node scripts/check-dependencies",

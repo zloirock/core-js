@@ -4,23 +4,32 @@ const { cyan, green } = require('chalk');
 const fetch = require('node-fetch');
 const coerce = require('semver/functions/coerce');
 
-(async () => {
-  const res = await fetch('https://www.npmjs.com/package/core-js');
+const PURE = !process.argv.includes('--main-only=true');
+
+async function getStat(pkg) {
+  const res = await fetch(`https://www.npmjs.com/package/${ pkg }`);
   const html = await res.text();
   const [, json] = html.match(/>window\.__context__ = ([^<]+)<\//);
-  const context = JSON.parse(json);
-  const downloadsByPatch = context.context.versionsDownloads;
+  return JSON.parse(json).context.versionsDownloads;
+}
+
+(async () => {
+  const core = await getStat('core-js');
+  const pure = await getStat('core-js-pure');
+  const downloadsByPatch = {};
   const downloadsByMinor = {};
   const downloadsByMajor = {};
   let total = 0;
 
-  for (const [version, downloads] of Object.entries(downloadsByPatch)) {
-    const semver = coerce(version);
+  for (const [patch, downloadsMain] of Object.entries(core)) {
+    const downloadsPure = PURE && pure[patch] || 0;
+    const semver = coerce(patch);
     const { major } = semver;
     const minor = `${ major }.${ semver.minor }`;
-    downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloads;
-    downloadsByMajor[major] = (downloadsByMajor[major] || 0) + downloads;
-    total += downloads;
+    downloadsByPatch[patch] = downloadsMain + downloadsPure;
+    downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloadsMain + downloadsPure;
+    downloadsByMajor[major] = (downloadsByMajor[major] || 0) + downloadsMain + downloadsPure;
+    total += downloadsMain + downloadsPure;
   }
 
   function log(kind, map) {
