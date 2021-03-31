@@ -16,7 +16,7 @@ async function generateTestsIndex(name, pkg) {
   const dir = `./tests/${ name }`;
   const files = await readdir(dir);
   return writeFile(`${ dir }/index.js`, `${ files
-    .filter(it => /^(es|esnext|web)\./.test(it))
+    .filter(it => /^(?:es|esnext|web)\./.test(it))
     .map(it => `import './${ it.slice(0, -3) }';\n`)
     .join('') }\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n`);
 }

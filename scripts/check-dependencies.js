@@ -17,7 +17,7 @@ async function checkDependencies(pkg, title) {
   Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
     const { required, stable, warn } = dependencies[name];
-    if (/^(git|file)/.test(required) || warn || eq(minVersion(required), coerce(stable))) {
+    if (/^(?:git|file)/.test(required) || warn || eq(minVersion(required), coerce(stable))) {
       delete dependencies[name];
     }
   }

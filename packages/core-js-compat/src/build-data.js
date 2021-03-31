@@ -54,7 +54,7 @@ for (const scope of [data, external]) {
       if (!module.android) {
         module.android = String(Math.max(chrome, 37));
       }
-      if (/^(es|esnext|web)\./.test(key)) {
+      if (/^(?:es|esnext|web)\./.test(key)) {
         map(ChromeToElectron, chrome, 'electron');
       }
     }
