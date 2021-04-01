@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var arrayClone = require('../internals/array-clone');
+var slice = require('../internals/array-slice');
 
 var unshift = [].unshift;
 
@@ -10,9 +10,9 @@ var unshift = [].unshift;
 $({ target: 'Array', proto: true }, {
   /* eslint-disable-next-line no-unused-vars -- required for `.length` */
   unshifted: function unshifted(item) {
-    var O = arrayClone(this);
-    unshift.apply(O, arguments);
-    return O;
+    var A = slice.call(this);
+    unshift.apply(A, arguments);
+    return A;
   }
 });
 

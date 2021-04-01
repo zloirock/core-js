@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var arrayClone = require('../internals/array-clone');
+var slice = require('../internals/array-slice');
 
 var shift = [].shift;
 
@@ -9,9 +9,9 @@ var shift = [].shift;
 // http://www.rricard.me/proposal-change-array-by-copy/#sec-array.prototype.shifted
 $({ target: 'Array', proto: true }, {
   shifted: function shifted() {
-    var O = arrayClone(this);
-    shift.call(O);
-    return O;
+    var A = slice.call(this);
+    shift.call(A);
+    return A;
   }
 });
 

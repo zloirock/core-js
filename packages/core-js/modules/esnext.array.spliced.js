@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var arrayClone = require('../internals/array-clone');
+var slice = require('../internals/array-slice');
 var splice = require('../internals/array-splice');
 
 // `Array.prototype.spliced` method
@@ -9,9 +9,9 @@ var splice = require('../internals/array-splice');
 $({ target: 'Array', proto: true }, {
   /* eslint-disable-next-line no-unused-vars -- required for `.length` */
   spliced: function spliced(start, deleteCount) {
-    var O = arrayClone(this);
-    splice.apply(O, arguments);
-    return O;
+    var A = slice.call(this);
+    splice.apply(A, arguments);
+    return A;
   }
 });
 

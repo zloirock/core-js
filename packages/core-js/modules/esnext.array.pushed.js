@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var arrayClone = require('../internals/array-clone');
+var slice = require('../internals/array-slice');
 
 var push = [].push;
 
@@ -10,9 +10,9 @@ var push = [].push;
 $({ target: 'Array', proto: true }, {
   /* eslint-disable-next-line no-unused-vars -- required for `.length` */
   pushed: function pushed(item) {
-    var O = arrayClone(this);
-    push.apply(O, arguments);
-    return O;
+    var A = slice.call(this);
+    push.apply(A, arguments);
+    return A;
   }
 });
 
