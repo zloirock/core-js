@@ -1,3 +1,4 @@
+require('../proposals/change-array-by-copy');
 require('../proposals/efficient-64-bit-arithmetic');
 require('../proposals/function-is-callable-is-constructor');
 require('../proposals/function-un-this');
