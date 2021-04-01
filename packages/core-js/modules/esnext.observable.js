@@ -40,7 +40,8 @@ var subscriptionClosed = function (subscriptionState) {
   return subscriptionState.observer === undefined;
 };
 
-var close = function (subscription, subscriptionState) {
+var close = function (subscriptionState) {
+  var subscription = subscriptionState.facade;
   if (!DESCRIPTORS) {
     subscription.closed = true;
     var subscriptionObserver = subscriptionState.subscriptionObserver;
@@ -79,7 +80,7 @@ Subscription.prototype = redefineAll({}, {
   unsubscribe: function unsubscribe() {
     var subscriptionState = getInternalState(this);
     if (!subscriptionClosed(subscriptionState)) {
-      close(this, subscriptionState);
+      close(subscriptionState);
       cleanupSubscription(subscriptionState);
     }
   }
@@ -111,11 +112,10 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   error: function error(value) {
-    var subscription = getInternalState(this).subscription;
-    var subscriptionState = getInternalState(subscription);
+    var subscriptionState = getInternalState(getInternalState(this).subscription);
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
-      close(subscription, subscriptionState);
+      close(subscriptionState);
       try {
         var errorMethod = getMethod(observer.error);
         if (errorMethod) errorMethod.call(observer, value);
@@ -126,11 +126,10 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   complete: function complete() {
-    var subscription = getInternalState(this).subscription;
-    var subscriptionState = getInternalState(subscription);
+    var subscriptionState = getInternalState(getInternalState(this).subscription);
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
-      close(subscription, subscriptionState);
+      close(subscriptionState);
       try {
         var completeMethod = getMethod(observer.complete);
         if (completeMethod) completeMethod.call(observer);
