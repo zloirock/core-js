@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Safari 10 string padding bug detection extend to some Safari-based browsers
+- Detection of Safari 10 string padding bug extended to some Safari-based browsers
 
 ##### 3.10.0 - 2021.03.31
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 2, [March TC39 meeting](https://github.com/babel/proposals/issues/71#issuecomment-795916535)
