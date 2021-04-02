@@ -30,6 +30,8 @@ async function getTopK(i) {
     sites.push(...await getTopK(i));
   }
 
+  limit = Math.min(limit, sites.length);
+
   await Promise.all(new Array(CPUS).fill().map(async () => {
     const page = await browser.newPage();
     while (index < limit) {
