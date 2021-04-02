@@ -105,6 +105,7 @@
     "downloads-main-only": "node scripts/downloads-by-versions --main-only=true",
     "usage-100": "node scripts/usage -l=100",
     "usage-1000": "node scripts/usage -l=1000",
+    "usage-10000": "node scripts/usage -l=10000",
     "outdated": "node scripts/check-dependencies",
     "update-version": "node scripts/update-version",
     "publish": "lerna publish from-package --yes"
