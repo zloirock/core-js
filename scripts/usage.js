@@ -9,8 +9,8 @@ const { argv } = process;
 async function getTopK(i) {
   const res = await fetch(`https://stuffgate.com/stuff/website/top-${ i }000-sites`);
   const html = await res.text();
-  const [, table] = html.match(/Analyze<\/th><\/tr><\/thead><tbody><tr>([\s\S]+)<\/tr><\/tbody><\/table><\/div>/);
-  return Array.from(table.matchAll(/<a href=['"]([^'"]+)['"] target='_blank'>/g), ([, href]) => href);
+  const [, table] = html.match(/Analyze<\/th><\/tr><\/thead><tbody><tr>([\S\s]+)<\/tr><\/tbody><\/table><\/div>/);
+  return Array.from(table.matchAll(/<a href=["']([^"']+)["'] target='_blank'>/g), ([, href]) => href);
 }
 
 (async () => {
@@ -34,7 +34,7 @@ async function getTopK(i) {
     const page = await browser.newPage();
     while (index < limit) {
       const site = sites[index++];
-      const name = site.replace(/^(http(?:s):\/\/)/, '');
+      const name = site.replace(/^https?:\/\//, '');
       try {
         await page.goto(site);
 

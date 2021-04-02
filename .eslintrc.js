@@ -442,7 +442,7 @@ const base = {
     unicodeEscape: 'uppercase',
   }],
   // enforce match any character style
-  'regexp/match-any': 'error',
+  'regexp/match-any': ['error', { allows: ['[\\S\\s]', 'dotAll'] }],
   // enforce use of escapes on negation
   'regexp/negation': 'error',
   // disallow capturing group that captures assertions
