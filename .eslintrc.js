@@ -396,9 +396,6 @@ const base = {
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
 
-  // optimize regex literals
-  'optimize-regex/optimize-regex': 'error',
-
   // radar
   // merging collapsible if statements increases the code's readability
   'radar/no-collapsible-if': 'error',
@@ -846,7 +843,6 @@ module.exports = {
     'eslint-comments',
     'import',
     'node',
-    'optimize-regex',
     'qunit',
     'radar',
     'regexp',

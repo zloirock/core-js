@@ -38,7 +38,6 @@
     "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-optimize-regex": "^1.2.0",
     "eslint-plugin-qunit": "^6.0.0",
     "eslint-plugin-radar": "~0.2.1",
     "eslint-plugin-regexp": "~0.7.5",
