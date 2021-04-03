@@ -9,7 +9,7 @@ const { argv } = process;
 async function getTopK(i) {
   const res = await fetch(`https://stuffgate.com/stuff/website/top-${ i }000-sites`);
   const html = await res.text();
-  const [, table] = html.match(/Analyze<\/th><\/tr><\/thead><tbody><tr>([\S\s]+)<\/tr><\/tbody><\/table><\/div>/);
+  const [, table] = html.match(/Analyze<\/th><\/tr><\/thead><tbody><tr>(.+)<\/tr><\/tbody><\/table><\/div>/s);
   return Array.from(table.matchAll(/<a href=["']([^"']+)["'] target='_blank'>/g), ([, href]) => href);
 }
 
