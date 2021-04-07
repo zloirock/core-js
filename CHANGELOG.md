@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.10.1 - 2021.04.08
 - Prevented possible `RegExp#split` problems in old engines, [#751](https://github.com/zloirock/core-js/issues/751), [#919](https://github.com/zloirock/core-js/issues/919)
 - Detection of Safari 10 string padding bug extended to some Safari-based browsers
 
