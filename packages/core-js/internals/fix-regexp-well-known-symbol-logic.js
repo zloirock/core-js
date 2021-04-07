@@ -4,7 +4,6 @@ require('../modules/es.regexp.exec');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var regexpExec = require('../internals/regexp-exec');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 
 var SPECIES = wellKnownSymbol('species');
@@ -95,7 +94,7 @@ module.exports = function (KEY, length, exec, sham) {
   ) {
     var nativeRegExpMethod = /./[SYMBOL];
     var methods = exec(SYMBOL, ''[KEY], function (nativeMethod, regexp, str, arg2, forceStringMethod) {
-      if (regexp.exec === regexpExec) {
+      if (regexp.exec === RegExp.prototype.exec) {
         if (DELEGATES_TO_SYMBOL && !forceStringMethod) {
           // The native String method already delegates to @@method (this
           // polyfilled function), leasing to infinite recursion.
