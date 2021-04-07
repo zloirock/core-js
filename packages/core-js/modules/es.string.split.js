@@ -8,14 +8,12 @@ var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var callRegExpExec = require('../internals/regexp-exec-abstract');
 var regexpExec = require('../internals/regexp-exec');
-var fails = require('../internals/fails');
+var stickyHelpers = require('../internals/regexp-sticky-helpers');
 
+var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 var arrayPush = [].push;
 var min = Math.min;
 var MAX_UINT32 = 0xFFFFFFFF;
-
-// babel-minify transpiles RegExp('x', 'y') -> /x/y and it causes SyntaxError
-var SUPPORTS_Y = !fails(function () { return !RegExp(MAX_UINT32, 'y'); });
 
 // @@split logic
 fixRegExpWellKnownSymbolLogic('split', 2, function (SPLIT, nativeSplit, maybeCallNative) {
@@ -99,11 +97,11 @@ fixRegExpWellKnownSymbolLogic('split', 2, function (SPLIT, nativeSplit, maybeCal
       var flags = (rx.ignoreCase ? 'i' : '') +
                   (rx.multiline ? 'm' : '') +
                   (rx.unicode ? 'u' : '') +
-                  (SUPPORTS_Y ? 'y' : 'g');
+                  (UNSUPPORTED_Y ? 'g' : 'y');
 
       // ^(? + rx + ) is needed, in combination with some S slicing, to
       // simulate the 'y' flag.
-      var splitter = new C(SUPPORTS_Y ? rx : '^(?:' + rx.source + ')', flags);
+      var splitter = new C(UNSUPPORTED_Y ? '^(?:' + rx.source + ')' : rx, flags);
       var lim = limit === undefined ? MAX_UINT32 : limit >>> 0;
       if (lim === 0) return [];
       if (S.length === 0) return callRegExpExec(splitter, S) === null ? [S] : [];
@@ -111,12 +109,12 @@ fixRegExpWellKnownSymbolLogic('split', 2, function (SPLIT, nativeSplit, maybeCal
       var q = 0;
       var A = [];
       while (q < S.length) {
-        splitter.lastIndex = SUPPORTS_Y ? q : 0;
-        var z = callRegExpExec(splitter, SUPPORTS_Y ? S : S.slice(q));
+        splitter.lastIndex = UNSUPPORTED_Y ? 0 : q;
+        var z = callRegExpExec(splitter, UNSUPPORTED_Y ? S.slice(q) : S);
         var e;
         if (
           z === null ||
-          (e = min(toLength(splitter.lastIndex + (SUPPORTS_Y ? 0 : q)), S.length)) === p
+          (e = min(toLength(splitter.lastIndex + (UNSUPPORTED_Y ? q : 0)), S.length)) === p
         ) {
           q = advanceStringIndex(S, q, unicodeMatching);
         } else {
@@ -133,4 +131,4 @@ fixRegExpWellKnownSymbolLogic('split', 2, function (SPLIT, nativeSplit, maybeCal
       return A;
     }
   ];
-}, !SUPPORTS_Y);
+}, UNSUPPORTED_Y);
