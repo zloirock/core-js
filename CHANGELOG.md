@@ -72,7 +72,7 @@
 - Following the changes in [the `upsert` proposal](https://github.com/tc39/proposal-upsert), `{ Map, WeakMap }#emplace` replace `{ Map, WeakMap }#upsert`, these obsolete methods will be removed in the next major release
 - [By the current spec](https://tc39.es/ecma262/#sec-aggregate-error-constructor), `AggregateError#errors` is own data property
 - Added correct iteration closing in the iteration helpers according to the current version of [the proposal](https://tc39.es/proposal-iterator-helpers)
-- `process.nextTick` have a less priority when `Promise` in the microtask implementation, [#855](https://github.com/zloirock/core-js/issues/855)
+- `process.nextTick` have a less priority than `Promise` in the microtask implementation, [#855](https://github.com/zloirock/core-js/issues/855)
 - Fixed microtask implementation in engines with `MutationObserver`, but without `document`, [#865](https://github.com/zloirock/core-js/issues/865), [#866](https://github.com/zloirock/core-js/issues/866)
 - Fixed `core-js-builder` with an empty (after the targets engines or another filtration) modules list, [#822](https://github.com/zloirock/core-js/issues/822)
 - Fixed possible twice call of `window.onunhandledrejection`, [#760](https://github.com/zloirock/core-js/issues/760)
