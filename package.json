@@ -2,7 +2,7 @@
   "version": "3.10.1",
   "devDependencies": {
     "@babel/cli": "^7.13.14",
-    "@babel/core": "^7.13.14",
+    "@babel/core": "^7.13.15",
     "@babel/plugin-proposal-logical-assignment-operators": "^7.13.8",
     "@babel/plugin-proposal-nullish-coalescing-operator": "^7.13.8",
     "@babel/plugin-proposal-numeric-separator": "^7.12.13",
