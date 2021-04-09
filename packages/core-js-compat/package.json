@@ -22,7 +22,6 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT",
   "exports": {
     ".": "./index.js",
     "./built-in-definitions": "./built-in-definitions.js",

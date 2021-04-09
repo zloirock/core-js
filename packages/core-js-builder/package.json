@@ -24,7 +24,6 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT",
   "exports": {
     ".": "./index.js",
     "./config": "./config.js",
