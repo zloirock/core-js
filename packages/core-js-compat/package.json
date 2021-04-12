@@ -9,7 +9,7 @@
   },
   "main": "index.js",
   "dependencies": {
-    "browserslist": "^4.16.3",
+    "browserslist": "^4.16.4",
     "semver": "7.0.0"
   },
   "devDependencies": {
