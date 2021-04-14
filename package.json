@@ -40,7 +40,7 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-qunit": "^6.0.0",
     "eslint-plugin-radar": "~0.2.1",
-    "eslint-plugin-regexp": "~0.7.5",
+    "eslint-plugin-regexp": "~0.8.0",
     "eslint-plugin-unicorn": "^29.0.0",
     "karma": "^6.3.2",
     "karma-chrome-launcher": "^3.1.0",
@@ -56,7 +56,7 @@
     "qunit": "^2.15.0",
     "semver": "^7.3.5",
     "terser": "^5.6.1",
-    "webpack": "^5.32.0",
+    "webpack": "^5.33.0",
     "webpack-cli": "^4.6.0"
   },
   "license": "MIT",

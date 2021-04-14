@@ -433,6 +433,8 @@ const base = {
   'radar/prefer-while': 'error',
 
   // regexp
+  // disallow confusing quantifiers
+  'regexp/confusing-quantifier': 'error',
   // enforce into your favorite case
   'regexp/letter-case': ['error', {
     caseInsensitive: 'lowercase',
@@ -448,6 +450,8 @@ const base = {
   'regexp/no-dupe-characters-character-class': 'error',
   // disallow duplicate disjunctions
   'regexp/no-dupe-disjunctions': 'error',
+  // disallow alternatives without elements
+  'regexp/no-empty-alternative': 'error',
   // disallow empty group
   'regexp/no-empty-group': 'error',
   // disallow empty lookahead assertion or empty lookbehind assertion
@@ -456,6 +460,8 @@ const base = {
   'regexp/no-escape-backspace': 'error',
   // disallow invisible raw character
   'regexp/no-invisible-character': 'error',
+  // disallow lazy quantifiers at the end of an expression
+  'regexp/no-lazy-ends': 'error',
   // disallow legacy RegExp features
   'regexp/no-legacy-features': 'error',
   // disallow octal escape sequence
@@ -480,6 +486,8 @@ const base = {
   'regexp/no-useless-range': 'error',
   // disallow unnecessary `{n,m}`` quantifier
   'regexp/no-useless-two-nums-quantifier': 'error',
+  // disallow the alternatives of lookarounds that end with a non-constant quantifier
+  'regexp/optimal-lookaround-quantifier': 'error',
   // enforces elements order in character class
   'regexp/order-in-character-class': 'error',
   // enforce using character class
@@ -893,6 +901,7 @@ module.exports = {
     },
     {
       files: [
+        'tests/compat/**',
         'tests/helpers/**',
         'tests/observables/**',
         'tests/promises-aplus/**',
