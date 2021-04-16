@@ -1224,7 +1224,7 @@ Symbol().description;      // => undefined
 ##### Caveats when using `Symbol` polyfill:[⬆](#index)
 
 * We can't add new primitive type, `Symbol` returns object.
-* `Symbol.for` and `Symbol.keyFor` can't be shimmed cross-realm.
+* `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 * By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
 You can disable defining setters in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
