@@ -7,6 +7,7 @@ var shared = require('../internals/shared-store');
 var sharedKey = require('../internals/shared-key');
 var hiddenKeys = require('../internals/hidden-keys');
 
+var OBJECT_ALREADY_INITIALIZED = 'Object already initialized';
 var WeakMap = global.WeakMap;
 var set, get, has;
 
@@ -29,6 +30,7 @@ if (NATIVE_WEAK_MAP) {
   var wmhas = store.has;
   var wmset = store.set;
   set = function (it, metadata) {
+    if (wmhas.call(store, it)) throw new TypeError(OBJECT_ALREADY_INITIALIZED);
     metadata.facade = it;
     wmset.call(store, it, metadata);
     return metadata;
@@ -43,6 +45,7 @@ if (NATIVE_WEAK_MAP) {
   var STATE = sharedKey('state');
   hiddenKeys[STATE] = true;
   set = function (it, metadata) {
+    if (objectHas(it, STATE)) throw new TypeError(OBJECT_ALREADY_INITIALIZED);
     metadata.facade = it;
     createNonEnumerableProperty(it, STATE, metadata);
     return metadata;
