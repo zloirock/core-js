@@ -45,7 +45,7 @@ var PROMISES_SUPPORT = function () {
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return Symbol && (IS_NODE ? V8_VERSION !== 38 : V8_VERSION < 38 || V8_VERSION > 40);
+  return Symbol && (IS_NODE ? V8_VERSION !== 38 : !(V8_VERSION > 37 && V8_VERSION < 41));
 };
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
