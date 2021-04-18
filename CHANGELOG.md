@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- `URL` and `URLSearchParams` marked as supported from Safari 14.0
 - Polyfilled built-in constructors protected from calling on instances
 
 ##### 3.10.1 - 2021.04.08

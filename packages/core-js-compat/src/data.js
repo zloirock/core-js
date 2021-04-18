@@ -1574,16 +1574,19 @@ const data = {
     chrome: '67',
     firefox: '57',
     node: '10.0',
+    safari: '14.0',
   },
   'web.url.to-json': {
     chrome: '71',
     firefox: '57',
     node: '10.0',
+    safari: '14.0',
   },
   'web.url-search-params': {
     chrome: '67',
     firefox: '57',
     node: '10.0',
+    safari: '14.0',
   },
 };
 
