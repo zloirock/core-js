@@ -87,6 +87,7 @@
 - Added `/actual/` namespace for all stable features and stage 3 ES proposals 
 - Dropped `*/virtual/index.js` entries
 - Added built-in definitions to compat data
+- Added `addModulesList` option to `@core-js/builder`
 - Added `minify` option to `@core-js/builder`, bundles minified by default
 - Added `summary` option to `@core-js/builder`
 - Bundled versions of `core-js`
