@@ -395,6 +395,8 @@ const base = {
   'unicorn/prefer-default-parameters': 'error',
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': 'error',
+  // prefer `switch` over multiple `else-if`
+  'unicorn/prefer-switch': ['error', { minimumCases: 3 }],
 
   // radar
   // merging collapsible if statements increases the code's readability
