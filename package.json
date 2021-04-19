@@ -27,6 +27,8 @@
     "@babel/plugin-transform-template-literals": "^7.14.5",
     "@core-js/builder": "file:./packages/core-js-builder",
     "@core-js/compat": "file:./packages/core-js-compat",
+    "@core-js/service": "file:./packages/core-js-service",
+    "@core-js/ua-normalizer": "file:./packages/core-js-ua-normalizer",
     "babel-loader": "^8.2.2",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",

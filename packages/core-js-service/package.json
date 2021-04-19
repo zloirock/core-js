@@ -1,0 +1,21 @@
+{
+  "name": "@core-js/service",
+  "version": "3.10.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-service"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./index.js",
+  "dependencies": {
+    "@core-js/builder": "^3.10.1",
+    "@core-js/compat": "^3.10.1",
+    "@core-js/ua-normalizer": "^3.10.1"
+  },
+  "engines": {
+    "node": ">=12.13.0"
+  }
+}
