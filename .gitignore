@@ -13,6 +13,7 @@ node_modules/
 /packages/core-js/stable/index.js
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
+/packages/core-js-collector/LICENSE
 /packages/core-js-compat/LICENSE
 /packages/core-js-compat/data.json
 /packages/core-js-compat/entries.json

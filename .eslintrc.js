@@ -1011,6 +1011,7 @@ module.exports = {
       files: [
         // packages
         'packages/core-js-builder/**',
+        'packages/core-js-collector/**',
         'packages/core-js-compat/**',
         'packages/core-js-service/**',
         'packages/core-js-ua-normalizer/**',
