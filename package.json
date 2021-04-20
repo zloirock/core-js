@@ -1,8 +1,8 @@
 {
   "version": "3.10.2",
   "devDependencies": {
-    "@babel/cli": "^7.13.14",
-    "@babel/core": "^7.13.15",
+    "@babel/cli": "^7.13.16",
+    "@babel/core": "^7.13.16",
     "@babel/plugin-proposal-logical-assignment-operators": "^7.13.8",
     "@babel/plugin-proposal-nullish-coalescing-operator": "^7.13.8",
     "@babel/plugin-proposal-numeric-separator": "^7.12.13",
@@ -10,7 +10,7 @@
     "@babel/plugin-proposal-optional-chaining": "^7.13.12",
     "@babel/plugin-transform-arrow-functions": "^7.13.0",
     "@babel/plugin-transform-block-scoped-functions": "^7.12.13",
-    "@babel/plugin-transform-block-scoping": "^7.12.13",
+    "@babel/plugin-transform-block-scoping": "^7.13.16",
     "@babel/plugin-transform-classes": "^7.13.0",
     "@babel/plugin-transform-computed-properties": "^7.13.0",
     "@babel/plugin-transform-destructuring": "^7.13.0",
@@ -40,7 +40,7 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-qunit": "^6.0.0",
     "eslint-plugin-radar": "~0.2.1",
-    "eslint-plugin-regexp": "~0.8.0",
+    "eslint-plugin-regexp": "~0.9.0",
     "eslint-plugin-unicorn": "^30.0.0",
     "karma": "^6.3.2",
     "karma-chrome-launcher": "^3.1.0",
