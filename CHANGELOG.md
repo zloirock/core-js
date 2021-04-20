@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed a possible `RegExp` constructor problem with multiple global `core-js` instances
 
 ##### 3.10.2 - 2021.04.19
 - `URL` and `URLSearchParams` marked as supported from Safari 14.0
