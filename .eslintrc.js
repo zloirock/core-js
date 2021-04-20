@@ -437,6 +437,8 @@ const base = {
   // regexp
   // disallow confusing quantifiers
   'regexp/confusing-quantifier': 'error',
+  // enforce consistent escaping of control characters
+  'regexp/control-character-escape': 'error',
   // enforce into your favorite case
   'regexp/letter-case': ['error', {
     caseInsensitive: 'lowercase',
@@ -460,16 +462,32 @@ const base = {
   'regexp/no-empty-lookarounds-assertion': 'error',
   // disallow escape backspace `([\b])`
   'regexp/no-escape-backspace': 'error',
+  // enforce consistent usage of hexadecimal escape
+  'regexp/hexadecimal-escape': ['error', 'never'],
   // disallow invisible raw character
   'regexp/no-invisible-character': 'error',
   // disallow lazy quantifiers at the end of an expression
   'regexp/no-lazy-ends': 'error',
   // disallow legacy RegExp features
   'regexp/no-legacy-features': 'error',
+  // disallow non-standard flags
+  'regexp/no-non-standard-flag': 'error',
+  // disallow obscure character ranges
+  'regexp/no-obscure-range': 'error',
   // disallow octal escape sequence
   'regexp/no-octal': 'error',
+  // disallow optional assertions
+  'regexp/no-optional-assertion': 'error',
+  // disallow backreferences that reference a group that might not be matched
+  'regexp/no-potentially-useless-backreference': 'error',
+  // disallow trivially nested assertions
+  'regexp/no-trivially-nested-assertion': 'error',
+  // disallow nested quantifiers that can be rewritten as one quantifier
+  'regexp/no-trivially-nested-quantifier': 'error',
   // disallow unused capturing group
   'regexp/no-unused-capturing-group': 'error',
+  // disallow assertions that are known to always accept (or reject)
+  'regexp/no-useless-assertions': 'error',
   // disallow useless backreferences in regular expressions
   'regexp/no-useless-backreference': 'error',
   // disallow character class with one character
@@ -480,6 +498,8 @@ const base = {
   'regexp/no-useless-escape': 'error',
   // disallow unnecessary exactly quantifier
   'regexp/no-useless-exactly-quantifier': 'error',
+  // disallow unnecessary regex flags
+  'regexp/no-useless-flag': 'error',
   // disallow unnecessary non-capturing group
   'regexp/no-useless-non-capturing-group': 'error',
   // disallow unnecessary quantifier non-greedy (`?`)
@@ -518,6 +538,10 @@ const base = {
   'regexp/prefer-unicode-codepoint-escapes': 'error',
   // enforce using `\w`
   'regexp/prefer-w': 'error',
+  // require regex flags to be sorted
+  'regexp/sort-flags': 'error',
+  // enforce consistent usage of unicode escape or unicode codepoint escape
+  'regexp/unicode-escape': 'error',
 
   // disallow \u2028 and \u2029 in string literals
   'es/no-json-superset': 'error',

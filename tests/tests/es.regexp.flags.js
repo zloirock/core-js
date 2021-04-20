@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/better-regex -- required for testing */
+/* eslint-disable unicorn/better-regex, regexp/sort-flags, regexp/no-useless-flag -- required for testing */
 import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {

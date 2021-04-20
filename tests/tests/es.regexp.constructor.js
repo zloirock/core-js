@@ -1,4 +1,5 @@
-/* eslint-disable regexp/order-in-character-class, regexp/no-dupe-characters-character-class -- safe */
+/* eslint-disable regexp/order-in-character-class, regexp/no-dupe-characters-character-class -- required for testing */
+/* eslint-disable regexp/no-useless-flag, regexp/sort-flags -- required for testing */
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 import { nativeSubclass } from '../helpers/helpers';
 

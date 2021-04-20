@@ -18,7 +18,7 @@ const CURRENT_YEAR = now.getFullYear();
 
 (async () => {
   const license = await readFile(LICENSE, 'utf8');
-  const OLD_YEAR = +license.match(/2014-(\d{4}) D/m)[1];
+  const OLD_YEAR = +license.match(/2014-(\d{4}) D/)[1];
   if (NEW_VERSION === PREV_VERSION && CURRENT_YEAR === OLD_YEAR) {
     return console.log(red('update is not required'));
   }
