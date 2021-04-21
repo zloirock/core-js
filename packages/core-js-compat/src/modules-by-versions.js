@@ -80,4 +80,7 @@ module.exports = {
     'esnext.typed-array.find-last-index',
     'esnext.typed-array.unique-by',
   ],
+  3.11: [
+    'esnext.object.has-own',
+  ],
 };

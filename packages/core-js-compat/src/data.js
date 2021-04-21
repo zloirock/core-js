@@ -1420,6 +1420,8 @@ const data = {
   },
   'esnext.number.range': {
   },
+  'esnext.object.has-own': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-entries': {
   },

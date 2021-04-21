@@ -22,6 +22,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/object/get-own-property-names')({ q: 42 })[0] === 'q');
   ok(load('features/object/get-own-property-symbols')({ [Symbol()]: 42 }).length === 1);
   ok(load('features/object/get-prototype-of')([]) === Array.prototype);
+  ok(load('features/object/has-own')({ foo: 42 }, 'foo'));
   ok(load('features/object/is')(NaN, NaN));
   ok(load('features/object/is-extensible')({}));
   ok(!load('features/object/is-frozen')({}));
@@ -963,6 +964,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('web/url') === 'function');
   ok(typeof load('web/url-search-params') === 'function');
   ok('setImmediate' in load('web'));
+  load('proposals/accessible-object-hasownproperty');
   load('proposals/array-filtering');
   load('proposals/array-find-from-last');
   load('proposals/array-is-template-object');

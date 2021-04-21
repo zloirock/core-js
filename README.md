@@ -2031,6 +2031,24 @@ core-js/features/typed-array/find-last-index
 [1, 2, 3, 4].findLast(it => it % 2);      // => 3
 [1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
 ````
+##### [Accessible `Object#hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
+Module [`esnext.object.has-own`](https://github.com/zloirock/core-js/blob/v3.10.2/packages/core-js/modules/esnext.object.has-own.js).
+```js
+class Object {
+  hasOwn(object: object, key: PropertyKey): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/accessible-object-hasownproperty
+core-js(-pure)/features(/virtual)/object/has-own
+```
+[*Examples*](http://es6.zloirock.ru/#log(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%2F%2F%20%3D%3E%20false):
+```js
+Object.hasOwn({ foo: 42 }, 'foo'); // => true
+Object.hasOwn({ foo: 42 }, 'bar'); // => false
+Object.hasOwn({}, 'toString');     // => false
+````
 
 #### Stage 1 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

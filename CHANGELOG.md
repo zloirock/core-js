@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Added [accessible `Object#hasOwnProperty` stage 2 proposal](https://github.com/tc39/proposal-accessible-object-hasownproperty)
+  - `Object.hasOwn` method
 - Fixed a possible `RegExp` constructor problem with multiple global `core-js` instances
 
 ##### 3.10.2 - 2021.04.19
