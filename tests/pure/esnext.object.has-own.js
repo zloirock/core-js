@@ -1,5 +1,5 @@
-import create from 'core-js-pure/features/object/create';
-import hasOwn from 'core-js-pure/features/object/has-own';
+import create from 'core-js-pure/full/object/create';
+import hasOwn from 'core-js-pure/full/object/has-own';
 
 QUnit.test('Object.hasOwn', assert => {
   assert.isFunction(hasOwn);
