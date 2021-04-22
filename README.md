@@ -2041,7 +2041,7 @@ class Object {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/accessible-object-hasownproperty
-core-js(-pure)/features(/virtual)/object/has-own
+core-js(-pure)/features/object/has-own
 ```
 [*Examples*](http://es6.zloirock.ru/#log(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%2F%2F%20%3D%3E%20false):
 ```js
