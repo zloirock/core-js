@@ -398,41 +398,41 @@ const base = {
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': ['error', { minimumCases: 3 }],
 
-  // radar
+  // sonarjs
   // merging collapsible if statements increases the code's readability
-  'radar/no-collapsible-if': 'error',
+  'sonarjs/no-collapsible-if': 'error',
   // collection sizes and array length comparisons should make sense
-  'radar/no-collection-size-mischeck': 'error',
+  'sonarjs/no-collection-size-mischeck': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
-  'radar/no-duplicated-branches': 'error',
+  'sonarjs/no-duplicated-branches': 'error',
   // collection elements should not be replaced unconditionally
-  'radar/no-element-overwrite': 'error',
+  'sonarjs/no-element-overwrite': 'error',
   // function calls should not pass extra arguments
-  'radar/no-extra-arguments': 'error',
+  'sonarjs/no-extra-arguments': 'error',
   // functions should not have identical implementations
-  'radar/no-identical-functions': 'error',
+  'sonarjs/no-identical-functions': 'error',
   // boolean checks should not be inverted
-  'radar/no-inverted-boolean-check': 'error',
+  'sonarjs/no-inverted-boolean-check': 'error',
   // loops with at most one iteration should be refactored
-  'radar/no-one-iteration-loop': 'error',
+  'sonarjs/no-one-iteration-loop': 'error',
   // boolean literals should not be redundant
-  'radar/no-redundant-boolean': 'error',
+  'sonarjs/no-redundant-boolean': 'error',
   // jump statements should not be redundant
-  'radar/no-redundant-jump': 'error',
+  'sonarjs/no-redundant-jump': 'error',
   // conditionals should start on new lines
-  'radar/no-same-line-conditional': 'error',
+  'sonarjs/no-same-line-conditional': 'error',
   // collection and array contents should be used
-  'radar/no-unused-collection': 'error',
+  'sonarjs/no-unused-collection': 'error',
   // the output of functions that don't return anything should not be used
-  'radar/no-use-of-empty-return-value': 'error',
+  'sonarjs/no-use-of-empty-return-value': 'error',
   // local variables should not be declared and then immediately returned or thrown
-  'radar/prefer-immediate-return': 'error',
+  'sonarjs/prefer-immediate-return': 'error',
   // object literal syntax should be used
-  'radar/prefer-object-literal': 'error',
+  'sonarjs/prefer-object-literal': 'error',
   // return of boolean expressions should not be wrapped into an `if-then-else` statement
-  'radar/prefer-single-boolean-return': 'error',
+  'sonarjs/prefer-single-boolean-return': 'error',
   // a `while` loop should be used instead of a `for` loop with condition only
-  'radar/prefer-while': 'error',
+  'sonarjs/prefer-while': 'error',
 
   // regexp
   // disallow confusing quantifiers
@@ -794,7 +794,7 @@ const tests = {
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': 'off',
   // functions should not have identical implementations
-  'radar/no-identical-functions': 'off',
+  'sonarjs/no-identical-functions': 'off',
 };
 
 const qunit = {
@@ -878,7 +878,7 @@ module.exports = {
     'import',
     'node',
     'qunit',
-    'radar',
+    'sonarjs',
     'regexp',
     'unicorn',
   ],
