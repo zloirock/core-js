@@ -41,7 +41,7 @@
     "eslint-plugin-qunit": "^6.1.0",
     "eslint-plugin-regexp": "~0.9.0",
     "eslint-plugin-sonarjs": "~0.7.0",
-    "eslint-plugin-unicorn": "^30.0.0",
+    "eslint-plugin-unicorn": "^31.0.0",
     "karma": "^6.3.2",
     "karma-chrome-launcher": "^3.1.0",
     "karma-phantomjs-launcher": "~1.0.4",
@@ -56,7 +56,7 @@
     "qunit": "^2.15.0",
     "semver": "^7.3.5",
     "terser": "^5.6.1",
-    "webpack": "^5.35.0",
+    "webpack": "^5.35.1",
     "webpack-cli": "^4.6.0"
   },
   "license": "MIT",
