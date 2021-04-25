@@ -227,7 +227,6 @@ const base = {
   // enforce consistent linebreak style
   'linebreak-style': ['error', 'unix'],
   // specify the maximum length of a line in your program
-  'max-len': ['error', 120, 2],
   'max-len': ['error', { code: 120, tabWidth: 2 }],
   // enforce a maximum depth that callbacks can be nested
   'max-nested-callbacks': ['error', 4],
@@ -974,7 +973,6 @@ module.exports = {
         '.eslintrc.js',
         '.webpack.config.js',
         'babel.config.js',
-        'Gruntfile.js',
       ],
       rules: nodeDev,
     },
