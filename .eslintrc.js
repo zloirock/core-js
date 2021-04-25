@@ -228,6 +228,7 @@ const base = {
   'linebreak-style': ['error', 'unix'],
   // specify the maximum length of a line in your program
   'max-len': ['error', 120, 2],
+  'max-len': ['error', { code: 120, tabWidth: 2 }],
   // enforce a maximum depth that callbacks can be nested
   'max-nested-callbacks': ['error', 4],
   // specify the maximum number of statement allowed in a function
@@ -250,6 +251,8 @@ const base = {
   'no-whitespace-before-property': 'error',
   // enforce the location of single-line statements
   'nonblock-statement-body-position': ['error', 'beside'],
+  // enforce consistent line breaks after opening and before closing braces
+  'object-curly-newline': ['error', { consistent: true }],
   // enforce spaces inside braces
   'object-curly-spacing': ['error', 'always'],
   // require newlines around variable declarations with initializations
@@ -274,7 +277,7 @@ const base = {
   'space-in-parens': 'error',
   // require spaces around operators
   'space-infix-ops': 'error',
-  // Require or disallow spaces before/after unary operators
+  // require or disallow spaces before/after unary operators
   'space-unary-ops': 'error',
   // require or disallow a space immediately following the // or /* in a comment
   'spaced-comment': ['error', 'always', { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
@@ -774,7 +777,7 @@ const tests = {
   // enforces return statements in callbacks of array's methods
   'array-callback-return': 'off',
   // specify the maximum length of a line in your program
-  'max-len': ['error', 180, 2],
+  'max-len': ['error', { code: 180, tabWidth: 2 }],
   // specify the maximum number of statement allowed in a function
   'max-statements': 'off',
   // disallow function declarations and expressions inside loop statements
