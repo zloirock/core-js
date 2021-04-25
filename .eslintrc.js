@@ -862,6 +862,61 @@ const qunit = {
   'qunit/resolve-async': 'error',
 };
 
+const json = {
+  // enforce spacing inside array brackets
+  'jsonc/array-bracket-spacing': ['error', 'never'],
+  // disallow trailing commas in multiline object literals
+  'jsonc/comma-dangle': ['error', 'never'],
+  // enforce one true comma style
+  'jsonc/comma-style': ['error', 'last'],
+  // enforce consistent indentation
+  'jsonc/indent': ['error', 2],
+  // enforces spacing between keys and values in object literal properties
+  'jsonc/key-spacing': ['error', { beforeColon: false, afterColon: true }],
+  // disallow BigInt literals
+  'jsonc/no-bigint-literals': 'error',
+  // disallow comments
+  'jsonc/no-comments': 'error',
+  // disallow duplicate keys when creating object literals
+  'jsonc/no-dupe-keys': 'error',
+  // disallow escape sequences in identifiers.
+  'jsonc/no-escape-sequence-in-identifier': 'error',
+  // disallow use of multiline strings
+  'jsonc/no-multi-str': 'error',
+  // disallow number property keys
+  'jsonc/no-number-props': 'error',
+  // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
+  'jsonc/no-octal-escape': 'error',
+  // disallow RegExp literals
+  'jsonc/no-regexp-literals': 'error',
+  // disallow sparse arrays
+  'jsonc/no-sparse-arrays': 'error',
+  // disallow template literals
+  'jsonc/no-template-literals': 'error',
+  // disallow `undefined`
+  'jsonc/no-undefined-value': 'error',
+  // disallow Unicode code point escape sequences.
+  'jsonc/no-unicode-codepoint-escapes': 'error',
+  // disallow unnecessary string escaping
+  'jsonc/no-useless-escape': 'error',
+  // enforce consistent line breaks after opening and before closing braces
+  'jsonc/object-curly-newline': ['error', { consistent: true }],
+  // enforce spaces inside braces
+  'jsonc/object-curly-spacing': ['error', 'always'],
+  // require or disallow use of quotes around object literal property names
+  'jsonc/quote-props': ['error', 'always'],
+  // specify whether double or single quotes should be used
+  'jsonc/quotes': ['error', 'double'],
+  // require or disallow spaces before/after unary operators
+  'jsonc/space-unary-ops': 'error',
+  // disallow invalid number for JSON
+  'jsonc/valid-json-number': 'error',
+  // specify the maximum length of a line in your program
+  'max-len': ['error', { code: 180, tabWidth: 2 }],
+  // require strict mode directives
+  strict: 'off',
+};
+
 module.exports = {
   root: true,
   parserOptions: {
@@ -878,6 +933,7 @@ module.exports = {
     'es',
     'eslint-comments',
     'import',
+    'jsonc',
     'node',
     'qunit',
     'regexp',
@@ -989,6 +1045,11 @@ module.exports = {
         Iterator: true,
         Observable: true,
       },
+    },
+    {
+      files: ['*.json'],
+      parser: 'jsonc-eslint-parser',
+      rules: json,
     },
   ],
 };
