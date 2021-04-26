@@ -63,6 +63,7 @@
 - Dropped NodeJS 11- support in `@core-js/builder` and `@core-js/compat`
 - Dropped `@core-js/compat` `modules-by-versions` history for `core-js@3`
 - Dropped `@core-js/builder` `blacklist` deprecated option
+- Dropped `fetch` wrapper from `Promise` polyfill in favor of other workarounds
 - Dependencies of many modules (string / regexp methods, `URL`, `Reflect` metadata, keys composition, etc.) moved to entry points for better optimisation by tools
 - Splitted for better modularity:
   - `es.promise` to:
