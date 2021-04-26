@@ -218,8 +218,12 @@ const base = {
   'eol-last': ['error', 'always'],
   // disallow space between function identifier and application
   'func-call-spacing': 'error',
-  // this option sets a specific tab width for your code
-  'indent-legacy': ['error', 2, { VariableDeclarator: 2, SwitchCase: 1 }],
+  // enforce consistent indentation
+  indent: ['error', 2, {
+    ignoredNodes: ['ConditionalExpression'],
+    SwitchCase: 1,
+    VariableDeclarator: 'first',
+  }],
   // require a space before & after certain keywords
   'keyword-spacing': ['error', { before: true, after: true }],
   // enforces spacing between keys and values in object literal properties

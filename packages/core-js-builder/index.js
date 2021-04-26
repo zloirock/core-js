@@ -15,11 +15,11 @@ const modulesList = require('core-js-compat/modules');
 const { banner } = require('./config');
 
 module.exports = async function ({
-    blacklist, // TODO: Remove from `core-js@4`
-    exclude = [],
-    modules = modulesList.slice(),
-    targets,
-    filename,
+  blacklist, // TODO: Remove from `core-js@4`
+  exclude = [],
+  modules = modulesList.slice(),
+  targets,
+  filename,
 } = {}) {
   const set = new Set();
 
