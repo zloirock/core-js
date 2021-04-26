@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Made `instanceof Promise` work with polyfilled `Promise` for all native promise-based APIs
 
 ##### 3.11.0 - 2021.04.22
 - Added [accessible `Object#hasOwnProperty` stage 2 proposal](https://github.com/tc39/proposal-accessible-object-hasownproperty)

@@ -6,6 +6,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var NativePromise = require('../internals/native-promise-constructor');
 var redefine = require('../internals/redefine');
 var redefineAll = require('../internals/redefine-all');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
 var setToStringTag = require('../internals/set-to-string-tag');
 var setSpecies = require('../internals/set-species');
 var isObject = require('../internals/is-object');
@@ -295,7 +296,12 @@ if (FORCED) {
     // https://github.com/zloirock/core-js/issues/640
     }, { unsafe: true });
 
-    // wrap fetch result
+    // make `instanceof Promise` work for all native promise-based APIs
+    if (setPrototypeOf) {
+      setPrototypeOf(NativePromise.prototype, PromiseConstructor.prototype);
+    }
+
+    // wrap fetch result, TODO: drop it in `core-js@4` in favor of workaround above
     if (typeof $fetch == 'function') $({ global: true, enumerable: true, forced: true }, {
       // eslint-disable-next-line no-unused-vars -- required for `.length`
       fetch: function fetch(input /* , init */) {
