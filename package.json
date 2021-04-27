@@ -57,8 +57,8 @@
     "puppeteer": "^9.0.0",
     "qunit": "^2.15.0",
     "semver": "^7.3.5",
-    "terser": "^5.6.1",
-    "webpack": "^5.35.1",
+    "terser": "^5.7.0",
+    "webpack": "^5.36.0",
     "webpack-cli": "^4.6.0"
   },
   "license": "MIT",
