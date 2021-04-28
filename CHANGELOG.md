@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Made `instanceof Promise` and `.constructor === Promise` work with polyfilled `Promise` for all native promise-based APIs
+- Added a workaround for some buggy V8 versions \~4.5 related to fixing of `%TypedArray%` static methods, [#564](https://github.com/zloirock/core-js/issues/564)
 
 ##### 3.11.0 - 2021.04.22
 - Added [accessible `Object#hasOwnProperty` stage 2 proposal](https://github.com/tc39/proposal-accessible-object-hasownproperty)
