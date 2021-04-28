@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.11.1 - 2021.04.28
 - Made `instanceof Promise` and `.constructor === Promise` work with polyfilled `Promise` for all native promise-based APIs
 - Added a workaround for some buggy V8 versions \~4.5 related to fixing of `%TypedArray%` static methods, [#564](https://github.com/zloirock/core-js/issues/564)
 
