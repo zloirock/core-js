@@ -19,9 +19,6 @@ const CURRENT_YEAR = now.getFullYear();
 (async () => {
   const license = await readFile(LICENSE, 'utf8');
   const OLD_YEAR = +license.match(/2014-(\d{4}) D/)[1];
-  if (NEW_VERSION === PREV_VERSION && CURRENT_YEAR === OLD_YEAR) {
-    return console.log(red('update is not required'));
-  }
   await writeFile(LICENSE, license.split(OLD_YEAR).join(CURRENT_YEAR));
   const lerna = await readFile(LERNA, 'utf8');
   await writeFile(LERNA, lerna.split(PREV_VERSION).join(NEW_VERSION));
@@ -58,4 +55,5 @@ const CURRENT_YEAR = now.getFullYear();
   }
   if (CURRENT_YEAR !== OLD_YEAR) console.log(green('the year updated'));
   if (NEW_VERSION !== PREV_VERSION) console.log(green('the version updated'));
+  else if (CURRENT_YEAR === OLD_YEAR) console.log(red('bump is not required'));
 })();
