@@ -11,9 +11,9 @@
   },
   "main": "./index.js",
   "dependencies": {
-    "@core-js/builder": "^3.11.1",
-    "@core-js/compat": "^3.11.1",
-    "@core-js/ua-normalizer": "^3.11.1"
+    "@core-js/builder": "3.11.1",
+    "@core-js/compat": "3.11.1",
+    "@core-js/ua-normalizer": "3.11.1"
   },
   "engines": {
     "node": ">=12.13.0"
