@@ -33,15 +33,15 @@ var DESCRIPTORS_SUPPORT = function () {
 };
 
 var PROMISES_SUPPORT = function () {
-  var promise = Promise.resolve(1);
+  var promise = new Promise(function (resolve) { resolve(1); });
   var empty = function () { /* empty */ };
   var FakePromise = (promise.constructor = {})[Symbol.species] = function (exec) {
     exec(empty, empty);
   };
 
-  return (IS_NODE || typeof PromiseRejectionEvent == 'function')
-    && promise.then(empty) instanceof FakePromise
-    && V8_VERSION !== 66;
+  return promise.then(empty) instanceof FakePromise
+    && V8_VERSION !== 66
+    && (IS_NODE || typeof PromiseRejectionEvent == 'function');
 };
 
 var SYMBOLS_SUPPORT = function () {
