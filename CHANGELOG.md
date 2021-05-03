@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added a workaround of WebKit ~ iOS 10.3 Safari `Promise` instantiation bug, [#932](https://github.com/zloirock/core-js/issues/932)
+- `Promise#then` of incorrect native `Promise` implementations with correct subclassing no longer wrapped
 
 ##### 3.11.1 - 2021.04.28
 - Made `instanceof Promise` and `.constructor === Promise` work with polyfilled `Promise` for all native promise-based APIs

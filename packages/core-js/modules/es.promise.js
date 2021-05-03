@@ -49,6 +49,7 @@ var FULFILLED = 1;
 var REJECTED = 2;
 var HANDLED = 1;
 var UNHANDLED = 2;
+var SUBCLASSING = false;
 var Internal, OwnPromiseCapability, PromiseWrapper, nativeThen;
 
 var FORCED = isForced(PROMISE, function () {
@@ -74,7 +75,7 @@ var FORCED = isForced(PROMISE, function () {
   };
   var constructor = promise.constructor = {};
   constructor[SPECIES] = FakePromise;
-  return !(promise.then(function () { /* empty */ }) instanceof FakePromise);
+  return !(SUBCLASSING = promise.then(function () { /* empty */ }) instanceof FakePromise);
 });
 
 var INCORRECT_ITERATION = FORCED || !checkCorrectnessOfIteration(function (iterable) {
@@ -288,7 +289,7 @@ if (FORCED) {
     nativeThen = NativePromisePrototype.then;
 
     // make `Promise#then` return a polyfilled `Promise` for native promise-based APIs
-    redefine(NativePromisePrototype, 'then', function then(onFulfilled, onRejected) {
+    if (!SUBCLASSING) redefine(NativePromisePrototype, 'then', function then(onFulfilled, onRejected) {
       var that = this;
       return new PromiseConstructor(function (resolve, reject) {
         nativeThen.call(that, resolve, reject);
