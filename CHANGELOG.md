@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Native promise-based APIs `Promise#{ catch, finally }` returns polyfilled `Promise` instances when it's required
 
 ##### 3.11.2 - 2021.05.03
 - Added a workaround of WebKit ~ iOS 10.3 Safari `Promise` bug, [#932](https://github.com/zloirock/core-js/issues/932)
