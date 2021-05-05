@@ -55,7 +55,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }, 1, 2)(3) === 6);
   load('features/function/name');
   load('features/function/has-instance');
-  ok(Function[load('features/symbol/has-instance')](it => it));
   ok('bind' in load('features/function'));
   ok(load('features/array/is-array')([]));
   ok(typeof load('features/array/is-template-object') === 'function');
@@ -299,6 +298,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/symbol/iterator'));
   ok(load('features/symbol/match'));
   ok(load('features/symbol/match-all'));
+  ok(load('features/symbol/metadata'));
   ok(load('features/symbol/replace'));
   ok(load('features/symbol/search'));
   ok(load('features/symbol/species'));
@@ -972,6 +972,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-unique');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
+  load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/global-this');
   load('proposals/iterator-helpers');

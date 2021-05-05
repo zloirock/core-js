@@ -1431,6 +1431,9 @@ GLOBAL.tests = {
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
+  'esnext.symbol.metadata': function () {
+    return Symbol.metadata;
+  },
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },

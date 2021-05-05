@@ -83,4 +83,7 @@ module.exports = {
   3.11: [
     'esnext.object.has-own',
   ],
+  3.12: [
+    'esnext.symbol.metadata',
+  ],
 };

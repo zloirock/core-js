@@ -1504,6 +1504,8 @@ const data = {
   },
   'esnext.symbol.dispose': {
   },
+  'esnext.symbol.metadata': {
+  },
   'esnext.symbol.observable': {
   },
   'esnext.symbol.pattern-match': {

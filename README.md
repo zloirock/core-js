@@ -2049,6 +2049,18 @@ Object.hasOwn({ foo: 42 }, 'foo'); // => true
 Object.hasOwn({ foo: 42 }, 'bar'); // => false
 Object.hasOwn({}, 'toString');     // => false
 ````
+##### [`Symbol.metadata` for decorators proposal](https://github.com/tc39/proposal-decorators)[⬆](#index)
+Module [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js).
+```js
+class Symbol {
+  static metadata: @@metadata;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/decorators
+core-js(-pure)/features/symbol/metadata
+```
 
 #### Stage 1 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
