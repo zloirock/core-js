@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.11.3 - 2021.05.05
 - Native promise-based APIs `Promise#{ catch, finally }` returns polyfilled `Promise` instances when it's required
 
 ##### 3.11.2 - 2021.05.03
