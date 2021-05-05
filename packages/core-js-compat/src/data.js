@@ -1504,10 +1504,13 @@ const data = {
   },
   'esnext.symbol.dispose': {
   },
+  'esnext.symbol.matcher': {
+  },
   'esnext.symbol.metadata': {
   },
   'esnext.symbol.observable': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.pattern-match': {
   },
   // TODO: Remove from `core-js@4`

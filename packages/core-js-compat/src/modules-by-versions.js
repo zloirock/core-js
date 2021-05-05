@@ -84,6 +84,7 @@ module.exports = {
     'esnext.object.has-own',
   ],
   3.12: [
+    'esnext.symbol.matcher',
     'esnext.symbol.metadata',
   ],
 };

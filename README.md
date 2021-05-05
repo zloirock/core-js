@@ -2400,8 +2400,8 @@ for (let x of Math.seededPRNG({ seed: 42 })) {
   if (x > .8) break;
 }
 ```
-##### [`Symbol.patternMatch` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
-Module [`esnext.symbol.pattern-match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.pattern-match.js).
+##### [`Symbol.matcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
+Module [`esnext.symbol.matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.matcher.js).
 ```js
 class Symbol {
   static patternMatch: @@patternMatch;
@@ -2410,7 +2410,7 @@ class Symbol {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/pattern-matching
-core-js(-pure)/features/symbol/pattern-match
+core-js(-pure)/features/symbol/matcher
 ```
 ##### [Object iteration](https://github.com/tc39/proposal-object-iteration)[⬆](#index)
 Modules [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-keys.js), [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-values.js), [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-entries.js).

@@ -297,6 +297,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('features/symbol/is-concat-spreadable'));
   ok(load('features/symbol/iterator'));
   ok(load('features/symbol/match'));
+  ok(load('features/symbol/matcher'));
   ok(load('features/symbol/match-all'));
   ok(load('features/symbol/metadata'));
   ok(load('features/symbol/replace'));

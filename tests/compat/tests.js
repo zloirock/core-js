@@ -1431,12 +1431,16 @@ GLOBAL.tests = {
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
+  'esnext.symbol.matcher': function () {
+    return Symbol.matcher;
+  },
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;
   },
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.pattern-match': function () {
     return Symbol.patternMatch;
   },
