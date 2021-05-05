@@ -5,8 +5,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var create = Object.create;
 
 var initializer = function () {
-  var freeze = getBuiltIn('Object', 'freeze');
-  return freeze ? freeze(create(null)) : create(null);
+  return getBuiltIn('Object', 'freeze')(create(null));
 };
 
 // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
