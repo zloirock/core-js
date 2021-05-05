@@ -1,4 +1,4 @@
-var Promise = require('../internals/native-promise-constructor');
+var PromiseConstructor = require('../internals/native-promise-constructor');
 var isForced = require('../internals/is-forced');
 var inspectSource = require('../internals/inspect-source');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -10,7 +10,7 @@ var V8_VERSION = require('../internals/engine-v8-version');
 var SPECIES = wellKnownSymbol('species');
 var SUBCLASSING = false;
 
-var FORCED_PROMISE_CONSTRUCTOR = isForced(PROMISE, function () {
+var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
   var PROMISE_CONSTRUCTOR_SOURCE = inspectSource(PromiseConstructor);
   var GLOBAL_CORE_JS_PROMISE = PROMISE_CONSTRUCTOR_SOURCE !== String(PromiseConstructor);
   // V8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
@@ -18,7 +18,7 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced(PROMISE, function () {
   // We can't detect it synchronously, so just check versions
   if (!GLOBAL_CORE_JS_PROMISE && V8_VERSION === 66) return true;
   // We need Promise#finally in the pure version for preventing prototype pollution
-  if (IS_PURE && !PromiseConstructorPrototype.finally) return true;
+  if (IS_PURE && !PromiseConstructor.prototype.finally) return true;
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
@@ -33,7 +33,7 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced(PROMISE, function () {
   SUBCLASSING = promise.then(function () { /* empty */ }) instanceof FakePromise;
   if (!SUBCLASSING) return true;
   // Unhandled rejections tracking support, NodeJS Promise without it fails @@species test
-  return !GLOBAL_CORE_JS_PROMISE && IS_BROWSER && !NATIVE_REJECTION_EVENT;
+  return !GLOBAL_CORE_JS_PROMISE && IS_BROWSER && !NATIVE_PROMISE_REJECTION_EVENT;
 });
 
 module.exports = {

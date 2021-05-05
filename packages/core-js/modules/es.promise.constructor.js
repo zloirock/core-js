@@ -21,7 +21,6 @@ var ForcedPromiseConstructor = require('../internals/promise-forced-constructor'
 var InternalStateModule = require('../internals/internal-state');
 var IS_NODE = require('../internals/engine-is-node');
 var NATIVE_PROMISE_REJECTION_EVENT = require('../internals/native-promise-rejection-event');
-var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-incorrect-iteration');
 
 var PROMISE = 'Promise';
 var FORCED_PROMISE_CONSTRUCTOR = ForcedPromiseConstructor.CONSTRUCTOR;
@@ -31,6 +30,7 @@ var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
 var NativePromisePrototype = NativePromise && NativePromise.prototype;
 var PromiseConstructor = NativePromise;
+var PromiseConstructorPrototype = NativePromisePrototype;
 var TypeError = global.TypeError;
 var document = global.document;
 var process = global.process;
@@ -247,14 +247,19 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
   if (!IS_PURE && typeof NativePromise == 'function' && NativePromisePrototype !== Object.prototype) {
     nativeThen = NativePromisePrototype.then;
 
-    // make `Promise#then` return a polyfilled `Promise` for native promise-based APIs
-    redefine(NativePromisePrototype, 'then', function then(onFulfilled, onRejected) {
-      var that = this;
-      return new PromiseConstructor(function (resolve, reject) {
-        nativeThen.call(that, resolve, reject);
-      }).then(onFulfilled, onRejected);
-    // https://github.com/zloirock/core-js/issues/640
-    }, { unsafe: true });
+    if (!SUBCLASSING) {
+      // make `Promise#then` return a polyfilled `Promise` for native promise-based APIs
+      redefine(NativePromisePrototype, 'then', function then(onFulfilled, onRejected) {
+        var that = this;
+        return new PromiseConstructor(function (resolve, reject) {
+          nativeThen.call(that, resolve, reject);
+        }).then(onFulfilled, onRejected);
+      // https://github.com/zloirock/core-js/issues/640
+      }, { unsafe: true });
+
+      // makes sure that native promise-based APIs `Promise#catch` properly works with patched `Promise#then`
+      redefine(NativePromisePrototype, 'catch', PromiseConstructorPrototype.catch, { unsafe: true });
+    }
 
     // make `.constructor === Promise` work for native promise-based APIs
     try {

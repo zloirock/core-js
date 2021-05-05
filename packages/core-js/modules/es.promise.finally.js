@@ -32,8 +32,8 @@ $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
 
 // makes sure that native promise-based APIs `Promise#finally` properly works with patched `Promise#then`
 if (!IS_PURE && typeof NativePromise == 'function') {
-  var method = getBuiltIn('Promise').prototype['finally'];
-  if (NativePromise.prototype['finally'] !== method) {
+  var method = getBuiltIn('Promise').prototype.finally;
+  if (NativePromise.prototype.finally !== method) {
     redefine(NativePromise.prototype, 'finally', method, { unsafe: true });
   }
 }

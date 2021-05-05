@@ -1,6 +1,6 @@
 {
   "name": "@core-js/collector",
-  "version": "3.11.1",
+  "version": "3.11.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",
@@ -11,10 +11,10 @@
   },
   "main": "./index.js",
   "dependencies": {
-    "@babel/core": "^7.13.15",
-    "@babel/parser": "^7.13.11",
-    "@babel/traverse": "^7.13.0",
-    "@core-js/compat": "3.11.1"
+    "@babel/core": "^7.14.0",
+    "@babel/parser": "^7.14.1",
+    "@babel/traverse": "^7.14.0",
+    "@core-js/compat": "3.11.3"
   },
   "engines": {
     "node": ">=12.13.0"
