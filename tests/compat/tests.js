@@ -14,7 +14,7 @@ var match, V8_VERSION;
 
 if (v8) {
   match = v8.split('.');
-  V8_VERSION = +(match[0] + match[1]);
+  V8_VERSION = match[0] < 4 ? 1 : +(match[0] + match[1]);
 } else if (USERAGENT) {
   match = USERAGENT.match(/Edge\/(\d+)/);
   if (!match || match[1] >= 74) {
@@ -45,7 +45,7 @@ var PROMISES_SUPPORT = function () {
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return Symbol && (IS_NODE ? V8_VERSION !== 38 : !(V8_VERSION > 37 && V8_VERSION < 41));
+  return String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
 };
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
