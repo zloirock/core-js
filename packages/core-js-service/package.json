@@ -17,5 +17,9 @@
   },
   "engines": {
     "node": ">=12.13.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./package": "./package.json"
   }
 }

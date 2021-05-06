@@ -18,5 +18,10 @@
   },
   "engines": {
     "node": ">=12.13.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./handle-file": "./handle-file.js",
+    "./package": "./package.json"
   }
 }
