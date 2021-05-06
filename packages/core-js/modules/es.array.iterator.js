@@ -1,4 +1,5 @@
 'use strict';
+// TODO: split to `es.array.{ iterator, keys, values, entries }`
 var toObject = require('../internals/to-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');

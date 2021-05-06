@@ -1,3 +1,4 @@
+// TODO: split to `web.dom-collections.{ iterator, keys, values, entries }`
 var global = require('../internals/global');
 var DOMIterables = require('../internals/dom-iterables');
 var ArrayIteratorMethods = require('../modules/es.array.iterator');

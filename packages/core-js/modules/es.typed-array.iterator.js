@@ -1,4 +1,5 @@
 'use strict';
+// TODO: split to `es.typed-array.{ iterator, keys, values, entries }`
 var global = require('../internals/global');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var ArrayIterators = require('../modules/es.array.iterator');
