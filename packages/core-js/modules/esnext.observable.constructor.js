@@ -6,10 +6,9 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
+var getMethod = require('../internals/get-method');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
-var getIterator = require('../internals/get-iterator');
-var iterate = require('../internals/iterate');
 var hostReportErrors = require('../internals/host-report-errors');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
@@ -19,10 +18,6 @@ var OBSERVABLE = wellKnownSymbol('observable');
 var defineProperty = Object.defineProperty;
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-
-var getMethod = function (fn) {
-  return fn == null ? undefined : aFunction(fn);
-};
 
 var cleanupSubscription = function (subscriptionState) {
   var cleanup = subscriptionState.cleanup;
@@ -153,40 +148,6 @@ redefineAll($Observable.prototype, {
       error: length > 1 ? arguments[1] : undefined,
       complete: length > 2 ? arguments[2] : undefined,
     } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
-  },
-});
-
-redefineAll($Observable, {
-  from: function from(x) {
-    var C = typeof this === 'function' ? this : $Observable;
-    var observableMethod = getMethod(anObject(x)[OBSERVABLE]);
-    if (observableMethod) {
-      var observable = anObject(observableMethod.call(x));
-      return observable.constructor === C ? observable : new C(function (observer) {
-        return observable.subscribe(observer);
-      });
-    }
-    var iterator = getIterator(x);
-    return new C(function (observer) {
-      iterate(iterator, function (it, stop) {
-        observer.next(it);
-        if (observer.closed) return stop();
-      }, { IS_ITERATOR: true, INTERRUPTED: true });
-      observer.complete();
-    });
-  },
-  of: function of() {
-    var C = typeof this === 'function' ? this : $Observable;
-    var length = arguments.length;
-    var items = new Array(length);
-    var index = 0;
-    while (index < length) items[index] = arguments[index++];
-    return new C(function (observer) {
-      for (var i = 0; i < length; i++) {
-        observer.next(items[i]);
-        if (observer.closed) return;
-      } observer.complete();
-    });
   },
 });
 

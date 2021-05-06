@@ -1379,8 +1379,14 @@ GLOBAL.tests = {
   'esnext.object.has-own': function () {
     return Object.hasOwn;
   },
-  'esnext.observable': function () {
+  'esnext.observable.constructor': function () {
     return Observable;
+  },
+  'esnext.observable.from': function () {
+    return Observable.from;
+  },
+  'esnext.observable.of': function () {
+    return Observable.of;
   },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
     return Promise.try;

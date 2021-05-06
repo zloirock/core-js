@@ -78,6 +78,10 @@
     - `es.string.trim-left`
     - `es.string.trim-right`
     - `es.string.trim-start`
+  - `esnext.observable` to:
+    - `esnext.observable.constructor`
+    - `esnext.observable.from`
+    - `esnext.observable.of`
   - `web.immediate` and `web.timers` to:
     - `web.clear-immediate`
     - `web.set-immediate`

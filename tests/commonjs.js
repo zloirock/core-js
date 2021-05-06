@@ -605,6 +605,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('full/number/range')(1, 2).next().value === 1);
   ok(load('full/object/has-own')({ foo: 42 }, 'foo'));
   ok('from' in load('full/observable'));
+  ok(typeof load('full/observable/constructor') === 'function');
+  ok(typeof load('full/observable/from') === 'function');
+  ok(typeof load('full/observable/of') === 'function');
   ok(load('full/promise/try')(() => 42) instanceof Promise);
   ok(typeof load('full/reflect/define-metadata') === 'function');
   ok(typeof load('full/reflect/delete-metadata') === 'function');

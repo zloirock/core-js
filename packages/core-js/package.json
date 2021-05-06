@@ -196,6 +196,7 @@
     "./full/object": "./full/object/index.js",
     "./full/object/*": "./full/object/*.js",
     "./full/observable": "./full/observable/index.js",
+    "./full/observable/*": "./full/observable/*.js",
     "./full/parse-float": "./full/parse-float.js",
     "./full/parse-int": "./full/parse-int.js",
     "./full/promise": "./full/promise/index.js",

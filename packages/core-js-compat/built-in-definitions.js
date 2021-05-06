@@ -94,7 +94,7 @@ const BuiltIns = map({
   ]),
   Iterator: def('iterator'), // TODO: move methods, the problem in conditional dependencies
   Number: def(null, ['es.number.constructor']),
-  Observable: def('observable'),
+  Observable: def('observable', 'observable/constructor'),
   Promise: def('promise', PromiseDependencies),
   RegExp: def(null, [
     'es.regexp.constructor',
@@ -395,6 +395,10 @@ const StaticProperties = map({
     parseFloat: def('number/parse-float'),
     parseInt: def('number/parse-int'),
     range: def('number/range'),
+  }),
+  Observable: map({
+    from: def('observable/from'),
+    of: def('observable/of'),
   }),
   Promise: map({
     all: def('promise/all'),

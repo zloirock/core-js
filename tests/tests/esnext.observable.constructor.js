@@ -45,17 +45,3 @@ QUnit.test('Observable#@@observable', assert => {
   const observable = new Observable(() => { /* empty*/ });
   assert.same(observable[Symbol.observable](), observable);
 });
-
-QUnit.test('Observable.of', assert => {
-  assert.isFunction(Observable.of);
-  assert.arity(Observable.of, 0);
-  assert.name(Observable.of, 'of');
-  assert.looksNative(Observable.of);
-});
-
-QUnit.test('Observable.from', assert => {
-  assert.isFunction(Observable.from);
-  assert.arity(Observable.from, 1);
-  assert.name(Observable.from, 'from');
-  assert.looksNative(Observable.from);
-});

@@ -1539,7 +1539,11 @@ export const data = {
   },
   'esnext.object.has-own': {
   },
-  'esnext.observable': {
+  'esnext.observable.constructor': {
+  },
+  'esnext.observable.from': {
+  },
+  'esnext.observable.of': {
   },
   'esnext.promise.try': {
   },
