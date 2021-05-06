@@ -341,6 +341,7 @@ const StaticProperties = map({
     getOwnPropertyNames: def('object/get-own-property-names'),
     getOwnPropertySymbols: def('object/get-own-property-symbols'),
     getPrototypeOf: def('object/get-prototype-of'),
+    hasOwn: def('object/has-own'),
     is: def('object/is'),
     isExtensible: def('object/is-extensible'),
     isFrozen: def('object/is-frozen'),
@@ -436,7 +437,9 @@ const StaticProperties = map({
     iterator: def('symbol/iterator'),
     keyFor: def('symbol/key-for', 'symbol'), // ???
     match: def('symbol/match'),
+    matcher: def('symbol/matcher'),
     matchAll: def('symbol/match-all'),
+    metadata: def('symbol/metadata'),
     observable: def('symbol/observable'),
     replace: def('symbol/replace'),
     search: def('symbol/search'),
