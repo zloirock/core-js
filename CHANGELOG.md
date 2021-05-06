@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Added well-known symbol `Symbol.matadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
+- Added well-known symbol `Symbol.metadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
 - Added well-known symbol `Symbol.matcher` for [pattern matching stage 1 proposal](https://github.com/tc39/proposal-pattern-matching)
 - Fixed regression of V8 ~ Node 0.12 `String(Symbol())` bug, [#933](https://github.com/zloirock/core-js/issues/933)  
 
