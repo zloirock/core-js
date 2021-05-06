@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('Symbol.matcher', assert => {
   assert.ok('matcher' in Symbol, 'Symbol.matcher available');

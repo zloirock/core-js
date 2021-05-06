@@ -1,6 +1,6 @@
 {
   "name": "@core-js/ua-normalizer",
-  "version": "3.11.3",
+  "version": "3.12.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",

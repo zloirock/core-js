@@ -637,6 +637,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok('next' in load('full/string/virtual/code-points').call('a'));
   ok(load('full/symbol/async-dispose'));
   ok(load('full/symbol/dispose'));
+  ok(load('full/symbol/matcher'));
+  ok(load('full/symbol/metadata'));
   ok(load('full/symbol/observable'));
   ok(load('full/weak-map/delete-all')(new WeakMap(), [], {}) === false);
   ok(load('full/weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
@@ -694,6 +696,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/number-from-string');
   load('proposals/number-range');
   load('proposals/observable');
+  load('proposals/pattern-matching');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');
