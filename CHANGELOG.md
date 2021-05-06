@@ -1,6 +1,8 @@
 ## Changelog
 ##### Unreleased
-- Fixed regression of V8 on Node 0.12 `Sting(Symbol())` bug, [#933](https://github.com/zloirock/core-js/issues/933)  
+- Added well-known symbol `Symbol.matadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
+- Added well-known symbol `Symbol.matcher` for [pattern matching stage 1 proposal](https://github.com/tc39/proposal-pattern-matching)
+- Fixed regression of V8 ~ Node 0.12 `String(Symbol())` bug, [#933](https://github.com/zloirock/core-js/issues/933)  
 
 ##### 3.11.3 - 2021.05.05
 - Native promise-based APIs `Promise#{ catch, finally }` returns polyfilled `Promise` instances when it's required
