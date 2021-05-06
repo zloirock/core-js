@@ -55,6 +55,7 @@
   - `Symbol.patternMatch` (is not a part of actual proposal, replaced by `Symbol.matcher`)
   - `Symbol.replaceAll` (obsolete)
   - `WeakMap#upsert` (obsolete)
+- Dropped non-standard `Symbol.{ useSetter, useSimple }` methods control of `Symbol` polyfill
 - Tools moved to scoped packages, `core-js-builder` and `core-js-compat` renamed to `@core-js/builder` and `@core-js/compat` respectively
 - Dropped NodeJS 11- support in `@core-js/builder` and `@core-js/compat`
 - Dropped `@core-js/compat` `modules-by-versions` history for `core-js@3`

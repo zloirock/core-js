@@ -224,8 +224,6 @@ $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
     if (!isSymbol(sym)) throw TypeError(sym + ' is not a symbol');
     if (has(SymbolToStringRegistry, sym)) return SymbolToStringRegistry[sym];
   },
-  useSetter: function () { USE_SETTER = true; },
-  useSimple: function () { USE_SETTER = false; },
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
