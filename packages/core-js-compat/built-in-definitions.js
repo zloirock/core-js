@@ -101,11 +101,7 @@ const BuiltIns = map({
     'es.regexp.exec',
     'es.regexp.to-string',
   ]),
-  Symbol: def('symbol', [
-    'es.symbol',
-    'es.symbol.description',
-    'es.object.to-string',
-  ]),
+  Symbol: def('symbol', 'symbol/constructor'),
   URL: def('url'),
   URLSearchParams: def('url-search-params'),
   Map: def('map', [
@@ -221,10 +217,7 @@ const InstanceProperties = map({
   codePoints: def('instance/code-points'),
   concat: def('instance/concat'),
   copyWithin: def('instance/copy-within'),
-  description: def(null, [
-    'es.symbol',
-    'es.symbol.description',
-  ]),
+  description: def(null, 'symbol/description'),
   endsWith: def('instance/ends-with'),
   entries: def('instance/entries'),
   every: def('instance/every'),
@@ -333,6 +326,9 @@ const StaticProperties = map({
   }),
   Object: map({
     assign: def('object/assign'),
+    create: def('object/create'),
+    defineProperty: def('object/define-property'),
+    defineProperties: def('object/define-properties'),
     entries: def('object/entries'),
     freeze: def('object/freeze'),
     fromEntries: def('object/from-entries'),

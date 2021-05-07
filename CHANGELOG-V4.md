@@ -79,6 +79,7 @@
     - `es.symbol.constructor`
     - `es.symbol.for`
     - `es.symbol.key-for`
+    - `es.object.get-own-property-symbols`
   - `esnext.observable` to:
     - `esnext.observable.constructor`
     - `esnext.observable.from`

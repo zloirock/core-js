@@ -1,5 +1,3 @@
-require('../../modules/es.array.concat');
-require('../../modules/es.object.to-string');
 require('../../modules/es.symbol.constructor');
 require('../../modules/es.symbol.async-iterator');
 require('../../modules/es.symbol.description');
@@ -17,8 +15,11 @@ require('../../modules/es.symbol.split');
 require('../../modules/es.symbol.to-primitive');
 require('../../modules/es.symbol.to-string-tag');
 require('../../modules/es.symbol.unscopables');
+require('../../modules/es.array.concat');
 require('../../modules/es.json.to-string-tag');
 require('../../modules/es.math.to-string-tag');
+require('../../modules/es.object.get-own-property-symbols');
+require('../../modules/es.object.to-string');
 require('../../modules/es.reflect.to-string-tag');
 var path = require('../../internals/path');
 

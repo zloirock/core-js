@@ -131,7 +131,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(O) {
   return result;
 };
 
-var $getOwnPropertySymbols = function getOwnPropertySymbols(O) {
+var $getOwnPropertySymbols = function (O) {
   var IS_OBJECT_PROTOTYPE = O === ObjectPrototype;
   var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toObject(O));
   var result = [];
@@ -213,20 +213,6 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertyNames` method
   // https://tc39.es/ecma262/#sec-object.getownpropertynames
   getOwnPropertyNames: $getOwnPropertyNames,
-});
-
-$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
-  // `Object.getOwnPropertySymbols` method
-  // https://tc39.es/ecma262/#sec-object.getownpropertysymbols
-  getOwnPropertySymbols: $getOwnPropertySymbols,
-});
-
-// Chrome 38 and 39 `Object.getOwnPropertySymbols` fails on primitives
-// https://bugs.chromium.org/p/v8/issues/detail?id=3443
-$({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
-  getOwnPropertySymbols: function getOwnPropertySymbols(it) {
-    return getOwnPropertySymbolsModule.f(toObject(it));
-  },
 });
 
 // `Symbol.prototype[@@toStringTag]` property

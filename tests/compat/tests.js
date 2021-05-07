@@ -84,7 +84,7 @@ var PROMISE_STATICS_ITERATION = [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPOR
 }];
 
 var SYMBOLS_SUPPORT = function () {
-  return String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
+  return Object.getOwnPropertySymbols && String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
 };
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
@@ -200,8 +200,7 @@ function createStringTrimMethodTest(METHOD_NAME) {
 
 GLOBAL.tests = {
   'es.symbol.constructor': [SYMBOLS_SUPPORT, function () {
-    return Object.getOwnPropertySymbols('qwe')
-      && Symbol.prototype[Symbol.toStringTag];
+    return Symbol.prototype[Symbol.toStringTag];
   }],
   'es.symbol.description': function () {
     return Symbol('foo').description == 'foo' && Symbol().description === undefined;
@@ -681,6 +680,9 @@ GLOBAL.tests = {
   'es.object.get-own-property-names': function () {
     return Object.getOwnPropertyNames('qwe');
   },
+  'es.object.get-own-property-symbols': [SYMBOLS_SUPPORT, function () {
+    return Object.getOwnPropertySymbols('qwe');
+  }],
   'es.object.get-prototype-of': function () {
     return Object.getPrototypeOf('qwe');
   },

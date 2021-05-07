@@ -679,6 +679,13 @@ export const data = {
     safari: '9.0',
     rhino: '1.7.13',
   },
+  // TODO: confirm
+  'es.object.get-own-property-symbols': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    safari: '10.0',
+  },
   'es.object.get-prototype-of': {
     chrome: '44',
     edge: '13',

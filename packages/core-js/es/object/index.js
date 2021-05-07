@@ -1,4 +1,3 @@
-require('../../modules/es.symbol.constructor');
 require('../../modules/es.object.assign');
 require('../../modules/es.object.entries');
 require('../../modules/es.object.freeze');
@@ -6,6 +5,7 @@ require('../../modules/es.object.from-entries');
 require('../../modules/es.object.get-own-property-descriptor');
 require('../../modules/es.object.get-own-property-descriptors');
 require('../../modules/es.object.get-own-property-names');
+require('../../modules/es.object.get-own-property-symbols');
 require('../../modules/es.object.get-prototype-of');
 require('../../modules/es.object.is');
 require('../../modules/es.object.is-extensible');
