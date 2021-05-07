@@ -1,13 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
 var global = require('../internals/global');
-var getBuiltIn = require('../internals/get-built-in');
 var IS_PURE = require('../internals/is-pure');
 var NATIVE_SYMBOL = require('../internals/native-symbol');
 var fails = require('../internals/fails');
 var has = require('../internals/has');
-var isObject = require('../internals/is-object');
-var isSymbol = require('../internals/is-symbol');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var toPropertyKey = require('../internals/to-property-key');
@@ -39,7 +36,6 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = global.Symbol;
-var $stringify = getBuiltIn('JSON', 'stringify');
 // eslint-disable-next-line es/no-object-keys -- safe
 var objectKeys = Object.keys;
 var nativeObjectCreate = Object.create;
@@ -47,8 +43,6 @@ var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
-// eslint-disable-next-line es/no-array-isarray -- safe
-var isArray = Array.isArray;
 // eslint-disable-next-line es/no-array-prototype-foreach -- safe
 var forEach = [].forEach;
 var AllSymbols = shared('symbols');
@@ -234,36 +228,6 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
 $({ target: 'Object', stat: true, forced: fails(function () { getOwnPropertySymbolsModule.f(1); }) }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
     return getOwnPropertySymbolsModule.f(toObject(it));
-  },
-});
-
-// `JSON.stringify` method behavior with symbols
-// https://tc39.es/ecma262/#sec-json.stringify
-var FORCED_JSON_STRINGIFY = !NATIVE_SYMBOL || fails(function () {
-  var symbol = $Symbol();
-  // MS Edge converts symbol values to JSON as {}
-  return $stringify([symbol]) != '[null]'
-    // WebKit converts symbol values to JSON as null
-    || $stringify({ a: symbol }) != '{}'
-    // V8 throws on boxed symbols
-    || $stringify(Object(symbol)) != '{}';
-});
-
-$({ target: 'JSON', stat: true, forced: FORCED_JSON_STRINGIFY }, {
-  // eslint-disable-next-line no-unused-vars -- required for `.length`
-  stringify: function stringify(it, replacer, space) {
-    var args = [it];
-    var index = 1;
-    var $replacer;
-    while (arguments.length > index) args.push(arguments[index++]);
-    $replacer = replacer;
-    if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
-    if (!isArray(replacer)) replacer = function (key, value) {
-      if (typeof $replacer == 'function') value = $replacer.call(this, key, value);
-      if (!isSymbol(value)) return value;
-    };
-    args[1] = replacer;
-    return $stringify.apply(null, args);
   },
 });
 

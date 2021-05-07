@@ -1,4 +1,26 @@
-import stringify from 'core-js/es/json/stringify';
+import Symbol from 'core-js-pure/es/symbol';
+import stringify from 'core-js-pure/es/json/stringify';
+
+QUnit.test('Symbols & JSON.stringify', assert => {
+  assert.strictEqual(stringify([
+    1,
+    Symbol('foo'),
+    false,
+    Symbol('bar'),
+    {},
+  ]), '[1,null,false,null,{}]', 'array value');
+  assert.strictEqual(stringify({
+    symbol: Symbol('symbol'),
+  }), '{}', 'object value');
+  const object = { bar: 2 };
+  object[Symbol('symbol')] = 1;
+  assert.strictEqual(stringify(object), '{"bar":2}', 'object key');
+  assert.strictEqual(stringify(Symbol('symbol')), undefined, 'symbol value');
+  if (typeof Symbol() === 'symbol') {
+    assert.strictEqual(stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+  }
+  assert.strictEqual(stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
+});
 
 QUnit.test('Well‑formed JSON.stringify', assert => {
   assert.isFunction(stringify);

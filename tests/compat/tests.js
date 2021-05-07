@@ -201,9 +201,6 @@ function createStringTrimMethodTest(METHOD_NAME) {
 GLOBAL.tests = {
   'es.symbol.constructor': [SYMBOLS_SUPPORT, function () {
     return Object.getOwnPropertySymbols('qwe')
-      && JSON.stringify([Symbol()]) == '[null]'
-      && JSON.stringify({ a: Symbol() }) == '{}'
-      && JSON.stringify(Object(Symbol())) == '{}'
       && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
@@ -508,7 +505,10 @@ GLOBAL.tests = {
     return globalThis;
   },
   'es.json.stringify': function () {
-    return JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
+    return JSON.stringify([Symbol()]) == '[null]'
+      && JSON.stringify({ a: Symbol() }) == '{}'
+      && JSON.stringify(Object(Symbol())) == '{}'
+      && JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
       && JSON.stringify('\uDEAD') === '"\\udead"';
   },
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
