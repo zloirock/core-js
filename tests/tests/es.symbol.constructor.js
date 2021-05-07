@@ -41,7 +41,6 @@ QUnit.test('Well-known Symbols', assert => {
     'search',
     'species',
     'split',
-    'toPrimitive',
     'toStringTag',
     'unscopables',
   ];
@@ -53,12 +52,6 @@ QUnit.test('Well-known Symbols', assert => {
     assert.ok(!descriptor.writable, 'non-writable');
     assert.ok(!descriptor.configurable, 'non-configurable');
   }
-});
-
-QUnit.test('Symbol#@@toPrimitive', assert => {
-  const symbol = Symbol();
-  assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
-  assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
 
 QUnit.test('Symbol#@@toStringTag', assert => {

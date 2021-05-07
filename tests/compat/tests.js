@@ -201,7 +201,6 @@ function createStringTrimMethodTest(METHOD_NAME) {
 GLOBAL.tests = {
   'es.symbol.constructor': [SYMBOLS_SUPPORT, function () {
     return Object.getOwnPropertySymbols('qwe')
-      && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
   'es.symbol.description': function () {
@@ -244,7 +243,8 @@ GLOBAL.tests = {
     return Symbol.split;
   }],
   'es.symbol.to-primitive': [SYMBOLS_SUPPORT, function () {
-    return Symbol.toPrimitive;
+    return Symbol.toPrimitive
+      && Symbol.prototype[Symbol.toPrimitive];
   }],
   'es.symbol.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return Symbol.toStringTag;
