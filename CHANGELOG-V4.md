@@ -89,6 +89,7 @@
     - `web.set-interval`
     - `web.set-timeout`
 - Fixes of `JSON.stringify` behavior with symbols moved from `es.symbol` to `es.json.stringify`
+- `Symbol#@@toPrimitive` method polyfill moved from `es.symbol` to `es.symbol.to-primitive`
 - Added `exports` fields with all entries to `package.json` of packages
 - Namespace / entries for full set of features (stable ES, ES proposals, web standards) renamed from `/features/` to `/full/`
 - Added `/actual/` namespace for all stable features and stage 3 ES proposals 
