@@ -75,6 +75,10 @@
     - `es.string.trim-left`
     - `es.string.trim-right`
     - `es.string.trim-start`
+  - `es.symbol` to:
+    - `es.symbol.constructor`
+    - `es.symbol.for`
+    - `es.symbol.key-for`
   - `esnext.observable` to:
     - `esnext.observable.constructor`
     - `esnext.observable.from`

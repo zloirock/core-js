@@ -1,4 +1,4 @@
-require('../../modules/es.symbol');
+require('../../modules/es.symbol.constructor');
 require('../../modules/es.object.assign');
 require('../../modules/es.object.entries');
 require('../../modules/es.object.freeze');

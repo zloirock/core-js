@@ -199,11 +199,8 @@ function createStringTrimMethodTest(METHOD_NAME) {
 }
 
 GLOBAL.tests = {
-  'es.symbol': [SYMBOLS_SUPPORT, function () {
-    return Object.getOwnPropertySymbols
-      && Object.getOwnPropertySymbols('qwe')
-      && Symbol.for
-      && Symbol.keyFor
+  'es.symbol.constructor': [SYMBOLS_SUPPORT, function () {
+    return Object.getOwnPropertySymbols('qwe')
       && JSON.stringify([Symbol()]) == '[null]'
       && JSON.stringify({ a: Symbol() }) == '{}'
       && JSON.stringify(Object(Symbol())) == '{}'
@@ -216,6 +213,9 @@ GLOBAL.tests = {
   'es.symbol.async-iterator': function () {
     return Symbol.asyncIterator;
   },
+  'es.symbol.for': [SYMBOLS_SUPPORT, function () {
+    return Symbol.for;
+  }],
   'es.symbol.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance;
   }],
@@ -224,6 +224,9 @@ GLOBAL.tests = {
   }],
   'es.symbol.iterator': [SYMBOLS_SUPPORT, function () {
     return Symbol.iterator;
+  }],
+  'es.symbol.key-for': [SYMBOLS_SUPPORT, function () {
+    return Symbol.keyFor;
   }],
   'es.symbol.match': [SYMBOLS_SUPPORT, function () {
     return Symbol.match;

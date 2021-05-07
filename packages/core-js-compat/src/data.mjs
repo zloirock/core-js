@@ -1,5 +1,5 @@
 export const data = {
-  'es.symbol': {
+  'es.symbol.constructor': {
     chrome: '49',
     edge: '15',
     firefox: '51',
@@ -14,6 +14,13 @@ export const data = {
     chrome: '63',
     firefox: '55',
     safari: '12.0',
+  },
+  // TODO: confirm
+  'es.symbol.for': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    safari: '10.0',
   },
   'es.symbol.has-instance': {
     chrome: '50',
@@ -35,6 +42,13 @@ export const data = {
     firefox: '36',
     safari: '9.0',
     rhino: '1.7.13',
+  },
+  // TODO: confirm
+  'es.symbol.key-for': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    safari: '10.0',
   },
   'es.symbol.match': {
     chrome: '50',

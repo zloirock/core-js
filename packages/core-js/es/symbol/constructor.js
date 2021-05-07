@@ -1,5 +1,5 @@
+require('../../modules/es.object.to-string');
 require('../../modules/es.symbol.constructor');
-require('../../modules/es.symbol.key-for');
 var path = require('../../internals/path');
 
-module.exports = path.Symbol.keyFor;
+module.exports = path.Symbol;

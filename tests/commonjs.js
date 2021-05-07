@@ -46,7 +46,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('values' in load(NS, 'object'));
     load(NS, 'function/name');
     load(NS, 'function/has-instance');
-    ok(Function[load(NS, 'symbol/has-instance')](it => it));
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
@@ -232,7 +231,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'date/to-iso-string')(new Date()) === 'string');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
-    ok(load(NS, 'symbol/has-instance'));
+    ok(typeof load(NS, 'symbol/constructor') === 'function');
+    ok(Function[load(NS, 'symbol/has-instance')](it => it));
     ok(load(NS, 'symbol/is-concat-spreadable'));
     ok(load(NS, 'symbol/iterator'));
     ok(load(NS, 'symbol/match'));

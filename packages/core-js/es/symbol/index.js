@@ -1,11 +1,13 @@
 require('../../modules/es.array.concat');
 require('../../modules/es.object.to-string');
-require('../../modules/es.symbol');
+require('../../modules/es.symbol.constructor');
 require('../../modules/es.symbol.async-iterator');
 require('../../modules/es.symbol.description');
+require('../../modules/es.symbol.for');
 require('../../modules/es.symbol.has-instance');
 require('../../modules/es.symbol.is-concat-spreadable');
 require('../../modules/es.symbol.iterator');
+require('../../modules/es.symbol.key-for');
 require('../../modules/es.symbol.match');
 require('../../modules/es.symbol.match-all');
 require('../../modules/es.symbol.replace');

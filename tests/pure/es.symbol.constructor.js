@@ -1,6 +1,5 @@
-import { GLOBAL, NATIVE } from '../helpers/constants';
-
-const {
+import core from 'core-js-pure';
+import {
   defineProperty,
   defineProperties,
   getOwnPropertyDescriptor,
@@ -8,14 +7,13 @@ const {
   getOwnPropertySymbols,
   keys,
   create,
-} = Object;
-const { ownKeys } = GLOBAL.Reflect || {};
+} from 'core-js-pure/full/object';
+import Symbol from 'core-js-pure/full/symbol';
+import stringify from 'core-js-pure/full/json/stringify';
+import ownKeys from 'core-js-pure/full/reflect/own-keys';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
-  if (NATIVE) assert.strictEqual(Symbol.length, 0, 'arity is 0');
-  assert.name(Symbol, 'Symbol');
-  assert.looksNative(Symbol);
   const symbol1 = Symbol('symbol');
   const symbol2 = Symbol('symbol');
   assert.ok(symbol1 !== symbol2, 'Symbol("symbol") !== Symbol("symbol")');
@@ -48,29 +46,7 @@ QUnit.test('Well-known Symbols', assert => {
   for (const name of wks) {
     assert.ok(name in Symbol, `Symbol.${ name } available`);
     assert.ok(Object(Symbol[name]) instanceof Symbol, `Symbol.${ name } is symbol`);
-    const descriptor = getOwnPropertyDescriptor(Symbol, name);
-    assert.ok(!descriptor.enumerble, 'non-enumerable');
-    assert.ok(!descriptor.writable, 'non-writable');
-    assert.ok(!descriptor.configurable, 'non-configurable');
   }
-});
-
-QUnit.test('Global symbol registry', assert => {
-  assert.isFunction(Symbol.for, 'Symbol.for is function');
-  assert.nonEnumerable(Symbol, 'for');
-  assert.strictEqual(Symbol.for.length, 1, 'Symbol.for arity is 1');
-  if (NATIVE) assert.strictEqual(Symbol.for.name, 'for', 'Symbol.for.name is "for"');
-  assert.looksNative(Symbol.for, 'Symbol.for looks like native');
-  assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
-  assert.nonEnumerable(Symbol, 'keyFor');
-  assert.strictEqual(Symbol.keyFor.length, 1, 'Symbol.keyFor arity is 1');
-  assert.strictEqual(Symbol.keyFor.name, 'keyFor', 'Symbol.keyFor.name is "keyFor"');
-  assert.looksNative(Symbol.keyFor, 'Symbol.keyFor looks like native');
-  const symbol = Symbol.for('foo');
-  assert.strictEqual(Symbol.for('foo'), symbol);
-  assert.strictEqual(Symbol.keyFor(symbol), 'foo');
-  assert.throws(() => Symbol.for(Symbol('foo')), 'throws on symbol argument');
-  assert.throws(() => Symbol.keyFor('foo'), 'throws on non-symbol');
 });
 
 QUnit.test('Symbol#@@toPrimitive', assert => {
@@ -85,10 +61,6 @@ QUnit.test('Symbol#@@toStringTag', assert => {
 
 QUnit.test('Object.getOwnPropertySymbols', assert => {
   assert.isFunction(getOwnPropertySymbols);
-  assert.nonEnumerable(Object, 'getOwnPropertySymbols');
-  assert.strictEqual(getOwnPropertySymbols.length, 1, 'arity is 1');
-  assert.name(getOwnPropertySymbols, 'getOwnPropertySymbols');
-  assert.looksNative(getOwnPropertySymbols);
   const prototype = { q: 1, w: 2, e: 3 };
   prototype[Symbol()] = 42;
   prototype[Symbol()] = 43;
@@ -109,24 +81,24 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
 });
 
 QUnit.test('Symbols & JSON.stringify', assert => {
-  assert.strictEqual(JSON.stringify([
+  assert.strictEqual(stringify([
     1,
     Symbol('foo'),
     false,
     Symbol('bar'),
     {},
   ]), '[1,null,false,null,{}]', 'array value');
-  assert.strictEqual(JSON.stringify({
+  assert.strictEqual(stringify({
     symbol: Symbol('symbol'),
   }), '{}', 'object value');
   const object = { bar: 2 };
   object[Symbol('symbol')] = 1;
-  assert.strictEqual(JSON.stringify(object), '{"bar":2}', 'object key');
-  assert.strictEqual(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
+  assert.strictEqual(stringify(object), '{"bar":2}', 'object key');
+  assert.strictEqual(stringify(Symbol('symbol')), undefined, 'symbol value');
   if (typeof Symbol() === 'symbol') {
-    assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+    assert.strictEqual(stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
   }
-  assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
+  assert.strictEqual(stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
 });
 
 QUnit.test('Symbols & descriptors', assert => {
@@ -280,8 +252,8 @@ QUnit.test('Symbols & Object.create', assert => {
 const constructors = ['Map', 'Set', 'Promise'];
 for (const name of constructors) {
   QUnit.test(`${ name }@@species`, assert => {
-    assert.strictEqual(GLOBAL[name][Symbol.species], GLOBAL[name], `${ name }@@species === ${ name }`);
-    const Subclass = create(GLOBAL[name]);
+    assert.strictEqual(core[name][Symbol.species], core[name], `${ name }@@species === ${ name }`);
+    const Subclass = create(core[name]);
     assert.strictEqual(Subclass[Symbol.species], Subclass, `${ name } subclass`);
   });
 }
