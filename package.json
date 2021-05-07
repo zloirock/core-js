@@ -26,6 +26,7 @@
     "@babel/plugin-transform-spread": "^7.14.6",
     "@babel/plugin-transform-template-literals": "^7.14.5",
     "@core-js/builder": "file:./packages/core-js-builder",
+    "@core-js/collector": "file:./packages/core-js-collector",
     "@core-js/compat": "file:./packages/core-js-compat",
     "@core-js/service": "file:./packages/core-js-service",
     "@core-js/ua-normalizer": "file:./packages/core-js-ua-normalizer",
