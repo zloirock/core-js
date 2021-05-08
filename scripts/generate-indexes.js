@@ -18,7 +18,7 @@ async function generateTestsIndex(name, pkg) {
   return writeFile(`${ dir }/index.js`, `${ files
     .filter(it => /^(?:es|esnext|web)\./.test(it))
     .map(it => `import './${ it.slice(0, -3) }';\n`)
-    .join('') }\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n`);
+    .join('') }${ pkg !== 'core-js' ? `\nimport core from '${ pkg }';\ncore.globalThis.core = core;\n` : '' }`);
 }
 
 (async () => {
