@@ -445,6 +445,8 @@ const base = {
   'regexp/confusing-quantifier': 'error',
   // enforce consistent escaping of control characters
   'regexp/control-character-escape': 'error',
+  // enforce consistent usage of hexadecimal escape
+  'regexp/hexadecimal-escape': ['error', 'never'],
   // enforce into your favorite case
   'regexp/letter-case': ['error', {
     caseInsensitive: 'lowercase',
@@ -459,7 +461,7 @@ const base = {
   // disallow duplicate characters in the RegExp character class
   'regexp/no-dupe-characters-character-class': 'error',
   // disallow duplicate disjunctions
-  'regexp/no-dupe-disjunctions': 'error',
+  'regexp/no-dupe-disjunctions': ['error', { report: 'all' }],
   // disallow alternatives without elements
   'regexp/no-empty-alternative': 'error',
   // disallow empty group
@@ -468,8 +470,6 @@ const base = {
   'regexp/no-empty-lookarounds-assertion': 'error',
   // disallow escape backspace `([\b])`
   'regexp/no-escape-backspace': 'error',
-  // enforce consistent usage of hexadecimal escape
-  'regexp/hexadecimal-escape': ['error', 'never'],
   // disallow invisible raw character
   'regexp/no-invisible-character': 'error',
   // disallow lazy quantifiers at the end of an expression
@@ -486,6 +486,8 @@ const base = {
   'regexp/no-optional-assertion': 'error',
   // disallow backreferences that reference a group that might not be matched
   'regexp/no-potentially-useless-backreference': 'error',
+  // disallow standalone backslashes
+  'regexp/no-standalone-backslash': 'error',
   // disallow trivially nested assertions
   'regexp/no-trivially-nested-assertion': 'error',
   // disallow nested quantifiers that can be rewritten as one quantifier
@@ -510,10 +512,14 @@ const base = {
   'regexp/no-useless-non-capturing-group': 'error',
   // disallow unnecessary quantifier non-greedy (`?`)
   'regexp/no-useless-non-greedy': 'error',
+  // disallow quantifiers that can be removed
+  'regexp/no-useless-quantifier': 'error',
   // disallow unnecessary range of characters by using a hyphen
   'regexp/no-useless-range': 'error',
   // disallow unnecessary `{n,m}`` quantifier
   'regexp/no-useless-two-nums-quantifier': 'error',
+  // disallow quantifiers with a maximum of zero
+  'regexp/no-zero-quantifier': 'error',
   // disallow the alternatives of lookarounds that end with a non-constant quantifier
   'regexp/optimal-lookaround-quantifier': 'error',
   // enforces elements order in character class
