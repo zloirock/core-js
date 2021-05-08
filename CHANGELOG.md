@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed some cases of `Function#toString` with multiple `core-js` instances
 
 ##### 3.12.0 - 2021.05.06
 - Added well-known symbol `Symbol.metadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
