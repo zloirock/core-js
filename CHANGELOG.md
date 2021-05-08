@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed some cases of `Function#toString` with multiple `core-js` instances
+- Fixed some possible `String#split` polyfill problems in V8 5.1
 
 ##### 3.12.0 - 2021.05.06
 - Added well-known symbol `Symbol.metadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
