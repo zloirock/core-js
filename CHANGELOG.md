@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.12.1 - 2021.05.09
 - Fixed some cases of `Function#toString` with multiple `core-js` instances
 - Fixed some possible `String#split` polyfill problems in V8 5.1
 
