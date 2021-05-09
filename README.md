@@ -699,6 +699,7 @@ class RegExp {
   test(string: string): boolean; // delegation to `.exec`
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
+  @@matchAll(string: string): Iterator;
   @@replace(string: string, replaceValue: Function | string): string;
   @@search(string: string): number;
   @@split(string: string, limit: number): Array<string>;
