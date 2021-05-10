@@ -767,6 +767,7 @@ const nodePackages = {
 };
 
 const nodeDev = {
+  ...nodePackages,
   // disallow unsupported ECMAScript syntax on the specified version
   'node/no-unsupported-features/es-syntax': ['error', { version: DEV_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
@@ -776,9 +777,6 @@ const nodeDev = {
   ...disable(forbidES2016BuiltIns),
   ...disable(forbidES2017BuiltIns),
   ...disable(forbidES2018BuiltIns),
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
 };
 
 const tests = {
