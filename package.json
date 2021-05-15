@@ -36,7 +36,7 @@
     "eslint": "^7.26.0",
     "eslint-plugin-es": "git+https://github.com/mysticatea/eslint-plugin-es.git#00d73851793541dc7b0d07292deb0ca2bc8a25e1",
     "eslint-plugin-eslint-comments": "^3.2.0",
-    "eslint-plugin-import": "^2.23.0",
+    "eslint-plugin-import": "^2.23.2",
     "eslint-plugin-jsonc": "^1.2.1",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-qunit": "^6.1.0",
