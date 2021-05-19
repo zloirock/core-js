@@ -249,7 +249,7 @@ GLOBAL.tests = {
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
   }],
-  'es.aggregate-error': function () {
+  'es.aggregate-error.constructor': function () {
     return typeof AggregateError === 'function';
   },
   'es.array.concat': function () {

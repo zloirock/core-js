@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es.object.to-string');
-require('../../modules/es.aggregate-error');
+require('../../modules/es.aggregate-error.constructor');
 require('../../modules/es.promise.constructor');
 require('../../modules/es.promise.any');
 require('../../modules/es.promise.resolve');

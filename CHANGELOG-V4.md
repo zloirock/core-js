@@ -89,6 +89,8 @@
     - `web.set-immediate`
     - `web.set-interval`
     - `web.set-timeout`
+- Modules renamed:
+  - `es.aggregate-error` -> `es.aggregate-error.constructor`
 - Fixes of `JSON.stringify` behavior with symbols moved from `es.symbol` to `es.json.stringify`
 - `Symbol#@@toPrimitive` method polyfill moved from `es.symbol` to `es.symbol.to-primitive`
 - Added `exports` fields with all entries to `package.json` of packages
