@@ -2383,6 +2383,8 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
 }
 ```
 ##### [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)[⬆](#index)
+**API of this proposal has been changed. This proposal will be removed from the next major `core-js` version and will be added back after adding and stabilization of the spec text.**
+
 Module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.seeded-prng.js)
 ```js
 class Math {
@@ -2414,6 +2416,8 @@ core-js/proposals/pattern-matching
 core-js(-pure)/features/symbol/matcher
 ```
 ##### [Object iteration](https://github.com/tc39/proposal-object-iteration)[⬆](#index)
+**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+
 Modules [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-keys.js), [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-values.js), [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-entries.js).
 ```js
 class Object {
@@ -2502,6 +2506,8 @@ core-js(-pure)/stage/0
 ##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
 See more info [in web standards namespace](#url-and-urlsearchparams)
 ##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)[⬆](#index)
+**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+
 Module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.at.js)
 ```js
 class String {
@@ -2520,6 +2526,8 @@ core-js(-pure)/features/string/virtual/at
 'a𠮷b'.at(1).length; // => 2
 ```
 ##### [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)[⬆](#index)
+**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+
 Modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.umulh.js)
 ```js
 namespace Math {
