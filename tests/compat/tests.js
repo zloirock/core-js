@@ -465,7 +465,7 @@ GLOBAL.tests = {
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
-  'es.data-view': ARRAY_BUFFER_SUPPORT,
+  'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
   },
