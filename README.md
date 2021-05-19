@@ -1261,7 +1261,7 @@ Symbol().description;      // => undefined
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map[⬆](#index)
-Module [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js).
+Module [`es.map.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.constructor.js).
 ```js
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -1316,7 +1316,7 @@ for (let [key, value] of map.entries()) {
 }
 ```
 #### Set[⬆](#index)
-Module [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js).
+Module [`es.set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.constructor.js).
 ```js
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -1361,7 +1361,7 @@ for (let [key, value] of set.entries()) {
 }
 ```
 #### WeakMap[⬆](#index)
-Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+Module [`es.weak-map.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.constructor.js).
 ```js
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
@@ -1407,7 +1407,7 @@ console.log(person.getName());            // => 'Vasya'
 for (let key in person) console.log(key); // => only 'getName'
 ```
 #### WeakSet[⬆](#index)
-Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+Module [`es.weak-set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.constructor.js).
 ```js
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;

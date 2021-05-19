@@ -1,5 +1,5 @@
 var parent = require('../../actual/array');
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/esnext.array.find-last');
 require('../../modules/esnext.array.find-last-index');
 require('../../modules/esnext.array.is-template-object');

@@ -1,4 +1,4 @@
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.difference');
 require('../../modules/web.dom-collections.iterator');

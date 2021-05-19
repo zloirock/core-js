@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.map.of');
 require('../../modules/web.dom-collections.iterator');

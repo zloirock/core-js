@@ -1,4 +1,4 @@
-require('../../modules/es.weak-set');
+require('../../modules/es.weak-set.constructor');
 require('../../modules/esnext.weak-set.add-all');
 var entryUnbind = require('../../internals/entry-unbind');
 

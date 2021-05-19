@@ -1,4 +1,4 @@
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/esnext.set.filter');
 var entryUnbind = require('../../internals/entry-unbind');
 

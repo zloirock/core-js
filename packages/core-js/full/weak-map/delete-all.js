@@ -1,4 +1,4 @@
-require('../../modules/es.weak-map');
+require('../../modules/es.weak-map.constructor');
 require('../../modules/esnext.weak-map.delete-all');
 var entryUnbind = require('../../internals/entry-unbind');
 

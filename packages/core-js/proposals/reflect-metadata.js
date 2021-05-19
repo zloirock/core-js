@@ -1,7 +1,7 @@
 // https://github.com/rbuckton/reflect-metadata
-require('../modules/es.map');
-require('../modules/es.set');
-require('../modules/es.weak-map');
+require('../modules/es.map.constructor');
+require('../modules/es.set.constructor');
+require('../modules/es.weak-map.constructor');
 require('../modules/esnext.reflect.define-metadata');
 require('../modules/esnext.reflect.delete-metadata');
 require('../modules/esnext.reflect.get-metadata');

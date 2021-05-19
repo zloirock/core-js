@@ -511,7 +511,7 @@ GLOBAL.tests = {
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
-  'es.map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var called = 0;
     var iterable = {
       next: function () {
@@ -845,7 +845,7 @@ GLOBAL.tests = {
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
       && RegExp.prototype.toString.name === 'toString';
   },
-  'es.set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var called = 0;
     var iterable = {
       next: function () {
@@ -1140,7 +1140,7 @@ GLOBAL.tests = {
   'es.unescape': function () {
     return unescape;
   },
-  'es.weak-map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.weak-map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = Object.freeze({});
     var called = 0;
     var iterable = {
@@ -1158,7 +1158,7 @@ GLOBAL.tests = {
       && map.set({}, 2) == map
       && map[Symbol.toStringTag];
   }],
-  'es.weak-set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.weak-set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = {};
     var called = 0;
     var iterable = {

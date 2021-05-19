@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.of');
 require('../../modules/web.dom-collections.iterator');

@@ -1,4 +1,4 @@
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
 require('../../modules/web.dom-collections.iterator');
