@@ -1597,9 +1597,9 @@ GLOBAL.tests = {
   'web.set-timeout': function () {
     return !MSIE9;
   },
-  'web.url': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
 };

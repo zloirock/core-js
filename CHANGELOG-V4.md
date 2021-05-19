@@ -93,6 +93,7 @@
   - `es.aggregate-error` -> `es.aggregate-error.constructor`
   - `es.data-view` -> `es.data-view.constructor`
   - `es.{ map, set, weak-map, weak-set }` -> `es.{ map, set, weak-map, weak-set }.constructor`
+  - `web.{ url, url-search-params }` -> `web.{ url, url-search-params }.constructor`
 - Fixes of `JSON.stringify` behavior with symbols moved from `es.symbol` to `es.json.stringify`
 - `Symbol#@@toPrimitive` method polyfill moved from `es.symbol` to `es.symbol.to-primitive`
 - Added `exports` fields with all entries to `package.json` of packages

@@ -8,9 +8,9 @@ require('../modules/web.queue-microtask');
 require('../modules/web.set-immediate');
 require('../modules/web.set-interval');
 require('../modules/web.set-timeout');
-require('../modules/web.url');
+require('../modules/web.url.constructor');
 require('../modules/web.url.to-json');
-require('../modules/web.url-search-params');
+require('../modules/web.url-search-params.constructor');
 var path = require('../internals/path');
 
 module.exports = path;

@@ -2474,7 +2474,9 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 #### `URL` and `URLSearchParams`[⬆](#index)
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation.
+
+Modules [`web.url.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.constructor.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.constructor.js).
 ```js
 class URL {
   constructor(url: string, base?: string);
@@ -2566,7 +2568,9 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 - `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
 #### Iterable DOM collections[⬆](#index)
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
+Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them.
+
+Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
 ```js
 class [
   CSSRuleList,
