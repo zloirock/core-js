@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.13.0 - 2021.05.26
 - Accessible `Object#hasOwnProperty` (`Object.hasOwn`) proposal moved to the stage 3, [May 2021 TC39 meeting](https://github.com/babel/proposals/issues/74#issuecomment-848121673)
 
 ##### 3.12.1 - 2021.05.09
