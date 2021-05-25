@@ -520,6 +520,8 @@ const base = {
   'regexp/no-useless-two-nums-quantifier': 'error',
   // disallow quantifiers with a maximum of zero
   'regexp/no-zero-quantifier': 'error',
+  // require optimal quantifiers for concatenated quantifiers
+  'regexp/optimal-quantifier-concatenation': 'error',
   // disallow the alternatives of lookarounds that end with a non-constant quantifier
   'regexp/optimal-lookaround-quantifier': 'error',
   // enforces elements order in character class

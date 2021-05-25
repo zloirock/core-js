@@ -54,6 +54,7 @@ const run = assert => {
   assert.arrayEqual('.'.split(/()()/), ['.'], "'.'.split(/()()/) results in ['.']");
   assert.arrayEqual('.'.split(/(.?)(.?)/), ['', '.', '', ''], "'.'.split(/(.?)(.?)/) results in ['', '.', '', '']");
   assert.arrayEqual('.'.split(/(.??)(.??)/), ['.'], "'.'.split(/(.??)(.??)/) results in ['.']");
+  // eslint-disable-next-line regexp/optimal-quantifier-concatenation -- ignore
   assert.arrayEqual('.'.split(/(.)?(.)?/), ['', '.', undefined, ''], "'.'.split(/(.)?(.)?/) results in ['', '.', undefined, '']");
   // eslint-disable-next-line max-len -- ignore
   assert.arrayEqual('A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\/)?([^<>]+)>/), ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', ''], "'A<B>bold</B>and<CODE>coded</CODE>'.split(/<(\\/)?([^<>]+)>/) results in ['A', undefined, 'B', 'bold', '/', 'B', 'and', undefined, 'CODE', 'coded', '/', 'CODE', '']");
