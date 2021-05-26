@@ -1,4 +1,3 @@
-require('../../modules/esnext.object.has-own');
-var path = require('../../internals/path');
+var parent = require('../../actual/object/has-own');
 
-module.exports = path.Object.hasOwn;
+module.exports = parent;

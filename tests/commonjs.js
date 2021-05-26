@@ -517,6 +517,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/at').call([1, 2, 3], -2) === 2);
     ok(load(NS, 'string/at')('a', 0) === 'a');
     ok(load(NS, 'string/virtual/at').call('a', 0) === 'a');
+    ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
 
     const instanceAt = load(NS, 'instance/at');
     ok(typeof instanceAt === 'function');
@@ -603,7 +604,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('full/map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
   ok(load('full/number/from-string')('12', 3) === 5);
   ok(load('full/number/range')(1, 2).next().value === 1);
-  ok(load('full/object/has-own')({ foo: 42 }, 'foo'));
   ok('from' in load('full/observable'));
   ok(typeof load('full/observable/constructor') === 'function');
   ok(typeof load('full/observable/from') === 'function');
