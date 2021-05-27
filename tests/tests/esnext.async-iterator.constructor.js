@@ -12,7 +12,7 @@ QUnit.test('AsyncIterator', assert => {
     } catch { /* empty */ }
   })();
 
-  if (asyncGenerator) {
+  if (asyncGenerator && globalThis.USE_FUNCTION_CONSTRUCTOR) {
     const proto = getPrototypeOf(getPrototypeOf(getPrototypeOf(asyncGenerator)));
     if (proto !== Object.prototype && proto !== null) {
       assert.ok(asyncGenerator instanceof AsyncIterator, 'AsyncGenerator');

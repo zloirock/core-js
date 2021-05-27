@@ -3,11 +3,11 @@ process.env.CHROME_BIN = require('puppeteer').executablePath();
 
 module.exports = function (config) {
   const { argv } = process;
-  const files = ['tests/bundles/qunit-helpers.js'];
+  let files;
 
   for (const arg of argv) {
     if (arg.startsWith('-f=')) {
-      files.push(...arg.slice(3).split(','));
+      files = arg.slice(3).split(',');
     }
   }
 
