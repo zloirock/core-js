@@ -2700,7 +2700,7 @@ core-js(-pure)/stable|features/url-search-params
 ```js
 const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
-console.log(url.href);       // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2#fragment'
+console.log(url.href);       // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 console.log(url.origin);     // => 'http://example.com:8080'
 console.log(url.protocol);   // => 'http:'
 console.log(url.username);   // => 'login'
