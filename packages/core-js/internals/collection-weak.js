@@ -75,7 +75,7 @@ module.exports = {
     };
 
     redefineAll(C.prototype, {
-      // { WeakMap, WeakSet }.prototype.delete(key)
+      // `{ WeakMap, WeakSet }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-weakmap.prototype.delete
       // https://tc39.es/ecma262/#sec-weakset.prototype.delete
       'delete': function (key) {
@@ -85,7 +85,7 @@ module.exports = {
         if (data === true) return uncaughtFrozenStore(state)['delete'](key);
         return data && $has(data, state.id) && delete data[state.id];
       },
-      // { WeakMap, WeakSet }.prototype.has(key)
+      // `{ WeakMap, WeakSet }.prototype.has(key)` methods
       // https://tc39.es/ecma262/#sec-weakmap.prototype.has
       // https://tc39.es/ecma262/#sec-weakset.prototype.has
       has: function has(key) {
@@ -98,7 +98,7 @@ module.exports = {
     });
 
     redefineAll(C.prototype, IS_MAP ? {
-      // WeakMap.prototype.get(key)
+      // `WeakMap.prototype.get(key)` method
       // https://tc39.es/ecma262/#sec-weakmap.prototype.get
       get: function get(key) {
         var state = getInternalState(this);
@@ -108,13 +108,13 @@ module.exports = {
           return data ? data[state.id] : undefined;
         }
       },
-      // WeakMap.prototype.set(key, value)
+      // `WeakMap.prototype.set(key, value)` method
       // https://tc39.es/ecma262/#sec-weakmap.prototype.set
       set: function set(key, value) {
         return define(this, key, value);
       }
     } : {
-      // WeakSet.prototype.add(value)
+      // `WeakSet.prototype.add(value)` method
       // https://tc39.es/ecma262/#sec-weakset.prototype.add
       add: function add(value) {
         return define(this, value, true);
