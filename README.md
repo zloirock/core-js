@@ -2696,7 +2696,7 @@ core-js(-pure)/stable|features/url
 core-js/stable|features/url/to-json
 core-js(-pure)/stable|features/url-search-params
 ```
-[*Examples*](https://goo.gl/kksjwV):
+[*Examples*](http://es6.zloirock.ru/#const%20url%20%3D%20new%20URL('http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment')%3B%0A%0Alog(url.href)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0Alog(url.origin)%3B%20%20%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Fexample.com%3A8080'%0Alog(url.protocol)%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A'%0Alog(url.username)%3B%20%20%20%2F%2F%20%3D%3E%20'login'%0Alog(url.password)%3B%20%20%20%2F%2F%20%3D%3E%20'password'%0Alog(url.host)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'example.com%3A8080'%0Alog(url.hostname)%3B%20%20%20%2F%2F%20%3D%3E%20'example.com'%0Alog(url.port)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'8080'%0Alog(url.pathname)%3B%20%20%20%2F%2F%20%3D%3E%20'%2Ffoo%2Fbar'%0Alog(url.search)%3B%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Fa%3D1%26b%3D2%26a%3D3'%0Alog(url.hash)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%23fragment'%0Alog(url.toJSON())%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0Alog(url.toString())%3B%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20url.searchParams)%20%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'a'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%20'1'%2C%20'2'%2C%20'3'%0A%7D%0A%0Aurl.pathname%20%3D%20''%3B%0Aurl.searchParams.append('c'%2C%204)%3B%0A%0Alog(url.search)%3B%20%2F%2F%20%3D%3E%20'%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4'%0Alog(url.href)%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment'%0A%0Aconst%20params%20%3D%20new%20URLSearchParams('%3Fa%3D1%26b%3D2%26a%3D3')%3B%0A%0Aparams.append('c'%2C%204)%3B%0Aparams.append('a'%2C%202)%3B%0Aparams.sort()%3B%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20params)%20%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'a'%2C%20'a'%2C%20'b'%2C%20'c'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%20'1'%2C%20'3'%2C%20'2'%2C%20'2'%2C%20'4'%0A%7D%0A%0Alog(params.toString())%3B%20%2F%2F%20%3D%3E%20'a%3D1%26a%3D3%26a%3D2%26b%3D2%26c%3D4'):
 ```js
 const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
@@ -2720,10 +2720,10 @@ for (let [key, value] of url.searchParams) {
 }
 
 url.pathname = '';
-url.searchParams.append('c', 3);
+url.searchParams.append('c', 4);
 
-console.log(url.search); // => '?a=1&b=2&a=3&c=3'
-console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&b=2&a=3&c=3#fragment'
+console.log(url.search); // => '?a=1&b=2&a=3&c=4'
+console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
 
