@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added a workaround of possible browser crash on `Object.prototype` accessors method in WebKit ~ Android 4.0, [#232](https://github.com/zloirock/core-js/issues/232)
 
 ##### 3.13.0 - 2021.05.26
 - Accessible `Object#hasOwnProperty` (`Object.hasOwn`) proposal moved to the stage 3, [May 2021 TC39 meeting](https://github.com/babel/proposals/issues/74#issuecomment-848121673)
