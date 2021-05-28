@@ -2715,15 +2715,15 @@ console.log(url.toJSON());   // => 'http://login:password@example.com:8080/foo/b
 console.log(url.toString()); // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 
 for (let [key, value] of url.searchParams) {
-  console.log(key);   // => 'a', 'b'
-  console.log(value); // => '1', '2'
+  console.log(key);   // => 'a', 'b', 'a'
+  console.log(value); // => '1', '2', '3'
 }
 
 url.pathname = '';
 url.searchParams.append('c', 3);
 
-console.log(url.search); // => '?a=1&b=2&c=3'
-console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&a=3&b=2&c=4#fragment'
+console.log(url.search); // => '?a=1&b=2&a=3&c=3'
+console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&b=2&a=3&c=3#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
 
