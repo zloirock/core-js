@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.13.1 - 2021.05.29
 - Overwrites `get-own-property-symbols` third-party `Symbol` polyfill if it's used since it causes a stack overflow, [#774](https://github.com/zloirock/core-js/issues/774)
 - Added a workaround of possible browser crash on `Object.prototype` accessors methods in WebKit ~ Android 4.0, [#232](https://github.com/zloirock/core-js/issues/232)
 
