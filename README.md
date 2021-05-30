@@ -195,6 +195,8 @@ import { fill, findIndex } from 'core-js-pure/features/array/virtual';
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
 
+> **Warning!** The bind operator is an early-stage ECMAScript proposal and usage of this syntax can be dangerous.
+
 ### Babel[⬆](#index)
 
 `core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
