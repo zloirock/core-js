@@ -75,6 +75,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [`@babel/polyfill`](#babelpolyfill)
     - [`@babel/preset-env`](#babelpreset-env)
     - [`@babel/runtime`](#babelruntime)
+  - [swc](#swc)
   - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
   - [Compatibility data](#compatibility-data)
@@ -297,6 +298,19 @@ Promise.resolve(32).then(x => console.log(x));
 By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
 > **Warning!** If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+
+### swc[⬆](#index)
+
+Fast JavaScript transpiler `swc` contains integration with `core-js` in [`preset-env`](https://swc.rs/docs/preset-env), which optimizes working with global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so good like in `babel`. Example of configuration in `.swcrc`:
+```json
+{
+  "env": {
+    "targets": "> 0.25%, not dead",
+    "mode": "entry",
+    "coreJs": "3.13"
+  }
+}
+```
 
 ### Configurable level of aggressiveness[⬆](#index)
 
