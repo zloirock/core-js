@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/require-array-join-separator -- required for testing */
 QUnit.test('Set#join', assert => {
   const { join } = Set.prototype;
 

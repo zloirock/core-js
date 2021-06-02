@@ -403,6 +403,10 @@ const base = {
   'unicorn/prefer-string-slice': 'error',
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': ['error', { minimumCases: 3 }],
+  // enforce using the separator argument with `Array#join()`
+  'unicorn/require-array-join-separator': 'error',
+  // enforce using the digits argument with `Number#toFixed()`
+  'unicorn/require-number-to-fixed-digits-argument': 'error',
 
   // sonarjs
   // merging collapsible if statements increases the code's readability

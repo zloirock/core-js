@@ -317,7 +317,7 @@ GLOBAL.tests = {
       return false;
     }
     try {
-      Array.prototype.join.call(null);
+      Array.prototype.join.call(null, '');
       return false;
     } catch (error) { /* empty */ }
     return true;

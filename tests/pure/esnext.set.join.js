@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/require-array-join-separator -- required for testing */
 import Set from 'core-js-pure/features/set';
 
 QUnit.test('Set#join', assert => {

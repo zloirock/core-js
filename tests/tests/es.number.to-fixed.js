@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/require-number-to-fixed-digits-argument -- required for testing */
 QUnit.test('Number#toFixed', assert => {
   const { toFixed } = Number.prototype;
   assert.isFunction(toFixed);
