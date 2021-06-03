@@ -409,8 +409,6 @@ const base = {
   'unicorn/require-number-to-fixed-digits-argument': 'error',
 
   // sonarjs
-  // merging collapsible if statements increases the code's readability
-  'sonarjs/no-collapsible-if': 'error',
   // collection sizes and array length comparisons should make sense
   'sonarjs/no-collection-size-mischeck': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
