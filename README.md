@@ -541,7 +541,7 @@ class Array {
   slice(start?: number, end?: number): Array<mixed>; // with adding support of @@species
   splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // with adding support of @@species
   some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: any, b: any) => number): this;
+  sort(comparefn?: (a: any, b: any) => number): this; // with modern behavior like stable sort
   values(): Iterator<value>;
   @@iterator(): Iterator<value>;
   @@unscopables: { [newMethodNames: string]: true };
@@ -1510,7 +1510,7 @@ class %TypedArray% {
   set(array: ArrayLike, offset?: number): void;
   slice(start?: number, end?: number): %TypedArray%;
   some(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: number, b: number) => number): this;
+  sort(comparefn?: (a: number, b: number) => number): this; // with modern behavior like stable sort
   subarray(begin?: number, end?: number): %TypedArray%;
   toString(): string;
   toLocaleString(): string;

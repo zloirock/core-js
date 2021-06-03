@@ -236,9 +236,8 @@ const data = {
     safari: '8.0',
   },
   'es.array.sort': {
-    chrome: '63',
+    chrome: '70',
     firefox: '4',
-    ie: '9',
     safari: '12.0',
   },
   'es.array.species': {
@@ -1229,9 +1228,8 @@ const data = {
     safari: '10.0',
   },
   'es.typed-array.sort': {
-    chrome: '45',
-    edge: '13',
-    firefox: '46',
+    chrome: '74',
+    firefox: '67',
     safari: '10.0',
   },
   'es.typed-array.subarray': {

@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added polyfill of stable sort in `{ Array, %TypedArray% }.prototype.sort`, [#769](https://github.com/zloirock/core-js/issues/769)
 - `.at` marked as supported from V8 9.2
 
 ##### 3.13.1 - 2021.05.29
