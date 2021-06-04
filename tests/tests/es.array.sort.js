@@ -8,9 +8,69 @@ QUnit.test('Array#sort', assert => {
   assert.looksNative(sort);
   assert.nonEnumerable(Array.prototype, 'sort');
 
-  const expected = Array(516);
-  let array = Array(516);
+  assert.deepEqual([1, 3, 2].sort(), [1, 2, 3], '#1');
+  assert.deepEqual([1, 3, 2, 11].sort(), [1, 11, 2, 3], '#2');
+
+  let array = Array(5);
+  array[0] = 1;
+  array[2] = 3;
+  array[4] = 2;
+  let expected = Array(5);
+  expected[0] = 1;
+  expected[1] = 2;
+  expected[2] = 3;
+  assert.deepEqual(array.sort(), expected, 'holes');
+
+  array = 'zyxwvutsrqponMLKJIHGFEDCBA'.split('');
+  expected = 'ABCDEFGHIJKLMnopqrstuvwxyz'.split('');
+  assert.deepEqual(array.sort(), expected, 'alpha #1');
+
+  array = 'ёяюэьыъщшчцхфутсрПОНМЛКЙИЗЖЕДГВБА'.split('');
+  expected = 'АБВГДЕЖЗИЙКЛМНОПрстуфхцчшщъыьэюяё'.split('');
+  assert.deepEqual(array.sort(), expected, 'alpha #2');
+
+  array = [undefined, 1];
+  assert.notThrows(() => array.sort(() => { throw 1; }), 'undefined #1');
+  assert.deepEqual(array, [1, undefined], 'undefined #2');
+
+  const object = {
+    valueOf: () => 1,
+    toString: () => -1,
+  };
+
+  array = {
+    0: undefined,
+    1: 2,
+    2: 1,
+    3: 'X',
+    4: -1,
+    5: 'a',
+    6: true,
+    7: object,
+    8: NaN,
+    10: Infinity,
+    length: 11,
+  };
+
+  expected = {
+    0: -1,
+    1: object,
+    2: 1,
+    3: 2,
+    4: Infinity,
+    5: NaN,
+    6: 'X',
+    7: 'a',
+    8: true,
+    9: undefined,
+    length: 11,
+  };
+
+  assert.deepEqual(sort.call(array), expected, 'custom generic');
+
   let index, mod, code, chr, value;
+  expected = Array(516);
+  array = Array(516);
 
   for (index = 0; index < 516; index++) {
     mod = index % 4;
