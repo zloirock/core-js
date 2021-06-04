@@ -1065,6 +1065,11 @@ GLOBAL.tests = {
     return Int8Array.prototype.some;
   }],
   'es.typed-array.sort': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+    try {
+      new Uint16Array(1).sort(null);
+      new Uint16Array(1).sort({});
+      return false;
+    } catch (error) { /* empty */ }
     // stable sort
     var array = new Uint16Array(516);
     var expected = Array(516);

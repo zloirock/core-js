@@ -1,5 +1,4 @@
 'use strict';
-/* eslint-disable es/no-typed-arrays -- required for testing */
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var global = require('../internals/global');
 var fails = require('../internals/fails');
