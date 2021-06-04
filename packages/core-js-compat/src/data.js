@@ -1230,7 +1230,8 @@ const data = {
   'es.typed-array.sort': {
     chrome: '74',
     firefox: '67',
-    safari: '10.0',
+    // 10.0 - 14.0 accept incorrect arguments
+    safari: '14.1',
   },
   'es.typed-array.subarray': {
     chrome: '26',
