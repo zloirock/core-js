@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- `.at` marked as supported from V8 9.2
 
 ##### 3.13.1 - 2021.05.29
 - Overwrites `get-own-property-symbols` third-party `Symbol` polyfill if it's used since it causes a stack overflow, [#774](https://github.com/zloirock/core-js/issues/774)
