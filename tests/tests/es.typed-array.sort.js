@@ -10,6 +10,11 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
     assert.name(sort, 'sort', `${ name }::sort name is 'sort'`);
     assert.looksNative(sort, `${ name }::sort looks native`);
 
+    if (name.indexOf('Float') === 0) {
+      assert.ok(1 / new TypedArray([0, -0]).sort()[0] < 0, '-0');
+      assert.deepEqual(new TypedArray([NaN, 1, NaN]).sort(), new TypedArray([1, NaN, NaN]), 'NaN');
+    }
+
     if (name.indexOf('8') === -1) {
       const expected = Array(516);
       let array = new TypedArray(516);

@@ -3,7 +3,8 @@ var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var global = require('../internals/global');
 var fails = require('../internals/fails');
 var aFunction = require('../internals/a-function');
-var arraySort = require('../internals/array-sort');
+var toLength = require('../internals/to-length');
+var internalSort = require('../internals/array-sort');
 var FF = require('../internals/engine-ff-version');
 var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
 var V8 = require('../internals/engine-v8-version');
@@ -47,10 +48,39 @@ var STABLE_SORT = !!nativeSort && !fails(function () {
   }
 });
 
+var getSortCompare = function (comparefn) {
+  return function (x, y) {
+    if (comparefn !== undefined) return +comparefn(x, y) || 0;
+    // eslint-disable-next-line no-self-compare -- NaN check
+    if (y !== y) return -1;
+    // eslint-disable-next-line no-self-compare -- NaN check
+    if (x !== x) return 1;
+    if (x === 0 && y === 0) return 1 / x > 0 && 1 / y < 0 ? 1 : -1;
+    return x > y;
+  };
+};
+
 // `%TypedArray%.prototype.sort` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.sort
 exportTypedArrayMethod('sort', function sort(comparefn) {
-  if (!STABLE_SORT) return arraySort.call(aTypedArray(this), comparefn);
+  var array = this;
   if (comparefn !== undefined) aFunction(comparefn);
-  return nativeSort.call(this, comparefn);
+  if (STABLE_SORT) return nativeSort.call(array, comparefn);
+
+  aTypedArray(array);
+  var arrayLength = toLength(array.length);
+  var items = Array(arrayLength);
+  var index;
+
+  for (index = 0; index < arrayLength; index++) {
+    items[index] = array[index];
+  }
+
+  items = internalSort(array, getSortCompare(comparefn));
+
+  for (index = 0; index < arrayLength; index++) {
+    array[index] = items[index];
+  }
+
+  return array;
 }, !STABLE_SORT || ACCEPT_INCORRECT_ARGUMENTS);

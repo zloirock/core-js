@@ -80,6 +80,8 @@ QUnit.test('Array#sort', assert => {
 
   sort(array, (a, b) => (a / 4 | 0) - (b / 4 | 0));
 
+  assert.ok(1 / sort([0, -0])[0] > 0, '-0');
+
   assert.same(String(array), String(expected), 'stable #1');
 
   let result = '';
