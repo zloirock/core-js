@@ -4,6 +4,10 @@ var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var fails = require('../internals/fails');
 var arrayMethodIsStrict = require('../internals/array-method-is-strict');
+var FF = require('../internals/engine-ff-version');
+var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
+var V8 = require('../internals/engine-v8-version');
+var WEBKIT = require('../internals/engine-webkit-version');
 
 var test = [];
 var nativeSort = test.sort;
@@ -21,6 +25,12 @@ var FAILS_ON_NULL = fails(function () {
 var STRICT_METHOD = arrayMethodIsStrict('sort');
 
 var STABLE_SORT = !fails(function () {
+  // feature detection can be too slow, so check engines versions
+  if (V8) return V8 < 70;
+  if (FF && FF > 3) return;
+  if (IE_OR_EDGE) return true;
+  if (WEBKIT) return WEBKIT < 603;
+
   var result = '';
   var code, chr, value, index;
 
@@ -53,12 +63,26 @@ var FORCED = FAILS_ON_UNDEFINED || !FAILS_ON_NULL || !STRICT_METHOD || !STABLE_S
 var mergeSort = function (array, comparefn) {
   var length = array.length;
   var middle = floor(length / 2);
-  if (length < 2) return array;
-  return merge(
+  return length < 8 ? insertionSort(array, comparefn) : merge(
     mergeSort(array.slice(0, middle), comparefn),
     mergeSort(array.slice(middle), comparefn),
     comparefn
   );
+};
+
+var insertionSort = function (array, comparefn) {
+  var length = array.length;
+  var i = 1;
+  var element, j;
+
+  while (i < length) {
+    j = i;
+    element = array[i];
+    while (j && sortCompare(array[j - 1], element, comparefn) > 0) {
+      array[j] = array[--j];
+    }
+    if (j !== i++) array[j] = element;
+  } return array;
 };
 
 var merge = function (left, right, comparefn) {
@@ -78,9 +102,8 @@ var merge = function (left, right, comparefn) {
 };
 
 var sortCompare = function (x, y, comparefn) {
-  if (x === undefined && y === undefined) return 0;
-  if (x === undefined) return 1;
   if (y === undefined) return -1;
+  if (x === undefined) return 1;
   if (comparefn !== undefined) {
     return +comparefn(x, y) || 0;
   } return String(x) > String(y) ? 1 : -1;
@@ -103,6 +126,7 @@ module.exports = FORCED ? function sort(comparefn) {
     if (index in array) items.push(array[index]);
   }
 
+  // TODO: use something more complex like timsort?
   items = mergeSort(items, comparefn);
   itemsLength = items.length;
   index = 0;
