@@ -89,7 +89,6 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
       if (index in array) items.push(array[index]);
     }
 
-    // TODO: use something more complex like timsort?
     items = internalSort(items, getSortCompare(comparefn));
     itemsLength = items.length;
     index = 0;

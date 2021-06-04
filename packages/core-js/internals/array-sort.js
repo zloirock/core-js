@@ -1,4 +1,4 @@
-'use strict';
+// TODO: use something more complex like timsort?
 var floor = Math.floor;
 
 var mergeSort = function (array, comparefn) {

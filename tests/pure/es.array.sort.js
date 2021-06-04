@@ -10,6 +10,7 @@ QUnit.test('Array#sort', assert => {
 
   assert.deepEqual(sort([1, 3, 2]), [1, 2, 3], '#1');
   assert.deepEqual(sort([1, 3, 2, 11]), [1, 11, 2, 3], '#2');
+  assert.deepEqual(sort([1, -1, 3, NaN, 2, 0, 11, -0]), [-1, 0, -0, 1, 11, 2, 3, NaN], '#3');
 
   let array = Array(5);
   array[0] = 1;
