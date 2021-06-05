@@ -1618,6 +1618,7 @@ export const data = {
   'esnext.set.union': {
   },
   'esnext.string.at': {
+    chrome: '92',
   },
   'esnext.string.code-points': {
   },
