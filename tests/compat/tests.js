@@ -382,7 +382,33 @@ GLOBAL.tests = {
         [1, 2, 3].sort(null);
       } catch (error2) {
         [1, 2, 3].sort(undefined);
-        return true;
+
+        // stable sort
+        var array = [];
+        var result = '';
+        var code, chr, value, index;
+
+        // generate an array with more 512 elements (Chakra and old V8 fails only in this case)
+        for (code = 65; code < 76; code++) {
+          chr = String.fromCharCode(code);
+          switch (code) {
+            case 66: case 69: case 70: case 72: value = 3; break;
+            case 68: case 71: value = 4; break;
+            default: value = 2;
+          }
+          for (index = 0; index < 47; index++) {
+            array.push({ k: chr + index, v: value });
+          }
+        }
+
+        array.sort(function (a, b) { return b.v - a.v; });
+
+        for (index = 0; index < array.length; index++) {
+          chr = array[index].k.charAt(0);
+          if (result.charAt(result.length - 1) !== chr) result += chr;
+        }
+
+        return result === 'DGBEFHACIJK';
       }
     }
   },
@@ -1039,7 +1065,29 @@ GLOBAL.tests = {
     return Int8Array.prototype.some;
   }],
   'es.typed-array.sort': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.sort;
+    try {
+      new Uint16Array(1).sort(null);
+      new Uint16Array(1).sort({});
+      return false;
+    } catch (error) { /* empty */ }
+    // stable sort
+    var array = new Uint16Array(516);
+    var expected = Array(516);
+    var index, mod;
+
+    for (index = 0; index < 516; index++) {
+      mod = index % 4;
+      array[index] = 515 - index;
+      expected[index] = index - 2 * mod + 3;
+    }
+
+    array.sort(function (a, b) {
+      return (a / 4 | 0) - (b / 4 | 0);
+    });
+
+    for (index = 0; index < 516; index++) {
+      if (array[index] !== expected[index]) return;
+    } return true;
   }],
   'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.subarray;
