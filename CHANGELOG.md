@@ -3,7 +3,7 @@
 - Nothing
 
 ##### 3.14.0 - 2021.06.05
-- Added polyfill of stable sort in `{ Array, %TypedArray% }.prototype.sort`, [#769](https://github.com/zloirock/core-js/issues/769)
+- Added polyfill of stable sort in `{ Array, %TypedArray% }.prototype.sort`, [#769](https://github.com/zloirock/core-js/issues/769), [#941](https://github.com/zloirock/core-js/issues/941)
 - Fixed `Safari` 14.0- `%TypedArray%.prototype.sort` validation of arguments bug
 - `.at` marked as supported from V8 9.2
 
