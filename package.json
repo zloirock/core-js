@@ -58,7 +58,7 @@
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": ">=9.1.1 <10",
-    "qunit": "^2.15.0",
+    "qunit": "^2.16.0",
     "semver": "^7.3.5",
     "terser": "^5.7.0",
     "webpack": "^5.38.1",
