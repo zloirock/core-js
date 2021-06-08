@@ -7,6 +7,7 @@ var IS_PURE = require('../internals/is-pure');
 var NATIVE_PROMISE_REJECTION_EVENT = require('../internals/native-promise-rejection-event');
 var V8_VERSION = require('../internals/engine-v8-version');
 
+var PromisePrototype = PromiseConstructor && PromiseConstructor.prototype;
 var SPECIES = wellKnownSymbol('species');
 var SUBCLASSING = false;
 
@@ -17,8 +18,8 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
   // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
   // We can't detect it synchronously, so just check versions
   if (!GLOBAL_CORE_JS_PROMISE && V8_VERSION === 66) return true;
-  // We need Promise#finally in the pure version for preventing prototype pollution
-  if (IS_PURE && !PromiseConstructor.prototype.finally) return true;
+  // We need Promise#{ catch, finally } in the pure version for preventing prototype pollution
+  if (IS_PURE && !(PromisePrototype.catch && PromisePrototype.finally)) return true;
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
