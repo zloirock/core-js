@@ -365,8 +365,6 @@ const base = {
   strict: ['error', 'global'],
 
   // unicorn
-  // enforce the use of regex shorthands to improve readability
-  'unicorn/better-regex': 'error',
   // enforce a specific parameter name in catch clauses
   'unicorn/catch-error-name': ['error', { name: 'error', ignore: [/^err/] }],
   // enforce passing a message value when throwing a built-in error
