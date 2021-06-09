@@ -4,6 +4,8 @@
 var regexpFlags = require('./regexp-flags');
 var stickyHelpers = require('./regexp-sticky-helpers');
 var shared = require('./shared');
+var getInternalState = require('../internals/internal-state').get;
+var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 
 var nativeExec = RegExp.prototype.exec;
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
@@ -23,12 +25,21 @@ var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y || stickyHelpers.BROKEN_CARET;
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL;
 
 if (PATCH) {
   patchedExec = function exec(str) {
     var re = this;
-    var lastIndex, reCopy, match, i;
+    var lastIndex, reCopy, match, i, result;
+    var raw = UNSUPPORTED_DOT_ALL && getInternalState(re).raw;
+
+    if (raw) {
+      raw.lastIndex = re.lastIndex;
+      result = patchedExec.call(raw, str);
+      re.lastIndex = raw.lastIndex;
+      return result;
+    }
+
     var sticky = UNSUPPORTED_Y && re.sticky;
     var flags = regexpFlags.call(re);
     var source = re.source;

@@ -92,6 +92,7 @@ module.exports = {
     'es.date.set-year',
     'es.date.to-gmt-string',
     'es.escape',
+    'es.regexp.dot-all',
     'es.string.substr',
     'es.unescape',
   ],

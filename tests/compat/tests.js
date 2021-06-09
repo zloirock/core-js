@@ -791,7 +791,11 @@ GLOBAL.tests = {
       && RegExp(re2) !== re2
       && RegExp(re1, 'i') == '/a/i'
       && new RegExp('a', 'y') // just check that it doesn't throw
+      && RegExp('.', 's').exec('\n')
       && RegExp[Symbol.species];
+  },
+  'es.regexp.dot-all': function () {
+    return RegExp('.', 's').dotAll;
   },
   'es.regexp.exec': function () {
     var re1 = /a/;
@@ -806,10 +810,11 @@ GLOBAL.tests = {
       && reSticky.exec('abc')[0] === 'a'
       && reSticky.exec('abc') === null
       && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a')
-      && (reStickyAnchored.lastIndex = 2, reStickyAnchored.exec('cba') === null);
+      && (reStickyAnchored.lastIndex = 2, reStickyAnchored.exec('cba') === null)
+      && RegExp('.', 's').exec('\n');
   },
   'es.regexp.flags': function () {
-    return /./g.flags === 'g' && new RegExp('a', 'y').flags === 'y';
+    return Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call({ dotAll: true, sticky: true }) === 'sy';
   },
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;

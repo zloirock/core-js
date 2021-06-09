@@ -933,6 +933,8 @@ const data = {
     firefox: '49',
     safari: '10.0',
   },
+  'es.regexp.dot-all': {
+  },
   'es.regexp.exec': {
     chrome: '26',
     edge: '13',

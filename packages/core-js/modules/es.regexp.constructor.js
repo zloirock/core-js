@@ -12,6 +12,7 @@ var fails = require('../internals/fails');
 var enforceInternalState = require('../internals/internal-state').enforce;
 var setSpecies = require('../internals/set-species');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
@@ -24,20 +25,44 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
-var FORCED = DESCRIPTORS && isForced('RegExp', (!CORRECT_NEW || UNSUPPORTED_Y || fails(function () {
+var BASE_FORCED = DESCRIPTORS && !CORRECT_NEW || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || fails(function () {
   re2[MATCH] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
-})));
+});
+
+var deDotAll = function (string) {
+  var result = '';
+  var index = 0;
+  var length = string.length;
+  var brackets = false;
+  var chr;
+  for (; index <= length; index++) {
+    chr = string.charAt(index);
+    if (chr === '\\') {
+      result += chr + string.charAt(++index);
+      continue;
+    }
+    if (!brackets && chr === '.') {
+      result += '[\\s\\S]';
+    } else {
+      if (chr === '[') {
+        brackets = true;
+      } else if (chr === ']') {
+        brackets = false;
+      } result += chr;
+    }
+  } return result;
+};
 
 // `RegExp` constructor
 // https://tc39.es/ecma262/#sec-regexp-constructor
-if (FORCED) {
+if (isForced('RegExp', BASE_FORCED)) {
   var RegExpWrapper = function RegExp(pattern, flags) {
     var thisIsRegExp = this instanceof RegExpWrapper;
     var patternIsRegExp = isRegExp(pattern);
     var flagsAreUndefined = flags === undefined;
-    var sticky;
+    var rawFlags, dotAll, sticky, result, state;
 
     if (!thisIsRegExp && patternIsRegExp && pattern.constructor === RegExpWrapper && flagsAreUndefined) {
       return pattern;
@@ -50,24 +75,36 @@ if (FORCED) {
       pattern = pattern.source;
     }
 
+    if (UNSUPPORTED_DOT_ALL) {
+      dotAll = !!flags && flags.indexOf('s') > -1;
+      if (dotAll) flags = flags.replace(/s/g, '');
+    }
+
+    rawFlags = flags;
+
     if (UNSUPPORTED_Y) {
       sticky = !!flags && flags.indexOf('y') > -1;
       if (sticky) flags = flags.replace(/y/g, '');
     }
 
-    var result = inheritIfRequired(
+    result = inheritIfRequired(
       CORRECT_NEW ? new NativeRegExp(pattern, flags) : NativeRegExp(pattern, flags),
       thisIsRegExp ? this : RegExpPrototype,
       RegExpWrapper
     );
 
-    if (UNSUPPORTED_Y && sticky) {
-      var state = enforceInternalState(result);
-      state.sticky = true;
+    if (dotAll || sticky) {
+      state = enforceInternalState(result);
+      if (dotAll) {
+        state.dotAll = true;
+        state.raw = RegExpWrapper(deDotAll(pattern), rawFlags);
+      }
+      if (sticky) state.sticky = true;
     }
 
     return result;
   };
+
   var proxy = function (key) {
     key in RegExpWrapper || defineProperty(RegExpWrapper, key, {
       configurable: true,
@@ -75,9 +112,11 @@ if (FORCED) {
       set: function (it) { NativeRegExp[key] = it; }
     });
   };
-  var keys = getOwnPropertyNames(NativeRegExp);
-  var index = 0;
-  while (keys.length > index) proxy(keys[index++]);
+
+  for (var keys = getOwnPropertyNames(NativeRegExp), index = 0; keys.length > index;) {
+    proxy(keys[index++]);
+  }
+
   RegExpPrototype.constructor = RegExpWrapper;
   RegExpWrapper.prototype = RegExpPrototype;
   redefine(global, 'RegExp', RegExpWrapper);
