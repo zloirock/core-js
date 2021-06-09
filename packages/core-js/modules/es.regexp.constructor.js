@@ -2,6 +2,7 @@ var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
@@ -9,10 +10,12 @@ var getFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
+var has = require('../internals/has');
 var enforceInternalState = require('../internals/internal-state').enforce;
 var setSpecies = require('../internals/set-species');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
+var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
@@ -25,16 +28,17 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
-var BASE_FORCED = DESCRIPTORS && !CORRECT_NEW || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || fails(function () {
-  re2[MATCH] = false;
-  // RegExp constructor can alter flags and IsRegExp works correct with @@match
-  return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
-});
+var BASE_FORCED = DESCRIPTORS &&
+  (!CORRECT_NEW || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
+    re2[MATCH] = false;
+    // RegExp constructor can alter flags and IsRegExp works correct with @@match
+    return NativeRegExp(re1) != re1 || NativeRegExp(re2) == re2 || NativeRegExp(re1, 'i') != '/a/i';
+  }));
 
-var deDotAll = function (string) {
-  var result = '';
-  var index = 0;
+var handleDotAll = function (string) {
   var length = string.length;
+  var index = 0;
+  var result = '';
   var brackets = false;
   var chr;
   for (; index <= length; index++) {
@@ -55,6 +59,51 @@ var deDotAll = function (string) {
   } return result;
 };
 
+var handleNCG = function (string) {
+  var length = string.length;
+  var index = 0;
+  var result = '';
+  var named = [];
+  var names = {};
+  var brackets = false;
+  var ncg = false;
+  var groupid = 0;
+  var groupname = '';
+  var chr;
+  for (; index <= length; index++) {
+    chr = string.charAt(index);
+    if (chr === '\\') {
+      chr = chr + string.charAt(++index);
+    } else if (chr === ']') {
+      brackets = false;
+    } else if (!brackets) switch (true) {
+      case chr === '[':
+        brackets = true;
+        break;
+      case chr === '(':
+        // TODO: Use only propper RegExpIdentifierName
+        if (/\?<[^!#%&*+=@^]/.test(string.slice(index + 1, index + 4))) {
+          index += 2;
+          ncg = true;
+        }
+        result += chr;
+        groupid++;
+        continue;
+      case chr === '>' && ncg:
+        if (groupname === '' || has(names, groupname)) {
+          throw new TypeError('Invalid capture group name');
+        }
+        names[groupname] = true;
+        named.push([groupname, groupid]);
+        ncg = false;
+        groupname = '';
+        continue;
+    }
+    if (ncg) groupname += chr;
+    else result += chr;
+  } return [result, named];
+};
+
 // `RegExp` constructor
 // https://tc39.es/ecma262/#sec-regexp-constructor
 if (isForced('RegExp', BASE_FORCED)) {
@@ -62,7 +111,8 @@ if (isForced('RegExp', BASE_FORCED)) {
     var thisIsRegExp = this instanceof RegExpWrapper;
     var patternIsRegExp = isRegExp(pattern);
     var flagsAreUndefined = flags === undefined;
-    var rawFlags, dotAll, sticky, result, state;
+    var groups = [];
+    var rawPattern, rawFlags, dotAll, sticky, handled, result, state;
 
     if (!thisIsRegExp && patternIsRegExp && pattern.constructor === RegExpWrapper && flagsAreUndefined) {
       return pattern;
@@ -74,6 +124,10 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (flagsAreUndefined) flags = getFlags.call(pattern);
       pattern = pattern.source;
     }
+
+    pattern = pattern === undefined ? '' : String(pattern);
+    if (pattern === '') pattern = '(?:)';
+    rawPattern = pattern;
 
     if (UNSUPPORTED_DOT_ALL) {
       dotAll = !!flags && flags.indexOf('s') > -1;
@@ -87,20 +141,32 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (sticky) flags = flags.replace(/y/g, '');
     }
 
+    if (UNSUPPORTED_NCG) {
+      handled = handleNCG(pattern);
+      pattern = handled[0];
+      groups = handled[1];
+    }
+
     result = inheritIfRequired(
       CORRECT_NEW ? new NativeRegExp(pattern, flags) : NativeRegExp(pattern, flags),
       thisIsRegExp ? this : RegExpPrototype,
       RegExpWrapper
     );
 
-    if (dotAll || sticky) {
+    if (dotAll || sticky || groups.length) {
       state = enforceInternalState(result);
       if (dotAll) {
         state.dotAll = true;
-        state.raw = RegExpWrapper(deDotAll(pattern), rawFlags);
+        state.raw = RegExpWrapper(handleDotAll(pattern), rawFlags);
       }
       if (sticky) state.sticky = true;
+      if (groups.length) state.groups = groups;
     }
+
+    if (pattern !== rawPattern) try {
+      // fails in old engines, but we have no alternatives for unsupported regex syntax
+      createNonEnumerableProperty(result, 'source', rawPattern);
+    } catch (error) { /* empty */ }
 
     return result;
   };
