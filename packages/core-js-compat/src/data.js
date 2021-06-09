@@ -311,6 +311,13 @@ const data = {
     safari: '7.1',
     rhino: '1.7.13',
   },
+  'es.date.get-year': {
+    chrome: '1',
+    firefox: '1',
+    ie: '3',
+    opera: '3',
+    safari: '1',
+  },
   'es.date.now': {
     chrome: '5',
     firefox: '2',
@@ -318,6 +325,20 @@ const data = {
     opera: '10.50',
     safari: '4.0',
     rhino: '1.7.13',
+  },
+  'es.date.set-year': {
+    chrome: '1',
+    firefox: '1',
+    ie: '3',
+    opera: '3',
+    safari: '1',
+  },
+  'es.date.to-gmt-string': {
+    chrome: '1',
+    firefox: '1',
+    ie: '3',
+    opera: '3',
+    safari: '1',
   },
   'es.date.to-iso-string': {
     chrome: '26',
@@ -346,6 +367,13 @@ const data = {
     opera: '10.50',
     safari: '3.1',
     rhino: '1.7.13',
+  },
+  'es.escape': {
+    chrome: '1',
+    firefox: '1',
+    ie: '3',
+    opera: '3',
+    safari: '1',
   },
   'es.function.bind': {
     chrome: '7',
@@ -1134,6 +1162,13 @@ const data = {
     safari: '3.1',
     rhino: '1.7.13',
   },
+  'es.string.substr': {
+    chrome: '1',
+    ie: '4',
+    firefox: '1',
+    opera: '4',
+    safari: '1',
+  },
   'es.string.sup': {
     chrome: '5',
     edge: '12',
@@ -1344,6 +1379,13 @@ const data = {
     edge: '13',
     firefox: '51',
     safari: '10.0',
+  },
+  'es.unescape': {
+    chrome: '1',
+    firefox: '1',
+    ie: '3',
+    opera: '3',
+    safari: '1',
   },
   'es.weak-map': {
     chrome: '51',
