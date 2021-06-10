@@ -87,4 +87,12 @@ module.exports = {
     'esnext.symbol.matcher',
     'esnext.symbol.metadata',
   ],
+  3.15: [
+    'es.date.get-year',
+    'es.date.set-year',
+    'es.date.to-gmt-string',
+    'es.escape',
+    'es.string.substr',
+    'es.unescape',
+  ],
 };
