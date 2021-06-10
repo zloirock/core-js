@@ -21,23 +21,27 @@ const data = {
     edge: '15',
     firefox: '49',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.is-concat-spreadable': {
     chrome: '48',
     edge: '15',
     firefox: '48',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.iterator': {
     chrome: '41',
     edge: '13',
     firefox: '36',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.symbol.match': {
     chrome: '50',
     firefox: '40',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.match-all': {
     chrome: '73',
@@ -48,40 +52,47 @@ const data = {
     chrome: '50',
     firefox: '49',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.search': {
     chrome: '50',
     firefox: '49',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.species': {
     chrome: '51',
     edge: '13',
     firefox: '41',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.split': {
     chrome: '50',
     firefox: '49',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.to-primitive': {
     chrome: '47',
     edge: '15',
     firefox: '44',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.to-string-tag': {
     chrome: '49',
     edge: '15',
     firefox: '51',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.symbol.unscopables': {
     chrome: '41',
     edge: '13',
     firefox: '48',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.aggregate-error': {
     chrome: '85',
@@ -105,6 +116,7 @@ const data = {
     firefox: '4',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.fill': {
     chrome: '45',
@@ -145,12 +157,14 @@ const data = {
     firefox: '4',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.from': {
     chrome: '51',
     edge: '15',
     firefox: '53',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.array.includes': {
     chrome: '53',
@@ -163,6 +177,7 @@ const data = {
     firefox: '4',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.is-array': {
     chrome: '5',
@@ -170,6 +185,7 @@ const data = {
     ie: '9',
     opera: '10.50',
     safari: '4.0',
+    rhino: '1.7',
   },
   'es.array.iterator': {
     chrome: '66',
@@ -182,12 +198,14 @@ const data = {
     edge: '13',
     firefox: '4',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.array.last-index-of': {
     chrome: '51',
     firefox: '4',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.map': {
     chrome: '51',
@@ -200,6 +218,7 @@ const data = {
     edge: '13',
     firefox: '25',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.array.reduce': {
     chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
@@ -207,6 +226,7 @@ const data = {
     ie: '9',
     node: '6.0', // ^^^
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.reduce-right': {
     chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
@@ -214,6 +234,7 @@ const data = {
     ie: '9',
     node: '6.0', // ^^^
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.reverse': {
     chrome: '1',
@@ -222,6 +243,7 @@ const data = {
     opera: '10.50',
     // safari 12.0 has a serious bug
     safari: '12.0.2',
+    rhino: '1.7',
   },
   'es.array.slice': {
     chrome: '51',
@@ -234,6 +256,7 @@ const data = {
     firefox: '4',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7',
   },
   'es.array.sort': {
     chrome: '70',
@@ -279,12 +302,14 @@ const data = {
     firefox: '46',
     ie: '11',
     safari: '12.1',
+    rhino: '1.7',
   },
   'es.data-view': {
     chrome: '26',
     firefox: '15',
     ie: '10',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.date.now': {
     chrome: '5',
@@ -292,18 +317,21 @@ const data = {
     ie: '9',
     opera: '10.50',
     safari: '4.0',
+    rhino: '1.7',
   },
   'es.date.to-iso-string': {
     chrome: '26',
     firefox: '7',
     ie: '9',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.date.to-json': {
     chrome: '26',
     firefox: '4',
     ie: '9',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.date.to-primitive': {
     chrome: '47',
@@ -317,6 +345,7 @@ const data = {
     ie: '9',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.function.bind': {
     chrome: '7',
@@ -324,6 +353,7 @@ const data = {
     ie: '9',
     opera: '12',
     safari: '5.1',
+    rhino: '1.7',
   },
   'es.function.has-instance': {
     chrome: '51',
@@ -337,6 +367,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '4.0',
+    rhino: '1.7',
   },
   'es.global-this': {
     chrome: '71',
@@ -359,6 +390,7 @@ const data = {
     edge: '15',
     firefox: '53',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.math.acosh': {
     chrome: '54',
@@ -371,42 +403,49 @@ const data = {
     edge: '13',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.atanh': {
     chrome: '38',
     edge: '13',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.cbrt': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.clz32': {
     chrome: '38',
     edge: '12',
     firefox: '31',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.math.cosh': {
     chrome: '39',
     edge: '13',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.expm1': {
     chrome: '39',
     edge: '13',
     firefox: '46',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.fround': {
     chrome: '38',
     edge: '12',
     firefox: '26',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.hypot': {
     // https://bugs.chromium.org/p/v8/issues/detail?id=9546
@@ -414,48 +453,56 @@ const data = {
     edge: '12',
     firefox: '27',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.imul': {
     chrome: '28',
     edge: '13',
     firefox: '20',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.math.log10': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.log1p': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.log2': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.sign': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.math.sinh': {
     chrome: '39',
     edge: '13',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.tanh': {
     chrome: '38',
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.math.to-string-tag': {
     chrome: '50',
@@ -468,12 +515,14 @@ const data = {
     edge: '12',
     firefox: '25',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.number.constructor': {
     chrome: '41',
     edge: '13',
     firefox: '46',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.epsilon': {
     chrome: '34',
@@ -487,12 +536,14 @@ const data = {
     edge: '12',
     firefox: '16',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.is-integer': {
     chrome: '34',
     edge: '12',
     firefox: '16',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.is-nan': {
     android: '4.1',
@@ -500,24 +551,28 @@ const data = {
     edge: '12',
     firefox: '15',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.is-safe-integer': {
     chrome: '34',
     edge: '12',
     firefox: '32',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.max-safe-integer': {
     chrome: '34',
     edge: '12',
     firefox: '31',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.min-safe-integer': {
     chrome: '34',
     edge: '12',
     firefox: '31',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.number.parse-float': {
     chrome: '35',
@@ -535,12 +590,14 @@ const data = {
     chrome: '26',
     firefox: '4',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.number.to-precision': {
     chrome: '26',
     firefox: '4',
     ie: '8',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.object.assign': {
     chrome: '49',
@@ -555,12 +612,14 @@ const data = {
     ie: '9',
     opera: '12',
     safari: '4.0',
+    rhino: '1.7',
   },
   'es.object.define-getter': {
     chrome: '62',
     edge: '16',
     firefox: '48',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.object.define-properties': {
     chrome: '5',
@@ -568,6 +627,7 @@ const data = {
     ie: '9',
     opera: '12',
     safari: '5.1',
+    rhino: '1.7',
   },
   'es.object.define-property': {
     chrome: '5',
@@ -575,12 +635,14 @@ const data = {
     ie: '9',
     opera: '12',
     safari: '5.1',
+    rhino: '1.7',
   },
   'es.object.define-setter': {
     chrome: '62',
     edge: '16',
     firefox: '48',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.object.entries': {
     chrome: '54',
@@ -593,6 +655,7 @@ const data = {
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.from-entries': {
     chrome: '73',
@@ -604,6 +667,7 @@ const data = {
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.get-own-property-descriptors': {
     chrome: '54',
@@ -616,12 +680,14 @@ const data = {
     edge: '13',
     firefox: '34',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.get-prototype-of': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.is': {
     android: '4.1',
@@ -629,60 +695,70 @@ const data = {
     edge: '12',
     firefox: '22',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.is-extensible': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.is-frozen': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.is-sealed': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.keys': {
     chrome: '40',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.lookup-getter': {
     chrome: '62',
     edge: '16',
     firefox: '48',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.object.lookup-setter': {
     chrome: '62',
     edge: '16',
     firefox: '48',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.object.prevent-extensions': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.seal': {
     chrome: '44',
     edge: '13',
     firefox: '35',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.set-prototype-of': {
     chrome: '34',
     firefox: '31',
     ie: '11',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.object.to-string': {
     chrome: '49',
@@ -701,12 +777,14 @@ const data = {
     firefox: '8',
     ie: '8',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.parse-int': {
     chrome: '35',
     firefox: '21',
     ie: '9',
     safari: '7.1',
+    rhino: '1.7',
   },
   'es.promise': {
     // V8 6.6 has a serious bug
@@ -855,12 +933,14 @@ const data = {
     edge: '15',
     firefox: '53',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.string.code-point-at': {
     chrome: '41',
     edge: '13',
     firefox: '29',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.string.ends-with': {
     chrome: '51',
@@ -872,6 +952,7 @@ const data = {
     edge: '13',
     firefox: '29',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.string.includes': {
     chrome: '51',
@@ -883,6 +964,7 @@ const data = {
     edge: '13',
     firefox: '36',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.string.match': {
     chrome: '51',
@@ -900,12 +982,14 @@ const data = {
     edge: '15',
     firefox: '48',
     safari: '11.0',
+    rhino: '1.7',
   },
   'es.string.pad-start': {
     chrome: '57',
     edge: '15',
     firefox: '48',
     safari: '11.0',
+    rhino: '1.7',
   },
   'es.string.raw': {
     chrome: '41',
@@ -918,6 +1002,7 @@ const data = {
     edge: '13',
     firefox: '24',
     safari: '9.0',
+    rhino: '1.7',
   },
   'es.string.replace': {
     chrome: '64',
@@ -949,6 +1034,7 @@ const data = {
     edge: '15',
     firefox: '52',
     safari: '12.1',
+    rhino: '1.7',
   },
   'es.string.trim-end': {
     chrome: '66',
@@ -972,6 +1058,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.blink': {
     chrome: '5',
@@ -979,6 +1066,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.bold': {
     chrome: '5',
@@ -986,6 +1074,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.fixed': {
     chrome: '5',
@@ -993,6 +1082,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.fontcolor': {
     chrome: '5',
@@ -1012,6 +1102,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.link': {
     chrome: '5',
@@ -1025,6 +1116,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.strike': {
     chrome: '5',
@@ -1032,6 +1124,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.sub': {
     chrome: '5',
@@ -1039,6 +1132,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.string.sup': {
     chrome: '5',
@@ -1046,6 +1140,7 @@ const data = {
     firefox: '2',
     opera: '10.50',
     safari: '3.1',
+    rhino: '1.7',
   },
   'es.typed-array.float32-array': {
     chrome: '54',
@@ -1255,12 +1350,14 @@ const data = {
     edge: '15',
     firefox: '53',
     safari: '10.0',
+    rhino: '1.7',
   },
   'es.weak-set': {
     chrome: '51',
     edge: '15',
     firefox: '53',
     safari: '10.0',
+    rhino: '1.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
@@ -1551,12 +1648,14 @@ const data = {
     firefox: '50',
     node: '0.0.1',
     safari: '10.0',
+    rhino: '1.7',
   },
   'web.dom-collections.iterator': {
     chrome: '66',
     firefox: '60',
     node: '0.0.1',
     safari: '13.1',
+    rhino: '1.7',
   },
   'web.immediate': {
     ie: '10',
@@ -1577,6 +1676,7 @@ const data = {
     node: '0.0.1',
     opera: '7',
     safari: '1.0',
+    rhino: '1.7',
   },
   'web.url': {
     chrome: '67',

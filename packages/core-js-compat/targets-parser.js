@@ -25,6 +25,7 @@ const validTargets = new Set([
   'phantom',
   'safari',
   'samsung',
+  'rhino',
 ]);
 
 module.exports = function (targets) {
