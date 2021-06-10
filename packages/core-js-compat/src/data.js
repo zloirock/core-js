@@ -317,6 +317,7 @@ const data = {
     ie: '3',
     opera: '3',
     safari: '1',
+    rhino: '1.7',
   },
   'es.date.now': {
     chrome: '5',
@@ -332,6 +333,7 @@ const data = {
     ie: '3',
     opera: '3',
     safari: '1',
+    rhino: '1.7',
   },
   'es.date.to-gmt-string': {
     chrome: '1',
@@ -339,6 +341,7 @@ const data = {
     ie: '3',
     opera: '3',
     safari: '1',
+    rhino: '1.7',
   },
   'es.date.to-iso-string': {
     chrome: '26',
@@ -374,6 +377,7 @@ const data = {
     ie: '3',
     opera: '3',
     safari: '1',
+    rhino: '1.7',
   },
   'es.function.bind': {
     chrome: '7',
@@ -1057,6 +1061,14 @@ const data = {
     firefox: '40',
     safari: '10.0',
   },
+  'es.string.substr': {
+    chrome: '1',
+    ie: '4',
+    firefox: '1',
+    opera: '4',
+    safari: '1',
+    rhino: '1.7',
+  },
   'es.string.trim': {
     chrome: '59',
     edge: '15',
@@ -1161,13 +1173,6 @@ const data = {
     opera: '10.50',
     safari: '3.1',
     rhino: '1.7.13',
-  },
-  'es.string.substr': {
-    chrome: '1',
-    ie: '4',
-    firefox: '1',
-    opera: '4',
-    safari: '1',
   },
   'es.string.sup': {
     chrome: '5',
@@ -1386,6 +1391,7 @@ const data = {
     ie: '3',
     opera: '3',
     safari: '1',
+    rhino: '1.7',
   },
   'es.weak-map': {
     chrome: '51',
