@@ -23,9 +23,9 @@ const validTargets = new Set([
   'opera',
   'opera_mobile',
   'phantom',
+  'rhino',
   'safari',
   'samsung',
-  'rhino',
 ]);
 
 module.exports = function (targets) {

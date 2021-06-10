@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Allowed `rhino` target in `core-js-compat` / `core-js-builder`, added compat data for `rhino` 1.7
 
 ##### 3.14.0 - 2021.06.05
 - Added polyfill of stable sort in `{ Array, %TypedArray% }.prototype.sort`, [#769](https://github.com/zloirock/core-js/issues/769), [#941](https://github.com/zloirock/core-js/issues/941)
