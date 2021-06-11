@@ -554,8 +554,12 @@ const base = {
   'regexp/prefer-unicode-codepoint-escapes': 'error',
   // enforce using `\w`
   'regexp/prefer-w': 'error',
+  // sort alternatives if order doesn't matter
+  'regexp/sort-alternatives': 'error',
   // require regex flags to be sorted
   'regexp/sort-flags': 'error',
+  // disallow not strictly valid regular expressions
+  'regexp/strict': 'error',
   // enforce consistent usage of unicode escape or unicode codepoint escape
   'regexp/unicode-escape': 'error',
 

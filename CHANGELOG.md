@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed detection of forbidden host code points in URL polyfill
 - Allowed `rhino` target in `core-js-compat` / `core-js-builder`, added compat data for `rhino` 1.7, [#942](https://github.com/zloirock/core-js/issues/942), thanks [@gausie](https://github.com/gausie)
 - `.at` marked as supported from FF90
 
