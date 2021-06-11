@@ -1,5 +1,12 @@
 ## Changelog
 ##### Unreleased
+- Added missed polyfills of Annex B features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336):
+  - `escape`
+  - `unescape`
+  - `String.prototype.substr`
+  - `Date.prototype.getYear`
+  - `Date.prototype.setYear`
+  - `Date.prototype.toGMTString`
 - Fixed detection of forbidden host code points in URL polyfill
 - Allowed `rhino` target in `core-js-compat` / `core-js-builder`, added compat data for `rhino` 1.7.13, [#942](https://github.com/zloirock/core-js/issues/942), thanks [@gausie](https://github.com/gausie)
 - `.at` marked as supported from FF90
