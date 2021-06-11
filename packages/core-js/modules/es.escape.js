@@ -1,8 +1,13 @@
 'use strict';
 var $ = require('../internals/export');
 
-var pow = Math.pow;
 var raw = /[\w*+\-./@]/;
+
+var hex = function (code, length) {
+  var result = code.toString(16);
+  while (result.length < length) result = '0' + result;
+  return result;
+};
 
 // `escape` method
 // https://tc39.es/ecma262/#sec-escape-string
@@ -13,10 +18,6 @@ $({ global: true }, {
     var length = str.length;
     var index = 0;
     var chr, code;
-    var get = function (r, up) {
-      var hex = (((code / pow(16, r)) | 0) % 16).toString(16);
-      return up ? hex.toUpperCase() : hex;
-    };
     while (index < length) {
       chr = str.charAt(index++);
       if (raw.test(chr)) {
@@ -24,9 +25,9 @@ $({ global: true }, {
       } else {
         code = chr.charCodeAt(0);
         if (code < 256) {
-          result += '%' + get(1) + get(0);
+          result += '%' + hex(code, 2);
         } else {
-          result += '%u' + get(4, 1) + get(3, 1) + get(1, 1) + get(0, 1);
+          result += '%u' + hex(code, 4).toUpperCase();
         }
       }
     } return result;
