@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Added missed polyfills of Annex B features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336):
+- Added missed polyfills of [Annex B](https://tc39.es/ecma262/#sec-additional-built-in-properties) features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336):
   - `escape`
   - `unescape`
   - `String.prototype.substr`
