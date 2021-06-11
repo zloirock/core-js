@@ -1363,6 +1363,7 @@ const data = {
   'esnext.aggregate-error': null,
   'esnext.array.at': {
     chrome: '92',
+    firefox: '90',
   },
   'esnext.array.filter-out': {
   },
@@ -1615,6 +1616,7 @@ const data = {
   },
   'esnext.typed-array.at': {
     chrome: '92',
+    firefox: '90',
   },
   'esnext.typed-array.filter-out': {
   },
