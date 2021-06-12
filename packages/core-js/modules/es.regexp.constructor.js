@@ -20,6 +20,8 @@ var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
+// TODO: Use only propper RegExpIdentifierName
+var IS_NCG = /^\?<[^\s\d!#%&*+<=>@^][^\s!#%&*+<=>@^]*>/;
 var re1 = /a/g;
 var re2 = /a/g;
 
@@ -81,8 +83,7 @@ var handleNCG = function (string) {
         brackets = true;
         break;
       case chr === '(':
-        // TODO: Use only propper RegExpIdentifierName
-        if (/\?<[^!#%&*+=@^]/.test(string.slice(index + 1, index + 4))) {
+        if (IS_NCG.test(string.slice(index + 1))) {
           index += 2;
           ncg = true;
         }

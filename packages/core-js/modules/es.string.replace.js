@@ -7,8 +7,8 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
 var getSubstitution = require('../internals/get-substitution');
 var regExpExec = require('../internals/regexp-exec-abstract');
-var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
 var REPLACE = wellKnownSymbol('replace');
 var max = Math.max;
@@ -17,19 +17,6 @@ var min = Math.min;
 var maybeToString = function (it) {
   return it === undefined ? it : String(it);
 };
-
-var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
-  // #replace needs built-in support for named groups.
-  // #match works fine because it just return the exec results, even if it has
-  // a "groups" property.
-  var re = /./;
-  re.exec = function () {
-    var result = [];
-    result.groups = { a: '7' };
-    return result;
-  };
-  return ''.replace(re, '$<a>') !== '7';
-});
 
 // IE <= 11 replaces $0 with the whole match, as if it was $&
 // https://stackoverflow.com/questions/6024666/getting-ie-to-replace-a-regex-with-the-literal-string-0
@@ -124,4 +111,4 @@ fixRegExpWellKnownSymbolLogic('replace', 2, function (_, nativeReplace, maybeCal
       return accumulatedResult + S.slice(nextSourcePosition);
     }
   ];
-}, !REPLACE_SUPPORTS_NAMED_GROUPS || !REPLACE_KEEPS_$0 || REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE);
+}, UNSUPPORTED_NCG || !REPLACE_KEEPS_$0 || REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE);
