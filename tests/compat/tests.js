@@ -145,6 +145,12 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
     && new Int8Array(new ArrayBuffer(2), 1, undefined).length == 1;
 };
 
+function NCG_SUPPORT() {
+  var re = RegExp('(?<a>b)');
+  return re.exec('b').groups.a === 'b' &&
+    'b'.replace(re, '$<a>c') === 'bc';
+}
+
 function createIsRegExpLogicTest(name) {
   return function () {
     var regexp = /./;
@@ -782,7 +788,7 @@ GLOBAL.tests = {
   'es.reflect.to-string-tag': function () {
     return Reflect[Symbol.toStringTag];
   },
-  'es.regexp.constructor': function () {
+  'es.regexp.constructor': [NCG_SUPPORT, function () {
     var re1 = /a/g;
     var re2 = /a/g;
     re2[Symbol.match] = false;
@@ -793,11 +799,11 @@ GLOBAL.tests = {
       && new RegExp('a', 'y') // just check that it doesn't throw
       && RegExp('.', 's').exec('\n')
       && RegExp[Symbol.species];
-  },
+  }],
   'es.regexp.dot-all': function () {
     return RegExp('.', 's').dotAll;
   },
-  'es.regexp.exec': function () {
+  'es.regexp.exec': [NCG_SUPPORT, function () {
     var re1 = /a/;
     var re2 = /b*/g;
     var reSticky = new RegExp('a', 'y');
@@ -812,7 +818,7 @@ GLOBAL.tests = {
       && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a')
       && (reStickyAnchored.lastIndex = 2, reStickyAnchored.exec('cba') === null)
       && RegExp('.', 's').exec('\n');
-  },
+  }],
   'es.regexp.flags': function () {
     return Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call({ dotAll: true, sticky: true }) === 'sy';
   },
@@ -893,7 +899,7 @@ GLOBAL.tests = {
   'es.string.repeat': function () {
     return String.prototype.repeat;
   },
-  'es.string.replace': function () {
+  'es.string.replace': [NCG_SUPPORT, function () {
     var O = {};
     O[Symbol.replace] = function () { return 7; };
 
@@ -902,20 +908,12 @@ GLOBAL.tests = {
     re.exec = function () { execCalled = true; return null; };
     re[Symbol.replace]('');
 
-    var re2 = /./;
-    re2.exec = function () {
-      var result = [];
-      result.groups = { a: '7' };
-      return result;
-    };
-
     return ''.replace(O) == 7
       && execCalled
-      && ''.replace(re2, '$<a>') === '7'
       // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
       && 'a'.replace(/./, '$0') === '$0'
       && /./[Symbol.replace]('a', '$0') === '$0';
-  },
+  }],
   'es.string.replace-all': function () {
     return String.prototype.replaceAll;
   },

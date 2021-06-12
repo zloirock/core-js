@@ -92,7 +92,7 @@ var handleNCG = function (string) {
         continue;
       case chr === '>' && ncg:
         if (groupname === '' || has(names, groupname)) {
-          throw new TypeError('Invalid capture group name');
+          throw new SyntaxError('Invalid capture group name');
         }
         names[groupname] = true;
         named.push([groupname, groupid]);

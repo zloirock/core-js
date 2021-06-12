@@ -69,5 +69,14 @@ if (DESCRIPTORS) {
     assert.same(RegExp('(?<a>b)', (typeof '').charAt(5)).exec('b').groups?.a, 'b', 'NCG #1');
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     assert.same(RegExp('(b)', (typeof '').charAt(5)).exec('b').groups, undefined, 'NCG #2');
+    assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), '$<bar>,$<foo>'), 'def,abc', 'replace #1');
+    assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), (...args) => {
+      const { foo, bar } = args.pop();
+      return `${ bar },${ foo }`;
+    }), 'def,abc', 'replace #2');
+    // eslint-disable-next-line no-invalid-regexp -- required for testing
+    assert.throws(() => RegExp('(?<1a>b)'), SyntaxError, 'incorrect group name #1');
+    // eslint-disable-next-line no-invalid-regexp -- required for testing
+    assert.throws(() => RegExp('(?<a#>b)'), SyntaxError, 'incorrect group name #2');
   });
 }

@@ -33,9 +33,9 @@ if (PATCH) {
   // eslint-disable-next-line max-statements -- TODO
   patchedExec = function exec(str) {
     var re = this;
-    var lastIndex, reCopy, match, i, result, object, group;
     var state = getInternalState(re);
     var raw = state.raw;
+    var result, reCopy, lastIndex, match, i, object, group;
 
     if (raw) {
       raw.lastIndex = re.lastIndex;
