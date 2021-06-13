@@ -127,17 +127,17 @@ if (isForced('RegExp', BASE_FORCED)) {
     }
 
     pattern = pattern === undefined ? '' : String(pattern);
-    if (pattern === '') pattern = '(?:)';
+    flags = flags === undefined ? '' : String(flags);
     rawPattern = pattern;
 
-    if (UNSUPPORTED_DOT_ALL) {
+    if (UNSUPPORTED_DOT_ALL && 'dotAll' in re1) {
       dotAll = !!flags && flags.indexOf('s') > -1;
       if (dotAll) flags = flags.replace(/s/g, '');
     }
 
     rawFlags = flags;
 
-    if (UNSUPPORTED_Y) {
+    if (UNSUPPORTED_Y && 'sticky' in re1) {
       sticky = !!flags && flags.indexOf('y') > -1;
       if (sticky) flags = flags.replace(/y/g, '');
     }
@@ -166,7 +166,7 @@ if (isForced('RegExp', BASE_FORCED)) {
 
     if (pattern !== rawPattern) try {
       // fails in old engines, but we have no alternatives for unsupported regex syntax
-      createNonEnumerableProperty(result, 'source', rawPattern);
+      createNonEnumerableProperty(result, 'source', rawPattern === '' ? '(?:)' : rawPattern);
     } catch (error) { /* empty */ }
 
     return result;
