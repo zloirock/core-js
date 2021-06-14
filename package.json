@@ -47,7 +47,7 @@
     "eslint-plugin-unicorn": "^33.0.1",
     "glob": "^7.1.7",
     "jsonc-eslint-parser": "^1.0.1",
-    "karma": "^6.3.3",
+    "karma": "^6.3.4",
     "karma-chrome-launcher": "^3.1.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
