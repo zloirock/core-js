@@ -74,9 +74,12 @@ if (DESCRIPTORS) {
       const { foo, bar } = args.pop();
       return `${ bar },${ foo }`;
     }), 'def,abc', 'replace #2');
+    assert.same('12345'.replaceAll(RegExp('(?<d>[2-4])', 'g'), '$<d>$<d>'), '12233445', 'replaceAll');
     // eslint-disable-next-line no-invalid-regexp -- required for testing
     assert.throws(() => RegExp('(?<1a>b)'), SyntaxError, 'incorrect group name #1');
     // eslint-disable-next-line no-invalid-regexp -- required for testing
     assert.throws(() => RegExp('(?<a#>b)'), SyntaxError, 'incorrect group name #2');
+    // eslint-disable-next-line no-invalid-regexp -- required for testing
+    assert.throws(() => RegExp('(?< a >b)'), SyntaxError, 'incorrect group name #3');
   });
 }
