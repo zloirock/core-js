@@ -66,9 +66,9 @@ if (DESCRIPTORS) {
   });
 
   QUnit.test('RegExp NCG', assert => {
-    assert.same(RegExp('(?<a>b)', (typeof '').charAt(5)).exec('b').groups?.a, 'b', 'NCG #1');
+    assert.same(RegExp('(?<a>b)').exec('b').groups?.a, 'b', 'NCG #1');
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
-    assert.same(RegExp('(b)', (typeof '').charAt(5)).exec('b').groups, undefined, 'NCG #2');
+    assert.same(RegExp('(b)').exec('b').groups, undefined, 'NCG #2');
     assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), '$<bar>,$<foo>'), 'def,abc', 'replace #1');
     assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), (...args) => {
       const { foo, bar } = args.pop();

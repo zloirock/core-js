@@ -10,7 +10,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var SPECIES = wellKnownSymbol('species');
 var RegExpPrototype = RegExp.prototype;
 
-module.exports = function (KEY, exec, FORCED, sham) {
+module.exports = function (KEY, exec, FORCED, SHAM) {
   var SYMBOL = wellKnownSymbol(KEY);
 
   var DELEGATES_TO_SYMBOL = !fails(function () {
@@ -68,5 +68,5 @@ module.exports = function (KEY, exec, FORCED, sham) {
     redefine(RegExpPrototype, SYMBOL, methods[1]);
   }
 
-  if (sham) createNonEnumerableProperty(RegExpPrototype[SYMBOL], 'sham', true);
+  if (SHAM) createNonEnumerableProperty(RegExpPrototype[SYMBOL], 'sham', true);
 };
