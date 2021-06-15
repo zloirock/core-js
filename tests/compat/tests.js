@@ -899,7 +899,7 @@ GLOBAL.tests = {
   'es.string.repeat': function () {
     return String.prototype.repeat;
   },
-  'es.string.replace': [NCG_SUPPORT, function () {
+  'es.string.replace': function () {
     var O = {};
     O[Symbol.replace] = function () { return 7; };
 
@@ -908,12 +908,20 @@ GLOBAL.tests = {
     re.exec = function () { execCalled = true; return null; };
     re[Symbol.replace]('');
 
+    var re2 = /./;
+    re2.exec = function () {
+      var result = [];
+      result.groups = { a: '7' };
+      return result;
+    };
+
     return ''.replace(O) == 7
       && execCalled
+      && ''.replace(re2, '$<a>') === '7'
       // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
       && 'a'.replace(/./, '$0') === '$0'
       && /./[Symbol.replace]('a', '$0') === '$0';
-  }],
+  },
   'es.string.replace-all': function () {
     return String.prototype.replaceAll;
   },

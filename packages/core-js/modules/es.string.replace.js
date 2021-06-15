@@ -1,5 +1,6 @@
 'use strict';
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
+var fails = require('../internals/fails');
 var anObject = require('../internals/an-object');
 var toLength = require('../internals/to-length');
 var toInteger = require('../internals/to-integer');
@@ -8,7 +9,6 @@ var advanceStringIndex = require('../internals/advance-string-index');
 var getSubstitution = require('../internals/get-substitution');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
 var REPLACE = wellKnownSymbol('replace');
 var max = Math.max;
@@ -32,6 +32,16 @@ var REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE = (function () {
   }
   return false;
 })();
+
+var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
+  var re = /./;
+  re.exec = function () {
+    var result = [];
+    result.groups = { a: '7' };
+    return result;
+  };
+  return ''.replace(re, '$<a>') !== '7';
+});
 
 // @@replace logic
 fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNative) {
@@ -112,4 +122,4 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       return accumulatedResult + S.slice(nextSourcePosition);
     }
   ];
-}, UNSUPPORTED_NCG || !REPLACE_KEEPS_$0 || REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE);
+}, !REPLACE_SUPPORTS_NAMED_GROUPS || !REPLACE_KEEPS_$0 || REGEXP_REPLACE_SUBSTITUTES_UNDEFINED_CAPTURE);

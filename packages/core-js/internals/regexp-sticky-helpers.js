@@ -1,4 +1,4 @@
-var fails = require('./fails');
+var fails = require('../internals/fails');
 
 // babel-minify transpiles RegExp('a', 'y') -> /a/y and it causes SyntaxError,
 var RE = function (s, f) {
