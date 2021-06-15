@@ -276,7 +276,6 @@ const run = assert => {
   assert.strictEqual(split[2], 'three', 'S15.5.4.14_A2_T2 #5');
   assert.strictEqual(split[3], 'four', 'S15.5.4.14_A2_T2 #6');
   assert.strictEqual(split[4], 'five', 'S15.5.4.14_A2_T2 #7');
-  // eslint-disable-next-line regexp/no-invisible-character -- required for testing
   split = Object('one two three four five').split(RegExp(' '), 2);
   assert.strictEqual(split.constructor, Array, 'S15.5.4.14_A2_T3 #1');
   assert.strictEqual(split.length, 2, 'S15.5.4.14_A2_T3 #2');
