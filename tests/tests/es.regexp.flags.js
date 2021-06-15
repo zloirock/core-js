@@ -1,4 +1,4 @@
-/* eslint-disable egexp/sort-flags, regexp/no-useless-flag -- required for testing */
+/* eslint-disable regexp/sort-flags, regexp/no-useless-flag -- required for testing */
 QUnit.test('RegExp#flags', assert => {
   assert.nonEnumerable(RegExp.prototype, 'flags');
   assert.strictEqual(/./g.flags, 'g', '/./g.flags is "g"');
