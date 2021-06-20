@@ -14,6 +14,7 @@ require('../../modules/es.string.replace-all');
 require('../../modules/es.string.search');
 require('../../modules/es.string.split');
 require('../../modules/es.string.starts-with');
+require('../../modules/es.string.substr');
 require('../../modules/es.string.trim');
 require('../../modules/es.string.trim-start');
 require('../../modules/es.string.trim-end');

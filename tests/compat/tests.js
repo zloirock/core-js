@@ -448,8 +448,17 @@ GLOBAL.tests = {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
   'es.data-view': ARRAY_BUFFER_SUPPORT,
+  'es.date.get-year': function () {
+    return Date.prototype.getYear;
+  },
   'es.date.now': function () {
     return Date.now;
+  },
+  'es.date.set-year': function () {
+    return Date.prototype.setYear;
+  },
+  'es.date.to-gmt-string': function () {
+    return Date.prototype.toGMTString;
   },
   'es.date.to-iso-string': function () {
     try {
@@ -467,6 +476,9 @@ GLOBAL.tests = {
   }],
   'es.date.to-string': function () {
     return new Date(NaN).toString() == 'Invalid Date';
+  },
+  'es.escape': function () {
+    return escape;
   },
   'es.function.bind': function () {
     return Function.prototype.bind;
@@ -933,6 +945,9 @@ GLOBAL.tests = {
     return ''.split(O) == 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
+  'es.string.substr': function () {
+    return ''.substr;
+  },
   'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
     return String.prototype.trimRight === String.prototype.trimEnd;
@@ -1102,6 +1117,9 @@ GLOBAL.tests = {
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.toString == Array.prototype.toString;
   }],
+  'es.unescape': function () {
+    return unescape;
+  },
   'es.weak-map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = Object.freeze({});
     var called = 0;

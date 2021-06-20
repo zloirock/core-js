@@ -1660,6 +1660,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof instanceValues([]) === 'function');
   ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
 
+  for (const key of ['es', 'stable', 'features']) {
+    const date = new Date();
+    ok(load(`${ key }/date/get-year`)(date) === date.getFullYear() - 1900);
+    load(`${ key }/date/set-year`)(date, 1);
+    ok(date.getFullYear() === 1901);
+    ok(load(`${ key }/date/to-gmt-string`)(date) === date.toUTCString());
+    ok(load(`${ key }/string/substr`)('12345', 1, 3) === '234');
+    ok(load(`${ key }/string/virtual/substr`).call('12345', 1, 3) === '234');
+    ok(load(`${ key }/escape`)('!q2ф') === '%21q2%u0444');
+    ok(load(`${ key }/unescape`)('%21q2%u0444') === '!q2ф');
+  }
+
   for (const key in compat) load(`modules/${ key }`);
 }
 
