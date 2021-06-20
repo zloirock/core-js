@@ -1666,7 +1666,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(`${ key }/date/set-year`)(date, 1);
     ok(date.getFullYear() === 1901);
     ok(load(`${ key }/date/to-gmt-string`)(date) === date.toUTCString());
-    ok(typeof load(`${ key }/string/dot-all`) === 'function');
+    ok(typeof load(`${ key }/regexp/dot-all`) === 'function');
     ok(load(`${ key }/string/substr`)('12345', 1, 3) === '234');
     ok(load(`${ key }/string/virtual/substr`).call('12345', 1, 3) === '234');
     ok(load(`${ key }/escape`)('!q2ф') === '%21q2%u0444');
