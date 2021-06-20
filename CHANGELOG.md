@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Added `RegExp` named capture groups polyfill, [#521](https://github.com/zloirock/core-js/issues/521)
+- Added `RegExp` `dotAll` flag polyfill, [#792](https://github.com/zloirock/core-js/issues/792)
 - Added missed polyfills of [Annex B](https://tc39.es/ecma262/#sec-additional-built-in-properties) features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336):
   - `escape`
   - `unescape`
@@ -7,7 +9,7 @@
   - `Date.prototype.getYear`
   - `Date.prototype.setYear`
   - `Date.prototype.toGMTString`
-- Fixed detection of forbidden host code points in URL polyfill
+- Fixed detection of forbidden host code points in `URL` polyfill
 - Allowed `rhino` target in `core-js-compat` / `core-js-builder`, added compat data for `rhino` 1.7.13, [#942](https://github.com/zloirock/core-js/issues/942), thanks [@gausie](https://github.com/gausie)
 - `.at` marked as supported from FF90
 
