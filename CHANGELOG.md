@@ -1,8 +1,8 @@
 ## Changelog
 ##### Unreleased
-- Added `RegExp` named capture groups polyfill, [#521](https://github.com/zloirock/core-js/issues/521)
-- Added `RegExp` `dotAll` flag polyfill, [#792](https://github.com/zloirock/core-js/issues/792)
-- Added missed polyfills of [Annex B](https://tc39.es/ecma262/#sec-additional-built-in-properties) features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336):
+- Added `RegExp` named capture groups polyfill, [#521](https://github.com/zloirock/core-js/issues/521), [#944](https://github.com/zloirock/core-js/issues/944)
+- Added `RegExp` `dotAll` flag polyfill, [#792](https://github.com/zloirock/core-js/issues/792), [#944](https://github.com/zloirock/core-js/issues/944)
+- Added missed polyfills of [Annex B](https://tc39.es/ecma262/#sec-additional-built-in-properties) features (required mainly for some non-browser engines), [#336](https://github.com/zloirock/core-js/issues/336), [#945](https://github.com/zloirock/core-js/issues/945):
   - `escape`
   - `unescape`
   - `String.prototype.substr`
