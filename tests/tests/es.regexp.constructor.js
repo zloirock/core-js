@@ -12,7 +12,7 @@ if (DESCRIPTORS) {
     assert.looksNative(RegExp);
     assert.ok({}.toString.call(RegExp()).slice(8, -1), 'RegExp');
     assert.ok({}.toString.call(new RegExp()).slice(8, -1), 'RegExp');
-    const regexp = /a/g;
+    let regexp = /a/g;
     assert.notStrictEqual(regexp, new RegExp(regexp), 'new RegExp(regexp) isnt regexp');
     assert.strictEqual(regexp, RegExp(regexp), 'RegExp(regexp) is regexp');
     regexp[Symbol.match] = false;
@@ -26,8 +26,17 @@ if (DESCRIPTORS) {
     assert.strictEqual(String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags');
     assert.ok(new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof');
     assert.strictEqual(new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor');
+
+    const orig = /^https?:\/\//i;
+    // eslint-disable-next-line regexp/no-useless-assertions -- false positive
+    regexp = new RegExp(orig);
+    assert.ok(regexp !== orig, 'new + re + no flags #1');
+    assert.same(String(regexp), '/^https?:\\/\\//i', 'new + re + no flags #2');
+    let result = regexp.exec('http://github.com');
+    assert.deepEqual(result, ['http://'], 'new + re + no flags #3');
+
     /(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)(l)(m)(n)(o)(p)/.exec('abcdefghijklmnopq');
-    let result = true;
+    result = true;
     const characters = 'bcdefghij';
     for (let i = 0, { length } = characters; i < length; ++i) {
       const chr = characters[i];

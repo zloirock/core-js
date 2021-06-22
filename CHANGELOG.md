@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed cloning of regex through `RegExp` constructor, [#948](https://github.com/zloirock/core-js/issues/948)
 
 ##### 3.15.0 - 2021.06.21
 - Added `RegExp` named capture groups polyfill, [#521](https://github.com/zloirock/core-js/issues/521), [#944](https://github.com/zloirock/core-js/issues/944)
