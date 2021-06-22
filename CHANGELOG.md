@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.15.1 - 2021.06.23
 - Fixed cloning of regex through `RegExp` constructor, [#948](https://github.com/zloirock/core-js/issues/948)
 
 ##### 3.15.0 - 2021.06.21
