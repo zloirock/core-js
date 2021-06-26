@@ -14,9 +14,8 @@ var isExtensible = Object.isExtensible || function () {
 };
 
 var setMetadata = function (it) {
-  id++;
   defineProperty(it, METADATA, { value: {
-    objectID: 'O' + id, // object ID
+    objectID: 'O' + id++, // object ID
     weakData: {}          // weak collections IDs
   } });
 };
