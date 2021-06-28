@@ -407,6 +407,8 @@ const base = {
   'unicorn/require-array-join-separator': 'error',
   // enforce using the digits argument with `Number#toFixed()`
   'unicorn/require-number-to-fixed-digits-argument': 'error',
+  // enforce using the `targetOrigin`` argument with `window.postMessage()`
+  'unicorn/require-post-message-target-origin': 'error',
 
   // sonarjs
   // collection sizes and array length comparisons should make sense
