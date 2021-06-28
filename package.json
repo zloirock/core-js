@@ -73,7 +73,7 @@
   "scripts": {
     "init": "run-p generate-indexes bootstrap && run-p clean-and-copy build-compat",
     "clean-and-copy": "node scripts/clean-and-copy",
-    "bootstrap": "lerna bootstrap --hoist --no-ci && lerna link",
+    "bootstrap": "lerna bootstrap --no-ci",
     "build": "run-s init bundle-package",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",
     "build-compat-data": "node packages/core-js-compat/src/build-data",
