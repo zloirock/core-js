@@ -22,5 +22,5 @@ $({ target: 'String', proto: true }, {
     if (intLength <= 0 || intLength === Infinity) return '';
     intEnd = min(intStart + intLength, size);
     return intStart >= intEnd ? '' : slice.call(that, intStart, intEnd);
-  }
+  },
 });

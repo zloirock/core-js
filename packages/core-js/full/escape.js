@@ -1,3 +1,3 @@
-var parent = require('../stable/escape');
+var parent = require('../actual/escape');
 
 module.exports = parent;

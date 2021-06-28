@@ -180,6 +180,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/small') === 'function');
     ok(typeof load(NS, 'string/strike') === 'function');
     ok(typeof load(NS, 'string/sub') === 'function');
+    ok(load(NS, 'string/substr')('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/sup') === 'function');
     ok(typeof load(NS, 'string/replace-all') === 'function');
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
@@ -209,6 +210,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/virtual/small') === 'function');
     ok(typeof load(NS, 'string/virtual/strike') === 'function');
     ok(typeof load(NS, 'string/virtual/sub') === 'function');
+    ok(load(NS, 'string/virtual/substr').call('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/virtual/sup') === 'function');
     ok(load(NS, 'string/virtual/pad-start').call('a', 3) === '  a');
     ok(load(NS, 'string/virtual/pad-end').call('a', 3) === 'a  ');
@@ -221,12 +223,21 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'regexp/replace') === 'function');
     ok(typeof load(NS, 'regexp/search') === 'function');
     ok(typeof load(NS, 'regexp/split') === 'function');
+    ok(typeof load(NS, 'regexp/dot-all') === 'function');
     ok(typeof load(NS, 'regexp/sticky') === 'function');
     ok(typeof load(NS, 'regexp/test') === 'function');
     load(NS, 'regexp');
+    ok(load(NS, 'escape')('!q2ф') === '%21q2%u0444');
+    ok(load(NS, 'unescape')('%21q2%u0444') === '!q2ф');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
+
+    const date = new Date();
+    ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
+    load(NS, 'date/set-year')(date, 1);
+    ok(date.getFullYear() === 1901);
+    ok(load(NS, 'date/to-gmt-string')(date) === date.toUTCString());
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(typeof load(NS, 'date/to-iso-string')(new Date()) === 'string');
     ok(load(NS, 'date/to-json')(Infinity) === null);
@@ -715,19 +726,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stage/0'));
   ok(load('stage/pre'));
   ok(load('stage'));
-
-  for (const key of ['es', 'stable', 'features']) {
-    const date = new Date();
-    ok(load(`${ key }/date/get-year`)(date) === date.getFullYear() - 1900);
-    load(`${ key }/date/set-year`)(date, 1);
-    ok(date.getFullYear() === 1901);
-    ok(load(`${ key }/date/to-gmt-string`)(date) === date.toUTCString());
-    ok(typeof load(`${ key }/regexp/dot-all`) === 'function');
-    ok(load(`${ key }/string/substr`)('12345', 1, 3) === '234');
-    ok(load(`${ key }/string/virtual/substr`).call('12345', 1, 3) === '234');
-    ok(load(`${ key }/escape`)('!q2ф') === '%21q2%u0444');
-    ok(load(`${ key }/unescape`)('%21q2%u0444') === '!q2ф');
-  }
 
   for (const key in compat) load('modules', key);
 

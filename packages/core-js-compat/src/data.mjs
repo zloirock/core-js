@@ -322,14 +322,6 @@ export const data = {
     safari: '1',
     rhino: '1.7.13',
   },
-  'es.date.now': {
-    chrome: '5',
-    firefox: '2',
-    ie: '9',
-    opera: '10.50',
-    safari: '4.0',
-    rhino: '1.7.13',
-  },
   'es.date.set-year': {
     chrome: '1',
     firefox: '1',
@@ -373,6 +365,7 @@ export const data = {
     opera: '3',
     safari: '1',
     rhino: '1.7.13',
+  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',

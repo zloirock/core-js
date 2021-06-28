@@ -32,5 +32,5 @@ $({ global: true }, {
         }
       }
     } return result;
-  }
+  },
 });
