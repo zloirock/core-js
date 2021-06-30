@@ -1,15 +1,11 @@
 var global = require('../internals/global');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind-context');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var html = require('../internals/html');
 var createElement = require('../internals/document-create-element');
 var IS_IOS = require('../internals/engine-is-ios');
 var IS_NODE = require('../internals/engine-is-node');
 
-// Deno throws a ReferenceError on `location` access without `--location` flag
-var locationDescriptor = getOwnPropertyDescriptor(global, 'location');
-var location = locationDescriptor && locationDescriptor.value;
 var set = global.setImmediate;
 var clear = global.clearImmediate;
 var process = global.process;
@@ -18,7 +14,12 @@ var Dispatch = global.Dispatch;
 var counter = 0;
 var queue = {};
 var ONREADYSTATECHANGE = 'onreadystatechange';
-var defer, channel, port;
+var location, defer, channel, port;
+
+try {
+  // Deno throws a ReferenceError on `location` access without `--location` flag
+  location = global.location;
+} catch (error) { /* empty */ }
 
 var run = function (id) {
   // eslint-disable-next-line no-prototype-builtins -- safe
