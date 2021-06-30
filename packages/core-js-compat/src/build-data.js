@@ -7,6 +7,7 @@ const data = require('./data');
 const external = require('./external');
 const {
   ChromeToNode,
+  ChromeToDeno,
   ChromeToSamsung,
   ChromeToOperaMobile,
   ChromeToAndroid,
@@ -54,6 +55,7 @@ for (const scope of [data, external]) {
       if (!module.android) {
         module.android = String(Math.max(chrome, 37));
       }
+      map(ChromeToDeno, chrome, 'deno');
       if (/^(?:es|esnext|web)\./.test(key)) {
         map(ChromeToElectron, chrome, 'electron');
       }

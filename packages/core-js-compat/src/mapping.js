@@ -60,6 +60,18 @@ module.exports = {
     [90, '16.0'],
     [91, '16.4'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/master/browsers/deno.json
+  ChromeToDeno: [
+    [84, '1.0'],
+    [85, '1.2'],
+    [86, '1.3'],
+    [87, '1.4'],
+    [88, '1.6'],
+    [89, '1.7'],
+    [90, '1.8'],
+    [91, '1.9'],
+    [92, '1.12'],
+  ],
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
   ChromeToSamsung: [
     [18, '1.0'],

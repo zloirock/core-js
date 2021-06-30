@@ -14,6 +14,7 @@ const aliases = new Map([
 const validTargets = new Set([
   'android',
   'chrome',
+  'deno',
   'edge',
   'electron',
   'firefox',

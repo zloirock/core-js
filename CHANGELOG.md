@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added Deno support (sure, after bundling since Deno does not support CommonJS)
+- Allowed `deno` target in `core-js-compat` / `core-js-builder`, added compat data for Deno 1.0-1.12
 - Updated Opera Mobile compat data mapping
 
 ##### 3.15.2 - 2021.06.29
