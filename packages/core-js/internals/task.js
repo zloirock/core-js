@@ -1,12 +1,15 @@
 var global = require('../internals/global');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind-context');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var html = require('../internals/html');
 var createElement = require('../internals/document-create-element');
 var IS_IOS = require('../internals/engine-is-ios');
 var IS_NODE = require('../internals/engine-is-node');
 
-var location = global.location;
+// Deno throws a ReferenceError on `location` access without `--location` flag
+var locationDescriptor = getOwnPropertyDescriptor(global, 'location');
+var location = locationDescriptor && locationDescriptor.value;
 var set = global.setImmediate;
 var clear = global.clearImmediate;
 var process = global.process;

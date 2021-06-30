@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added Deno support (sure, after bundling since Deno does not support CommonJS)
 - Updated Opera Mobile compat data mapping
 
 ##### 3.15.2 - 2021.06.29
