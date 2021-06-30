@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Updated Opera Mobile compat data mapping
 
 ##### 3.15.2 - 2021.06.29
 - Worked around breakage related to `zone.js` loaded before `core-js`, [#953](https://github.com/zloirock/core-js/issues/953)
