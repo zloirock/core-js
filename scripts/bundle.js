@@ -52,7 +52,31 @@ async function bundle({ bundled, minified, options = {} }) {
 
 bundle(DENO ? {
   bundled: 'index',
-  options: { targets: { deno: '1.0' } },
+  options: {
+    targets: { deno: '1.0' },
+    exclude: [
+      'esnext.aggregate-error',        // moved to stable ES
+      'esnext.global-this',            // moved to stable ES
+      'esnext.map.update-or-insert',   // obsolete
+      'esnext.map.upsert',             // obsolete
+      'esnext.math.iaddh',             // withdrawn
+      'esnext.math.imulh',             // withdrawn
+      'esnext.math.isubh',             // withdrawn
+      'esnext.math.seeded-prng',       // changing of the API, waiting for the spec text
+      'esnext.math.umulh',             // withdrawn
+      'esnext.object.iterate-entries', // withdrawn
+      'esnext.object.iterate-keys',    // withdrawn
+      'esnext.object.iterate-values',  // withdrawn
+      'esnext.promise.all-settled',    // moved to stable ES
+      'esnext.promise.any',            // moved to stable ES
+      'esnext.string.at',              // withdrawn
+      'esnext.string.match-all',       // moved to stable ES
+      'esnext.string.replace-all',     // moved to stable ES
+      'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
+      'esnext.symbol.replace-all',     // obsolete
+      'esnext.weak-map.upsert',        // obsolete
+    ],
+  },
 } : {
   bundled: 'index',
   minified: 'minified',
