@@ -35,6 +35,8 @@ async function copy(from, to, { force = false } = {}) {
     console.log(green('old copies removed'));
   }
 
+  await copy('./LICENSE', './deno/corejs/LICENSE', { force: true });
+
   for (const pkg of await readdir('./packages')) {
     await copy('./LICENSE', `./packages/${ pkg }/LICENSE`, { force: true });
   }

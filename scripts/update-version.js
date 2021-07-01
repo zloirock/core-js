@@ -1,6 +1,6 @@
 'use strict';
 /* eslint-disable no-console -- output */
-const { readdir, readFile, writeFile } = require('fs').promises;
+const { lstat, readdir, readFile, writeFile } = require('fs').promises;
 const { green, red } = require('chalk');
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
@@ -12,6 +12,7 @@ const CHANGELOG = './CHANGELOG.md';
 const LICENSE = './LICENSE';
 const README = './README.md';
 const README_COMPAT = './packages/core-js-compat/README.md';
+const README_DENO = './deno/corejs/README.md';
 const LERNA = './lerna.json';
 const SHARED = './packages/core-js/internals/shared.js';
 const CURRENT_YEAR = now.getFullYear();
@@ -29,6 +30,9 @@ const CURRENT_YEAR = now.getFullYear();
   const readmeCompat = await readFile(README_COMPAT, 'utf8');
   await writeFile(README_COMPAT, readmeCompat
     .split(PREV_VERSION_MINOR).join(NEW_VERSION_MINOR));
+  const readmeDeno = await readFile(README_DENO, 'utf8');
+  await writeFile(README_DENO, readmeDeno
+    .split(PREV_VERSION).join(NEW_VERSION));
   const shared = await readFile(SHARED, 'utf8');
   await writeFile(SHARED, shared
     .split(PREV_VERSION).join(NEW_VERSION)
@@ -36,6 +40,7 @@ const CURRENT_YEAR = now.getFullYear();
   const packages = await readdir('./packages');
   for (const NAME of packages) {
     const PATH = `./packages/${ NAME }/package.json`;
+    if (!await lstat(PATH).catch(() => false)) continue;
     const pkg = JSON.parse(await readFile(PATH, 'utf8'));
     pkg.version = NEW_VERSION;
     for (const field of ['dependencies', 'devDependencies']) {

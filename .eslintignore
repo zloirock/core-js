@@ -1,4 +1,5 @@
 node_modules/
+/deno/corejs/
 /packages/core-js-bundle/
 /packages/core-js-compat/*.json
 /packages/core-js-pure/override/

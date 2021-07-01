@@ -113,7 +113,7 @@
     "usage-1000": "node scripts/usage -l=1000",
     "usage-10000": "node scripts/usage -l=10000",
     "outdated": "node scripts/check-dependencies",
-    "update-version": "node scripts/update-version",
+    "update-version": "node scripts/update-version && node scripts/bundle --deno",
     "publish": "lerna publish from-package --yes"
   }
 }
