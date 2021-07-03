@@ -28,7 +28,6 @@ if (DESCRIPTORS) {
     assert.strictEqual(new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor');
 
     const orig = /^https?:\/\//i;
-    // eslint-disable-next-line regexp/no-useless-assertions -- false positive
     regexp = new RegExp(orig);
     assert.ok(regexp !== orig, 'new + re + no flags #1');
     assert.same(String(regexp), '/^https?:\\/\\//i', 'new + re + no flags #2');
