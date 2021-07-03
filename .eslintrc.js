@@ -492,6 +492,8 @@ const base = {
   'regexp/no-potentially-useless-backreference': 'error',
   // disallow standalone backslashes
   'regexp/no-standalone-backslash': 'error',
+  // disallow exponential and polynomial backtracking
+  'regexp/no-super-linear-backtracking': 'error',
   // disallow trivially nested assertions
   'regexp/no-trivially-nested-assertion': 'error',
   // disallow nested quantifiers that can be rewritten as one quantifier
