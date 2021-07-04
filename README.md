@@ -2819,7 +2819,7 @@ for (let [index, { id }] of document.querySelectorAll('*').entries()) {
 document.querySelectorAll('*').forEach(it => console.log(it.id));
 ```
 ### Iteration helpers[⬆](#index)
-Modules [`core.is-iterable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/core.is-iterable.js), [`core.get-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/core.get-iterator.js), [`core.get-iterator-method`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/core.get-iterator-method.js) - helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
+Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
 ```js
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
