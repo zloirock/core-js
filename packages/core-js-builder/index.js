@@ -27,6 +27,7 @@ module.exports = async function ({
     for (const ns of list) {
       for (const name of modulesList) {
         if (name === ns || name.startsWith(`${ ns }.`)) {
+          // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
           set[method](name);
         }
       }
@@ -36,6 +37,7 @@ module.exports = async function ({
   filter('add', modules);
   filter('delete', blacklist || exclude);
 
+  // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
   modules = modulesList.filter(it => set.has(it));
 
   if (targets) modules = compat({ targets, filter: modules }).list;

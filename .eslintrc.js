@@ -411,14 +411,20 @@ const base = {
   'unicorn/require-post-message-target-origin': 'error',
 
   // sonarjs
+  // generators should `yield` something
+  'sonarjs/generator-without-yield': 'error',
   // collection sizes and array length comparisons should make sense
   'sonarjs/no-collection-size-mischeck': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
   'sonarjs/no-duplicated-branches': 'error',
   // collection elements should not be replaced unconditionally
   'sonarjs/no-element-overwrite': 'error',
+  // empty collections should not be accessed or iterated
+  'sonarjs/no-empty-collection': 'error',
   // function calls should not pass extra arguments
   'sonarjs/no-extra-arguments': 'error',
+  // goolean expressions should not be gratuitous
+  'sonarjs/no-gratuitous-expressions': 'error',
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': 'error',
   // boolean checks should not be inverted
@@ -435,6 +441,8 @@ const base = {
   'sonarjs/no-unused-collection': 'error',
   // the output of functions that don't return anything should not be used
   'sonarjs/no-use-of-empty-return-value': 'error',
+  // non-existent operators '=+', '=-' and '=!' should not be used
+  'sonarjs/non-existent-operator': 'error',
   // local variables should not be declared and then immediately returned or thrown
   'sonarjs/prefer-immediate-return': 'error',
   // object literal syntax should be used
