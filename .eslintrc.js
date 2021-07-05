@@ -356,6 +356,8 @@ const base = {
   'prefer-exponentiation-operator': 'error',
   // require template literals instead of string concatenation
   'prefer-template': 'error',
+  // disallow generator functions that do not have `yield`
+  'require-yield': 'error',
   // enforce spacing between rest and spread operators and their expressions
   'rest-spread-spacing': 'error',
   // require or disallow spacing around embedded expressions of template strings
@@ -411,8 +413,6 @@ const base = {
   'unicorn/require-post-message-target-origin': 'error',
 
   // sonarjs
-  // generators should `yield` something
-  'sonarjs/generator-without-yield': 'error',
   // collection sizes and array length comparisons should make sense
   'sonarjs/no-collection-size-mischeck': 'error',
   // two branches in a conditional structure should not have exactly the same implementation
