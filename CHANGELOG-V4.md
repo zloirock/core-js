@@ -12,6 +12,8 @@
     - [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
     - [Object iteration](https://github.com/tc39/proposal-object-iteration)
     - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
+  - Dead:
+    - [`Promise.try`](https://github.com/tc39/proposal-promise-try)
   - [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random) because of changing of the API, waiting for the spec text
 - Removed modules:
   - `es.array.is-array` (required for ES3 only)
@@ -35,6 +37,7 @@
   - `esnext.object.iterate-values` (withdrawn)
   - `esnext.promise.all-settled` (moved to stable ES)
   - `esnext.promise.any` (moved to stable ES)
+  - `esnext.promise.try` (proposal is dead)
   - `esnext.string.at-alternative` (replaces `esnext.string.at` from the obsolete proposal)
   - `esnext.string.match-all` (moved to stable ES)
   - `esnext.string.replace-all` (moved to stable ES)
@@ -52,6 +55,7 @@
   - `Object.iterateEntries` (withdrawn)
   - `Object.iterateKeys` (withdrawn)
   - `Object.iterateValues` (withdrawn)
+  - `Promise.try` (proposal is dead)
   - `Symbol.patternMatch` (is not a part of actual proposal, replaced by `Symbol.matcher`)
   - `Symbol.replaceAll` (obsolete)
   - `WeakMap#upsert` (obsolete)

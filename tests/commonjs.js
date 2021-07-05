@@ -543,7 +543,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   const Set = load('full/set');
   const WeakMap = load('full/weak-map');
   const WeakSet = load('full/weak-set');
-  const Promise = load('full/promise/constructor');
   ok(typeof load('full/array/filter-out') === 'function');
   ok(load('full/array/find-last')([1, 2, 3], it => it % 2) === 3);
   ok(load('full/array/find-last-index')([1, 2, 3], it => it % 2) === 2);
@@ -619,7 +618,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('full/observable/constructor') === 'function');
   ok(typeof load('full/observable/from') === 'function');
   ok(typeof load('full/observable/of') === 'function');
-  ok(load('full/promise/try')(() => 42) instanceof Promise);
   ok(typeof load('full/reflect/define-metadata') === 'function');
   ok(typeof load('full/reflect/delete-metadata') === 'function');
   ok(typeof load('full/reflect/get-metadata') === 'function');
@@ -711,7 +709,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/number-range');
   load('proposals/observable');
   load('proposals/pattern-matching');
-  load('proposals/promise-try');
   load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');

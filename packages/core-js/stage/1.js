@@ -10,7 +10,6 @@ require('../proposals/number-from-string');
 require('../proposals/number-range');
 require('../proposals/observable');
 require('../proposals/pattern-matching');
-require('../proposals/promise-try');
 require('../proposals/string-code-points');
 var parent = require('./2');
 
