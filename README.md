@@ -2450,7 +2450,7 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
 Module [`esnext.symbol.matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.matcher.js).
 ```js
 class Symbol {
-  static patternMatch: @@patternMatch;
+  static matcher: @@matcher;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
