@@ -77,7 +77,7 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "init": "run-p generate-indexes bootstrap && run-p clean-and-copy build-compat",
+    "init": "run-s bootstrap generate-indexes clean-and-copy build-commonjs build-compat generate-exports-fields",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
     "generate-exports-fields": "node scripts/generate-exports-fields",
     "bootstrap": "lerna bootstrap --no-ci",
@@ -86,6 +86,8 @@
     "build-compat-data": "zx scripts/build-compat-data.mjs",
     "build-compat-entries": "zx scripts/build-compat-entries.mjs",
     "build-compat-modules-by-versions": "zx scripts/build-compat-modules-by-versions.mjs",
+    "build-commonjs": "babel packages/core-js/ -d packages/core-js/commonjs/ && babel packages/core-js-pure/ -d packages/core-js-pure/commonjs/",
+    "build-observables": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/",
     "bundle": "run-p bundle-package bundle-helpers bundle-tests-global bundle-tests-pure",
     "bundle-package": "zx scripts/bundle.mjs",
     "bundle-helpers": "webpack --entry ./tests/helpers/qunit-helpers.js --output-filename qunit-helpers.js",
@@ -103,7 +105,7 @@
     "test-unit-pure-standalone": "run-s init bundle-helpers bundle-tests-pure test-unit-pure",
     "test-promises": "promises-aplus-tests tests/promises-aplus/adapter --timeout 1000",
     "test-promises-standalone": "run-s init test-promises",
-    "test-observables": "babel node_modules/es-observable/test/ -d tests/bundles/observables-tests/ && node tests/observables/adapter && node tests/observables/adapter-pure",
+    "test-observables": "npm run build-observables && node tests/observables/adapter && node tests/observables/adapter-pure",
     "test-observables-standalone": "run-s init test-observables",
     "test-entries": "run-p test-entries-basic test-entries-content",
     "test-entries-basic": "node tests/commonjs",

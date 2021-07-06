@@ -12,6 +12,7 @@ function options(overwrite) {
 }
 
 await rm('./packages/core-js/bundle', { force: true, recursive: true });
+await rm('./packages/core-js/commonjs', { force: true, recursive: true });
 
 await Promise.all((await readdir('./packages/core-js-pure'))
   .filter(entry => !['override', '.npmignore', 'package.json', 'README.md'].includes(entry))
@@ -32,7 +33,6 @@ for (const pkg of await readdir('./packages')) {
 
 await copy('./packages/core-js', './packages/core-js-pure', options(false));
 await copy('./packages/core-js-pure/override', './packages/core-js-pure', options(true));
-await copy('./packages/core-js/postinstall.js', './packages/core-js-bundle/postinstall.js', options(true));
 
 // eslint-disable-next-line no-console -- output
 console.log(chalk.green(`copied ${ chalk.cyan(copied) } files`));

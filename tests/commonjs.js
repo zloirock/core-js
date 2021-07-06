@@ -12,7 +12,7 @@ function load(...path) {
   return require(join(PATH, ...path));
 }
 
-for (PATH of ['core-js-pure', 'core-js']) {
+for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   for (const NS of ['es', 'stable', 'actual', 'full']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
@@ -788,6 +788,8 @@ load('full/typed-array/filter-out');
 load('full/typed-array/find-last');
 load('full/typed-array/find-last-index');
 load('full/typed-array/unique-by');
+
+PATH = 'core-js';
 
 load('bundle/actual');
 load('bundle/full');

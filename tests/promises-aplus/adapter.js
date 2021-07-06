@@ -1,7 +1,7 @@
 'use strict';
 delete global.Promise;
 
-const { Promise } = require('core-js');
+require('core-js/commonjs');
 const assert = require('assert');
 
 module.exports = {

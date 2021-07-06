@@ -4,7 +4,7 @@ const { readFile, writeFile } = require('fs').promises;
 const { green } = require('chalk');
 const entries = require('@core-js/compat/entries');
 
-const core = Object.keys(entries).reduce((accumulator, it) => {
+let core = Object.keys(entries).reduce((accumulator, it) => {
   const entry = it.replace(/^core-js(\/)?/, './');
   // eslint-disable-next-line unicorn/no-unsafe-regex -- safe
   const match = entry.match(/^(\.\/(?:es|stable|actual|full|web)(?:\/[\w-]+)?)(?:\/[\w-]+)?/);
@@ -22,12 +22,19 @@ const core = Object.keys(entries).reduce((accumulator, it) => {
   './configurator': './configurator.js',
   './internals/*': './internals/*.js',
   './modules/*': './modules/*.js',
-  './package': './package.json',
-  './postinstall': './postinstall.js',
   './proposals': './proposals/index.js',
   './proposals/*': './proposals/*.js',
   './stage': './stage/index.js',
   './stage/*': './stage/*.js',
+});
+
+core = Object.entries(core).reduce((accumulator, [key, value]) => {
+  accumulator[key] = value;
+  accumulator[`./commonjs${ key.slice(1) }`] = `./commonjs${ value.slice(1) }`;
+  return accumulator;
+}, {
+  './package': './package.json',
+  './postinstall': './postinstall.js',
 });
 
 async function writeExportsField(path, exports) {
