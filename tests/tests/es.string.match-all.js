@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
 
 QUnit.test('String#matchAll', assert => {
   const { matchAll } = String.prototype;
@@ -125,6 +125,12 @@ QUnit.test('String#matchAll', assert => {
   for (const target of data) {
     assert.notThrows(() => ''.matchAll(target), `Not throws on ${ target } as the first argument`);
   }
+
+  if (DESCRIPTORS && typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => matchAll.call(Symbol(), /./), 'throws on symbol context');
+    assert.throws(() => matchAll.call('a', Symbol()), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => matchAll.call(null, /./g), TypeError, 'Throws on null as `this`');
     assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');

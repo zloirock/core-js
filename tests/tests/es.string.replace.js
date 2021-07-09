@@ -129,6 +129,8 @@ const run = assert => {
   assert.strictEqual('{price} Retail'.replace(/{price}/g, '$25.00'), '$25.00 Retail');
   // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
   assert.strictEqual('a'.replace(/(.)/, '$0'), '$0');
+
+  assert.throws(() => ''.replace.call(Symbol(), /./, ''), 'throws on symbol context');
 };
 
 QUnit.test('String#replace regression', run);

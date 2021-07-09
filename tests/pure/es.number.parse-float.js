@@ -15,4 +15,9 @@ QUnit.test('Number.parseFloat', assert => {
   assert.same(parseFloat(`${ WHITESPACES }-0`), -0);
   assert.same(parseFloat(null), NaN);
   assert.same(parseFloat(undefined), NaN);
+
+  /* eslint-disable es/no-symbol -- safe */
+  if (typeof Symbol === 'function') {
+    assert.throws(() => parseFloat(Symbol()), 'throws on symbol argument');
+  }
 });

@@ -18,6 +18,12 @@ QUnit.test('String#endsWith', assert => {
   assert.ok(endsWith('abc', 'a', true));
   assert.ok(!endsWith('abc', 'c', 'x'));
   assert.ok(!endsWith('abc', 'a', 'x'));
+
+  if (!Symbol.sham) {
+    assert.throws(() => endsWith(Symbol(), 'b'), 'throws on symbol context');
+    assert.throws(() => endsWith('a', Symbol()), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => endsWith(null, '.'), TypeError);
     assert.throws(() => endsWith(undefined, '.'), TypeError);

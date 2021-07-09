@@ -6,6 +6,7 @@ var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var iterate = require('../internals/iterate');
+var toString = require('../internals/to-string');
 
 var $AggregateError = function AggregateError(errors, message) {
   var that = this;
@@ -14,7 +15,7 @@ var $AggregateError = function AggregateError(errors, message) {
     // eslint-disable-next-line unicorn/error-message -- expected
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
-  if (message !== undefined) createNonEnumerableProperty(that, 'message', String(message));
+  if (message !== undefined) createNonEnumerableProperty(that, 'message', toString(message));
   var errorsArray = [];
   iterate(errors, errorsArray.push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);

@@ -13,10 +13,17 @@ QUnit.test('String#includes', assert => {
   assert.ok('aundefinedb'.includes());
   assert.ok('abcd'.includes('b', 1));
   assert.ok(!'abcd'.includes('b', 2));
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => includes.call(Symbol(), 'b'), 'throws on symbol context');
+    assert.throws(() => includes.call('a', Symbol()), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => includes.call(null, '.'), TypeError);
     assert.throws(() => includes.call(undefined, '.'), TypeError);
   }
+
   const regexp = /./;
   assert.throws(() => '/./'.includes(regexp), TypeError);
   regexp[Symbol.match] = false;

@@ -6,4 +6,8 @@ QUnit.test('String#bold', assert => {
   assert.looksNative(bold);
   assert.nonEnumerable(String.prototype, 'bold');
   assert.same('a'.bold(), '<b>a</b>', 'lower case');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => bold.call(Symbol()), 'throws on symbol context');
+  }
 });

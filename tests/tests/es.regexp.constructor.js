@@ -50,6 +50,8 @@ if (DESCRIPTORS) {
       assert.ok(new Subclass() instanceof RegExp, 'correct subclassing with native classes #2');
       assert.ok(new Subclass('^abc$').test('abc'), 'correct subclassing with native classes #3');
     }
+
+    assert.throws(() => RegExp(Symbol(1)), 'throws on symbol argument');
   });
 
   QUnit.test('RegExp dotAll', assert => {

@@ -43,4 +43,6 @@ QUnit.test('String#@@iterator', assert => {
     value: undefined,
     done: true,
   });
+
+  assert.throws(() => ''[Symbol.iterator].call(Symbol()), 'throws on symbol context');
 });

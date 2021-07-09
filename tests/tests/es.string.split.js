@@ -689,6 +689,8 @@ const run = assert => {
       assert.strictEqual(expected[i], split[i], `S15.5.4.14_A4_T24 #${ i + 3 }`);
     }
   }
+
+  assert.throws(() => ''.split.call(Symbol(), /./), 'throws on symbol context');
 };
 
 QUnit.test('String#split regression', run);

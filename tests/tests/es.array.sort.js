@@ -115,6 +115,11 @@ QUnit.test('Array#sort', assert => {
   assert.notThrows(() => [1, 2, 3].sort(undefined).length === 3, 'works with undefined');
   assert.throws(() => [1, 2, 3].sort(null), 'throws on null');
   assert.throws(() => [1, 2, 3].sort({}), 'throws on {}');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => [Symbol(1), Symbol(2)].sort(), 'w/o cmp throws on symbols');
+  }
+
   if (STRICT) {
     assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
     assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');

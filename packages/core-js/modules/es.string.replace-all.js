@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var isRegExp = require('../internals/is-regexp');
+var toString = require('../internals/to-string');
 var getRegExpFlags = require('../internals/regexp-flags');
 var getSubstitution = require('../internals/get-substitution');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -29,7 +30,7 @@ $({ target: 'String', proto: true }, {
     if (searchValue != null) {
       IS_REG_EXP = isRegExp(searchValue);
       if (IS_REG_EXP) {
-        flags = String(requireObjectCoercible('flags' in RegExpPrototype
+        flags = toString(requireObjectCoercible('flags' in RegExpPrototype
           ? searchValue.flags
           : getRegExpFlags.call(searchValue)
         ));
@@ -39,19 +40,19 @@ $({ target: 'String', proto: true }, {
       if (replacer !== undefined) {
         return replacer.call(searchValue, O, replaceValue);
       } else if (IS_PURE && IS_REG_EXP) {
-        return String(O).replace(searchValue, replaceValue);
+        return toString(O).replace(searchValue, replaceValue);
       }
     }
-    string = String(O);
-    searchString = String(searchValue);
+    string = toString(O);
+    searchString = toString(searchValue);
     functionalReplace = typeof replaceValue === 'function';
-    if (!functionalReplace) replaceValue = String(replaceValue);
+    if (!functionalReplace) replaceValue = toString(replaceValue);
     searchLength = searchString.length;
     advanceBy = max(1, searchLength);
     position = stringIndexOf(string, searchString, 0);
     while (position !== -1) {
       if (functionalReplace) {
-        replacement = String(replaceValue(searchString, position, string));
+        replacement = toString(replaceValue(searchString, position, string));
       } else {
         replacement = getSubstitution(searchString, string, position, [], undefined, replaceValue);
       }

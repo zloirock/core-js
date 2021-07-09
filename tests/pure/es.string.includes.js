@@ -9,10 +9,17 @@ QUnit.test('String#includes', assert => {
   assert.ok(includes('aundefinedb'));
   assert.ok(includes('abcd', 'b', 1));
   assert.ok(!includes('abcd', 'b', 2));
+
+  if (!Symbol.sham) {
+    assert.throws(() => includes(Symbol(), 'b'), 'throws on symbol context');
+    assert.throws(() => includes('a', Symbol()), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => includes(null, '.'), TypeError);
     assert.throws(() => includes(undefined, '.'), TypeError);
   }
+
   const re = /./;
   assert.throws(() => includes('/./', re), TypeError);
   re[Symbol.match] = false;

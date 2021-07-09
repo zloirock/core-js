@@ -71,6 +71,8 @@ const run = assert => {
   assert.strictEqual(string.search(/the/), string.search(/the/g), 'S15.5.4.12_A3_T1');
   string = Object('power \u006F\u0066 the power of the power \u006F\u0066 the power of the power \u006F\u0066 the power of the great sword');
   assert.strictEqual(string.search(/of/), string.search(/of/g), 'S15.5.4.12_A3_T2');
+
+  assert.throws(() => ''.search.call(Symbol(), /./), 'throws on symbol context');
 };
 
 QUnit.test('String#search regression', run);

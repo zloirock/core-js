@@ -2,6 +2,7 @@
 import { STRICT } from '../helpers/constants';
 
 import at from 'core-js-pure/features/string/at';
+import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.skip('String#at', assert => {
   assert.isFunction(at);
@@ -21,6 +22,9 @@ QUnit.skip('String#at', assert => {
   assert.same('1', at('123', -0));
   assert.same('\uD842', at('𠮷'));
   assert.same('1', at({ toString() { return '123'; } }, 0));
+
+  assert.throws(() => at(Symbol(), 0), 'throws on symbol context');
+
   if (STRICT) {
     assert.throws(() => at(null, 0), TypeError);
     assert.throws(() => at(undefined, 0), TypeError);

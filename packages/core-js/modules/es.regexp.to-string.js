@@ -1,6 +1,7 @@
 'use strict';
 var redefine = require('../internals/redefine');
 var anObject = require('../internals/an-object');
+var $toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 var flags = require('../internals/regexp-flags');
 
@@ -17,9 +18,9 @@ var INCORRECT_NAME = nativeToString.name != TO_STRING;
 if (NOT_GENERIC || INCORRECT_NAME) {
   redefine(RegExp.prototype, TO_STRING, function toString() {
     var R = anObject(this);
-    var p = String(R.source);
+    var p = $toString(R.source);
     var rf = R.flags;
-    var f = String(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype) ? flags.call(R) : rf);
+    var f = $toString(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype) ? flags.call(R) : rf);
     return '/' + p + '/' + f;
   }, { unsafe: true });
 }

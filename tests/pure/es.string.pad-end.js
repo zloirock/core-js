@@ -1,6 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
 import padEnd from 'core-js-pure/features/string/pad-end';
+import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.test('String#padEnd', assert => {
   assert.isFunction(padEnd);
@@ -11,6 +12,10 @@ QUnit.test('String#padEnd', assert => {
   assert.strictEqual(padEnd('', 0), '');
   assert.strictEqual(padEnd('foo', 1), 'foo');
   assert.strictEqual(padEnd('foo', 5, ''), 'foo');
+
+  assert.throws(() => padEnd(Symbol(), 10, 'a'), 'throws on symbol context');
+  assert.throws(() => padEnd('a', 10, Symbol()), 'throws on symbol argument');
+
   if (STRICT) {
     assert.throws(() => padEnd(null, 0), TypeError);
     assert.throws(() => padEnd(undefined, 0), TypeError);

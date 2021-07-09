@@ -21,10 +21,17 @@ QUnit.test('String#startsWith', assert => {
   assert.ok(!'abc'.startsWith('a', Infinity));
   assert.ok('abc'.startsWith('b', true));
   assert.ok('abc'.startsWith('a', 'x'));
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => startsWith.call(Symbol(), 'b'), 'throws on symbol context');
+    assert.throws(() => startsWith.call('a', Symbol()), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => startsWith.call(null, '.'), TypeError);
     assert.throws(() => startsWith.call(undefined, '.'), TypeError);
   }
+
   const regexp = /./;
   assert.throws(() => '/./'.startsWith(regexp), TypeError);
   regexp[Symbol.match] = false;

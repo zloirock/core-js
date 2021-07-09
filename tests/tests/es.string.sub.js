@@ -6,4 +6,8 @@ QUnit.test('String#sub', assert => {
   assert.looksNative(sub);
   assert.nonEnumerable(String.prototype, 'sub');
   assert.same('a'.sub(), '<sub>a</sub>', 'lower case');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => sub.call(Symbol()), 'throws on symbol context');
+  }
 });

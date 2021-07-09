@@ -6,4 +6,8 @@ QUnit.test('String#blink', assert => {
   assert.looksNative(blink);
   assert.nonEnumerable(String.prototype, 'blink');
   assert.same('a'.blink(), '<blink>a</blink>', 'lower case');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => blink.call(Symbol()), 'throws on symbol context');
+  }
 });

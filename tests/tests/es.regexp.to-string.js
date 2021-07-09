@@ -30,4 +30,9 @@ QUnit.test('RegExp#toString', assert => {
     assert.throws(() => toString.call(null));
     assert.throws(() => toString.call(undefined));
   }
+
+  assert.throws(() => toString.call({
+    source: Symbol(),
+    flags: 'g',
+  }), 'throws on symbol');
 });

@@ -11,6 +11,10 @@ QUnit.test('String#substr', assert => {
 
   assert.same('12345'.substr(1, 3), '234');
 
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => substr.call(Symbol(), 1, 3), 'throws on symbol context');
+  }
+
   if (STRICT) {
     assert.throws(() => substr.call(null, 1, 3), TypeError, 'Throws on null as `this`');
     assert.throws(() => substr.call(undefined, 1, 3), TypeError, 'Throws on undefined as `this`');

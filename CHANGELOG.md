@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)

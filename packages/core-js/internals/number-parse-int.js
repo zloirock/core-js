@@ -1,4 +1,5 @@
 var global = require('../internals/global');
+var toString = require('../internals/to-string');
 var trim = require('../internals/string-trim').trim;
 var whitespaces = require('../internals/whitespaces');
 
@@ -9,6 +10,6 @@ var FORCED = $parseInt(whitespaces + '08') !== 8 || $parseInt(whitespaces + '0x1
 // `parseInt` method
 // https://tc39.es/ecma262/#sec-parseint-string-radix
 module.exports = FORCED ? function parseInt(string, radix) {
-  var S = trim(String(string));
+  var S = trim(toString(string));
   return $parseInt(S, (radix >>> 0) || (hex.test(S) ? 16 : 10));
 } : $parseInt;

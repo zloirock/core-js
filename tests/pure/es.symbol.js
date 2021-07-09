@@ -23,6 +23,7 @@ QUnit.test('Symbol', assert => {
   object[symbol1] = 42;
   assert.ok(object[symbol1] === 42, 'Symbol() work as key');
   assert.ok(object[symbol2] !== 42, 'Various symbols from one description are various keys');
+  assert.throws(() => Symbol(Symbol('foo')), 'throws on symbol argument');
   if (DESCRIPTORS) {
     let count = 0;
     // eslint-disable-next-line no-unused-vars -- required for testing
@@ -58,6 +59,7 @@ QUnit.test('Global symbol registry', assert => {
   const symbol = Symbol.for('foo');
   assert.strictEqual(Symbol.for('foo'), symbol);
   assert.strictEqual(Symbol.keyFor(symbol), 'foo');
+  assert.throws(() => Symbol.for(Symbol('foo')), 'throws on symbol argument');
   assert.throws(() => Symbol.keyFor('foo'), 'throws on non-symbol');
 });
 

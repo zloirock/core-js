@@ -47,4 +47,6 @@ QUnit.test('String#codePoints', assert => {
     value: undefined,
     done: true,
   });
+
+  assert.throws(() => codePoints.call(Symbol()), 'throws on symbol context');
 });

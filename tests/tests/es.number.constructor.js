@@ -159,6 +159,12 @@ QUnit.test('Number constructor: regression', assert => {
     valueOf: 1,
     toString: 2,
   }), TypeError, 'new Number assert.throws on object then valueOf and toString are not functions');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => Number(Symbol()), 'throws on symbol argument');
+    assert.throws(() => new Number(Symbol()), 'throws on symbol argument, new');
+  }
+
   number = new Number(42);
   assert.strictEqual(typeof number.constructor(number), 'number');
   check(`${ whitespaces }42`, 42);

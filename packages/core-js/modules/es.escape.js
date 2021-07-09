@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var toString = require('../internals/to-string');
 
 var raw = /[\w*+\-./@]/;
 
@@ -13,7 +14,7 @@ var hex = function (code, length) {
 // https://tc39.es/ecma262/#sec-escape-string
 $({ global: true }, {
   escape: function escape(string) {
-    var str = String(string);
+    var str = toString(string);
     var result = '';
     var length = str.length;
     var index = 0;

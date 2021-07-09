@@ -6,4 +6,9 @@ QUnit.test('escape', assert => {
   assert.same(escape('!q2ф'), '%21q2%u0444');
   assert.same(escape(null), 'null');
   assert.same(escape(undefined), 'undefined');
+
+  /* eslint-disable es/no-symbol -- safe */
+  if (typeof Symbol === 'function') {
+    assert.throws(() => escape(Symbol()), 'throws on symbol argument');
+  }
 });

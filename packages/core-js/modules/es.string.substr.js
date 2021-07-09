@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toInteger = require('../internals/to-integer');
+var toString = require('../internals/to-string');
 
 var slice = ''.slice;
 var max = Math.max;
@@ -11,7 +12,7 @@ var min = Math.min;
 // https://tc39.es/ecma262/#sec-string.prototype.substr
 $({ target: 'String', proto: true }, {
   substr: function substr(start, length) {
-    var that = String(requireObjectCoercible(this));
+    var that = toString(requireObjectCoercible(this));
     var size = that.length;
     var intStart = toInteger(start);
     var intLength, intEnd;

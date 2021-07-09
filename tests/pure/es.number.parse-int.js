@@ -32,4 +32,9 @@ QUnit.test('Number.parseInt', assert => {
   assert.same(parseInt('10', -4294967294), 2, 'radix uses ToUint32');
   assert.same(parseInt(null), NaN);
   assert.same(parseInt(undefined), NaN);
+
+  /* eslint-disable es/no-symbol -- safe */
+  if (typeof Symbol === 'function') {
+    assert.throws(() => parseInt(Symbol()), 'throws on symbol argument');
+  }
 });

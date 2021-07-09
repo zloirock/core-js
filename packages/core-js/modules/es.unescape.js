@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var toString = require('../internals/to-string');
 
 var fromCharCode = String.fromCharCode;
 var hex2 = /^[\da-f]{2}$/i;
@@ -9,7 +10,7 @@ var hex4 = /^[\da-f]{4}$/i;
 // https://tc39.es/ecma262/#sec-unescape-string
 $({ global: true }, {
   unescape: function unescape(string) {
-    var str = String(string);
+    var str = toString(string);
     var result = '';
     var length = str.length;
     var index = 0;

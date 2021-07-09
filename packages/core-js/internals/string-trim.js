@@ -1,4 +1,5 @@
 var requireObjectCoercible = require('../internals/require-object-coercible');
+var toString = require('../internals/to-string');
 var whitespaces = require('../internals/whitespaces');
 
 var whitespace = '[' + whitespaces + ']';
@@ -8,7 +9,7 @@ var rtrim = RegExp(whitespace + whitespace + '*$');
 // `String.prototype.{ trim, trimStart, trimEnd, trimLeft, trimRight }` methods implementation
 var createMethod = function (TYPE) {
   return function ($this) {
-    var string = String(requireObjectCoercible($this));
+    var string = toString(requireObjectCoercible($this));
     if (TYPE & 1) string = string.replace(ltrim, '');
     if (TYPE & 2) string = string.replace(rtrim, '');
     return string;

@@ -7,4 +7,8 @@ QUnit.test('String#fontcolor', assert => {
   assert.nonEnumerable(String.prototype, 'fontcolor');
   assert.same('a'.fontcolor('b'), '<font color="b">a</font>', 'lower case');
   assert.same('a'.fontcolor('"'), '<font color="&quot;">a</font>', 'escape quotes');
+
+  if (typeof Symbol === 'function' && !Symbol.sham) {
+    assert.throws(() => fontcolor.call(Symbol()), 'throws on symbol context');
+  }
 });

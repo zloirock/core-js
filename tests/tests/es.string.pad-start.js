@@ -14,6 +14,10 @@ QUnit.test('String#padStart', assert => {
   assert.strictEqual(''.padStart(0), '');
   assert.strictEqual('foo'.padStart(1), 'foo');
   assert.strictEqual('foo'.padStart(5, ''), 'foo');
+
+  assert.throws(() => padStart.call(Symbol(), 10, 'a'), 'throws on symbol context');
+  assert.throws(() => padStart.call('a', 10, Symbol()), 'throws on symbol argument');
+
   if (STRICT) {
     assert.throws(() => padStart.call(null, 0), TypeError);
     assert.throws(() => padStart.call(undefined, 0), TypeError);

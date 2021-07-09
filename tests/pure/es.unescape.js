@@ -7,4 +7,9 @@ QUnit.test('unescape', assert => {
   assert.same(unescape('%u044q2%21'), '%u044q2!');
   assert.same(unescape(null), 'null');
   assert.same(unescape(undefined), 'undefined');
+
+  /* eslint-disable es/no-symbol -- safe */
+  if (typeof Symbol === 'function') {
+    assert.throws(() => unescape(Symbol()), 'throws on symbol argument');
+  }
 });

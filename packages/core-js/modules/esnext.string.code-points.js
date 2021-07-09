@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
+var toString = require('../internals/to-string');
 var InternalStateModule = require('../internals/internal-state');
 var StringMultibyteModule = require('../internals/string-multibyte');
 
@@ -33,6 +34,6 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
 // https://github.com/tc39/proposal-string-prototype-codepoints
 $({ target: 'String', proto: true }, {
   codePoints: function codePoints() {
-    return new $StringIterator(String(requireObjectCoercible(this)));
+    return new $StringIterator(toString(requireObjectCoercible(this)));
   }
 });

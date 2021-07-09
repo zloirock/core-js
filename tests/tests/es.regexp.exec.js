@@ -30,6 +30,10 @@ QUnit.test('RegExp#exec capturing groups', assert => {
 });
 
 if (DESCRIPTORS) {
+  QUnit.test('RegExp#exec regression', assert => {
+    assert.throws(() => /l/.exec(Symbol()), 'throws on symbol argument');
+  });
+
   QUnit.test('RegExp#exec sticky', assert => {
     const re = new RegExp('a', 'y');
     const str = 'bbabaab';
@@ -61,6 +65,7 @@ if (DESCRIPTORS) {
     assert.strictEqual(re.exec(str), null, '#15');
     assert.strictEqual(re.lastIndex, 0, '#16');
   });
+
   QUnit.test('RegExp#exec sticky anchored', assert => {
     const regex = new RegExp('^foo', 'y');
     assert.deepEqual(regex.exec('foo'), ['foo'], '#1');

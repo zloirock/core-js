@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable regexp/no-assertion-capturing-group, regexp/no-empty-group, regexp/no-lazy-ends -- testing */
 /* eslint-disable regexp/no-useless-quantifier -- testing */
+var toString = require('../internals/to-string');
 var regexpFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var shared = require('../internals/shared');
@@ -34,7 +35,7 @@ if (PATCH) {
   patchedExec = function exec(string) {
     var re = this;
     var state = getInternalState(re);
-    var str = String(string);
+    var str = toString(string);
     var raw = state.raw;
     var result, reCopy, lastIndex, match, i, object, group;
 
