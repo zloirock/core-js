@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
-var toString = require('../internals/to-length');
+var toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 
 var FORCED = fails(function () {

@@ -27,7 +27,6 @@ QUnit.test('RegExp#exec capturing groups', assert => {
   // assert.deepEqual(/(a?)?/.exec('x'), ['', undefined], '/(a?)?/.exec("x") returns ["", undefined]');
 });
 
-
 QUnit.test('RegExp#exec regression', assert => {
   assert.throws(() => /l/.exec(Symbol()), 'throws on symbol argument');
 });
