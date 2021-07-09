@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed a minor bug related to string conversion in `RegExp#exec`
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
   - Allowed `deno` target in `core-js-compat` / `core-js-builder`, added compat data for Deno 1.0-1.12
