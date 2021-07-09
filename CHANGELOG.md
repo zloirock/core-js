@@ -2,11 +2,13 @@
 ##### Unreleased
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Fixed a minor bug related to string conversion in `RegExp#exec`
+- Some minor optimizations
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
   - Allowed `deno` target in `core-js-compat` / `core-js-builder`, added compat data for Deno 1.0-1.12
   - A bundle for Deno published on [deno.land/x/corejs](https://deno.land/x/corejs)
-- Updated Opera Mobile compat data mapping
+- Updated Samsung Internet compat data mapping up to 15.0
+- Updated Opera Mobile compat data mapping up to 63
 
 ##### 3.15.2 - 2021.06.29
 - Worked around breakage related to `zone.js` loaded before `core-js`, [#953](https://github.com/zloirock/core-js/issues/953)
