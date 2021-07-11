@@ -1,7 +1,7 @@
 For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. This API helps conditionally include or exclude certain parts of [`core-js`](https://github.com/zloirock/core-js), use `browserslist` queries from [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) package.
 
 ```js
-const builder = require('@core-js/builder');
+const builder = require('core-js-builder');
 
 const bundle = await builder({
   modules: ['es', 'esnext.reflect', 'web'],      // modules / namespaces, by default - all `core-js` modules

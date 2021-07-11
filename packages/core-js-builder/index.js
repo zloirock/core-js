@@ -92,7 +92,7 @@ module.exports = async function ({
   }
 
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
-  if (summary.comment.modules) script += `/*\n * modules list:\n${ modules.map(it => ` * ${ it }\n`).join('') } */`;
+  if (summary.comment.modules) script += `/*\n * modules:\n${ modules.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
 
   if (summary.console.size) {
