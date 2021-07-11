@@ -16,7 +16,7 @@
     "semver": "^7.3.5"
   },
   "engines": {
-    "node": ">=12.13.0"
+    "node": ">=14.15.0"
   },
   "funding": {
     "type": "opencollective",

@@ -16,7 +16,7 @@
     "@core-js/ua-normalizer": "4.0.0-alpha.0"
   },
   "engines": {
-    "node": ">=12.13.0"
+    "node": ">=14.15.0"
   },
   "exports": {
     ".": "./index.js",
