@@ -22,7 +22,7 @@ module.exports = function ({ path = null, modules = compat['core-js/actual'], ad
       bundles.set(key, await builder({
         modules,
         targets: browser.toTarget(),
-        addModulesList,
+        summary: { comment: { modules: addModulesList } },
       }));
     }
 
