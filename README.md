@@ -142,14 +142,14 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 ### Installation:[⬆](#index)
 ```
 // global version
-npm install --save core-js@3.15.2
+npm install --save core-js@4.0.0-alpha.0
 // version without global namespace pollution
-npm install --save core-js-pure@3.15.2
+npm install --save core-js-pure@4.0.0-alpha.0
 // bundled global version
-npm install --save core-js-bundle@3.15.2
+npm install --save core-js-bundle@4.0.0-alpha.0
 ```
 
-Already bundled versions of `core-js` on CDN: [actual](https://unpkg.com/core-js-bundle@3.15.2/actual.js), [full](https://unpkg.com/core-js-bundle@3.15.2/full.js).
+Already bundled versions of `core-js` on CDN: [actual](https://unpkg.com/core-js-bundle@4.0.0-alpha.0/actual.js), [full](https://unpkg.com/core-js-bundle@4.0.0-alpha.0/full.js).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
@@ -239,9 +239,9 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.15'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '4.0'`.
 
-> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.15'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '4.0'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -297,7 +297,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.15', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '4.0', proposals: true }`.
 
 #### `@babel/runtime`[⬆](#index)
 

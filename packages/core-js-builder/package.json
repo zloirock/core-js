@@ -1,7 +1,7 @@
 {
   "name": "@core-js/builder",
   "description": "core-js builder",
-  "version": "3.15.2",
+  "version": "4.0.0-alpha.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",
@@ -12,8 +12,8 @@
   },
   "main": "./index.js",
   "dependencies": {
-    "@core-js/compat": "3.15.2",
-    "core-js": "3.15.2",
+    "@core-js/compat": "4.0.0-alpha.0",
+    "core-js": "4.0.0-alpha.0",
     "terser": "^5.7.1",
     "webpack": "^5.44.0"
   },
