@@ -9,6 +9,7 @@
   - A bundle for Deno published on [deno.land/x/corejs](https://deno.land/x/corejs)
 - Updated Samsung Internet compat data mapping up to 15.0
 - Updated Opera Mobile compat data mapping up to 63
+- Added `summary` option to `core-js-builder`, see more info in the [`README`](https://github.com/zloirock/core-js/blob/master/packages/core-js-builder/README.md)
 
 ##### 3.15.2 - 2021.06.29
 - Worked around breakage related to `zone.js` loaded before `core-js`, [#953](https://github.com/zloirock/core-js/issues/953)
