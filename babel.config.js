@@ -2,6 +2,7 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
+    ['@babel/proposal-class-properties'],
     ['@babel/proposal-logical-assignment-operators'],
     ['@babel/proposal-nullish-coalescing-operator'],
     ['@babel/proposal-numeric-separator'],
