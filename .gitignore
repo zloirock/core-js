@@ -16,11 +16,7 @@ node_modules/
 /packages/core-js-builder/LICENSE
 /packages/core-js-collector/LICENSE
 /packages/core-js-compat/LICENSE
-/packages/core-js-compat/data.json
-/packages/core-js-compat/entries.json
-/packages/core-js-compat/external.json
-/packages/core-js-compat/modules.json
-/packages/core-js-compat/modules-by-versions.json
+/packages/core-js-compat/data/
 /packages/core-js-pure/actual/
 /packages/core-js-pure/commonjs/
 /packages/core-js-pure/es/

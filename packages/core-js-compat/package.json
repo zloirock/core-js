@@ -28,11 +28,11 @@
     "./compat": "./compat.js",
     "./get-modules-list-for-target-version": "./get-modules-list-for-target-version.js",
     "./targets-parser": "./targets-parser.js",
-    "./data": "./data.json",
-    "./entries": "./entries.json",
-    "./external": "./external.json",
-    "./modules-by-versions": "./modules-by-versions.json",
-    "./modules": "./modules.json",
+    "./data": "./data.js",
+    "./entries": "./entries.js",
+    "./external": "./external.js",
+    "./modules-by-versions": "./modules-by-versions.js",
+    "./modules": "./modules.js",
     "./package": "./package.json"
   }
 }

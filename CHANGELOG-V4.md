@@ -104,6 +104,7 @@
 - Namespace / entries for full set of features (stable ES, ES proposals, web standards) renamed from `/features/` to `/full/`
 - Added `/actual/` namespace for all stable features and stage 3 ES proposals 
 - Dropped `*/virtual/index.js` entries
+- `@core-js/compat/{ data, entries, external, modules, modules-by-versions }` now are proxy JS files since ESM imports does not support JSON
 - Added built-in definitions to compat data
 - Added `minify` option to `@core-js/builder`, bundles minified by default
 - Bundled versions of `core-js`

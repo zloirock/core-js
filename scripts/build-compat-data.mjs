@@ -57,7 +57,7 @@ for (const scope of [data, external]) {
 }
 
 function write(filename, content) {
-  return fs.writeJson(`./packages/core-js-compat/${ filename }.json`, content, { spaces: '  ' });
+  return fs.writeJson(`./packages/core-js-compat/data/${ filename }.json`, content, { spaces: '  ' });
 }
 
 await Promise.all([

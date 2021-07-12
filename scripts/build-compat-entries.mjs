@@ -39,7 +39,7 @@ const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(
   return [entry.slice(9), await getModulesForEntryPoint(`../${ entry }`, import.meta.url)];
 }))));
 
-await fs.writeJson('./packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
+await fs.writeJson('./packages/core-js-compat/data/entries.json', entriesMap, { spaces: '  ' });
 
 // eslint-disable-next-line no-console -- output
 console.log(chalk.green('entries data rebuilt'));
