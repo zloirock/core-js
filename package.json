@@ -109,7 +109,7 @@
     "test-targets-parser": "node tests/targets-parser",
     "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-targets-parser check-mapping",
     "ci": "run-s init bundle test-unit test-promises test-observables test-entries test-targets-parser",
-    "clean-dependencies": "node scripts/clean-dependencies",
+    "clean-dependencies": "node scripts/clean-dependencies.mjs",
     "refresh": "npm run clean-dependencies && npm i && npm t",
     "downloads": "zx scripts/downloads-by-versions.mjs",
     "downloads-main-only": "zx scripts/downloads-by-versions.mjs --main-only=true",
