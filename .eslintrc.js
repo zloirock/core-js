@@ -314,8 +314,6 @@ const base = {
   // node:
   // disallow deprecated APIs
   'node/no-deprecated-api': 'error',
-  // enforce the style of file extensions in `import` declarations
-  'node/file-extension-in-import': ['error', 'never'],
   // require require() calls to be placed at top-level module scope
   'node/global-require': 'error',
   // disallow the assignment to `exports`
@@ -1072,6 +1070,12 @@ module.exports = {
         AsyncIterator: true,
         Iterator: true,
         Observable: true,
+      },
+    },
+    {
+      files: ['*.mjs'],
+      parserOptions: {
+        sourceType: 'module',
       },
     },
     {
