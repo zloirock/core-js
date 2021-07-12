@@ -2,7 +2,7 @@
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 
-const { lstat, readdir, readFile, writeFile } = fs;
+const { pathExists, readdir, readJson, readFile, writeJson, writeFile } = fs;
 const now = new Date();
 const NEW_VERSION_MINOR = `'${ NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
 const PREV_VERSION_MINOR = `'${ PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
@@ -37,15 +37,15 @@ await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const packages = await readdir('./packages');
 for (const NAME of packages) {
   const PATH = `./packages/${ NAME }/package.json`;
-  if (!await lstat(PATH).catch(() => false)) continue;
-  const pkg = JSON.parse(await readFile(PATH, 'utf8'));
+  if (!await pathExists(PATH)) continue;
+  const pkg = await readJson(PATH, 'utf8');
   pkg.version = NEW_VERSION;
   for (const field of ['dependencies', 'devDependencies']) {
     if (pkg[field]) for (const dependency of packages) {
       if (pkg[field][dependency]) pkg[field][dependency] = NEW_VERSION;
     }
   }
-  await writeFile(PATH, `${ JSON.stringify(pkg, null, '  ') }\n`);
+  await writeJson(PATH, pkg, { spaces: '  ' });
 }
 
 if (NEW_VERSION !== PREV_VERSION) {
