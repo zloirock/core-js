@@ -117,7 +117,7 @@
     "usage-100": "zx scripts/usage.mjs -l=100",
     "usage-1000": "zx scripts/usage.mjs -l=1000",
     "usage-10000": "zx scripts/usage.mjs -l=10000",
-    "outdated": "node scripts/check-dependencies",
+    "outdated": "zx scripts/check-dependencies.mjs",
     "update-version": "node scripts/update-version && node scripts/bundle --deno",
     "publish": "lerna publish from-package --yes"
   }
