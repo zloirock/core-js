@@ -768,8 +768,6 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': ['error', { version: SUPPORTED_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
@@ -786,8 +784,6 @@ const nodePackages = {
 
 const nodeDev = {
   ...nodePackages,
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': ['error', { version: DEV_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
@@ -1074,8 +1070,35 @@ module.exports = {
     },
     {
       files: ['*.mjs'],
+      parser: '@babel/eslint-parser',
       parserOptions: {
+        babelOptions: {
+          plugins: ['@babel/plugin-syntax-top-level-await'],
+        },
+        ecmaVersion: 2022,
+        requireConfigFile: false,
         sourceType: 'module',
+      },
+    },
+    {
+      files: [
+        'scripts/**',
+      ],
+      // zx
+      globals: {
+        $: true,
+        __dirname: true,
+        __filename: true,
+        argv: true,
+        cd: true,
+        chalk: true,
+        fetch: true,
+        fs: true,
+        os: true,
+        nothrow: true,
+        question: true,
+        require: true,
+        sleep: true,
       },
     },
     {
