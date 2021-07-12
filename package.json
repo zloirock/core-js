@@ -89,7 +89,7 @@
     "bundle-helpers": "webpack --entry ./tests/helpers/qunit-helpers.js --output-filename qunit-helpers.js",
     "bundle-tests-global": "webpack --entry ./tests/tests/index.js --output-filename tests.js",
     "bundle-tests-pure": "webpack --entry ./tests/pure/index.js --output-filename pure.js",
-    "check-mapping": "node scripts/check-compat-data-mapping",
+    "check-mapping": "zx scripts/check-compat-data-mapping.mjs",
     "generate-indexes": "node scripts/generate-indexes",
     "lint": "run-s init test-lint",
     "test-lint": "eslint --ext .js,.mjs,.json ./",
