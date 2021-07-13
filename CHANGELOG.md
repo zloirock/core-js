@@ -7,6 +7,7 @@
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
   - Allowed `deno` target in `core-js-compat` / `core-js-builder`, added compat data for Deno 1.0-1.12
   - A bundle for Deno published on [deno.land/x/corejs](https://deno.land/x/corejs)
+- Updated iOS Safari compat data mapping up to 15.0
 - Updated Samsung Internet compat data mapping up to 15.0
 - Updated Opera Mobile compat data mapping up to 64
 - Added `summary` option to `core-js-builder`, see more info in the [`README`](https://github.com/zloirock/core-js/blob/master/packages/core-js-builder/README.md), [#910](https://github.com/zloirock/core-js/issues/910)
