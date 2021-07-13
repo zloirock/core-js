@@ -80,7 +80,7 @@
     "bootstrap": "lerna bootstrap --no-ci",
     "build": "run-s init bundle-package",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",
-    "build-compat-data": "node packages/core-js-compat/src/build-data",
+    "build-compat-data": "zx packages/core-js-compat/src/build-data.mjs",
     "build-compat-entries": "node packages/core-js-compat/src/build-entries",
     "build-compat-modules-by-versions": "zx packages/core-js-compat/src/build-modules-by-versions.mjs",
     "bundle": "run-p bundle-package bundle-helpers bundle-tests-global bundle-tests-pure",
