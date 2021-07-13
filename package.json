@@ -89,7 +89,7 @@
     "bundle-tests-global": "webpack --entry ./tests/tests/index.js --output-filename tests.js",
     "bundle-tests-pure": "webpack --entry ./tests/pure/index.js --output-filename pure.js",
     "check-mapping": "zx scripts/check-compat-data-mapping.mjs",
-    "generate-indexes": "node scripts/generate-indexes",
+    "generate-indexes": "zx scripts/generate-indexes.mjs",
     "lint": "run-s init test-lint",
     "test-lint": "eslint --ext .js,.mjs,.json ./",
     "test-unit": "run-p test-unit-global test-unit-minified test-unit-pure",
