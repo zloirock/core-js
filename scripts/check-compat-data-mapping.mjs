@@ -1,6 +1,6 @@
 /* eslint-disable no-console -- output */
 import semver from 'semver';
-import mapping from 'core-js-compat/src/mapping.js';
+import mapping from 'core-js-compat/src/mapping.mjs';
 
 const { cyan, green, red } = chalk;
 const { coerce, cmp } = semver;

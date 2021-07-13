@@ -1,5 +1,4 @@
-'use strict';
-module.exports = {
+export default {
   modules: {
     chrome: '61',
     edge: '16',

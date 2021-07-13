@@ -1,5 +1,4 @@
-'use strict';
-const data = {
+export const data = {
   'es.symbol': {
     chrome: '49',
     edge: '15',
@@ -1760,4 +1759,4 @@ data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
 
-module.exports = data;
+export const modules = Object.keys(data);

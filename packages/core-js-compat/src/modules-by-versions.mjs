@@ -1,5 +1,4 @@
-'use strict';
-module.exports = {
+export default {
   3.1: [
     'es.string.match-all',
     'es.symbol.match-all',

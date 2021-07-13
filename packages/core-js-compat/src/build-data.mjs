@@ -1,7 +1,7 @@
-import data from './data.js';
-import external from './external.js';
+import { data, modules } from './data.mjs';
+import external from './external.mjs';
+import mapping from './mapping.mjs';
 import helpers from '../helpers.js';
-import mapping from './mapping.js';
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
@@ -63,7 +63,7 @@ function write(filename, content) {
 
 await Promise.all([
   write('../data.json', data),
-  write('../modules.json', Object.keys(data)),
+  write('../modules.json', modules),
   write('../external.json', external),
 ]);
 

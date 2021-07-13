@@ -1,5 +1,5 @@
-import modulesByVersions from './modules-by-versions.js';
-const modules = require('../modules');
+import { modules } from './data.mjs';
+import modulesByVersions from './modules-by-versions.mjs';
 
 const defaults = new Set(modules);
 

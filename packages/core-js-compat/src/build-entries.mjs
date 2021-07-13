@@ -1,8 +1,7 @@
 import detective from 'detective';
 import globby from 'globby';
+import { modules } from './data.mjs';
 import helpers from '../helpers.js';
-
-const modules = require('../modules');
 
 async function getModulesForEntryPoint(path, parent) {
   const entry = new URL(path, parent);

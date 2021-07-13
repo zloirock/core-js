@@ -1,8 +1,6 @@
-'use strict';
-const ChromeToElectronModule = require('electron-to-chromium/chromium-versions');
-const ChromeToElectron = Object.entries(ChromeToElectronModule);
+import ChromeToElectronModule from 'electron-to-chromium/chromium-versions.js';
 
-module.exports = {
+export default {
   // https://nodejs.org/dist/index.json
   ChromeToNode: [
     [3, '0.0.3'],
@@ -123,7 +121,7 @@ module.exports = {
     [30, '4.4'],
     [33, '4.4.3'],
   ],
-  ChromeToElectron,
+  ChromeToElectron: Object.entries(ChromeToElectronModule),
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/safari_ios.json
   SafariToIOS: [
     ['3.0', '1.0'],
