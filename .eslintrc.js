@@ -1,7 +1,7 @@
 'use strict';
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
 const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
-const DEV_NODE_VERSIONS = '^10.17';
+const DEV_NODE_VERSIONS = '^14.15';
 
 function disable(rules) {
   return Object.keys(rules).reduce((memo, rule) => {
@@ -783,14 +783,11 @@ const nodePackages = {
 };
 
 const nodeDev = {
-  ...nodePackages,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
-  ...disable(forbidES2018BuiltIns),
+  ...disable(forbidModernESBuiltIns),
+  ...forbidES2021BuiltIns,
+  'es/no-weakrefs': 'off',
 };
 
 const tests = {
