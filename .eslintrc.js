@@ -1079,6 +1079,7 @@ module.exports = {
     },
     {
       files: [
+        'packages/core-js-compat/src/**',
         'scripts/**',
       ],
       // zx
