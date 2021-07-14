@@ -1,1 +1,1 @@
-// TODO: Remove from `core-js@4`
+// empty
