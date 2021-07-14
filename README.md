@@ -2273,25 +2273,25 @@ console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => 
 console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
 ```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
-Modules [`esnext.array.filter-out`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-out.js) and [`esnext.typed-array.filter-out`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-out.js).
+Modules [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
 ```js
 class Array {
-  filterOut(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
+  filterReject(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
 }
 
 class %TypedArray% {
-  filterOut(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+  filterReject(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-filtering
-core-js(-pure)/features/array(/virtual)/filter-out
-core-js/features/typed-array/filter-out
+core-js(-pure)/features/array(/virtual)/filter-reject
+core-js/features/typed-array/filter-reject
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterOut(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterReject(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
 ```js
-[1, 2, 3, 4, 5].filterOut(it => it % 2); // => [2, 4]
+[1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)

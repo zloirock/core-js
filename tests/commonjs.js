@@ -68,6 +68,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('features/array/map') === 'function');
   ok(typeof load('features/array/filter') === 'function');
   ok(typeof load('features/array/filter-out') === 'function');
+  ok(typeof load('features/array/filter-reject') === 'function');
   ok(typeof load('features/array/flat') === 'function');
   ok(typeof load('features/array/flat-map') === 'function');
   ok(typeof load('features/array/some') === 'function');
@@ -102,6 +103,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('features/array/virtual/map') === 'function');
   ok(typeof load('features/array/virtual/filter') === 'function');
   ok(typeof load('features/array/virtual/filter-out') === 'function');
+  ok(typeof load('features/array/virtual/filter-reject') === 'function');
   ok(typeof load('features/array/virtual/flat') === 'function');
   ok(typeof load('features/array/virtual/flat-map') === 'function');
   ok(typeof load('features/array/virtual/some') === 'function');
@@ -1174,6 +1176,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof instanceFilterOut([]) === 'function');
   ok(instanceFilterOut([]).call([1, 2, 3], it => it % 2).length === 1);
 
+  const instanceFilterReject = load('features/instance/filter-reject');
+  ok(typeof instanceFilterReject === 'function');
+  ok(instanceFilterReject({}) === undefined);
+  ok(typeof instanceFilterReject([]) === 'function');
+  ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
+
   let instanceFindIndex = load('features/instance/find-index');
   ok(typeof instanceFindIndex === 'function');
   ok(instanceFindIndex({}) === undefined);
@@ -1701,6 +1709,7 @@ load('features/typed-array/every');
 load('features/typed-array/fill');
 load('features/typed-array/filter');
 load('features/typed-array/filter-out');
+load('features/typed-array/filter-reject');
 load('features/typed-array/find');
 load('features/typed-array/find-index');
 load('features/typed-array/find-last');

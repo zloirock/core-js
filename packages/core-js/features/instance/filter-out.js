@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 var filterOut = require('../array/virtual/filter-out');
 
 var ArrayPrototype = Array.prototype;

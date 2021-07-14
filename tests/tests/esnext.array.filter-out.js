@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#filterOut', assert => {

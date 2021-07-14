@@ -95,4 +95,8 @@ export default {
     'es.string.substr',
     'es.unescape',
   ],
+  3.16: [
+    'esnext.array.filter-reject',
+    'esnext.typed-array.filter-reject',
+  ],
 };

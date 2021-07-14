@@ -51,6 +51,7 @@ bundle(DENO ? {
   options: {
     targets: { deno: '1.0' },
     exclude: [
+      'esnext.array.filter-out',       // obsolete
       'esnext.aggregate-error',        // moved to stable ES
       'esnext.global-this',            // moved to stable ES
       'esnext.map.update-or-insert',   // obsolete
@@ -70,6 +71,7 @@ bundle(DENO ? {
       'esnext.string.replace-all',     // moved to stable ES
       'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
       'esnext.symbol.replace-all',     // obsolete
+      'esnext.typed-array.filter-out', // obsolete
       'esnext.weak-map.upsert',        // obsolete
     ],
   },
