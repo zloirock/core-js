@@ -98,12 +98,12 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [ECMAScript proposals](#ecmascript-proposals)
     - [Stage 4 proposals](#stage-4-proposals)
     - [Stage 3 proposals](#stage-3-proposals)
-      - [Relative indexing method](#relative-indexing-method)
       - [Accessible `Object.prototype.hasOwnProperty`](#accessible-objectprototypehasownproperty)
+      - [Relative indexing method](#relative-indexing-method)
+      - [`Array` find from last](#array-find-from-last)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Iterator` helpers](#iterator-helpers)
       - [New `Set` methods](#new-set-methods)
-      - [`Array` find from last](#array-find-from-last)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
@@ -1817,6 +1817,24 @@ Promise.any([
 core-js(-pure)/stage/3
 ```
 
+##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
+Module [`esnext.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.has-own.js).
+```js
+class Object {
+  hasOwn(object: object, key: PropertyKey): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/accessible-object-hasownproperty
+core-js(-pure)/features/object/has-own
+```
+[*Examples*](http://es6.zloirock.ru/#log(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%2F%2F%20%3D%3E%20false):
+```js
+Object.hasOwn({ foo: 42 }, 'foo'); // => true
+Object.hasOwn({ foo: 42 }, 'bar'); // => false
+Object.hasOwn({}, 'toString');     // => false
+````
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
 Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.at.js)
 > **Warning! Because of the conflict with [another proposal](#stringat), this method is not available on `String.prototype` in this version.**
@@ -1841,23 +1859,31 @@ core-js(-pure)/features/typed-array/at
 [1, 2, 3].at(1);  // => 2
 [1, 2, 3].at(-1); // => 3
 ```
-##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
-Module [`esnext.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.has-own.js).
+##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
+Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last-index.js).
 ```js
-class Object {
-  hasOwn(object: object, key: PropertyKey): boolean;
+class Array {
+  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
+}
+
+class %TypedArray% {
+  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/accessible-object-hasownproperty
-core-js(-pure)/features/object/has-own
+core-js/proposals/array-find-from-last
+core-js(-pure)/features(/virtual)/array/find-last
+core-js(-pure)/features(/virtual)/array/find-last-index
+core-js/features/typed-array/find-last
+core-js/features/typed-array/find-last-index
 ```
-[*Examples*](http://es6.zloirock.ru/#log(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%2F%2F%20%3D%3E%20false):
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
 ```js
-Object.hasOwn({ foo: 42 }, 'foo'); // => true
-Object.hasOwn({ foo: 42 }, 'bar'); // => false
-Object.hasOwn({}, 'toString');     // => false
+[1, 2, 3, 4].findLast(it => it % 2);      // => 3
+[1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
 ````
 
 #### Stage 2 proposals[⬆](#index)
@@ -2002,32 +2028,6 @@ new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
 new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
 ```
-##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
-Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last-index.js).
-```js
-class Array {
-  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
-}
-
-class %TypedArray% {
-  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-find-from-last
-core-js(-pure)/features(/virtual)/array/find-last
-core-js(-pure)/features(/virtual)/array/find-last-index
-core-js/features/typed-array/find-last
-core-js/features/typed-array/find-last-index
-```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
-```js
-[1, 2, 3, 4].findLast(it => it % 2);      // => 3
-[1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
-````
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 ```js

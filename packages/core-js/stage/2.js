@@ -1,4 +1,3 @@
-require('../proposals/array-find-from-last');
 require('../proposals/array-is-template-object');
 require('../proposals/decorators');
 require('../proposals/iterator-helpers');

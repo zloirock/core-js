@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 3, [July 2021 TC39 meeting](https://github.com/tc39/proposal-array-find-from-last/pull/47)
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Some minor optimizations
