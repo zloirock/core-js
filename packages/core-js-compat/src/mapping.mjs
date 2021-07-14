@@ -69,6 +69,7 @@ export default {
     [90, '1.8'],
     [91, '1.9'],
     [92, '1.12'],
+    [93, '1.13'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
   ChromeToSamsung: [
