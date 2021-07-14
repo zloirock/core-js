@@ -70,13 +70,13 @@ var isTypedArrayIndex = function (target, key) {
 };
 
 var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
-  return isTypedArrayIndex(target, key = toPrimitive(key, true))
+  return isTypedArrayIndex(target, key = toPrimitive(key, 'string'))
     ? createPropertyDescriptor(2, target[key])
     : nativeGetOwnPropertyDescriptor(target, key);
 };
 
 var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
-  if (isTypedArrayIndex(target, key = toPrimitive(key, true))
+  if (isTypedArrayIndex(target, key = toPrimitive(key, 'string'))
     && isObject(descriptor)
     && has(descriptor, 'value')
     && !has(descriptor, 'get')

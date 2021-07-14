@@ -10,7 +10,7 @@ var $defineProperty = Object.defineProperty;
 // https://tc39.es/ecma262/#sec-object.defineproperty
 exports.f = DESCRIPTORS ? $defineProperty : function defineProperty(O, P, Attributes) {
   anObject(O);
-  P = toPrimitive(P, true);
+  P = toPrimitive(P, 'string');
   anObject(Attributes);
   if (IE8_DOM_DEFINE) try {
     return $defineProperty(O, P, Attributes);

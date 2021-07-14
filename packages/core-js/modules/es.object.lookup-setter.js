@@ -13,7 +13,7 @@ if (DESCRIPTORS) {
   $({ target: 'Object', proto: true, forced: FORCED }, {
     __lookupSetter__: function __lookupSetter__(P) {
       var O = toObject(this);
-      var key = toPrimitive(P, true);
+      var key = toPrimitive(P, 'string');
       var desc;
       do {
         if (desc = getOwnPropertyDescriptor(O, key)) return desc.set;

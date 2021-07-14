@@ -16,7 +16,7 @@ var ERROR_INSTEAD_OF_FALSE = fails(function () {
 $({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE, sham: !DESCRIPTORS }, {
   defineProperty: function defineProperty(target, propertyKey, attributes) {
     anObject(target);
-    var key = toPrimitive(propertyKey, true);
+    var key = toPrimitive(propertyKey, 'string');
     anObject(attributes);
     try {
       definePropertyModule.f(target, key, attributes);

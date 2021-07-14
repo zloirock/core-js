@@ -13,7 +13,7 @@ var $getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 // https://tc39.es/ecma262/#sec-object.getownpropertydescriptor
 exports.f = DESCRIPTORS ? $getOwnPropertyDescriptor : function getOwnPropertyDescriptor(O, P) {
   O = toIndexedObject(O);
-  P = toPrimitive(P, true);
+  P = toPrimitive(P, 'string');
   if (IE8_DOM_DEFINE) try {
     return $getOwnPropertyDescriptor(O, P);
   } catch (error) { /* empty */ }

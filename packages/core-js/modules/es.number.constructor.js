@@ -26,7 +26,7 @@ var BROKEN_CLASSOF = classof(create(NumberPrototype)) == NUMBER;
 // https://tc39.es/ecma262/#sec-tonumber
 var toNumber = function (argument) {
   if (isSymbol(argument)) throw TypeError('Cannot convert a Symbol value to a number');
-  var it = toPrimitive(argument, false);
+  var it = toPrimitive(argument, 'number');
   var first, third, radix, maxCode, digits, length, index, code;
   if (typeof it == 'string' && it.length > 2) {
     it = trim(it);

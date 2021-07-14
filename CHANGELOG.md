@@ -5,6 +5,7 @@
   - `Array#filterReject` replaces `Array#filterOut`
   - `%TypedArray%#filterReject` replaces `%TypedArray%#filterOut`
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
+- Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Some minor optimizations
 - Deno:
