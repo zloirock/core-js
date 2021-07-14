@@ -79,7 +79,6 @@
   "scripts": {
     "init": "run-s bootstrap generate-indexes clean-and-copy build-commonjs build-compat generate-exports-fields",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
-    "generate-exports-fields": "node scripts/generate-exports-fields",
     "bootstrap": "lerna bootstrap --no-ci",
     "build": "run-s init bundle-package",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",
@@ -94,6 +93,7 @@
     "bundle-tests-global": "webpack --entry ./tests/tests/index.js --output-filename tests.js",
     "bundle-tests-pure": "webpack --entry ./tests/pure/index.js --output-filename pure.js",
     "check-mapping": "zx scripts/check-compat-data-mapping.mjs",
+    "generate-exports-fields": "zx scripts/generate-exports-fields.mjs",
     "generate-indexes": "zx scripts/generate-indexes.mjs",
     "lint": "run-s init test-lint",
     "test-lint": "eslint --ext .js,.mjs,.json ./",
