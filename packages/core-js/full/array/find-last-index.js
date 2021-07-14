@@ -1,4 +1,3 @@
-require('../../modules/esnext.array.find-last-index');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/array/find-last-index');
 
-module.exports = entryUnbind('Array', 'findLastIndex');
+module.exports = parent;

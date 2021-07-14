@@ -1411,9 +1411,6 @@ export const data = {
     chrome: '92',
     firefox: '90',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.filter-out': {
-  },
   'esnext.array.filter-reject': {
   },
   'esnext.array.find-last': {
@@ -1626,9 +1623,6 @@ export const data = {
   'esnext.typed-array.at': {
     chrome: '92',
     firefox: '90',
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.filter-out': {
   },
   'esnext.typed-array.filter-reject': {
   },

@@ -770,7 +770,7 @@ const transpiledAndPolyfilled = {
 
 const node = {
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
   ...forbidES2021BuiltIns,
   'es/no-weakrefs': 'off',

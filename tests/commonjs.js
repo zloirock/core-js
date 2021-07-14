@@ -528,6 +528,10 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
     ok(load(NS, 'array/virtual/at').call([1, 2, 3], -2) === 2);
     ok(load(NS, 'string/at')('a', 0) === 'a');
     ok(load(NS, 'string/virtual/at').call('a', 0) === 'a');
+    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
+    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
 
     const instanceAt = load(NS, 'instance/at');
@@ -537,20 +541,32 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
     ok(typeof instanceAt('') === 'function');
     ok(instanceAt([]).call([1, 2, 3], 2) === 3);
     ok(instanceAt('').call('123', 2) === '3');
+
+    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
+    ok(typeof instanceFindLastIndex === 'function');
+    ok(instanceFindLastIndex({}) === undefined);
+    ok(typeof instanceFindLastIndex([]) === 'function');
+    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
+
+    const instanceFindLast = load(NS, 'instance/find-last');
+    ok(typeof instanceFindLast === 'function');
+    ok(instanceFindLast({}) === undefined);
+    ok(typeof instanceFindLast([]) === 'function');
+    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
   }
 
   const Map = load('full/map');
   const Set = load('full/set');
   const WeakMap = load('full/weak-map');
   const WeakSet = load('full/weak-set');
-  ok(typeof load('full/array/filter-out') === 'function');
+  ok(typeof load('full/array/filter-reject') === 'function');
   ok(load('full/array/find-last')([1, 2, 3], it => it % 2) === 3);
   ok(load('full/array/find-last-index')([1, 2, 3], it => it % 2) === 2);
   ok(typeof load('full/array/is-template-object') === 'function');
   load('full/array/last-item');
   load('full/array/last-index');
   ok(typeof load('full/array/unique-by') === 'function');
-  ok(typeof load('full/array/virtual/filter-out') === 'function');
+  ok(typeof load('full/array/virtual/filter-reject') === 'function');
   ok(load('full/array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
   ok(load('full/array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
   ok(typeof load('full/array/virtual/unique-by') === 'function');
@@ -667,23 +683,11 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   ok(typeof instanceCodePoints('') === 'function');
   ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
 
-  const instanceFilterOut = load('full/instance/filter-out');
+  const instanceFilterOut = load('full/instance/filter-reject');
   ok(typeof instanceFilterOut === 'function');
   ok(instanceFilterOut({}) === undefined);
   ok(typeof instanceFilterOut([]) === 'function');
   ok(instanceFilterOut([]).call([1, 2, 3], it => it % 2).length === 1);
-
-  const instanceFindLastIndex = load('full/instance/find-last-index');
-  ok(typeof instanceFindLastIndex === 'function');
-  ok(instanceFindLastIndex({}) === undefined);
-  ok(typeof instanceFindLastIndex([]) === 'function');
-  ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
-
-  const instanceFindLast = load('full/instance/find-last');
-  ok(typeof instanceFindLast === 'function');
-  ok(instanceFindLast({}) === undefined);
-  ok(typeof instanceFindLast([]) === 'function');
-  ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
 
   const instanceUniqueBy = load('full/instance/unique-by');
   ok(typeof instanceUniqueBy === 'function');
@@ -784,7 +788,7 @@ for (const NS of ['actual', 'full']) {
   load(NS, 'typed-array/at');
 }
 
-load('full/typed-array/filter-out');
+load('full/typed-array/filter-reject');
 load('full/typed-array/find-last');
 load('full/typed-array/find-last-index');
 load('full/typed-array/unique-by');
