@@ -71,6 +71,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('features/array/filter-reject') === 'function');
   ok(typeof load('features/array/flat') === 'function');
   ok(typeof load('features/array/flat-map') === 'function');
+  ok(typeof load('features/array/group-by') === 'function');
   ok(typeof load('features/array/some') === 'function');
   ok(typeof load('features/array/every') === 'function');
   ok(typeof load('features/array/reduce') === 'function');
@@ -106,6 +107,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(typeof load('features/array/virtual/filter-reject') === 'function');
   ok(typeof load('features/array/virtual/flat') === 'function');
   ok(typeof load('features/array/virtual/flat-map') === 'function');
+  ok(typeof load('features/array/virtual/group-by') === 'function');
   ok(typeof load('features/array/virtual/some') === 'function');
   ok(typeof load('features/array/virtual/every') === 'function');
   ok(typeof load('features/array/virtual/reduce') === 'function');
@@ -970,6 +972,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/accessible-object-hasownproperty');
   load('proposals/array-filtering');
   load('proposals/array-find-from-last');
+  load('proposals/array-grouping');
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
@@ -1181,6 +1184,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(instanceFilterReject({}) === undefined);
   ok(typeof instanceFilterReject([]) === 'function');
   ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
+
+  const instanceGroupBy = load('features/instance/group-by');
+  ok(typeof instanceGroupBy === 'function');
+  ok(instanceGroupBy({}) === undefined);
+  ok(typeof instanceGroupBy([]) === 'function');
+  ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
 
   let instanceFindIndex = load('features/instance/find-index');
   ok(typeof instanceFindIndex === 'function');
@@ -1710,6 +1719,7 @@ load('features/typed-array/fill');
 load('features/typed-array/filter');
 load('features/typed-array/filter-out');
 load('features/typed-array/filter-reject');
+load('features/typed-array/group-by');
 load('features/typed-array/find');
 load('features/typed-array/find-index');
 load('features/typed-array/find-last');
