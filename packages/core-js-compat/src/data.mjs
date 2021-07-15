@@ -1425,6 +1425,8 @@ export const data = {
   },
   'esnext.array.find-last-index': {
   },
+  'esnext.array.group-by': {
+  },
   'esnext.array.is-template-object': {
   },
   'esnext.array.last-index': {
@@ -1682,6 +1684,8 @@ export const data = {
   'esnext.typed-array.find-last': {
   },
   'esnext.typed-array.find-last-index': {
+  },
+  'esnext.typed-array.group-by': {
   },
   'esnext.typed-array.unique-by': {
   },

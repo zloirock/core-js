@@ -97,6 +97,8 @@ export default {
   ],
   3.16: [
     'esnext.array.filter-reject',
+    'esnext.array.group-by',
     'esnext.typed-array.filter-reject',
+    'esnext.typed-array.group-by',
   ],
 };
