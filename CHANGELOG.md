@@ -2,8 +2,8 @@
 ##### Unreleased
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 3, [July 2021 TC39 meeting](https://github.com/tc39/proposal-array-find-from-last/pull/47)
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
-  - `Array#filterReject` replaces `Array#filterOut`
-  - `%TypedArray%#filterReject` replaces `%TypedArray%#filterOut`
+  - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
+  - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed a minor bug related to string conversion in `RegExp#exec`
