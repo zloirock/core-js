@@ -11,7 +11,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
-var toPrimitive = require('../internals/to-primitive');
+var toPropertyKey = require('../internals/to-property-key');
 var has = require('../internals/has');
 var classof = require('../internals/classof');
 var isObject = require('../internals/is-object');
@@ -70,13 +70,13 @@ var isTypedArrayIndex = function (target, key) {
 };
 
 var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
-  return isTypedArrayIndex(target, key = toPrimitive(key, 'string'))
+  return isTypedArrayIndex(target, key = toPropertyKey(key))
     ? createPropertyDescriptor(2, target[key])
     : nativeGetOwnPropertyDescriptor(target, key);
 };
 
 var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
-  if (isTypedArrayIndex(target, key = toPrimitive(key, 'string'))
+  if (isTypedArrayIndex(target, key = toPropertyKey(key))
     && isObject(descriptor)
     && has(descriptor, 'value')
     && !has(descriptor, 'get')

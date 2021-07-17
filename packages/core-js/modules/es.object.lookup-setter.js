@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var FORCED = require('../internals/object-prototype-accessors-forced');
 var toObject = require('../internals/to-object');
-var toPrimitive = require('../internals/to-primitive');
+var toPropertyKey = require('../internals/to-property-key');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
@@ -13,7 +13,7 @@ if (DESCRIPTORS) {
   $({ target: 'Object', proto: true, forced: FORCED }, {
     __lookupSetter__: function __lookupSetter__(P) {
       var O = toObject(this);
-      var key = toPrimitive(P, 'string');
+      var key = toPropertyKey(P);
       var desc;
       do {
         if (desc = getOwnPropertyDescriptor(O, key)) return desc.set;

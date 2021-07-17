@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var anObject = require('../internals/an-object');
-var toPrimitive = require('../internals/to-primitive');
+var toPropertyKey = require('../internals/to-property-key');
 var definePropertyModule = require('../internals/object-define-property');
 var fails = require('../internals/fails');
 
@@ -16,7 +16,7 @@ var ERROR_INSTEAD_OF_FALSE = fails(function () {
 $({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE, sham: !DESCRIPTORS }, {
   defineProperty: function defineProperty(target, propertyKey, attributes) {
     anObject(target);
-    var key = toPrimitive(propertyKey, 'string');
+    var key = toPropertyKey(propertyKey);
     anObject(attributes);
     try {
       definePropertyModule.f(target, key, attributes);

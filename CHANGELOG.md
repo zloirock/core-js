@@ -7,7 +7,7 @@
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed a minor bug related to string conversion in `RegExp#exec`
-- Some minor optimizations
+- Some minor optimizations and refactoring
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
   - Allowed `deno` target in `core-js-compat` / `core-js-builder`

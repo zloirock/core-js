@@ -17,7 +17,7 @@ $({ target: 'Date', proto: true, forced: FORCED }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
   toJSON: function toJSON(key) {
     var O = toObject(this);
-    var pv = toPrimitive(O);
+    var pv = toPrimitive(O, 'number');
     return typeof pv == 'number' && !isFinite(pv) ? null :
       (!('toISOString' in O) && classof(O) == 'Date') ? toISOString.call(O) : O.toISOString();
   }
