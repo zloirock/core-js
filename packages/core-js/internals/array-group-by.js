@@ -1,5 +1,4 @@
 var bind = require('../internals/function-bind-context');
-var has = require('../internals/has');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
@@ -20,7 +19,9 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
   for (;length > index; index++) {
     value = self[index];
     key = toPropertyKey(boundFunction(value, index, O));
-    if (has(target, key)) push.call(target[key], value);
+    // in some IE10 builds, `hasOwnProperty` returns incorrect result on integer keys
+    // but since it's a `null` prototype object, we can safely use `in`
+    if (key in target) push.call(target[key], value);
     else target[key] = [value];
   }
   if (specificConstructor) {
