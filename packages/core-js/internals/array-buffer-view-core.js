@@ -69,7 +69,7 @@ var aTypedArray = function (it) {
 var aTypedArrayConstructor = function (C) {
   if (setPrototypeOf) {
     if (isPrototypeOf.call(TypedArray, C)) return C;
-  } else for (var ARRAY in TypedArrayConstructorsList) if (has(TypedArrayConstructorsList, NAME)) {
+  } else for (var ARRAY in TypedArrayConstructorsList) if (has(TypedArrayConstructorsList, ARRAY)) {
     var TypedArrayConstructor = global[ARRAY];
     if (TypedArrayConstructor && (C === TypedArrayConstructor || isPrototypeOf.call(TypedArrayConstructor, C))) {
       return C;
