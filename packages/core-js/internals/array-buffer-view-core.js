@@ -70,12 +70,9 @@ var aTypedArray = function (it) {
 var aTypedArrayConstructor = function (C) {
   if (setPrototypeOf) {
     if (isPrototypeOf.call(TypedArray, C)) return C;
-  } else for (var ARRAY in TypedArrayConstructorsList) if (has(TypedArrayConstructorsList, ARRAY)) {
-    var TypedArrayConstructor = global[ARRAY];
-    if (TypedArrayConstructor && (C === TypedArrayConstructor || isPrototypeOf.call(TypedArrayConstructor, C))) {
-      return C;
-    }
-  } throw TypeError('Target is not a typed array constructor');
+    throw TypeError('Target is not a typed array constructor');
+  // required for make typed arrays subclassing work in engines without `setPrototypeOf` / `__proto__`
+  } else return true;
 };
 
 var exportTypedArrayMethod = function (KEY, property, forced) {
