@@ -6,6 +6,7 @@
   - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
+- Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Some minor optimizations and refactoring
 - Deno:
