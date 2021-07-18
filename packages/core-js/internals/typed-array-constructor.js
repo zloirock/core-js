@@ -8,6 +8,7 @@ var ArrayBufferModule = require('../internals/array-buffer');
 var anInstance = require('../internals/an-instance');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var isInteger = require('../internals/is-integer');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
@@ -15,6 +16,7 @@ var toPropertyKey = require('../internals/to-property-key');
 var has = require('../internals/has');
 var classof = require('../internals/classof');
 var isObject = require('../internals/is-object');
+var isSymbol = require('../internals/is-symbol');
 var create = require('../internals/object-create');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
@@ -64,19 +66,22 @@ var isArrayBuffer = function (it) {
 
 var isTypedArrayIndex = function (target, key) {
   return isTypedArray(target)
-    && typeof key != 'symbol'
+    && !isSymbol(key)
     && key in target
-    && String(+key) == String(key);
+    && isInteger(+key)
+    && key >= 0;
 };
 
 var wrappedGetOwnPropertyDescriptor = function getOwnPropertyDescriptor(target, key) {
-  return isTypedArrayIndex(target, key = toPropertyKey(key))
+  key = toPropertyKey(key);
+  return isTypedArrayIndex(target, key)
     ? createPropertyDescriptor(2, target[key])
     : nativeGetOwnPropertyDescriptor(target, key);
 };
 
 var wrappedDefineProperty = function defineProperty(target, key, descriptor) {
-  if (isTypedArrayIndex(target, key = toPropertyKey(key))
+  key = toPropertyKey(key);
+  if (isTypedArrayIndex(target, key)
     && isObject(descriptor)
     && has(descriptor, 'value')
     && !has(descriptor, 'get')
