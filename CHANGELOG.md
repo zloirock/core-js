@@ -8,6 +8,7 @@
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
+- Fixed `Date.prototype.getYear` feature detection and compat data for IE8-
 - Some minor optimizations and refactoring
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)

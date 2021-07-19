@@ -455,7 +455,7 @@ GLOBAL.tests = {
   }],
   'es.data-view': ARRAY_BUFFER_SUPPORT,
   'es.date.get-year': function () {
-    return Date.prototype.getYear;
+    return new Date(16e11).getYear() === 120;
   },
   'es.date.now': function () {
     return Date.now;

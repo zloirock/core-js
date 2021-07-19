@@ -313,7 +313,7 @@ export const data = {
   'es.date.get-year': {
     chrome: '1',
     firefox: '1',
-    ie: '3',
+    ie: '9',
     opera: '3',
     safari: '1',
     rhino: '1.7.13',
