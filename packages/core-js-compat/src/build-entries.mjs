@@ -11,6 +11,8 @@ async function getModulesForEntryPoint(path, parent) {
 
   entry.pathname += await fs.pathExists(entry) ? '/index.js' : '.js';
 
+  if (!await fs.pathExists(entry)) return [];
+
   const file = await fs.readFile(entry);
   const result = await Promise.all(detective(file).map(dependency => {
     return getModulesForEntryPoint(dependency, entry);
