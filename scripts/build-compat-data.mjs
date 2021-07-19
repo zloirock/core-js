@@ -1,19 +1,22 @@
 import { data, modules } from 'core-js-compat/src/data.mjs';
 import external from 'core-js-compat/src/external.mjs';
-import mapping from 'core-js-compat/src/mapping.mjs';
+import mappings from 'core-js-compat/src/mapping.mjs';
 import helpers from 'core-js-compat/helpers.js';
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
     const { chrome, ie, safari } = module;
 
-    const map = function ($mapping, version, targetKey) {
+    const map = function (mappingKey, version, targetKey) {
       if (module[targetKey]) return;
+      const mapping = mappings[mappingKey];
+      if (typeof mapping == 'function') {
+        return module[targetKey] = String(mapping(version));
+      }
       const source = helpers.semver(version);
-      for (const [from, to] of $mapping) {
+      for (const [from, to] of mapping) {
         if (helpers.compare(source, '<=', from)) {
-          module[targetKey] = String(to);
-          return;
+          return module[targetKey] = String(to);
         }
       }
     };
@@ -23,34 +26,32 @@ for (const scope of [data, external]) {
     }
 
     if (chrome) {
-      if (!module.edge) {
-        module.edge = String(Math.max(chrome, 74));
-      }
-      if (!module.opera) {
-        module.opera = String(chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14);
-      }
-      if (!module.opera_mobile && module.opera && module.opera <= 42) {
-        module.opera_mobile = module.opera;
-      } else {
-        map(mapping.ChromeToOperaMobile, chrome, 'opera_mobile');
-      }
-      if (key.startsWith('es')) {
-        map(mapping.ChromeToNode, chrome, 'node');
-      }
-      map(mapping.ChromeToSamsung, chrome, 'samsung');
-      map(mapping.ChromeToAndroid, chrome, 'android');
+      map('ChromeToAndroid', chrome, 'android');
       if (!module.android) {
         module.android = String(Math.max(chrome, 37));
       }
-      map(mapping.ChromeToDeno, chrome, 'deno');
-      if (/^(?:es|esnext|web)\./.test(key)) {
-        map(mapping.ChromeToElectron, chrome, 'electron');
+      map('ChromeToDeno', chrome, 'deno');
+      if (!module.edge) {
+        module.edge = String(Math.max(chrome, 74));
       }
+      if (/^(?:es|esnext|web)\./.test(key)) {
+        map('ChromeToElectron', chrome, 'electron');
+      }
+      if (key.startsWith('es')) {
+        map('ChromeToNode', chrome, 'node');
+      }
+      map('ChromeToOpera', chrome, 'opera');
+      if (!module.opera_mobile && module.opera && module.opera <= 42) {
+        module.opera_mobile = module.opera;
+      } else {
+        map('ChromeToOperaMobile', chrome, 'opera_mobile');
+      }
+      map('ChromeToSamsung', chrome, 'samsung');
     }
 
     if (safari) {
-      map(mapping.SafariToIOS, safari, 'ios');
-      map(mapping.SafariToPhantomJS, safari, 'phantom');
+      map('SafariToIOS', safari, 'ios');
+      map('SafariToPhantomJS', safari, 'phantom');
     }
 
     scope[key] = helpers.sortObjectByKey(module);

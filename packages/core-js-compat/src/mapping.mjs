@@ -91,6 +91,10 @@ export default {
     [87, '14.0'],
     [90, '15.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  ChromeToOpera(chrome) {
+    return chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14;
+  },
   // https://github.com/mdn/browser-compat-data/blob/master/browsers/opera_android.json
   ChromeToOperaMobile: [
     [59, 43],
