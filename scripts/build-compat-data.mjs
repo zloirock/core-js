@@ -7,7 +7,7 @@ for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
     const { chrome, ie, safari } = module;
 
-    const map = function (mappingKey, version, targetKey) {
+    function map(mappingKey, version, targetKey) {
       if (module[targetKey]) return;
       const mapping = mappings[mappingKey];
       if (typeof mapping == 'function') {
@@ -19,7 +19,7 @@ for (const scope of [data, external]) {
           return module[targetKey] = String(to);
         }
       }
-    };
+    }
 
     if (!module.edge && ie && key !== 'web.immediate') {
       module.edge = '12';
