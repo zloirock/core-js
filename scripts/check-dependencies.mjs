@@ -1,16 +1,14 @@
 /* eslint-disable no-console -- output */
-import { join } from 'path';
 import { promisify } from 'util';
 import david from 'david';
 import semver from 'semver';
 
-const { cyan, green } = chalk;
-const { readdir, readFile } = fs;
 const { eq, coerce, minVersion } = semver;
 const getDependencies = promisify(david.getDependencies);
 
 async function checkDependencies(path, title) {
-  const pkg = JSON.parse(await readFile(join('.', path, 'package.json')));
+  if (!await fs.pathExists(`./${ path }/package.json`)) return;
+  const pkg = JSON.parse(await fs.readFile(`./${ path }/package.json`));
   const dependencies = await getDependencies(pkg);
   const devDependencies = await getDependencies(pkg, { dev: true });
   Object.assign(dependencies, devDependencies);
@@ -21,11 +19,11 @@ async function checkDependencies(path, title) {
     }
   }
   if (Object.keys(dependencies).length) {
-    console.log(cyan(`${ title || pkg.name }:`));
+    console.log(chalk.cyan(`${ title || pkg.name }:`));
     console.table(dependencies);
   }
 }
 
 await checkDependencies('', 'root');
-await Promise.all((await readdir('./packages')).map(path => checkDependencies(join('packages', path))));
-console.log(green('dependencies checked'));
+await Promise.all((await fs.readdir('./packages')).map(path => checkDependencies(`packages/${ path }`)));
+console.log(chalk.green('dependencies checked'));

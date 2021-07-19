@@ -58,13 +58,13 @@ for (const scope of [data, external]) {
 }
 
 function write(filename, content) {
-  return fs.writeJson(new URL(filename, import.meta.url), content, { spaces: '  ' });
+  return fs.writeJson(`./packages/core-js-compat/${ filename }.json`, content, { spaces: '  ' });
 }
 
 await Promise.all([
-  write('../data.json', data),
-  write('../modules.json', modules),
-  write('../external.json', external),
+  write('data', data),
+  write('modules', modules),
+  write('external', external),
 ]);
 
 // eslint-disable-next-line no-console -- output

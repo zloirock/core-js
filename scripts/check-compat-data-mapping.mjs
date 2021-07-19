@@ -2,9 +2,7 @@
 import semver from 'semver';
 import mapping from 'core-js-compat/src/mapping.mjs';
 
-const { cyan, green, red } = chalk;
 const { coerce, cmp } = semver;
-
 let updated = true;
 
 async function getJSON(path) {
@@ -34,7 +32,7 @@ function latest(array) {
 function assert(condition, engine) {
   if (!condition) {
     updated = false;
-    console.log(red(`${ cyan(engine) } mapping should be updated`));
+    console.log(chalk.red(`${ chalk.cyan(engine) } mapping should be updated`));
   }
 }
 
@@ -57,4 +55,4 @@ assert(opera.engine - opera.version === 14, 'Opera');
 const ios = await latestMDN('safari_ios');
 assert(cmp(coerce(ios.version), '<=', coerce(latest(mapping.SafariToIOS)[1])), 'iOS Safari');
 
-if (updated) console.log(green('updates of compat data mapping not required'));
+if (updated) console.log(chalk.green('updates of compat data mapping not required'));
