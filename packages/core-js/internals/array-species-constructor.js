@@ -1,8 +1,9 @@
 var isObject = require('../internals/is-object');
-var isArray = require('../internals/is-array');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var SPECIES = wellKnownSymbol('species');
+// eslint-disable-next-line es/no-array-isarray -- safe
+var isArray = Array.isArray;
 
 // a part of `ArraySpeciesCreate` abstract operation
 // https://tc39.es/ecma262/#sec-arrayspeciescreate
