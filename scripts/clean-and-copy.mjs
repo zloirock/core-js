@@ -23,7 +23,9 @@ console.log(chalk.green('old copies removed'));
 await copy('./LICENSE', './deno/corejs/LICENSE', options(true));
 
 for (const pkg of await readdir('./packages')) {
-  await copy('./LICENSE', `./packages/${ pkg }/LICENSE`, options(true));
+  if (await pathExists(`./packages/${ pkg }/package.json`)) {
+    await copy('./LICENSE', `./packages/${ pkg }/LICENSE`, options(true));
+  }
 }
 
 await copy('./packages/core-js', './packages/core-js-pure', options(false));
