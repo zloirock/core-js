@@ -379,6 +379,7 @@ For some cases could be useful to exclude some `core-js` features or generate a 
 - iOS Safari 5.1+
 - PhantomJS 1.9+
 - NodeJS 0.8+
+- Deno 1.0+
 
 ...and it doesn't mean `core-js` will not work in other engines, they just have not been tested.
 

@@ -41,7 +41,64 @@ console.log(targets);
 */
 ```
 
-Additional API:
+### `targets` option
+`targets` could be [a `browserslist` query](https://github.com/browserslist/browserslist) or a targets object.
+
+Supported target engines:
+- `android`
+- `chrome`
+- `deno`
+- `edge`
+- `electron`
+- `firefox`
+- `ie`
+- `ios`
+- `node`
+- `opera`
+- `opera_mobile`
+- `phantom`
+- `rhino`
+- `safari`
+- `samsung`
+
+Targets object format:
+```js
+{
+  // all browsers supporting ES Modules
+  esmodules: bool,
+  // a version or 'current' if you want to compile against the current node version
+  node,
+  // object with target browsers
+  browsers: object,
+  // or browsers could be specified at the top level
+  ...browsers: object,
+}
+```
+
+Some examples:
+```js
+// browserslist query:
+'defaults, not IE 11, maintained node versions'
+// all engines at the top level:
+{
+  ie: 11,
+  chrome: 38,
+  firefox: 42,
+  safari: 12,
+  node: 12,
+}
+// browsers specified at the separate section
+{
+  esmodules: true,
+  node: 'current',
+  browsers: {
+    ie: 11,
+    safari: '5.1',
+  },
+}
+```
+
+### Additional API:
 
 ```js
 // equals of of the method from the example above
