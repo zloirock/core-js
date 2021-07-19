@@ -67,10 +67,10 @@ Targets object format:
   // all browsers supporting ES Modules
   esmodules: bool,
   // a version or 'current' if you want to compile against the current node version
-  node,
-  // object with target browsers
-  browsers: object,
-  // or browsers could be specified at the top level
+  node: version | 'current',
+  // object with target browsers or `browserslist` query
+  browsers: object | string,
+  // or browsers could be specified at the top level of this object
   ...browsers: object,
 }
 ```
