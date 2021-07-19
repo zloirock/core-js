@@ -1,7 +1,7 @@
-import { data, modules } from './data.mjs';
-import external from './external.mjs';
-import mapping from './mapping.mjs';
-import helpers from '../helpers.js';
+import { data, modules } from 'core-js-compat/src/data.mjs';
+import external from 'core-js-compat/src/external.mjs';
+import mapping from 'core-js-compat/src/mapping.mjs';
+import helpers from 'core-js-compat/helpers.js';
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {

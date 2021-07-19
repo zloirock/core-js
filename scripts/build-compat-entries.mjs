@@ -1,7 +1,7 @@
 import detective from 'detective';
 import globby from 'globby';
-import { modules } from './data.mjs';
-import helpers from '../helpers.js';
+import { modules } from 'core-js-compat/src/data.mjs';
+import helpers from 'core-js-compat/helpers.js';
 
 async function getModulesForEntryPoint(path, parent) {
   const entry = new URL(path, parent);
@@ -34,8 +34,8 @@ const entriesList = await globby([
 
 const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(entriesList.map(async file => {
   // TODO: store entries without the package name in `core-js@4`
-  const entry = file.slice(9).replace(/\.js$/, '').replace(/\/index$/, '');
-  return [entry, await getModulesForEntryPoint(`../../${ entry }`, import.meta.url)];
+  const entry = file.replace(/\.js$/, '').replace(/\/index$/, '');
+  return [entry.slice(9), await getModulesForEntryPoint(`../${ entry }`, import.meta.url)];
 }))));
 
 await fs.writeJson('./packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
