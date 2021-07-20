@@ -60,6 +60,8 @@ function write(filename, content) {
   return fs.writeJson(`./packages/core-js-compat/data/${ filename }.json`, content, { spaces: '  ' });
 }
 
+await fs.mkdir('./packages/core-js-compat/data', { recursive: true });
+
 await Promise.all([
   write('data', data),
   write('modules', modules),
