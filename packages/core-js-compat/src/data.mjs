@@ -1551,24 +1551,6 @@ export const data = {
   },
   'esnext.observable.of': {
   },
-  'esnext.reflect.define-metadata': {
-  },
-  'esnext.reflect.delete-metadata': {
-  },
-  'esnext.reflect.get-metadata': {
-  },
-  'esnext.reflect.get-metadata-keys': {
-  },
-  'esnext.reflect.get-own-metadata': {
-  },
-  'esnext.reflect.get-own-metadata-keys': {
-  },
-  'esnext.reflect.has-metadata': {
-  },
-  'esnext.reflect.has-own-metadata': {
-  },
-  'esnext.reflect.metadata': {
-  },
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {

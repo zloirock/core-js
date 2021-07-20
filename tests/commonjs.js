@@ -634,15 +634,6 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   ok(typeof load('full/observable/constructor') === 'function');
   ok(typeof load('full/observable/from') === 'function');
   ok(typeof load('full/observable/of') === 'function');
-  ok(typeof load('full/reflect/define-metadata') === 'function');
-  ok(typeof load('full/reflect/delete-metadata') === 'function');
-  ok(typeof load('full/reflect/get-metadata') === 'function');
-  ok(typeof load('full/reflect/get-metadata-keys') === 'function');
-  ok(typeof load('full/reflect/get-own-metadata') === 'function');
-  ok(typeof load('full/reflect/get-own-metadata-keys') === 'function');
-  ok(typeof load('full/reflect/has-metadata') === 'function');
-  ok(typeof load('full/reflect/has-own-metadata') === 'function');
-  ok(typeof load('full/reflect/metadata') === 'function');
   ok(load('full/set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
   ok(load('full/set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
   ok(load('full/set/difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 2);
@@ -713,7 +704,6 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   load('proposals/number-range');
   load('proposals/observable');
   load('proposals/pattern-matching');
-  load('proposals/reflect-metadata');
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');
   load('proposals/string-code-points');
@@ -725,7 +715,6 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   ok(load('stage/2'));
   ok(load('stage/1'));
   ok(load('stage/0'));
-  ok(load('stage/pre'));
   ok(load('stage'));
 
   for (const key in compat) load('modules', key);

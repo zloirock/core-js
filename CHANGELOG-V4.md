@@ -15,6 +15,7 @@
   - Dead:
     - [`Promise.try`](https://github.com/tc39/proposal-promise-try)
   - [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random) because of changing of the API, waiting for the spec text
+  - [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata) didn't become an official proposal, should be replaced by `@@metadata`-based logic
 - Removed modules:
   - `es.array.is-array` (required for ES3 only)
   - `es.date.now` (required for ES3 only)
@@ -38,6 +39,15 @@
   - `esnext.promise.all-settled` (moved to stable ES)
   - `esnext.promise.any` (moved to stable ES)
   - `esnext.promise.try` (proposal is dead)
+  - `esnext.reflect.define-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.delete-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.get-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.get-metadata-keys` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.get-own-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.get-own-metadata-keys` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.has-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.has-own-metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `esnext.reflect.metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
   - `esnext.string.at-alternative` (replaces `esnext.string.at` from the obsolete proposal)
   - `esnext.string.match-all` (moved to stable ES)
   - `esnext.string.replace-all` (moved to stable ES)
@@ -56,7 +66,16 @@
   - `Object.iterateKeys` (withdrawn)
   - `Object.iterateValues` (withdrawn)
   - `Promise.try` (proposal is dead)
-  - `Symbol.patternMatch` (is not a part of actual proposal, replaced by `Symbol.matcher`)
+  - `Reflect.defineMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.getMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.getOwnMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.hasMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.hasOwnMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.deleteMetadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.getMetadataKeys` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.getOwnMetadataKeys` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Reflect.metadata` (didn't become an official proposal, should be replaced by `@@metadata`-based logic)
+  - `Symbol.patternMatch` (is not a part of actual proposal, should be replaced by `Symbol.matcher`)
   - `Symbol.replaceAll` (obsolete)
   - `WeakMap#upsert` (obsolete)
 - Dropped non-standard `Symbol.{ useSetter, useSimple }` methods control of `Symbol` polyfill
