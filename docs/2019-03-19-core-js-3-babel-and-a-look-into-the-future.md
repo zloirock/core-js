@@ -19,8 +19,6 @@ It's the most universal and [the most popular](https://www.npmtrends.com/core-js
 
 If you interested in the `core-js` project or use it in your day-to-day work, you can become a sponsor on **[Open Collective](https://opencollective.com/core-js#sponsor)** or **[Patreon](https://www.patreon.com/zloirock)**.
 
-You can propose [me](http://zloirock.ru/) a good job where I will be able to work on something related.
-
 Or you can contribute in another way: you can help improving code, tests or documentation (currently, `core-js` documentation is terrible!).
 
 ## What changed in `core-js@3`?
