@@ -5,10 +5,13 @@ import helpers from 'core-js-compat/helpers.js';
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
-    const { chrome, ie, safari } = module;
+    const { chrome, ie } = module;
 
-    function map(mappingKey, version, targetKey) {
-      if (module[targetKey]) return;
+    function map(mappingKey) {
+      const [engine, targetKey] = mappingKey.split('To')
+        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }_${ b }`).toLowerCase());
+      const version = module[engine];
+      if (!version || module[targetKey]) return;
       const mapping = mappings[mappingKey];
       if (typeof mapping == 'function') {
         return module[targetKey] = String(mapping(version));
@@ -21,38 +24,33 @@ for (const scope of [data, external]) {
       }
     }
 
-    if (!module.edge && ie && key !== 'web.immediate') {
-      module.edge = '12';
+    map('ChromeToAndroid');
+    if (!module.android && chrome) {
+      module.android = String(Math.max(chrome, 37));
     }
-
-    if (chrome) {
-      map('ChromeToAndroid', chrome, 'android');
-      if (!module.android) {
-        module.android = String(Math.max(chrome, 37));
-      }
-      map('ChromeToDeno', chrome, 'deno');
-      if (!module.edge) {
+    map('ChromeToDeno');
+    if (/^(?:es|esnext|web)\./.test(key)) {
+      map('ChromeToElectron');
+    }
+    if (!module.edge) {
+      if (ie && key !== 'web.immediate') {
+        module.edge = '12';
+      } else if (chrome) {
         module.edge = String(Math.max(chrome, 74));
       }
-      if (/^(?:es|esnext|web)\./.test(key)) {
-        map('ChromeToElectron', chrome, 'electron');
-      }
-      if (key.startsWith('es')) {
-        map('ChromeToNode', chrome, 'node');
-      }
-      map('ChromeToOpera', chrome, 'opera');
-      if (!module.opera_mobile && module.opera && module.opera <= 42) {
-        module.opera_mobile = module.opera;
-      } else {
-        map('ChromeToOperaMobile', chrome, 'opera_mobile');
-      }
-      map('ChromeToSamsung', chrome, 'samsung');
     }
-
-    if (safari) {
-      map('SafariToIOS', safari, 'ios');
-      map('SafariToPhantomJS', safari, 'phantom');
+    if (key.startsWith('es')) {
+      map('ChromeToNode');
     }
+    map('ChromeToOpera');
+    if (!module.opera_mobile && module.opera <= 42) {
+      module.opera_mobile = module.opera;
+    } else {
+      map('ChromeToOperaMobile');
+    }
+    map('ChromeToSamsung');
+    map('SafariToIOS');
+    map('SafariToPhantom');
 
     scope[key] = helpers.sortObjectByKey(module);
   }

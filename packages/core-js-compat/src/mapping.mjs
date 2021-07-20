@@ -152,7 +152,7 @@ export default {
     ['14.1', '14.5'],
     ['15.0', '15.0'],
   ],
-  SafariToPhantomJS: [
+  SafariToPhantom: [
     ['4.1', '1.9'],
     ['6.0', '2.0'],
   ],
