@@ -122,8 +122,6 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`Math.signbit`](#mathsignbit)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
-    - [Stage 0 proposals](#stage-0-proposals)
-      - [`URL`](#url)
   - [Web standards](#web-standards)
     - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
     - [`setImmediate`](#setimmediate)
@@ -2359,14 +2357,6 @@ class Symbol {
 core-js/proposals/pattern-matching
 core-js(-pure)/full/symbol/matcher
 ```
-
-#### Stage 0 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/0
-```
-##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
-See more info [in web standards namespace](#url-and-urlsearchparams)
 
 ### Web standards[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

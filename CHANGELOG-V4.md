@@ -14,6 +14,7 @@
     - [`String.prototype.at` with code points semantic](https://github.com/mathiasbynens/String.prototype.at)
   - Dead:
     - [`Promise.try`](https://github.com/tc39/proposal-promise-try)
+    - [`URL` as a ES proposal](https://github.com/jasnell/proposal-url) - it's left in web standards polyfills
   - [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random) because of changing of the API, waiting for the spec text
   - [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata) didn't become an official proposal, should be replaced by `@@metadata`-based logic
 - Removed modules:

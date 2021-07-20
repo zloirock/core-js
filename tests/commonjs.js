@@ -707,14 +707,12 @@ for (PATH of ['core-js-pure/commonjs', 'core-js/commonjs']) {
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');
   load('proposals/string-code-points');
-  load('proposals/url');
   load('proposals/using-statement');
   load('proposals');
   ok(load('stage/4'));
   ok(load('stage/3'));
   ok(load('stage/2'));
   ok(load('stage/1'));
-  ok(load('stage/0'));
   ok(load('stage'));
 
   for (const key in compat) load('modules', key);
