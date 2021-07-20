@@ -4,8 +4,7 @@
   "version": "3.15.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zloirock/core-js.git",
-    "directory": "packages/core-js"
+    "url": "https://github.com/zloirock/core-js.git"
   },
   "main": "index.js",
   "funding": {
