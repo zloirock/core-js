@@ -21,9 +21,11 @@ var CI = [
 ].some(function (it) { return is(env[it]); });
 
 var BANNER = '\u001B[96mThank you for using core-js (\u001B[94m https://github.com/zloirock/core-js \u001B[96m) for polyfilling JavaScript standard library!\u001B[0m\n\n' +
-             '\u001B[96mThe project needs your help! Please consider supporting of core-js on Open Collective or Patreon: \u001B[0m\n' +
+             '\u001B[96mThe project needs your help! Please consider supporting of core-js:\u001B[0m\n' +
              '\u001B[96m>\u001B[94m https://opencollective.com/core-js \u001B[0m\n' +
-             '\u001B[96m>\u001B[94m https://www.patreon.com/zloirock \u001B[0m\n\n' +
+             '\u001B[96m>\u001B[94m https://patreon.com/zloirock \u001B[0m\n' +
+             '\u001B[96m>\u001B[94m https://paypal.me/zloirock \u001B[0m\n' +
+             '\u001B[96m>\u001B[94m bitcoin: bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz \u001B[0m\n\n' +
              '\u001B[96mAlso, the author of core-js (\u001B[94m https://github.com/zloirock \u001B[96m) is looking for a good job -)\u001B[0m\n';
 
 function is(it) {
