@@ -487,6 +487,6 @@ StandardLibraryRegistry.set(moduleName, value);
 
 ---
 
-[这里](https://github.com/zloirock/core-js/issues/496) 可以评论这篇文章。
+[这里](https://github.com/zloirock/core-js/discussions/963) 可以评论这篇文章。
 
 [Denis Pushkarev](https://github.com/zloirock)，2019年3月19日，感谢 [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) 编辑。

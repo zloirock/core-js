@@ -462,6 +462,6 @@ If you are interested in the `core-js` project or use it in your day-to-day work
 
 ---
 
-**Feel free to add comments to this article [here](https://github.com/zloirock/core-js/issues/496).**
+**Feel free to add comments to this article [here](https://github.com/zloirock/core-js/discussions/963).**
 
 **[Denis Pushkarev](https://github.com/zloirock)**, **19-03-2019**, *thanks [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) for redaction*
