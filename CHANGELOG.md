@@ -4,6 +4,9 @@
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
   - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
   - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
+- Added [`Array` grouping stage 1 proposal](https://github.com/tc39/proposal-array-grouping):
+  - `Array.prototype.groupBy`
+  - `%TypedArray%.prototype.groupBy`
 - Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed some cases of typed arrays subclassing logic
