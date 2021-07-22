@@ -1,5 +1,5 @@
 import detective from 'detective';
-import globby from 'globby';
+import { globby } from 'globby';
 import { modules } from 'core-js-compat/src/data.mjs';
 import helpers from 'core-js-compat/helpers.js';
 
