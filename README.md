@@ -188,8 +188,8 @@ import "core-js/features/set/intersection";
 import "core-js/stable/queue-microtask";
 import "core-js/es/array/from";
 
-// polyfill reflect metadata proposal:
-import "core-js/proposals/reflect-metadata";
+// polyfill iterator helpers proposal:
+import "core-js/proposals/iterator-helpers";
 // polyfill all stage 2+ proposals:
 import "core-js/stage/2";
 ```
