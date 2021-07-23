@@ -1574,6 +1574,7 @@ export const data = {
   },
   'esnext.object.has-own': {
     chrome: '93',
+    firefox: '92',
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-entries': {

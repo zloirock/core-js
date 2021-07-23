@@ -19,7 +19,7 @@
   - iOS Safari up to 15.0
   - Samsung Internet up to 15.0
   - Opera Android up to 64
-  - `Object.hasOwn` marked as supported from V8 9.3
+  - `Object.hasOwn` marked as supported from [V8 9.3](https://chromestatus.com/feature/5662263404920832) and [FF92](https://bugzilla.mozilla.org/show_bug.cgi?id=1721149)
 - Added `summary` option to `core-js-builder`, see more info in the [`README`](https://github.com/zloirock/core-js/blob/master/packages/core-js-builder/README.md), [#910](https://github.com/zloirock/core-js/issues/910)
 
 ##### 3.15.2 - 2021.06.29
