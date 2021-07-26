@@ -844,3 +844,11 @@ QUnit.test('URLSearchParams#@@toStringTag', assert => {
   const params = new URLSearchParams('a=b');
   assert.same(({}).toString.call(params), '[object URLSearchParams]');
 });
+
+if (typeof Request === 'function') {
+  QUnit.test('URLSearchParams with Request', assert => {
+    new Request('#', { body: new URLSearchParams({ foo: 'baz' }), method: 'POST' }).text().then(text => {
+      assert.same(text, 'foo=baz');
+    }).then(assert.async());
+  });
+}
