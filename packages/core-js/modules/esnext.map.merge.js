@@ -12,8 +12,9 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   merge: function merge(iterable /* ...iterbles */) {
     var map = anObject(this);
     var setter = aFunction(map.set);
+    var argumentsLength = arguments.length;
     var i = 0;
-    while (i < arguments.length) {
+    while (i < argumentsLength) {
       iterate(arguments[i++], setter, { that: map, AS_ENTRIES: true });
     }
     return map;
