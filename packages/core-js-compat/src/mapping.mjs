@@ -58,7 +58,7 @@ export default {
     [90, '16.0'],
     [91, '16.4'],
   ],
-  // https://github.com/mdn/browser-compat-data/blob/master/browsers/deno.json
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/deno.json
   ChromeToDeno: [
     [84, '1.0'],
     [85, '1.2'],
@@ -71,7 +71,7 @@ export default {
     [92, '1.12'],
     [93, '1.13'],
   ],
-  // https://github.com/mdn/browser-compat-data/blob/master/browsers/samsunginternet_android.json
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   ChromeToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
@@ -95,7 +95,7 @@ export default {
   ChromeToOpera(chrome) {
     return chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14;
   },
-  // https://github.com/mdn/browser-compat-data/blob/master/browsers/opera_android.json
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   ChromeToOperaMobile: [
     [59, 43],
     [60, 44],
@@ -127,7 +127,7 @@ export default {
     [33, '4.4.3'],
   ],
   ChromeToElectron: Object.entries(ChromeToElectronModule),
-  // https://github.com/mdn/browser-compat-data/blob/master/browsers/safari_ios.json
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   SafariToIOS: [
     ['3.0', '1.0'],
     ['3.1', '2.0'],
