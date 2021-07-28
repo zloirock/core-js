@@ -1,6 +1,7 @@
 import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
+import freeze from 'core-js-pure/features/object/freeze';
 import getOwnPropertyNames from 'core-js-pure/features/object/get-own-property-names';
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
@@ -24,6 +25,7 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.ok(includes(getOwnPropertyNames(Array.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'constructor'));
+  assert.deepEqual(getOwnPropertyNames(freeze({})), [], 'frozen');
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
     assert.notThrows(() => getOwnPropertyNames(value), `accept ${ typeof value }`);

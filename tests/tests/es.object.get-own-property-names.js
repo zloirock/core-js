@@ -2,7 +2,7 @@ import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
-  const { getOwnPropertyNames } = Object;
+  const { freeze, getOwnPropertyNames } = Object;
   assert.isFunction(getOwnPropertyNames);
   assert.arity(getOwnPropertyNames, 1);
   assert.name(getOwnPropertyNames, 'getOwnPropertyNames');
@@ -26,6 +26,7 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.ok(includes(getOwnPropertyNames(Array.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'toString'));
   assert.ok(includes(getOwnPropertyNames(Object.prototype), 'constructor'));
+  assert.deepEqual(getOwnPropertyNames(freeze({})), [], 'frozen');
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
     assert.notThrows(() => getOwnPropertyNames(value), `accept ${ typeof value }`);

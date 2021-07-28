@@ -30,7 +30,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   ) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
-    InternalMetadataModule.REQUIRED = true;
+    InternalMetadataModule.enable();
   } else {
     Constructor = wrapper(function (target, iterable) {
       setInternalState(anInstance(target, Constructor, CONSTRUCTOR_NAME), {
