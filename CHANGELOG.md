@@ -8,6 +8,7 @@
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed work of `Request` with polyfilled `URLSearchParams`, [#965](https://github.com/zloirock/core-js/issues/965)
 - Fixed possible exposing of collections elements metadata in some cases, [#427](https://github.com/zloirock/core-js/issues/427)
+- Fixed crashing of `Object.create(null)` on WSH, [#966](https://github.com/zloirock/core-js/issues/966)
 - Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Fixed `Date.prototype.getYear` feature detection and compat data for IE8-
