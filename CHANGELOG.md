@@ -4,7 +4,7 @@
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
   - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
   - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
-- Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
+- Work with symbols made stricter: some missed before cases of methods that should throw an error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed work of `Request` with polyfilled `URLSearchParams`, [#965](https://github.com/zloirock/core-js/issues/965)
 - Fixed possible exposing of collections elements metadata in some cases, [#427](https://github.com/zloirock/core-js/issues/427)
