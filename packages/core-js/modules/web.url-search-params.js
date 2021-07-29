@@ -322,7 +322,7 @@ $({ global: true, forced: !USE_NATIVE_URL }, {
 // Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`
 if (!USE_NATIVE_URL && typeof Headers == 'function') {
   var wrapRequestOptions = function (init) {
-    if (!isObject(init)) {
+    if (isObject(init)) {
       var body = init.body;
       var headers;
       if (classof(body) === URL_SEARCH_PARAMS) {
