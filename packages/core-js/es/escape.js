@@ -1,4 +1,4 @@
 require('../modules/es.escape');
-var global = require('../internals/global');
+var path = require('../internals/path');
 
-module.exports = global.escape;
+module.exports = path.escape;

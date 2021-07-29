@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.of');
+var parent = require('../../stable/typed-array/of');
+
+module.exports = parent;

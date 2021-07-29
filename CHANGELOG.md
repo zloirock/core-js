@@ -15,6 +15,7 @@
 - Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
 - Fixed `Date.prototype.getYear` feature detection
+- Fixed content of some entry points
 - Some minor optimizations and refactoring
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)

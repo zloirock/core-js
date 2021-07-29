@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.find');
+var parent = require('../../es/typed-array/find');
+
+module.exports = parent;

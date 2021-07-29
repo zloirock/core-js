@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.reduce-right');
+var parent = require('../../es/typed-array/reduce-right');
+
+module.exports = parent;

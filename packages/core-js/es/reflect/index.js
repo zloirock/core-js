@@ -1,3 +1,4 @@
+require('../../modules/es.object.to-string');
 require('../../modules/es.reflect.apply');
 require('../../modules/es.reflect.construct');
 require('../../modules/es.reflect.define-property');

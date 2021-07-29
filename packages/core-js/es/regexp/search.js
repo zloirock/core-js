@@ -1,3 +1,4 @@
+require('../../modules/es.regexp.exec');
 require('../../modules/es.string.search');
 var wellKnownSymbol = require('../../internals/well-known-symbol');
 

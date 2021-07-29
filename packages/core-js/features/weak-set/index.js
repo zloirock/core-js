@@ -1,4 +1,5 @@
 var parent = require('../../es/weak-set');
+require('../../modules/es.string.iterator');
 require('../../modules/esnext.weak-set.add-all');
 require('../../modules/esnext.weak-set.delete-all');
 require('../../modules/esnext.weak-set.from');
