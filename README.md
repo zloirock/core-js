@@ -112,6 +112,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
+      - [`Array` grouping](#array-grouping)
       - [`Array` deduplication](#array-deduplication)
       - [Getting last item from `Array`](#getting-last-item-from-array)
       - [`Number.range`](#numberrange)
@@ -2291,6 +2292,27 @@ core-js/features/typed-array/filter-reject
 [*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterReject(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
+````
+##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js) and [`esnext.typed-array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.group-by.js).
+```js
+class Array {
+  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+}
+
+class %TypedArray% {
+  groupBy(callbackfn: (value: number, index: number, target: %TypedArray%) => key, thisArg?: any): { [key]: %TypedArray% };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping
+core-js(-pure)/features/array(/virtual)/group-by
+core-js/features/typed-array/group-by
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.groupBy(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%7B%201%3A%20%5B1%2C%203%2C%205%5D%2C%200%3A%20%5B2%2C%204%5D%20%7D):
+```js
+[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 ````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)

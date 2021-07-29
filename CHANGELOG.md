@@ -4,6 +4,9 @@
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
   - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
   - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
+- Added [`Array` grouping stage 1 proposal](https://github.com/tc39/proposal-array-grouping):
+  - `Array.prototype.groupBy`
+  - `%TypedArray%.prototype.groupBy`
 - Work with symbols made stricter: some missed before cases of methods that should throw an error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed work of `Request` with polyfilled `URLSearchParams`, [#965](https://github.com/zloirock/core-js/issues/965)

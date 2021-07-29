@@ -6,6 +6,7 @@ require('../../../modules/esnext.array.filter-out');
 require('../../../modules/esnext.array.filter-reject');
 require('../../../modules/esnext.array.find-last');
 require('../../../modules/esnext.array.find-last-index');
+require('../../../modules/esnext.array.group-by');
 require('../../../modules/esnext.array.unique-by');
 
 module.exports = parent;
