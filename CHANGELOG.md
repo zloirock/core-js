@@ -11,7 +11,7 @@
 - Fixed crashing of `Object.create(null)` on WSH, [#966](https://github.com/zloirock/core-js/issues/966)
 - Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
-- Fixed `Date.prototype.getYear` feature detection and compat data for IE8-
+- Fixed `Date.prototype.getYear` feature detection
 - Some minor optimizations and refactoring
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
@@ -23,6 +23,7 @@
   - Samsung Internet up to 15.0
   - Opera Android up to 64
   - `Object.hasOwn` marked as supported from [V8 9.3](https://chromestatus.com/feature/5662263404920832) and [FF92](https://bugzilla.mozilla.org/show_bug.cgi?id=1721149)
+  - `Date.prototype.getYear` marked as not supported in IE8-
 - Added `summary` option to `core-js-builder`, see more info in the [`README`](https://github.com/zloirock/core-js/blob/master/packages/core-js-builder/README.md), [#910](https://github.com/zloirock/core-js/issues/910)
 
 ##### 3.15.2 - 2021.06.29
