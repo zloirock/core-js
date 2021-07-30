@@ -1,7 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-'use strict';
 const { ok } = require('assert');
-const { cyan, green } = require('chalk');
 const compat = require('core-js-compat/data');
 let tested = 0;
 let PATH;
@@ -1797,4 +1795,4 @@ load('es/typed-array/values');
 ok(typeof load('es/typed-array').Uint32Array === 'function');
 
 // eslint-disable-next-line no-console -- output
-console.log(green(`tested ${ cyan(tested) } commonjs entry points`));
+console.log(chalk.green(`tested ${ chalk.cyan(tested) } commonjs entry points`));

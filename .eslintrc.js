@@ -1079,8 +1079,8 @@ module.exports = {
     },
     {
       files: [
-        'packages/core-js-compat/src/**',
         'scripts/**',
+        'tests/*.mjs',
       ],
       // zx
       globals: {

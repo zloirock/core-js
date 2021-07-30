@@ -1,6 +1,4 @@
-'use strict';
 const { deepStrictEqual, ok } = require('assert');
-const { green } = require('chalk');
 const allModules = require('core-js-compat/modules');
 const entries = require('core-js-compat/entries');
 
@@ -112,4 +110,4 @@ subset('core-js/stage/3', /^esnext\./);
 subset('core-js/stage/4', /^esnext\./);
 
 // eslint-disable-next-line no-console -- output
-console.log(green('entry points content tested'));
+console.log(chalk.green('entry points content tested'));
