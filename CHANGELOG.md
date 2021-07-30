@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.16.0 - 2021.07.30
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 3, [July 2021 TC39 meeting](https://github.com/tc39/proposal-array-find-from-last/pull/47)
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
   - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
