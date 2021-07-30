@@ -23,6 +23,7 @@
   - A bundle for Deno published on [deno.land/x/corejs](https://deno.land/x/corejs)
 - Added / updated compat data / mapping:
   - Deno 1.0-1.13
+  - NodeJS up to 16.6
   - iOS Safari up to 15.0
   - Samsung Internet up to 15.0
   - Opera Android up to 64

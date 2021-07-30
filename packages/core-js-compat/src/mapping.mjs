@@ -57,6 +57,7 @@ export default {
     [86, '15.0'],
     [90, '16.0'],
     [91, '16.4'],
+    [92, '16.6'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/deno.json
   ChromeToDeno: [
