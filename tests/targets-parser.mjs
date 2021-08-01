@@ -1,4 +1,4 @@
-const { deepStrictEqual } = require('assert');
+import { deepStrictEqual } from 'assert';
 const targetsParser = require('core-js-compat/targets-parser');
 
 // browserslist

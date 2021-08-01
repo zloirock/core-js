@@ -1,5 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-const { ok } = require('assert');
+import { ok } from 'assert';
 const compat = require('core-js-compat/data');
 let tested = 0;
 let PATH;

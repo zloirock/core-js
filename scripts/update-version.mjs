@@ -1,8 +1,9 @@
 /* eslint-disable no-console -- output */
+import { globby } from 'globby';
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 
-const { pathExists, readdir, readJson, readFile, writeJson, writeFile } = fs;
+const { readdir, readJson, readFile, writeJson, writeFile } = fs;
 const now = new Date();
 const NEW_VERSION_MINOR = `'${ NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
 const PREV_VERSION_MINOR = `'${ PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
@@ -35,9 +36,7 @@ const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const packages = await readdir('./packages');
-for (const NAME of packages) {
-  const PATH = `./packages/${ NAME }/package.json`;
-  if (!await pathExists(PATH)) continue;
+for (const PATH of await globby('packages/*/package.json')) {
   const pkg = await readJson(PATH, 'utf8');
   pkg.version = NEW_VERSION;
   for (const field of ['dependencies', 'devDependencies']) {

@@ -1,4 +1,4 @@
-const { deepStrictEqual, ok } = require('assert');
+import { deepStrictEqual, ok } from 'assert';
 const allModules = require('core-js-compat/modules');
 const entries = require('core-js-compat/entries');
 
