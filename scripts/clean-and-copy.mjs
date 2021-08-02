@@ -1,4 +1,6 @@
-const { copy, lstat, pathExists, readdir, rm } = fs;
+import { globby } from 'globby';
+
+const { copy, lstat, pathExists, rm } = fs;
 let copied = 0;
 
 function options(overwrite) {
@@ -11,26 +13,26 @@ function options(overwrite) {
   };
 }
 
-await Promise.all((await readdir('./packages/core-js-pure'))
-  .filter(entry => !['override', '.npmignore', 'package.json', 'README.md'].includes(entry))
-  .map(entry => rm(`./packages/core-js-pure/${ entry }`, { force: true, recursive: true })));
-
-await rm('./tests/bundles', { force: true, recursive: true });
+await Promise.all((await globby([
+  'tests/bundles/*',
+  'packages/core-js-pure/!(override|.npmignore|package.json|README.md)',
+], { onlyFiles: false })).map(path => rm(path, { force: true, recursive: true })));
 
 // eslint-disable-next-line no-console -- output
 console.log(chalk.green('old copies removed'));
 
-await copy('./LICENSE', './deno/corejs/LICENSE', options(true));
+await copy('packages/core-js', 'packages/core-js-pure', options(false));
 
-for (const pkg of await readdir('./packages')) {
-  if (await pathExists(`./packages/${ pkg }/package.json`)) {
-    await copy('./LICENSE', `./packages/${ pkg }/LICENSE`, options(true));
-  }
-}
+const license = [
+  'deno/corejs/LICENSE',
+  ...(await globby('packages/*/package.json')).map(path => path.replace(/package\.json$/, 'LICENSE')),
+];
 
-await copy('./packages/core-js', './packages/core-js-pure', options(false));
-await copy('./packages/core-js-pure/override', './packages/core-js-pure', options(true));
-await copy('./packages/core-js/postinstall.js', './packages/core-js-bundle/postinstall.js', options(true));
+await Promise.all([
+  copy('packages/core-js-pure/override', 'packages/core-js-pure', options(true)),
+  copy('packages/core-js/postinstall.js', 'packages/core-js-bundle/postinstall.js', options(true)),
+  ...license.map(path => copy('LICENSE', path, options(true))),
+]);
 
 // eslint-disable-next-line no-console -- output
 console.log(chalk.green(`copied ${ chalk.cyan(copied) } files`));

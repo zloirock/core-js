@@ -7,13 +7,13 @@ const { readdir, readJson, readFile, writeJson, writeFile } = fs;
 const now = new Date();
 const NEW_VERSION_MINOR = `'${ NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
 const PREV_VERSION_MINOR = `'${ PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
-const CHANGELOG = './CHANGELOG.md';
-const LICENSE = './LICENSE';
-const README = './README.md';
-const README_COMPAT = './packages/core-js-compat/README.md';
-const README_DENO = './deno/corejs/README.md';
-const LERNA = './lerna.json';
-const SHARED = './packages/core-js/internals/shared.js';
+const CHANGELOG = 'CHANGELOG.md';
+const LICENSE = 'LICENSE';
+const README = 'README.md';
+const README_COMPAT = 'packages/core-js-compat/README.md';
+const README_DENO = 'deno/corejs/README.md';
+const LERNA = 'lerna.json';
+const SHARED = 'packages/core-js/internals/shared.js';
 const CURRENT_YEAR = now.getFullYear();
 
 const license = await readFile(LICENSE, 'utf8');
@@ -35,7 +35,7 @@ await writeFile(README_DENO, readmeDeno.replaceAll(PREV_VERSION, NEW_VERSION));
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const packages = await readdir('./packages');
+const packages = await readdir('packages');
 for (const PATH of await globby('packages/*/package.json')) {
   const pkg = await readJson(PATH, 'utf8');
   pkg.version = NEW_VERSION;

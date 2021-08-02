@@ -3,7 +3,7 @@ import builder from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
 const DENO = argv.deno;
-const PATH = DENO ? './deno/corejs/' : './packages/core-js-bundle/';
+const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
