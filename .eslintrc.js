@@ -393,6 +393,10 @@ const base = {
   'unicorn/no-unsafe-regex': 'error',
   // disallow unused object properties
   'unicorn/no-unused-properties': 'error',
+  // disallow useless array length check
+  'unicorn/no-useless-length-check': 'error',
+  // disallow useless spread
+  'unicorn/no-useless-spread': 'error',
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': 'error',
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
