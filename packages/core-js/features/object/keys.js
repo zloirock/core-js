@@ -1,3 +1,3 @@
-var parent = require('../../es/object/keys');
+var parent = require('../../stable/object/keys');
 
 module.exports = parent;

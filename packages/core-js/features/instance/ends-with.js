@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/ends-with');
+var parent = require('../../stable/instance/ends-with');
 
 module.exports = parent;

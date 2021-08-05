@@ -1,3 +1,3 @@
-var parent = require('../../es/symbol/async-iterator');
+var parent = require('../../stable/symbol/async-iterator');
 
 module.exports = parent;

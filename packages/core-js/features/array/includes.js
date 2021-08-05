@@ -1,3 +1,3 @@
-var parent = require('../../es/array/includes');
+var parent = require('../../stable/array/includes');
 
 module.exports = parent;

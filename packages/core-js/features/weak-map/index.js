@@ -1,4 +1,4 @@
-var parent = require('../../es/weak-map');
+var parent = require('../../stable/weak-map');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.weak-map.emplace');
 require('../../modules/esnext.weak-map.from');

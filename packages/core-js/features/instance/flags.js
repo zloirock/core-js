@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/flags');
+var parent = require('../../stable/instance/flags');
 
 module.exports = parent;

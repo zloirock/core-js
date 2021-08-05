@@ -1,3 +1,3 @@
-var parent = require('../../es/array-buffer/slice');
+var parent = require('../../stable/array-buffer/slice');
 
 module.exports = parent;

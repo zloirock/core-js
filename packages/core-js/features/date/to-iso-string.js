@@ -1,3 +1,3 @@
-var parent = require('../../es/date/to-iso-string');
+var parent = require('../../stable/date/to-iso-string');
 
 module.exports = parent;

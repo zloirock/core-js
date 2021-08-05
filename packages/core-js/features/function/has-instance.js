@@ -1,3 +1,3 @@
-var parent = require('../../es/function/has-instance');
+var parent = require('../../stable/function/has-instance');
 
 module.exports = parent;

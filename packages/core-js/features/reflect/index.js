@@ -1,4 +1,4 @@
-var parent = require('../../es/reflect');
+var parent = require('../../stable/reflect');
 require('../../modules/esnext.reflect.define-metadata');
 require('../../modules/esnext.reflect.delete-metadata');
 require('../../modules/esnext.reflect.get-metadata');

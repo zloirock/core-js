@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/fill');
+var parent = require('../../stable/instance/fill');
 
 module.exports = parent;

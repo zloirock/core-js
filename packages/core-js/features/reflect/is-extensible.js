@@ -1,3 +1,3 @@
-var parent = require('../../es/reflect/is-extensible');
+var parent = require('../../stable/reflect/is-extensible');
 
 module.exports = parent;

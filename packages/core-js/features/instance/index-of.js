@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/index-of');
+var parent = require('../../stable/instance/index-of');
 
 module.exports = parent;

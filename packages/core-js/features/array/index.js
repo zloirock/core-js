@@ -1,4 +1,4 @@
-var parent = require('../../es/array');
+var parent = require('../../stable/array');
 require('../../modules/es.map');
 require('../../modules/esnext.array.at');
 // TODO: Remove from `core-js@4`

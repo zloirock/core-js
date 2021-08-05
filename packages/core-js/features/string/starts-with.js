@@ -1,3 +1,3 @@
-var parent = require('../../es/string/starts-with');
+var parent = require('../../stable/string/starts-with');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../es/object/define-properties');
+var parent = require('../../stable/object/define-properties');
 
 module.exports = parent;

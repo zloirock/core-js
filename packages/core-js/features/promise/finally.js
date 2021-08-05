@@ -1,3 +1,3 @@
-var parent = require('../../es/promise/finally');
+var parent = require('../../stable/promise/finally');
 
 module.exports = parent;

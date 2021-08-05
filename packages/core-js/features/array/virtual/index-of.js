@@ -1,3 +1,3 @@
-var parent = require('../../../es/array/virtual/index-of');
+var parent = require('../../../stable/array/virtual/index-of');
 
 module.exports = parent;

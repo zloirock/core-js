@@ -1,3 +1,3 @@
-var parent = require('../../es/data-view');
+var parent = require('../../stable/data-view');
 
 module.exports = parent;

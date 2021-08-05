@@ -1,3 +1,3 @@
-var parent = require('../../es/date/to-primitive');
+var parent = require('../../stable/date/to-primitive');
 
 module.exports = parent;

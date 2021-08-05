@@ -1,3 +1,3 @@
-var parent = require('../../es/math/sign');
+var parent = require('../../stable/math/sign');
 
 module.exports = parent;

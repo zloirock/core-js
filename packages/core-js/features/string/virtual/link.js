@@ -1,3 +1,3 @@
-var parent = require('../../../es/string/virtual/link');
+var parent = require('../../../stable/string/virtual/link');
 
 module.exports = parent;
