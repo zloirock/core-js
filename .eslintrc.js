@@ -1073,9 +1073,6 @@ module.exports = {
       files: ['*.mjs'],
       parser: '@babel/eslint-parser',
       parserOptions: {
-        babelOptions: {
-          plugins: ['@babel/plugin-syntax-top-level-await'],
-        },
         ecmaVersion: 2022,
         requireConfigFile: false,
         sourceType: 'module',
