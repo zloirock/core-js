@@ -1,6 +1,6 @@
 /* eslint-disable no-console -- output */
-import detective from 'detective';
 import { globby } from 'globby';
+import konan from 'konan';
 import { modules } from 'core-js-compat/src/data.mjs';
 
 async function jsModulesFrom(path) {
@@ -26,7 +26,7 @@ const internalModules = await jsModulesFrom('packages/core-js/internals');
 const allModules = await globby('packages/core-js?(-pure)/**/*.js');
 
 await Promise.all(allModules.map(async path => {
-  for (const dependency of detective(await fs.readFile(path))) {
+  for (const dependency of konan(String(await fs.readFile(path))).strings) {
     internalModules.delete(dependency.match(/\/internals\/([^/]+)$/)?.[1]);
   }
 }));
