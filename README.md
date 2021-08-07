@@ -2873,9 +2873,9 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js-pure/features/is-iterable
-core-js-pure/features/get-iterator
-core-js-pure/features/get-iterator-method
+core-js-pure/es|stable|features/is-iterable
+core-js-pure/es|stable|features/get-iterator
+core-js-pure/es|stable|features/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js

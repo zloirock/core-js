@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed microtask implementation on iOS Pebble, [#967](https://github.com/zloirock/core-js/issues/967)
+- Fixed some entry points
 - Improved old Safari compat data
 
 ##### 3.16.0 - 2021.07.30
