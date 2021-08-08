@@ -10,7 +10,7 @@ let PATH;
 
 function load(...components) {
   const path = join(PATH, ...components);
-  if (!tested.has(path)) tested.add(path);
+  tested.add(path);
   expected.delete(path);
   return require(path);
 }
