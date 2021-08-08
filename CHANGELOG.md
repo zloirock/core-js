@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.16.1 - 2021.08.09
 - Fixed microtask implementation on iOS Pebble, [#967](https://github.com/zloirock/core-js/issues/967)
 - Fixed some entry points
 - Improved old Safari compat data
