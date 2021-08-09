@@ -306,6 +306,10 @@ const base = {
   'import/no-dynamic-require': 'error',
   // disallow importing from the same path more than once
   'import/no-duplicates': 'error',
+  // forbid imports with CommonJS exports
+  'import/no-import-module-exports': 'error',
+  // prevent importing packages through relative paths
+  'import/no-relative-packages': 'error',
   // forbid a module from importing itself
   'import/no-self-import': 'error',
   // forbid useless path segments
