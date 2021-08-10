@@ -57,10 +57,15 @@ var NullProtoObject = function () {
   try {
     activeXDocument = new ActiveXObject('htmlfile');
   } catch (error) { /* ignore */ }
-  NullProtoObject = document.domain && activeXDocument ?
-    NullProtoObjectViaActiveX(activeXDocument) : // old IE
-    NullProtoObjectViaIFrame() ||
-    NullProtoObjectViaActiveX(activeXDocument); // WSH
+  if (activeXDocument) {
+    if (typeof(document) !== 'undefined') {
+      NullProtoObject = document.domain ?
+        NullProtoObjectViaActiveX(activeXDocument) : // old IE
+        NullProtoObjectViaIFrame();
+    } else {
+      NullProtoObject = NullProtoObjectViaActiveX(activeXDocument); // WSH
+    }
+  }
   var length = enumBugKeys.length;
   while (length--) delete NullProtoObject[PROTOTYPE][enumBugKeys[length]];
   return NullProtoObject();
