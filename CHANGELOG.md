@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- One more fix crashing of `Object.create(null)` on WSH, [#970](https://github.com/zloirock/core-js/issues/970)
 
 ##### 3.16.1 - 2021.08.09
 - Fixed microtask implementation on iOS Pebble, [#967](https://github.com/zloirock/core-js/issues/967)
