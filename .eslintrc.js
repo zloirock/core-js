@@ -566,8 +566,6 @@ const base = {
   'regexp/prefer-regexp-test': 'error',
   // enforce using `*` quantifier
   'regexp/prefer-star-quantifier': 'error',
-  // enforce using `\t`
-  'regexp/prefer-t': 'error',
   // enforce use of unicode codepoint escapes
   'regexp/prefer-unicode-codepoint-escapes': 'error',
   // enforce using `\w`
