@@ -1,5 +1,4 @@
 /* eslint-disable no-console -- output */
-import { globby } from 'globby';
 import konan from 'konan';
 import { modules } from 'core-js-compat/src/data.mjs';
 

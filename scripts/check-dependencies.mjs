@@ -1,7 +1,6 @@
 /* eslint-disable no-console -- output */
 import { promisify } from 'util';
 import david from 'david';
-import { globby } from 'globby';
 import semver from 'semver';
 
 const { eq, coerce, minVersion } = semver;

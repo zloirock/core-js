@@ -1,4 +1,3 @@
-import { globby } from 'globby';
 import konan from 'konan';
 import { modules } from 'core-js-compat/src/data.mjs';
 import helpers from 'core-js-compat/helpers.js';

@@ -1,6 +1,5 @@
 /* eslint-disable no-console -- output */
 import { deepStrictEqual, ok } from 'assert';
-import { globby } from 'globby';
 import konan from 'konan';
 
 const allModules = require('core-js-compat/modules');

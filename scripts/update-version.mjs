@@ -1,5 +1,4 @@
 /* eslint-disable no-console -- output */
-import { globby } from 'globby';
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 

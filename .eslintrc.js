@@ -1095,6 +1095,7 @@ module.exports = {
         chalk: true,
         fetch: true,
         fs: true,
+        globby: true,
         os: true,
         nothrow: true,
         question: true,

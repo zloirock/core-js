@@ -1,5 +1,3 @@
-import { globby } from 'globby';
-
 const { copy, lstat, pathExists, rm } = fs;
 let copied = 0;
 
