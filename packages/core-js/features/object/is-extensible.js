@@ -1,3 +1,3 @@
-var parent = require('../../es/object/is-extensible');
+var parent = require('../../stable/object/is-extensible');
 
 module.exports = parent;

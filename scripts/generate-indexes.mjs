@@ -8,7 +8,7 @@ async function generateNamespaceIndex(ns, filter) {
 }
 
 async function generateTestsIndex(name, pkg) {
-  const dir = `./tests/${ name }`;
+  const dir = `tests/${ name }`;
   const files = await fs.readdir(dir);
   return fs.writeFile(`${ dir }/index.js`, `import '../helpers/qunit-helpers';\n\n${ files
     .filter(it => /^(?:es|esnext|web)\./.test(it))

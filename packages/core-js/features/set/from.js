@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.array.iterator');
 require('../../modules/es.set');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.from');

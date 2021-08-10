@@ -306,6 +306,10 @@ const base = {
   'import/no-dynamic-require': 'error',
   // disallow importing from the same path more than once
   'import/no-duplicates': 'error',
+  // forbid imports with CommonJS exports
+  'import/no-import-module-exports': 'error',
+  // prevent importing packages through relative paths
+  'import/no-relative-packages': 'error',
   // forbid a module from importing itself
   'import/no-self-import': 'error',
   // forbid useless path segments
@@ -393,6 +397,10 @@ const base = {
   'unicorn/no-unsafe-regex': 'error',
   // disallow unused object properties
   'unicorn/no-unused-properties': 'error',
+  // disallow useless array length check
+  'unicorn/no-useless-length-check': 'error',
+  // disallow useless spread
+  'unicorn/no-useless-spread': 'error',
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': 'error',
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
@@ -558,8 +566,6 @@ const base = {
   'regexp/prefer-regexp-test': 'error',
   // enforce using `*` quantifier
   'regexp/prefer-star-quantifier': 'error',
-  // enforce using `\t`
-  'regexp/prefer-t': 'error',
   // enforce use of unicode codepoint escapes
   'regexp/prefer-unicode-codepoint-escapes': 'error',
   // enforce using `\w`
@@ -1069,9 +1075,6 @@ module.exports = {
       files: ['*.mjs'],
       parser: '@babel/eslint-parser',
       parserOptions: {
-        babelOptions: {
-          plugins: ['@babel/plugin-syntax-top-level-await'],
-        },
         ecmaVersion: 2022,
         requireConfigFile: false,
         sourceType: 'module',
@@ -1079,8 +1082,8 @@ module.exports = {
     },
     {
       files: [
-        'packages/core-js-compat/src/**',
         'scripts/**',
+        'tests/*.mjs',
       ],
       // zx
       globals: {

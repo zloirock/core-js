@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.map');
+var parent = require('../../es/typed-array/map');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.to-string');
+var parent = require('../../es/typed-array/to-string');
+
+module.exports = parent;

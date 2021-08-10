@@ -1,4 +1,3 @@
-require('../../modules/es.string.iterator');
 require('../../modules/es.array.from');
 require('../../modules/es.array.is-array');
 require('../../modules/es.array.of');
@@ -28,6 +27,8 @@ require('../../modules/es.array.species');
 require('../../modules/es.array.splice');
 require('../../modules/es.array.unscopables.flat');
 require('../../modules/es.array.unscopables.flat-map');
+require('../../modules/es.object.to-string');
+require('../../modules/es.string.iterator');
 var path = require('../../internals/path');
 
 module.exports = path.Array;

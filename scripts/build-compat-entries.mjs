@@ -1,5 +1,5 @@
-import detective from 'detective';
 import { globby } from 'globby';
+import konan from 'konan';
 import { modules } from 'core-js-compat/src/data.mjs';
 import helpers from 'core-js-compat/helpers.js';
 
@@ -14,7 +14,7 @@ async function getModulesForEntryPoint(path, parent) {
   if (!await fs.pathExists(entry)) return [];
 
   const file = await fs.readFile(entry);
-  const result = await Promise.all(detective(file).map(dependency => {
+  const result = await Promise.all(konan(String(file)).strings.map(dependency => {
     return getModulesForEntryPoint(dependency, entry);
   }));
 
@@ -38,7 +38,7 @@ const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(
   return [entry.slice(9), await getModulesForEntryPoint(`../${ entry }`, import.meta.url)];
 }))));
 
-await fs.writeJson('./packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
+await fs.writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
 
 // eslint-disable-next-line no-console -- output
 console.log(chalk.green('entries data rebuilt'));

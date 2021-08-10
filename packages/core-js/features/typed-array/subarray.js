@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.subarray');
+var parent = require('../../stable/typed-array/subarray');
+
+module.exports = parent;

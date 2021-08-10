@@ -1,3 +1,4 @@
-var parent = require('../../es/typed-array/int32-array');
+var parent = require('../../stable/typed-array/int32-array');
+require('../../features/typed-array/methods');
 
 module.exports = parent;

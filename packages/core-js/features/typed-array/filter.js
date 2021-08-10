@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.filter');
+var parent = require('../../stable/typed-array/filter');
+
+module.exports = parent;

@@ -114,7 +114,7 @@ export const data = {
     chrome: '26',
     firefox: '4',
     ie: '9',
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.fill': {
@@ -155,7 +155,7 @@ export const data = {
     chrome: '26',
     firefox: '4',
     ie: '9',
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.from': {
@@ -175,7 +175,7 @@ export const data = {
     chrome: '51',
     firefox: '4',
     ie: '9',
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.is-array': {
@@ -203,7 +203,7 @@ export const data = {
     chrome: '51',
     firefox: '4',
     ie: '9',
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.map': {
@@ -224,7 +224,7 @@ export const data = {
     firefox: '4',
     ie: '9',
     node: '6.0', // ^^^
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.reduce-right': {
@@ -232,7 +232,7 @@ export const data = {
     firefox: '4',
     ie: '9',
     node: '6.0', // ^^^
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.reverse': {
@@ -254,7 +254,7 @@ export const data = {
     chrome: '26',
     firefox: '4',
     ie: '9',
-    safari: '8.0',
+    safari: '7.1',
     rhino: '1.7.13',
   },
   'es.array.sort': {
@@ -1425,6 +1425,8 @@ export const data = {
   },
   'esnext.array.find-last-index': {
   },
+  'esnext.array.group-by': {
+  },
   'esnext.array.is-template-object': {
   },
   'esnext.array.last-index': {
@@ -1682,6 +1684,8 @@ export const data = {
   'esnext.typed-array.find-last': {
   },
   'esnext.typed-array.find-last-index': {
+  },
+  'esnext.typed-array.group-by': {
   },
   'esnext.typed-array.unique-by': {
   },

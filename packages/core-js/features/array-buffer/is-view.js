@@ -1,3 +1,3 @@
-var parent = require('../../es/array-buffer/is-view');
+var parent = require('../../stable/array-buffer/is-view');
 
 module.exports = parent;

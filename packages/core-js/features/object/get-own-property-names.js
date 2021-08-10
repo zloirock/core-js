@@ -1,3 +1,3 @@
-var parent = require('../../es/object/get-own-property-names');
+var parent = require('../../stable/object/get-own-property-names');
 
 module.exports = parent;

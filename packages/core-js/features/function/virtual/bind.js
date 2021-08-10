@@ -1,3 +1,3 @@
-var parent = require('../../../es/function/virtual/bind');
+var parent = require('../../../stable/function/virtual/bind');
 
 module.exports = parent;

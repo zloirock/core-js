@@ -1,3 +1,5 @@
+require('../../modules/es.object.to-string');
+require('../../modules/es.string.iterator');
 require('../../modules/es.typed-array.from');
 require('../../modules/es.typed-array.of');
 require('../../modules/es.typed-array.copy-within');
@@ -23,4 +25,3 @@ require('../../modules/es.typed-array.subarray');
 require('../../modules/es.typed-array.to-locale-string');
 require('../../modules/es.typed-array.to-string');
 require('../../modules/es.typed-array.iterator');
-require('../../modules/es.object.to-string');

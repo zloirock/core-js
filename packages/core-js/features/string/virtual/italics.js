@@ -1,3 +1,3 @@
-var parent = require('../../../es/string/virtual/italics');
+var parent = require('../../../stable/string/virtual/italics');
 
 module.exports = parent;

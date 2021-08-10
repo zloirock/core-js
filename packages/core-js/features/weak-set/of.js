@@ -1,8 +1,7 @@
 'use strict';
-require('../../modules/es.string.iterator');
+require('../../modules/es.array.iterator');
 require('../../modules/es.weak-set');
 require('../../modules/esnext.weak-set.of');
-require('../../modules/web.dom-collections.iterator');
 var path = require('../../internals/path');
 
 var WeakSet = path.WeakSet;

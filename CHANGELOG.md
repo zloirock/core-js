@@ -1,17 +1,29 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.16.1 - 2021.08.09
+- Fixed microtask implementation on iOS Pebble, [#967](https://github.com/zloirock/core-js/issues/967)
+- Fixed some entry points
+- Improved old Safari compat data
+
+##### 3.16.0 - 2021.07.30
 - [`Array` find from last proposal](https://github.com/tc39/proposal-array-find-from-last) moved to the stage 3, [July 2021 TC39 meeting](https://github.com/tc39/proposal-array-find-from-last/pull/47)
 - [`Array` filtering stage 1 proposal](https://github.com/tc39/proposal-array-filtering):
   - `Array.prototype.filterReject` replaces `Array.prototype.filterOut`
   - `%TypedArray%.prototype.filterReject` replaces `%TypedArray%.prototype.filterOut`
-- Work with symbols made stricter: some missed before case of methods that should throw error on symbols now works as they should
+- Added [`Array` grouping stage 1 proposal](https://github.com/tc39/proposal-array-grouping):
+  - `Array.prototype.groupBy`
+  - `%TypedArray%.prototype.groupBy`
+- Work with symbols made stricter: some missed before cases of methods that should throw an error on symbols now works as they should
 - Handling `@@toPrimitive` in some cases of `ToPrimitive` internal logic made stricter
 - Fixed work of `Request` with polyfilled `URLSearchParams`, [#965](https://github.com/zloirock/core-js/issues/965)
 - Fixed possible exposing of collections elements metadata in some cases, [#427](https://github.com/zloirock/core-js/issues/427)
 - Fixed crashing of `Object.create(null)` on WSH, [#966](https://github.com/zloirock/core-js/issues/966)
 - Fixed some cases of typed arrays subclassing logic
 - Fixed a minor bug related to string conversion in `RegExp#exec`
-- Fixed `Date.prototype.getYear` feature detection and compat data for IE8-
+- Fixed `Date.prototype.getYear` feature detection
+- Fixed content of some entry points
 - Some minor optimizations and refactoring
 - Deno:
   - Added Deno support (sure, after bundling since Deno does not support CommonJS)
@@ -19,10 +31,12 @@
   - A bundle for Deno published on [deno.land/x/corejs](https://deno.land/x/corejs)
 - Added / updated compat data / mapping:
   - Deno 1.0-1.13
+  - NodeJS up to 16.6
   - iOS Safari up to 15.0
   - Samsung Internet up to 15.0
   - Opera Android up to 64
   - `Object.hasOwn` marked as supported from [V8 9.3](https://chromestatus.com/feature/5662263404920832) and [FF92](https://bugzilla.mozilla.org/show_bug.cgi?id=1721149)
+  - `Date.prototype.getYear` marked as not supported in IE8-
 - Added `summary` option to `core-js-builder`, see more info in the [`README`](https://github.com/zloirock/core-js/blob/master/packages/core-js-builder/README.md), [#910](https://github.com/zloirock/core-js/issues/910)
 
 ##### 3.15.2 - 2021.06.29

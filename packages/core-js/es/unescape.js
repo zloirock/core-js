@@ -1,4 +1,4 @@
 require('../modules/es.unescape');
-var global = require('../internals/global');
+var path = require('../internals/path');
 
-module.exports = global.unescape;
+module.exports = path.unescape;

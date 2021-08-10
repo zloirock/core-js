@@ -1,3 +1,3 @@
-var parent = require('../../es/string/raw');
+var parent = require('../../stable/string/raw');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/trim-left');
+var parent = require('../../stable/instance/trim-left');
 
 module.exports = parent;

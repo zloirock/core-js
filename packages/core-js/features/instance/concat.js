@@ -1,3 +1,3 @@
-var parent = require('../../es/instance/concat');
+var parent = require('../../stable/instance/concat');
 
 module.exports = parent;

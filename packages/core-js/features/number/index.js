@@ -1,4 +1,4 @@
-var parent = require('../../es/number');
+var parent = require('../../stable/number');
 
 module.exports = parent;
 

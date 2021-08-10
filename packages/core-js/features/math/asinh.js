@@ -1,3 +1,3 @@
-var parent = require('../../es/math/asinh');
+var parent = require('../../stable/math/asinh');
 
 module.exports = parent;

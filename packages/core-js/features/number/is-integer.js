@@ -1,3 +1,3 @@
-var parent = require('../../es/number/is-integer');
+var parent = require('../../stable/number/is-integer');
 
 module.exports = parent;

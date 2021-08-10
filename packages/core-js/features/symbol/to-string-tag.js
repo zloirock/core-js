@@ -1,3 +1,3 @@
-var parent = require('../../es/symbol/to-string-tag');
+var parent = require('../../stable/symbol/to-string-tag');
 
 module.exports = parent;

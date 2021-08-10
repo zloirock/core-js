@@ -1,3 +1,3 @@
-var parent = require('../../es/regexp/sticky');
+var parent = require('../../stable/regexp/sticky');
 
 module.exports = parent;

@@ -1,3 +1,5 @@
+/* eslint-disable import/no-import-module-exports -- false positive */
+/* https://github.com/import-js/eslint-plugin-import/issues/2181 */
 import { data, modules } from 'core-js-compat/src/data.mjs';
 import external from 'core-js-compat/src/external.mjs';
 import mappings from 'core-js-compat/src/mapping.mjs';
@@ -57,7 +59,7 @@ for (const scope of [data, external]) {
 }
 
 function write(filename, content) {
-  return fs.writeJson(`./packages/core-js-compat/${ filename }.json`, content, { spaces: '  ' });
+  return fs.writeJson(`packages/core-js-compat/${ filename }.json`, content, { spaces: '  ' });
 }
 
 await Promise.all([

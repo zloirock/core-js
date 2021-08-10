@@ -1,4 +1,4 @@
-var parent = require('../../es/promise/any');
+var parent = require('../../stable/promise/any');
 
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.aggregate-error');

@@ -1,3 +1,3 @@
-var parent = require('../../../es/array/virtual/slice');
+var parent = require('../../../stable/array/virtual/slice');
 
 module.exports = parent;

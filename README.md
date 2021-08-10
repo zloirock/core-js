@@ -112,6 +112,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
+      - [`Array` grouping](#array-grouping)
       - [`Array` deduplication](#array-deduplication)
       - [Getting last item from `Array`](#getting-last-item-from-array)
       - [`Number.range`](#numberrange)
@@ -140,14 +141,14 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 ### Installation:[⬆](#index)
 ```
 // global version
-npm install --save core-js@3.15.2
+npm install --save core-js@3.16.1
 // version without global namespace pollution
-npm install --save core-js-pure@3.15.2
+npm install --save core-js-pure@3.16.1
 // bundled global version
-npm install --save core-js-bundle@3.15.2
+npm install --save core-js-bundle@3.16.1
 ```
 
-Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.15.2) ([minified version](https://unpkg.com/core-js-bundle@3.15.2/minified.js)).
+Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.16.1) ([minified version](https://unpkg.com/core-js-bundle@3.16.1/minified.js)).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
@@ -237,9 +238,9 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.15'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.16'`.
 
-> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.15'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.16'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -294,7 +295,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.15', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.16', proposals: true }`.
 
 #### `@babel/runtime`[⬆](#index)
 
@@ -2292,6 +2293,27 @@ core-js/features/typed-array/filter-reject
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
+##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js) and [`esnext.typed-array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.group-by.js).
+```js
+class Array {
+  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+}
+
+class %TypedArray% {
+  groupBy(callbackfn: (value: number, index: number, target: %TypedArray%) => key, thisArg?: any): { [key]: %TypedArray% };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping
+core-js(-pure)/features/array(/virtual)/group-by
+core-js/features/typed-array/group-by
+```
+[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.groupBy(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%7B%201%3A%20%5B1%2C%203%2C%205%5D%2C%200%3A%20%5B2%2C%204%5D%20%7D):
+```js
+[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
 ```js
@@ -2851,9 +2873,9 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js-pure/features/is-iterable
-core-js-pure/features/get-iterator
-core-js-pure/features/get-iterator-method
+core-js-pure/es|stable|features/is-iterable
+core-js-pure/es|stable|features/get-iterator
+core-js-pure/es|stable|features/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js

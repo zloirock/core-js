@@ -1,3 +1,3 @@
-var parent = require('../../es/symbol/to-primitive');
+var parent = require('../../stable/symbol/to-primitive');
 
 module.exports = parent;

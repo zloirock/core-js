@@ -1,3 +1,3 @@
-var parent = require('../../../es/array/virtual/sort');
+var parent = require('../../../stable/array/virtual/sort');
 
 module.exports = parent;

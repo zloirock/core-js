@@ -1,6 +1,8 @@
-'use strict';
-const { deepStrictEqual, ok } = require('assert');
-const { green } = require('chalk');
+/* eslint-disable no-console -- output */
+import { deepStrictEqual, ok } from 'assert';
+import { globby } from 'globby';
+import konan from 'konan';
+
 const allModules = require('core-js-compat/modules');
 const entries = require('core-js-compat/entries');
 
@@ -111,5 +113,21 @@ subset('core-js/stage/2', /^esnext\./);
 subset('core-js/stage/3', /^esnext\./);
 subset('core-js/stage/4', /^esnext\./);
 
-// eslint-disable-next-line no-console -- output
-console.log(green('entry points content tested'));
+async function unexpectedInnerNamespace(namespace, unexpected) {
+  const paths = await globby(`packages/core-js/${ namespace }/**/*.js`);
+  await Promise.all(paths.map(async path => {
+    for (const dependency of konan(String(await fs.readFile(path))).strings) {
+      if (unexpected.test(dependency)) {
+        console.log(chalk.red(`${ chalk.cyan(path) }: found unexpected dependency: ${ chalk.cyan(dependency) }`));
+      }
+    }
+  }));
+}
+
+await Promise.all([
+  unexpectedInnerNamespace('es', /\/(features|stable)\//),
+  unexpectedInnerNamespace('stable', /\/features\//),
+  unexpectedInnerNamespace('features', /\/es\//),
+]);
+
+console.log(chalk.green('entry points content tested'));

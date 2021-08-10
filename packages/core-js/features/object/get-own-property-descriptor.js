@@ -1,3 +1,3 @@
-var parent = require('../../es/object/get-own-property-descriptor');
+var parent = require('../../stable/object/get-own-property-descriptor');
 
 module.exports = parent;

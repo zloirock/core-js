@@ -1,8 +1,9 @@
 'use strict';
+require('../../modules/es.array.iterator');
+require('../../modules/es.object.to-string');
 require('../../modules/es.promise');
 require('../../modules/es.promise.all-settled');
 require('../../modules/es.string.iterator');
-require('../../modules/web.dom-collections.iterator');
 var path = require('../../internals/path');
 
 var Promise = path.Promise;

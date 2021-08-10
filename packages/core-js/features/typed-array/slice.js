@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.slice');
+var parent = require('../../stable/typed-array/slice');
+
+module.exports = parent;

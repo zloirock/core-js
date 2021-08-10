@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.iterator');
+var parent = require('../../es/typed-array/entries');
+
+module.exports = parent;

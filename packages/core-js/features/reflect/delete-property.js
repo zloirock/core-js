@@ -1,3 +1,3 @@
-var parent = require('../../es/reflect/delete-property');
+var parent = require('../../stable/reflect/delete-property');
 
 module.exports = parent;

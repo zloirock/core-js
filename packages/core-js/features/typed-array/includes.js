@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.includes');
+var parent = require('../../stable/typed-array/includes');
+
+module.exports = parent;

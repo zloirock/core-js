@@ -1,1 +1,3 @@
-require('../../modules/es.typed-array.for-each');
+var parent = require('../../stable/typed-array/for-each');
+
+module.exports = parent;
