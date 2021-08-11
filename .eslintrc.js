@@ -524,8 +524,6 @@ const base = {
   'regexp/no-useless-dollar-replacements': 'error',
   // disallow unnecessary string escaping
   'regexp/no-useless-escape': 'error',
-  // disallow unnecessary exactly quantifier
-  'regexp/no-useless-exactly-quantifier': 'error',
   // disallow unnecessary regex flags
   'regexp/no-useless-flag': 'error',
   // disallow unnecessary non-capturing group
