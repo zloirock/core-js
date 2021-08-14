@@ -33,7 +33,7 @@
     "core-js-compat": "file:./packages/core-js-compat",
     "core-js-pure": "file:./packages/core-js-pure",
     "david": "^12.0.0",
-    "electron-to-chromium": "^1.3.805",
+    "electron-to-chromium": "^1.3.806",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
     "eslint": "^7.32.0",
     "eslint-plugin-es": "git+https://github.com/mysticatea/eslint-plugin-es.git#00d73851793541dc7b0d07292deb0ca2bc8a25e1",
