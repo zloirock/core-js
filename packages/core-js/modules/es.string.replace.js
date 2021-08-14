@@ -41,6 +41,7 @@ var REPLACE_SUPPORTS_NAMED_GROUPS = !fails(function () {
     result.groups = { a: '7' };
     return result;
   };
+  // eslint-disable-next-line regexp/no-useless-dollar-replacements -- false positive
   return ''.replace(re, '$<a>') !== '7';
 });
 

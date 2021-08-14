@@ -474,20 +474,22 @@ const base = {
   'regexp/match-any': ['error', { allows: ['[\\S\\s]', 'dotAll'] }],
   // enforce use of escapes on negation
   'regexp/negation': 'error',
-  // disallow capturing group that captures assertions
-  'regexp/no-assertion-capturing-group': 'error',
   // disallow duplicate characters in the RegExp character class
   'regexp/no-dupe-characters-character-class': 'error',
   // disallow duplicate disjunctions
   'regexp/no-dupe-disjunctions': ['error', { report: 'all' }],
   // disallow alternatives without elements
   'regexp/no-empty-alternative': 'error',
+  // disallow capturing group that captures empty
+  'regexp/no-empty-capturing-group': 'error',
   // disallow empty group
   'regexp/no-empty-group': 'error',
   // disallow empty lookahead assertion or empty lookbehind assertion
   'regexp/no-empty-lookarounds-assertion': 'error',
   // disallow escape backspace `([\b])`
   'regexp/no-escape-backspace': 'error',
+  // disallow invalid regular expression strings in RegExp constructors
+  'regexp/no-invalid-regexp': 'error',
   // disallow invisible raw character
   'regexp/no-invisible-character': 'error',
   // disallow lazy quantifiers at the end of an expression
@@ -526,10 +528,10 @@ const base = {
   'regexp/no-useless-escape': 'error',
   // disallow unnecessary regex flags
   'regexp/no-useless-flag': 'error',
+  //  disallow unnecessarily non-greedy quantifiers
+  'regexp/no-useless-lazy': 'error',
   // disallow unnecessary non-capturing group
   'regexp/no-useless-non-capturing-group': 'error',
-  // disallow unnecessary quantifier non-greedy (`?`)
-  'regexp/no-useless-non-greedy': 'error',
   // disallow quantifiers that can be removed
   'regexp/no-useless-quantifier': 'error',
   // disallow unnecessary range of characters by using a hyphen
@@ -542,8 +544,6 @@ const base = {
   'regexp/optimal-quantifier-concatenation': 'error',
   // disallow the alternatives of lookarounds that end with a non-constant quantifier
   'regexp/optimal-lookaround-quantifier': 'error',
-  // enforces elements order in character class
-  'regexp/order-in-character-class': 'error',
   // enforce using character class
   'regexp/prefer-character-class': 'error',
   // enforce using `\d`
@@ -570,6 +570,8 @@ const base = {
   'regexp/prefer-w': 'error',
   // sort alternatives if order doesn't matter
   'regexp/sort-alternatives': 'error',
+  // enforces elements order in character class
+  'regexp/sort-character-class-elements': 'error',
   // require regex flags to be sorted
   'regexp/sort-flags': 'error',
   // disallow not strictly valid regular expressions

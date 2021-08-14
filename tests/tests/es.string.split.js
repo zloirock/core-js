@@ -1,4 +1,4 @@
-/* eslint-disable regexp/no-empty-group, regexp/no-assertion-capturing-group -- required for testing */
+/* eslint-disable regexp/no-empty-group, regexp/no-empty-capturing-group -- required for testing */
 /* eslint-disable regexp/optimal-lookaround-quantifier, regexp/no-lazy-ends -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';

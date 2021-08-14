@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable regexp/no-assertion-capturing-group, regexp/no-empty-group, regexp/no-lazy-ends -- testing */
+/* eslint-disable regexp/no-empty-capturing-group, regexp/no-empty-group, regexp/no-lazy-ends -- testing */
 /* eslint-disable regexp/no-useless-quantifier -- testing */
 var toString = require('../internals/to-string');
 var regexpFlags = require('../internals/regexp-flags');
