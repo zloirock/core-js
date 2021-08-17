@@ -1,8 +1,11 @@
 var fails = require('./fails');
+var global = require('../internals/global');
+
+// babel-minify and Closure Compiler transpiles RegExp('.', 'g') -> /./g and it causes SyntaxError
+var $RegExp = global.RegExp;
 
 module.exports = fails(function () {
-  // babel-minify transpiles RegExp('.', 'g') -> /./g and it causes SyntaxError
-  var re = RegExp('(?<a>b)', (typeof '').charAt(5));
+  var re = $RegExp('(?<a>b)', 'g');
   return re.exec('b').groups.a !== 'b' ||
     'b'.replace(re, '$<a>c') !== 'bc';
 });

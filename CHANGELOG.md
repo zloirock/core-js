@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround of a Closure Compiler unsafe optimization, [#972](https://github.com/zloirock/core-js/issues/972)
 - One more fix crashing of `Object.create(null)` on WSH, [#970](https://github.com/zloirock/core-js/issues/970)
 
 ##### 3.16.1 - 2021.08.09
