@@ -10,10 +10,10 @@ async function getJSON(path) {
   return result.json();
 }
 
-async function latestMDN(name) {
+async function latestMDN(name, branch = 'mdn/browser-compat-data/main') {
   const {
     browsers: { [name]: { releases } },
-  } = await getJSON(`https://raw.githubusercontent.com/mdn/browser-compat-data/main/browsers/${ name }.json`);
+  } = await getJSON(`https://raw.githubusercontent.com/${ branch }/browsers/${ name }.json`);
   const version = Object.keys(releases).reduce((a, b) => {
     return releases[b].engine_version && cmp(coerce(b), '>', coerce(a)) ? b : a;
   });
@@ -40,8 +40,8 @@ const [{ v8 }] = await getJSON('https://nodejs.org/dist/index.json');
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 
 // wait for https://github.com/mdn/browser-compat-data/pull/10753
-// const deno = await latestMDN('deno');
-// assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Opera Mobile');
+const deno = await latestMDN('deno', 'lucacasonato/browser-compat-data/deno');
+assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 
 const samsung = await latestMDN('samsunginternet_android');
 assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
