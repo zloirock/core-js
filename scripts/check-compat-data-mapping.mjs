@@ -39,8 +39,7 @@ function assert(condition, engine) {
 const [{ v8 }] = await getJSON('https://nodejs.org/dist/index.json');
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 
-// wait for https://github.com/mdn/browser-compat-data/pull/10753
-const deno = await latestMDN('deno', 'lucacasonato/browser-compat-data/deno');
+const deno = await latestMDN('deno');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 
 const samsung = await latestMDN('samsunginternet_android');
