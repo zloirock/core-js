@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.16.2 - 2021.08.17
 - Added a workaround of a Closure Compiler unsafe optimization, [#972](https://github.com/zloirock/core-js/issues/972)
 - One more fix crashing of `Object.create(null)` on WSH, [#970](https://github.com/zloirock/core-js/issues/970)
 - Added Deno 1.14 compat data mapping
