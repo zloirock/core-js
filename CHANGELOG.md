@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added a workaround of a specific case of broken `Object.prototype`, [#973](https://github.com/zloirock/core-js/issues/973)
 
 ##### 3.16.2 - 2021.08.17
 - Added a workaround of a Closure Compiler unsafe optimization, [#972](https://github.com/zloirock/core-js/issues/972)
