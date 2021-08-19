@@ -1,4 +1,3 @@
-/* eslint-disable max-len -- for better formatting */
 var fs = require('fs');
 var os = require('os');
 var path = require('path');

@@ -231,7 +231,13 @@ const base = {
   // enforce consistent linebreak style
   'linebreak-style': ['error', 'unix'],
   // specify the maximum length of a line in your program
-  'max-len': ['error', { code: 120, tabWidth: 2 }],
+  'max-len': ['error', {
+    code: 120,
+    tabWidth: 2,
+    ignoreRegExpLiterals: true,
+    ignoreTemplateLiterals: true,
+    ignoreUrls: true,
+  }],
   // enforce a maximum depth that callbacks can be nested
   'max-nested-callbacks': ['error', 4],
   // specify the maximum number of statement allowed in a function
@@ -801,7 +807,13 @@ const tests = {
   // enforces return statements in callbacks of array's methods
   'array-callback-return': 'off',
   // specify the maximum length of a line in your program
-  'max-len': ['error', { code: 180, tabWidth: 2 }],
+  'max-len': ['error', {
+    code: 180,
+    tabWidth: 2,
+    ignoreRegExpLiterals: true,
+    ignoreTemplateLiterals: true,
+    ignoreUrls: true,
+  }],
   // specify the maximum number of statement allowed in a function
   'max-statements': 'off',
   // disallow function declarations and expressions inside loop statements
@@ -937,7 +949,13 @@ const json = {
   // disallow invalid number for JSON
   'jsonc/valid-json-number': 'error',
   // specify the maximum length of a line in your program
-  'max-len': ['error', { code: 180, tabWidth: 2 }],
+  'max-len': ['error', {
+    code: 180,
+    tabWidth: 2,
+    ignoreRegExpLiterals: true,
+    ignoreTemplateLiterals: true,
+    ignoreUrls: true,
+  }],
   // require strict mode directives
   strict: 'off',
 };
