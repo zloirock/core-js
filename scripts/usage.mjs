@@ -22,7 +22,7 @@ for (let i = 1, top = Math.ceil(limit / 1e3); i <= top; i++) {
 sites = sites.slice(0, Math.min(limit, sites.length)).reverse();
 
 // run in parallel
-await Promise.all(Array(os.cpus().length).fill(0).map(async i => {
+await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => {
   let browser, page, site, name;
 
   async function check(ua) {
@@ -42,7 +42,7 @@ await Promise.all(Array(os.cpus().length).fill(0).map(async i => {
     site = sites.pop();
     name = site.replace(/^https?:\/\//, '');
     // restart browser each some pages for prevent possible `puppeteer` crash and memory leaks
-    if (!(i++ % 32) || !browser) {
+    if (!(i++ % 64) || !browser) {
       if (browser) await browser.close();
       browser = await puppeteer.launch();
     }
