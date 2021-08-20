@@ -952,8 +952,6 @@ const json = {
   'max-len': ['error', {
     code: 180,
     tabWidth: 2,
-    ignoreRegExpLiterals: true,
-    ignoreTemplateLiterals: true,
     ignoreUrls: true,
   }],
   // require strict mode directives
