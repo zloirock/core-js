@@ -5,9 +5,10 @@ import mapping from 'core-js-compat/src/mapping.mjs';
 const { coerce, cmp } = semver;
 let updated = true;
 
-async function getJSON(path) {
+async function getJSON(path, ...slice) {
   const result = await fetch(path);
-  return result.json();
+  const text = await result.text();
+  return JSON.parse(text.slice(...slice));
 }
 
 async function latestMDN(name, branch = 'mdn/browser-compat-data/main') {
@@ -41,6 +42,9 @@ assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 
 const deno = await latestMDN('deno');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
+
+const electron = await getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/chromium-versions.js', 17, -1);
+assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
 
 const samsung = await latestMDN('samsunginternet_android');
 assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');

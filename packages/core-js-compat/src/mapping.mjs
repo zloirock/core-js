@@ -1,5 +1,3 @@
-import ChromeToElectronModule from 'electron-to-chromium/chromium-versions.js';
-
 export default {
   // https://nodejs.org/dist/index.json
   ChromeToNode: [
@@ -73,6 +71,40 @@ export default {
     [93, '1.13'],
     [94, '1.14'],
   ],
+  // https://github.com/Kilian/electron-to-chromium/blob/master/chromium-versions.js
+  // Maybe also required to handle used Node versions?
+  // https://github.com/electron/releases/blob/master/lite.json
+  ChromeToElectron: [
+    [39, '0.20'],
+    [41, '0.21'],
+    [42, '0.25'],
+    [43, '0.27'],
+    [44, '0.30'],
+    [45, '0.31'],
+    [47, '0.36'],
+    [49, '0.37'],
+    [50, '1.1'],
+    [51, '1.2'],
+    [52, '1.3'],
+    [54, '1.4'],
+    [56, '1.6'],
+    [58, '1.7'],
+    [59, '1.8'],
+    [61, '2.0'],
+    [66, '3.0'],
+    [69, '4.0'],
+    [73, '5.0'],
+    [76, '6.0'],
+    [78, '7.0'],
+    [80, '8.0'],
+    [83, '9.0'],
+    [85, '10.0'],
+    [87, '11.0'],
+    [89, '12.0'],
+    [91, '13.0'],
+    [93, '14.0'],
+    [94, '15.0'],
+  ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   ChromeToSamsung: [
     [18, '1.0'],
@@ -128,7 +160,6 @@ export default {
     [30, '4.4'],
     [33, '4.4.3'],
   ],
-  ChromeToElectron: Object.entries(ChromeToElectronModule),
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   SafariToIOS: [
     ['3.0', '1.0'],
