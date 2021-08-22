@@ -2,10 +2,15 @@
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
 const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 const DEV_NODE_VERSIONS = '^14.15';
+const ERROR = 'error';
+const OFF = 'off';
+const ALWAYS = 'always';
+const NEVER = 'never';
+const READONLY = 'readonly';
 
 function disable(rules) {
   return Object.keys(rules).reduce((memo, rule) => {
-    memo[rule] = 'off';
+    memo[rule] = OFF;
     return memo;
   }, {});
 }
@@ -13,225 +18,225 @@ function disable(rules) {
 const base = {
   // possible errors:
   // enforce 'for' loop update clause moving the counter in the right direction
-  'for-direction': 'error',
+  'for-direction': ERROR,
   // disallow window alert / confirm / prompt calls
-  'no-alert': 'error',
+  'no-alert': ERROR,
   // disallow comparing against -0
-  'no-compare-neg-zero': 'error',
+  'no-compare-neg-zero': ERROR,
   // disallow use of console
-  'no-console': 'error',
+  'no-console': ERROR,
   // disallow constant expressions in conditions
-  'no-constant-condition': ['error', { checkLoops: false }],
+  'no-constant-condition': [ERROR, { checkLoops: false }],
   // disallow control characters in regular expressions
-  'no-control-regex': 'error',
+  'no-control-regex': ERROR,
   // disallow use of debugger
-  'no-debugger': 'error',
+  'no-debugger': ERROR,
   // disallow duplicate arguments in functions
-  'no-dupe-args': 'error',
+  'no-dupe-args': ERROR,
   // disallow duplicate keys when creating object literals
-  'no-dupe-keys': 'error',
+  'no-dupe-keys': ERROR,
   // disallow a duplicate case label.
-  'no-duplicate-case': 'error',
+  'no-duplicate-case': ERROR,
   // disallow else after a return in an if
-  'no-else-return': 'error',
+  'no-else-return': ERROR,
   // disallow empty statements
-  'no-empty': 'error',
+  'no-empty': ERROR,
   // disallow the use of empty character classes in regular expressions
-  'no-empty-character-class': 'error',
+  'no-empty-character-class': ERROR,
   // disallow unnecessary boolean casts
-  'no-extra-boolean-cast': 'error',
+  'no-extra-boolean-cast': ERROR,
   // disallow unnecessary semicolons
-  'no-extra-semi': 'error',
+  'no-extra-semi': ERROR,
   // disallow assigning to the exception in a catch block
-  'no-ex-assign': 'error',
+  'no-ex-assign': ERROR,
   // disallow overwriting functions written as function declarations
-  'no-func-assign': 'error',
+  'no-func-assign': ERROR,
   // disallow invalid regular expression strings in the RegExp constructor
-  'no-invalid-regexp': 'error',
+  'no-invalid-regexp': ERROR,
   // disallow irregular whitespace outside of strings and comments
-  'no-irregular-whitespace': 'error',
+  'no-irregular-whitespace': ERROR,
   // disallow literal numbers that lose precision
-  // 'no-loss-of-precision': 'error', // TODO
+  // 'no-loss-of-precision': ERROR, // TODO
   // disallow characters which are made with multiple code points in character class syntax
-  'no-misleading-character-class': 'error',
+  'no-misleading-character-class': ERROR,
   // disallow the use of object properties of the global object (Math and JSON) as functions
-  'no-obj-calls': 'error',
+  'no-obj-calls': ERROR,
   // disallow use of Object.prototypes builtins directly
-  'no-prototype-builtins': 'error',
+  'no-prototype-builtins': ERROR,
   // disallow multiple spaces in a regular expression literal
-  'no-regex-spaces': 'error',
+  'no-regex-spaces': ERROR,
   // disallow specific global variables
-  'no-restricted-globals': ['error', ...RESTRICTED_GLOBALS],
+  'no-restricted-globals': [ERROR, ...RESTRICTED_GLOBALS],
   // disallow returning values from setters
-  'no-setter-return': 'error',
+  'no-setter-return': ERROR,
   // disallow sparse arrays
-  'no-sparse-arrays': 'error',
+  'no-sparse-arrays': ERROR,
   // disallow template literal placeholder syntax in regular strings
-  'no-template-curly-in-string': 'error',
+  'no-template-curly-in-string': ERROR,
   // avoid code that looks like two expressions but is actually one
-  'no-unexpected-multiline': 'error',
+  'no-unexpected-multiline': ERROR,
   // disallow negation of the left operand of an in expression
-  'no-unsafe-negation': 'error',
+  'no-unsafe-negation': ERROR,
   // disallow use of optional chaining in contexts where the `undefined` value is not allowed
-  'no-unsafe-optional-chaining': 'error',
+  'no-unsafe-optional-chaining': ERROR,
   // disallow loops with a body that allows only one iteration
-  'no-unreachable-loop': 'error',
+  'no-unreachable-loop': ERROR,
   // disallow useless backreferences in regular expressions
-  'no-useless-backreference': 'error',
+  'no-useless-backreference': ERROR,
   // disallow comparisons with the value NaN
-  'use-isnan': 'error',
+  'use-isnan': ERROR,
   // disallow unreachable statements after a return, throw, continue, or break statement
-  'no-unreachable': 'error',
+  'no-unreachable': ERROR,
   // ensure that the results of typeof are compared against a valid string
-  'valid-typeof': 'error',
+  'valid-typeof': ERROR,
 
   // best practices:
   // enforces return statements in callbacks of array's methods
-  'array-callback-return': 'error',
+  'array-callback-return': ERROR,
   // enforce default clauses in switch statements to be last
-  'default-case-last': 'error',
+  'default-case-last': ERROR,
   // encourages use of dot notation whenever possible
-  'dot-notation': ['error', { allowKeywords: true }],
+  'dot-notation': [ERROR, { allowKeywords: true }],
   // enforce newline before and after dot
-  'dot-location': ['error', 'property'],
+  'dot-location': [ERROR, 'property'],
   // disallow use of arguments.caller or arguments.callee
-  'no-caller': 'error',
+  'no-caller': ERROR,
   // disallow lexical declarations in case/default clauses
-  'no-case-declarations': 'error',
+  'no-case-declarations': ERROR,
   // disallow duplicate conditions in if-else-if chains
-  'no-dupe-else-if': 'error',
+  'no-dupe-else-if': ERROR,
   // disallow empty functions, except for standalone funcs/arrows
-  'no-empty-function': 'error',
+  'no-empty-function': ERROR,
   // disallow empty destructuring patterns
-  'no-empty-pattern': 'error',
+  'no-empty-pattern': ERROR,
   // disallow use of eval()
-  'no-eval': 'error',
+  'no-eval': ERROR,
   // disallow adding to native types
-  'no-extend-native': 'error',
+  'no-extend-native': ERROR,
   // disallow unnecessary function binding
-  'no-extra-bind': 'error',
+  'no-extra-bind': ERROR,
   // disallow unnecessary labels
-  'no-extra-label': 'error',
+  'no-extra-label': ERROR,
   // disallow fallthrough of case statements
-  'no-fallthrough': 'error',
+  'no-fallthrough': ERROR,
   // disallow the use of leading or trailing decimal points in numeric literals
-  'no-floating-decimal': 'error',
+  'no-floating-decimal': ERROR,
   // disallow reassignments of native objects
-  'no-global-assign': 'error',
+  'no-global-assign': ERROR,
   // disallow use of eval()-like methods
-  'no-implied-eval': 'error',
+  'no-implied-eval': ERROR,
   // disallow usage of __iterator__ property
-  'no-iterator': 'error',
+  'no-iterator': ERROR,
   // disallow use of labels for anything other then loops and switches
-  'no-labels': ['error', { allowLoop: false, allowSwitch: false }],
+  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
   // disallow unnecessary nested blocks
-  'no-lone-blocks': 'error',
+  'no-lone-blocks': ERROR,
   // disallow function declarations and expressions inside loop statements
-  'no-loop-func': 'error',
+  'no-loop-func': ERROR,
   // disallow use of multiple spaces
-  'no-multi-spaces': ['error', { ignoreEOLComments: true }],
+  'no-multi-spaces': [ERROR, { ignoreEOLComments: true }],
   // disallow use of multiline strings
-  'no-multi-str': 'error',
+  'no-multi-str': ERROR,
   // disallow use of new operator when not part of the assignment or comparison
-  'no-new': 'error',
+  'no-new': ERROR,
   // disallow use of new operator for Function object
-  'no-new-func': 'error',
+  'no-new-func': ERROR,
   // disallows creating new instances of String, Number, and Boolean
-  'no-new-wrappers': 'error',
+  'no-new-wrappers': ERROR,
   // disallow use of (old style) octal literals
-  'no-octal': 'error',
+  'no-octal': ERROR,
   // disallow `\8` and `\9` escape sequences in string literals
-  'no-nonoctal-decimal-escape': 'error',
+  'no-nonoctal-decimal-escape': ERROR,
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
-  'no-octal-escape': 'error',
+  'no-octal-escape': ERROR,
   // disallow usage of __proto__ property
-  'no-proto': 'error',
+  'no-proto': ERROR,
   // disallow declaring the same variable more then once
-  'no-redeclare': 'error',
+  'no-redeclare': ERROR,
   // disallow unnecessary calls to `.call()` and `.apply()`
-  'no-useless-call': 'error',
+  'no-useless-call': ERROR,
   // disallow redundant return statements
-  'no-useless-return': 'error',
+  'no-useless-return': ERROR,
   // disallow use of `javascript:` urls.
-  'no-script-url': 'error',
+  'no-script-url': ERROR,
   // disallow self assignment
-  'no-self-assign': 'error',
+  'no-self-assign': ERROR,
   // disallow comparisons where both sides are exactly the same
-  'no-self-compare': 'error',
+  'no-self-compare': ERROR,
   // disallow use of comma operator
-  'no-sequences': 'error',
+  'no-sequences': ERROR,
   // restrict what can be thrown as an exception
-  'no-throw-literal': 'error',
+  'no-throw-literal': ERROR,
   // disallow usage of expressions in statement position
-  'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
+  'no-unused-expressions': [ERROR, { allowShortCircuit: true, allowTernary: true }],
   // disallow unused labels
-  'no-unused-labels': 'error',
+  'no-unused-labels': ERROR,
   // disallow unnecessary catch clauses
-  'no-useless-catch': 'error',
+  'no-useless-catch': ERROR,
   // disallow useless string concatenation
-  'no-useless-concat': 'error',
+  'no-useless-concat': ERROR,
   // disallow unnecessary string escaping
-  // 'no-useless-escape': 'error', // replaced by 'regexp/no-useless-escape'
+  // 'no-useless-escape': ERROR, // replaced by 'regexp/no-useless-escape'
   // disallow void operators
-  'no-void': 'error',
+  'no-void': ERROR,
   // disallow use of the with statement
-  'no-with': 'error',
+  'no-with': ERROR,
   // require use of the second argument for parseInt()
-  radix: 'error',
+  radix: ERROR,
 
   // variables:
   // disallow catch clause parameters from shadowing variables in the outer scope
-  'no-catch-shadow': 'error',
+  'no-catch-shadow': ERROR,
   // disallow deletion of variables
-  'no-delete-var': 'error',
+  'no-delete-var': ERROR,
   // disallow labels that share a name with a variable
-  'no-label-var': 'error',
+  'no-label-var': ERROR,
   // disallow declaration of variables already declared in the outer scope
-  'no-shadow': 'error',
+  'no-shadow': ERROR,
   // disallow shadowing of names such as arguments
-  'no-shadow-restricted-names': 'error',
+  'no-shadow-restricted-names': ERROR,
   // disallow use of undeclared variables unless mentioned in a /*global */ block
-  'no-undef': ['error'],
+  'no-undef': [ERROR],
   // disallow initializing variables to undefined
-  'no-undef-init': 'error',
+  'no-undef-init': ERROR,
   // disallow declaration of variables that are not used in the code
-  'no-unused-vars': ['error', { vars: 'local', args: 'after-used', ignoreRestSiblings: true }],
+  'no-unused-vars': [ERROR, { vars: 'local', args: 'after-used', ignoreRestSiblings: true }],
 
   // stylistic issues:
   // enforce spacing inside array brackets
-  'array-bracket-spacing': ['error', 'never'],
+  'array-bracket-spacing': [ERROR, NEVER],
   // enforce spacing inside single-line blocks
-  'block-spacing': ['error', 'always'],
+  'block-spacing': [ERROR, ALWAYS],
   // enforce one true brace style
-  'brace-style': ['error', '1tbs', { allowSingleLine: true }],
+  'brace-style': [ERROR, '1tbs', { allowSingleLine: true }],
   // require camel case names
-  camelcase: ['error', { properties: 'never' }],
+  camelcase: [ERROR, { properties: NEVER }],
   // enforce trailing commas in multiline object literals
-  'comma-dangle': ['error', 'always-multiline'],
+  'comma-dangle': [ERROR, 'always-multiline'],
   // enforce spacing after comma
-  'comma-spacing': 'error',
+  'comma-spacing': ERROR,
   // enforce one true comma style
-  'comma-style': ['error', 'last', { exceptions: { VariableDeclaration: true } }],
+  'comma-style': [ERROR, 'last', { exceptions: { VariableDeclaration: true } }],
   // disallow padding inside computed properties
-  'computed-property-spacing': ['error', 'never'],
+  'computed-property-spacing': [ERROR, NEVER],
   // enforce one newline at the end of files
-  'eol-last': ['error', 'always'],
+  'eol-last': [ERROR, ALWAYS],
   // disallow space between function identifier and application
-  'func-call-spacing': 'error',
+  'func-call-spacing': ERROR,
   // enforce consistent indentation
-  indent: ['error', 2, {
+  indent: [ERROR, 2, {
     ignoredNodes: ['ConditionalExpression'],
     SwitchCase: 1,
     VariableDeclarator: 'first',
   }],
   // require a space before & after certain keywords
-  'keyword-spacing': ['error', { before: true, after: true }],
+  'keyword-spacing': [ERROR, { before: true, after: true }],
   // enforces spacing between keys and values in object literal properties
-  'key-spacing': ['error', { beforeColon: false, afterColon: true }],
+  'key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
   // enforce consistent linebreak style
-  'linebreak-style': ['error', 'unix'],
+  'linebreak-style': [ERROR, 'unix'],
   // specify the maximum length of a line in your program
-  'max-len': ['error', {
+  'max-len': [ERROR, {
     code: 120,
     tabWidth: 2,
     ignoreRegExpLiterals: true,
@@ -239,512 +244,512 @@ const base = {
     ignoreUrls: true,
   }],
   // enforce a maximum depth that callbacks can be nested
-  'max-nested-callbacks': ['error', 4],
+  'max-nested-callbacks': [ERROR, 4],
   // specify the maximum number of statement allowed in a function
-  'max-statements': ['error', 40],
+  'max-statements': [ERROR, 40],
   // require a capital letter for constructors
-  'new-cap': ['error', { newIsCap: true, capIsNew: false }],
+  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
   // require parentheses when invoking a constructor with no arguments
-  'new-parens': 'error',
+  'new-parens': ERROR,
   // disallow `if` as the only statement in an `else` block
-  'no-lonely-if': 'error',
+  'no-lonely-if': ERROR,
   // disallow mixed spaces and tabs for indentation
-  'no-mixed-spaces-and-tabs': 'error',
+  'no-mixed-spaces-and-tabs': ERROR,
   // disallow multiple empty lines and only one newline at the end
-  'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 1 }],
+  'no-multiple-empty-lines': [ERROR, { max: 1, maxEOF: 1 }],
   // disallow tabs
-  'no-tabs': 'error',
+  'no-tabs': ERROR,
   // disallow trailing whitespace at the end of lines
-  'no-trailing-spaces': 'error',
+  'no-trailing-spaces': ERROR,
   // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
-  'no-unneeded-ternary': ['error', { defaultAssignment: false }],
+  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
   // disallow whitespace before properties
-  'no-whitespace-before-property': 'error',
+  'no-whitespace-before-property': ERROR,
   // enforce the location of single-line statements
-  'nonblock-statement-body-position': ['error', 'beside'],
+  'nonblock-statement-body-position': [ERROR, 'beside'],
   // enforce consistent line breaks after opening and before closing braces
-  'object-curly-newline': ['error', { consistent: true }],
+  'object-curly-newline': [ERROR, { consistent: true }],
   // enforce spaces inside braces
-  'object-curly-spacing': ['error', 'always'],
+  'object-curly-spacing': [ERROR, ALWAYS],
   // require newlines around variable declarations with initializations
-  'one-var-declaration-per-line': ['error', 'initializations'],
+  'one-var-declaration-per-line': [ERROR, 'initializations'],
   // enforce padding within blocks
-  'padded-blocks': ['error', 'never'],
+  'padded-blocks': [ERROR, NEVER],
   // specify whether double or single quotes should be used
-  quotes: ['error', 'single', 'avoid-escape'],
+  quotes: [ERROR, 'single', 'avoid-escape'],
   // require or disallow use of quotes around object literal property names
-  'quote-props': ['error', 'as-needed', { keywords: false }],
+  'quote-props': [ERROR, 'as-needed', { keywords: false }],
   // require or disallow use of semicolons instead of ASI
-  semi: ['error', 'always'],
+  semi: [ERROR, ALWAYS],
   // enforce spacing before and after semicolons
-  'semi-spacing': 'error',
+  'semi-spacing': ERROR,
   // enforce location of semicolons
-  'semi-style': ['error', 'last'],
+  'semi-style': [ERROR, 'last'],
   // require or disallow space before blocks
-  'space-before-blocks': 'error',
+  'space-before-blocks': ERROR,
   // require or disallow space before function opening parenthesis
-  'space-before-function-paren': ['error', { anonymous: 'always', named: 'never' }],
+  'space-before-function-paren': [ERROR, { anonymous: ALWAYS, named: NEVER }],
   // require or disallow spaces inside parentheses
-  'space-in-parens': 'error',
+  'space-in-parens': ERROR,
   // require spaces around operators
-  'space-infix-ops': 'error',
+  'space-infix-ops': ERROR,
   // require or disallow spaces before/after unary operators
-  'space-unary-ops': 'error',
+  'space-unary-ops': ERROR,
   // require or disallow a space immediately following the // or /* in a comment
-  'spaced-comment': ['error', 'always', { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
+  'spaced-comment': [ERROR, ALWAYS, { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
   // enforce spacing around colons of switch statements
-  'switch-colon-spacing': 'error',
+  'switch-colon-spacing': ERROR,
   // require or disallow the Unicode Byte Order Mark
-  'unicode-bom': ['error', 'never'],
+  'unicode-bom': [ERROR, NEVER],
 
   // import:
   // ensure all imports appear before other statements
-  'import/first': 'error',
+  'import/first': ERROR,
   // forbid AMD imports
-  'import/no-amd': 'error',
+  'import/no-amd': ERROR,
   // forbid cycle dependencies
-  'import/no-cycle': ['error', { commonjs: true }],
+  'import/no-cycle': [ERROR, { commonjs: true }],
   // ensure imports point to files / modules that can be resolved
-  'import/no-unresolved': ['error', { commonjs: true }],
+  'import/no-unresolved': [ERROR, { commonjs: true }],
   // forbid import of modules using absolute paths
-  'import/no-absolute-path': 'error',
+  'import/no-absolute-path': ERROR,
   // forbid `require()` calls with expressions
-  'import/no-dynamic-require': 'error',
+  'import/no-dynamic-require': ERROR,
   // disallow importing from the same path more than once
-  'import/no-duplicates': 'error',
+  'import/no-duplicates': ERROR,
   // forbid imports with CommonJS exports
-  'import/no-import-module-exports': 'error',
+  'import/no-import-module-exports': ERROR,
   // prevent importing packages through relative paths
-  'import/no-relative-packages': 'error',
+  'import/no-relative-packages': ERROR,
   // forbid a module from importing itself
-  'import/no-self-import': 'error',
+  'import/no-self-import': ERROR,
   // forbid useless path segments
-  'import/no-useless-path-segments': 'error',
+  'import/no-useless-path-segments': ERROR,
 
   // node:
   // disallow deprecated APIs
-  'node/no-deprecated-api': 'error',
+  'node/no-deprecated-api': ERROR,
   // require require() calls to be placed at top-level module scope
-  'node/global-require': 'error',
+  'node/global-require': ERROR,
   // disallow the assignment to `exports`
-  'node/no-exports-assign': 'error',
+  'node/no-exports-assign': ERROR,
   // disallow require calls to be mixed with regular variable declarations
-  'node/no-mixed-requires': ['error', { grouping: true, allowCall: false }],
+  'node/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
-  'node/no-new-require': 'error',
+  'node/no-new-require': ERROR,
   // disallow string concatenation with `__dirname` and `__filename`
-  'node/no-path-concat': 'error',
+  'node/no-path-concat': ERROR,
   // disallow the use of `process.exit()`
-  'node/no-process-exit': 'error',
+  'node/no-process-exit': ERROR,
 
   // es6+:
   // require parentheses around arrow function arguments
-  'arrow-parens': ['error', 'as-needed'],
+  'arrow-parens': [ERROR, 'as-needed'],
   // enforce consistent spacing before and after the arrow in arrow functions
-  'arrow-spacing': 'error',
+  'arrow-spacing': ERROR,
   // enforce the location of arrow function bodies
-  'implicit-arrow-linebreak': ['error', 'beside'],
+  'implicit-arrow-linebreak': [ERROR, 'beside'],
   // disallow unnecessary computed property keys in object literals
-  'no-useless-computed-key': 'error',
+  'no-useless-computed-key': ERROR,
   // disallow unnecessary constructors
-  'no-useless-constructor': 'error',
+  'no-useless-constructor': ERROR,
   // require let or const instead of var
-  'no-var': 'error',
+  'no-var': ERROR,
   // disallow renaming import, export, and destructured assignments to the same name
-  'no-useless-rename': 'error',
+  'no-useless-rename': ERROR,
   // require or disallow method and property shorthand syntax for object literals
-  'object-shorthand': 'error',
+  'object-shorthand': ERROR,
   // require using arrow functions for callbacks
-  'prefer-arrow-callback': 'error',
+  'prefer-arrow-callback': ERROR,
   // require const declarations for variables that are never reassigned after declared
-  'prefer-const': ['error', { destructuring: 'all' }],
+  'prefer-const': [ERROR, { destructuring: 'all' }],
   // require destructuring from arrays and/or objects
-  'prefer-destructuring': 'error',
+  'prefer-destructuring': ERROR,
   // prefer the exponentiation operator over `Math.pow()`
-  'prefer-exponentiation-operator': 'error',
+  'prefer-exponentiation-operator': ERROR,
   // require template literals instead of string concatenation
-  'prefer-template': 'error',
+  'prefer-template': ERROR,
   // disallow generator functions that do not have `yield`
-  'require-yield': 'error',
+  'require-yield': ERROR,
   // enforce spacing between rest and spread operators and their expressions
-  'rest-spread-spacing': 'error',
+  'rest-spread-spacing': ERROR,
   // require or disallow spacing around embedded expressions of template strings
-  'template-curly-spacing': ['error', 'always'],
+  'template-curly-spacing': [ERROR, ALWAYS],
 
   // require strict mode directives
-  strict: ['error', 'global'],
+  strict: [ERROR, 'global'],
 
   // unicorn
   // enforce a specific parameter name in catch clauses
-  'unicorn/catch-error-name': ['error', { name: 'error', ignore: [/^err/] }],
+  'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
   // enforce passing a message value when throwing a built-in error
-  'unicorn/error-message': 'error',
+  'unicorn/error-message': ERROR,
   // require escape sequences to use uppercase values
-  'unicorn/escape-case': 'error',
+  'unicorn/escape-case': ERROR,
   // enforce a case style for filenames
-  'unicorn/filename-case': ['error', { case: 'kebabCase' }],
+  'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
   // enforce importing index files with `.`
-  'unicorn/import-index': 'error',
+  'unicorn/import-index': ERROR,
   // enforce specifying rules to disable in eslint-disable comments
-  'unicorn/no-abusive-eslint-disable': 'error',
+  'unicorn/no-abusive-eslint-disable': ERROR,
   // enforce combining multiple `Array#push` into one call
-  'unicorn/no-array-push-push': 'error',
+  'unicorn/no-array-push-push': ERROR,
   // do not use leading/trailing space between `console.log` parameters
-  'unicorn/no-console-spaces': 'error',
+  'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
-  'unicorn/no-hex-escape': 'error',
+  'unicorn/no-hex-escape': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
-  'unicorn/no-lonely-if': 'error',
+  'unicorn/no-lonely-if': ERROR,
   // forbid classes that only have static members
-  'unicorn/no-static-only-class': 'error',
+  'unicorn/no-static-only-class': ERROR,
   // disallow unreadable array destructuring
-  'unicorn/no-unreadable-array-destructuring': 'error',
+  'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unsafe regular expressions
-  'unicorn/no-unsafe-regex': 'error',
+  'unicorn/no-unsafe-regex': ERROR,
   // disallow unused object properties
-  'unicorn/no-unused-properties': 'error',
+  'unicorn/no-unused-properties': ERROR,
   // disallow useless array length check
-  'unicorn/no-useless-length-check': 'error',
+  'unicorn/no-useless-length-check': ERROR,
   // disallow useless spread
-  'unicorn/no-useless-spread': 'error',
+  'unicorn/no-useless-spread': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
-  'unicorn/number-literal-case': 'error',
+  'unicorn/number-literal-case': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
-  'unicorn/prefer-array-index-of': 'error',
+  'unicorn/prefer-array-index-of': ERROR,
   // prefer default parameters over reassignment
-  'unicorn/prefer-default-parameters': 'error',
+  'unicorn/prefer-default-parameters': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
-  'unicorn/prefer-string-slice': 'error',
+  'unicorn/prefer-string-slice': ERROR,
   // prefer `switch` over multiple `else-if`
-  'unicorn/prefer-switch': ['error', { minimumCases: 3 }],
+  'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
   // enforce using the separator argument with `Array#join()`
-  'unicorn/require-array-join-separator': 'error',
+  'unicorn/require-array-join-separator': ERROR,
   // enforce using the digits argument with `Number#toFixed()`
-  'unicorn/require-number-to-fixed-digits-argument': 'error',
+  'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
-  'unicorn/require-post-message-target-origin': 'error',
+  'unicorn/require-post-message-target-origin': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense
-  'sonarjs/no-collection-size-mischeck': 'error',
+  'sonarjs/no-collection-size-mischeck': ERROR,
   // two branches in a conditional structure should not have exactly the same implementation
-  'sonarjs/no-duplicated-branches': 'error',
+  'sonarjs/no-duplicated-branches': ERROR,
   // collection elements should not be replaced unconditionally
-  'sonarjs/no-element-overwrite': 'error',
+  'sonarjs/no-element-overwrite': ERROR,
   // empty collections should not be accessed or iterated
-  'sonarjs/no-empty-collection': 'error',
+  'sonarjs/no-empty-collection': ERROR,
   // function calls should not pass extra arguments
-  'sonarjs/no-extra-arguments': 'error',
+  'sonarjs/no-extra-arguments': ERROR,
   // goolean expressions should not be gratuitous
-  'sonarjs/no-gratuitous-expressions': 'error',
+  'sonarjs/no-gratuitous-expressions': ERROR,
   // functions should not have identical implementations
-  'sonarjs/no-identical-functions': 'error',
+  'sonarjs/no-identical-functions': ERROR,
   // boolean checks should not be inverted
-  'sonarjs/no-inverted-boolean-check': 'error',
+  'sonarjs/no-inverted-boolean-check': ERROR,
   // loops with at most one iteration should be refactored
-  'sonarjs/no-one-iteration-loop': 'error',
+  'sonarjs/no-one-iteration-loop': ERROR,
   // boolean literals should not be redundant
-  'sonarjs/no-redundant-boolean': 'error',
+  'sonarjs/no-redundant-boolean': ERROR,
   // jump statements should not be redundant
-  'sonarjs/no-redundant-jump': 'error',
+  'sonarjs/no-redundant-jump': ERROR,
   // conditionals should start on new lines
-  'sonarjs/no-same-line-conditional': 'error',
+  'sonarjs/no-same-line-conditional': ERROR,
   // collection and array contents should be used
-  'sonarjs/no-unused-collection': 'error',
+  'sonarjs/no-unused-collection': ERROR,
   // the output of functions that don't return anything should not be used
-  'sonarjs/no-use-of-empty-return-value': 'error',
+  'sonarjs/no-use-of-empty-return-value': ERROR,
   // non-existent operators '=+', '=-' and '=!' should not be used
-  'sonarjs/non-existent-operator': 'error',
+  'sonarjs/non-existent-operator': ERROR,
   // local variables should not be declared and then immediately returned or thrown
-  'sonarjs/prefer-immediate-return': 'error',
+  'sonarjs/prefer-immediate-return': ERROR,
   // object literal syntax should be used
-  'sonarjs/prefer-object-literal': 'error',
+  'sonarjs/prefer-object-literal': ERROR,
   // return of boolean expressions should not be wrapped into an `if-then-else` statement
-  'sonarjs/prefer-single-boolean-return': 'error',
+  'sonarjs/prefer-single-boolean-return': ERROR,
   // a `while` loop should be used instead of a `for` loop with condition only
-  'sonarjs/prefer-while': 'error',
+  'sonarjs/prefer-while': ERROR,
 
   // regexp
   // disallow confusing quantifiers
-  'regexp/confusing-quantifier': 'error',
+  'regexp/confusing-quantifier': ERROR,
   // enforce consistent escaping of control characters
-  'regexp/control-character-escape': 'error',
+  'regexp/control-character-escape': ERROR,
   // enforce consistent usage of hexadecimal escape
-  'regexp/hexadecimal-escape': ['error', 'never'],
+  'regexp/hexadecimal-escape': [ERROR, NEVER],
   // enforce into your favorite case
-  'regexp/letter-case': ['error', {
+  'regexp/letter-case': [ERROR, {
     caseInsensitive: 'lowercase',
     unicodeEscape: 'uppercase',
   }],
   // enforce match any character style
-  'regexp/match-any': ['error', { allows: ['[\\S\\s]', 'dotAll'] }],
+  'regexp/match-any': [ERROR, { allows: ['[\\S\\s]', 'dotAll'] }],
   // enforce use of escapes on negation
-  'regexp/negation': 'error',
+  'regexp/negation': ERROR,
   // disallow duplicate characters in the RegExp character class
-  'regexp/no-dupe-characters-character-class': 'error',
+  'regexp/no-dupe-characters-character-class': ERROR,
   // disallow duplicate disjunctions
-  'regexp/no-dupe-disjunctions': ['error', { report: 'all' }],
+  'regexp/no-dupe-disjunctions': [ERROR, { report: 'all' }],
   // disallow alternatives without elements
-  'regexp/no-empty-alternative': 'error',
+  'regexp/no-empty-alternative': ERROR,
   // disallow capturing group that captures empty
-  'regexp/no-empty-capturing-group': 'error',
+  'regexp/no-empty-capturing-group': ERROR,
   // disallow empty group
-  'regexp/no-empty-group': 'error',
+  'regexp/no-empty-group': ERROR,
   // disallow empty lookahead assertion or empty lookbehind assertion
-  'regexp/no-empty-lookarounds-assertion': 'error',
+  'regexp/no-empty-lookarounds-assertion': ERROR,
   // disallow escape backspace `([\b])`
-  'regexp/no-escape-backspace': 'error',
+  'regexp/no-escape-backspace': ERROR,
   // disallow invalid regular expression strings in RegExp constructors
-  'regexp/no-invalid-regexp': 'error',
+  'regexp/no-invalid-regexp': ERROR,
   // disallow invisible raw character
-  'regexp/no-invisible-character': 'error',
+  'regexp/no-invisible-character': ERROR,
   // disallow lazy quantifiers at the end of an expression
-  'regexp/no-lazy-ends': 'error',
+  'regexp/no-lazy-ends': ERROR,
   // disallow legacy RegExp features
-  'regexp/no-legacy-features': 'error',
+  'regexp/no-legacy-features': ERROR,
   // disallow non-standard flags
-  'regexp/no-non-standard-flag': 'error',
+  'regexp/no-non-standard-flag': ERROR,
   // disallow obscure character ranges
-  'regexp/no-obscure-range': 'error',
+  'regexp/no-obscure-range': ERROR,
   // disallow octal escape sequence
-  'regexp/no-octal': 'error',
+  'regexp/no-octal': ERROR,
   // disallow optional assertions
-  'regexp/no-optional-assertion': 'error',
+  'regexp/no-optional-assertion': ERROR,
   // disallow backreferences that reference a group that might not be matched
-  'regexp/no-potentially-useless-backreference': 'error',
+  'regexp/no-potentially-useless-backreference': ERROR,
   // disallow standalone backslashes
-  'regexp/no-standalone-backslash': 'error',
+  'regexp/no-standalone-backslash': ERROR,
   // disallow exponential and polynomial backtracking
-  'regexp/no-super-linear-backtracking': 'error',
+  'regexp/no-super-linear-backtracking': ERROR,
   // disallow trivially nested assertions
-  'regexp/no-trivially-nested-assertion': 'error',
+  'regexp/no-trivially-nested-assertion': ERROR,
   // disallow nested quantifiers that can be rewritten as one quantifier
-  'regexp/no-trivially-nested-quantifier': 'error',
+  'regexp/no-trivially-nested-quantifier': ERROR,
   // disallow unused capturing group
-  'regexp/no-unused-capturing-group': 'error',
+  'regexp/no-unused-capturing-group': ERROR,
   // disallow assertions that are known to always accept (or reject)
-  'regexp/no-useless-assertions': 'error',
+  'regexp/no-useless-assertions': ERROR,
   // disallow useless backreferences in regular expressions
-  'regexp/no-useless-backreference': 'error',
+  'regexp/no-useless-backreference': ERROR,
   // disallow character class with one character
-  'regexp/no-useless-character-class': 'error',
+  'regexp/no-useless-character-class': ERROR,
   // disallow useless `$` replacements in replacement string
-  'regexp/no-useless-dollar-replacements': 'error',
+  'regexp/no-useless-dollar-replacements': ERROR,
   // disallow unnecessary string escaping
-  'regexp/no-useless-escape': 'error',
+  'regexp/no-useless-escape': ERROR,
   // disallow unnecessary regex flags
-  'regexp/no-useless-flag': 'error',
+  'regexp/no-useless-flag': ERROR,
   //  disallow unnecessarily non-greedy quantifiers
-  'regexp/no-useless-lazy': 'error',
+  'regexp/no-useless-lazy': ERROR,
   // disallow unnecessary non-capturing group
-  'regexp/no-useless-non-capturing-group': 'error',
+  'regexp/no-useless-non-capturing-group': ERROR,
   // disallow quantifiers that can be removed
-  'regexp/no-useless-quantifier': 'error',
+  'regexp/no-useless-quantifier': ERROR,
   // disallow unnecessary range of characters by using a hyphen
-  'regexp/no-useless-range': 'error',
+  'regexp/no-useless-range': ERROR,
   // disallow unnecessary `{n,m}`` quantifier
-  'regexp/no-useless-two-nums-quantifier': 'error',
+  'regexp/no-useless-two-nums-quantifier': ERROR,
   // disallow quantifiers with a maximum of zero
-  'regexp/no-zero-quantifier': 'error',
+  'regexp/no-zero-quantifier': ERROR,
   // require optimal quantifiers for concatenated quantifiers
-  'regexp/optimal-quantifier-concatenation': 'error',
+  'regexp/optimal-quantifier-concatenation': ERROR,
   // disallow the alternatives of lookarounds that end with a non-constant quantifier
-  'regexp/optimal-lookaround-quantifier': 'error',
+  'regexp/optimal-lookaround-quantifier': ERROR,
   // enforce using character class
-  'regexp/prefer-character-class': 'error',
+  'regexp/prefer-character-class': ERROR,
   // enforce using `\d`
-  'regexp/prefer-d': 'error',
+  'regexp/prefer-d': ERROR,
   // enforces escape of replacement `$` character (`$$`)
-  'regexp/prefer-escape-replacement-dollar-char': 'error',
+  'regexp/prefer-escape-replacement-dollar-char': ERROR,
   // enforce using `+` quantifier
-  'regexp/prefer-plus-quantifier': 'error',
+  'regexp/prefer-plus-quantifier': ERROR,
   // enforce using quantifier
-  'regexp/prefer-quantifier': 'error',
+  'regexp/prefer-quantifier': ERROR,
   // enforce using `?` quantifier
-  'regexp/prefer-question-quantifier': 'error',
+  'regexp/prefer-question-quantifier': ERROR,
   // enforce using character class range
-  'regexp/prefer-range': ['error', { target: 'alphanumeric' }],
+  'regexp/prefer-range': [ERROR, { target: 'alphanumeric' }],
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
-  'regexp/prefer-regexp-exec': 'error',
+  'regexp/prefer-regexp-exec': ERROR,
   //  enforce that `RegExp#test` is used instead of `String#match` and `RegExp#exec`
-  'regexp/prefer-regexp-test': 'error',
+  'regexp/prefer-regexp-test': ERROR,
   // enforce using `*` quantifier
-  'regexp/prefer-star-quantifier': 'error',
+  'regexp/prefer-star-quantifier': ERROR,
   // enforce use of unicode codepoint escapes
-  'regexp/prefer-unicode-codepoint-escapes': 'error',
+  'regexp/prefer-unicode-codepoint-escapes': ERROR,
   // enforce using `\w`
-  'regexp/prefer-w': 'error',
+  'regexp/prefer-w': ERROR,
   // sort alternatives if order doesn't matter
-  'regexp/sort-alternatives': 'error',
+  'regexp/sort-alternatives': ERROR,
   // enforces elements order in character class
-  'regexp/sort-character-class-elements': 'error',
+  'regexp/sort-character-class-elements': ERROR,
   // require regex flags to be sorted
-  'regexp/sort-flags': 'error',
+  'regexp/sort-flags': ERROR,
   // disallow not strictly valid regular expressions
-  'regexp/strict': 'error',
+  'regexp/strict': ERROR,
   // enforce consistent usage of unicode escape or unicode codepoint escape
-  'regexp/unicode-escape': 'error',
+  'regexp/unicode-escape': ERROR,
 
   // disallow \u2028 and \u2029 in string literals
-  'es/no-json-superset': 'error',
+  'es/no-json-superset': ERROR,
 
   // eslint-comments
   // require include descriptions in eslint directive-comments
-  'eslint-comments/require-description': 'error',
+  'eslint-comments/require-description': ERROR,
 };
 
 const es3 = {
   // disallow trailing commas in multiline object literals
-  'comma-dangle': ['error', 'never'],
+  'comma-dangle': [ERROR, NEVER],
   // encourages use of dot notation whenever possible
-  'dot-notation': ['error', { allowKeywords: false }],
+  'dot-notation': [ERROR, { allowKeywords: false }],
   // disallow function or variable declarations in nested blocks
-  'no-inner-declarations': 'error',
+  'no-inner-declarations': ERROR,
   // require let or const instead of var
-  'no-var': 'off',
+  'no-var': OFF,
   // require or disallow method and property shorthand syntax for object literals
-  'object-shorthand': 'off',
+  'object-shorthand': OFF,
   // require using arrow functions for callbacks
-  'prefer-arrow-callback': 'off',
+  'prefer-arrow-callback': OFF,
   // require const declarations for variables that are never reassigned after declared
-  'prefer-const': 'off',
+  'prefer-const': OFF,
   // require destructuring from arrays and/or objects
-  'prefer-destructuring': 'off',
+  'prefer-destructuring': OFF,
   // prefer the exponentiation operator over `Math.pow()`
-  'prefer-exponentiation-operator': 'off',
+  'prefer-exponentiation-operator': OFF,
   // require template literals instead of string concatenation
-  'prefer-template': 'off',
+  'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
-  'quote-props': ['error', 'as-needed', { keywords: true }],
+  'quote-props': [ERROR, 'as-needed', { keywords: true }],
   // require strict mode directives
-  strict: 'off',
+  strict: OFF,
   // prefer default parameters over reassignment
-  'unicorn/prefer-default-parameters': 'off',
+  'unicorn/prefer-default-parameters': OFF,
 };
 
 const forbidES5BuiltIns = {
-  'es/no-array-isarray': 'error',
-  'es/no-array-prototype-every': 'error',
-  'es/no-array-prototype-filter': 'error',
-  'es/no-array-prototype-foreach': 'error',
-  'es/no-array-prototype-indexof': 'error',
-  'es/no-array-prototype-lastindexof': 'error',
-  'es/no-array-prototype-map': 'error',
-  'es/no-array-prototype-reduce': 'error',
-  'es/no-array-prototype-reduceright': 'error',
-  'es/no-array-prototype-some': 'error',
-  'es/no-date-now': 'error',
-  'es/no-json': 'error',
-  'es/no-object-defineproperties': 'error',
-  'es/no-object-defineproperty': 'error',
-  'es/no-object-freeze': 'error',
-  'es/no-object-getownpropertydescriptor': 'error',
-  'es/no-object-getownpropertynames': 'error',
-  'es/no-object-getprototypeof': 'error',
-  'es/no-object-isextensible': 'error',
-  'es/no-object-isfrozen': 'error',
-  'es/no-object-issealed': 'error',
-  'es/no-object-keys': 'error',
-  'es/no-object-preventextensions': 'error',
-  'es/no-object-seal': 'error',
-  'es/no-string-prototype-trim': 'error',
+  'es/no-array-isarray': ERROR,
+  'es/no-array-prototype-every': ERROR,
+  'es/no-array-prototype-filter': ERROR,
+  'es/no-array-prototype-foreach': ERROR,
+  'es/no-array-prototype-indexof': ERROR,
+  'es/no-array-prototype-lastindexof': ERROR,
+  'es/no-array-prototype-map': ERROR,
+  'es/no-array-prototype-reduce': ERROR,
+  'es/no-array-prototype-reduceright': ERROR,
+  'es/no-array-prototype-some': ERROR,
+  'es/no-date-now': ERROR,
+  'es/no-json': ERROR,
+  'es/no-object-defineproperties': ERROR,
+  'es/no-object-defineproperty': ERROR,
+  'es/no-object-freeze': ERROR,
+  'es/no-object-getownpropertydescriptor': ERROR,
+  'es/no-object-getownpropertynames': ERROR,
+  'es/no-object-getprototypeof': ERROR,
+  'es/no-object-isextensible': ERROR,
+  'es/no-object-isfrozen': ERROR,
+  'es/no-object-issealed': ERROR,
+  'es/no-object-keys': ERROR,
+  'es/no-object-preventextensions': ERROR,
+  'es/no-object-seal': ERROR,
+  'es/no-string-prototype-trim': ERROR,
 };
 
 const forbidES2015BuiltIns = {
-  'es/no-array-from': 'error',
-  'es/no-array-of': 'error',
-  'es/no-array-prototype-copywithin': 'error',
-  'es/no-array-prototype-entries': 'error',
-  'es/no-array-prototype-fill': 'error',
-  'es/no-array-prototype-find': 'error',
-  'es/no-array-prototype-findindex': 'error',
-  'es/no-array-prototype-keys': 'error',
-  'es/no-array-prototype-values': 'error',
-  'es/no-map': 'error',
-  'es/no-math-acosh': 'error',
-  'es/no-math-asinh': 'error',
-  'es/no-math-atanh': 'error',
-  'es/no-math-cbrt': 'error',
-  'es/no-math-clz32': 'error',
-  'es/no-math-cosh': 'error',
-  'es/no-math-expm1': 'error',
-  'es/no-math-fround': 'error',
-  'es/no-math-hypot': 'error',
-  'es/no-math-imul': 'error',
-  'es/no-math-log10': 'error',
-  'es/no-math-log1p': 'error',
-  'es/no-math-log2': 'error',
-  'es/no-math-sign': 'error',
-  'es/no-math-sinh': 'error',
-  'es/no-math-tanh': 'error',
-  'es/no-math-trunc': 'error',
-  'es/no-number-epsilon': 'error',
-  'es/no-number-isfinite': 'error',
-  'es/no-number-isinteger': 'error',
-  'es/no-number-isnan': 'error',
-  'es/no-number-issafeinteger': 'error',
-  'es/no-number-maxsafeinteger': 'error',
-  'es/no-number-minsafeinteger': 'error',
-  'es/no-number-parsefloat': 'error',
-  'es/no-number-parseint': 'error',
-  'es/no-object-assign': 'error',
-  'es/no-object-getownpropertysymbols': 'error',
-  'es/no-object-is': 'error',
-  'es/no-object-setprototypeof': 'error',
-  'es/no-promise': 'error',
-  'es/no-proxy': 'error',
-  'es/no-reflect': 'error',
-  'es/no-regexp-prototype-flags': 'error',
-  'es/no-set': 'error',
-  'es/no-string-fromcodepoint': 'error',
-  'es/no-string-prototype-codepointat': 'error',
-  'es/no-string-prototype-endswith': 'error',
-  'es/no-string-prototype-includes': 'error',
-  'es/no-string-prototype-normalize': 'error',
-  'es/no-string-prototype-repeat': 'error',
-  'es/no-string-prototype-startswith': 'error',
-  'es/no-string-raw': 'error',
-  'es/no-symbol': 'error',
-  'es/no-typed-arrays': 'error',
-  'es/no-weak-map': 'error',
-  'es/no-weak-set': 'error',
+  'es/no-array-from': ERROR,
+  'es/no-array-of': ERROR,
+  'es/no-array-prototype-copywithin': ERROR,
+  'es/no-array-prototype-entries': ERROR,
+  'es/no-array-prototype-fill': ERROR,
+  'es/no-array-prototype-find': ERROR,
+  'es/no-array-prototype-findindex': ERROR,
+  'es/no-array-prototype-keys': ERROR,
+  'es/no-array-prototype-values': ERROR,
+  'es/no-map': ERROR,
+  'es/no-math-acosh': ERROR,
+  'es/no-math-asinh': ERROR,
+  'es/no-math-atanh': ERROR,
+  'es/no-math-cbrt': ERROR,
+  'es/no-math-clz32': ERROR,
+  'es/no-math-cosh': ERROR,
+  'es/no-math-expm1': ERROR,
+  'es/no-math-fround': ERROR,
+  'es/no-math-hypot': ERROR,
+  'es/no-math-imul': ERROR,
+  'es/no-math-log10': ERROR,
+  'es/no-math-log1p': ERROR,
+  'es/no-math-log2': ERROR,
+  'es/no-math-sign': ERROR,
+  'es/no-math-sinh': ERROR,
+  'es/no-math-tanh': ERROR,
+  'es/no-math-trunc': ERROR,
+  'es/no-number-epsilon': ERROR,
+  'es/no-number-isfinite': ERROR,
+  'es/no-number-isinteger': ERROR,
+  'es/no-number-isnan': ERROR,
+  'es/no-number-issafeinteger': ERROR,
+  'es/no-number-maxsafeinteger': ERROR,
+  'es/no-number-minsafeinteger': ERROR,
+  'es/no-number-parsefloat': ERROR,
+  'es/no-number-parseint': ERROR,
+  'es/no-object-assign': ERROR,
+  'es/no-object-getownpropertysymbols': ERROR,
+  'es/no-object-is': ERROR,
+  'es/no-object-setprototypeof': ERROR,
+  'es/no-promise': ERROR,
+  'es/no-proxy': ERROR,
+  'es/no-reflect': ERROR,
+  'es/no-regexp-prototype-flags': ERROR,
+  'es/no-set': ERROR,
+  'es/no-string-fromcodepoint': ERROR,
+  'es/no-string-prototype-codepointat': ERROR,
+  'es/no-string-prototype-endswith': ERROR,
+  'es/no-string-prototype-includes': ERROR,
+  'es/no-string-prototype-normalize': ERROR,
+  'es/no-string-prototype-repeat': ERROR,
+  'es/no-string-prototype-startswith': ERROR,
+  'es/no-string-raw': ERROR,
+  'es/no-symbol': ERROR,
+  'es/no-typed-arrays': ERROR,
+  'es/no-weak-map': ERROR,
+  'es/no-weak-set': ERROR,
 };
 
 const forbidES2016BuiltIns = {
-  'es/no-array-prototype-includes': 'error',
+  'es/no-array-prototype-includes': ERROR,
 };
 
 const forbidES2017BuiltIns = {
-  'es/no-atomics': 'error',
-  'es/no-object-entries': 'error',
-  'es/no-object-getownpropertydescriptors': 'error',
-  'es/no-object-values': 'error',
-  'es/no-shared-array-buffer': 'error',
-  'es/no-string-prototype-padstart-padend': 'error',
+  'es/no-atomics': ERROR,
+  'es/no-object-entries': ERROR,
+  'es/no-object-getownpropertydescriptors': ERROR,
+  'es/no-object-values': ERROR,
+  'es/no-shared-array-buffer': ERROR,
+  'es/no-string-prototype-padstart-padend': ERROR,
 };
 
 const forbidES2018BuiltIns = {
-  'es/no-promise-prototype-finally': 'error',
+  'es/no-promise-prototype-finally': ERROR,
 };
 
 const forbidES2019BuiltIns = {
-  'es/no-array-prototype-flat': 'error',
-  'es/no-object-fromentries': 'error',
-  'es/no-string-prototype-trimstart-trimend': 'error',
-  'es/no-symbol-prototype-description': 'error',
+  'es/no-array-prototype-flat': ERROR,
+  'es/no-object-fromentries': ERROR,
+  'es/no-string-prototype-trimstart-trimend': ERROR,
+  'es/no-symbol-prototype-description': ERROR,
 };
 
 const forbidES2020BuiltIns = {
-  'es/no-bigint': 'error',
-  'es/no-global-this': 'error',
-  'es/no-promise-all-settled': 'error',
-  'es/no-string-prototype-matchall': 'error',
+  'es/no-bigint': ERROR,
+  'es/no-global-this': ERROR,
+  'es/no-promise-all-settled': ERROR,
+  'es/no-string-prototype-matchall': ERROR,
 };
 
 const forbidES2021BuiltIns = {
-  'es/no-promise-any': 'error',
-  'es/no-string-prototype-replaceall': 'error',
-  'es/no-weakrefs': 'error',
+  'es/no-promise-any': ERROR,
+  'es/no-string-prototype-replaceall': ERROR,
+  'es/no-weakrefs': ERROR,
 };
 
 const forbidModernESBuiltIns = {
@@ -760,34 +765,34 @@ const forbidModernESBuiltIns = {
 
 const transpiledAndPolyfilled = {
   // disallow accessor properties
-  'es/no-accessor-properties': 'error',
+  'es/no-accessor-properties': ERROR,
   // disallow async functions
-  'es/no-async-functions': 'error',
+  'es/no-async-functions': ERROR,
   // disallow async iteration
-  'es/no-async-iteration': 'error',
+  'es/no-async-iteration': ERROR,
   // disallow generators
-  'es/no-generators': 'error',
+  'es/no-generators': ERROR,
   // unpolyfillable es2015 builtins
-  'es/no-proxy': 'error',
-  'es/no-string-prototype-normalize': 'error',
+  'es/no-proxy': ERROR,
+  'es/no-string-prototype-normalize': ERROR,
   // unpolyfillable es2017 builtins
-  'es/no-atomics': 'error',
-  'es/no-shared-array-buffer': 'error',
+  'es/no-atomics': ERROR,
+  'es/no-shared-array-buffer': ERROR,
   // unpolyfillable es2020 builtins
-  'es/no-bigint': 'error',
+  'es/no-bigint': ERROR,
   // unpolyfillable es2021 builtins
-  'es/no-weakrefs': 'error',
+  'es/no-weakrefs': ERROR,
 };
 
 const nodePackages = {
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': ['error', { version: SUPPORTED_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
   ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': 'error',
-  'es/no-shared-array-buffer': 'error',
+  'es/no-atomics': ERROR,
+  'es/no-shared-array-buffer': ERROR,
   ...forbidES2018BuiltIns,
   ...forbidES2019BuiltIns,
   ...forbidES2020BuiltIns,
@@ -796,166 +801,156 @@ const nodePackages = {
 
 const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': ['error', { version: DEV_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
   ...forbidES2021BuiltIns,
-  'es/no-weakrefs': 'off',
+  'es/no-weakrefs': OFF,
 };
 
 const tests = {
   // relax for testing:
   // enforces return statements in callbacks of array's methods
-  'array-callback-return': 'off',
+  'array-callback-return': OFF,
   // specify the maximum length of a line in your program
-  'max-len': ['error', {
-    code: 180,
-    tabWidth: 2,
-    ignoreRegExpLiterals: true,
-    ignoreTemplateLiterals: true,
-    ignoreUrls: true,
-  }],
+  'max-len': [ERROR, { ...base['max-len'][1], code: 180 }],
   // specify the maximum number of statement allowed in a function
-  'max-statements': 'off',
+  'max-statements': OFF,
   // disallow function declarations and expressions inside loop statements
-  'no-loop-func': 'off',
+  'no-loop-func': OFF,
   // disallow use of new operator when not part of the assignment or comparison
-  'no-new': 'off',
+  'no-new': OFF,
   // disallow use of new operator for Function object
-  'no-new-func': 'off',
+  'no-new-func': OFF,
   // disallows creating new instances of String, Number, and Boolean
-  'no-new-wrappers': 'off',
+  'no-new-wrappers': OFF,
   // restrict what can be thrown as an exception
-  'no-throw-literal': 'off',
+  'no-throw-literal': OFF,
   // disallow usage of expressions in statement position
-  'no-unused-expressions': 'off',
+  'no-unused-expressions': OFF,
   // disallow unnecessary calls to `.call()` and `.apply()`
-  'no-useless-call': 'off',
+  'no-useless-call': OFF,
   // enforce passing a message value when throwing a built-in error
-  'unicorn/error-message': 'off',
+  'unicorn/error-message': OFF,
   // functions should not have identical implementations
-  'sonarjs/no-identical-functions': 'off',
+  'sonarjs/no-identical-functions': OFF,
 };
 
 const qunit = {
   // ensure the correct number of assert arguments is used
-  'qunit/assert-args': 'error',
+  'qunit/assert-args': ERROR,
   // forbid the use of assert.equal
-  'qunit/no-assert-equal': 'error',
+  'qunit/no-assert-equal': ERROR,
   // require use of boolean assertions
-  'qunit/no-assert-equal-boolean': 'error',
+  'qunit/no-assert-equal-boolean': ERROR,
   // forbid binary logical expressions in assert arguments
-  'qunit/no-assert-logical-expression': 'error',
+  'qunit/no-assert-logical-expression': ERROR,
   // forbid async calls in loops
-  'qunit/no-async-in-loops': 'error',
+  'qunit/no-async-in-loops': ERROR,
   // disallow async module callbacks
-  'qunit/no-async-module-callbacks': 'error',
+  'qunit/no-async-module-callbacks': ERROR,
   // forbid the use of asyncTest
-  'qunit/no-async-test': 'error',
+  'qunit/no-async-test': ERROR,
   // disallow the use of hooks from ancestor modules
-  'qunit/no-hooks-from-ancestor-modules': 'error',
+  'qunit/no-hooks-from-ancestor-modules': ERROR,
   // forbid commented tests
-  'qunit/no-commented-tests': 'error',
+  'qunit/no-commented-tests': ERROR,
   // forbid comparing relational expression to boolean in assertions
-  'qunit/no-compare-relation-boolean': 'error',
+  'qunit/no-compare-relation-boolean': ERROR,
   // prevent early return in a qunit test
-  'qunit/no-early-return': 'error',
+  'qunit/no-early-return': ERROR,
   // forbid the use of global qunit assertions
-  'qunit/no-global-assertions': 'error',
+  'qunit/no-global-assertions': ERROR,
   // forbid the use of global expect
-  'qunit/no-global-expect': 'error',
+  'qunit/no-global-expect': ERROR,
   // forbid the use of global module / test / asyncTest
-  'qunit/no-global-module-test': 'error',
+  'qunit/no-global-module-test': ERROR,
   // forbid use of global stop / start
-  'qunit/no-global-stop-start': 'error',
+  'qunit/no-global-stop-start': ERROR,
   // forbid identical test and module names
-  'qunit/no-identical-names': 'error',
+  'qunit/no-identical-names': ERROR,
   // forbid use of QUnit.init
-  'qunit/no-init': 'error',
+  'qunit/no-init': ERROR,
   // forbid use of QUnit.jsDump
-  'qunit/no-jsdump': 'error',
+  'qunit/no-jsdump': ERROR,
   // forbid QUnit.test() calls inside callback of another QUnit.test
-  'qunit/no-nested-tests': 'error',
+  'qunit/no-nested-tests': ERROR,
   // forbid equality comparisons in assert.{ok, notOk}
-  'qunit/no-ok-equality': 'error',
+  'qunit/no-ok-equality': ERROR,
   // forbid the use of QUnit.push
-  'qunit/no-qunit-push': 'error',
+  'qunit/no-qunit-push': ERROR,
   // forbid QUnit.start within tests or test hooks
-  'qunit/no-qunit-start-in-tests': 'error',
+  'qunit/no-qunit-start-in-tests': ERROR,
   // forbid the use of QUnit.stop
-  'qunit/no-qunit-stop': 'error',
+  'qunit/no-qunit-stop': ERROR,
   // forbid overwriting of QUnit logging callbacks
-  'qunit/no-reassign-log-callbacks': 'error',
+  'qunit/no-reassign-log-callbacks': ERROR,
   // forbid use of QUnit.reset
-  'qunit/no-reset': 'error',
+  'qunit/no-reset': ERROR,
   // forbid setup / teardown module hooks
-  'qunit/no-setup-teardown': 'error',
+  'qunit/no-setup-teardown': ERROR,
   // forbid expect argument in QUnit.test
-  'qunit/no-test-expect-argument': 'error',
+  'qunit/no-test-expect-argument': ERROR,
   // forbid assert.throws() with block, string, and message
-  'qunit/no-throws-string': 'error',
+  'qunit/no-throws-string': ERROR,
   // enforce use of objects as expected value in `assert.propEqual`
-  'qunit/require-object-in-propequal': 'error',
+  'qunit/require-object-in-propequal': ERROR,
   // require that all async calls should be resolved in tests
-  'qunit/resolve-async': 'error',
+  'qunit/resolve-async': ERROR,
 };
 
 const json = {
   // enforce spacing inside array brackets
-  'jsonc/array-bracket-spacing': ['error', 'never'],
+  'jsonc/array-bracket-spacing': [ERROR, NEVER],
   // disallow trailing commas in multiline object literals
-  'jsonc/comma-dangle': ['error', 'never'],
+  'jsonc/comma-dangle': [ERROR, NEVER],
   // enforce one true comma style
-  'jsonc/comma-style': ['error', 'last'],
+  'jsonc/comma-style': [ERROR, 'last'],
   // enforce consistent indentation
-  'jsonc/indent': ['error', 2],
+  'jsonc/indent': [ERROR, 2],
   // enforces spacing between keys and values in object literal properties
-  'jsonc/key-spacing': ['error', { beforeColon: false, afterColon: true }],
+  'jsonc/key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
   // disallow BigInt literals
-  'jsonc/no-bigint-literals': 'error',
+  'jsonc/no-bigint-literals': ERROR,
   // disallow comments
-  'jsonc/no-comments': 'error',
+  'jsonc/no-comments': ERROR,
   // disallow duplicate keys when creating object literals
-  'jsonc/no-dupe-keys': 'error',
+  'jsonc/no-dupe-keys': ERROR,
   // disallow escape sequences in identifiers.
-  'jsonc/no-escape-sequence-in-identifier': 'error',
+  'jsonc/no-escape-sequence-in-identifier': ERROR,
   // disallow use of multiline strings
-  'jsonc/no-multi-str': 'error',
+  'jsonc/no-multi-str': ERROR,
   // disallow number property keys
-  'jsonc/no-number-props': 'error',
+  'jsonc/no-number-props': ERROR,
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
-  'jsonc/no-octal-escape': 'error',
+  'jsonc/no-octal-escape': ERROR,
   // disallow RegExp literals
-  'jsonc/no-regexp-literals': 'error',
+  'jsonc/no-regexp-literals': ERROR,
   // disallow sparse arrays
-  'jsonc/no-sparse-arrays': 'error',
+  'jsonc/no-sparse-arrays': ERROR,
   // disallow template literals
-  'jsonc/no-template-literals': 'error',
+  'jsonc/no-template-literals': ERROR,
   // disallow `undefined`
-  'jsonc/no-undefined-value': 'error',
+  'jsonc/no-undefined-value': ERROR,
   // disallow Unicode code point escape sequences.
-  'jsonc/no-unicode-codepoint-escapes': 'error',
+  'jsonc/no-unicode-codepoint-escapes': ERROR,
   // disallow unnecessary string escaping
-  'jsonc/no-useless-escape': 'error',
+  'jsonc/no-useless-escape': ERROR,
   // enforce consistent line breaks after opening and before closing braces
-  'jsonc/object-curly-newline': ['error', { consistent: true }],
+  'jsonc/object-curly-newline': [ERROR, { consistent: true }],
   // enforce spaces inside braces
-  'jsonc/object-curly-spacing': ['error', 'always'],
+  'jsonc/object-curly-spacing': [ERROR, ALWAYS],
   // require or disallow use of quotes around object literal property names
-  'jsonc/quote-props': ['error', 'always'],
+  'jsonc/quote-props': [ERROR, ALWAYS],
   // specify whether double or single quotes should be used
-  'jsonc/quotes': ['error', 'double'],
+  'jsonc/quotes': [ERROR, 'double'],
   // require or disallow spaces before/after unary operators
-  'jsonc/space-unary-ops': 'error',
+  'jsonc/space-unary-ops': ERROR,
   // disallow invalid number for JSON
-  'jsonc/valid-json-number': 'error',
+  'jsonc/valid-json-number': ERROR,
   // specify the maximum length of a line in your program
-  'max-len': ['error', {
-    code: 180,
-    tabWidth: 2,
-    ignoreUrls: true,
-  }],
+  'max-len': [ERROR, { ...base['max-len'][1], code: 180 }],
   // require strict mode directives
-  strict: 'off',
+  strict: OFF,
 };
 
 module.exports = {
@@ -1080,11 +1075,11 @@ module.exports = {
         'tests/compat/**',
       ],
       globals: {
-        compositeKey: true,
-        compositeSymbol: true,
-        AsyncIterator: true,
-        Iterator: true,
-        Observable: true,
+        compositeKey: READONLY,
+        compositeSymbol: READONLY,
+        AsyncIterator: READONLY,
+        Iterator: READONLY,
+        Observable: READONLY,
       },
     },
     {
@@ -1103,20 +1098,20 @@ module.exports = {
       ],
       // zx
       globals: {
-        $: true,
-        __dirname: true,
-        __filename: true,
-        argv: true,
-        cd: true,
-        chalk: true,
-        fetch: true,
-        fs: true,
-        globby: true,
-        os: true,
-        nothrow: true,
-        question: true,
-        require: true,
-        sleep: true,
+        $: READONLY,
+        __dirname: READONLY,
+        __filename: READONLY,
+        argv: READONLY,
+        cd: READONLY,
+        chalk: READONLY,
+        fetch: READONLY,
+        fs: READONLY,
+        globby: READONLY,
+        nothrow: READONLY,
+        os: READONLY,
+        question: READONLY,
+        require: READONLY,
+        sleep: READONLY,
       },
     },
     {
