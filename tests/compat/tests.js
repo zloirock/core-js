@@ -815,8 +815,10 @@ GLOBAL.tests = {
       && /()??/.exec('')[1] === undefined
       && reSticky.exec('abc')[0] === 'a'
       && reSticky.exec('abc') === null
-      && (reSticky.lastIndex = 1, reSticky.exec('bac')[0] === 'a')
-      && (reStickyAnchored.lastIndex = 2, reStickyAnchored.exec('cba') === null)
+      && (reSticky.lastIndex = 1)
+      && reSticky.exec('bac')[0] === 'a'
+      && (reStickyAnchored.lastIndex = 2)
+      && reStickyAnchored.exec('cba') === null
       && RegExp('.', 's').exec('\n');
   }],
   'es.regexp.flags': function () {
