@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var has = require('../internals/has');
+var isDataDescriptor = require('../internals/is-data-descriptor');
 var fails = require('../internals/fails');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
@@ -20,7 +20,7 @@ function set(target, propertyKey, V /* , receiver */) {
     }
     ownDescriptor = createPropertyDescriptor(0);
   }
-  if (has(ownDescriptor, 'value')) {
+  if (isDataDescriptor(ownDescriptor)) {
     if (ownDescriptor.writable === false || !isObject(receiver)) return false;
     if (existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey)) {
       if (existingDescriptor.get || existingDescriptor.set || existingDescriptor.writable === false) return false;
