@@ -30,7 +30,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
     await page.goto(site);
     // seems js hangs on some sites, so added a time limit
     const { core, vm, vl } = await pTimeout(page.evaluate(`({
-      core: !!window['__core-js_shared__'] || !!window.core,
+      core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
       vm: window['__core-js_shared__']?.versions,
       vl: window.core?.version,
     })`), 1e4, timeout);
