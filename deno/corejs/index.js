@@ -1,5 +1,5 @@
 /**
- * core-js 3.16.2
+ * core-js 3.16.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -686,7 +686,7 @@ var store = __webpack_require__(26);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.16.2',
+  version: '3.16.3',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
@@ -2577,7 +2577,7 @@ var $ = __webpack_require__(2);
 var anObject = __webpack_require__(35);
 var createAsyncIteratorProxy = __webpack_require__(102);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var iterator = state.iterator;
 
@@ -2649,9 +2649,10 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
+      var hasArg = !!arguments.length;
       if (state.done) return Promise.resolve({ done: true, value: undefined });
       try {
-        return Promise.resolve(anObject(nextHandler.call(state, arg, Promise)));
+        return Promise.resolve(anObject(nextHandler.call(state, Promise, hasArg ? arg : undefined, hasArg)));
       } catch (error) {
         return Promise.reject(error);
       }
@@ -2701,7 +2702,7 @@ var anObject = __webpack_require__(35);
 var toPositiveInteger = __webpack_require__(106);
 var createAsyncIteratorProxy = __webpack_require__(102);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
 
   return new Promise(function (resolve, reject) {
@@ -2866,7 +2867,7 @@ var aFunction = __webpack_require__(65);
 var anObject = __webpack_require__(35);
 var createAsyncIteratorProxy = __webpack_require__(102);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var filterer = state.filterer;
 
@@ -2933,7 +2934,7 @@ var anObject = __webpack_require__(35);
 var createAsyncIteratorProxy = __webpack_require__(102);
 var getAsyncIteratorMethod = __webpack_require__(112);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var mapper = state.mapper;
   var innerIterator, iteratorMethod;
@@ -3041,8 +3042,12 @@ var getAsyncIteratorMethod = __webpack_require__(112);
 
 var AsyncIterator = path.AsyncIterator;
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
-  return anObject(this.next.call(this.iterator, arg));
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg, hasArg) {
+  var step = anObject(this.next.apply(this.iterator, hasArg ? [arg] : []));
+  var done = step.done;
+  return Promise.resolve(step.value).then(function (value) {
+    return { done: done, value: value };
+  });
 }, true);
 
 $({ target: 'AsyncIterator', stat: true }, {
@@ -3074,7 +3079,7 @@ var aFunction = __webpack_require__(65);
 var anObject = __webpack_require__(35);
 var createAsyncIteratorProxy = __webpack_require__(102);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var mapper = state.mapper;
 
@@ -3181,7 +3186,7 @@ var anObject = __webpack_require__(35);
 var toPositiveInteger = __webpack_require__(106);
 var createAsyncIteratorProxy = __webpack_require__(102);
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var iterator = this.iterator;
   var returnMethod, result;
   if (!this.remaining--) {

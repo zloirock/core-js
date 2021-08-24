@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.16.3 - 2021.08.25
 - Fixed `CreateAsyncFromSyncIterator` semantic in `AsyncIterator.from`, related to [#765](https://github.com/zloirock/core-js/issues/765)
 - Added a workaround of a specific case of broken `Object.prototype`, [#973](https://github.com/zloirock/core-js/issues/973)
 
