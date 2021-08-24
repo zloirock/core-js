@@ -42,9 +42,10 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
+      var hasArg = !!arguments.length;
       if (state.done) return Promise.resolve({ done: true, value: undefined });
       try {
-        return Promise.resolve(anObject(nextHandler.call(state, arg, Promise)));
+        return Promise.resolve(anObject(nextHandler.call(state, Promise, hasArg ? arg : undefined, hasArg)));
       } catch (error) {
         return Promise.reject(error);
       }

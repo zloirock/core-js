@@ -9,8 +9,12 @@ var getAsyncIteratorMethod = require('../internals/get-async-iterator-method');
 
 var AsyncIterator = path.AsyncIterator;
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg) {
-  return anObject(this.next.call(this.iterator, arg));
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg, hasArg) {
+  var step = anObject(this.next.apply(this.iterator, hasArg ? [arg] : []));
+  var done = step.done;
+  return Promise.resolve(step.value).then(function (value) {
+    return { done: done, value: value };
+  });
 }, true);
 
 $({ target: 'AsyncIterator', stat: true }, {

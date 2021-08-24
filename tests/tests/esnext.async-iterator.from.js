@@ -13,8 +13,8 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.ok(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
 
-  AsyncIterator.from([1, 2, 3]).toArray().then(result => {
-    assert.arrayEqual(result, [1, 2, 3], 'just a proxy');
+  AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
+    assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
     async();
   });
 

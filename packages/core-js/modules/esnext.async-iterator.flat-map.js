@@ -6,7 +6,7 @@ var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIteratorMethod = require('../internals/get-async-iterator-method');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var mapper = state.mapper;
   var innerIterator, iteratorMethod;

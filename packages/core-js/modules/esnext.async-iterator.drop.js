@@ -5,7 +5,7 @@ var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (arg, Promise) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
 
   return new Promise(function (resolve, reject) {
