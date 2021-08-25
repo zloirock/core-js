@@ -80,7 +80,7 @@ equal('core-js/features', allModules);
 superset('core-js/features/array', /^(es|esnext)\.array\./);
 superset('core-js/features/array-buffer', /^(es|esnext)\.array-buffer\./);
 superset('core-js/features/async-iterator', /^(es|esnext)\.async-iterator\./);
-equal('core-js/features/bigint', /^(es|esnext)\.bigint\./);
+superset('core-js/features/bigint', /^(es|esnext)\.bigint\./);
 superset('core-js/features/data-view', /^(es|esnext)\.data-view\./);
 superset('core-js/features/date', /^(es|esnext)\.date\./);
 superset('core-js/features/dom-collections', /^web\.dom-collections\./);
