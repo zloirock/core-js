@@ -7,8 +7,8 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
-module.exports = function (it) {
-  var method = getMethod(it[ASYNC_ITERATOR]);
+module.exports = function (it, usingIterator) {
+  var method = arguments.length < 2 ? getMethod(it[ASYNC_ITERATOR]) : usingIterator;
   if (method === undefined) {
     return new AsyncFromSyncIterator(getIterator(it));
   } return anObject(aFunction(method).call(it));
