@@ -11,6 +11,7 @@ var defineProperty = require('../internals/object-define-property').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefineAll = require('../internals/redefine-all');
 var getIterator = require('../internals/get-iterator');
+var getMethod = require('../internals/get-method');
 var iterate = require('../internals/iterate');
 var hostReportErrors = require('../internals/host-report-errors');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -19,10 +20,6 @@ var InternalStateModule = require('../internals/internal-state');
 var OBSERVABLE = wellKnownSymbol('observable');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-
-var getMethod = function (fn) {
-  return fn == null ? undefined : aFunction(fn);
-};
 
 var cleanupSubscription = function (subscriptionState) {
   var cleanup = subscriptionState.cleanup;

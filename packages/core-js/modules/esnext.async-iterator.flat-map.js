@@ -4,12 +4,12 @@ var $ = require('../internals/export');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
-var getAsyncIteratorMethod = require('../internals/get-async-iterator-method');
+var getAsyncIterator = require('../internals/get-async-iterator');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
   var state = this;
   var mapper = state.mapper;
-  var innerIterator, iteratorMethod;
+  var innerIterator;
 
   return new Promise(function (resolve, reject) {
     var outerLoop = function () {
@@ -22,12 +22,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
             } else {
               Promise.resolve(mapper(step.value)).then(function (mapped) {
                 try {
-                  iteratorMethod = getAsyncIteratorMethod(mapped);
-                  if (iteratorMethod !== undefined) {
-                    state.innerIterator = innerIterator = anObject(iteratorMethod.call(mapped));
-                    state.innerNext = aFunction(innerIterator.next);
-                    return innerLoop();
-                  } reject(TypeError('.flatMap callback should return an iterable object'));
+                  state.innerIterator = innerIterator = anObject(getAsyncIterator(mapped));
+                  state.innerNext = aFunction(innerIterator.next);
+                  return innerLoop();
                 } catch (error2) { reject(error2); }
               }, reject);
             }

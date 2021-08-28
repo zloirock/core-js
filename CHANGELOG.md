@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- `AsyncFromSyncIterator` made stricter, related mainly to `AsyncIterator.from` and `AsyncIterator.prototype.flatMap`
 
 ##### 3.16.3 - 2021.08.25
 - Fixed `CreateAsyncFromSyncIterator` semantic in `AsyncIterator.from`, related to [#765](https://github.com/zloirock/core-js/issues/765)
