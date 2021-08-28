@@ -2,6 +2,7 @@ var anObject = require('../internals/an-object');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var bind = require('../internals/function-bind-context');
+var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var iteratorClose = require('../internals/iterator-close');
 
@@ -42,7 +43,7 @@ module.exports = function (iterable, unboundFunction, options) {
         if (result && result instanceof Result) return result;
       } return new Result(false);
     }
-    iterator = iterFn.call(iterable);
+    iterator = getIterator(iterable, iterFn);
   }
 
   next = iterator.next;

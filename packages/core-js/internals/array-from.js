@@ -5,6 +5,7 @@ var callWithSafeIterationClosing = require('../internals/call-with-safe-iteratio
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
+var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 
 // `Array.from` method implementation
@@ -21,7 +22,7 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
   if (mapping) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
   // if the target is not iterable or it's an array with the default iterator - use a simple case
   if (iteratorMethod != undefined && !(C == Array && isArrayIteratorMethod(iteratorMethod))) {
-    iterator = iteratorMethod.call(O);
+    iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     result = new C();
     for (;!(step = next.call(iterator)).done; index++) {

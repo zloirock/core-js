@@ -143,7 +143,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
     if (isObject(init)) {
       iteratorMethod = getIteratorMethod(init);
       if (typeof iteratorMethod === 'function') {
-        iterator = iteratorMethod.call(init);
+        iterator = getIterator(init, iteratorMethod);
         next = iterator.next;
         while (!(step = next.call(iterator)).done) {
           entryIterator = getIterator(anObject(step.value));

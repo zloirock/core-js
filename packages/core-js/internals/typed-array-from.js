@@ -1,5 +1,6 @@
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
+var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var bind = require('../internals/function-bind-context');
@@ -13,7 +14,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, step, iterator, next;
   if (iteratorMethod != undefined && !isArrayIteratorMethod(iteratorMethod)) {
-    iterator = iteratorMethod.call(O);
+    iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     O = [];
     while (!(step = next.call(iterator)).done) {
