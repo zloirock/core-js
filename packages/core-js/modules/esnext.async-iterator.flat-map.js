@@ -22,7 +22,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
             } else {
               Promise.resolve(mapper(step.value)).then(function (mapped) {
                 try {
-                  state.innerIterator = innerIterator = anObject(getAsyncIterator(mapped));
+                  state.innerIterator = innerIterator = getAsyncIterator(mapped);
                   state.innerNext = aFunction(innerIterator.next);
                   return innerLoop();
                 } catch (error2) { reject(error2); }
