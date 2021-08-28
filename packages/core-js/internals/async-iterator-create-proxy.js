@@ -36,16 +36,18 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
     state.next = aFunction(state.iterator.next);
     state.done = false;
+    state.ignoreArg = !IS_ITERATOR;
     setInternalState(this, state);
   };
 
   AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
-      var hasArg = !!arguments.length;
+      var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
+      state.ignoreArg = false;
       if (state.done) return Promise.resolve({ done: true, value: undefined });
       try {
-        return Promise.resolve(anObject(nextHandler.call(state, Promise, hasArg ? arg : undefined, hasArg)));
+        return Promise.resolve(anObject(nextHandler.call(state, Promise, args)));
       } catch (error) {
         return Promise.reject(error);
       }

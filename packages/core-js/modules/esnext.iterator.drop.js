@@ -5,7 +5,7 @@ var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 
-var IteratorProxy = createIteratorProxy(function (arg) {
+var IteratorProxy = createIteratorProxy(function (args) {
   var iterator = this.iterator;
   var next = this.next;
   var result, done;
@@ -15,7 +15,7 @@ var IteratorProxy = createIteratorProxy(function (arg) {
     done = this.done = !!result.done;
     if (done) return;
   }
-  result = anObject(next.call(iterator, arg));
+  result = anObject(next.apply(iterator, args));
   done = this.done = !!result.done;
   if (!done) return result.value;
 });

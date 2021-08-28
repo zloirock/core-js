@@ -15,8 +15,8 @@ var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
 var AsyncIterator = path.AsyncIterator;
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg, hasArg) {
-  return anObject(this.next.apply(this.iterator, hasArg ? [arg] : []));
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
+  return anObject(this.next.apply(this.iterator, args));
 }, true);
 
 $({ target: 'AsyncIterator', stat: true }, {

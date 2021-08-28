@@ -5,7 +5,7 @@ var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   var iterator = this.iterator;
   var returnMethod, result;
   if (!this.remaining--) {
@@ -18,7 +18,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
       });
     }
     return result;
-  } return this.next.call(iterator, arg);
+  } return this.next.apply(iterator, args);
 });
 
 $({ target: 'AsyncIterator', proto: true, real: true }, {

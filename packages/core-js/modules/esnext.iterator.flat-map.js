@@ -7,7 +7,7 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
 
-var IteratorProxy = createIteratorProxy(function (arg) {
+var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var mapper = this.mapper;
   var result, mapped, iteratorMethod, innerIterator;
@@ -20,7 +20,7 @@ var IteratorProxy = createIteratorProxy(function (arg) {
         this.innerIterator = this.innerNext = null;
       }
 
-      result = anObject(this.next.call(iterator, arg));
+      result = anObject(this.next.call(iterator));
 
       if (this.done = !!result.done) return;
 

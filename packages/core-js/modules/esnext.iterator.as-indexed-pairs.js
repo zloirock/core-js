@@ -4,8 +4,8 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 
-var IteratorProxy = createIteratorProxy(function (arg) {
-  var result = anObject(this.next.call(this.iterator, arg));
+var IteratorProxy = createIteratorProxy(function (args) {
+  var result = anObject(this.next.apply(this.iterator, args));
   var done = this.done = !!result.done;
   if (!done) return [this.index++, result.value];
 });

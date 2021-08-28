@@ -30,13 +30,16 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(state) {
     state.next = aFunction(state.iterator.next);
     state.done = false;
+    state.ignoreArg = !IS_ITERATOR;
     setInternalState(this, state);
   };
 
   IteratorProxy.prototype = redefineAll(create(path.Iterator.prototype), {
-    next: function next() {
+    next: function next(arg) {
       var state = getInternalState(this);
-      var result = state.done ? undefined : nextHandler.apply(state, arguments);
+      var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
+      state.ignoreArg = false;
+      var result = state.done ? undefined : nextHandler.call(state, args);
       return { done: state.done, value: result };
     },
     'return': $return,

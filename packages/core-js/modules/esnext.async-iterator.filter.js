@@ -5,14 +5,14 @@ var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
-var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, arg) {
+var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   var state = this;
   var filterer = state.filterer;
 
   return new Promise(function (resolve, reject) {
     var loop = function () {
       try {
-        Promise.resolve(anObject(state.next.call(state.iterator, arg))).then(function (step) {
+        Promise.resolve(anObject(state.next.apply(state.iterator, args))).then(function (step) {
           try {
             if (anObject(step).done) {
               state.done = true;
