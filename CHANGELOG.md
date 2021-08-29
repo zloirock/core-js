@@ -4,6 +4,7 @@
 - Handling of optional `.next` arguments in `(Async)Iterator` methods is aligned with the current spec draft (mainly - ignoring the first passed to `.next` argument in built-in generators)
 - Behavior of `.next`, `.return`, `.throw` methods on `AsyncIterator` helpers proxy iterators aligned with the current spec draft (built-in async generators) (mainly - some early errors moved to returned promises)
 - Fixed some cases of safe iteration closing
+- Fixed dependencies of some entry points
 
 ##### 3.16.3 - 2021.08.25
 - Fixed `CreateAsyncFromSyncIterator` semantic in `AsyncIterator.from`, related to [#765](https://github.com/zloirock/core-js/issues/765)
