@@ -20,15 +20,15 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
     state.next = aFunction(state.iterator.next);
     state.done = false;
-    state.ignoreArg = !IS_ITERATOR;
+    state.ignoreArgument = !IS_ITERATOR;
     setInternalState(this, state);
   };
 
   AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
     next: function next(arg) {
       var state = getInternalState(this);
-      var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
-      state.ignoreArg = false;
+      var args = arguments.length ? [state.ignoreArgument ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
+      state.ignoreArgument = false;
       return new Promise(function (resolve) {
         resolve(state.done ? { done: true, value: undefined } : anObject(nextHandler.call(state, Promise, args)));
       });
@@ -38,8 +38,9 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var $$return = iterator['return'];
         if ($$return === undefined) return resolve({ done: true, value: value });
-        Promise.resolve(anObject($$return.call(iterator, value)).value).then(function (result) {
-          resolve({ done: true, value: result });
+        Promise.resolve($$return.call(iterator, value)).then(function (result) {
+          anObject(result);
+          resolve({ done: true, value: value });
         }, reject);
       });
     },
