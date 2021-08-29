@@ -26,16 +26,19 @@ module.exports = function (nextHandler, IS_ITERATOR) {
 
   AsyncIteratorProxy.prototype = redefineAll(create(path.AsyncIterator.prototype), {
     next: function next(arg) {
-      var state = getInternalState(this);
-      var args = arguments.length ? [state.ignoreArgument ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
-      state.ignoreArgument = false;
+      var that = this;
+      var hasArgument = !!arguments.length;
       return new Promise(function (resolve) {
+        var state = getInternalState(that);
+        var args = hasArgument ? [state.ignoreArgument ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
+        state.ignoreArgument = false;
         resolve(state.done ? { done: true, value: undefined } : anObject(nextHandler.call(state, Promise, args)));
       });
     },
     'return': function (value) {
-      var iterator = getInternalState(this).iterator;
+      var that = this;
       return new Promise(function (resolve, reject) {
+        var iterator = getInternalState(that).iterator;
         var $$return = iterator['return'];
         if ($$return === undefined) return resolve({ done: true, value: value });
         Promise.resolve($$return.call(iterator, value)).then(function (result) {
@@ -45,8 +48,9 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       });
     },
     'throw': function (value) {
-      var iterator = getInternalState(this).iterator;
+      var that = this;
       return new Promise(function (resolve, reject) {
+        var iterator = getInternalState(that).iterator;
         var $$throw = iterator['throw'];
         if ($$throw === undefined) return reject(value);
         resolve($$throw.call(iterator, value));
