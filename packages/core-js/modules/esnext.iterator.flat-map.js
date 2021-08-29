@@ -34,8 +34,7 @@ var IteratorProxy = createIteratorProxy(function () {
       this.innerIterator = innerIterator = anObject(iteratorMethod.call(mapped));
       this.innerNext = aFunction(innerIterator.next);
     } catch (error) {
-      iteratorClose(iterator);
-      throw error;
+      iteratorClose(iterator, 'throw', error);
     }
   }
 });
