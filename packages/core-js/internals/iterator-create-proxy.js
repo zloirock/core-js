@@ -13,19 +13,6 @@ var getInternalState = InternalStateModule.get;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
-var $return = function (value) {
-  var iterator = getInternalState(this).iterator;
-  var $$return = iterator['return'];
-  return $$return === undefined ? { done: true, value: value } : anObject($$return.call(iterator, value));
-};
-
-var $throw = function (value) {
-  var iterator = getInternalState(this).iterator;
-  var $$throw = iterator['throw'];
-  if ($$throw === undefined) throw value;
-  return $$throw.call(iterator, value);
-};
-
 module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(state) {
     state.next = aFunction(state.iterator.next);
@@ -42,8 +29,17 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       var result = state.done ? undefined : nextHandler.call(state, args);
       return { done: state.done, value: result };
     },
-    'return': $return,
-    'throw': $throw
+    'return': function (value) {
+      var iterator = getInternalState(this).iterator;
+      var $$return = iterator['return'];
+      return { done: true, value: $$return === undefined ? value : anObject($$return.call(iterator, value)).value };
+    },
+    'throw': function (value) {
+      var iterator = getInternalState(this).iterator;
+      var $$throw = iterator['throw'];
+      if ($$throw === undefined) throw value;
+      return $$throw.call(iterator, value);
+    }
   });
 
   if (!IS_ITERATOR) {
