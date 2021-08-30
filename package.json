@@ -104,7 +104,7 @@
     "test-entries-content": "zx tests/commonjs-entries-content.mjs",
     "test-entries-standalone": "run-s init test-entries",
     "test-targets-parser": "zx tests/targets-parser.mjs",
-    "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-targets-parser check-unused-modules check-mapping",
+    "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-targets-parser check-unused-modules check-mapping outdated",
     "ci": "run-s init bundle test-unit test-promises test-observables test-entries test-targets-parser",
     "clean-dependencies": "node scripts/clean-dependencies.mjs",
     "refresh": "npm run clean-dependencies && npm i && npm t",
