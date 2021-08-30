@@ -10,7 +10,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   var iterator = this.iterator;
   if (!this.remaining--) {
     this.done = true;
-    return iteratorClose(iterator, 'return', undefined);
+    return iteratorClose(iterator, 'normal', undefined);
   }
   var result = anObject(this.next.apply(iterator, args));
   var done = this.done = !!result.done;
