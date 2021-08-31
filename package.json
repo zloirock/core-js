@@ -119,6 +119,10 @@
     "usage-1000": "zx scripts/usage.mjs -l=1000",
     "usage-10000": "zx scripts/usage.mjs -l=10000",
     "update-version": "zx scripts/update-version.mjs && zx scripts/bundle.mjs --deno",
-    "publish": "lerna publish from-package --yes"
+    "publish": "lerna publish from-package --yes",
+    "l": "npm run lint",
+    "m": "npm run check-mapping",
+    "o": "npm run check-dependencies",
+    "r": "npm run refresh"
   }
 }
