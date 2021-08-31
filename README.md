@@ -394,7 +394,7 @@ core-js(-pure)
 core-js(-pure)/es
 ```
 #### ECMAScript: Object[⬆](#index)
-Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js) and [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js).
+Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js), [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js), [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js).
 
 Just ES5 features: [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-property.js) and [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.es.object.define-properties.js).
 
@@ -417,6 +417,7 @@ class Object {
   static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
   static getOwnPropertyNames(object: any): Array<string>;
   static getPrototypeOf(object: any): Object | null;
+  static hasOwn(object: object, key: PropertyKey): boolean;
   static is(value1: any, value2: any): boolean;
   static isExtensible(object: any): boolean;
   static isFrozen(object: any): boolean;
@@ -440,6 +441,7 @@ core-js(-pure)/es|stable|features/object/define-property
 core-js(-pure)/es|stable|features/object/define-properties
 core-js(-pure)/es|stable|features/object/get-own-property-descriptor
 core-js(-pure)/es|stable|features/object/get-own-property-descriptors
+core-js(-pure)/es|stable|features/object/has-own
 core-js(-pure)/es|stable|features/object/keys
 core-js(-pure)/es|stable|features/object/values
 core-js(-pure)/es|stable|features/object/entries
@@ -457,7 +459,7 @@ core-js(-pure)/es|stable|features/object/define-setter
 core-js(-pure)/es|stable|features/object/lookup-getter
 core-js(-pure)/es|stable|features/object/lookup-setter
 ```
-[*Examples*](https://goo.gl/sqY5mD):
+[*Examples*](http://es6.zloirock.ru/#var%20foo%20%3D%20%7Bq%3A%201%2C%20w%3A%202%7D%0A%20%20%2C%20bar%20%3D%20%7Be%3A%203%2C%20r%3A%204%7D%0A%20%20%2C%20baz%20%3D%20%7Bt%3A%205%2C%20y%3A%206%7D%3B%0AObject.assign(foo%2C%20bar%2C%20baz)%3B%0Alog(foo)%3B%20%2F%2F%20%3D%3E%20%7Bq%3A%201%2C%20w%3A%202%2C%20e%3A%203%2C%20r%3A%204%2C%20t%3A%205%2C%20y%3A%206%7D%0A%0Alog(Object.is(NaN%2C%20NaN))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.is(0%2C%20-0))%3B%20%20%20%20%2F%2F%20%3D%3E%20false%0Alog(Object.is(42%2C%2042))%3B%20%20%20%2F%2F%20%3D%3E%20true%0Alog(Object.is(42%2C%20'42'))%3B%20%2F%2F%20%3D%3E%20false%0A%0Afunction%20Parent()%7B%7D%0Afunction%20Child()%7B%7D%0AObject.setPrototypeOf(Child.prototype%2C%20Parent.prototype)%3B%0Alog(new%20Child%20instanceof%20Child)%3B%20%20%2F%2F%20%3D%3E%20true%0Alog(new%20Child%20instanceof%20Parent)%3B%20%2F%2F%20%3D%3E%20true%0A%0Avar%20O%20%3D%20%7B%7D%3B%0AO%5BSymbol.toStringTag%5D%20%3D%20'Foo'%3B%0Alog(''%20%2B%20O)%3B%20%2F%2F%20%3D%3E%20'%5Bobject%20Foo%5D'%0A%0Alog(Object.keys('qwe'))%3B%20%2F%2F%20%3D%3E%20%5B'0'%2C%20'1'%2C%20'2'%5D%0Alog(Object.getPrototypeOf('qwe')%20%3D%3D%3D%20String.prototype)%3B%20%2F%2F%20%3D%3E%20true%0A%0Alog(Object.values(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%3B%20%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0Alog(Object.entries(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%3B%20%2F%2F%20%3D%3E%20%5B%5B'a'%2C%201%5D%2C%20%5B'b'%2C%202%5D%2C%20%5B'c'%2C%203%5D%5D%0A%0Afor(let%20%5Bkey%2C%20value%5D%20of%20Object.entries(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'c'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%201%2C%202%2C%203%0A%7D%0A%0A%2F%2F%20Shallow%20object%20cloning%20with%20prototype%20and%20descriptors%3A%0A%2F%2F%20let%20copy%20%3D%20Object.create(Object.getPrototypeOf(object)%2C%20Object.getOwnPropertyDescriptors(object))%3B%0A%2F%2F%20Mixin%3A%0A%2F%2F%20Object.defineProperties(target%2C%20Object.getOwnPropertyDescriptors(source))%3B%0A%0Aconst%20map%20%3D%20new%20Map(%5B%5B'a'%2C%201%5D%2C%20%5B'b'%2C%202%5D%5D)%3B%0Alog(Object.fromEntries(map))%3B%20%2F%2F%20%3D%3E%20%7B%20a%3A%201%2C%20b%3A%202%20%7D%0A%0Aclass%20Unit%20%7B%0A%20%20constructor(id)%20%7B%0A%20%20%20%20this.id%20%3D%20id%3B%0A%20%20%7D%0A%20%20toString()%20%7B%0A%20%20%20%20return%20%60unit%24%7B%20this.id%20%7D%60%3B%0A%20%20%7D%0A%7D%0A%0Aconst%20units%20%3D%20new%20Set(%5Bnew%20Unit(101)%2C%20new%20Unit(102)%5D)%3B%0A%0Alog(Object.fromEntries(units.entries()))%3B%20%2F%2F%20%3D%3E%20%7B%20unit101%3A%20Unit%20%7B%20id%3A%20101%20%7D%2C%20unit102%3A%20Unit%20%7B%20id%3A%20102%20%7D%20%7D%0A%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%20%20%20%20%2F%2F%20%3D%3E%20false):
 ```js
 let foo = { q: 1, w: 2 };
 let bar = { e: 3, r: 4 };
@@ -512,6 +514,10 @@ class Unit {
 const units = new Set([new Unit(101), new Unit(102)]);
 
 Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102: Unit { id: 102 } }
+
+Object.hasOwn({ foo: 42 }, 'foo'); // => true
+Object.hasOwn({ foo: 42 }, 'bar'); // => false
+Object.hasOwn({}, 'toString');     // => false
 ```
 #### ECMAScript: Function[⬆](#index)
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
@@ -1725,7 +1731,7 @@ Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be
 core-js(-pure)/stage/4
 ```
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
-Module [`esnext.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.global-this.js).
+Module [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
 ```js
 let globalThis: Object;
 ```
@@ -1738,8 +1744,8 @@ core-js(-pure)/features/global-this
 ```js
 globalThis.Array === Array; // => true
 ```
-##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index)
-Module [`esnext.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.match-all.js).
+##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index).
+Module [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js).
 
 ```js
 class String {
@@ -1751,7 +1757,7 @@ class String {
 core-js/proposals/string-match-all
 ```
 ##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
-Module [`esnext.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.replace-all.js)
+Module [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
 ```js
 class String {
   replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
@@ -1767,7 +1773,7 @@ core-js/features/string/replace-all
 'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
 ```
 ##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
-Module [`esnext.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled.js)
+Module [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js)
 ```js
 class Promise {
   static allSettled(iterable: Iterable): Promise;
@@ -1778,7 +1784,7 @@ class Promise {
 core-js/proposals/promise-all-settled
 ```
 ##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
-Modules [`esnext.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.any.js) and [`esnext.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.aggregate-error.js)
+Modules [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js)
 ```js
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -1810,18 +1816,11 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
-
-#### Stage 3 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/3
-```
-
 ##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
-Module [`esnext.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.has-own.js).
+Module [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js).
 ```js
 class Object {
-  hasOwn(object: object, key: PropertyKey): boolean;
+  static hasOwn(object: object, key: PropertyKey): boolean;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -1835,6 +1834,13 @@ Object.hasOwn({ foo: 42 }, 'foo'); // => true
 Object.hasOwn({ foo: 42 }, 'bar'); // => false
 Object.hasOwn({}, 'toString');     // => false
 ````
+
+#### Stage 3 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stage/3
+```
+
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
 Modules [`esnext.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.at.js) and [`esnext.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.at.js)
 > **Warning! Because of the conflict with [another proposal](#stringat), this method is not available on `String.prototype` in this version.**

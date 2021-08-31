@@ -29,6 +29,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'object/get-own-property-names')({ q: 42 })[0] === 'q');
     ok(load(NS, 'object/get-own-property-symbols')({ [Symbol()]: 42 }).length === 1);
     ok(load(NS, 'object/get-prototype-of')([]) === Array.prototype);
+    ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
     ok(load(NS, 'object/is')(NaN, NaN));
     ok(load(NS, 'object/is-extensible')({}));
     ok(!load(NS, 'object/is-frozen')({}));
@@ -632,7 +633,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok(load(NS, 'number/range')(1, 2).next().value === 1);
-    ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
     ok(typeof load(NS, 'object/iterate-entries')({}).next === 'function');
     ok(typeof load(NS, 'object/iterate-keys')({}).next === 'function');
     ok(typeof load(NS, 'object/iterate-values')({}).next === 'function');

@@ -720,6 +720,10 @@ export const data = {
     safari: '9.0',
     rhino: '1.7.13',
   },
+  'es.object.has-own': {
+    chrome: '93',
+    firefox: '92',
+  },
   'es.object.is': {
     android: '4.1',
     chrome: '19',
@@ -1574,10 +1578,8 @@ export const data = {
   },
   'esnext.number.range': {
   },
-  'esnext.object.has-own': {
-    chrome: '93',
-    firefox: '92',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.object.has-own': null,
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-entries': {
   },
@@ -1766,6 +1768,7 @@ export const data = {
 // TODO: Remove from `core-js@4`
 data['esnext.aggregate-error'] = data['es.aggregate-error'];
 data['esnext.global-this'] = data['es.global-this'];
+data['esnext.object.has-own'] = data['es.object.has-own'];
 data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];

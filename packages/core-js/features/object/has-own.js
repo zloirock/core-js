@@ -1,4 +1,6 @@
-require('../../modules/esnext.object.has-own');
-var path = require('../../internals/path');
+var parent = require('../../stable/object/has-own');
 
-module.exports = path.Object.hasOwn;
+// TODO: Remove from `core-js@4`
+require('../../modules/esnext.object.has-own');
+
+module.exports = parent;

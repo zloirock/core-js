@@ -1,8 +1,2 @@
-var $ = require('../internals/export');
-var hasOwn = require('../internals/has');
-
-// `Object.hasOwn` method
-// https://github.com/tc39/proposal-accessible-object-hasownproperty
-$({ target: 'Object', stat: true }, {
-  hasOwn: hasOwn
-});
+// TODO: Remove from `core-js@4`
+require('../modules/es.object.has-own');
