@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Some more iteration closing fixes 
 
 ##### 3.16.4 - 2021.08.29
 - `AsyncFromSyncIterator` made stricter, related mainly to `AsyncIterator.from` and `AsyncIterator.prototype.flatMap`
