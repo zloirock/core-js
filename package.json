@@ -102,7 +102,7 @@
     "test-promises-standalone": "run-s init test-promises",
     "test-observables-run": "node tests/observables/adapter && node tests/observables/adapter-pure",
     "test-observables-standalone": "run-s init test-observables",
-    "test-observables": "run-p build-observables-test test-observables-run",
+    "test-observables": "run-s build-observables-test test-observables-run",
     "test-entries": "run-p test-entries-basic test-entries-content",
     "test-entries-basic": "zx tests/commonjs.mjs",
     "test-entries-content": "zx tests/commonjs-entries-content.mjs",
