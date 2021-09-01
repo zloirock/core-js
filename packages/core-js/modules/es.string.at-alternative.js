@@ -1,4 +1,3 @@
-// TODO: disabled by default because of the conflict with another proposal
 'use strict';
 var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
