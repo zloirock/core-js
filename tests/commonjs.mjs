@@ -63,6 +63,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(load(NS, 'array/is-array')([]));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
+    ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/join')('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/slice')('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/sort')([1, 3, 2])[1] === 2);
@@ -88,6 +89,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'array/values')([]));
     ok(load(NS, 'array/includes')([1, 2, 3], 2));
     ok('next' in load(NS, 'array/iterator')([]));
+    ok(load(NS, 'array/virtual/at').call([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/virtual/join').call('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/virtual/slice').call('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/virtual/splice').call([1, 2, 3], 1, 2)[0] === 2);
@@ -175,6 +177,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('has' in load(NS, 'reflect'));
     ok(load(NS, 'string/from-code-point')(97) === 'a');
     ok(load(NS, 'string/raw')({ raw: 'test' }, 0, 1, 2) === 't0e1s2t');
+    ok(load(NS, 'string/at')('a', 0) === 'a');
     ok(load(NS, 'string/trim')(' ab ') === 'ab');
     ok(load(NS, 'string/trim-start')(' a ') === 'a ');
     ok(load(NS, 'string/trim-end')(' a ') === ' a');
@@ -203,6 +206,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
     ok(load(NS, 'string/pad-end')('a', 3) === 'a  ');
     ok('next' in load(NS, 'string/iterator')('qwe'));
+    ok(load(NS, 'string/virtual/at').call('a', 0) === 'a');
     ok(load(NS, 'string/virtual/code-point-at').call('a', 0) === 97);
     ok(load(NS, 'string/virtual/ends-with').call('qwe', 'we'));
     ok(load(NS, 'string/virtual/includes').call('qwe', 'w'));
@@ -296,6 +300,14 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'get-iterator-method')([]) === 'function');
     ok('next' in load(NS, 'get-iterator')([]));
     ok('Map' in load(NS));
+
+    const instanceAt = load(NS, 'instance/at');
+    ok(typeof instanceAt === 'function');
+    ok(instanceAt({}) === undefined);
+    ok(typeof instanceAt([]) === 'function');
+    ok(typeof instanceAt('') === 'function');
+    ok(instanceAt([]).call([1, 2, 3], 2) === 3);
+    ok(instanceAt('').call('123', 2) === '3');
 
     const instanceBind = load(NS, 'instance/bind');
     ok(typeof instanceBind === 'function');
@@ -549,7 +561,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
-    ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
     ok(typeof load(NS, 'array/filter-out') === 'function');
     ok(typeof load(NS, 'array/filter-reject') === 'function');
     ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
@@ -559,7 +570,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
     ok(typeof load(NS, 'array/unique-by') === 'function');
-    ok(load(NS, 'array/virtual/at').call([1, 2, 3], -2) === 2);
     ok(typeof load(NS, 'array/virtual/filter-out') === 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') === 'function');
     ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
@@ -665,9 +675,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
     ok(load(NS, 'set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
     ok(load(NS, 'set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
-    ok(load(NS, 'string/at')('a', 0) === 'a');
     ok('next' in load(NS, 'string/code-points')('a'));
-    ok(load(NS, 'string/virtual/at').call('a', 0) === 'a');
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/async-dispose'));
     ok(load(NS, 'symbol/dispose'));
@@ -685,14 +693,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
-
-    const instanceAt = load(NS, 'instance/at');
-    ok(typeof instanceAt === 'function');
-    ok(instanceAt({}) === undefined);
-    ok(typeof instanceAt([]) === 'function');
-    ok(typeof instanceAt('') === 'function');
-    ok(instanceAt([]).call([1, 2, 3], 2) === 3);
-    ok(instanceAt('').call('123', 2) === '3');
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints === 'function');
@@ -816,6 +816,7 @@ for (const NS of ['es', 'stable', 'features']) {
   ok(typeof load(NS, 'typed-array/uint32-array') === 'function');
   ok(typeof load(NS, 'typed-array/float32-array') === 'function');
   ok(typeof load(NS, 'typed-array/float64-array') === 'function');
+  load(NS, 'typed-array/at');
   load(NS, 'typed-array/copy-within');
   load(NS, 'typed-array/entries');
   load(NS, 'typed-array/every');
@@ -851,7 +852,6 @@ for (const NS of ['es', 'stable', 'features']) {
 {
   const NS = 'features';
 
-  load(NS, 'typed-array/at');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/find-last');

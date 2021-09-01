@@ -1,4 +1,5 @@
+require('../../stable/string/at');
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.string.at');
-var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = entryUnbind('String', 'at');
+module.exports = require('../../internals/entry-unbind')('String', 'at');

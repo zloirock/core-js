@@ -1,5 +1,6 @@
 var parent = require('../../stable/typed-array/methods');
 require('../../modules/es.map');
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.typed-array.at');
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.typed-array.filter-out');

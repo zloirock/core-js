@@ -1,4 +1,6 @@
-require('../../modules/esnext.array.at');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../stable/array/at');
 
-module.exports = entryUnbind('Array', 'at');
+// TODO: Remove from `core-js@4`
+require('../../modules/esnext.array.at');
+
+module.exports = parent;

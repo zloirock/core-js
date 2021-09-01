@@ -1,5 +1,5 @@
+// TODO: Remove from `core-js@4`
 // https://github.com/tc39/proposal-relative-indexing-method
+require('../modules/es.string.at-alternative');
 require('../modules/esnext.array.at');
-// TODO: disabled by default because of the conflict with another proposal
-// require('../modules/esnext.string.at-alternative');
 require('../modules/esnext.typed-array.at');

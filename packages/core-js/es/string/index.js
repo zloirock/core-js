@@ -3,6 +3,7 @@ require('../../modules/es.regexp.exec');
 require('../../modules/es.string.from-code-point');
 require('../../modules/es.string.raw');
 require('../../modules/es.string.code-point-at');
+require('../../modules/es.string.at-alternative');
 require('../../modules/es.string.ends-with');
 require('../../modules/es.string.includes');
 require('../../modules/es.string.match');

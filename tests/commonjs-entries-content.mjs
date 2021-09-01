@@ -103,14 +103,14 @@ superset('core-js/features/url', /^web\.url(\.|$)/);
 superset('core-js/features/url-search-params', /^web\.url-search-params/);
 superset('core-js/features/weak-map', /^(es|esnext)\.weak-map/);
 superset('core-js/features/weak-set', /^(es|esnext)\.weak-set/);
-equal('core-js/proposals', /^(es\.map|esnext\.|web\.url)/);
-equal('core-js/stage', /^(es\.map|esnext\.|web\.url)/);
-equal('core-js/stage/pre', /^(es\.map|esnext\.|web\.url)/);
-subset('core-js/stage/0', /^(es\.map|esnext\.|web\.url)/);
-subset('core-js/stage/1', /^(es\.map|esnext\.|web\.url)/);
-subset('core-js/stage/2', /^esnext\./);
-subset('core-js/stage/3', /^esnext\./);
-subset('core-js/stage/4', /^esnext\./);
+equal('core-js/proposals', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
+equal('core-js/stage', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
+equal('core-js/stage/pre', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
+subset('core-js/stage/0', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
+subset('core-js/stage/1', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
+subset('core-js/stage/2', /^es\.string\.at|esnext\./);
+subset('core-js/stage/3', /^es\.string\.at|esnext\./);
+subset('core-js/stage/4', /^es\.string\.at|esnext\./);
 
 async function unexpectedInnerNamespace(namespace, unexpected) {
   const paths = await globby(`packages/core-js/${ namespace }/**/*.js`);

@@ -98,6 +98,10 @@ export const data = {
     firefox: '79',
     safari: '14.0',
   },
+  'es.array.at': {
+    chrome: '92',
+    firefox: '90',
+  },
   'es.array.concat': {
     chrome: '51',
     edge: '15',
@@ -974,6 +978,10 @@ export const data = {
     safari: '10.0',
     rhino: '1.7.13',
   },
+  'es.string.at-alternative': {
+    chrome: '92',
+    firefox: '90',
+  },
   'es.string.code-point-at': {
     chrome: '41',
     edge: '13',
@@ -1243,6 +1251,10 @@ export const data = {
     firefox: '55',
     safari: '14.0',
   },
+  'es.typed-array.at': {
+    chrome: '92',
+    firefox: '90',
+  },
   'es.typed-array.copy-within': {
     chrome: '45',
     edge: '13',
@@ -1416,10 +1428,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
-  'esnext.array.at': {
-    chrome: '92',
-    firefox: '90',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array.at': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.filter-out': {
   },
@@ -1674,10 +1684,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
   },
-  'esnext.typed-array.at': {
-    chrome: '92',
-    firefox: '90',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.at': null,
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.filter-out': {
   },
@@ -1766,6 +1774,7 @@ export const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['esnext.array.at'] = data['es.array.at'];
 data['esnext.aggregate-error'] = data['es.aggregate-error'];
 data['esnext.global-this'] = data['es.global-this'];
 data['esnext.object.has-own'] = data['es.object.has-own'];
@@ -1773,5 +1782,6 @@ data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
 data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
+data['esnext.typed-array.at'] = data['es.typed-array.at'];
 
 export const modules = Object.keys(data);

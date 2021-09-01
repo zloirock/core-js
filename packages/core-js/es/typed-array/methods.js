@@ -2,6 +2,7 @@ require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
 require('../../modules/es.typed-array.from');
 require('../../modules/es.typed-array.of');
+require('../../modules/es.typed-array.at');
 require('../../modules/es.typed-array.copy-within');
 require('../../modules/es.typed-array.every');
 require('../../modules/es.typed-array.fill');
