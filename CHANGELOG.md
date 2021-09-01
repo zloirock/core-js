@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed missed `modules-by-versions` data
 
 ##### 3.17.0 - 2021.09.02
 - [Accessible `Object.prototype.hasOwnProperty` (`Object.hasOwn`) proposal](https://github.com/tc39/proposal-accessible-object-hasownproperty) moved to the stable ES, [per August 2021 TC39 meeting](https://github.com/babel/proposals/issues/76#issuecomment-909288348)

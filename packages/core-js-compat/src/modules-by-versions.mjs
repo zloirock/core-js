@@ -101,4 +101,10 @@ export default {
     'esnext.typed-array.filter-reject',
     'esnext.typed-array.group-by',
   ],
+  3.17: [
+    'es.array.at',
+    'es.object.has-own',
+    'es.string.at-alternative',
+    'es.typed-array.at',
+  ],
 };
