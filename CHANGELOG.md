@@ -4,7 +4,7 @@
 - [Relative indexing method (`.at`) proposal](https://github.com/tc39/proposal-relative-indexing-method) moved to the stable ES, [per August 2021 TC39 meeting](https://github.com/babel/proposals/issues/76#issuecomment-909285053)
 - Exposed by default the stable version of `String.prototype.at`. It was not exposed because of the conflict with the alternative obsolete proposal (that will be completely removed in the next major version). For the backward compatibility, in the case of loading this proposal, it will be overwritten.
 - Some more iteration closing fixes
-- Fixed a ES3 reserved word usage, [#980](https://github.com/zloirock/core-js/issues/980)
+- Fixed an ES3 reserved words usage, [#980](https://github.com/zloirock/core-js/issues/980)
 
 ##### 3.16.4 - 2021.08.29
 - `AsyncFromSyncIterator` made stricter, related mainly to `AsyncIterator.from` and `AsyncIterator.prototype.flatMap`
