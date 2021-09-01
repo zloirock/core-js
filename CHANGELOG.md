@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.17.1 - 2021.09.02
 - Fixed missed `modules-by-versions` data
 
 ##### 3.17.0 - 2021.09.02

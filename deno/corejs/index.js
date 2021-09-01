@@ -1,5 +1,5 @@
 /**
- * core-js 3.17.0
+ * core-js 3.17.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -690,7 +690,7 @@ var store = __webpack_require__(26);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.17.0',
+  version: '3.17.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
@@ -1901,7 +1901,6 @@ module.exports = function (it, TAG, STATIC) {
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-// TODO: disabled by default because of the conflict with another proposal
 
 var $ = __webpack_require__(2);
 var requireObjectCoercible = __webpack_require__(12);
