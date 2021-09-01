@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.17.0 - 2021.09.02
 - [Accessible `Object.prototype.hasOwnProperty` (`Object.hasOwn`) proposal](https://github.com/tc39/proposal-accessible-object-hasownproperty) moved to the stable ES, [per August 2021 TC39 meeting](https://github.com/babel/proposals/issues/76#issuecomment-909288348)
 - [Relative indexing method (`.at`) proposal](https://github.com/tc39/proposal-relative-indexing-method) moved to the stable ES, [per August 2021 TC39 meeting](https://github.com/babel/proposals/issues/76#issuecomment-909285053)
 - Exposed by default the stable version of `String.prototype.at`. It was not exposed because of the conflict with the alternative obsolete proposal (that will be completely removed in the next major version). For the backward compatibility, in the case of loading this proposal, it will be overwritten.
