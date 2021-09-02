@@ -1,8 +1,8 @@
 // TODO: disabled by default because of the conflict with another proposal
 import { STRICT } from '../helpers/constants';
 
-import at from 'core-js-pure/features/string/at';
-import Symbol from 'core-js-pure/features/symbol';
+import at from 'core-js-pure/es/string/at';
+import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.skip('String#at', assert => {
   assert.isFunction(at);
