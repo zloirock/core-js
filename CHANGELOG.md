@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.17.2 - 2021.09.03
 - Fixed missed cases of ES3 reserved words usage, related to [#980](https://github.com/zloirock/core-js/issues/980)
 - Fixed dependencies in one missed entry point
 - Some other minor fixes and optimizations

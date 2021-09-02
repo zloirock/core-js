@@ -1,5 +1,5 @@
 /**
- * core-js 3.17.1
+ * core-js 3.17.2
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -690,7 +690,7 @@ var store = __webpack_require__(26);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.17.1',
+  version: '3.17.2',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
@@ -2943,7 +2943,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
         var iterator = state.iterator;
-        iterator.done = true;
+        state.done = true;
         var $$return = iterator['return'];
         if ($$return === undefined) return resolve({ done: true, value: value });
         Promise.resolve($$return.call(iterator, value)).then(function (result) {
@@ -2957,7 +2957,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
         var iterator = state.iterator;
-        iterator.done = true;
+        state.done = true;
         var $$throw = iterator['throw'];
         if ($$throw === undefined) return reject(value);
         resolve($$throw.call(iterator, value));
@@ -4908,14 +4908,14 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     'return': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
-      iterator.done = true;
+      state.done = true;
       var $$return = iterator['return'];
       return { done: true, value: $$return === undefined ? value : anObject($$return.call(iterator, value)).value };
     },
     'throw': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
-      iterator.done = true;
+      state.done = true;
       var $$throw = iterator['throw'];
       if ($$throw === undefined) throw value;
       return $$throw.call(iterator, value);
