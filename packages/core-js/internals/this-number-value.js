@@ -1,10 +1,7 @@
-var classof = require('../internals/classof-raw');
+var valueOf = 1.0.valueOf;
 
 // `thisNumberValue` abstract operation
 // https://tc39.es/ecma262/#sec-thisnumbervalue
 module.exports = function (value) {
-  if (typeof value != 'number' && classof(value) != 'Number') {
-    throw TypeError('Incorrect invocation');
-  }
-  return +value;
+  return valueOf.call(value);
 };
