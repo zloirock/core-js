@@ -143,18 +143,18 @@ QUnit.assert.nonEnumerable = function (O, key, message) {
 };
 
 QUnit.assert.notThrows = function (fn, message) {
-  let throws, result, error;
+  let thrown, result, error;
   try {
     result = fn();
-    throws = false;
+    thrown = false;
   } catch (err) {
-    throws = true;
+    thrown = true;
     error = err;
   }
   this.pushResult({
-    result: !throws && result,
-    actual: throws ? error : result,
-    expected: throws ? undefined : true,
+    result: !thrown && result,
+    actual: thrown ? error : result,
+    expected: thrown ? undefined : true,
     message: message || 'does not throw',
   });
 };

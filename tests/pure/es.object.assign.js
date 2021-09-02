@@ -57,8 +57,8 @@ QUnit.test('Object.assign', assert => {
   string = 'abcdefghijklmnopqrst';
   const result = {};
   for (let i = 0, { length } = string; i < length; ++i) {
-    const char = string.charAt(i);
-    result[char] = char;
+    const chr = string.charAt(i);
+    result[chr] = chr;
   }
   assert.strictEqual(keys(assign({}, result)).join(''), string);
 });
