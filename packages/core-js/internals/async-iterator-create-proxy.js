@@ -40,7 +40,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
         var iterator = state.iterator;
-        iterator.done = true;
+        state.done = true;
         var $$return = iterator['return'];
         if ($$return === undefined) return resolve({ done: true, value: value });
         Promise.resolve($$return.call(iterator, value)).then(function (result) {
@@ -54,7 +54,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
         var iterator = state.iterator;
-        iterator.done = true;
+        state.done = true;
         var $$throw = iterator['throw'];
         if ($$throw === undefined) return reject(value);
         resolve($$throw.call(iterator, value));

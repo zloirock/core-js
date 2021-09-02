@@ -32,14 +32,14 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     'return': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
-      iterator.done = true;
+      state.done = true;
       var $$return = iterator['return'];
       return { done: true, value: $$return === undefined ? value : anObject($$return.call(iterator, value)).value };
     },
     'throw': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
-      iterator.done = true;
+      state.done = true;
       var $$throw = iterator['throw'];
       if ($$throw === undefined) throw value;
       return $$throw.call(iterator, value);
