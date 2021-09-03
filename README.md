@@ -96,8 +96,6 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [ECMAScript proposals](#ecmascript-proposals)
     - [Stage 4 proposals](#stage-4-proposals)
     - [Stage 3 proposals](#stage-3-proposals)
-      - [Accessible `Object.prototype.hasOwnProperty`](#accessible-objectprototypehasownproperty)
-      - [Relative indexing method](#relative-indexing-method)
       - [`Array` find from last](#array-find-from-last)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Iterator` helpers](#iterator-helpers)
