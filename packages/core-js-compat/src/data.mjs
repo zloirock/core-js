@@ -1443,8 +1443,10 @@ export const data = {
   },
   'esnext.array.is-template-object': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.array.last-index': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.array.last-item': {
   },
   'esnext.array.unique-by': {
@@ -1552,6 +1554,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.map.update-or-insert': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.map.upsert': {
   },
   'esnext.math.clamp': {
@@ -1577,6 +1580,7 @@ export const data = {
   },
   'esnext.math.scale': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.seeded-prng': {
   },
   'esnext.math.signbit': {
@@ -1605,24 +1609,34 @@ export const data = {
   'esnext.promise.all-settled': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
+  // TODO: Remove from `core-js@4`
   'esnext.promise.try': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.delete-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.get-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.get-metadata-keys': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.get-own-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.get-own-metadata-keys': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.has-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.has-own-metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.reflect.metadata': {
   },
   'esnext.set.add-all': {
@@ -1661,12 +1675,14 @@ export const data = {
   },
   'esnext.set.union': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.string.at': {
   },
   'esnext.string.code-points': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
+  // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
   'esnext.symbol.async-dispose': {
   },
@@ -1707,6 +1723,7 @@ export const data = {
   },
   'esnext.weak-map.emplace': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {
   },
   'esnext.weak-set.add-all': {

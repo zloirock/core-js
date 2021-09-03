@@ -1182,8 +1182,8 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
-  'esnext.array.filter-out': function () {
-    return [].filterOut;
+  'esnext.array.filter-reject': function () {
+    return [].filterReject;
   },
   'esnext.array.find-last': function () {
     return [].findLast;
@@ -1191,11 +1191,8 @@ GLOBAL.tests = {
   'esnext.array.find-last-index': function () {
     return [].findLastIndex;
   },
-  'esnext.array.last-index': function () {
-    return [1, 2, 3].lastIndex && Array.prototype[Symbol.unscopables].lastIndex;
-  },
-  'esnext.array.last-item': function () {
-    return [1, 2, 3].lastItem && Array.prototype[Symbol.unscopables].lastItem;
+  'esnext.array.is-template-object': function () {
+    return Array.isTemplateObject;
   },
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
@@ -1352,14 +1349,6 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.update-or-insert': function () {
-    return Map.prototype.updateOrInsert;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.upsert': function () {
-    return Map.prototype.upsert;
-  },
   'esnext.math.clamp': function () {
     return Math.clamp;
   },
@@ -1372,18 +1361,6 @@ GLOBAL.tests = {
   'esnext.math.fscale': function () {
     return Math.fscale;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.iaddh': function () {
-    return Math.iaddh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.imulh': function () {
-    return Math.imulh;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': function () {
-    return Math.isubh;
-  },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;
   },
@@ -1393,15 +1370,8 @@ GLOBAL.tests = {
   'esnext.math.scale': function () {
     return Math.scale;
   },
-  'esnext.math.seeded-prng': function () {
-    return Math.seededPRNG;
-  },
   'esnext.math.signbit': function () {
     return Math.signbit;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': function () {
-    return Math.umulh;
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
@@ -1409,50 +1379,8 @@ GLOBAL.tests = {
   'esnext.number.range': function () {
     return Number.range;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-entries': function () {
-    return Object.iterateEntries;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': function () {
-    return Object.iterateKeys;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-values': function () {
-    return Object.iterateValues;
-  },
   'esnext.observable': function () {
     return Observable;
-  },
-  'esnext.promise.try': [PROMISES_SUPPORT, function () {
-    return Promise['try'];
-  }],
-  'esnext.reflect.define-metadata': function () {
-    return Reflect.defineMetadata;
-  },
-  'esnext.reflect.delete-metadata': function () {
-    return Reflect.deleteMetadata;
-  },
-  'esnext.reflect.get-metadata': function () {
-    return Reflect.getMetadata;
-  },
-  'esnext.reflect.get-metadata-keys': function () {
-    return Reflect.getMetadataKeys;
-  },
-  'esnext.reflect.get-own-metadata': function () {
-    return Reflect.getOwnMetadata;
-  },
-  'esnext.reflect.get-own-metadata-keys': function () {
-    return Reflect.getOwnMetadataKeys;
-  },
-  'esnext.reflect.has-metadata': function () {
-    return Reflect.hasMetadata;
-  },
-  'esnext.reflect.has-own-metadata': function () {
-    return Reflect.hasOwnMetadata;
-  },
-  'esnext.reflect.metadata': function () {
-    return Reflect.metadata;
   },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
@@ -1508,11 +1436,11 @@ GLOBAL.tests = {
   'esnext.set.union': function () {
     return Set.prototype.union;
   },
-  'esnext.string.at': function () {
-    return '𠮷'.at(0) === '𠮷';
-  },
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
+  },
+  'esnext.symbol.async-dispose': function () {
+    return Symbol.dispose;
   },
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
@@ -1526,16 +1454,8 @@ GLOBAL.tests = {
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.pattern-match': function () {
-    return Symbol.patternMatch;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.replace-all': function () {
-    return Symbol.replaceAll;
-  },
-  'esnext.typed-array.filter-out': function () {
-    return Int8Array.prototype.filterOut;
+  'esnext.typed-array.filter-reject': function () {
+    return Int8Array.prototype.filterReject;
   },
   'esnext.typed-array.find-last': function () {
     return Int8Array.prototype.findLast;
@@ -1554,10 +1474,6 @@ GLOBAL.tests = {
   },
   'esnext.weak-map.of': function () {
     return WeakMap.of;
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': function () {
-    return WeakMap.prototype.upsert;
   },
   'esnext.weak-set.add-all': function () {
     return WeakSet.prototype.addAll;
