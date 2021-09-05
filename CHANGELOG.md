@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Samsung Internet 16.0 compat data mapping
 
 ##### 3.17.2 - 2021.09.03
 - Fixed missed cases of ES3 reserved words usage, related to [#980](https://github.com/zloirock/core-js/issues/980)
