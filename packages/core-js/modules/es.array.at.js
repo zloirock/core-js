@@ -12,7 +12,7 @@ $({ target: 'Array', proto: true }, {
     var O = toObject(this);
     var len = toLength(O.length);
     var relativeIndex = toInteger(Number(index)); //Number() supports BigInt
-    var k = relativeIndex + (relativeIndex < 0 && len);
+    var k = relativeIndex + (relativeIndex < 0 ? len : 0);
     return (k < 0 || k >= len) ? undefined : O[k];
   }
 });
