@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added NodeJS 16.9 compat data mapping
 - Added Samsung Internet 16.0 compat data mapping
 
 ##### 3.17.2 - 2021.09.03
