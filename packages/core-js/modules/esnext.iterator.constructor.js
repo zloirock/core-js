@@ -10,7 +10,6 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var IS_PURE = require('../internals/is-pure');
 
-var ITERATOR = wellKnownSymbol('iterator');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var NativeIterator = global.Iterator;
@@ -25,13 +24,6 @@ var FORCED = IS_PURE
 var IteratorConstructor = function Iterator() {
   anInstance(this, IteratorConstructor);
 };
-
-if (IS_PURE) {
-  IteratorPrototype = {};
-  createNonEnumerableProperty(IteratorPrototype, ITERATOR, function () {
-    return this;
-  });
-}
 
 if (!has(IteratorPrototype, TO_STRING_TAG)) {
   createNonEnumerableProperty(IteratorPrototype, TO_STRING_TAG, 'Iterator');

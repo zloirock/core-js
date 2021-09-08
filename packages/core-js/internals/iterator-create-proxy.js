@@ -1,5 +1,4 @@
 'use strict';
-var path = require('../internals/path');
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
@@ -7,6 +6,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
+var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.get;
@@ -21,7 +21,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  IteratorProxy.prototype = redefineAll(create(path.Iterator.prototype), {
+  IteratorProxy.prototype = redefineAll(create(IteratorPrototype), {
     next: function next(arg) {
       var state = getInternalState(this);
       var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
