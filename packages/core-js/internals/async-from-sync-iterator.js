@@ -39,7 +39,7 @@ AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
     var iterator = getInternalState(this).iterator;
     var hasArg = !!arguments.length;
     return new Promise(function (resolve, reject) {
-      var $return = getMethod(iterator['return']);
+      var $return = getMethod(iterator, 'return');
       if ($return === undefined) return resolve({ done: true, value: arg });
       var result = anObject($return.apply(iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
@@ -49,7 +49,7 @@ AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
     var iterator = getInternalState(this).iterator;
     var hasArg = !!arguments.length;
     return new Promise(function (resolve, reject) {
-      var $throw = getMethod(iterator['throw']);
+      var $throw = getMethod(iterator, 'throw');
       if ($throw === undefined) return reject(arg);
       var result = anObject($throw.apply(iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);

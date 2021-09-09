@@ -5,11 +5,11 @@ var createIteratorConstructor = require('../internals/create-iterator-constructo
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
-var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof-raw');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-flags');
+var getMethod = require('../internals/get-method');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -98,9 +98,9 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
         if (!~flags.indexOf('g')) throw TypeError('`.matchAll` does not allow non-global regexes');
       }
       if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
-      matcher = regexp[MATCH_ALL];
+      matcher = getMethod(regexp, MATCH_ALL);
       if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
-      if (matcher != null) return aFunction(matcher).call(regexp, O);
+      if (matcher) return matcher.call(regexp, O);
     } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
     S = toString(O);
     rx = new RegExp(regexp, 'g');

@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var sameValue = require('../internals/same-value');
 var toString = require('../internals/to-string');
+var getMethod = require('../internals/get-method');
 var regExpExec = require('../internals/regexp-exec-abstract');
 
 // @@search logic
@@ -13,7 +14,7 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
     // https://tc39.es/ecma262/#sec-string.prototype.search
     function search(regexp) {
       var O = requireObjectCoercible(this);
-      var searcher = regexp == undefined ? undefined : regexp[SEARCH];
+      var searcher = regexp == undefined ? undefined : getMethod(regexp, SEARCH);
       return searcher !== undefined ? searcher.call(regexp, O) : new RegExp(regexp)[SEARCH](toString(O));
     },
     // `RegExp.prototype[@@search]` method

@@ -7,6 +7,7 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
+var getMethod = require('../internals/get-method');
 var getSubstitution = require('../internals/get-substitution');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -54,7 +55,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
     // https://tc39.es/ecma262/#sec-string.prototype.replace
     function replace(searchValue, replaceValue) {
       var O = requireObjectCoercible(this);
-      var replacer = searchValue == undefined ? undefined : searchValue[REPLACE];
+      var replacer = searchValue == undefined ? undefined : getMethod(searchValue, REPLACE);
       return replacer !== undefined
         ? replacer.call(searchValue, O, replaceValue)
         : nativeReplace.call(toString(O), searchValue, replaceValue);

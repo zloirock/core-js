@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
+var getMethod = require('../internals/get-method');
 var getRegExpFlags = require('../internals/regexp-flags');
 var getSubstitution = require('../internals/get-substitution');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -36,7 +37,7 @@ $({ target: 'String', proto: true }, {
         ));
         if (!~flags.indexOf('g')) throw TypeError('`.replaceAll` does not allow non-global regexes');
       }
-      replacer = searchValue[REPLACE];
+      replacer = getMethod(searchValue, REPLACE);
       if (replacer !== undefined) {
         return replacer.call(searchValue, O, replaceValue);
       } else if (IS_PURE && IS_REG_EXP) {

@@ -3,6 +3,7 @@
 var aFunction = require('../internals/a-function');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
+var getMethod = require('../internals/get-method');
 
 var Promise = getBuiltIn('Promise');
 var push = [].push;
@@ -21,7 +22,7 @@ var createMethod = function (TYPE) {
     return new Promise(function (resolve, reject) {
       var closeIteration = function (method, argument) {
         try {
-          var returnMethod = iterator['return'];
+          var returnMethod = getMethod(iterator, 'return');
           if (returnMethod !== undefined) {
             return Promise.resolve(returnMethod.call(iterator)).then(function () {
               method(argument);

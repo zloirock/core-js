@@ -55,7 +55,7 @@ var Subscription = function (observer, subscriber) {
   var start;
   if (!DESCRIPTORS) this.closed = false;
   try {
-    if (start = getMethod(observer.start)) start.call(observer, this);
+    if (start = getMethod(observer, 'start')) start.call(observer, this);
   } catch (error) {
     hostReportErrors(error);
   }
@@ -101,7 +101,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
       try {
-        var nextMethod = getMethod(observer.next);
+        var nextMethod = getMethod(observer, 'next');
         if (nextMethod) nextMethod.call(observer, value);
       } catch (error) {
         hostReportErrors(error);
@@ -114,7 +114,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscriptionState.observer;
       close(subscriptionState);
       try {
-        var errorMethod = getMethod(observer.error);
+        var errorMethod = getMethod(observer, 'error');
         if (errorMethod) errorMethod.call(observer, value);
         else hostReportErrors(value);
       } catch (err) {
@@ -128,7 +128,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscriptionState.observer;
       close(subscriptionState);
       try {
-        var completeMethod = getMethod(observer.complete);
+        var completeMethod = getMethod(observer, 'complete');
         if (completeMethod) completeMethod.call(observer);
       } catch (error) {
         hostReportErrors(error);
@@ -163,7 +163,7 @@ redefineAll($Observable.prototype, {
 redefineAll($Observable, {
   from: function from(x) {
     var C = typeof this === 'function' ? this : $Observable;
-    var observableMethod = getMethod(anObject(x)[OBSERVABLE]);
+    var observableMethod = getMethod(anObject(x), OBSERVABLE);
     if (observableMethod) {
       var observable = anObject(observableMethod.call(x));
       return observable.constructor === C ? observable : new C(function (observer) {

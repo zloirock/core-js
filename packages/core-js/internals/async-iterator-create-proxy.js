@@ -7,6 +7,7 @@ var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
+var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 
 var Promise = getBuiltIn('Promise');
@@ -41,7 +42,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         var state = getInternalState(that);
         var iterator = state.iterator;
         state.done = true;
-        var $$return = iterator['return'];
+        var $$return = getMethod(iterator, 'return');
         if ($$return === undefined) return resolve({ done: true, value: value });
         Promise.resolve($$return.call(iterator, value)).then(function (result) {
           anObject(result);
@@ -55,7 +56,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         var state = getInternalState(that);
         var iterator = state.iterator;
         state.done = true;
-        var $$throw = iterator['throw'];
+        var $$throw = getMethod(iterator, 'throw');
         if ($$throw === undefined) return reject(value);
         resolve($$throw.call(iterator, value));
       });

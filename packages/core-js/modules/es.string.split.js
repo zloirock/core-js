@@ -7,6 +7,7 @@ var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
+var getMethod = require('../internals/get-method');
 var callRegExpExec = require('../internals/regexp-exec-abstract');
 var regexpExec = require('../internals/regexp-exec');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
@@ -88,7 +89,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
     // https://tc39.es/ecma262/#sec-string.prototype.split
     function split(separator, limit) {
       var O = requireObjectCoercible(this);
-      var splitter = separator == undefined ? undefined : separator[SPLIT];
+      var splitter = separator == undefined ? undefined : getMethod(separator, SPLIT);
       return splitter !== undefined
         ? splitter.call(separator, O, limit)
         : internalSplit.call(toString(O), separator, limit);

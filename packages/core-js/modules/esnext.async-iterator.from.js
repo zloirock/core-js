@@ -22,7 +22,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
 $({ target: 'AsyncIterator', stat: true }, {
   from: function from(O) {
     var object = toObject(O);
-    var usingIterator = getMethod(object[ASYNC_ITERATOR]);
+    var usingIterator = getMethod(object, ASYNC_ITERATOR);
     var iterator;
     if (usingIterator !== undefined) {
       iterator = getAsyncIterator(object, usingIterator);

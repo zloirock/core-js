@@ -6,6 +6,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var redefineAll = require('../internals/redefine-all');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
+var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 
 var setInternalState = InternalStateModule.set;
@@ -33,14 +34,14 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       var state = getInternalState(this);
       var iterator = state.iterator;
       state.done = true;
-      var $$return = iterator['return'];
+      var $$return = getMethod(iterator, 'return');
       return { done: true, value: $$return === undefined ? value : anObject($$return.call(iterator, value)).value };
     },
     'throw': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
       state.done = true;
-      var $$throw = iterator['throw'];
+      var $$throw = getMethod(iterator, 'throw');
       if ($$throw === undefined) throw value;
       return $$throw.call(iterator, value);
     }
