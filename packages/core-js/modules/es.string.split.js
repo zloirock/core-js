@@ -90,7 +90,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
     function split(separator, limit) {
       var O = requireObjectCoercible(this);
       var splitter = separator == undefined ? undefined : getMethod(separator, SPLIT);
-      return splitter !== undefined
+      return splitter
         ? splitter.call(separator, O, limit)
         : internalSplit.call(toString(O), separator, limit);
     },

@@ -24,16 +24,14 @@ $({ target: 'AsyncIterator', stat: true }, {
     var object = toObject(O);
     var usingIterator = getMethod(object, ASYNC_ITERATOR);
     var iterator;
-    if (usingIterator !== undefined) {
+    if (usingIterator) {
       iterator = getAsyncIterator(object, usingIterator);
       if (isPrototypeOf.call(AsyncIteratorPrototype, iterator)) return iterator;
     }
     if (iterator === undefined) {
       usingIterator = getIteratorMethod(object);
-      if (usingIterator !== undefined) return new AsyncFromSyncIterator(getIterator(object, usingIterator));
+      if (usingIterator) return new AsyncFromSyncIterator(getIterator(object, usingIterator));
     }
-    return new AsyncIteratorProxy({
-      iterator: iterator !== undefined ? iterator : object
-    });
+    return new AsyncIteratorProxy({ iterator: iterator !== undefined ? iterator : object });
   }
 });

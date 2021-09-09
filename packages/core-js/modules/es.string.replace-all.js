@@ -38,7 +38,7 @@ $({ target: 'String', proto: true }, {
         if (!~flags.indexOf('g')) throw TypeError('`.replaceAll` does not allow non-global regexes');
       }
       replacer = getMethod(searchValue, REPLACE);
-      if (replacer !== undefined) {
+      if (replacer) {
         return replacer.call(searchValue, O, replaceValue);
       } else if (IS_PURE && IS_REG_EXP) {
         return toString(O).replace(searchValue, replaceValue);

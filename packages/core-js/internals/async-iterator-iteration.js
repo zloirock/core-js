@@ -23,7 +23,7 @@ var createMethod = function (TYPE) {
       var closeIteration = function (method, argument) {
         try {
           var returnMethod = getMethod(iterator, 'return');
-          if (returnMethod !== undefined) {
+          if (returnMethod) {
             return Promise.resolve(returnMethod.call(iterator)).then(function () {
               method(argument);
             }, function (error) {

@@ -35,15 +35,15 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       var iterator = state.iterator;
       state.done = true;
       var $$return = getMethod(iterator, 'return');
-      return { done: true, value: $$return === undefined ? value : anObject($$return.call(iterator, value)).value };
+      return { done: true, value: $$return ? anObject($$return.call(iterator, value)).value : value };
     },
     'throw': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
       state.done = true;
       var $$throw = getMethod(iterator, 'throw');
-      if ($$throw === undefined) throw value;
-      return $$throw.call(iterator, value);
+      if ($$throw) return $$throw.call(iterator, value);
+      throw value;
     }
   });
 

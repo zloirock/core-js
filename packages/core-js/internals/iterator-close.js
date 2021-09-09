@@ -6,7 +6,7 @@ module.exports = function (iterator, kind, value) {
   anObject(iterator);
   try {
     innerResult = getMethod(iterator, 'return');
-    if (innerResult === undefined) {
+    if (!innerResult) {
       if (kind === 'throw') throw value;
       return value;
     }
