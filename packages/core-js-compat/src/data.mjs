@@ -177,7 +177,7 @@ export const data = {
   },
   'es.array.index-of': {
     chrome: '51',
-    firefox: '4',
+    firefox: '47',
     ie: '9',
     safari: '7.1',
     rhino: '1.7.13',
@@ -205,7 +205,7 @@ export const data = {
   },
   'es.array.last-index-of': {
     chrome: '51',
-    firefox: '4',
+    firefox: '47',
     ie: '9',
     safari: '7.1',
     rhino: '1.7.13',
