@@ -139,14 +139,14 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
 ### Installation:[⬆](#index)
 ```
 // global version
-npm install --save core-js@3.17.2
+npm install --save core-js@3.17.3
 // version without global namespace pollution
-npm install --save core-js-pure@3.17.2
+npm install --save core-js-pure@3.17.3
 // bundled global version
-npm install --save core-js-bundle@3.17.2
+npm install --save core-js-bundle@3.17.3
 ```
 
-Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.17.2) ([minified version](https://unpkg.com/core-js-bundle@3.17.2/minified.js)).
+Already bundled version of `core-js` [on CDN](https://unpkg.com/core-js-bundle@3.17.3) ([minified version](https://unpkg.com/core-js-bundle@3.17.3/minified.js)).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:

@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.17.3 - 2021.09.09
 - Fixed some possible problems related to possible extension of `%IteratorPrototype%` and `%AsyncIteratorPrototype%` in the future
 - Fixed `DOMTokenList.prototype.{ forEach, @@iterator, keys, values, entries }` in old WebKit versions where `element.classList` is not an instance of global `DOMTokenList`
 - Added NodeJS 16.9 compat data mapping
