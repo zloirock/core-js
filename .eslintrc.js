@@ -398,6 +398,8 @@ const base = {
   'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
+  // prevent calling `EventTarget#removeEventListener()` with the result of an expression
+  'unicorn/no-invalid-remove-event-listener': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
   // forbid classes that only have static members
@@ -408,6 +410,8 @@ const base = {
   'unicorn/no-unsafe-regex': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
+  // forbid useless fallback when spreading in object literals
+  'unicorn/no-useless-fallback-in-spread': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
   // disallow useless spread
