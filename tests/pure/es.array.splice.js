@@ -20,6 +20,13 @@ QUnit.test('Array#splice', assert => {
   array = [1, 2, 3, 4, 5];
   assert.deepEqual(splice(array, 2, 2, 6, 7), [3, 4]);
   assert.deepEqual(array, [1, 2, 6, 7, 5]);
+  // ES6 semantics
+  array = [0, 1, 2];
+  assert.deepEqual(splice(array, 0), [0, 1, 2]);
+  array = [0, 1, 2];
+  assert.deepEqual(splice(array, 1), [1, 2]);
+  array = [0, 1, 2];
+  assert.deepEqual(splice(array, 2), [2]);
   if (STRICT) {
     assert.throws(() => splice(null), TypeError);
     assert.throws(() => splice(undefined), TypeError);
