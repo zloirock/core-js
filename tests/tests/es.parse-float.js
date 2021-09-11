@@ -18,5 +18,6 @@ QUnit.test('parseFloat', assert => {
 
   if (typeof Symbol === 'function' && !Symbol.sham) {
     assert.throws(() => parseFloat(Symbol()), 'throws on symbol argument');
+    assert.throws(() => parseFloat(Object(Symbol())), 'throws on boxed symbol argument');
   }
 });

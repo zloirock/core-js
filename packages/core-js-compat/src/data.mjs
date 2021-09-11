@@ -611,13 +611,11 @@ export const data = {
   },
   'es.number.parse-float': {
     chrome: '35',
-    edge: '13',
     firefox: '39',
     safari: '11.0',
   },
   'es.number.parse-int': {
     chrome: '35',
-    edge: '13',
     firefox: '39',
     safari: '9.0',
   },
@@ -813,6 +811,7 @@ export const data = {
   },
   'es.parse-float': {
     chrome: '35',
+    edge: '74',
     firefox: '8',
     ie: '8',
     safari: '7.1',
@@ -820,6 +819,7 @@ export const data = {
   },
   'es.parse-int': {
     chrome: '35',
+    edge: '74',
     firefox: '21',
     ie: '9',
     safari: '7.1',

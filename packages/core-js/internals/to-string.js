@@ -1,6 +1,6 @@
-var isSymbol = require('../internals/is-symbol');
+var classof = require('../internals/classof');
 
 module.exports = function (argument) {
-  if (isSymbol(argument)) throw TypeError('Cannot convert a Symbol value to a string');
+  if (classof(argument) === 'Symbol') throw TypeError('Cannot convert a Symbol value to a string');
   return String(argument);
 };

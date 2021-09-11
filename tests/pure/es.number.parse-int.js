@@ -36,5 +36,6 @@ QUnit.test('Number.parseInt', assert => {
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol === 'function') {
     assert.throws(() => parseInt(Symbol()), 'throws on symbol argument');
+    assert.throws(() => parseInt(Object(Symbol())), 'throws on boxed symbol argument');
   }
 });

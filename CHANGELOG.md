@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed a bug of MS Edge 18- `parseInt` / `parseFloat` with boxed symbols
 - Fixed `es.array.{ index-of, last-index-of }` compat data
 
 ##### 3.17.3 - 2021.09.09

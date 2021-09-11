@@ -36,6 +36,7 @@ QUnit.test('parseInt', assert => {
 
   if (typeof Symbol === 'function' && !Symbol.sham) {
     assert.throws(() => parseInt(Symbol()), 'throws on symbol argument');
+    assert.throws(() => parseInt(Object(Symbol())), 'throws on boxed symbol argument');
   }
 });
 

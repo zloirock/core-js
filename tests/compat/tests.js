@@ -612,13 +612,21 @@ GLOBAL.tests = {
     return Number.MIN_SAFE_INTEGER;
   },
   'es.number.parse-float': function () {
-    return Number.parseFloat === parseFloat
-      && 1 / Number.parseFloat(WHITESPACES + '-0') === -Infinity;
+    try {
+      parseFloat(Object(Symbol.iterator));
+    } catch (error) {
+      return Number.parseFloat === parseFloat
+        && 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+    }
   },
   'es.number.parse-int': function () {
-    return Number.parseInt === parseInt
-      && Number.parseInt(WHITESPACES + '08') === 8
-      && Number.parseInt(WHITESPACES + '0x16') === 22;
+    try {
+      parseInt(Object(Symbol.iterator));
+    } catch (error) {
+      return Number.parseInt === parseInt
+        && parseInt(WHITESPACES + '08') === 8
+        && parseInt(WHITESPACES + '0x16') === 22;
+    }
   },
   'es.number.to-fixed': function () {
     try {
@@ -723,11 +731,19 @@ GLOBAL.tests = {
     return Object.values;
   },
   'es.parse-float': function () {
-    return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+    try {
+      parseFloat(Object(Symbol.iterator));
+    } catch (error) {
+      return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+    }
   },
   'es.parse-int': function () {
-    return parseInt(WHITESPACES + '08') === 8
-      && parseInt(WHITESPACES + '0x16') === 22;
+    try {
+      parseInt(Object(Symbol.iterator));
+    } catch (error) {
+      return parseInt(WHITESPACES + '08') === 8
+        && parseInt(WHITESPACES + '0x16') === 22;
+    }
   },
   'es.promise': PROMISES_SUPPORT,
   'es.promise.all-settled': function () {
