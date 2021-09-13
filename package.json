@@ -60,7 +60,7 @@
     "p-timeout": "^5.0.0",
     "qunit": "^2.17.1",
     "semver": "^7.3.5",
-    "terser": "^5.7.2",
+    "terser": "^5.8.0",
     "webpack": "^5.52.1",
     "webpack-cli": "^4.8.0",
     "zx": "^4.2.0"
