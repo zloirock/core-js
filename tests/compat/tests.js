@@ -1678,5 +1678,8 @@ GLOBAL.tests = {
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT
+  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.structured-clone': function () {
+    return typeof structuredClone === 'function';
+  }
 };

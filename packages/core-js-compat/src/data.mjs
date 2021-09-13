@@ -1850,6 +1850,8 @@ export const data = {
     node: '12.0', // '11.0',
     safari: '12.1',
   },
+  'web.structured-clone': {
+  },
   'web.timers': {
     android: '1.5',
     chrome: '1',
