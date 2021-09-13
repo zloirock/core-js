@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Improve polyfilled functions `.name` and `.toString()` in many different cases
 - Fixed a bug of MS Edge 18- `parseInt` / `parseFloat` with boxed symbols
 - Fixed some internal cases of `GetMethod` operation
 - Fixed `es.array.{ index-of, last-index-of }` compat data

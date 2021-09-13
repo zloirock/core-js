@@ -2,7 +2,7 @@ var global = require('../internals/global');
 var shared = require('../internals/shared-store');
 var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var redefine = require('../internals/redefine');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
@@ -28,7 +28,7 @@ if (!AsyncIteratorPrototype) AsyncIteratorPrototype = {};
 else if (IS_PURE) AsyncIteratorPrototype = create(AsyncIteratorPrototype);
 
 if (typeof AsyncIteratorPrototype[ASYNC_ITERATOR] !== 'function') {
-  createNonEnumerableProperty(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {
+  redefine(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {
     return this;
   });
 }

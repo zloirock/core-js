@@ -6,6 +6,6 @@ var $upsert = require('../internals/map-upsert');
 
 // `Map.prototype.updateOrInsert` method (replaced by `Map.prototype.emplace`)
 // https://github.com/thumbsupep/proposal-upsert
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, name: 'upsert', forced: IS_PURE }, {
   updateOrInsert: $upsert
 });

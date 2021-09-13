@@ -8,7 +8,7 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
 var defineProperty = require('../internals/object-define-property').f;
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var redefine = require('../internals/redefine');
 var redefineAll = require('../internals/redefine-all');
 var getIterator = require('../internals/get-iterator');
 var getMethod = require('../internals/get-method');
@@ -194,7 +194,7 @@ redefineAll($Observable, {
   }
 });
 
-createNonEnumerableProperty($Observable.prototype, OBSERVABLE, function () { return this; });
+redefine($Observable.prototype, OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
   Observable: $Observable

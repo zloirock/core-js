@@ -1,4 +1,5 @@
 'use strict';
+var PROPER_FUNCTION_NAME = require('../internals/function-name').PROPER;
 var redefine = require('../internals/redefine');
 var anObject = require('../internals/an-object');
 var $toString = require('../internals/to-string');
@@ -11,7 +12,7 @@ var nativeToString = RegExpPrototype[TO_STRING];
 
 var NOT_GENERIC = fails(function () { return nativeToString.call({ source: 'a', flags: 'b' }) != '/a/b'; });
 // FF44- RegExp#toString has a wrong name
-var INCORRECT_NAME = nativeToString.name != TO_STRING;
+var INCORRECT_NAME = PROPER_FUNCTION_NAME && nativeToString.name != TO_STRING;
 
 // `RegExp.prototype.toString` method
 // https://tc39.es/ecma262/#sec-regexp.prototype.tostring
