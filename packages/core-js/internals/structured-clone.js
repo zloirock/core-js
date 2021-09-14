@@ -4,6 +4,9 @@
 /* eslint-disable es/no-bigint -- safe */
 'use const';
 var isSymbol = require('./is-symbol');
+var isArray = require('./is-array');
+var isObject = require('./is-object');
+var getOwnPropertyNames = require('./object-get-own-property-names');
 
 function createDataCloneError(message) {
   if (typeof DOMException === 'function') {
@@ -15,6 +18,7 @@ function createDataCloneError(message) {
 function structuredCloneInternal(weakmap, value) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (typeof value !== 'function' && typeof value !== 'object') return value;
+  if (value === null) return null;
   if (weakmap.has(value)) return weakmap.get(value); // effectively preserves circular references
 
   if (value instanceof Boolean) return new Boolean(value.valueOf());
@@ -42,6 +46,22 @@ function structuredCloneInternal(weakmap, value) {
     });
     return set;
   }
+
+  if (isArray(value)) {
+    return value.map(function (v) {
+      return structuredCloneInternal(weakmap, v);
+    });
+  }
+
+  if (isObject(value)) {
+    var rv = {};
+    getOwnPropertyNames.f(value).forEach(function (k) {
+      rv[structuredCloneInternal(weakmap, k)] = structuredCloneInternal(weakmap, value[k]);
+    });
+    return rv;
+  }
+
+  return value; // TODO: REMOVE THIS
 }
 
 /**
