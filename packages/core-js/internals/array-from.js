@@ -3,6 +3,7 @@ var bind = require('../internals/function-bind-context');
 var toObject = require('../internals/to-object');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
+var isConstructor = require('../internals/is-constructor');
 var toLength = require('../internals/to-length');
 var createProperty = require('../internals/create-property');
 var getIterator = require('../internals/get-iterator');
@@ -12,7 +13,7 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 // https://tc39.es/ecma262/#sec-array.from
 module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var O = toObject(arrayLike);
-  var C = typeof this == 'function' ? this : Array;
+  var C = isConstructor(this) ? this : Array;
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   var mapping = mapfn !== undefined;

@@ -1,5 +1,6 @@
 'use strict';
 // https://tc39.github.io/proposal-setmap-offrom/
+var aConstructor = require('../internals/a-constructor');
 var aFunction = require('../internals/a-function');
 var bind = require('../internals/function-bind-context');
 var iterate = require('../internals/iterate');
@@ -8,7 +9,7 @@ module.exports = function from(source /* , mapFn, thisArg */) {
   var length = arguments.length;
   var mapFn = length > 1 ? arguments[1] : undefined;
   var mapping, array, n, boundFunction;
-  aFunction(this);
+  aConstructor(this);
   mapping = mapFn !== undefined;
   if (mapping) aFunction(mapFn);
   if (source == undefined) return new this();

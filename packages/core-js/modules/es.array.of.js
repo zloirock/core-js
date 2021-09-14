@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
+var isConstructor = require('../internals/is-constructor');
 var createProperty = require('../internals/create-property');
 
 var ISNT_GENERIC = fails(function () {
@@ -16,7 +17,7 @@ $({ target: 'Array', stat: true, forced: ISNT_GENERIC }, {
   of: function of(/* ...args */) {
     var index = 0;
     var argumentsLength = arguments.length;
-    var result = new (typeof this == 'function' ? this : Array)(argumentsLength);
+    var result = new (isConstructor(this) ? this : Array)(argumentsLength);
     while (argumentsLength > index) createProperty(result, index, arguments[index++]);
     result.length = argumentsLength;
     return result;

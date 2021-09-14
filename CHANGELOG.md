@@ -2,6 +2,7 @@
 ##### Unreleased
 - `.name` and `.toString()` on polyfilled functions improved in many different cases
 - Fixed a bug of MS Edge 18- `parseInt` / `parseFloat` with boxed symbols
+- Improved internal `IsConstructor` check
 - Fixed some internal cases of `GetMethod` operation
 - Fixed `es.array.{ index-of, last-index-of }` compat data
 

@@ -1,7 +1,4 @@
-var isObject = require('../internals/is-object');
-
 module.exports = function (it) {
-  if (!isObject(it) && it !== null) {
-    throw TypeError("Can't set " + String(it) + ' as a prototype');
-  } return it;
+  if (typeof it === 'object' || typeof it === 'function') return it;
+  throw TypeError("Can't set " + String(it) + ' as a prototype');
 };

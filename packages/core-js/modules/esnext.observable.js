@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aFunction = require('../internals/a-function');
+var isConstructor = require('../internals/is-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
@@ -162,7 +163,7 @@ redefineAll($Observable.prototype, {
 
 redefineAll($Observable, {
   from: function from(x) {
-    var C = typeof this === 'function' ? this : $Observable;
+    var C = isConstructor(this) ? this : $Observable;
     var observableMethod = getMethod(anObject(x), OBSERVABLE);
     if (observableMethod) {
       var observable = anObject(observableMethod.call(x));
@@ -180,7 +181,7 @@ redefineAll($Observable, {
     });
   },
   of: function of() {
-    var C = typeof this === 'function' ? this : $Observable;
+    var C = isConstructor(this) ? this : $Observable;
     var length = arguments.length;
     var items = new Array(length);
     var index = 0;
