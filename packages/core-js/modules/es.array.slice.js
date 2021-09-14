@@ -1,7 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
-var isObject = require('../internals/is-object');
 var isArray = require('../internals/is-array');
+var isConstructor = require('../internals/is-constructor');
+var isObject = require('../internals/is-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 var toIndexedObject = require('../internals/to-indexed-object');
@@ -29,7 +30,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     if (isArray(O)) {
       Constructor = O.constructor;
       // cross-realm fallback
-      if (typeof Constructor == 'function' && (Constructor === Array || isArray(Constructor.prototype))) {
+      if (isConstructor(Constructor) && (Constructor === Array || isArray(Constructor.prototype))) {
         Constructor = undefined;
       } else if (isObject(Constructor)) {
         Constructor = Constructor[SPECIES];

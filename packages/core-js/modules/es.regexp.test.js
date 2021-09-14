@@ -2,6 +2,7 @@
 // TODO: Remove from `core-js@4` since it's moved to entry points
 require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
+var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 
 var DELEGATES_TO_EXEC = function () {
@@ -20,10 +21,9 @@ var nativeTest = /./.test;
 // https://tc39.es/ecma262/#sec-regexp.prototype.test
 $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
   test: function (str) {
-    if (typeof this.exec !== 'function') {
-      return nativeTest.call(this, str);
-    }
-    var result = this.exec(str);
+    var exec = this.exec;
+    if (!isCallable(exec)) return nativeTest.call(this, str);
+    var result = exec.call(this, str);
     if (result !== null && !isObject(result)) {
       throw new Error('RegExp exec method returned something other than an Object or null');
     }

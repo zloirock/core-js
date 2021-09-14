@@ -1,7 +1,8 @@
 var global = require('../internals/global');
+var isCallable = require('../internals/is-callable');
 
-var aFunction = function (variable) {
-  return typeof variable == 'function' ? variable : undefined;
+var aFunction = function (argument) {
+  return isCallable(argument) ? argument : undefined;
 };
 
 module.exports = function (namespace, method) {

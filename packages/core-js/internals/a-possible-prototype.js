@@ -1,4 +1,6 @@
-module.exports = function (it) {
-  if (typeof it === 'object' || typeof it === 'function') return it;
-  throw TypeError("Can't set " + String(it) + ' as a prototype');
+var isCallable = require('../internals/is-callable');
+
+module.exports = function (argument) {
+  if (typeof argument === 'object' || isCallable(argument)) return argument;
+  throw TypeError("Can't set " + String(argument) + ' as a prototype');
 };

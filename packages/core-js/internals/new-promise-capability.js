@@ -1,5 +1,5 @@
 'use strict';
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 
 var PromiseCapability = function (C) {
   var resolve, reject;
@@ -8,8 +8,8 @@ var PromiseCapability = function (C) {
     resolve = $$resolve;
     reject = $$reject;
   });
-  this.resolve = aFunction(resolve);
-  this.reject = aFunction(reject);
+  this.resolve = aCallable(resolve);
+  this.reject = aCallable(reject);
 };
 
 // `NewPromiseCapability` abstract operation

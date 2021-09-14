@@ -2,6 +2,7 @@
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var fails = require('../internals/fails');
 var anObject = require('../internals/an-object');
+var isCallable = require('../internals/is-callable');
 var toInteger = require('../internals/to-integer');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
@@ -75,7 +76,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
         if (res.done) return res.value;
       }
 
-      var functionalReplace = typeof replaceValue === 'function';
+      var functionalReplace = isCallable(replaceValue);
       if (!functionalReplace) replaceValue = toString(replaceValue);
 
       var global = rx.global;

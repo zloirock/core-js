@@ -1,4 +1,5 @@
 var global = require('../internals/global');
+var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind-context');
 var html = require('../internals/html');
@@ -54,7 +55,7 @@ if (!set || !clear) {
     while (argumentsLength > i) args.push(arguments[i++]);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func -- spec requirement
-      (typeof fn == 'function' ? fn : Function(fn)).apply(undefined, args);
+      (isCallable(fn) ? fn : Function(fn)).apply(undefined, args);
     };
     defer(counter);
     return counter;
@@ -83,7 +84,7 @@ if (!set || !clear) {
   // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if (
     global.addEventListener &&
-    typeof postMessage == 'function' &&
+    isCallable(global.postMessage) &&
     !global.importScripts &&
     location && location.protocol !== 'file:' &&
     !fails(post)

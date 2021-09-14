@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIterator = require('../internals/get-async-iterator');
@@ -23,7 +23,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
               Promise.resolve(mapper(step.value)).then(function (mapped) {
                 try {
                   state.innerIterator = innerIterator = getAsyncIterator(mapped);
-                  state.innerNext = aFunction(innerIterator.next);
+                  state.innerNext = aCallable(innerIterator.next);
                   return innerLoop();
                 } catch (error2) { reject(error2); }
               }, reject);
@@ -56,7 +56,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
-      mapper: aFunction(mapper),
+      mapper: aCallable(mapper),
       innerIterator: null,
       innerNext: null
     });

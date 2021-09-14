@@ -13,7 +13,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var mapping = mapfn !== undefined;
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, step, iterator, next;
-  if (iteratorMethod != undefined && !isArrayIteratorMethod(iteratorMethod)) {
+  if (iteratorMethod && !isArrayIteratorMethod(iteratorMethod)) {
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     O = [];

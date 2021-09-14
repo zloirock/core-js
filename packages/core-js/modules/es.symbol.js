@@ -8,6 +8,7 @@ var NATIVE_SYMBOL = require('../internals/native-symbol');
 var fails = require('../internals/fails');
 var has = require('../internals/has');
 var isArray = require('../internals/is-array');
+var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
 var anObject = require('../internals/an-object');
@@ -284,7 +285,7 @@ if ($stringify) {
       $replacer = replacer;
       if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
       if (!isArray(replacer)) replacer = function (key, value) {
-        if (typeof $replacer == 'function') value = $replacer.call(this, key, value);
+        if (isCallable($replacer)) value = $replacer.call(this, key, value);
         if (!isSymbol(value)) return value;
       };
       args[1] = replacer;

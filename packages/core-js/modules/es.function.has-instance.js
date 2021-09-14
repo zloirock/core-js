@@ -1,4 +1,5 @@
 'use strict';
+var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var definePropertyModule = require('../internals/object-define-property');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
@@ -11,7 +12,7 @@ var FunctionPrototype = Function.prototype;
 // https://tc39.es/ecma262/#sec-function.prototype-@@hasinstance
 if (!(HAS_INSTANCE in FunctionPrototype)) {
   definePropertyModule.f(FunctionPrototype, HAS_INSTANCE, { value: function (O) {
-    if (typeof this != 'function' || !isObject(O)) return false;
+    if (!isCallable(this) || !isObject(O)) return false;
     if (!isObject(this.prototype)) return O instanceof this;
     // for environment w/o native `@@hasInstance` logic enough `instanceof`, but add this:
     while (O = getPrototypeOf(O)) if (this.prototype === O) return true;

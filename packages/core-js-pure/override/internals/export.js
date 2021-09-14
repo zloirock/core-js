@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var isCallable = require('../internals/is-callable');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
@@ -72,7 +73,7 @@ module.exports = function (options, source) {
     // wrap global constructors for prevent changs in this version
     else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
     // make static versions for prototype methods
-    else if (PROTO && typeof sourceProperty == 'function') resultProperty = bind(Function.call, sourceProperty);
+    else if (PROTO && isCallable(sourceProperty)) resultProperty = bind(Function.call, sourceProperty);
     // default case
     else resultProperty = sourceProperty;
 

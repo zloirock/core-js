@@ -3,6 +3,7 @@
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var anInstance = require('../internals/an-instance');
+var isCallable = require('../internals/is-callable');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var fails = require('../internals/fails');
 var has = require('../internals/has');
@@ -16,7 +17,7 @@ var NativeIterator = global.Iterator;
 
 // FF56- have non-standard global helper `Iterator`
 var FORCED = IS_PURE
-  || typeof NativeIterator != 'function'
+  || !isCallable(NativeIterator)
   || NativeIterator.prototype !== IteratorPrototype
   // FF44- non-standard `Iterator` passes previous tests
   || !fails(function () { NativeIterator({}); });

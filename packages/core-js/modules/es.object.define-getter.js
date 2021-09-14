@@ -2,8 +2,8 @@
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var FORCED = require('../internals/object-prototype-accessors-forced');
+var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
-var aFunction = require('../internals/a-function');
 var definePropertyModule = require('../internals/object-define-property');
 
 // `Object.prototype.__defineGetter__` method
@@ -11,7 +11,7 @@ var definePropertyModule = require('../internals/object-define-property');
 if (DESCRIPTORS) {
   $({ target: 'Object', proto: true, forced: FORCED }, {
     __defineGetter__: function __defineGetter__(P, getter) {
-      definePropertyModule.f(toObject(this), P, { get: aFunction(getter), enumerable: true, configurable: true });
+      definePropertyModule.f(toObject(this), P, { get: aCallable(getter), enumerable: true, configurable: true });
     }
   });
 }

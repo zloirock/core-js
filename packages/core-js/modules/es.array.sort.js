@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
@@ -76,7 +76,7 @@ var getSortCompare = function (comparefn) {
 // https://tc39.es/ecma262/#sec-array.prototype.sort
 $({ target: 'Array', proto: true, forced: FORCED }, {
   sort: function sort(comparefn) {
-    if (comparefn !== undefined) aFunction(comparefn);
+    if (comparefn !== undefined) aCallable(comparefn);
 
     var array = toObject(this);
 

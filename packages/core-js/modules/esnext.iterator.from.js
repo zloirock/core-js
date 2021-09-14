@@ -20,13 +20,11 @@ $({ target: 'Iterator', stat: true }, {
     var object = toObject(O);
     var usingIterator = getIteratorMethod(object);
     var iterator;
-    if (usingIterator != null) {
+    if (usingIterator) {
       iterator = getIterator(object, usingIterator);
       if (isPrototypeOf.call(IteratorPrototype, iterator)) return iterator;
     } else {
       iterator = object;
-    } return new IteratorProxy({
-      iterator: iterator
-    });
+    } return new IteratorProxy({ iterator: iterator });
   }
 });

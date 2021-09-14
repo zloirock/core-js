@@ -1,5 +1,6 @@
 var $ = require('../internals/export');
 var global = require('../internals/global');
+var isCallable = require('../internals/is-callable');
 var userAgent = require('../internals/engine-user-agent');
 
 var slice = [].slice;
@@ -11,7 +12,7 @@ var wrap = function (scheduler) {
     var args = boundArgs ? slice.call(arguments, 2) : undefined;
     return scheduler(boundArgs ? function () {
       // eslint-disable-next-line no-new-func -- spec requirement
-      (typeof handler == 'function' ? handler : Function(handler)).apply(this, args);
+      (isCallable(handler) ? handler : Function(handler)).apply(this, args);
     } : handler, timeout);
   };
 };

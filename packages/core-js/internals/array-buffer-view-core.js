@@ -2,6 +2,7 @@
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
+var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
 var classof = require('../internals/classof');
@@ -68,7 +69,7 @@ var aTypedArray = function (it) {
 };
 
 var aTypedArrayConstructor = function (C) {
-  if (typeof C === 'function' && (!setPrototypeOf || isPrototypeOf.call(TypedArray, C))) return C;
+  if (isCallable(C) && (!setPrototypeOf || isPrototypeOf.call(TypedArray, C))) return C;
   throw TypeError(String(C) + ' is not a typed array constructor');
 };
 
@@ -125,7 +126,7 @@ for (NAME in BigIntArrayConstructorsList) {
 }
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
-if (!NATIVE_ARRAY_BUFFER_VIEWS || typeof TypedArray != 'function' || TypedArray === Function.prototype) {
+if (!NATIVE_ARRAY_BUFFER_VIEWS || !isCallable(TypedArray) || TypedArray === Function.prototype) {
   // eslint-disable-next-line no-shadow -- safe
   TypedArray = function TypedArray() {
     throw TypeError('Incorrect invocation');

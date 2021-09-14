@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var getMapIterator = require('../internals/get-map-iterator');
 var iterate = require('../internals/iterate');
 
@@ -14,7 +14,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var iterator = getMapIterator(map);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
-    aFunction(callbackfn);
+    aCallable(callbackfn);
     iterate(iterator, function (key, value) {
       if (noInitial) {
         noInitial = false;

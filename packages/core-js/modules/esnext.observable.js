@@ -3,7 +3,8 @@
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
+var isCallable = require('../internals/is-callable');
 var isConstructor = require('../internals/is-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -65,9 +66,9 @@ var Subscription = function (observer, subscriber) {
   try {
     var cleanup = subscriber(subscriptionObserver);
     var subscription = cleanup;
-    if (cleanup != null) subscriptionState.cleanup = typeof cleanup.unsubscribe === 'function'
+    if (cleanup != null) subscriptionState.cleanup = isCallable(cleanup.unsubscribe)
       ? function () { subscription.unsubscribe(); }
-      : aFunction(cleanup);
+      : aCallable(cleanup);
   } catch (error) {
     subscriptionObserver.error(error);
     return;
@@ -147,13 +148,13 @@ if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
 
 var $Observable = function Observable(subscriber) {
   anInstance(this, $Observable, 'Observable');
-  setInternalState(this, { subscriber: aFunction(subscriber) });
+  setInternalState(this, { subscriber: aCallable(subscriber) });
 };
 
 redefineAll($Observable.prototype, {
   subscribe: function subscribe(observer) {
     var length = arguments.length;
-    return new Subscription(typeof observer === 'function' ? {
+    return new Subscription(isCallable(observer) ? {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
       complete: length > 2 ? arguments[2] : undefined

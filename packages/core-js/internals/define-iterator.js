@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var FunctionName = require('../internals/function-name');
+var isCallable = require('../internals/is-callable');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
@@ -53,7 +54,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       if (!IS_PURE && getPrototypeOf(CurrentIteratorPrototype) !== IteratorPrototype) {
         if (setPrototypeOf) {
           setPrototypeOf(CurrentIteratorPrototype, IteratorPrototype);
-        } else if (typeof CurrentIteratorPrototype[ITERATOR] != 'function') {
+        } else if (!isCallable(CurrentIteratorPrototype[ITERATOR])) {
           redefine(CurrentIteratorPrototype, ITERATOR, returnThis);
         }
       }

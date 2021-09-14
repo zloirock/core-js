@@ -1,8 +1,8 @@
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 
 // optional / simple context binding
 module.exports = function (fn, that, length) {
-  aFunction(fn);
+  aCallable(fn);
   if (that === undefined) return fn;
   switch (length) {
     case 0: return function () {

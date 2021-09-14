@@ -2,13 +2,13 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
-    aFunction(reducer);
+    aCallable(reducer);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
     iterate(this, function (value) {

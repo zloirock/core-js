@@ -1,8 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var aFunction = require('../internals/a-function');
 var getSetIterator = require('../internals/get-set-iterator');
 var iterate = require('../internals/iterate');
 
@@ -14,7 +14,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var iterator = getSetIterator(set);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
-    aFunction(callbackfn);
+    aCallable(callbackfn);
     iterate(iterator, function (value) {
       if (noInitial) {
         noInitial = false;

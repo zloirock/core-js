@@ -2,7 +2,7 @@
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var global = require('../internals/global');
 var fails = require('../internals/fails');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var toLength = require('../internals/to-length');
 var internalSort = require('../internals/array-sort');
 var FF = require('../internals/engine-ff-version');
@@ -64,7 +64,7 @@ var getSortCompare = function (comparefn) {
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.sort
 exportTypedArrayMethod('sort', function sort(comparefn) {
   var array = this;
-  if (comparefn !== undefined) aFunction(comparefn);
+  if (comparefn !== undefined) aCallable(comparefn);
   if (STABLE_SORT) return nativeSort.call(array, comparefn);
 
   aTypedArray(array);

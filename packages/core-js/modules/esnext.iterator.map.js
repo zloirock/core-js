@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
@@ -17,7 +17,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
   map: function map(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),
-      mapper: aFunction(mapper)
+      mapper: aCallable(mapper)
     });
   }
 });

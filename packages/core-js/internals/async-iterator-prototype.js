@@ -1,5 +1,6 @@
 var global = require('../internals/global');
 var shared = require('../internals/shared-store');
+var isCallable = require('../internals/is-callable');
 var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var redefine = require('../internals/redefine');
@@ -14,7 +15,7 @@ var AsyncIteratorPrototype, prototype;
 
 if (PassedAsyncIteratorPrototype) {
   AsyncIteratorPrototype = PassedAsyncIteratorPrototype;
-} else if (typeof AsyncIterator == 'function') {
+} else if (isCallable(AsyncIterator)) {
   AsyncIteratorPrototype = AsyncIterator.prototype;
 } else if (shared[USE_FUNCTION_CONSTRUCTOR] || global[USE_FUNCTION_CONSTRUCTOR]) {
   try {
@@ -27,7 +28,7 @@ if (PassedAsyncIteratorPrototype) {
 if (!AsyncIteratorPrototype) AsyncIteratorPrototype = {};
 else if (IS_PURE) AsyncIteratorPrototype = create(AsyncIteratorPrototype);
 
-if (typeof AsyncIteratorPrototype[ASYNC_ITERATOR] !== 'function') {
+if (!isCallable(AsyncIteratorPrototype[ASYNC_ITERATOR])) {
   redefine(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {
     return this;
   });

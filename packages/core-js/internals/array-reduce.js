@@ -1,4 +1,4 @@
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
 var toLength = require('../internals/to-length');
@@ -6,7 +6,7 @@ var toLength = require('../internals/to-length');
 // `Array.prototype.{ reduce, reduceRight }` methods implementation
 var createMethod = function (IS_RIGHT) {
   return function (that, callbackfn, argumentsLength, memo) {
-    aFunction(callbackfn);
+    aCallable(callbackfn);
     var O = toObject(that);
     var self = IndexedObject(O);
     var length = toLength(O.length);

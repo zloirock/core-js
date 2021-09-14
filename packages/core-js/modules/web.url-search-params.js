@@ -10,6 +10,7 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var InternalStateModule = require('../internals/internal-state');
 var anInstance = require('../internals/an-instance');
+var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has');
 var bind = require('../internals/function-bind-context');
 var classof = require('../internals/classof');
@@ -142,7 +143,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   if (init !== undefined) {
     if (isObject(init)) {
       iteratorMethod = getIteratorMethod(init);
-      if (typeof iteratorMethod === 'function') {
+      if (iteratorMethod) {
         iterator = getIterator(init, iteratorMethod);
         next = iterator.next;
         while (!(step = next.call(iterator)).done) {
@@ -320,7 +321,7 @@ $({ global: true, forced: !USE_NATIVE_URL }, {
 });
 
 // Wrap `fetch` and `Request` for correct work with polyfilled `URLSearchParams`
-if (!USE_NATIVE_URL && typeof Headers == 'function') {
+if (!USE_NATIVE_URL && isCallable(Headers)) {
   var wrapRequestOptions = function (init) {
     if (isObject(init)) {
       var body = init.body;
@@ -338,7 +339,7 @@ if (!USE_NATIVE_URL && typeof Headers == 'function') {
     } return init;
   };
 
-  if (typeof nativeFetch == 'function') {
+  if (isCallable(nativeFetch)) {
     $({ global: true, enumerable: true, forced: true }, {
       fetch: function fetch(input /* , init */) {
         return nativeFetch(input, arguments.length > 1 ? wrapRequestOptions(arguments[1]) : {});
@@ -346,7 +347,7 @@ if (!USE_NATIVE_URL && typeof Headers == 'function') {
     });
   }
 
-  if (typeof NativeRequest == 'function') {
+  if (isCallable(NativeRequest)) {
     var RequestConstructor = function Request(input /* , init */) {
       anInstance(this, RequestConstructor, 'Request');
       return new NativeRequest(input, arguments.length > 1 ? wrapRequestOptions(arguments[1]) : {});

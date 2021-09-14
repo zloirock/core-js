@@ -1,6 +1,6 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var fails = require('../internals/fails');
 
@@ -16,7 +16,7 @@ var OPTIONAL_ARGUMENTS_LIST = !fails(function () {
 // https://tc39.es/ecma262/#sec-reflect.apply
 $({ target: 'Reflect', stat: true, forced: OPTIONAL_ARGUMENTS_LIST }, {
   apply: function apply(target, thisArgument, argumentsList) {
-    aFunction(target);
+    aCallable(target);
     anObject(argumentsList);
     return nativeApply
       ? nativeApply(target, thisArgument, argumentsList)

@@ -1,6 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
@@ -15,9 +15,9 @@ var createMethod = function (TYPE) {
   var IS_SOME = TYPE == 3;
   return function (iterator, fn) {
     anObject(iterator);
-    var next = aFunction(iterator.next);
+    var next = aCallable(iterator.next);
     var array = IS_TO_ARRAY ? [] : undefined;
-    if (!IS_TO_ARRAY) aFunction(fn);
+    if (!IS_TO_ARRAY) aCallable(fn);
 
     return new Promise(function (resolve, reject) {
       var closeIteration = function (method, argument) {

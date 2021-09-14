@@ -1,7 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
 
@@ -10,10 +10,10 @@ var Promise = getBuiltIn('Promise');
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var iterator = anObject(this);
-    var next = aFunction(iterator.next);
+    var next = aCallable(iterator.next);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
-    aFunction(reducer);
+    aCallable(reducer);
 
     return new Promise(function (resolve, reject) {
       var loop = function () {

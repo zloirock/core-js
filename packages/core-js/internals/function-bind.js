@@ -1,5 +1,5 @@
 'use strict';
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var isObject = require('../internals/is-object');
 
 var slice = [].slice;
@@ -16,7 +16,7 @@ var construct = function (C, argsLength, args) {
 // `Function.prototype.bind` method implementation
 // https://tc39.es/ecma262/#sec-function.prototype.bind
 module.exports = Function.bind || function bind(that /* , ...args */) {
-  var fn = aFunction(this);
+  var fn = aCallable(this);
   var partArgs = slice.call(arguments, 1);
   var boundFunction = function bound(/* args... */) {
     var args = partArgs.concat(slice.call(arguments));

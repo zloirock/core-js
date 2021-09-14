@@ -1,5 +1,5 @@
 'use strict';
-var aFunction = require('../internals/a-function');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -19,7 +19,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
-    state.next = aFunction(state.iterator.next);
+    state.next = aCallable(state.iterator.next);
     state.done = false;
     state.ignoreArgument = !IS_ITERATOR;
     setInternalState(this, state);

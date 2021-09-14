@@ -1,5 +1,6 @@
 'use strict';
 var fails = require('../internals/fails');
+var isCallable = require('../internals/is-callable');
 var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var redefine = require('../internals/redefine');
@@ -35,7 +36,7 @@ else if (IS_PURE) IteratorPrototype = create(IteratorPrototype);
 
 // `%IteratorPrototype%[@@iterator]()` method
 // https://tc39.es/ecma262/#sec-%iteratorprototype%-@@iterator
-if (typeof IteratorPrototype[ITERATOR] !== 'function') {
+if (!isCallable(IteratorPrototype[ITERATOR])) {
   redefine(IteratorPrototype, ITERATOR, function () {
     return this;
   });

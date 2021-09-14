@@ -1,6 +1,7 @@
 var global = require('../internals/global');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var isCallable = require('../internals/is-callable');
 var has = require('../internals/has');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var setGlobal = require('../internals/set-global');
 var inspectSource = require('../internals/inspect-source');
 var InternalStateModule = require('../internals/internal-state');
@@ -16,7 +17,7 @@ var TEMPLATE = String(String).split('String');
   var noTargetGet = options ? !!options.noTargetGet : false;
   var name = options && options.name !== undefined ? options.name : key;
   var state;
-  if (typeof value == 'function') {
+  if (isCallable(value)) {
     if (String(name).slice(0, 7) === 'Symbol(') {
       name = '[' + String(name).replace(/^Symbol\(([^)]*)\)/, '$1') + ']';
     }
@@ -41,5 +42,5 @@ var TEMPLATE = String(String).split('String');
   else createNonEnumerableProperty(O, key, value);
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
 })(Function.prototype, 'toString', function toString() {
-  return typeof this == 'function' && getInternalState(this).source || inspectSource(this);
+  return isCallable(this) && getInternalState(this).source || inspectSource(this);
 });

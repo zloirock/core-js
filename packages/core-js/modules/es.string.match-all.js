@@ -7,6 +7,7 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof-raw');
+var isCallable = require('../internals/is-callable');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-flags');
 var getMethod = require('../internals/get-method');
@@ -34,7 +35,7 @@ var WORKS_WITH_NON_GLOBAL_REGEX = !!nativeMatchAll && !fails(function () {
 var regExpExec = function (R, S) {
   var exec = R.exec;
   var result;
-  if (typeof exec == 'function') {
+  if (isCallable(exec)) {
     result = exec.call(R, S);
     if (typeof result != 'object') throw TypeError('Incorrect exec result');
     return result;
