@@ -15,7 +15,13 @@ function createDataCloneError(message) {
   return new Error(message);
 }
 
-function structuredCloneInternal(weakmap, value) {
+/**
+ * Tries best to replicate structuredClone behaviour.
+ *
+ * @param {WeakMap} weakmap cache map
+ * @param {any} value object to clone
+ */
+module.exports = function structuredCloneInternal(weakmap, value) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (typeof value !== 'function' && typeof value !== 'object') return value;
   if (value === null) return null;
@@ -59,16 +65,4 @@ function structuredCloneInternal(weakmap, value) {
 
   weakmap.set(value, cloned);
   return cloned;
-}
-
-/**
- * Tries best to replicate structuredClone behaviour.
- *
- * @param {WeakMap} weakmap cache map
- * @param {any} value object to clone
- * @param {Array<Transferable>} transfer transferables, if any
- */
-module.exports = function (weakmap, value, transfer) {
-  // TODO: Implement transfer behaviours. Couldn't find a reliable way to do this.
-  return structuredCloneInternal(weakmap, value);
 };
