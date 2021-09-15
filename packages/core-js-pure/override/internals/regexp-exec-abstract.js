@@ -1,3 +1,4 @@
+var anObject = require('../internals/an-object');
 var isCallable = require('../internals/is-callable');
 var classof = require('../internals/classof-raw');
 
@@ -9,8 +10,8 @@ module.exports = function (R, S) {
   var exec = R.exec;
   if (isCallable(exec)) {
     var result = exec.call(R, S);
-    if (typeof result === 'object') return result;
-    throw TypeError('RegExp exec method returned something other than an Object or null');
+    if (result !== null) anObject(result);
+    return result;
   }
   if (classof(R) === 'RegExp') return regexpExec.call(R, S);
   throw TypeError('RegExp#exec called on incompatible receiver');
