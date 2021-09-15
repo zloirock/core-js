@@ -1,5 +1,5 @@
 'use strict';
-var $ = require('./export');
+var $ = require('../internals/export');
 var global = require('../internals/global');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var fails = require('../internals/fails');

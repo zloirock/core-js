@@ -1,4 +1,4 @@
-var fails = require('./fails');
+var fails = require('../internals/fails');
 var global = require('../internals/global');
 
 // babel-minify and Closure Compiler transpiles RegExp('.', 's') -> /./s and it causes SyntaxError

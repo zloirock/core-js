@@ -1,2 +1,2 @@
 // TODO: Remove from `core-js@4`
-require('./es.global-this');
+require('../modules/es.global-this');

@@ -1,4 +1,4 @@
-require('./es.array.iterator');
+require('../modules/es.array.iterator');
 var DOMIterables = require('../internals/dom-iterables');
 var global = require('../internals/global');
 var classof = require('../internals/classof');

@@ -1,5 +1,5 @@
 var isCallable = require('../internals/is-callable');
-var classof = require('./classof-raw');
+var classof = require('../internals/classof-raw');
 
 var regexpExec = /./.exec;
 
