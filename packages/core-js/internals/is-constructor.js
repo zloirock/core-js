@@ -34,7 +34,7 @@ var isConstructorLegacy = function (argument) {
 // https://tc39.es/ecma262/#sec-isconstructor
 module.exports = !construct || fails(function () {
   var called;
-  return isConstructorModern(construct)
+  return isConstructorModern(isConstructorModern.call)
     || !isConstructorModern(Object)
     || !isConstructorModern(function () { called = true; })
     || called;
