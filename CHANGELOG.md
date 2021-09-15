@@ -5,6 +5,7 @@
 - Fixed some internal cases of `GetMethod` operation
 - Fixed a bug of MS Edge 18- `parseInt` / `parseFloat` with boxed symbols
 - Fixed `es.array.{ index-of, last-index-of }` compat data
+- Added Deno 1.15 compat data mapping
 
 ##### 3.17.3 - 2021.09.09
 - Fixed some possible problems related to possible extension of `%IteratorPrototype%` and `%AsyncIteratorPrototype%` in the future
