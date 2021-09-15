@@ -1,3 +1,7 @@
+// Copyright © web-platform-tests contributors
+// Originally from https://github.com/web-platform-tests/wpt
+// Available under the 3-Clause BSD License https://github.com/web-platform-tests/wpt/blob/master/LICENSE.md
+
 /* eslint-disable max-len -- ignore */
 export default [
   {
