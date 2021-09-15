@@ -76,8 +76,6 @@ module.exports = function structuredCloneInternal(weakmap, value) {
       });
       break;
     case 'Array':
-      for (i = 0; i < value.length; i++) cloned.push(structuredCloneInternal(weakmap, value[i]));
-      break;
     case 'Object':
       var properties = getOwnPropertyNames.f(value);
       for (i = 0; i < properties.length; i++) {
