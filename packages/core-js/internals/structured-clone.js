@@ -4,9 +4,9 @@
 /* eslint-disable es/no-bigint -- safe */
 'use const';
 var isSymbol = require('./is-symbol');
-var isArray = require('./is-array');
-var isObject = require('./is-object');
+var toObject = require('./to-object');
 var getOwnPropertyNames = require('./object-get-own-property-names');
+var classof = require('./classof');
 
 function createDataCloneError(message) {
   if (typeof DOMException === 'function') {
@@ -27,42 +27,65 @@ module.exports = function structuredCloneInternal(weakmap, value) {
   if (value === null) return null;
   if (weakmap.has(value)) return weakmap.get(value); // effectively preserves circular references
 
-  var cloned;
+  var cloned, i, deep;
 
-  if (value instanceof Boolean) cloned = new Boolean(value.valueOf());
-  else if (typeof BigInt === 'function' && value instanceof BigInt) cloned = Object(value.valueOf());
-  else if (value instanceof Number) cloned = new Number(value.valueOf());
-  else if (value instanceof String) cloned = new String(value.valueOf());
-  else if (value instanceof Date) cloned = new Date(value.valueOf());
-
-  else if (value instanceof RegExp) cloned = new RegExp(value); // Not cloning [[RegExpMatcher]], but it will be created
-
-  // TODO: SharedArrayBuffer, ArrayBuffer, DataView, etc
-
-  else if (typeof Map === 'function' && value instanceof Map) {
-    var map = new Map();
-    value.forEach(function (v, key) {
-      map.set(structuredCloneInternal(key), structuredCloneInternal(weakmap, v));
-    });
-    cloned = map;
-  } else if (typeof Set === 'function' && value instanceof Set) {
-    var set = new Set();
-    value.forEach(function (v) {
-      set.add(structuredCloneInternal(weakmap, v));
-    });
-    cloned = set;
-  } else if (isArray(value)) {
-    cloned = value.map(function (v) {
-      return structuredCloneInternal(weakmap, v);
-    });
-  } else if (isObject(value)) {
-    var rv = {};
-    getOwnPropertyNames.f(value).forEach(function (k) {
-      rv[structuredCloneInternal(weakmap, k)] = structuredCloneInternal(weakmap, value[k]);
-    });
-    cloned = rv;
+  switch (classof(value)) {
+    case 'Boolean':
+    case 'BigInt':
+    case 'Number':
+    case 'String':
+      cloned = toObject(value.valueOf());
+      break;
+    case 'Date':
+      cloned = new Date(value.valueOf());
+      break;
+    case 'RegExp':
+      cloned = new RegExp(value);
+      break;
+    case 'Map':
+      cloned = new Map();
+      deep = true;
+      break;
+    case 'Set':
+      cloned = new Set();
+      deep = true;
+      break;
+    case 'Array':
+      cloned = [];
+      deep = true;
+      break;
+    case 'Object':
+      cloned = {};
+      deep = true;
+      break;
+    default:
+      throw createDataCloneError('Uncloneable type: ' + classof(value));
   }
 
   weakmap.set(value, cloned);
+
+  if (deep) switch (classof(value)) {
+    case 'Map':
+      value.forEach(function (v, k) {
+        cloned.set(structuredCloneInternal(weakmap, k), structuredCloneInternal(weakmap, v));
+      });
+      break;
+    case 'Set':
+      value.forEach(function (v) {
+        cloned.add(structuredCloneInternal(weakmap, v));
+      });
+      break;
+    case 'Array':
+      for (i = 0; i < value.length; i++) cloned.push(structuredCloneInternal(weakmap, value[i]));
+      break;
+    case 'Object':
+      var properties = getOwnPropertyNames.f(value);
+      for (i = 0; i < properties.length; i++) {
+        cloned[structuredCloneInternal(weakmap, properties[i])] =
+          structuredCloneInternal(weakmap, value[properties[i]]);
+      }
+      break;
+  }
+
   return cloned;
 };
