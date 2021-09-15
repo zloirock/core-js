@@ -1,7 +1,5 @@
 /* eslint-disable es/no-map -- safe */
 /* eslint-disable es/no-set -- safe */
-/* eslint-disable no-new-wrappers -- safe */
-/* eslint-disable es/no-bigint -- safe */
 'use const';
 var isSymbol = require('./is-symbol');
 var toObject = require('./to-object');
@@ -50,6 +48,16 @@ module.exports = function structuredCloneInternal(weakmap, value) {
       cloned = new Set();
       deep = true;
       break;
+    case 'Error':
+    case 'EvalError':
+    case 'RangeError':
+    case 'ReferenceError':
+    case 'SyntaxError':
+    case 'TypeError':
+    case 'URIError':
+      cloned = value.constructor(value.message.toString());
+      deep = true; // clone stack after storing in the weakmap
+      break;
     case 'Array':
       cloned = [];
       deep = true;
@@ -74,6 +82,19 @@ module.exports = function structuredCloneInternal(weakmap, value) {
       value.forEach(function (v) {
         cloned.add(structuredCloneInternal(weakmap, v));
       });
+      break;
+    case 'Error':
+      // Attempt to clone the stack.
+      if (
+        !Object.prototype.hasOwnProperty.call(value, 'stack') && // Chrome, Safari
+        !Object.prototype.hasOwnProperty.call(Error.prototype, 'stack') // Firefox
+      ) break;
+      try {
+        cloned.stack = structuredCloneInternal(weakmap, value.stack);
+      } catch (error) {
+        if (classof(error) === 'TypeError') return cloned; // Stack cloning not avaliable.
+        throw error; // Unexpected error while cloning.
+      }
       break;
     case 'Array':
     case 'Object':
