@@ -1,10 +1,13 @@
-/* eslint-disable es/no-map -- safe */
-/* eslint-disable es/no-set -- safe */
-'use const';
-var isSymbol = require('./is-symbol');
-var toObject = require('./to-object');
-var getOwnPropertyNames = require('./object-get-own-property-names');
-var classof = require('./classof');
+'use strict';
+var isSymbol = require('../internals/is-symbol');
+var getOwnPropertyNames = require('../internals/object-get-own-property-names');
+var classof = require('../internals/classof');
+var getBuiltin = require('../internals/get-built-in');
+var isObject = require('../internals/is-object');
+var has = require('../internals/has');
+
+var Set = getBuiltin('Set');
+var Map = getBuiltin('Map');
 
 function createDataCloneError(message) {
   if (typeof DOMException === 'function') {
@@ -16,23 +19,23 @@ function createDataCloneError(message) {
 /**
  * Tries best to replicate structuredClone behaviour.
  *
- * @param {WeakMap} weakmap cache map
+ * @param {Map} map cache map
  * @param {any} value object to clone
  */
-module.exports = function structuredCloneInternal(weakmap, value) {
+module.exports = function structuredCloneInternal(map, value) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
-  if (typeof value !== 'function' && typeof value !== 'object') return value;
-  if (value === null) return null;
-  if (weakmap.has(value)) return weakmap.get(value); // effectively preserves circular references
+  if (!isObject(value)) return value;
+  if (map.has(value)) return map.get(value); // effectively preserves circular references
 
   var cloned, i, deep;
+  var type = classof(value);
 
-  switch (classof(value)) {
+  switch (type) {
     case 'Boolean':
     case 'BigInt':
     case 'Number':
     case 'String':
-      cloned = toObject(value.valueOf());
+      cloned = Object(value.valueOf());
       break;
     case 'Date':
       cloned = new Date(value.valueOf());
@@ -49,12 +52,6 @@ module.exports = function structuredCloneInternal(weakmap, value) {
       deep = true;
       break;
     case 'Error':
-    case 'EvalError':
-    case 'RangeError':
-    case 'ReferenceError':
-    case 'SyntaxError':
-    case 'TypeError':
-    case 'URIError':
       cloned = value.constructor(value.message.toString());
       deep = true; // clone stack after storing in the weakmap
       break;
@@ -67,41 +64,39 @@ module.exports = function structuredCloneInternal(weakmap, value) {
       deep = true;
       break;
     default:
-      throw createDataCloneError('Uncloneable type: ' + classof(value));
+      throw createDataCloneError('Uncloneable type: ' + type);
   }
 
-  weakmap.set(value, cloned);
+  map.set(value, cloned);
 
-  if (deep) switch (classof(value)) {
+  if (deep) switch (type) {
     case 'Map':
       value.forEach(function (v, k) {
-        cloned.set(structuredCloneInternal(weakmap, k), structuredCloneInternal(weakmap, v));
+        cloned.set(structuredCloneInternal(map, k), structuredCloneInternal(map, v));
       });
       break;
     case 'Set':
       value.forEach(function (v) {
-        cloned.add(structuredCloneInternal(weakmap, v));
+        cloned.add(structuredCloneInternal(map, v));
       });
       break;
     case 'Error':
       // Attempt to clone the stack.
       if (
-        !Object.prototype.hasOwnProperty.call(value, 'stack') && // Chrome, Safari
-        !Object.prototype.hasOwnProperty.call(Error.prototype, 'stack') // Firefox
+        !has(value, 'stack') && // Chrome, Safari
+        !has(Error.prototype, 'stack') // Firefox
       ) break;
       try {
-        cloned.stack = structuredCloneInternal(weakmap, value.stack);
-      } catch (error) {
-        if (classof(error) === 'TypeError') return cloned; // Stack cloning not avaliable.
-        throw error; // Unexpected error while cloning.
+        cloned.stack = structuredCloneInternal(map, value.stack);
+      } catch (_) {
+        return cloned; // Stack cloning not avaliable.
       }
       break;
     case 'Array':
     case 'Object':
       var properties = getOwnPropertyNames.f(value);
       for (i = 0; i < properties.length; i++) {
-        cloned[structuredCloneInternal(weakmap, properties[i])] =
-          structuredCloneInternal(weakmap, value[properties[i]]);
+        cloned[properties[i]] = structuredCloneInternal(map, value[properties[i]]);
       }
       break;
   }

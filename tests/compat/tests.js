@@ -1671,6 +1671,9 @@ GLOBAL.tests = {
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
+  'web.structured-clone': function () {
+    return typeof structuredClone === 'function';
+  },
   'web.timers': function () {
     return !/MSIE .\./.test(USERAGENT);
   },
@@ -1678,8 +1681,5 @@ GLOBAL.tests = {
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
-  'web.structured-clone': function () {
-    return typeof structuredClone === 'function';
-  }
+  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT
 };
