@@ -1,1 +1,1 @@
-// empty
+module.exports = /./.exec;
