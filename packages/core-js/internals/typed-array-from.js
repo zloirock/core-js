@@ -1,3 +1,4 @@
+var aConstructor = require('../internals/a-constructor');
 var toObject = require('../internals/to-object');
 var toLength = require('../internals/to-length');
 var getIterator = require('../internals/get-iterator');
@@ -7,6 +8,7 @@ var bind = require('../internals/function-bind-context');
 var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTypedArrayConstructor;
 
 module.exports = function from(source /* , mapfn, thisArg */) {
+  var C = aConstructor(this);
   var O = toObject(source);
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
@@ -25,7 +27,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
     mapfn = bind(mapfn, arguments[2], 2);
   }
   length = toLength(O.length);
-  result = new (aTypedArrayConstructor(this))(length);
+  result = new (aTypedArrayConstructor(C))(length);
   for (i = 0; length > i; i++) {
     result[i] = mapping ? mapfn(O[i], i) : O[i];
   }
