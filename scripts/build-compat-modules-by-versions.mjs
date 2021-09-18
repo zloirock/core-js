@@ -12,5 +12,4 @@ fs.writeJson('packages/core-js-compat/modules-by-versions.json', {
   ...modulesByVersions,
 }, { spaces: '  ' });
 
-// eslint-disable-next-line no-console -- output
 console.log(chalk.green('modules-by-versions data rebuilt'));

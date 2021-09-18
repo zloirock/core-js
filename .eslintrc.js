@@ -1144,6 +1144,10 @@ module.exports = {
         require: READONLY,
         sleep: READONLY,
       },
+      rules: {
+        // disallow use of console
+        'no-console': OFF,
+      },
     },
     {
       files: ['*.json'],

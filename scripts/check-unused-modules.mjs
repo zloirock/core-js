@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import konan from 'konan';
 import { modules } from 'core-js-compat/src/data.mjs';
 

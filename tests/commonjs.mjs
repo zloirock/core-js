@@ -1,4 +1,4 @@
-/* eslint-disable no-console, import/no-dynamic-require, node/global-require -- required */
+/* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { ok } from 'assert';
 import { join } from 'path';
 const compat = require('core-js-compat/data');

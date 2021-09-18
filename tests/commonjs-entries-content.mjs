@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import { deepStrictEqual, ok } from 'assert';
 import konan from 'konan';
 

@@ -99,5 +99,4 @@ deepStrictEqual(targetsParser({
   ['samsung', '4'],
 ]));
 
-// eslint-disable-next-line no-console -- output
 console.log(chalk.green('targets parser tested'));

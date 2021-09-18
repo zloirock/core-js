@@ -22,5 +22,5 @@ await generateNamespaceIndex('features', /^(es|esnext|web)\./);
 
 await generateTestsIndex('tests', 'core-js');
 await generateTestsIndex('pure', 'core-js-pure');
-// eslint-disable-next-line no-console -- output
+
 console.log(chalk.green('indexes generated'));

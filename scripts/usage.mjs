@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import puppeteer from 'puppeteer';
 import pTimeout from 'p-timeout';
 

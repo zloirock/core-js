@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 

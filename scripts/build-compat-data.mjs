@@ -68,5 +68,4 @@ await Promise.all([
   write('external', external),
 ]);
 
-// eslint-disable-next-line no-console -- output
 console.log(chalk.green('compat data rebuilt'));

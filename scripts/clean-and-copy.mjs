@@ -16,7 +16,6 @@ await Promise.all((await globby([
   'packages/core-js-pure/!(override|.npmignore|package.json|README.md)',
 ], { onlyFiles: false })).map(path => rm(path, { force: true, recursive: true })));
 
-// eslint-disable-next-line no-console -- output
 console.log(chalk.green('old copies removed'));
 
 await copy('packages/core-js', 'packages/core-js-pure', options(false));
@@ -32,5 +31,4 @@ await Promise.all([
   ...license.map(path => copy('LICENSE', path, options(true))),
 ]);
 
-// eslint-disable-next-line no-console -- output
 console.log(chalk.green(`copied ${ chalk.cyan(copied) } files`));

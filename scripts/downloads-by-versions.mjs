@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import coerce from 'semver/functions/coerce.js';
 
 async function getStat(pkg) {

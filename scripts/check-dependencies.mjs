@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import { promisify } from 'util';
 import david from 'david';
 import semver from 'semver';
