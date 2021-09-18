@@ -109,6 +109,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [New collections methods](#new-collections-methods)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
+      - [`Array.fromAsync`](#arrayfromasync)
       - [`Array` filtering](#array-filtering)
       - [`Array` grouping](#array-grouping)
       - [`Array` deduplication](#array-deduplication)
@@ -2296,6 +2297,27 @@ console.log(compositeSymbol(a, b, c) === compositeSymbol(a, b, c)); // => true
 console.log(compositeSymbol(1, a) === compositeSymbol(1, a)); // => true
 console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => true
 console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
+```
+##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
+Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js) and [`esnext.typed-array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.from-async.js)
+```js
+class Array {
+  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;
+}
+
+class %TypedArray% {
+  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: number, index: number, target) => number, thisArg?: any): %TypedArray%;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/array-from-async
+core-js(-pure)/features/array/from-async
+core-js/features/typed-array/from-async
+```
+[*Example*](https://goo.gl/Jt7SsD):
+```js
+await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
 ```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).

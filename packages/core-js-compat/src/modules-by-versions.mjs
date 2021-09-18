@@ -107,4 +107,8 @@ export default {
     'es.string.at-alternative',
     'es.typed-array.at',
   ],
+  3.18: [
+    'esnext.array.from-async',
+    'esnext.typed-array.from-async',
+  ],
 };

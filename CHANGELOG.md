@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Added [`Array.fromAsync` stage 1 proposal](https://github.com/tc39/proposal-array-from-async):
+  - `Array.fromAsync`
+  - `%TypedArray%.fromAsync`
 - `.name` and `.toString()` on polyfilled functions improved in many different cases
 - Improved internal `IsConstructor` and `IsCallable` checks
 - Fixed some internal cases of `GetMethod` operation

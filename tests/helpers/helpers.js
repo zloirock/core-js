@@ -1,5 +1,6 @@
 import Promise from 'core-js-pure/es/promise';
 import ITERATOR from 'core-js-pure/features/symbol/iterator';
+import ASYNC_ITERATOR from 'core-js-pure/features/symbol/async-iterator';
 
 export function createIterator(elements, methods) {
   let index = 0;
@@ -31,6 +32,29 @@ export function createIterable(elements, methods) {
             value: elements[index++],
             done: index > elements.length,
           };
+        },
+      };
+      if (methods) for (const key in methods) iterator[key] = methods[key];
+      return iterator;
+    },
+  };
+  return iterable;
+}
+
+export function createAsyncIterable(elements, methods) {
+  const iterable = {
+    called: false,
+    received: false,
+    [ASYNC_ITERATOR]() {
+      iterable.received = true;
+      let index = 0;
+      const iterator = {
+        next() {
+          iterable.called = true;
+          return Promise.resolve({
+            value: elements[index++],
+            done: index > elements.length,
+          });
         },
       };
       if (methods) for (const key in methods) iterator[key] = methods[key];

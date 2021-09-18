@@ -1428,6 +1428,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
+  'esnext.array.from-async': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,
   // TODO: Remove from `core-js@4`
@@ -1699,6 +1701,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
+  },
+  'esnext.typed-array.from-async': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.at': null,

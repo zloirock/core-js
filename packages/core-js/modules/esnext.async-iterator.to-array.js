@@ -5,6 +5,6 @@ var $toArray = require('../internals/async-iterator-iteration').toArray;
 
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   toArray: function toArray() {
-    return $toArray(this);
+    return $toArray(this, undefined, []);
   }
 });

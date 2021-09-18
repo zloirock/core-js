@@ -561,6 +561,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
+    ok(typeof load(NS, 'array/from-async') === 'function');
     ok(typeof load(NS, 'array/filter-out') === 'function');
     ok(typeof load(NS, 'array/filter-reject') === 'function');
     ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
@@ -741,6 +742,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-last');
   load('proposals/array-filtering');
   load('proposals/array-find-from-last');
+  load('proposals/array-from-async');
   load('proposals/array-grouping');
   load('proposals/array-is-template-object');
   load('proposals/array-unique');
@@ -852,6 +854,7 @@ for (const NS of ['es', 'stable', 'features']) {
 {
   const NS = 'features';
 
+  load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/find-last');
