@@ -5,8 +5,7 @@ var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 
-var MAX_SAFE_INTEGER = 9007199254740991;
-var push = [].push;
+var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 
 var createMethod = function (TYPE) {
   var IS_TO_ARRAY = TYPE == 0;
@@ -17,7 +16,7 @@ var createMethod = function (TYPE) {
     anObject(iterator);
     var Promise = getBuiltIn('Promise');
     var next = aCallable(iterator.next);
-    var counter = -1;
+    var index = 0;
     var MAPPING = fn !== undefined;
     if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
 
@@ -43,33 +42,33 @@ var createMethod = function (TYPE) {
 
       var loop = function () {
         try {
-          if (IS_TO_ARRAY && (++counter > MAX_SAFE_INTEGER) && MAPPING) {
+          if (IS_TO_ARRAY && (index > MAX_SAFE_INTEGER) && MAPPING) {
             throw TypeError('The allowed number of iterations has been exceeded');
           }
           Promise.resolve(anObject(next.call(iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
                 if (IS_TO_ARRAY) {
-                  target.length = counter;
+                  target.length = index;
                   resolve(target);
                 } else resolve(IS_SOME ? false : IS_EVERY || undefined);
               } else {
                 var value = step.value;
                 if (MAPPING) {
-                  Promise.resolve(IS_TO_ARRAY ? fn(value, counter) : fn(value)).then(function (result) {
+                  Promise.resolve(IS_TO_ARRAY ? fn(value, index) : fn(value)).then(function (result) {
                     if (IS_FOR_EACH) {
                       loop();
                     } else if (IS_EVERY) {
                       result ? loop() : closeIteration(resolve, false);
                     } else if (IS_TO_ARRAY) {
-                      push.call(target, result);
+                      target[index++] = result;
                       loop();
                     } else {
                       result ? closeIteration(resolve, IS_SOME || value) : loop();
                     }
                   }, onError);
                 } else {
-                  push.call(target, value);
+                  target[index++] = value;
                   loop();
                 }
               }
