@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Families of `.at` and `.findLast` methods marked as supported in Safari TP
 
 ##### 3.18.0 - 2021.09.20
 - Added [`Array.fromAsync` stage 1 proposal](https://github.com/tc39/proposal-array-from-async):

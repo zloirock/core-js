@@ -101,6 +101,7 @@ export const data = {
   'es.array.at': {
     chrome: '92',
     firefox: '90',
+    safari: '15.1',
   },
   'es.array.concat': {
     chrome: '51',
@@ -981,6 +982,7 @@ export const data = {
   'es.string.at-alternative': {
     chrome: '92',
     firefox: '90',
+    safari: '15.1',
   },
   'es.string.code-point-at': {
     chrome: '41',
@@ -1254,6 +1256,7 @@ export const data = {
   'es.typed-array.at': {
     chrome: '92',
     firefox: '90',
+    safari: '15.1',
   },
   'es.typed-array.copy-within': {
     chrome: '45',
@@ -1438,8 +1441,10 @@ export const data = {
   'esnext.array.filter-reject': {
   },
   'esnext.array.find-last': {
+    safari: '15.1',
   },
   'esnext.array.find-last-index': {
+    safari: '15.1',
   },
   'esnext.array.group-by': {
   },
@@ -1712,8 +1717,10 @@ export const data = {
   'esnext.typed-array.filter-reject': {
   },
   'esnext.typed-array.find-last': {
+    safari: '15.1',
   },
   'esnext.typed-array.find-last-index': {
+    safari: '15.1',
   },
   'esnext.typed-array.group-by': {
   },
