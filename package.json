@@ -58,7 +58,7 @@
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "~10.2.0",
     "p-timeout": "^5.0.0",
-    "qunit": "^2.17.1",
+    "qunit": "^2.17.2",
     "semver": "^7.3.5",
     "terser": "^5.8.0",
     "webpack": "^5.53.0",
