@@ -3,7 +3,7 @@ import { DESCRIPTORS, GLOBAL, STRICT_THIS, TYPED_ARRAYS } from '../helpers/const
 
 if (DESCRIPTORS) {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) QUnit.test(`${ TYPED_ARRAYS }.fromAsync`, assert => {
+  for (const name in TYPED_ARRAYS) QUnit.test(`%TypedArray%.fromAsync, ${ name }`, assert => {
     assert.expect(26);
     // eslint-disable-next-line qunit/no-async-in-loops -- safe
     const async = assert.async();
