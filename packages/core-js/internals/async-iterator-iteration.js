@@ -1,5 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
+// https://github.com/tc39/proposal-array-from-async
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
