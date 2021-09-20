@@ -8,9 +8,12 @@ var slice = ''.slice;
 var max = Math.max;
 var min = Math.min;
 
+// eslint-disable-next-line unicorn/prefer-string-slice -- required for testing
+var FORCED = !''.substr || 'ab'.substr(-1) !== 'b';
+
 // `String.prototype.substr` method
 // https://tc39.es/ecma262/#sec-string.prototype.substr
-$({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true, forced: FORCED }, {
   substr: function substr(start, length) {
     var that = toString(requireObjectCoercible(this));
     var size = that.length;

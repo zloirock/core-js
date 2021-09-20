@@ -985,7 +985,8 @@ GLOBAL.tests = {
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.substr': function () {
-    return ''.substr;
+    // eslint-disable-next-line unicorn/prefer-string-slice -- required for testing
+    return 'ab'.substr(-1) === 'b';
   },
   'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {

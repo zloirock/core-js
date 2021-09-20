@@ -1080,7 +1080,7 @@ export const data = {
   },
   'es.string.substr': {
     chrome: '1',
-    ie: '4',
+    ie: '9',
     firefox: '1',
     opera: '4',
     safari: '1',
