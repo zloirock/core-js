@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed `String.prototype.substr` feature detection and compat data
-- Removed mistakenly added `.forEach` from prototypes of some DOM collections where it shouldn't be
+- Removed mistakenly added `.forEach` from prototypes of some DOM collections where it shouldn't be, thanks [@moorejs](https://github.com/moorejs)
 - Families of `.at` and `.findLast` methods marked as supported in Safari TP
 
 ##### 3.18.0 - 2021.09.20
