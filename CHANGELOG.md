@@ -2,6 +2,7 @@
 ##### Unreleased
 - Fixed `String.prototype.substr` feature detection and compat data
 - Removed mistakenly added `.forEach` from prototypes of some DOM collections where it shouldn't be, [#988](https://github.com/zloirock/core-js/issues/988), [#987](https://github.com/zloirock/core-js/issues/987), thanks [@moorejs](https://github.com/moorejs)
+- Added `cause` to `AggregateError` constructor implementation (still without adding to the feature detection)
 - Families of `.at` and `.findLast` methods marked as supported in Safari TP
 
 ##### 3.18.0 - 2021.09.20

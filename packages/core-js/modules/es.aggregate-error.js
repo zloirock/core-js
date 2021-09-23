@@ -5,10 +5,11 @@ var setPrototypeOf = require('../internals/object-set-prototype-of');
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
+var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
 var toString = require('../internals/to-string');
 
-var $AggregateError = function AggregateError(errors, message) {
+var $AggregateError = function AggregateError(errors, message /* , options */) {
   var that = this;
   if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message);
   if (setPrototypeOf) {
@@ -16,6 +17,7 @@ var $AggregateError = function AggregateError(errors, message) {
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', toString(message));
+  if (arguments.length > 2) installErrorCause(that, arguments[2]);
   var errorsArray = [];
   iterate(errors, errorsArray.push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
