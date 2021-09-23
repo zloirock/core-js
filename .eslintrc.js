@@ -27,8 +27,6 @@ const base = {
   'no-console': ERROR,
   // disallow constant expressions in conditions
   'no-constant-condition': [ERROR, { checkLoops: false }],
-  // disallow control characters in regular expressions
-  'no-control-regex': ERROR,
   // disallow use of debugger
   'no-debugger': ERROR,
   // disallow duplicate arguments in functions
@@ -41,8 +39,6 @@ const base = {
   'no-else-return': ERROR,
   // disallow empty statements
   'no-empty': ERROR,
-  // disallow the use of empty character classes in regular expressions
-  'no-empty-character-class': ERROR,
   // disallow unnecessary boolean casts
   'no-extra-boolean-cast': ERROR,
   // disallow unnecessary semicolons
@@ -51,20 +47,14 @@ const base = {
   'no-ex-assign': ERROR,
   // disallow overwriting functions written as function declarations
   'no-func-assign': ERROR,
-  // disallow invalid regular expression strings in the RegExp constructor
-  'no-invalid-regexp': ERROR,
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': ERROR,
   // disallow literal numbers that lose precision
   // 'no-loss-of-precision': ERROR, // TODO
-  // disallow characters which are made with multiple code points in character class syntax
-  'no-misleading-character-class': ERROR,
   // disallow the use of object properties of the global object (Math and JSON) as functions
   'no-obj-calls': ERROR,
   // disallow use of Object.prototypes builtins directly
   'no-prototype-builtins': ERROR,
-  // disallow multiple spaces in a regular expression literal
-  'no-regex-spaces': ERROR,
   // disallow specific global variables
   'no-restricted-globals': [ERROR, ...RESTRICTED_GLOBALS],
   // disallow returning values from setters
@@ -81,8 +71,6 @@ const base = {
   'no-unsafe-optional-chaining': ERROR,
   // disallow loops with a body that allows only one iteration
   'no-unreachable-loop': ERROR,
-  // disallow useless backreferences in regular expressions
-  'no-useless-backreference': ERROR,
   // disallow comparisons with the value NaN
   'use-isnan': ERROR,
   // disallow unreachable statements after a return, throw, continue, or break statement
@@ -175,8 +163,6 @@ const base = {
   'no-useless-catch': ERROR,
   // disallow useless string concatenation
   'no-useless-concat': ERROR,
-  // disallow unnecessary string escaping
-  // 'no-useless-escape': ERROR, // replaced by 'regexp/no-useless-escape'
   // disallow void operators
   'no-void': ERROR,
   // disallow use of the with statement
@@ -406,8 +392,6 @@ const base = {
   'unicorn/no-static-only-class': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
-  // disallow unsafe regular expressions
-  'unicorn/no-unsafe-regex': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
   // forbid useless fallback when spreading in object literals
@@ -489,6 +473,10 @@ const base = {
   'regexp/match-any': [ERROR, { allows: ['[\\S\\s]', 'dotAll'] }],
   // enforce use of escapes on negation
   'regexp/negation': ERROR,
+  // disallow elements that contradict assertions
+  'regexp/no-contradiction-with-assertion': ERROR,
+  // disallow control characters
+  'regexp/no-control-character': ERROR,
   // disallow duplicate characters in the RegExp character class
   'regexp/no-dupe-characters-character-class': ERROR,
   // disallow duplicate disjunctions
@@ -497,6 +485,8 @@ const base = {
   'regexp/no-empty-alternative': ERROR,
   // disallow capturing group that captures empty
   'regexp/no-empty-capturing-group': ERROR,
+  // disallow character classes that match no characters
+  'regexp/no-empty-character-class': ERROR,
   // disallow empty group
   'regexp/no-empty-group': ERROR,
   // disallow empty lookahead assertion or empty lookbehind assertion
@@ -511,6 +501,8 @@ const base = {
   'regexp/no-lazy-ends': ERROR,
   // disallow legacy RegExp features
   'regexp/no-legacy-features': ERROR,
+  // disallow multi-code-point characters in character classes and quantifiers
+  'regexp/no-misleading-unicode-character': ERROR,
   // disallow non-standard flags
   'regexp/no-non-standard-flag': ERROR,
   // disallow obscure character ranges
@@ -831,6 +823,8 @@ const nodePackages = {
 };
 
 const nodeDev = {
+  // prefer lookarounds over capturing group that do not replace
+  'regexp/prefer-lookaround': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),

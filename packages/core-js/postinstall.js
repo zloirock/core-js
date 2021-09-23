@@ -52,7 +52,7 @@ function isBannerRequired() {
 }
 
 function showBanner() {
-  // eslint-disable-next-line no-console,no-control-regex -- output
+  // eslint-disable-next-line no-console, regexp/no-control-character -- output
   console.log(COLOR ? BANNER : BANNER.replace(/\u001B\[\d+m/g, ''));
 }
 

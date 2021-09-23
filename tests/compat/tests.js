@@ -25,7 +25,6 @@ if (v8) {
 
 var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 
-// eslint-disable-next-line unicorn/no-unsafe-regex -- safe
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
 var DESCRIPTORS_SUPPORT = function () {
