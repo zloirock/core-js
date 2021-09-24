@@ -22,11 +22,11 @@ module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg =
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   if (mapfn !== undefined) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
   var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
-  var usingIterator;
-  if (!usingAsyncIterator) usingIterator = getIteratorMethod(O);
+  var usingSyncIterator;
+  if (!usingAsyncIterator) usingSyncIterator = getIteratorMethod(O) || arrayIterator;
   var A = isConstructor(this) ? new this() : [];
   var iterator = usingAsyncIterator
     ? getAsyncIterator(O, usingAsyncIterator)
-    : new AsyncFromSyncIterator(getIterator(O, usingIterator || arrayIterator));
+    : new AsyncFromSyncIterator(getIterator(O, usingSyncIterator));
   return toArray(iterator, mapfn, A);
 };
