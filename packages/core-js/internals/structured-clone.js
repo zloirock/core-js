@@ -9,6 +9,7 @@ var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
+var DataView = getBuiltin('DataView');
 
 function createDataCloneError(message) {
   if (typeof DOMException === 'function') {
@@ -50,6 +51,10 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'SharedArrayBuffer':
     case 'Blob':
       cloned = value.slice(0);
+      break;
+    case 'DataView':
+      // this is safe, since arraybuffer cannot have circular references
+      cloned = new DataView(structuredCloneInternal(value.buffer), value.byteOffset, value.byteLength);
       break;
     case 'Map':
       cloned = new Map();
