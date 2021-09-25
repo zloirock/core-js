@@ -5,6 +5,7 @@ var classof = require('../internals/classof');
 var getBuiltin = require('../internals/get-built-in');
 var isObject = require('../internals/is-object');
 var has = require('../internals/has');
+var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
@@ -19,7 +20,7 @@ function createDataCloneError(message) {
 /**
  * Tries best to replicate structuredClone behaviour.
  *
- * @param {Map} map cache map
+ * @param {Map<object, object>} map cache map
  * @param {any} value object to clone
  */
 module.exports = function structuredCloneInternal(map, value) {
@@ -42,6 +43,13 @@ module.exports = function structuredCloneInternal(map, value) {
       break;
     case 'RegExp':
       cloned = new RegExp(value);
+      break;
+    case 'ArrayBuffer':
+      if (!isArrayBufferDetached()) throw createDataCloneError('ArrayBuffer is deatched');
+      // falls through
+    case 'SharedArrayBuffer':
+    case 'Blob':
+      cloned = value.slice(0);
       break;
     case 'Map':
       cloned = new Map();
