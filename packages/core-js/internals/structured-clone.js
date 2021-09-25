@@ -48,7 +48,6 @@ module.exports = function structuredCloneInternal(map, value) {
       if (!isArrayBufferDetached()) throw createDataCloneError('ArrayBuffer is deatched');
       // falls through
     case 'SharedArrayBuffer':
-    case 'Blob':
       cloned = value.slice(0);
       break;
     case 'Map':
