@@ -1,5 +1,5 @@
 var $ = require('../internals/export');
-var isInteger = require('../internals/is-integer');
+var isIntegralNumber = require('../internals/is-integral-number');
 
 var abs = Math.abs;
 
@@ -7,6 +7,6 @@ var abs = Math.abs;
 // https://tc39.es/ecma262/#sec-number.issafeinteger
 $({ target: 'Number', stat: true }, {
   isSafeInteger: function isSafeInteger(number) {
-    return isInteger(number) && abs(number) <= 0x1FFFFFFFFFFFFF;
+    return isIntegralNumber(number) && abs(number) <= 0x1FFFFFFFFFFFFF;
   }
 });

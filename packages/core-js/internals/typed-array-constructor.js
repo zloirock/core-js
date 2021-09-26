@@ -8,7 +8,7 @@ var ArrayBufferModule = require('../internals/array-buffer');
 var anInstance = require('../internals/an-instance');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var isInteger = require('../internals/is-integer');
+var isIntegralNumber = require('../internals/is-integral-number');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
@@ -69,7 +69,7 @@ var isTypedArrayIndex = function (target, key) {
   return isTypedArray(target)
     && !isSymbol(key)
     && key in target
-    && isInteger(+key)
+    && isIntegralNumber(+key)
     && key >= 0;
 };
 
