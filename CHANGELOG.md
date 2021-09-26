@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.18.1 - 2021.09.27
 - Fixed `String.prototype.substr` feature detection and compat data
 - Removed mistakenly added `.forEach` from prototypes of some DOM collections where it shouldn't be, [#988](https://github.com/zloirock/core-js/issues/988), [#987](https://github.com/zloirock/core-js/issues/987), thanks [@moorejs](https://github.com/moorejs)
 - Added `cause` to `AggregateError` constructor implementation (still without adding to the feature detection)
