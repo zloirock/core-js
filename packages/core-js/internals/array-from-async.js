@@ -22,8 +22,7 @@ module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg =
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   if (mapfn !== undefined) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
   var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
-  var usingSyncIterator;
-  if (!usingAsyncIterator) usingSyncIterator = getIteratorMethod(O) || arrayIterator;
+  var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || arrayIterator;
   var A = isConstructor(this) ? new this() : [];
   var iterator = usingAsyncIterator
     ? getAsyncIterator(O, usingAsyncIterator)
