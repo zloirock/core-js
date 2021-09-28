@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var toInteger = require('../internals/to-integer');
+var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var parseInt = require('../internals/number-parse-int');
 
 var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
@@ -20,7 +20,7 @@ $({ target: 'Number', stat: true }, {
       string = string.slice(1);
       if (!string.length) throw SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
-    R = radix === undefined ? 10 : toInteger(radix);
+    R = radix === undefined ? 10 : toIntegerOrInfinity(radix);
     if (R < 2 || R > 36) throw RangeError(INVALID_RADIX);
     if (!valid.test(string) || (mathNum = parseInt(string, R)).toString(R) !== string) {
       throw SyntaxError(INVALID_NUMBER_REPRESENTATION);

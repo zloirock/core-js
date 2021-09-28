@@ -1,4 +1,4 @@
-var toInteger = require('../internals/to-integer');
+var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
 var max = Math.max;
 var min = Math.min;
@@ -7,6 +7,6 @@ var min = Math.min;
 // Let integer be ? ToInteger(index).
 // If integer < 0, let result be max((length + integer), 0); else let result be min(integer, length).
 module.exports = function (index, length) {
-  var integer = toInteger(index);
+  var integer = toIntegerOrInfinity(index);
   return integer < 0 ? max(integer + length, 0) : min(integer, length);
 };

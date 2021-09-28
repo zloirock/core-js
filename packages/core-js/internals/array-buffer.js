@@ -7,7 +7,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var redefineAll = require('../internals/redefine-all');
 var fails = require('../internals/fails');
 var anInstance = require('../internals/an-instance');
-var toInteger = require('../internals/to-integer');
+var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var IEEE754 = require('../internals/ieee754');
@@ -101,7 +101,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     anInstance(this, $DataView, DATA_VIEW);
     anInstance(buffer, $ArrayBuffer, DATA_VIEW);
     var bufferLength = getInternalState(buffer).byteLength;
-    var offset = toInteger(byteOffset);
+    var offset = toIntegerOrInfinity(byteOffset);
     if (offset < 0 || offset > bufferLength) throw RangeError('Wrong offset');
     byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
     if (offset + byteLength > bufferLength) throw RangeError(WRONG_LENGTH);

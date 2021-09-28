@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var toInteger = require('../internals/to-integer');
+var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
 var getTime = Date.prototype.getTime;
 var setFullYear = Date.prototype.setFullYear;
@@ -11,7 +11,7 @@ $({ target: 'Date', proto: true }, {
   setYear: function setYear(year) {
     // validate
     getTime.call(this);
-    var yi = toInteger(year);
+    var yi = toIntegerOrInfinity(year);
     var yyyy = 0 <= yi && yi <= 99 ? yi + 1900 : yi;
     return setFullYear.call(this, yyyy);
   }

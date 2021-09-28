@@ -1,7 +1,7 @@
 'use strict';
 /* eslint-disable es/no-array-prototype-lastindexof -- safe */
 var toIndexedObject = require('../internals/to-indexed-object');
-var toInteger = require('../internals/to-integer');
+var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toLength = require('../internals/to-length');
 var arrayMethodIsStrict = require('../internals/array-method-is-strict');
 
@@ -19,7 +19,7 @@ module.exports = FORCED ? function lastIndexOf(searchElement /* , fromIndex = @[
   var O = toIndexedObject(this);
   var length = toLength(O.length);
   var index = length - 1;
-  if (arguments.length > 1) index = min(index, toInteger(arguments[1]));
+  if (arguments.length > 1) index = min(index, toIntegerOrInfinity(arguments[1]));
   if (index < 0) index = length + index;
   for (;index >= 0; index--) if (index in O && O[index] === searchElement) return index || 0;
   return -1;
