@@ -11,13 +11,14 @@ var toString = require('../internals/to-string');
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
   var that = this;
-  if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message);
+  var options = arguments.length > 2 ? arguments[2] : undefined;
+  if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message, options);
   if (setPrototypeOf) {
     // eslint-disable-next-line unicorn/error-message -- expected
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', toString(message));
-  if (arguments.length > 2) installErrorCause(that, arguments[2]);
+  installErrorCause(that, options);
   var errorsArray = [];
   iterate(errors, errorsArray.push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
