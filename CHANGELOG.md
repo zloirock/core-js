@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Some minor fixes and improvements
 
 ##### 3.18.1 - 2021.09.27
 - Fixed `String.prototype.substr` feature detection and compat data
