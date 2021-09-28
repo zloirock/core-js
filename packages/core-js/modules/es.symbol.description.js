@@ -4,7 +4,7 @@
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var defineProperty = require('../internals/object-define-property').f;
@@ -39,7 +39,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in NativeSymbol.
     get: function description() {
       var symbol = isObject(this) ? this.valueOf() : this;
       var string = symbolToString.call(symbol);
-      if (has(EmptyStringDescriptionStore, symbol)) return '';
+      if (hasOwn(EmptyStringDescriptionStore, symbol)) return '';
       var desc = nativeSymbol ? string.slice(7, -1) : string.replace(regexp, '$1');
       return desc === '' ? undefined : desc;
     }

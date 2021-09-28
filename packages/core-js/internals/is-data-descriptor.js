@@ -1,5 +1,5 @@
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 
 module.exports = function (descriptor) {
-  return descriptor !== undefined && (has(descriptor, 'value') || has(descriptor, 'writable'));
+  return descriptor !== undefined && (hasOwn(descriptor, 'value') || hasOwn(descriptor, 'writable'));
 };

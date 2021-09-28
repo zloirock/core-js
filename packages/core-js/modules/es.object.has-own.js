@@ -1,5 +1,5 @@
 var $ = require('../internals/export');
-var hasOwn = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 
 // `Object.hasOwn` method
 // https://github.com/tc39/proposal-accessible-object-hasownproperty

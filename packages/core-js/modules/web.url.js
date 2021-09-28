@@ -8,7 +8,7 @@ var global = require('../internals/global');
 var defineProperties = require('../internals/object-define-properties');
 var redefine = require('../internals/redefine');
 var anInstance = require('../internals/an-instance');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var assign = require('../internals/object-assign');
 var arrayFrom = require('../internals/array-from');
 var codeAt = require('../internals/string-multibyte').codeAt;
@@ -254,7 +254,7 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 
 var percentEncode = function (chr, set) {
   var code = codeAt(chr, 0);
-  return code > 0x20 && code < 0x7F && !has(set, chr) ? chr : encodeURIComponent(chr);
+  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : encodeURIComponent(chr);
 };
 
 var specialSchemes = {
@@ -267,7 +267,7 @@ var specialSchemes = {
 };
 
 var isSpecial = function (url) {
-  return has(specialSchemes, url.scheme);
+  return hasOwn(specialSchemes, url.scheme);
 };
 
 var includesCredentials = function (url) {
@@ -377,7 +377,7 @@ var parseURL = function (url, input, stateOverride, base) {
           buffer += chr.toLowerCase();
         } else if (chr == ':') {
           if (stateOverride && (
-            (isSpecial(url) != has(specialSchemes, buffer)) ||
+            (isSpecial(url) != hasOwn(specialSchemes, buffer)) ||
             (buffer == 'file' && (includesCredentials(url) || url.port !== null)) ||
             (url.scheme == 'file' && !url.host)
           )) return;

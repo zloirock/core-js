@@ -6,7 +6,7 @@ var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var fails = require('../internals/fails');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var IS_PURE = require('../internals/is-pure');
@@ -26,11 +26,11 @@ var IteratorConstructor = function Iterator() {
   anInstance(this, IteratorConstructor);
 };
 
-if (!has(IteratorPrototype, TO_STRING_TAG)) {
+if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) {
   createNonEnumerableProperty(IteratorPrototype, TO_STRING_TAG, 'Iterator');
 }
 
-if (FORCED || !has(IteratorPrototype, 'constructor') || IteratorPrototype.constructor === Object) {
+if (FORCED || !hasOwn(IteratorPrototype, 'constructor') || IteratorPrototype.constructor === Object) {
   createNonEnumerableProperty(IteratorPrototype, 'constructor', IteratorConstructor);
 }
 

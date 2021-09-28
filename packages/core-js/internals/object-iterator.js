@@ -1,7 +1,7 @@
 'use strict';
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var objectKeys = require('../internals/object-keys');
 var toObject = require('../internals/to-object');
 
@@ -28,7 +28,7 @@ module.exports = createIteratorConstructor(function ObjectIterator(source, mode)
     }
     var key = keys[state.index++];
     var object = state.object;
-    if (!has(object, key)) continue;
+    if (!hasOwn(object, key)) continue;
     switch (state.mode) {
       case 'keys': return { value: key, done: false };
       case 'values': return { value: object[key], done: false };

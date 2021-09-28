@@ -3,7 +3,7 @@
 var $ = require('../internals/export');
 var anInstance = require('../internals/an-instance');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var IS_PURE = require('../internals/is-pure');
@@ -16,11 +16,11 @@ var AsyncIteratorConstructor = function AsyncIterator() {
 
 AsyncIteratorConstructor.prototype = AsyncIteratorPrototype;
 
-if (!has(AsyncIteratorPrototype, TO_STRING_TAG)) {
+if (!hasOwn(AsyncIteratorPrototype, TO_STRING_TAG)) {
   createNonEnumerableProperty(AsyncIteratorPrototype, TO_STRING_TAG, 'AsyncIterator');
 }
 
-if (IS_PURE || !has(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPrototype.constructor === Object) {
+if (IS_PURE || !hasOwn(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPrototype.constructor === Object) {
   createNonEnumerableProperty(AsyncIteratorPrototype, 'constructor', AsyncIteratorConstructor);
 }
 

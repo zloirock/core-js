@@ -1,4 +1,4 @@
-var has = require('./internals/has');
+var hasOwn = require('./internals/has-own-property');
 var isArray = require('./internals/is-array');
 var isForced = require('./internals/is-forced');
 var shared = require('./internals/shared-store');
@@ -17,7 +17,11 @@ module.exports = function (options) {
     setAggressivenessLevel(options.useNative, isForced.NATIVE);
     setAggressivenessLevel(options.usePolyfill, isForced.POLYFILL);
     setAggressivenessLevel(options.useFeatureDetection, null);
-    if (has(options, USE_FUNCTION_CONSTRUCTOR)) shared[USE_FUNCTION_CONSTRUCTOR] = !!options[USE_FUNCTION_CONSTRUCTOR];
-    if (has(options, ASYNC_ITERATOR_PROTOTYPE)) shared[USE_FUNCTION_CONSTRUCTOR] = options[ASYNC_ITERATOR_PROTOTYPE];
+    if (hasOwn(options, USE_FUNCTION_CONSTRUCTOR)) {
+      shared[USE_FUNCTION_CONSTRUCTOR] = !!options[USE_FUNCTION_CONSTRUCTOR];
+    }
+    if (hasOwn(options, ASYNC_ITERATOR_PROTOTYPE)) {
+      shared[USE_FUNCTION_CONSTRUCTOR] = options[ASYNC_ITERATOR_PROTOTYPE];
+    }
   }
 };

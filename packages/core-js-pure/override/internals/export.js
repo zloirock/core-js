@@ -6,7 +6,7 @@ var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
@@ -54,7 +54,7 @@ module.exports = function (options, source) {
   for (key in source) {
     FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contains in native
-    USE_NATIVE = !FORCED && nativeSource && has(nativeSource, key);
+    USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
 
     targetProperty = target[key];
 
@@ -86,7 +86,7 @@ module.exports = function (options, source) {
 
     if (PROTO) {
       VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
-      if (!has(path, VIRTUAL_PROTOTYPE)) {
+      if (!hasOwn(path, VIRTUAL_PROTOTYPE)) {
         createNonEnumerableProperty(path, VIRTUAL_PROTOTYPE, {});
       }
       // export virtual prototype methods
