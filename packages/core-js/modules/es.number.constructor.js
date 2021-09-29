@@ -18,12 +18,19 @@ var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 
+// `ToNumeric` abstract operation
+// https://tc39.es/ecma262/#sec-tonumeric
+var toNumeric = function (value) {
+  var primValue = toPrimitive(value, 'number');
+  return typeof primValue === 'bigint' ? primValue : toNumber(primValue);
+};
+
 // `ToNumber` abstract operation
 // https://tc39.es/ecma262/#sec-tonumber
 var toNumber = function (argument) {
-  if (isSymbol(argument)) throw TypeError('Cannot convert a Symbol value to a number');
   var it = toPrimitive(argument, 'number');
   var first, third, radix, maxCode, digits, length, index, code;
+  if (isSymbol(it)) throw TypeError('Cannot convert a Symbol value to a number');
   if (typeof it == 'string' && it.length > 2) {
     it = trim(it);
     first = it.charCodeAt(0);
@@ -52,11 +59,11 @@ var toNumber = function (argument) {
 // https://tc39.es/ecma262/#sec-number-constructor
 if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1'))) {
   var NumberWrapper = function Number(value) {
-    var it = arguments.length < 1 ? 0 : value;
+    var n = arguments.length < 1 ? 0 : NativeNumber(toNumeric(value));
     var dummy = this;
     // check on 1..constructor(foo) case
     return dummy instanceof NumberWrapper && fails(function () { thisNumberValue(dummy); })
-      ? inheritIfRequired(new NativeNumber(toNumber(it)), dummy, NumberWrapper) : toNumber(it);
+      ? inheritIfRequired(Object(n), dummy, NumberWrapper) : n;
   };
   for (var keys = DESCRIPTORS ? getOwnPropertyNames(NativeNumber) : (
     // ES3:
