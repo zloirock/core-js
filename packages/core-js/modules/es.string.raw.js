@@ -19,7 +19,8 @@ $({ target: 'String', stat: true }, {
     var i = 0;
     while (literalSegments > i) {
       push.call(elements, toString(rawTemplate[i++]));
+      if (i === literalSegments) return join.call(elements, '');
       if (i < argumentsLength) push.call(elements, toString(arguments[i]));
-    } return join.call(elements, '');
+    }
   }
 });
