@@ -10,9 +10,9 @@ var ceil = Math.ceil;
 var createMethod = function (IS_END) {
   return function ($this, maxLength, fillString) {
     var S = toString(requireObjectCoercible($this));
+    var intMaxLength = toLength(maxLength);
     var stringLength = S.length;
     var fillStr = fillString === undefined ? ' ' : toString(fillString);
-    var intMaxLength = toLength(maxLength);
     var fillLen, stringFiller;
     if (intMaxLength <= stringLength || fillStr == '') return S;
     fillLen = intMaxLength - stringLength;

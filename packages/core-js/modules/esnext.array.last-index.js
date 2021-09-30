@@ -2,7 +2,7 @@
 var DESCRIPTORS = require('../internals/descriptors');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var defineProperty = require('../internals/object-define-property').f;
 
 // `Array.prototype.lastIndex` getter
@@ -12,7 +12,7 @@ if (DESCRIPTORS && !('lastIndex' in [])) {
     configurable: true,
     get: function lastIndex() {
       var O = toObject(this);
-      var len = toLength(O.length);
+      var len = lengthOfArrayLike(O);
       return len == 0 ? 0 : len - 1;
     }
   });

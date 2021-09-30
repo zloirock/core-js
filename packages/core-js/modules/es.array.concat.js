@@ -4,7 +4,7 @@ var fails = require('../internals/fails');
 var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
@@ -47,7 +47,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     for (i = -1, length = arguments.length; i < length; i++) {
       E = i === -1 ? O : arguments[i];
       if (isConcatSpreadable(E)) {
-        len = toLength(E.length);
+        len = lengthOfArrayLike(E);
         if (n + len > MAX_SAFE_INTEGER) throw TypeError(MAXIMUM_ALLOWED_INDEX_EXCEEDED);
         for (k = 0; k < len; k++, n++) if (k in E) createProperty(A, n, E[k]);
       } else {

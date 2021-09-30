@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
 // `Array.prototype.flatMap` method
@@ -11,7 +11,7 @@ var arraySpeciesCreate = require('../internals/array-species-create');
 $({ target: 'Array', proto: true }, {
   flatMap: function flatMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
-    var sourceLen = toLength(O.length);
+    var sourceLen = lengthOfArrayLike(O);
     var A;
     aCallable(callbackfn);
     A = arraySpeciesCreate(O, 0);

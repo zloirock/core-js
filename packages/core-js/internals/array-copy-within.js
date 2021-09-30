@@ -1,7 +1,7 @@
 'use strict';
 var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 var min = Math.min;
 
@@ -10,7 +10,7 @@ var min = Math.min;
 // eslint-disable-next-line es/no-array-prototype-copywithin -- safe
 module.exports = [].copyWithin || function copyWithin(target /* = 0 */, start /* = 0, end = @length */) {
   var O = toObject(this);
-  var len = toLength(O.length);
+  var len = lengthOfArrayLike(O);
   var to = toAbsoluteIndex(target, len);
   var from = toAbsoluteIndex(start, len);
   var end = arguments.length > 2 ? arguments[2] : undefined;

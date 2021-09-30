@@ -3,7 +3,7 @@ var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var global = require('../internals/global');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var internalSort = require('../internals/array-sort');
 var FF = require('../internals/engine-ff-version');
 var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
@@ -68,7 +68,7 @@ exportTypedArrayMethod('sort', function sort(comparefn) {
   if (STABLE_SORT) return nativeSort.call(array, comparefn);
 
   aTypedArray(array);
-  var arrayLength = toLength(array.length);
+  var arrayLength = lengthOfArrayLike(array);
   var items = Array(arrayLength);
   var index;
 

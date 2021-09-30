@@ -26,7 +26,7 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     var that = toString(requireObjectCoercible(this));
     notARegExp(searchString);
     var endPosition = arguments.length > 1 ? arguments[1] : undefined;
-    var len = toLength(that.length);
+    var len = that.length;
     var end = endPosition === undefined ? len : min(toLength(endPosition), len);
     var search = toString(searchString);
     return $endsWith

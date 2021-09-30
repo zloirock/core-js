@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 var internalSort = require('../internals/array-sort');
@@ -83,7 +83,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     if (STABLE_SORT) return comparefn === undefined ? nativeSort.call(array) : nativeSort.call(array, comparefn);
 
     var items = [];
-    var arrayLength = toLength(array.length);
+    var arrayLength = lengthOfArrayLike(array);
     var itemsLength, index;
 
     for (index = 0; index < arrayLength; index++) {

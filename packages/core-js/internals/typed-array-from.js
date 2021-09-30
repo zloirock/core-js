@@ -1,6 +1,6 @@
 var aConstructor = require('../internals/a-constructor');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
@@ -26,7 +26,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   if (mapping && argumentsLength > 2) {
     mapfn = bind(mapfn, arguments[2], 2);
   }
-  length = toLength(O.length);
+  length = lengthOfArrayLike(O);
   result = new (aTypedArrayConstructor(C))(length);
   for (i = 0; length > i; i++) {
     result[i] = mapping ? mapfn(O[i], i) : O[i];

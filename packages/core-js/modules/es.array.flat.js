@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
@@ -12,7 +12,7 @@ $({ target: 'Array', proto: true }, {
   flat: function flat(/* depthArg = 1 */) {
     var depthArg = arguments.length ? arguments[0] : undefined;
     var O = toObject(this);
-    var sourceLen = toLength(O.length);
+    var sourceLen = lengthOfArrayLike(O);
     var A = arraySpeciesCreate(O, 0);
     A.length = flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toIntegerOrInfinity(depthArg));
     return A;

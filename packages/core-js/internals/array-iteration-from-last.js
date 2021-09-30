@@ -1,7 +1,7 @@
 var bind = require('../internals/function-bind-context');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 // `Array.prototype.{ findLast, findLastIndex }` methods implementation
 var createMethod = function (TYPE) {
@@ -10,7 +10,7 @@ var createMethod = function (TYPE) {
     var O = toObject($this);
     var self = IndexedObject(O);
     var boundFunction = bind(callbackfn, that, 3);
-    var index = toLength(self.length);
+    var index = lengthOfArrayLike(self);
     var value, result;
     while (index-- > 0) {
       value = self[index];

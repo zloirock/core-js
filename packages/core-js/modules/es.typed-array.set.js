@@ -1,6 +1,6 @@
 'use strict';
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toOffset = require('../internals/to-offset');
 var toObject = require('../internals/to-object');
 var fails = require('../internals/fails');
@@ -20,7 +20,7 @@ exportTypedArrayMethod('set', function set(arrayLike /* , offset */) {
   var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1);
   var length = this.length;
   var src = toObject(arrayLike);
-  var len = toLength(src.length);
+  var len = lengthOfArrayLike(src);
   var index = 0;
   if (len + offset > length) throw RangeError('Wrong length');
   while (index < len) this[offset + index] = src[index++];

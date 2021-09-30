@@ -1,8 +1,8 @@
 var bind = require('../internals/function-bind-context');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
 var toPropertyKey = require('../internals/to-property-key');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var objectCreate = require('../internals/object-create');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
@@ -13,7 +13,7 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
   var self = IndexedObject(O);
   var boundFunction = bind(callbackfn, that, 3);
   var target = objectCreate(null);
-  var length = toLength(self.length);
+  var length = lengthOfArrayLike(self);
   var index = 0;
   var Constructor, key, value;
   for (;length > index; index++) {

@@ -1,8 +1,8 @@
 var $ = require('../internals/export');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 var ArrayPrototype = Array.prototype;
 var push = ArrayPrototype.push;
@@ -13,7 +13,7 @@ var join = ArrayPrototype.join;
 $({ target: 'String', stat: true }, {
   raw: function raw(template) {
     var rawTemplate = toIndexedObject(toObject(template).raw);
-    var literalSegments = toLength(rawTemplate.length);
+    var literalSegments = lengthOfArrayLike(rawTemplate);
     var argumentsLength = arguments.length;
     var elements = [];
     var i = 0;

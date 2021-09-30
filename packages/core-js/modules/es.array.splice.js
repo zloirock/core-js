@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
@@ -21,7 +21,7 @@ var MAXIMUM_ALLOWED_LENGTH_EXCEEDED = 'Maximum allowed length exceeded';
 $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   splice: function splice(start, deleteCount /* , ...items */) {
     var O = toObject(this);
-    var len = toLength(O.length);
+    var len = lengthOfArrayLike(O);
     var actualStart = toAbsoluteIndex(start, len);
     var argumentsLength = arguments.length;
     var insertCount, actualDeleteCount, A, k, from, to;

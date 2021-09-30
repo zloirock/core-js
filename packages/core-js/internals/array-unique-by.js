@@ -1,6 +1,6 @@
 'use strict';
 var aCallable = require('../internals/a-callable');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var getBuiltIn = require('../internals/get-built-in');
 var arraySpeciesCreate = require('../internals/array-species-create');
@@ -11,7 +11,7 @@ var push = [].push;
 // https://github.com/tc39/proposal-array-unique
 module.exports = function uniqueBy(resolver) {
   var that = toObject(this);
-  var length = toLength(that.length);
+  var length = lengthOfArrayLike(that);
   var result = arraySpeciesCreate(that, 0);
   var Map = getBuiltIn('Map');
   var map = new Map();

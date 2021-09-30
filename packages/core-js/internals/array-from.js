@@ -4,7 +4,7 @@ var toObject = require('../internals/to-object');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var isConstructor = require('../internals/is-constructor');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
@@ -31,7 +31,7 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
       createProperty(result, index, value);
     }
   } else {
-    length = toLength(O.length);
+    length = lengthOfArrayLike(O);
     result = IS_CONSTRUCTOR ? new this(length) : Array(length);
     for (;length > index; index++) {
       value = mapping ? mapfn(O[index], index) : O[index];

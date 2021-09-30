@@ -1,7 +1,7 @@
 var bind = require('../internals/function-bind-context');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
-var toLength = require('../internals/to-length');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
 var push = [].push;
@@ -19,7 +19,7 @@ var createMethod = function (TYPE) {
     var O = toObject($this);
     var self = IndexedObject(O);
     var boundFunction = bind(callbackfn, that, 3);
-    var length = toLength(self.length);
+    var length = lengthOfArrayLike(self);
     var index = 0;
     var create = specificCreate || arraySpeciesCreate;
     var target = IS_MAP ? create($this, length) : IS_FILTER || IS_FILTER_REJECT ? create($this, 0) : undefined;
