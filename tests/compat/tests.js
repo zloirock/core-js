@@ -1481,6 +1481,9 @@ GLOBAL.tests = {
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
+  'esnext.string.cooked': function () {
+    return String.cooked;
+  },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;
   },

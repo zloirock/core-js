@@ -116,5 +116,6 @@ export default {
     'esnext.function.is-constructor',
     'esnext.function.un-this',
     'esnext.iterator.to-async',
+    'esnext.string.cooked',
   ],
 };
