@@ -1,16 +1,21 @@
 'use strict';
 var $ = require('../internals/export');
+var aCallable = require('../internals/a-callable');
+var toIndexedObject = require('../internals/to-indexed-object');
+var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
+var getVirtual = require('../internals/entry-virtual');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var slice = require('../internals/array-slice');
-var sort = require('../internals/array-sort');
+
+var sort = getVirtual('Array').sort;
 
 // `Array.prototype.withSorted` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.withSorted
 $({ target: 'Array', proto: true }, {
   withSorted: function withSorted(compareFn) {
-    var A = slice.call(this);
-    sort.call(A, compareFn);
-    return A;
+    if (compareFn !== undefined) aCallable(compareFn);
+    var O = toIndexedObject(this);
+    var A = arrayFromConstructorAndList(Array, O);
+    return sort.call(A, compareFn);
   }
 });
 
