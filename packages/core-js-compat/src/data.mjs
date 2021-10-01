@@ -1749,6 +1749,14 @@ export const data = {
   },
   'esnext.typed-array.unique-by': {
   },
+  'esnext.typed-array.with-at': {
+  },
+  'esnext.typed-array.with-reversed': {
+  },
+  'esnext.typed-array.with-sorted': {
+  },
+  'esnext.typed-array.with-spliced': {
+  },
   'esnext.weak-map.delete-all': {
   },
   'esnext.weak-map.from': {

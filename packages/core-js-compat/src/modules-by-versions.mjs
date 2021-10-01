@@ -121,5 +121,9 @@ export default {
     'esnext.function.un-this',
     'esnext.iterator.to-async',
     'esnext.string.cooked',
+    'esnext.typed-array.with-at',
+    'esnext.typed-array.with-reversed',
+    'esnext.typed-array.with-sorted',
+    'esnext.typed-array.with-spliced',
   ],
 };
