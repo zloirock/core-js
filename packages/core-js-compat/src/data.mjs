@@ -1459,23 +1459,15 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.last-item': {
   },
-  'esnext.array.popped': {
-  },
-  'esnext.array.pushed': {
-  },
-  'esnext.array.reversed': {
-  },
-  'esnext.array.shifted': {
-  },
-  'esnext.array.sorted': {
-  },
-  'esnext.array.spliced': {
-  },
   'esnext.array.unique-by': {
   },
-  'esnext.array.unshifted': {
+  'esnext.array.with-at': {
   },
-  'esnext.array.with': {
+  'esnext.array.with-reversed': {
+  },
+  'esnext.array.with-sorted': {
+  },
+  'esnext.array.with-spliced': {
   },
   'esnext.async-iterator.constructor': {
   },

@@ -3,16 +3,14 @@ var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var slice = require('../internals/array-slice');
 
-var pop = [].pop;
-
-// `Array.prototype.popped` method
-// http://www.rricard.me/proposal-change-array-by-copy/#sec-array.prototype.popped
+// `Array.prototype.withAt` method
+// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.withAt
 $({ target: 'Array', proto: true }, {
-  popped: function popped() {
+  'withAt': function withAt(index, value) {
     var A = slice.call(this);
-    pop.call(A);
+    A[index] = value;
     return A;
   }
 });
 
-addToUnscopables('popped');
+addToUnscopables('withAt');

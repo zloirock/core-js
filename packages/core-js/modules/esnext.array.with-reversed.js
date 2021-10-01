@@ -2,16 +2,17 @@
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var slice = require('../internals/array-slice');
-var sort = require('../internals/array-sort');
 
-// `Array.prototype.sorted` method
-// http://www.rricard.me/proposal-change-array-by-copy/#sec-array.prototype.sorted
+var reverse = [].reverse;
+
+// `Array.prototype.withReversed` method
+// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.withReversed
 $({ target: 'Array', proto: true }, {
-  sorted: function sorted(compareFn) {
+  withReversed: function withReversed() {
     var A = slice.call(this);
-    sort.call(A, compareFn);
+    reverse.call(A);
     return A;
   }
 });
 
-addToUnscopables('sorted');
+addToUnscopables('withReversed');
