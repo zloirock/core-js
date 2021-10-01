@@ -9,7 +9,6 @@ var min = Math.min;
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.withSpliced
 module.exports = function (start, deleteCount /* , ...items */) {
   var O = this.O;
-  var C = this.C;
   var len = lengthOfArrayLike(O);
   var actualStart = toAbsoluteIndex(start, len);
   var argumentsLength = arguments.length;
@@ -25,7 +24,7 @@ module.exports = function (start, deleteCount /* , ...items */) {
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
   }
   newLen = len + insertCount - actualDeleteCount;
-  A = new C(newLen);
+  A = new this.C(newLen);
 
   for (; k < actualStart; k++) A[k] = O[k];
   for (; k < actualStart + insertCount; k++) A[k] = arguments[k - actualStart + 2];
