@@ -571,12 +571,20 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
     ok(typeof load(NS, 'array/unique-by') == 'function');
+    ok(load(NS, 'array/with-at')([1, 2, 3], 1, 4));
+    ok(load(NS, 'array/with-reversed')([1, 2, 3])[0] === 3);
+    ok(load(NS, 'array/with-sorted')([3, 2, 1])[0] === 1);
+    ok(load(NS, 'array/with-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'array/virtual/filter-out') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
     ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
+    ok(load(NS, 'array/virtual/with-at').call([1, 2, 3], 1, 4));
+    ok(load(NS, 'array/virtual/with-reversed').call([1, 2, 3])[0] === 3);
+    ok(load(NS, 'array/virtual/with-sorted').call([3, 2, 1])[0] === 1);
+    ok(load(NS, 'array/virtual/with-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
@@ -748,6 +756,30 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceUnThis({}) === undefined);
     ok(typeof instanceUnThis([].slice) == 'function');
     ok(instanceUnThis([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
+
+    const instanceWithAt = load(NS, 'instance/with-at');
+    ok(typeof instanceWithAt == 'function');
+    ok(instanceWithAt({}) === undefined);
+    ok(typeof instanceWithAt([]) == 'function');
+    ok(instanceWithAt([]).call([1, 2, 3], 1, 4)[1] === 4);
+
+    const instanceWithReversed = load(NS, 'instance/with-reversed');
+    ok(typeof instanceWithReversed == 'function');
+    ok(instanceWithReversed({}) === undefined);
+    ok(typeof instanceWithReversed([]) == 'function');
+    ok(instanceWithReversed([]).call([1, 2, 3])[0] === 3);
+
+    const instanceWithSorted = load(NS, 'instance/with-sorted');
+    ok(typeof instanceWithSorted == 'function');
+    ok(instanceWithSorted({}) === undefined);
+    ok(typeof instanceWithSorted([]) == 'function');
+    ok(instanceWithSorted([]).call([3, 2, 1])[0] === 1);
+
+    const instanceWithSpliced = load(NS, 'instance/with-spliced');
+    ok(typeof instanceWithSpliced == 'function');
+    ok(instanceWithSpliced({}) === undefined);
+    ok(typeof instanceWithSpliced([]) == 'function');
+    ok(instanceWithSpliced([]).call([3, 2, 1], 1, 1, 4, 5).length === 4);
   }
 
   load('proposals/accessible-object-hasownproperty');
@@ -758,6 +790,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-grouping');
   load('proposals/array-is-template-object');
   load('proposals/array-unique');
+  load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/decorators');
@@ -876,6 +909,10 @@ for (const NS of ['es', 'stable', 'features']) {
   load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
+  load(NS, 'typed-array/with-at');
+  load(NS, 'typed-array/with-reversed');
+  load(NS, 'typed-array/with-sorted');
+  load(NS, 'typed-array/with-spliced');
 }
 
 load('modules/esnext.string.at-alternative');
