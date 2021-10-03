@@ -595,6 +595,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'bigint');
     ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
     ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
+    ok(!load(NS, 'function/is-callable')(class { /* empty */ }));
+    ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(typeof load(NS, 'iterator') == 'function');
@@ -759,6 +761,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-of-from');
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
+  load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
   load('proposals/global-this');
   load('proposals/iterator-helpers');

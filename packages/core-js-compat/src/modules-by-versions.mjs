@@ -112,6 +112,8 @@ export default {
     'esnext.typed-array.from-async',
   ],
   '3.20': [
+    'esnext.function.is-callable',
+    'esnext.function.is-constructor',
     'esnext.function.un-this',
     'esnext.iterator.to-async',
   ],

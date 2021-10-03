@@ -123,3 +123,9 @@ export function patchRegExp$exec(run) {
     }
   };
 }
+
+export function fromSource(source) {
+  try {
+    return Function(`return ${ source }`)();
+  } catch { /* empty */ }
+}

@@ -1495,6 +1495,10 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
+  'esnext.function.is-callable': {
+  },
+  'esnext.function.is-constructor': {
+  },
   'esnext.function.un-this': {
   },
   // TODO: Remove from `core-js@4`
