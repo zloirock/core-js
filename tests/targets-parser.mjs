@@ -5,7 +5,7 @@ const targetsParser = require('core-js-compat/targets-parser');
 deepStrictEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
   ['chrome', '56'],
   ['ie', '11'],
-  ['ios', '12.2-12.4'],
+  ['ios', '12.2-12.5'],
 ]));
 
 // targets object
@@ -23,7 +23,7 @@ deepStrictEqual(targetsParser({
 deepStrictEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), new Map([
   ['chrome', '56'],
   ['ie', '11'],
-  ['ios', '12.2-12.4'],
+  ['ios', '12.2-12.5'],
 ]));
 
 // targets.esmodules
