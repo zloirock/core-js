@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Early `{ Array, %TypedArray% }.fromAsync` errors moved to the promise, per the latest changes of the spec draft
 - Some minor fixes and improvements
 
 ##### 3.18.1 - 2021.09.27

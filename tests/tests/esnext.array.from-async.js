@@ -57,10 +57,18 @@ QUnit.test('Array.fromAsync', assert => {
     return fromAsync(createIterable([1]), () => { throw 42; });
   }).catch(error => {
     assert.same(error, 42, 'rejection on a callback error');
-  }).then(() => async());
-
-  assert.throws(() => fromAsync(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => fromAsync(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => fromAsync([1], null), TypeError);
-  assert.throws(() => fromAsync([1], {}), TypeError);
+    return fromAsync(undefined, () => { /* empty */ });
+  }).catch(error => {
+    assert.ok(error instanceof TypeError);
+    return fromAsync(null, () => { /* empty */ });
+  }).catch(error => {
+    assert.ok(error instanceof TypeError);
+    return fromAsync([1], null);
+  }).catch(error => {
+    assert.ok(error instanceof TypeError);
+    return fromAsync([1], {});
+  }).catch(error => {
+    assert.ok(error instanceof TypeError);
+    async();
+  });
 });

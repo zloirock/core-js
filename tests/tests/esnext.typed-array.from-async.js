@@ -55,13 +55,23 @@ if (DESCRIPTORS) {
       return TypedArray.fromAsync(createIterable([1]), () => { throw 42; });
     }).catch(error => {
       assert.same(error, 42, 'rejection on a callback error');
-    }).then(() => async());
-
-    function C() { /* empty */ }
-    assert.throws(() => TypedArray.fromAsync.call(C, [1], {}), TypeError);
-    assert.throws(() => TypedArray.fromAsync(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => TypedArray.fromAsync(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => TypedArray.fromAsync([1], null), TypeError);
-    assert.throws(() => TypedArray.fromAsync([1], {}), TypeError);
+      function C() { /* empty */ }
+      return TypedArray.fromAsync.call(C, [1], {});
+    }).catch(error => {
+      assert.ok(error instanceof TypeError);
+      return TypedArray.fromAsync(undefined, () => { /* empty */ });
+    }).catch(error => {
+      assert.ok(error instanceof TypeError);
+      return TypedArray.fromAsync(null, () => { /* empty */ });
+    }).catch(error => {
+      assert.ok(error instanceof TypeError);
+      return TypedArray.fromAsync([1], null);
+    }).catch(error => {
+      assert.ok(error instanceof TypeError);
+      return TypedArray.fromAsync([1], {});
+    }).catch(error => {
+      assert.ok(error instanceof TypeError);
+      async();
+    });
   });
 }

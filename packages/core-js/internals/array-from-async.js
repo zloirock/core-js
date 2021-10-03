@@ -7,6 +7,7 @@ var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
 var getVirtual = require('../internals/entry-virtual');
+var getBuiltIn = require('../internals/get-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var toArray = require('../internals/async-iterator-iteration').toArray;
@@ -17,15 +18,19 @@ var arrayIterator = getVirtual('Array').values;
 // `Array.fromAsync` method implementation
 // https://github.com/tc39/proposal-array-from-async
 module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg = undefined */) {
-  var O = toObject(asyncItems);
+  var C = this;
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
-  if (mapfn !== undefined) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined, 2);
-  var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
-  var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || arrayIterator;
-  var A = isConstructor(this) ? new this() : [];
-  var iterator = usingAsyncIterator
-    ? getAsyncIterator(O, usingAsyncIterator)
-    : new AsyncFromSyncIterator(getIterator(O, usingSyncIterator));
-  return toArray(iterator, mapfn, A);
+  var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
+  return new (getBuiltIn('Promise'))(function (resolve) {
+    var O = toObject(asyncItems);
+    if (mapfn !== undefined) mapfn = bind(mapfn, thisArg, 2);
+    var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
+    var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || arrayIterator;
+    var A = isConstructor(C) ? new C() : [];
+    var iterator = usingAsyncIterator
+      ? getAsyncIterator(O, usingAsyncIterator)
+      : new AsyncFromSyncIterator(getIterator(O, usingSyncIterator));
+    resolve(toArray(iterator, mapfn, A));
+  });
 };
