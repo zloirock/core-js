@@ -1,3 +1,4 @@
+require('../modules/web.dom-exception');
 require('../modules/web.dom-collections.for-each');
 require('../modules/web.dom-collections.iterator');
 require('../modules/web.immediate');

@@ -1813,6 +1813,12 @@ export const data = {
     safari: '13.1',
     rhino: '1.7.13',
   },
+  'web.dom-exception': {
+    chrome: '46',
+    deno: '1.7', // ?
+    firefox: '37',
+    safari: '10.1',
+  },
   'web.immediate': {
     ie: '10',
     node: '0.9.1',
