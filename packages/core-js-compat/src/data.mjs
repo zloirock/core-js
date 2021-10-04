@@ -1815,9 +1815,9 @@ export const data = {
   },
   'web.dom-exception': {
     chrome: '46',
-    deno: '1.7', // ?
+    deno: '1.7',
     firefox: '37',
-    safari: '10.1',
+    safari: '11.1',
   },
   'web.immediate': {
     ie: '10',

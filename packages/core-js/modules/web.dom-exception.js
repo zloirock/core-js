@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var path = require('../internals/path');
+var fails = require('../internals/fails');
 var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var defineProperty = require('../internals/object-define-property').f;
@@ -12,8 +13,10 @@ var $toString = require('../internals/to-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
+var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
+var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
 
@@ -64,6 +67,9 @@ var $DOMException = function DOMException() {
     this.message = message;
     this.code = code;
   }
+  if (HAS_STACK) {
+    defineProperty(this, 'stack', createPropertyDescriptor(1, Error('DOMException: ' + message).stack));
+  }
 };
 
 var $DOMExceptionPrototype = $DOMException.prototype = create(Error.prototype);
@@ -85,17 +91,60 @@ redefine($DOMExceptionPrototype, 'toString', function toString() {
   return state.name + ': ' + state.message;
 });
 
-setToStringTag($DOMException, DOM_EXCEPTION);
+// FF36- DOMException is a function, but can't be constructed
+var INCORRECT_CONSTRUCTOR = fails(function () {
+  return !new DOMException();
+});
 
-for (var key in errors) if (hasOwn(errors, key)) {
-  var constant = errors[key];
-  var descriptor = createPropertyDescriptor(6, constant.c);
-  defineProperty($DOMException, constant.s, descriptor);
-  defineProperty($DOMExceptionPrototype, constant.s, descriptor);
-}
+// Safari 10.1 / Deno 1.6.3- DOMException.prototype.toString bug
+var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
+  return String(new DOMException('a', 'b')) !== 'b: a';
+});
+
+// Deno 1.6.3- DOMException.prototype.code just missed
+var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
+  return new DOMException(1, 'DataCloneError').code !== 25;
+});
 
 // `DOMException` constructor
 // https://heycam.github.io/webidl/#idl-DOMException
-$({ global: true, forced: typeof global[DOM_EXCEPTION] !== 'function' }, {
+$({ global: true, forced: IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE : INCORRECT_CONSTRUCTOR }, {
   DOMException: $DOMException
 });
+
+var PolyfilledDOMException = path[DOM_EXCEPTION];
+var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
+
+if (PolyfilledDOMException !== $DOMException) {
+  if (INCORRECT_TO_STRING) {
+    redefine(PolyfilledDOMExceptionPrototype, 'toString', function toString() {
+      return this.name + ': ' + this.message;
+    });
+  }
+
+  if (INCORRECT_CODE && DESCRIPTORS) {
+    defineProperty(PolyfilledDOMExceptionPrototype, 'code', {
+      enumerable: true,
+      configurable: true,
+      get: function () {
+        var name = this.name;
+        return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
+      }
+    });
+  }
+}
+
+// Deno 1.6.3- DOMException constants just missed, so add them after constructor polyfilling
+for (var key in errors) if (hasOwn(errors, key)) {
+  var constant = errors[key];
+  var constantName = constant.s;
+  var descriptor = createPropertyDescriptor(6, constant.c);
+  if (!hasOwn(PolyfilledDOMException, constantName)) {
+    defineProperty(PolyfilledDOMException, constantName, descriptor);
+  }
+  if (!hasOwn(PolyfilledDOMExceptionPrototype, constantName)) {
+    defineProperty(PolyfilledDOMExceptionPrototype, constantName, descriptor);
+  }
+}
+
+setToStringTag(PolyfilledDOMException, DOM_EXCEPTION);
