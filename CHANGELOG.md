@@ -1,7 +1,11 @@
 ## Changelog
 ##### Unreleased
 - Early `{ Array, %TypedArray% }.fromAsync` errors moved to the promise, per the latest changes of the spec draft
-- Some minor fixes and improvements
+- Fixed theoretical problems with handling bigint in `Number` constructor wrapper
+- Fixed `String.raw` with extra arguments
+- Fixed some missed dependencies in entry points
+- Some other minor fixes and improvements
+- Refactoring
 
 ##### 3.18.1 - 2021.09.27
 - Fixed `String.prototype.substr` feature detection and compat data
