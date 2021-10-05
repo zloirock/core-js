@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Early `{ Array, %TypedArray% }.fromAsync` errors moved to the promise, per the latest changes of the spec draft
+- Internal `ToInteger(OrInfinity)` operation returns `+0` for `-0` argument, ES2020+ update
 - Fixed theoretical problems with handling bigint in `Number` constructor wrapper
 - Fixed `String.raw` with extra arguments
 - Fixed some missed dependencies in entry points
