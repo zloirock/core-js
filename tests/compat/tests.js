@@ -880,7 +880,7 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.string.at': function () {
+  'es.string.at-alternative': function () {
     return 'a'.at(-1) === 'a';
   },
   'es.string.code-point-at': function () {
@@ -1210,6 +1210,9 @@ GLOBAL.tests = {
   'esnext.array.find-last-index': function () {
     return [].findLastIndex;
   },
+  'esnext.array.group-by': function () {
+    return [].groupBy;
+  },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
@@ -1484,6 +1487,12 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.find-last-index': function () {
     return Int8Array.prototype.findLastIndex;
+  },
+  'esnext.typed-array.group-by': function () {
+    return Int8Array.prototype.groupBy;
+  },
+  'esnext.typed-array.unique-by': function () {
+    return Int8Array.prototype.uniqueBy;
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
