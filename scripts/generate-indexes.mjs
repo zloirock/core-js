@@ -17,8 +17,8 @@ async function generateTestsIndex(name, pkg) {
 }
 
 await generateNamespaceIndex('es', /^es\./);
-await generateNamespaceIndex('stable', /^(es|web)\./);
-await generateNamespaceIndex('features', /^(es|esnext|web)\./);
+await generateNamespaceIndex('stable', /^(?:es|web)\./);
+await generateNamespaceIndex('features', /^(?:es|esnext|web)\./);
 
 await generateTestsIndex('tests', 'core-js');
 await generateTestsIndex('pure', 'core-js-pure');

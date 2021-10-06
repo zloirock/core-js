@@ -84,6 +84,7 @@ if (DESCRIPTORS) {
     // fails in Safari
     // assert.same(Object.getPrototypeOf(groups), null, 'NCG #4');
     assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), '$<bar>,$<foo>'), 'def,abc', 'replace #1');
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- false positive
     assert.same('foo:abc,bar:def'.replace(RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)'), (...args) => {
       const { foo, bar } = args.pop();
       return `${ bar },${ foo }`;

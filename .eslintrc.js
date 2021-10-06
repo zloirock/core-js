@@ -557,6 +557,8 @@ const base = {
   'regexp/prefer-d': ERROR,
   // enforces escape of replacement `$` character (`$$`)
   'regexp/prefer-escape-replacement-dollar-char': ERROR,
+  // enforce using named replacement
+  'regexp/prefer-named-replacement': ERROR,
   // enforce using `+` quantifier
   'regexp/prefer-plus-quantifier': ERROR,
   // enforce using quantifier
@@ -569,6 +571,8 @@ const base = {
   'regexp/prefer-regexp-exec': ERROR,
   //  enforce that `RegExp#test` is used instead of `String#match` and `RegExp#exec`
   'regexp/prefer-regexp-test': ERROR,
+  // enforce using result array `.groups``
+  'regexp/prefer-result-array-groups': ERROR,
   // enforce using `*` quantifier
   'regexp/prefer-star-quantifier': ERROR,
   // enforce use of unicode codepoint escapes
@@ -585,6 +589,8 @@ const base = {
   'regexp/strict': ERROR,
   // enforce consistent usage of unicode escape or unicode codepoint escape
   'regexp/unicode-escape': ERROR,
+  // use the `i` flag if it simplifies the pattern
+  'regexp/use-ignore-case': ERROR,
 
   // disallow \u2028 and \u2029 in string literals
   'es/no-json-superset': ERROR,

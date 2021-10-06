@@ -31,14 +31,14 @@ var INVALID_SCHEME = 'Invalid scheme';
 var INVALID_HOST = 'Invalid host';
 var INVALID_PORT = 'Invalid port';
 
-var ALPHA = /[A-Za-z]/;
+var ALPHA = /[a-z]/i;
 // eslint-disable-next-line regexp/no-obscure-range -- safe
-var ALPHANUMERIC = /[\d+-.A-Za-z]/;
+var ALPHANUMERIC = /[\d+-.a-z]/i;
 var DIGIT = /\d/;
 var HEX_START = /^0x/i;
 var OCT = /^[0-7]+$/;
 var DEC = /^\d+$/;
-var HEX = /^[\dA-Fa-f]+$/;
+var HEX = /^[\da-f]+$/i;
 /* eslint-disable regexp/no-control-character -- safe */
 var FORBIDDEN_HOST_CODE_POINT = /[\0\t\n\r #%/:<>?@[\\\]^|]/;
 var FORBIDDEN_HOST_CODE_POINT_EXCLUDING_PERCENT = /[\0\t\n\r #/:<>?@[\\\]^|]/;

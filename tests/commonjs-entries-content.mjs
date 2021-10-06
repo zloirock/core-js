@@ -123,7 +123,7 @@ async function unexpectedInnerNamespace(namespace, unexpected) {
 }
 
 await Promise.all([
-  unexpectedInnerNamespace('es', /\/(features|stable)\//),
+  unexpectedInnerNamespace('es', /\/(?:features|stable)\//),
   unexpectedInnerNamespace('stable', /\/features\//),
   unexpectedInnerNamespace('features', /\/es\//),
 ]);
