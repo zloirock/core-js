@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- `Object.hasOwn` marked as supported from Safari 15.1
 
 ##### 3.18.2 - 2021.10.06
 - Early `{ Array, %TypedArray% }.fromAsync` errors moved to the promise, per the latest changes of the spec draft

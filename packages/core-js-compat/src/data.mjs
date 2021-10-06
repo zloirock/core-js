@@ -726,6 +726,7 @@ export const data = {
   'es.object.has-own': {
     chrome: '93',
     firefox: '92',
+    safari: '15.1',
   },
   'es.object.is': {
     android: '4.1',
