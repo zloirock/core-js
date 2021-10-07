@@ -116,6 +116,7 @@ var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
   return String(new DOMException(1, 2)) !== '2: 1';
 });
 
+// FF10-
 var INCORRECT_ERROR_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
   return String(ErrorPrototype.toString.call({ message: 1, name: 2 })) !== '2: 1';
 });
