@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var path = require('../internals/path');
 var fails = require('../internals/fails');
 var create = require('../internals/object-create');
@@ -9,14 +10,19 @@ var defineProperties = require('../internals/object-define-properties');
 var redefine = require('../internals/redefine');
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
+var anObject = require('../internals/an-object');
 var $toString = require('../internals/to-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
+var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var DOM_EXCEPTION = 'DOMException';
 var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
+var NativeDOMException = global[DOM_EXCEPTION];
+var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
+var ErrorPrototype = Error.prototype;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
 
@@ -48,13 +54,15 @@ var errors = {
   DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 }
 };
 
+var normalize = function (argument, $default) {
+  return argument === undefined ? $default : $toString(argument);
+};
+
 var $DOMException = function DOMException() {
   anInstance(this, $DOMException, DOM_EXCEPTION);
   var argumentsLength = arguments.length;
-  var message = argumentsLength < 1 ? undefined : arguments[0];
-  var name = argumentsLength < 2 ? undefined : arguments[1];
-  message = message === undefined ? '' : $toString(message);
-  name = name === undefined ? 'Error' : $toString(name);
+  var message = normalize(argumentsLength < 1 ? undefined : arguments[0], '');
+  var name = normalize(argumentsLength < 2 ? undefined : arguments[1], 'Error');
   var code = hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
   setInternalState(this, {
     type: DOM_EXCEPTION,
@@ -68,11 +76,13 @@ var $DOMException = function DOMException() {
     this.code = code;
   }
   if (HAS_STACK) {
-    defineProperty(this, 'stack', createPropertyDescriptor(1, Error('DOMException: ' + message).stack));
+    var error = Error(message);
+    error.name = DOM_EXCEPTION;
+    defineProperty(this, 'stack', createPropertyDescriptor(1, error.stack));
   }
 };
 
-var $DOMExceptionPrototype = $DOMException.prototype = create(Error.prototype);
+var $DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
 
 var getter = function (key) {
   return { enumerable: true, configurable: true, get: function () { return getInternalState(this)[key]; } };
@@ -86,55 +96,61 @@ if (DESCRIPTORS) defineProperties($DOMExceptionPrototype, {
 
 defineProperty($DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
 
-redefine($DOMExceptionPrototype, 'toString', function toString() {
-  var state = getInternalState(this);
-  return state.name + ': ' + state.message;
-});
-
 // FF36- DOMException is a function, but can't be constructed
 var INCORRECT_CONSTRUCTOR = fails(function () {
-  return !new DOMException();
+  return !new NativeDOMException();
 });
 
 // Safari 10.1 / Deno 1.6.3- DOMException.prototype.toString bug
 var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
-  return String(new DOMException('a', 'b')) !== 'b: a';
+  return String(new DOMException(1, 2)) !== '2: 1';
+});
+
+var INCORRECT_ERROR_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
+  return String(ErrorPrototype.toString.call({ message: 1, name: 2 })) !== '2: 1';
 });
 
 // Deno 1.6.3- DOMException.prototype.code just missed
 var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
-  return new DOMException(1, 'DataCloneError').code !== 25;
+  return new NativeDOMException(1, 'DataCloneError').code !== 25;
 });
+
+// Deno 1.6.3- DOMException constants just missed
+var MISSED_CONSTANTS = INCORRECT_CONSTRUCTOR
+  || !NativeDOMException[DATA_CLONE_ERR]
+  || !NativeDOMExceptionPrototype[DATA_CLONE_ERR];
+
+var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISSED_CONSTANTS : INCORRECT_CONSTRUCTOR;
 
 // `DOMException` constructor
 // https://heycam.github.io/webidl/#idl-DOMException
-$({ global: true, forced: IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE : INCORRECT_CONSTRUCTOR }, {
+$({ global: true, forced: FORCED_CONSTRUCTOR }, {
   DOMException: $DOMException
 });
 
 var PolyfilledDOMException = path[DOM_EXCEPTION];
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
-if (PolyfilledDOMException !== $DOMException) {
-  if (INCORRECT_TO_STRING) {
-    redefine(PolyfilledDOMExceptionPrototype, 'toString', function toString() {
-      return this.name + ': ' + this.message;
-    });
-  }
-
-  if (INCORRECT_CODE && DESCRIPTORS) {
-    defineProperty(PolyfilledDOMExceptionPrototype, 'code', {
-      enumerable: true,
-      configurable: true,
-      get: function () {
-        var name = this.name;
-        return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
-      }
-    });
-  }
+if (PolyfilledDOMException !== $DOMException ? INCORRECT_TO_STRING : INCORRECT_ERROR_TO_STRING) {
+  redefine(PolyfilledDOMExceptionPrototype, 'toString', function toString() {
+    var O = anObject(this);
+    var name = normalize(O.name, 'Error');
+    var message = normalize(O.message, '');
+    return !name ? message : !message ? name : name + ': ' + message;
+  });
 }
 
-// Deno 1.6.3- DOMException constants just missed, so add them after constructor polyfilling
+if (PolyfilledDOMException !== $DOMException && INCORRECT_CODE && DESCRIPTORS) {
+  defineProperty(PolyfilledDOMExceptionPrototype, 'code', {
+    enumerable: true,
+    configurable: true,
+    get: function () {
+      var name = anObject(this).name;
+      return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
+    }
+  });
+}
+
 for (var key in errors) if (hasOwn(errors, key)) {
   var constant = errors[key];
   var constantName = constant.s;
