@@ -51,11 +51,15 @@ var errors = {
   QuotaExceededError: { s: 'QUOTA_EXCEEDED_ERR', c: 22, m: 1 },
   TimeoutError: { s: 'TIMEOUT_ERR', c: 23, m: 1 },
   InvalidNodeTypeError: { s: 'INVALID_NODE_TYPE_ERR', c: 24, m: 1 },
-  DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 }
+  DataCloneError: { s: DATA_CLONE_ERR, c: 25, m: 1 }
 };
 
 var normalize = function (argument, $default) {
   return argument === undefined ? $default : $toString(argument);
+};
+
+var codeFor = function (name) {
+  return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
 };
 
 var $DOMException = function DOMException() {
@@ -63,7 +67,7 @@ var $DOMException = function DOMException() {
   var argumentsLength = arguments.length;
   var message = normalize(argumentsLength < 1 ? undefined : arguments[0], '');
   var name = normalize(argumentsLength < 2 ? undefined : arguments[1], 'Error');
-  var code = hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
+  var code = codeFor(name);
   setInternalState(this, {
     type: DOM_EXCEPTION,
     name: name,
@@ -84,14 +88,20 @@ var $DOMException = function DOMException() {
 
 var $DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
 
-var getter = function (key) {
-  return { enumerable: true, configurable: true, get: function () { return getInternalState(this)[key]; } };
+var createGetterDescriptor = function (get) {
+  return { enumerable: true, configurable: true, get: get };
+};
+
+var getterFor = function (key) {
+  return createGetterDescriptor(function () {
+    return getInternalState(this)[key];
+  });
 };
 
 if (DESCRIPTORS) defineProperties($DOMExceptionPrototype, {
-  name: getter('name'),
-  message: getter('message'),
-  code: getter('code')
+  name: getterFor('name'),
+  message: getterFor('message'),
+  code: getterFor('code')
 });
 
 defineProperty($DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
@@ -141,14 +151,9 @@ if (PolyfilledDOMException !== $DOMException ? INCORRECT_TO_STRING : INCORRECT_E
 }
 
 if (PolyfilledDOMException !== $DOMException && INCORRECT_CODE && DESCRIPTORS) {
-  defineProperty(PolyfilledDOMExceptionPrototype, 'code', {
-    enumerable: true,
-    configurable: true,
-    get: function () {
-      var name = anObject(this).name;
-      return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
-    }
-  });
+  defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
+    return codeFor(anObject(this).name);
+  }));
 }
 
 for (var key in errors) if (hasOwn(errors, key)) {
