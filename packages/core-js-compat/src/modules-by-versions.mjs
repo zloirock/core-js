@@ -113,6 +113,7 @@ export default {
   ],
   '3.20': [
     'es.error.cause',
+    'es.error.to-string',
     'es.aggregate-error.cause',
     'es.number.to-exponential',
     'esnext.array.group-by-map',

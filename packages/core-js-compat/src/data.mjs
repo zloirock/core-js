@@ -385,6 +385,12 @@ export const data = {
     safari: '3.1',
     rhino: '1.7.13',
   },
+  'es.error.to-string': {
+    chrome: '26',
+    firefox: '11',
+    ie: '8',
+    safari: '8.0',
+  },
   'es.escape': {
     chrome: '1',
     firefox: '1',

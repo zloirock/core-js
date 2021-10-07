@@ -11,7 +11,8 @@ var redefine = require('../internals/redefine');
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
-var $toString = require('../internals/to-string');
+var errorToString = require('../internals/error-to-string');
+var normalizeStringArgument = require('../internals/normalize-string-argument');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
@@ -22,7 +23,6 @@ var DOM_EXCEPTION = 'DOMException';
 var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 var NativeDOMException = global[DOM_EXCEPTION];
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
-var ErrorPrototype = Error.prototype;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
 
@@ -54,10 +54,6 @@ var errors = {
   DataCloneError: { s: DATA_CLONE_ERR, c: 25, m: 1 }
 };
 
-var normalize = function (argument, $default) {
-  return argument === undefined ? $default : $toString(argument);
-};
-
 var codeFor = function (name) {
   return hasOwn(errors, name) && errors[name].m ? errors[name].c : 0;
 };
@@ -65,8 +61,8 @@ var codeFor = function (name) {
 var $DOMException = function DOMException() {
   anInstance(this, $DOMException, DOM_EXCEPTION);
   var argumentsLength = arguments.length;
-  var message = normalize(argumentsLength < 1 ? undefined : arguments[0], '');
-  var name = normalize(argumentsLength < 2 ? undefined : arguments[1], 'Error');
+  var message = normalizeStringArgument(argumentsLength < 1 ? undefined : arguments[0]);
+  var name = normalizeStringArgument(argumentsLength < 2 ? undefined : arguments[1], 'Error');
   var code = codeFor(name);
   setInternalState(this, {
     type: DOM_EXCEPTION,
@@ -86,7 +82,7 @@ var $DOMException = function DOMException() {
   }
 };
 
-var $DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
+var $DOMExceptionPrototype = $DOMException.prototype = create(Error.prototype);
 
 var createGetterDescriptor = function (get) {
   return { enumerable: true, configurable: true, get: get };
@@ -108,17 +104,12 @@ defineProperty($DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1
 
 // FF36- DOMException is a function, but can't be constructed
 var INCORRECT_CONSTRUCTOR = fails(function () {
-  return !new NativeDOMException();
+  return !(new NativeDOMException() instanceof Error);
 });
 
 // Safari 10.1 / Deno 1.6.3- DOMException.prototype.toString bug
 var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
   return String(new DOMException(1, 2)) !== '2: 1';
-});
-
-// FF10-
-var INCORRECT_ERROR_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
-  return String(ErrorPrototype.toString.call({ message: 1, name: 2 })) !== '2: 1';
 });
 
 // Deno 1.6.3- DOMException.prototype.code just missed
@@ -142,19 +133,16 @@ $({ global: true, forced: FORCED_CONSTRUCTOR }, {
 var PolyfilledDOMException = path[DOM_EXCEPTION];
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
-if (PolyfilledDOMException !== $DOMException ? INCORRECT_TO_STRING : INCORRECT_ERROR_TO_STRING) {
-  redefine(PolyfilledDOMExceptionPrototype, 'toString', function toString() {
-    var O = anObject(this);
-    var name = normalize(O.name, 'Error');
-    var message = normalize(O.message, '');
-    return !name ? message : !message ? name : name + ': ' + message;
-  });
-}
+if (NativeDOMException === PolyfilledDOMException) {
+  if (INCORRECT_TO_STRING) {
+    redefine(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+  }
 
-if (PolyfilledDOMException !== $DOMException && INCORRECT_CODE && DESCRIPTORS) {
-  defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
-    return codeFor(anObject(this).name);
-  }));
+  if (INCORRECT_CODE && DESCRIPTORS) {
+    defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
+      return codeFor(anObject(this).name);
+    }));
+  }
 }
 
 for (var key in errors) if (hasOwn(errors, key)) {

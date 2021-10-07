@@ -501,6 +501,9 @@ GLOBAL.tests = {
   'es.date.to-string': function () {
     return new Date(NaN).toString() == 'Invalid Date';
   },
+  'es.error.to-string': function () {
+    return Error.prototype.toString.call({ message: 1, name: 2 }) !== '2: 1';
+  },
   'es.escape': function () {
     return escape;
   },
