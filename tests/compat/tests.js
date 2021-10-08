@@ -504,7 +504,6 @@ GLOBAL.tests = {
   'es.error.to-string': function () {
     if (DESCRIPTORS_SUPPORT) {
       // Chrome 32- incorrectly call accessor
-      // eslint-disable-next-line es/no-object-defineproperty -- safe
       var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
         return String(this === object);
       } }));
@@ -1652,7 +1651,7 @@ GLOBAL.tests = {
     }
     return true;
   },
-  'web.dom-exception': function () {
+  'web.dom-exception.constructor': function () {
     return typeof DOMException === 'function';
   },
   'web.immediate': function () {

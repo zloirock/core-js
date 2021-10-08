@@ -1819,7 +1819,7 @@ export const data = {
     safari: '13.1',
     rhino: '1.7.13',
   },
-  'web.dom-exception': {
+  'web.dom-exception.constructor': {
     chrome: '46',
     deno: '1.7',
     firefox: '37',
