@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added NodeJS 16.11 compat data mapping
 - `Object.hasOwn` marked as supported from Safari 15.1
 
 ##### 3.18.2 - 2021.10.06
