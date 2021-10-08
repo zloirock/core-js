@@ -23,6 +23,7 @@ var DOM_EXCEPTION = 'DOMException';
 var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 var NativeDOMException = global[DOM_EXCEPTION];
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
+var ErrorPrototype = Error.prototype;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
 
@@ -82,7 +83,7 @@ var $DOMException = function DOMException() {
   }
 };
 
-var $DOMExceptionPrototype = $DOMException.prototype = create(Error.prototype);
+var $DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
 
 var createGetterDescriptor = function (get) {
   return { enumerable: true, configurable: true, get: get };
@@ -107,9 +108,9 @@ var INCORRECT_CONSTRUCTOR = fails(function () {
   return !(new NativeDOMException() instanceof Error);
 });
 
-// Safari 10.1 / Deno 1.6.3- DOMException.prototype.toString bug
+// Safari 10.1 / Chrome 32- / IE8- DOMException.prototype.toString bugs
 var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
-  return String(new DOMException(1, 2)) !== '2: 1';
+  return ErrorPrototype.toString !== errorToString || String(new NativeDOMException(1, 2)) !== '2: 1';
 });
 
 // Deno 1.6.3- DOMException.prototype.code just missed

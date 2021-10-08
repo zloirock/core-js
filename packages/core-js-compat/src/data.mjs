@@ -386,9 +386,9 @@ export const data = {
     rhino: '1.7.13',
   },
   'es.error.to-string': {
-    chrome: '26',
+    chrome: '33',
     firefox: '11',
-    ie: '8',
+    ie: '9',
     safari: '8.0',
   },
   'es.escape': {

@@ -502,7 +502,18 @@ GLOBAL.tests = {
     return new Date(NaN).toString() == 'Invalid Date';
   },
   'es.error.to-string': function () {
-    return Error.prototype.toString.call({ message: 1, name: 2 }) !== '2: 1';
+    if (DESCRIPTORS_SUPPORT) {
+      // Chrome 32- incorrectly call accessor
+      // eslint-disable-next-line es/no-object-defineproperty -- safe
+      var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
+        return String(this === object);
+      } }));
+      if (String(Error.prototype.toString.call(object)) !== 'true') return false;
+    }
+    // FF10- does not properly handle non-strings
+    return String(Error.prototype.toString.call({ message: 1, name: 2 })) === '2: 1'
+      // IE8 does not properly handle defaults
+      && String(Error.prototype.toString.call({})) === 'Error';
   },
   'es.escape': function () {
     return escape;
