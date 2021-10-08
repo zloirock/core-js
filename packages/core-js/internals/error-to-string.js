@@ -12,14 +12,14 @@ var INCORRECT_TO_STRING = fails(function () {
     // Chrome 32- incorrectly call accessor
     // eslint-disable-next-line es/no-object-defineproperty -- safe
     var object = create(Object.defineProperty({}, 'name', { get: function () {
-      return String(this === object);
+      return this === object;
     } }));
-    if (String(nativeErrorToString.call(object)) !== 'true') return true;
+    if (nativeErrorToString.call(object) !== 'true') return true;
   }
   // FF10- does not properly handle non-strings
-  return String(nativeErrorToString.call({ message: 1, name: 2 })) !== '2: 1'
+  return nativeErrorToString.call({ message: 1, name: 2 }) !== '2: 1'
     // IE8 does not properly handle defaults
-    || String(nativeErrorToString.call({})) !== 'Error';
+    || nativeErrorToString.call({}) !== 'Error';
 });
 
 module.exports = INCORRECT_TO_STRING ? function toString() {

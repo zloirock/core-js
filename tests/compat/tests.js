@@ -505,14 +505,14 @@ GLOBAL.tests = {
     if (DESCRIPTORS_SUPPORT) {
       // Chrome 32- incorrectly call accessor
       var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
-        return String(this === object);
+        return this === object;
       } }));
-      if (String(Error.prototype.toString.call(object)) !== 'true') return false;
+      if (Error.prototype.toString.call(object) !== 'true') return false;
     }
     // FF10- does not properly handle non-strings
-    return String(Error.prototype.toString.call({ message: 1, name: 2 })) === '2: 1'
+    return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
       // IE8 does not properly handle defaults
-      && String(Error.prototype.toString.call({})) === 'Error';
+      && Error.prototype.toString.call({}) === 'Error';
   },
   'es.escape': function () {
     return escape;
