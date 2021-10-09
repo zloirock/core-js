@@ -131,5 +131,6 @@ export default {
     'esnext.typed-array.to-spliced',
     'esnext.typed-array.with',
     'web.dom-exception.constructor',
+    'web.dom-exception.stack',
   ],
 };

@@ -28,6 +28,8 @@ const errors = {
   DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 },
 };
 
+const HAS_STACK = 'stack' in Error('1');
+
 QUnit.test('DOMException', assert => {
   assert.isFunction(DOMException);
   assert.arity(DOMException, 0);
@@ -42,6 +44,7 @@ QUnit.test('DOMException', assert => {
   assert.same(String(error), 'Foo: [object Object]', 'String(new DOMException({}, "Foo"))'); // Safari 10.1 bug
   assert.same(error.constructor, DOMException, 'new DOMException({}, "Foo").constructor');
   assert.same(error[Symbol.toStringTag], 'DOMException', 'DOMException.prototype[Symbol.toStringTag]');
+  if (HAS_STACK) assert.ok('stack' in error, "'stack' in new DOMException()");
 
   assert.same(new DOMException().message, '', 'new DOMException().message');
   assert.same(new DOMException(undefined).message, '', 'new DOMException(undefined).message');
@@ -56,6 +59,7 @@ QUnit.test('DOMException', assert => {
     if (errors[name].m) assert.same(error.code, errors[name].c, `new DOMException({}, "${ name }").code`);
     else assert.same(error.code, 0, `new DOMException({}, "${ name }").code`);
     assert.same(String(error), `${ name }: 42`, `String(new DOMException({}, "${ name }"))`); // Safari 10.1 bug
+    if (HAS_STACK) assert.ok('stack' in error, `'stack' in new DOMException({}, "${ name }")`);
 
     assert.same(DOMException[errors[name].s], errors[name].c, `DOMException.${ errors[name].s }`);
     assert.same(DOMException.prototype[errors[name].s], errors[name].c, `DOMException.prototype.${ errors[name].s }`);

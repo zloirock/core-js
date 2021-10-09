@@ -1,6 +1,7 @@
-require('../modules/web.dom-exception.constructor');
 require('../modules/web.dom-collections.for-each');
 require('../modules/web.dom-collections.iterator');
+require('../modules/web.dom-exception.constructor');
+require('../modules/web.dom-exception.stack');
 require('../modules/web.immediate');
 require('../modules/web.queue-microtask');
 require('../modules/web.timers');

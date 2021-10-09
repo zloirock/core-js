@@ -1825,6 +1825,10 @@ export const data = {
     firefox: '37',
     safari: '11.1',
   },
+  'web.dom-exception.stack': {
+    deno: '1.7',
+    firefox: '37',
+  },
   'web.immediate': {
     ie: '10',
     node: '0.9.1',
