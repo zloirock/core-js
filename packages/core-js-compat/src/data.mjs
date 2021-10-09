@@ -98,6 +98,12 @@ export const data = {
     firefox: '91',
     safari: '15.0',
   },
+  'es.error.to-string': {
+    chrome: '33',
+    firefox: '11',
+    ie: '9',
+    safari: '8.0',
+  },
   'es.aggregate-error': {
     chrome: '85',
     firefox: '79',
@@ -384,12 +390,6 @@ export const data = {
     opera: '10.50',
     safari: '3.1',
     rhino: '1.7.13',
-  },
-  'es.error.to-string': {
-    chrome: '33',
-    firefox: '11',
-    ie: '9',
-    safari: '8.0',
   },
   'es.escape': {
     chrome: '1',
@@ -1828,6 +1828,12 @@ export const data = {
   'web.dom-exception.stack': {
     deno: '1.7',
     firefox: '37',
+  },
+  'web.dom-exception.to-string-tag': {
+    chrome: '49',
+    deno: '1.7',
+    firefox: '51',
+    safari: '11.1',
   },
   'web.immediate': {
     ie: '10',

@@ -12,7 +12,6 @@ var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
 var errorToString = require('../internals/error-to-string');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
-var setToStringTag = require('../internals/set-to-string-tag');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
@@ -92,8 +91,8 @@ var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
 
 // Deno 1.6.3- DOMException constants just missed
 var MISSED_CONSTANTS = INCORRECT_CONSTRUCTOR
-  || !NativeDOMException[DATA_CLONE_ERR]
-  || !NativeDOMExceptionPrototype[DATA_CLONE_ERR];
+  || NativeDOMException[DATA_CLONE_ERR] !== 25
+  || NativeDOMExceptionPrototype[DATA_CLONE_ERR] !== 25;
 
 var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISSED_CONSTANTS : INCORRECT_CONSTRUCTOR;
 
@@ -129,5 +128,3 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
     defineProperty(PolyfilledDOMExceptionPrototype, constantName, descriptor);
   }
 }
-
-setToStringTag(PolyfilledDOMException, DOM_EXCEPTION);
