@@ -32,6 +32,8 @@ var isConstructorLegacy = function isConstructor(argument) {
   } return INCORRECT_TO_STRING || !!exec(constructorRegExp, inspectSource(argument));
 };
 
+isConstructorLegacy.sham = true;
+
 // `IsConstructor` abstract operation
 // https://tc39.es/ecma262/#sec-isconstructor
 module.exports = !construct || fails(function () {
