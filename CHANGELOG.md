@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed incorrect `AggregateError.prototype` properties descriptors
 - Added NodeJS 16.11 compat data mapping
 - `Object.hasOwn` marked as supported from Safari 15.1
 
