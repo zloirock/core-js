@@ -5,6 +5,6 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 // https://tc39.es/proposal-error-cause/#sec-errorobjects-install-error-cause
 module.exports = function (O, options) {
   if (isObject(options) && 'cause' in options) {
-    createNonEnumerableProperty(O, 'cause', O.cause);
+    createNonEnumerableProperty(O, 'cause', options.cause);
   }
 };
