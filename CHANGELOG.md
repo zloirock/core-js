@@ -1,6 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Fixed the prototype chain of `AggregateError` constructor that should contain `Error` constructor
 - Fixed incorrect `AggregateError.prototype` properties descriptors
+- Fixed `InstallErrorCause` internal operation
 - Added NodeJS 16.11 compat data mapping
 - `Object.hasOwn` marked as supported from Safari 15.1
 
