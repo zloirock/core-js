@@ -1,3 +1,5 @@
+const { create } = Object;
+
 QUnit.test('AggregateError', assert => {
   assert.isFunction(AggregateError);
   assert.arity(AggregateError, 2);
@@ -13,4 +15,38 @@ QUnit.test('AggregateError', assert => {
   assert.deepEqual(AggregateError([1, 2, 3]).errors, [1, 2, 3]);
   assert.throws(() => AggregateError([1], Symbol()), 'throws on symbol as a message');
   assert.same(({}).toString.call(AggregateError([1])), '[object Error]', 'Object#toString');
+
+  assert.same(AggregateError.prototype.constructor, AggregateError, 'prototype constructor');
+  // eslint-disable-next-line no-prototype-builtins -- safe
+  assert.ok(!AggregateError.prototype.hasOwnProperty('cause'), 'prototype hasn`t cause');
+
+  assert.ok(AggregateError([1], 1) instanceof AggregateError, 'no cause, without new');
+  assert.ok(new AggregateError([1], 1) instanceof AggregateError, 'no cause, with new');
+
+  assert.ok(AggregateError([1], 1, {}) instanceof AggregateError, 'with options, without new');
+  assert.ok(new AggregateError([1], 1, {}) instanceof AggregateError, 'with options, with new');
+
+  assert.ok(AggregateError([1], 1, 'foo') instanceof AggregateError, 'non-object options, without new');
+  assert.ok(new AggregateError([1], 1, 'foo') instanceof AggregateError, 'non-object options, with new');
+
+  assert.same(AggregateError([1], 1, { cause: 7 }).cause, 7, 'cause, without new');
+  assert.same(new AggregateError([1], 1, { cause: 7 }).cause, 7, 'cause, with new');
+
+  assert.same(AggregateError([1], 1, create({ cause: 7 })).cause, 7, 'prototype cause, without new');
+  assert.same(new AggregateError([1], 1, create({ cause: 7 })).cause, 7, 'prototype cause, with new');
+
+  let error = AggregateError([1], 1, { cause: 7 });
+  assert.deepEqual(error.errors, [1]);
+  assert.same(error.name, 'AggregateError', 'instance name');
+  assert.same(error.message, '1', 'instance message');
+  assert.same(error.cause, 7, 'instance cause');
+  // eslint-disable-next-line no-prototype-builtins -- safe
+  assert.ok(error.hasOwnProperty('cause'), 'cause is own');
+
+  error = AggregateError([1]);
+  assert.deepEqual(error.errors, [1]);
+  assert.same(error.message, '', 'default instance message');
+  assert.same(error.cause, undefined, 'default instance cause undefined');
+  // eslint-disable-next-line no-prototype-builtins -- safe
+  assert.ok(!error.hasOwnProperty('cause'), 'default instance cause missed');
 });

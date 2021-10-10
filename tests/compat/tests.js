@@ -1221,6 +1221,10 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
+  'esnext.aggregate-error.cause': function () {
+    return AggregateError([1], 'e', { cause: 7 }).cause === 7
+      && !('cause' in AggregateError.prototype);
+  },
   'esnext.array.from-async': function () {
     return Array.fromAsync;
   },
@@ -1304,6 +1308,10 @@ GLOBAL.tests = {
   },
   'esnext.composite-key': function () {
     return compositeKey;
+  },
+  'esnext.error.cause': function () {
+    return Error('e', { cause: 7 }).cause === 7
+      && !('cause' in Error.prototype);
   },
   'esnext.composite-symbol': function () {
     return compositeSymbol;

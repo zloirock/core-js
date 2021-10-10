@@ -1438,6 +1438,11 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
+  'esnext.aggregate-error.cause': {
+    chrome: '94',
+    firefox: '91',
+    safari: '15.0',
+  },
   'esnext.array.from-async': {
   },
   // TODO: Remove from `core-js@4`
