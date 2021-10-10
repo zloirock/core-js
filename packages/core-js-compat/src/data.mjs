@@ -1436,6 +1436,11 @@ export const data = {
     safari: '10.0',
     rhino: '1.7.13',
   },
+  'esnext.error.cause': {
+    chrome: '94',
+    firefox: '91',
+    safari: '15.0',
+  },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
   'esnext.aggregate-error.cause': {

@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL, PROTO } from '../helpers/constants';
 
 const { create } = Object;
 
@@ -9,6 +9,11 @@ for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
     assert.looksNative($Error);
+
+    if (PROTO && $Error !== Error) {
+      // eslint-disable-next-line no-prototype-builtins -- safe
+      assert.ok(Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
+    }
 
     assert.same($Error.prototype.constructor, $Error, 'prototype constructor');
     // eslint-disable-next-line no-prototype-builtins -- safe

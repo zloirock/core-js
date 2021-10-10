@@ -7,7 +7,10 @@ var FORCED = Error('e', { cause: 7 }).cause !== 7;
 $({ global: true, forced: FORCED }, {
   Error: wrapErrorConstructorWithCause('Error', function (init) {
     return function Error(message) { return init.apply(this, arguments); };
-  }, FORCED),
+  }, FORCED)
+});
+
+$({ global: true, forced: FORCED }, {
   EvalError: wrapErrorConstructorWithCause('EvalError', function (init) {
     return function EvalError(message) { return init.apply(this, arguments); };
   }, FORCED),

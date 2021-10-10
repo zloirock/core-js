@@ -1,3 +1,5 @@
+import { PROTO } from '../helpers/constants';
+
 import path from 'core-js-pure/features/error';
 import create from 'core-js-pure/es/object/create';
 
@@ -7,6 +9,11 @@ for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 
     assert.isFunction($Error);
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
+
+    if (PROTO && $Error !== path.Error) {
+      // eslint-disable-next-line no-prototype-builtins -- safe
+      assert.ok(path.Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
+    }
 
     assert.ok($Error(1) instanceof $Error, 'no cause, without new');
     assert.ok(new $Error(1) instanceof $Error, 'no cause, with new');

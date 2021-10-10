@@ -2,6 +2,7 @@
 var getBuiltIn = require('../internals/get-built-in');
 var global = require('../internals/global');
 var hasOwn = require('../internals/has-own-property');
+var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var installErrorCause = require('../internals/install-error-cause');
@@ -20,6 +21,8 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
 
   if (!FORCED) return OriginalError;
 
+  var BaseError = getBuiltIn('Error');
+
   var WrappedError = wrapper(function () {
     var result = OriginalError.apply(this, arguments);
     if (this && this !== global) inheritIfRequired(result, this, WrappedError);
@@ -28,6 +31,11 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   });
 
   WrappedError.prototype = OriginalErrorPrototype;
+
+  if (OriginalError !== BaseError) {
+    if (setPrototypeOf) setPrototypeOf(WrappedError, BaseError);
+    else copyConstructorProperties(WrappedError, BaseError);
+  }
 
   copyConstructorProperties(WrappedError, OriginalError);
 
