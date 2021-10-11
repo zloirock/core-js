@@ -10,6 +10,8 @@ const ignoreEverywhere = new Set([
   // https://github.com/import-js/eslint-plugin-import/pull/2191
   // https://github.com/platinumazure/eslint-plugin-qunit/issues/208
   'eslint',
+  // requires `eslint@8`
+  'eslint-plugin-unicorn',
   'moon-unit',
 ]);
 
