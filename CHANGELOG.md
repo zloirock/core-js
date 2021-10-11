@@ -4,6 +4,7 @@
 - Fixed incorrect `AggregateError.prototype` properties descriptors
 - Fixed `InstallErrorCause` internal operation
 - Added NodeJS 16.11 compat data mapping
+- Added Deno 1.16 compat data mapping
 - `Object.hasOwn` marked as supported from Safari 15.1
 
 ##### 3.18.2 - 2021.10.06
