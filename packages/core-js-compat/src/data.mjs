@@ -1748,6 +1748,7 @@ export const data = {
   },
   'web.dom-collections.for-each': {
     chrome: '58',
+    deno: '1.0',
     edge: '16',
     firefox: '50',
     node: '0.0.1',
@@ -1756,6 +1757,7 @@ export const data = {
   },
   'web.dom-collections.iterator': {
     chrome: '66',
+    deno: '1.0',
     firefox: '60',
     node: '0.0.1',
     safari: '13.1',
@@ -1767,6 +1769,7 @@ export const data = {
   },
   'web.queue-microtask': {
     chrome: '71',
+    deno: '1.0',
     firefox: '69',
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
@@ -1775,6 +1778,7 @@ export const data = {
   'web.timers': {
     android: '1.5',
     chrome: '1',
+    deno: '1.0',
     firefox: '1',
     ie: '10',
     node: '0.0.1',
@@ -1784,18 +1788,21 @@ export const data = {
   },
   'web.url': {
     chrome: '67',
+    deno: '1.0',
     firefox: '57',
     node: '10.0',
     safari: '14.0',
   },
   'web.url.to-json': {
     chrome: '71',
+    deno: '1.0',
     firefox: '57',
     node: '10.0',
     safari: '14.0',
   },
   'web.url-search-params': {
     chrome: '67',
+    deno: '1.0',
     firefox: '57',
     node: '10.0',
     safari: '14.0',
