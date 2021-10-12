@@ -986,11 +986,8 @@ const json = {
 
 module.exports = {
   root: true,
-  parser: '@babel/eslint-parser',
   parserOptions: {
-    ecmaVersion: 2021,
-    requireConfigFile: false,
-    sourceType: 'script',
+    ecmaVersion: 2022,
   },
   env: {
     // unnececery global builtins disabled by related rules

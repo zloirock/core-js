@@ -6,12 +6,6 @@ const { eq, coerce, minVersion } = semver;
 const getDependencies = promisify(david.getDependencies);
 
 const ignoreEverywhere = new Set([
-  // `eslint` update is blocked by:
-  // https://github.com/import-js/eslint-plugin-import/pull/2191
-  // https://github.com/platinumazure/eslint-plugin-qunit/issues/208
-  'eslint',
-  // requires `eslint@8`
-  'eslint-plugin-unicorn',
   'moon-unit',
 ]);
 
