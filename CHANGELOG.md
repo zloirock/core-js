@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.18.3 - 2021.10.13
 - Fixed the prototype chain of `AggregateError` constructor that should contain `Error` constructor
 - Fixed incorrect `AggregateError.prototype` properties descriptors
 - Fixed `InstallErrorCause` internal operation

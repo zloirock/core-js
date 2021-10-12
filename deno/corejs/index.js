@@ -1,5 +1,5 @@
 /**
- * core-js 3.18.2
+ * core-js 3.18.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -234,6 +234,7 @@ module.exports = __webpack_require__(277);
 var $ = __webpack_require__(2);
 var getPrototypeOf = __webpack_require__(59);
 var setPrototypeOf = __webpack_require__(61);
+var copyConstructorProperties = __webpack_require__(47);
 var create = __webpack_require__(63);
 var createNonEnumerableProperty = __webpack_require__(37);
 var createPropertyDescriptor = __webpack_require__(8);
@@ -257,10 +258,13 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   return that;
 };
 
+if (setPrototypeOf) setPrototypeOf($AggregateError, Error);
+else copyConstructorProperties($AggregateError, Error);
+
 $AggregateError.prototype = create(Error.prototype, {
-  constructor: createPropertyDescriptor(5, $AggregateError),
-  message: createPropertyDescriptor(5, ''),
-  name: createPropertyDescriptor(5, 'AggregateError')
+  constructor: createPropertyDescriptor(1, $AggregateError),
+  message: createPropertyDescriptor(1, ''),
+  name: createPropertyDescriptor(1, 'AggregateError')
 });
 
 // `AggregateError` constructor
@@ -754,7 +758,7 @@ var store = __webpack_require__(30);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.18.2',
+  version: '3.18.3',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
@@ -1585,7 +1589,7 @@ var createNonEnumerableProperty = __webpack_require__(37);
 // https://tc39.es/proposal-error-cause/#sec-errorobjects-install-error-cause
 module.exports = function (O, options) {
   if (isObject(options) && 'cause' in options) {
-    createNonEnumerableProperty(O, 'cause', O.cause);
+    createNonEnumerableProperty(O, 'cause', options.cause);
   }
 };
 
@@ -6409,7 +6413,7 @@ var whitespaces = __webpack_require__(212);
 var $parseInt = global.parseInt;
 var Symbol = global.Symbol;
 var ITERATOR = Symbol && Symbol.iterator;
-var hex = /^[+-]?0[Xx]/;
+var hex = /^[+-]?0x/i;
 var FORCED = $parseInt(whitespaces + '08') !== 8 || $parseInt(whitespaces + '0x16') !== 22
   // MS Edge 18- broken with boxed symbols
   || (ITERATOR && !fails(function () { $parseInt(Object(ITERATOR)); }));
