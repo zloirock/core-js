@@ -987,7 +987,7 @@ const json = {
 module.exports = {
   root: true,
   parserOptions: {
-    ecmaVersion: 2022,
+    ecmaVersion: 'latest',
   },
   env: {
     // unnececery global builtins disabled by related rules
