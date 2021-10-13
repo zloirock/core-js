@@ -635,6 +635,19 @@ GLOBAL.tests = {
         && parseInt(WHITESPACES + '0x16') === 22;
     }
   },
+  'es.number.to-exponential': function () {
+    try {
+      1.0.toExponential(Infinity);
+    } catch (error) {
+      try {
+        1.0.toExponential(-Infinity);
+      } catch (error2) {
+        Infinity.toExponential(Infinity);
+        NaN.toExponential(Infinity);
+        return (-6.9e-11).toExponential(4) === '-6.9000e-11';
+      }
+    }
+  },
   'es.number.to-fixed': function () {
     try {
       Number.prototype.toFixed.call({});
