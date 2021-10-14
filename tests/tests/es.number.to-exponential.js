@@ -8,7 +8,7 @@ QUnit.test('Number#toExponential', assert => {
 
   assert.same(toExponential.call(0.00008, 3), '8.000e-5');
   assert.same(toExponential.call(0.9, 0), '9e-1');
-  assert.same(toExponential.call(1.255, 2), '1.25e+0');
+  assert.same(toExponential.call(1.255, 2), '1.25e+0'); // Chakra Edge 14- / IE11- bug
   assert.same(toExponential.call(1843654265.0774949, 5), '1.84365e+9');
   assert.same(toExponential.call(1000000000000000128.0, 0), '1e+18');
 
@@ -108,8 +108,8 @@ QUnit.test('Number#toExponential', assert => {
   // assert.same(toExponential.call(0.9999, 19), '9.9990000000000001101e-1');
   // assert.same(toExponential.call(0.9999, 20), '9.99900000000000011013e-1');
 
-  assert.same(toExponential.call(25, 0), '3e+1');
-  assert.same(toExponential.call(12345, 3), '1.235e+4');
+  assert.same(toExponential.call(25, 0), '3e+1'); // FF86- bug
+  assert.same(toExponential.call(12345, 3), '1.235e+4'); // FF86- bug
 
   assert.same(toExponential.call(Number.prototype, 0), '0e+0', 'Number.prototype, 0');
   assert.same(toExponential.call(0, 0), '0e+0', '0, 0');

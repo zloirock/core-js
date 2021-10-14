@@ -644,7 +644,9 @@ GLOBAL.tests = {
       } catch (error2) {
         Infinity.toExponential(Infinity);
         NaN.toExponential(Infinity);
-        return (-6.9e-11).toExponential(4) === '-6.9000e-11';
+        return (-6.9e-11).toExponential(4) === '-6.9000e-11'
+          && 1.255.toExponential(2) === '1.25e+0';
+        // && 25.0.toExponential(0) === '3e+1';
       }
     }
   },

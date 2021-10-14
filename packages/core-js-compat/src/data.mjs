@@ -624,7 +624,6 @@ export const data = {
     chrome: '26',
     edge: '18',
     firefox: '50',
-    ie: '9',
     safari: '11',
   },
   'es.number.to-fixed': {
