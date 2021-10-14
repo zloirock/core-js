@@ -2,7 +2,6 @@ import puppeteer from 'puppeteer';
 import pTimeout from 'p-timeout';
 
 const { cyan, green, gray, red } = chalk;
-const timeout = new puppeteer.errors.TimeoutError();
 const msie = 'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko';
 const limit = argv.l || 100;
 const attempts = new Map();
@@ -32,7 +31,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
       core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
       vm: window['__core-js_shared__']?.versions,
       vl: window.core?.version,
-    })`), 1e4, timeout);
+    })`), 1e4);
     const versions = vm ? vm.map(({ version, mode }) => `${ version } (${ mode } mode)`) : vl ? [vl] : [];
     return { core, versions };
   }
