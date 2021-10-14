@@ -8,7 +8,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
-var toString = require('../internals/to-string');
+var normalizeStringArgument = require('../internals/normalize-string-argument');
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
   var that = this;
@@ -18,7 +18,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
     // eslint-disable-next-line unicorn/error-message -- expected
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
-  if (message !== undefined) createNonEnumerableProperty(that, 'message', toString(message));
+  createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));
   installErrorCause(that, options);
   var errorsArray = [];
   iterate(errors, errorsArray.push, { that: errorsArray });

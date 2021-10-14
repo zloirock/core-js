@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed normalization of `message` `AggregateError` argument
 
 ##### 3.18.3 - 2021.10.13
 - Fixed the prototype chain of `AggregateError` constructor that should contain `Error` constructor
