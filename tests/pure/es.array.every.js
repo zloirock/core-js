@@ -13,10 +13,10 @@ QUnit.test('Array#every', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok(every([1, 2, 3], it => typeof it === 'number'));
+  assert.ok(every([1, 2, 3], it => typeof it == 'number'));
   assert.ok(every([1, 2, 3], it => it < 4));
   assert.ok(!every([1, 2, 3], it => it < 3));
-  assert.ok(!every([1, 2, 3], it => typeof it === 'string'));
+  assert.ok(!every([1, 2, 3], it => typeof it == 'string'));
   assert.ok(every([1, 2, 3], function () {
     return +this === 1;
   }, 1));

@@ -23,7 +23,7 @@ QUnit.test('String#endsWith', assert => {
   assert.ok(!'abc'.endsWith('c', 'x'));
   assert.ok(!'abc'.endsWith('a', 'x'));
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => endsWith.call(Symbol(), 'b'), 'throws on symbol context');
     assert.throws(() => endsWith.call('a', Symbol()), 'throws on symbol argument');
   }

@@ -21,7 +21,7 @@ QUnit.test('Set#filter', assert => {
 
   assert.ok(new Set().filter(it => it) instanceof Set);
 
-  assert.deepEqual(from(new Set([1, 2, 3, 'q', {}, 4, true, 5]).filter(it => typeof it === 'number')), [1, 2, 3, 4, 5]);
+  assert.deepEqual(from(new Set([1, 2, 3, 'q', {}, 4, true, 5]).filter(it => typeof it == 'number')), [1, 2, 3, 4, 5]);
 
   assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);

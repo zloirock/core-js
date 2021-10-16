@@ -11,7 +11,7 @@ var isFrozenStringArray = function (array, allowUndefined) {
   var element;
   while (index < length) {
     element = array[index++];
-    if (!(typeof element === 'string' || (allowUndefined && typeof element === 'undefined'))) {
+    if (!(typeof element == 'string' || (allowUndefined && typeof element == 'undefined'))) {
       return false;
     }
   } return length !== 0;

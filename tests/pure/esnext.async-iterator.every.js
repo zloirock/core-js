@@ -12,7 +12,7 @@ QUnit.test('AsyncIterator#every', assert => {
   assert.arity(every, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'every');
 
-  every.call(createIterator([1, 2, 3]), it => typeof it === 'number').then(result => {
+  every.call(createIterator([1, 2, 3]), it => typeof it == 'number').then(result => {
     assert.ok(result, 'basic functionality, +');
     return every.call(createIterator([1, 2, 3]), it => it === 2);
   }).then(result => {

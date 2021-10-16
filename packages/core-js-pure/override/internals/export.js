@@ -66,7 +66,7 @@ module.exports = function (options, source) {
     // export native or implementation
     sourceProperty = (USE_NATIVE && nativeProperty) ? nativeProperty : source[key];
 
-    if (USE_NATIVE && typeof targetProperty === typeof sourceProperty) continue;
+    if (USE_NATIVE && typeof targetProperty == typeof sourceProperty) continue;
 
     // bind timers to global for call from export context
     if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, global);

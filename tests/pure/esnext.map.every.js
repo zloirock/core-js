@@ -17,10 +17,10 @@ QUnit.test('Map#every', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
   map = new Map([[0, 1], [1, 2], [2, 3]]);
-  assert.ok(map.every(it => typeof it === 'number'));
+  assert.ok(map.every(it => typeof it == 'number'));
   assert.ok(map.every(it => it < 4));
   assert.ok(!map.every(it => it < 3));
-  assert.ok(!map.every(it => typeof it === 'string'));
+  assert.ok(!map.every(it => typeof it == 'string'));
   assert.ok(map.every(function () {
     return +this === 1;
   }, 1));

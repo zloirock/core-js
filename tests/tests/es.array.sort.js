@@ -116,7 +116,7 @@ QUnit.test('Array#sort', assert => {
   assert.throws(() => [1, 2, 3].sort(null), 'throws on null');
   assert.throws(() => [1, 2, 3].sort({}), 'throws on {}');
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => [Symbol(1), Symbol(2)].sort(), 'w/o cmp throws on symbols');
   }
 

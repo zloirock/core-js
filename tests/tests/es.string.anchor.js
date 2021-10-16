@@ -8,7 +8,7 @@ QUnit.test('String#anchor', assert => {
   assert.same('a'.anchor('b'), '<a name="b">a</a>', 'lower case');
   assert.same('a'.anchor('"'), '<a name="&quot;">a</a>', 'escape quotes');
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => anchor.call(Symbol(), 'b'), 'throws on symbol context');
     assert.throws(() => anchor.call('a', Symbol()), 'throws on symbol argument');
   }

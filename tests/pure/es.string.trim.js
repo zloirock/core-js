@@ -9,7 +9,7 @@ QUnit.test('String#trim', assert => {
   assert.strictEqual(trim('\u200B\u0085'), '\u200B\u0085', "shouldn't remove this symbols");
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => trim(Symbol()), 'throws on symbol context');
   }
 

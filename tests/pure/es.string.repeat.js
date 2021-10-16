@@ -10,7 +10,7 @@ QUnit.test('String#repeat', assert => {
   assert.throws(() => repeat('qwe', Infinity), RangeError);
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => repeat(Symbol()), 'throws on symbol context');
   }
 

@@ -17,7 +17,7 @@ QUnit.test('Number.parseFloat', assert => {
   assert.same(parseFloat(undefined), NaN);
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => parseFloat(Symbol()), 'throws on symbol argument');
     assert.throws(() => parseFloat(Object(Symbol())), 'throws on boxed symbol argument');
   }

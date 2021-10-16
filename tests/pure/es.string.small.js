@@ -5,7 +5,7 @@ QUnit.test('String#small', assert => {
   assert.same(small('a'), '<small>a</small>', 'lower case');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => small(Symbol()), 'throws on symbol context');
   }
 });

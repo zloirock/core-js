@@ -7,7 +7,7 @@ QUnit.test('String#strike', assert => {
   assert.nonEnumerable(String.prototype, 'strike');
   assert.same('a'.strike(), '<strike>a</strike>', 'lower case');
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => strike.call(Symbol()), 'throws on symbol context');
   }
 });

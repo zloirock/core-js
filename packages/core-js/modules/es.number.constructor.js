@@ -22,7 +22,7 @@ var NumberPrototype = NativeNumber.prototype;
 // https://tc39.es/ecma262/#sec-tonumeric
 var toNumeric = function (value) {
   var primValue = toPrimitive(value, 'number');
-  return typeof primValue === 'bigint' ? primValue : toNumber(primValue);
+  return typeof primValue == 'bigint' ? primValue : toNumber(primValue);
 };
 
 // `ToNumber` abstract operation

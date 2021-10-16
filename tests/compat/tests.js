@@ -234,7 +234,7 @@ GLOBAL.tests = {
     return Symbol.unscopables;
   }],
   'es.aggregate-error': function () {
-    return typeof AggregateError === 'function';
+    return typeof AggregateError == 'function';
   },
   'es.array.at': function () {
     return [].at;

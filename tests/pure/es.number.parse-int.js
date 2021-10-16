@@ -34,7 +34,7 @@ QUnit.test('Number.parseInt', assert => {
   assert.same(parseInt(undefined), NaN);
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => parseInt(Symbol()), 'throws on symbol argument');
     assert.throws(() => parseInt(Object(Symbol())), 'throws on boxed symbol argument');
   }

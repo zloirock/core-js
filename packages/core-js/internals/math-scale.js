@@ -2,7 +2,7 @@
 // https://rwaldron.github.io/proposal-math-extensions/
 module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh) {
   if (
-    arguments.length === 0
+    arguments.length == 0
       /* eslint-disable no-self-compare -- NaN check */
       || x != x
       || inLow != inLow

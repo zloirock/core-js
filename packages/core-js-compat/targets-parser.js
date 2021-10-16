@@ -30,7 +30,7 @@ const validTargets = new Set([
 ]);
 
 module.exports = function (targets) {
-  if (typeof targets !== 'object' || Array.isArray(targets)) {
+  if (typeof targets != 'object' || Array.isArray(targets)) {
     targets = { browsers: targets };
   }
 
@@ -38,7 +38,7 @@ module.exports = function (targets) {
   const list = Object.entries(rest);
 
   if (browsers) {
-    if (typeof browsers === 'string' || Array.isArray(browsers)) {
+    if (typeof browsers == 'string' || Array.isArray(browsers)) {
       list.push(...browserslist(browsers).map(it => it.split(' ')));
     } else {
       list.push(...Object.entries(browsers));

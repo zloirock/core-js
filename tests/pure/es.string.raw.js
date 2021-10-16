@@ -11,7 +11,7 @@ QUnit.test('String.raw', assert => {
   assert.strictEqual(raw({ raw: 'test' }, 0), 't0est', 'lacks substituting');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => raw({ raw: [Symbol()] }, 0), TypeError, 'throws on symbol #1');
     assert.throws(() => raw({ raw: 'test' }, Symbol()), TypeError, 'throws on symbol #2');
   }

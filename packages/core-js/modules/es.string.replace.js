@@ -68,7 +68,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       var S = toString(string);
 
       if (
-        typeof replaceValue === 'string' &&
+        typeof replaceValue == 'string' &&
         replaceValue.indexOf(UNSAFE_SUBSTITUTE) === -1 &&
         replaceValue.indexOf('$<') === -1
       ) {

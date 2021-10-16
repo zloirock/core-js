@@ -1,7 +1,7 @@
 'use strict';
 importScripts('../../packages/core-js-bundle/index.js');
 
-postMessage(typeof core !== 'undefined');
+postMessage(typeof core != 'undefined');
 
 setImmediate(function () {
   postMessage('setImmediate');

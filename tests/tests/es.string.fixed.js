@@ -7,7 +7,7 @@ QUnit.test('String#fixed', assert => {
   assert.nonEnumerable(String.prototype, 'fixed');
   assert.same('a'.fixed(), '<tt>a</tt>', 'lower case');
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => fixed.call(Symbol()), 'throws on symbol context');
   }
 });

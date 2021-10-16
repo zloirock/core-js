@@ -130,7 +130,7 @@ if (JSON) {
       assert.strictEqual(JSON.stringify(object), '{"bar":2}', 'object key');
     }
     assert.strictEqual(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
-    if (typeof Symbol() === 'symbol') {
+    if (typeof Symbol() == 'symbol') {
       assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
     }
     assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
@@ -302,6 +302,6 @@ if (DESCRIPTORS) {
   });
 
   QUnit.test('Symbol.sham flag', assert => {
-    assert.same(Symbol.sham, typeof Symbol() === 'symbol' ? undefined : true);
+    assert.same(Symbol.sham, typeof Symbol() == 'symbol' ? undefined : true);
   });
 }

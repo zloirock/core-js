@@ -7,7 +7,7 @@ QUnit.test('String#italics', assert => {
   assert.nonEnumerable(String.prototype, 'italics');
   assert.same('a'.italics(), '<i>a</i>', 'lower case');
 
-  if (typeof Symbol === 'function' && !Symbol.sham) {
+  if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => italics.call(Symbol()), 'throws on symbol context');
   }
 });

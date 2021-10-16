@@ -18,10 +18,10 @@ QUnit.test('Set#some', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
 
-  assert.same(new Set([1, 2, 3]).some(it => typeof it === 'number'), true);
-  assert.same(new Set(['1', '2', '3']).some(it => typeof it === 'number'), false);
-  assert.same(new Set([1, '2', 3]).some(it => typeof it === 'number'), true);
-  assert.same(new Set().some(it => typeof it === 'number'), false);
+  assert.same(new Set([1, 2, 3]).some(it => typeof it == 'number'), true);
+  assert.same(new Set(['1', '2', '3']).some(it => typeof it == 'number'), false);
+  assert.same(new Set([1, '2', 3]).some(it => typeof it == 'number'), true);
+  assert.same(new Set().some(it => typeof it == 'number'), false);
 
   assert.throws(() => some.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);

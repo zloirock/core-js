@@ -16,7 +16,7 @@ const { banner } = require('./config');
 
 function normalizeSummary(unit = {}) {
   let size, modules;
-  if (typeof unit !== 'object') {
+  if (typeof unit != 'object') {
     size = modules = !!unit;
   } else {
     size = !!unit.size;

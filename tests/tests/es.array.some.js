@@ -16,10 +16,10 @@ QUnit.test('Array#some', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok([1, '2', 3].some(value => typeof value === 'number'));
+  assert.ok([1, '2', 3].some(value => typeof value == 'number'));
   assert.ok([1, 2, 3].some(value => value < 3));
   assert.ok(![1, 2, 3].some(value => value < 0));
-  assert.ok(![1, 2, 3].some(value => typeof value === 'string'));
+  assert.ok(![1, 2, 3].some(value => typeof value == 'string'));
   assert.ok(![1, 2, 3].some(function () {
     return +this !== 1;
   }, 1));

@@ -5,7 +5,7 @@ QUnit.test('String#strike', assert => {
   assert.same(strike('a'), '<strike>a</strike>', 'lower case');
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => strike(Symbol()), 'throws on symbol context');
   }
 });

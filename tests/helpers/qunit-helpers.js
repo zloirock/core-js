@@ -45,7 +45,7 @@ QUnit.assert.epsilon = function (a, b, E, message) {
 
 QUnit.assert.isFunction = function (fn, message) {
   this.pushResult({
-    result: typeof fn === 'function' || toString.call(fn).slice(8, -1) === 'Function',
+    result: typeof fn == 'function' || toString.call(fn).slice(8, -1) === 'Function',
     actual: false,
     expected: true,
     message: message || 'is function',
@@ -72,7 +72,7 @@ QUnit.assert.isIterable = function (it, message) {
 
 QUnit.assert.isIterator = function (it, message) {
   this.pushResult({
-    result: typeof it === 'object' && typeof it.next === 'function',
+    result: typeof it == 'object' && typeof it.next == 'function',
     actual: false,
     expected: true,
     message: message || 'is iterator',
@@ -112,7 +112,7 @@ QUnit.assert.enumerable = function (O, key, message) {
       result: propertyIsEnumerable.call(O, key),
       actual: false,
       expected: true,
-      message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
+      message: message || `${ typeof key == 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
     });
   } else {
     this.pushResult({
@@ -130,7 +130,7 @@ QUnit.assert.nonEnumerable = function (O, key, message) {
       result: !propertyIsEnumerable.call(O, key),
       actual: false,
       expected: true,
-      message: message || `${ typeof key === 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
+      message: message || `${ typeof key == 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
     });
   } else {
     this.pushResult({

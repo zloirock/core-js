@@ -9,7 +9,7 @@ if (DESCRIPTORS) {
     assert.same(/a/.dotAll, false, 'no in literal');
 
     const dotAllGetter = Object.getOwnPropertyDescriptor(RegExp.prototype, 'dotAll').get;
-    if (typeof dotAllGetter === 'function') {
+    if (typeof dotAllGetter == 'function') {
       assert.throws(() => {
         dotAllGetter.call({});
       }, undefined, '.dotAll getter can only be called on RegExp instances');

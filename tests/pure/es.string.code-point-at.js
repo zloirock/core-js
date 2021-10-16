@@ -55,7 +55,7 @@ QUnit.test('String#codePointAt', assert => {
   assert.strictEqual(codePointAt('\uDF06abc', undefined), 0xDF06);
 
   /* eslint-disable es/no-symbol -- safe */
-  if (typeof Symbol === 'function') {
+  if (typeof Symbol == 'function') {
     assert.throws(() => codePointAt(Symbol(), 1), 'throws on symbol context');
   }
 

@@ -126,7 +126,7 @@ QUnit.test('String#matchAll', assert => {
     assert.notThrows(() => ''.matchAll(target), `Not throws on ${ target } as the first argument`);
   }
 
-  if (DESCRIPTORS && typeof Symbol === 'function' && !Symbol.sham) {
+  if (DESCRIPTORS && typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => matchAll.call(Symbol(), /./), 'throws on symbol context');
     assert.throws(() => matchAll.call('a', Symbol()), 'throws on symbol argument');
   }

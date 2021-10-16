@@ -8,7 +8,7 @@ if (DESCRIPTORS) {
     assert.strictEqual(/a/.sticky, false);
 
     const stickyGetter = Object.getOwnPropertyDescriptor(RegExp.prototype, 'sticky').get;
-    if (typeof stickyGetter === 'function') {
+    if (typeof stickyGetter == 'function') {
       // Old firefox versions set a non-configurable non-writable .sticky property
       // It works correctly, but it isn't a getter and it can't be polyfilled.
       // We need to skip these tests.

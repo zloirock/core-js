@@ -160,7 +160,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
     } else {
       parseSearchParams(
         entries,
-        typeof init === 'string' ? init.charAt(0) === '?' ? init.slice(1) : init : $toString(init)
+        typeof init == 'string' ? init.charAt(0) === '?' ? init.slice(1) : init : $toString(init)
       );
     }
   }

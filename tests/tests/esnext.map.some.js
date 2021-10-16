@@ -16,10 +16,10 @@ QUnit.test('Map#some', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
   map = new Map([[0, 1], [1, '2'], [2, 3]]);
-  assert.ok(map.some(it => typeof it === 'number'));
+  assert.ok(map.some(it => typeof it == 'number'));
   assert.ok(map.some(it => it < 3));
   assert.ok(!map.some(it => it < 0));
-  assert.ok(map.some(it => typeof it === 'string'));
+  assert.ok(map.some(it => typeof it == 'string'));
   assert.ok(!map.some(function () {
     return +this !== 1;
   }, 1));

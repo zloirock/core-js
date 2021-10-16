@@ -16,7 +16,7 @@ QUnit.test('Array#filterReject', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filterReject(it => typeof it !== 'number'));
+  assert.deepEqual([1, 2, 3, 4, 5], [1, 2, 3, 'q', {}, 4, true, 5].filterReject(it => typeof it != 'number'));
   if (STRICT) {
     assert.throws(() => filterReject.call(null, () => { /* empty */ }), TypeError);
     assert.throws(() => filterReject.call(undefined, () => { /* empty */ }), TypeError);
