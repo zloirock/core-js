@@ -1,16 +1,13 @@
 // `Math.scale` method implementation
 // https://rwaldron.github.io/proposal-math-extensions/
 module.exports = Math.scale || function scale(x, inLow, inHigh, outLow, outHigh) {
-  if (
-    arguments.length == 0
-      /* eslint-disable no-self-compare -- NaN check */
-      || x != x
-      || inLow != inLow
-      || inHigh != inHigh
-      || outLow != outLow
-      || outHigh != outHigh
-      /* eslint-enable no-self-compare -- NaN check */
-  ) return NaN;
-  if (x === Infinity || x === -Infinity) return x;
-  return (x - inLow) * (outHigh - outLow) / (inHigh - inLow) + outLow;
+  var nx = +x;
+  var nInLow = +inLow;
+  var nInHigh = +inHigh;
+  var nOutLow = +outLow;
+  var nOutHigh = +outHigh;
+  // eslint-disable-next-line no-self-compare -- NaN check
+  if (nx != nx || nInLow != nInLow || nInHigh != nInHigh || nOutLow != nOutLow || nOutHigh != nOutHigh) return NaN;
+  if (nx === Infinity || nx === -Infinity) return nx;
+  return (nx - nInLow) * (nOutHigh - nOutLow) / (nInHigh - nInLow) + nOutLow;
 };

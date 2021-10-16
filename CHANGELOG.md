@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed normalization of `message` `AggregateError` argument
+- Fixed order of arguments conversion in `Math.scale`, [a spec draft bug](https://github.com/rwaldron/proposal-math-extensions/issues/24)
 - Updated Electron 16.0 compat data mapping
 
 ##### 3.18.3 - 2021.10.13
