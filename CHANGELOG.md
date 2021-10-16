@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed normalization of `message` `AggregateError` argument
+- Updated Electron 16.0 compat data mapping
 
 ##### 3.18.3 - 2021.10.13
 - Fixed the prototype chain of `AggregateError` constructor that should contain `Error` constructor
