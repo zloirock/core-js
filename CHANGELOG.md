@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround of [a BrowserFS NodeJS `process` polyfill bug](https://github.com/jvilk/bfs-process/issues/5) that incorrectly reports V8 version that's used in some cases of `core-js` feature detection
 - Fixed normalization of `message` `AggregateError` argument
 - Fixed order of arguments conversion in `Math.scale`, [a spec draft bug](https://github.com/rwaldron/proposal-math-extensions/issues/24)
 - Updated Electron 16.0 compat data mapping
