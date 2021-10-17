@@ -1,5 +1,6 @@
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
+var uncurryThis = require('../internals/function-uncurry-this');
 var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -7,7 +8,7 @@ var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
-var getFlags = require('../internals/regexp-flags');
+var regExpFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
@@ -21,6 +22,7 @@ var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
+var getFlags = uncurryThis(regExpFlags);
 // TODO: Use only propper RegExpIdentifierName
 var IS_NCG = /^\?<[^\s\d!#%&*+<=>@^][^\s!#%&*+<=>@^]*>/;
 var re1 = /a/g;
@@ -123,7 +125,7 @@ if (isForced('RegExp', BASE_FORCED)) {
 
     if (patternIsRegExp || pattern instanceof RegExpWrapper) {
       pattern = pattern.source;
-      if (flagsAreUndefined) flags = 'flags' in rawPattern ? rawPattern.flags : getFlags.call(rawPattern);
+      if (flagsAreUndefined) flags = 'flags' in rawPattern ? rawPattern.flags : getFlags(rawPattern);
     }
 
     pattern = pattern === undefined ? '' : toString(pattern);

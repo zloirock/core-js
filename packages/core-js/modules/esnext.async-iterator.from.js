@@ -1,5 +1,6 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var uncurryThis = require('../internals/function-uncurry-this');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
@@ -13,7 +14,7 @@ var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
-var isPrototypeOf = {}.isPrototypeOf;
+var isPrototypeOf = uncurryThis({}.isPrototypeOf);
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   return anObject(this.next.apply(this.iterator, args));
@@ -26,7 +27,7 @@ $({ target: 'AsyncIterator', stat: true }, {
     var iterator;
     if (usingIterator) {
       iterator = getAsyncIterator(object, usingIterator);
-      if (isPrototypeOf.call(AsyncIteratorPrototype, iterator)) return iterator;
+      if (isPrototypeOf(AsyncIteratorPrototype, iterator)) return iterator;
     }
     if (iterator === undefined) {
       usingIterator = getIteratorMethod(object);

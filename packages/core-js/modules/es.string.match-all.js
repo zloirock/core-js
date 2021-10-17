@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
+var uncurryThis = require('../internals/function-uncurry-this');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
@@ -8,7 +9,7 @@ var toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof-raw');
 var isRegExp = require('../internals/is-regexp');
-var getRegExpFlags = require('../internals/regexp-flags');
+var regExpFlags = require('../internals/regexp-flags');
 var getMethod = require('../internals/get-method');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
@@ -25,9 +26,10 @@ var REGEXP_STRING_ITERATOR = REGEXP_STRING + ' Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
-var nativeMatchAll = ''.matchAll;
+var getFlags = uncurryThis(regExpFlags);
+var n$MatchAll = ''.matchAll;
 
-var WORKS_WITH_NON_GLOBAL_REGEX = !!nativeMatchAll && !fails(function () {
+var WORKS_WITH_NON_GLOBAL_REGEX = !!n$MatchAll && !fails(function () {
   'a'.matchAll(/./);
 });
 
@@ -63,7 +65,7 @@ var $matchAll = function (string) {
   C = speciesConstructor(R, RegExp);
   flagsValue = R.flags;
   if (flagsValue === undefined && R instanceof RegExp && !('flags' in RegExpPrototype)) {
-    flagsValue = getRegExpFlags.call(R);
+    flagsValue = getFlags(R);
   }
   flags = flagsValue === undefined ? '' : toString(flagsValue);
   matcher = new C(C === RegExp ? R.source : R, flags);
@@ -72,6 +74,8 @@ var $matchAll = function (string) {
   matcher.lastIndex = toLength(R.lastIndex);
   return new $RegExpStringIterator(matcher, S, global, fullUnicode);
 };
+
+var u$MatchAll = uncurryThis($matchAll);
 
 // `String.prototype.matchAll` method
 // https://tc39.es/ecma262/#sec-string.prototype.matchall
@@ -83,18 +87,18 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
       if (isRegExp(regexp)) {
         flags = toString(requireObjectCoercible('flags' in RegExpPrototype
           ? regexp.flags
-          : getRegExpFlags.call(regexp)
+          : getFlags(regexp)
         ));
         if (!~flags.indexOf('g')) throw TypeError('`.matchAll` does not allow non-global regexes');
       }
-      if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
+      if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
       matcher = getMethod(regexp, MATCH_ALL);
       if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
       if (matcher) return matcher.call(regexp, O);
-    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll.apply(O, arguments);
+    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
     S = toString(O);
     rx = new RegExp(regexp, 'g');
-    return IS_PURE ? $matchAll.call(rx, S) : rx[MATCH_ALL](S);
+    return IS_PURE ? u$MatchAll(rx, S) : rx[MATCH_ALL](S);
   }
 });
 

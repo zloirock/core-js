@@ -9,7 +9,7 @@ var createMethod = function (TYPE) {
   return function ($this, callbackfn, that) {
     var O = toObject($this);
     var self = IndexedObject(O);
-    var boundFunction = bind(callbackfn, that, 3);
+    var boundFunction = bind(callbackfn, that);
     var index = lengthOfArrayLike(self);
     var value, result;
     while (index-- > 0) {

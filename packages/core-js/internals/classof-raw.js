@@ -1,5 +1,8 @@
-var toString = {}.toString;
+var uncurryThis = require('../internals/function-uncurry-this');
+
+var toString = uncurryThis({}.toString);
+var slice = uncurryThis(''.slice);
 
 module.exports = function (it) {
-  return toString.call(it).slice(8, -1);
+  return slice(toString(it), 8, -1);
 };

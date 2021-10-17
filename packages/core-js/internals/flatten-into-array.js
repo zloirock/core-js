@@ -8,7 +8,7 @@ var bind = require('../internals/function-bind-context');
 var flattenIntoArray = function (target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;
-  var mapFn = mapper ? bind(mapper, thisArg, 3) : false;
+  var mapFn = mapper ? bind(mapper, thisArg) : false;
   var element, elementLen;
 
   while (sourceIndex < sourceLen) {

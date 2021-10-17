@@ -1,5 +1,6 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -8,6 +9,8 @@ var bind = require('../internals/function-bind');
 var fails = require('../internals/fails');
 
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
+var functionApply = uncurryThis(Function.apply);
+var ObjectPrototype = Object.prototype;
 
 // `Reflect.construct` method
 // https://tc39.es/ecma262/#sec-reflect.construct
@@ -44,8 +47,8 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
     }
     // with altered newTarget, not support built-in constructors
     var proto = newTarget.prototype;
-    var instance = create(isObject(proto) ? proto : Object.prototype);
-    var result = Function.apply.call(Target, instance, args);
+    var instance = create(isObject(proto) ? proto : ObjectPrototype);
+    var result = functionApply(Target, instance, args);
     return isObject(result) ? result : instance;
   }
 });

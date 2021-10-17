@@ -24,7 +24,7 @@ module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg =
   var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
   return new (getBuiltIn('Promise'))(function (resolve) {
     var O = toObject(asyncItems);
-    if (mapfn !== undefined) mapfn = bind(mapfn, thisArg, 2);
+    if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
     var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
     var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || arrayIterator;
     var A = isConstructor(C) ? new C() : [];

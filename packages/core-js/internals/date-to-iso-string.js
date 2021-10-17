@@ -1,10 +1,11 @@
 'use strict';
+var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var padStart = require('../internals/string-pad').start;
 
 var abs = Math.abs;
 var DatePrototype = Date.prototype;
-var getTime = DatePrototype.getTime;
+var getTime = uncurryThis(DatePrototype.getTime);
 var nativeDateToISOString = DatePrototype.toISOString;
 
 // `Date.prototype.toISOString` method implementation
@@ -15,7 +16,7 @@ module.exports = (fails(function () {
 }) || !fails(function () {
   nativeDateToISOString.call(new Date(NaN));
 })) ? function toISOString() {
-  if (!isFinite(getTime.call(this))) throw RangeError('Invalid time value');
+  if (!isFinite(getTime(this))) throw RangeError('Invalid time value');
   var date = this;
   var year = date.getUTCFullYear();
   var milliseconds = date.getUTCMilliseconds();

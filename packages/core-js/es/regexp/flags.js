@@ -1,6 +1,5 @@
 require('../../modules/es.regexp.flags');
-var flags = require('../../internals/regexp-flags');
+var uncurryThis = require('../../internals/function-uncurry-this');
+var regExpFlags = require('../../internals/regexp-flags');
 
-module.exports = function (it) {
-  return flags.call(it);
-};
+module.exports = uncurryThis(regExpFlags);

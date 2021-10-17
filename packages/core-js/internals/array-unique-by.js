@@ -1,11 +1,12 @@
 'use strict';
+var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var getBuiltIn = require('../internals/get-built-in');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
-var push = [].push;
+var push = uncurryThis([].push);
 
 // `Array.prototype.uniqueBy` method
 // https://github.com/tc39/proposal-array-unique
@@ -26,7 +27,7 @@ module.exports = function uniqueBy(resolver) {
     if (!map.has(key)) map.set(key, item);
   }
   map.forEach(function (value) {
-    push.call(result, value);
+    push(result, value);
   });
   return result;
 };

@@ -1,16 +1,17 @@
 'use strict';
 var $ = require('../internals/export');
+var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var thisNumberValue = require('../internals/this-number-value');
 
-var nativeToPrecision = 1.0.toPrecision;
+var un$ToPrecision = uncurryThis(1.0.toPrecision);
 
 var FORCED = fails(function () {
   // IE7-
-  return nativeToPrecision.call(1, undefined) !== '1';
+  return un$ToPrecision(1, undefined) !== '1';
 }) || !fails(function () {
   // V8 ~ Android 4.3-
-  nativeToPrecision.call({});
+  un$ToPrecision({});
 });
 
 // `Number.prototype.toPrecision` method
@@ -18,7 +19,7 @@ var FORCED = fails(function () {
 $({ target: 'Number', proto: true, forced: FORCED }, {
   toPrecision: function toPrecision(precision) {
     return precision === undefined
-      ? nativeToPrecision.call(thisNumberValue(this))
-      : nativeToPrecision.call(thisNumberValue(this), precision);
+      ? un$ToPrecision(thisNumberValue(this))
+      : un$ToPrecision(thisNumberValue(this), precision);
   }
 });

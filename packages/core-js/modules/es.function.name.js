@@ -1,10 +1,12 @@
 var DESCRIPTORS = require('../internals/descriptors');
 var FUNCTION_NAME_EXISTS = require('../internals/function-name').EXISTS;
+var uncurryThis = require('../internals/function-uncurry-this');
 var defineProperty = require('../internals/object-define-property').f;
 
 var FunctionPrototype = Function.prototype;
-var FunctionPrototypeToString = FunctionPrototype.toString;
+var functionToString = uncurryThis(FunctionPrototype.toString);
 var nameRE = /^\s*function ([^ (]*)/;
+var regExpMatch = uncurryThis(nameRE.match);
 var NAME = 'name';
 
 // Function instances `.name` property
@@ -14,7 +16,7 @@ if (DESCRIPTORS && !FUNCTION_NAME_EXISTS) {
     configurable: true,
     get: function () {
       try {
-        return FunctionPrototypeToString.call(this).match(nameRE)[1];
+        return regExpMatch(functionToString(this), nameRE)[1];
       } catch (error) {
         return '';
       }

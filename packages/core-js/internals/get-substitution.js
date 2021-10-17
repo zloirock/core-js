@@ -1,7 +1,8 @@
+var uncurryThis = require('../internals/function-uncurry-this');
 var toObject = require('../internals/to-object');
 
 var floor = Math.floor;
-var replace = ''.replace;
+var replace = uncurryThis(''.replace);
 var SUBSTITUTION_SYMBOLS = /\$([$&'`]|\d{1,2}|<[^>]*>)/g;
 var SUBSTITUTION_SYMBOLS_NO_NAMED = /\$([$&'`]|\d{1,2})/g;
 
@@ -15,7 +16,7 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
     namedCaptures = toObject(namedCaptures);
     symbols = SUBSTITUTION_SYMBOLS;
   }
-  return replace.call(replacement, symbols, function (match, ch) {
+  return replace(replacement, symbols, function (match, ch) {
     var capture;
     switch (ch.charAt(0)) {
       case '$': return '$';

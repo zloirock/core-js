@@ -1,6 +1,5 @@
 require('../../modules/es.date.to-primitive');
+var uncurryThis = require('../../internals/function-uncurry-this');
 var toPrimitive = require('../../internals/date-to-primitive');
 
-module.exports = function (it, hint) {
-  return toPrimitive.call(it, hint);
-};
+module.exports = uncurryThis(toPrimitive);

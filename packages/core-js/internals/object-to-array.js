@@ -1,7 +1,10 @@
 var DESCRIPTORS = require('../internals/descriptors');
+var uncurryThis = require('../internals/function-uncurry-this');
 var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
-var propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
+var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
+
+var propertyIsEnumerable = uncurryThis($propertyIsEnumerable);
 
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
@@ -14,7 +17,7 @@ var createMethod = function (TO_ENTRIES) {
     var key;
     while (length > i) {
       key = keys[i++];
-      if (!DESCRIPTORS || propertyIsEnumerable.call(O, key)) {
+      if (!DESCRIPTORS || propertyIsEnumerable(O, key)) {
         result.push(TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }

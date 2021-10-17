@@ -1,6 +1,5 @@
 require('../../modules/es.regexp.exec');
 require('../../modules/es.regexp.test');
+var uncurryThis = require('../../internals/function-uncurry-this');
 
-module.exports = function (re, string) {
-  return RegExp.prototype.test.call(re, string);
-};
+module.exports = uncurryThis(/./.test);

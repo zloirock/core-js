@@ -1,9 +1,11 @@
 // https://github.com/tc39/proposal-string-pad-start-end
+var uncurryThis = require('../internals/function-uncurry-this');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
-var repeat = require('../internals/string-repeat');
+var $repeat = require('../internals/string-repeat');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
+var repeat = uncurryThis($repeat);
 var ceil = Math.ceil;
 
 // `String.prototype.{ padStart, padEnd }` methods implementation
@@ -16,7 +18,7 @@ var createMethod = function (IS_END) {
     var fillLen, stringFiller;
     if (intMaxLength <= stringLength || fillStr == '') return S;
     fillLen = intMaxLength - stringLength;
-    stringFiller = repeat.call(fillStr, ceil(fillLen / fillStr.length));
+    stringFiller = repeat(fillStr, ceil(fillLen / fillStr.length));
     if (stringFiller.length > fillLen) stringFiller = stringFiller.slice(0, fillLen);
     return IS_END ? S + stringFiller : stringFiller + S;
   };

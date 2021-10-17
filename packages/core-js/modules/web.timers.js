@@ -1,15 +1,16 @@
 var $ = require('../internals/export');
 var global = require('../internals/global');
+var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var userAgent = require('../internals/engine-user-agent');
 
-var slice = [].slice;
+var slice = uncurryThis([].slice);
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
 
 var wrap = function (scheduler) {
   return function (handler, timeout /* , ...arguments */) {
     var boundArgs = arguments.length > 2;
-    var args = boundArgs ? slice.call(arguments, 2) : undefined;
+    var args = boundArgs ? slice(arguments, 2) : undefined;
     return scheduler(boundArgs ? function () {
       // eslint-disable-next-line no-new-func -- spec requirement
       (isCallable(handler) ? handler : Function(handler)).apply(this, args);

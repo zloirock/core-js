@@ -1,10 +1,11 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var global = require('../internals/global');
+var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var internalSort = require('../internals/array-sort');
+var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var FF = require('../internals/engine-ff-version');
 var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
 var V8 = require('../internals/engine-v8-version');
@@ -13,16 +14,16 @@ var WEBKIT = require('../internals/engine-webkit-version');
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var Uint16Array = global.Uint16Array;
-var nativeSort = Uint16Array && Uint16Array.prototype.sort;
+var un$Sort = Uint16Array && uncurryThis(Uint16Array.prototype.sort);
 
 // WebKit
-var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !fails(function () {
+var ACCEPT_INCORRECT_ARGUMENTS = !!un$Sort && !fails(function () {
   var array = new Uint16Array(2);
-  array.sort(null);
-  array.sort({});
+  un$Sort(array, null);
+  un$Sort(array, {});
 });
 
-var STABLE_SORT = !!nativeSort && !fails(function () {
+var STABLE_SORT = !!un$Sort && !fails(function () {
   // feature detection can be too slow, so check engines versions
   if (V8) return V8 < 74;
   if (FF) return FF < 67;
@@ -39,7 +40,7 @@ var STABLE_SORT = !!nativeSort && !fails(function () {
     expected[index] = index - 2 * mod + 3;
   }
 
-  array.sort(function (a, b) {
+  un$Sort(array, function (a, b) {
     return (a / 4 | 0) - (b / 4 | 0);
   });
 
@@ -65,7 +66,7 @@ var getSortCompare = function (comparefn) {
 exportTypedArrayMethod('sort', function sort(comparefn) {
   var array = this;
   if (comparefn !== undefined) aCallable(comparefn);
-  if (STABLE_SORT) return nativeSort.call(array, comparefn);
+  if (STABLE_SORT) return un$Sort(array, comparefn);
 
   aTypedArray(array);
   var arrayLength = lengthOfArrayLike(array);
