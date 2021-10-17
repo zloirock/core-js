@@ -6,7 +6,7 @@ var callBind = bind && bind.bind(call);
 module.exports = bind ? function (fn) {
   return fn && callBind(call, fn);
 } : function (fn) {
-  return function () {
-    return fn && call.apply(fn, arguments);
+  return fn && function () {
+    return call.apply(fn, arguments);
   };
 };
