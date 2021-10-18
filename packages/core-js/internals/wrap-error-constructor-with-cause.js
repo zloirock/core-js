@@ -1,6 +1,7 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
 var global = require('../internals/global');
+var apply = require('../internals/function-apply');
 var hasOwn = require('../internals/has-own-property');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
@@ -24,7 +25,7 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var BaseError = getBuiltIn('Error');
 
   var WrappedError = wrapper(function () {
-    var result = OriginalError.apply(this, arguments);
+    var result = apply(OriginalError, this, arguments);
     if (this && this !== global) inheritIfRequired(result, this, WrappedError);
     if (arguments.length > OPTIONS_POSITION) installErrorCause(result, arguments[OPTIONS_POSITION]);
     return result;
@@ -32,7 +33,7 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
 
   WrappedError.prototype = OriginalErrorPrototype;
 
-  if (OriginalError !== BaseError) {
+  if (ERROR_NAME !== 'Error') {
     if (setPrototypeOf) setPrototypeOf(WrappedError, BaseError);
     else copyConstructorProperties(WrappedError, BaseError);
   }
