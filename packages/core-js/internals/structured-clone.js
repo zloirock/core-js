@@ -4,7 +4,7 @@ var getOwnPropertyNames = require('../internals/object-get-own-property-names');
 var classof = require('../internals/classof');
 var getBuiltin = require('../internals/get-built-in');
 var isObject = require('../internals/is-object');
-var has = require('../internals/has');
+var hasOwn = require('../internals/has-own-property');
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 
 var Set = getBuiltin('Set');
@@ -110,8 +110,8 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'Error':
       // Attempt to clone the stack.
       if (
-        !has(value, 'stack') && // Chrome, Safari
-        !has(Error.prototype, 'stack') // Firefox
+        !hasOwn(value, 'stack') && // Chrome, Safari
+        !hasOwn(Error.prototype, 'stack') // Firefox
       ) break;
       try {
         cloned.stack = structuredCloneInternal(map, value.stack);
