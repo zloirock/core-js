@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-observable
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aCallable = require('../internals/a-callable');
@@ -57,7 +58,7 @@ var Subscription = function (observer, subscriber) {
   var start;
   if (!DESCRIPTORS) this.closed = false;
   try {
-    if (start = getMethod(observer, 'start')) start.call(observer, this);
+    if (start = getMethod(observer, 'start')) call(start, observer, this);
   } catch (error) {
     hostReportErrors(error);
   }
@@ -104,7 +105,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
       var observer = subscriptionState.observer;
       try {
         var nextMethod = getMethod(observer, 'next');
-        if (nextMethod) nextMethod.call(observer, value);
+        if (nextMethod) call(nextMethod, observer, value);
       } catch (error) {
         hostReportErrors(error);
       }
@@ -117,7 +118,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
       close(subscriptionState);
       try {
         var errorMethod = getMethod(observer, 'error');
-        if (errorMethod) errorMethod.call(observer, value);
+        if (errorMethod) call(errorMethod, observer, value);
         else hostReportErrors(value);
       } catch (err) {
         hostReportErrors(err);
@@ -131,7 +132,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
       close(subscriptionState);
       try {
         var completeMethod = getMethod(observer, 'complete');
-        if (completeMethod) completeMethod.call(observer);
+        if (completeMethod) call(completeMethod, observer);
       } catch (error) {
         hostReportErrors(error);
       } cleanupSubscription(subscriptionState);
@@ -167,7 +168,7 @@ redefineAll($Observable, {
     var C = isConstructor(this) ? this : $Observable;
     var observableMethod = getMethod(anObject(x), OBSERVABLE);
     if (observableMethod) {
-      var observable = anObject(observableMethod.call(x));
+      var observable = anObject(call(observableMethod, x));
       return observable.constructor === C ? observable : new C(function (observer) {
         return observable.subscribe(observer);
       });

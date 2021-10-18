@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var IS_PURE = require('../internals/is-pure');
 var FunctionName = require('../internals/function-name');
 var isCallable = require('../internals/is-callable');
@@ -70,7 +71,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       createNonEnumerableProperty(IterablePrototype, 'name', VALUES);
     } else {
       INCORRECT_VALUES_NAME = true;
-      defaultIterator = function values() { return nativeIterator.call(this); };
+      defaultIterator = function values() { return call(nativeIterator, this); };
     }
   }
 

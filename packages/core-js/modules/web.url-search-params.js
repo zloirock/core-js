@@ -3,6 +3,7 @@
 require('../modules/es.array.iterator');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var USE_NATIVE_URL = require('../internals/native-url');
 var redefine = require('../internals/redefine');
 var redefineAll = require('../internals/redefine-all');
@@ -146,13 +147,13 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
       if (iteratorMethod) {
         iterator = getIterator(init, iteratorMethod);
         next = iterator.next;
-        while (!(step = next.call(iterator)).done) {
+        while (!(step = call(next, iterator)).done) {
           entryIterator = getIterator(anObject(step.value));
           entryNext = entryIterator.next;
           if (
-            (first = entryNext.call(entryIterator)).done ||
-            (second = entryNext.call(entryIterator)).done ||
-            !entryNext.call(entryIterator).done
+            (first = call(entryNext, entryIterator)).done ||
+            (second = call(entryNext, entryIterator)).done ||
+            !call(entryNext, entryIterator).done
           ) throw TypeError('Expected sequence with length 2');
           entries.push({ key: $toString(first.value), value: $toString(second.value) });
         }

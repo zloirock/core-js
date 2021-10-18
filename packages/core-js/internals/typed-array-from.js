@@ -1,10 +1,11 @@
+var bind = require('../internals/function-bind-context');
+var call = require('../internals/function-call');
 var aConstructor = require('../internals/a-constructor');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
-var bind = require('../internals/function-bind-context');
 var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTypedArrayConstructor;
 
 module.exports = function from(source /* , mapfn, thisArg */) {
@@ -19,7 +20,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     O = [];
-    while (!(step = next.call(iterator)).done) {
+    while (!(step = call(next, iterator)).done) {
       O.push(step.value);
     }
   }

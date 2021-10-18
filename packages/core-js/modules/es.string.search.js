@@ -1,4 +1,5 @@
 'use strict';
+var call = require('../internals/function-call');
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var anObject = require('../internals/an-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -15,7 +16,7 @@ fixRegExpWellKnownSymbolLogic('search', function (SEARCH, nativeSearch, maybeCal
     function search(regexp) {
       var O = requireObjectCoercible(this);
       var searcher = regexp == undefined ? undefined : getMethod(regexp, SEARCH);
-      return searcher ? searcher.call(regexp, O) : new RegExp(regexp)[SEARCH](toString(O));
+      return searcher ? call(searcher, regexp, O) : new RegExp(regexp)[SEARCH](toString(O));
     },
     // `RegExp.prototype[@@search]` method
     // https://tc39.es/ecma262/#sec-regexp.prototype-@@search

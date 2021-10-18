@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorMethod = require('../internals/get-iterator-method');
@@ -15,12 +16,12 @@ var IteratorProxy = createIteratorProxy(function () {
   while (true) {
     try {
       if (innerIterator = this.innerIterator) {
-        result = anObject(this.innerNext.call(innerIterator));
+        result = anObject(call(this.innerNext, innerIterator));
         if (!result.done) return result.value;
         this.innerIterator = this.innerNext = null;
       }
 
-      result = anObject(this.next.call(iterator));
+      result = anObject(call(this.next, iterator));
 
       if (this.done = !!result.done) return;
 
@@ -31,7 +32,7 @@ var IteratorProxy = createIteratorProxy(function () {
         throw TypeError('.flatMap callback should return an iterable object');
       }
 
-      this.innerIterator = innerIterator = anObject(iteratorMethod.call(mapped));
+      this.innerIterator = innerIterator = anObject(call(iteratorMethod, mapped));
       this.innerNext = aCallable(innerIterator.next);
     } catch (error) {
       iteratorClose(iterator, 'throw', error);

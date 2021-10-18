@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
 var getBuiltIn = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
@@ -27,7 +28,7 @@ $({ target: 'Promise', stat: true }, {
         var alreadyRejected = false;
         errors.push(undefined);
         remaining++;
-        promiseResolve.call(C, promise).then(function (value) {
+        call(promiseResolve, C, promise).then(function (value) {
           if (alreadyRejected || alreadyResolved) return;
           alreadyResolved = true;
           resolve(value);

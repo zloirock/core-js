@@ -1,4 +1,5 @@
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var isObject = require('../internals/is-object');
 var anObject = require('../internals/an-object');
 var isDataDescriptor = require('../internals/is-data-descriptor');
@@ -14,7 +15,7 @@ function get(target, propertyKey /* , receiver */) {
   descriptor = getOwnPropertyDescriptorModule.f(target, propertyKey);
   if (descriptor) return isDataDescriptor(descriptor)
     ? descriptor.value
-    : descriptor.get === undefined ? undefined : descriptor.get.call(receiver);
+    : descriptor.get === undefined ? undefined : call(descriptor.get, receiver);
   if (isObject(prototype = getPrototypeOf(target))) return get(prototype, propertyKey, receiver);
 }
 

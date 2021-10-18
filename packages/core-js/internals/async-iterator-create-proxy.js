@@ -1,4 +1,5 @@
 'use strict';
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
@@ -33,7 +34,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         var state = getInternalState(that);
         var args = hasArgument ? [state.ignoreArgument ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
         state.ignoreArgument = false;
-        resolve(state.done ? { done: true, value: undefined } : anObject(nextHandler.call(state, Promise, args)));
+        resolve(state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise, args)));
       });
     },
     'return': function (value) {
@@ -44,7 +45,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         state.done = true;
         var $$return = getMethod(iterator, 'return');
         if ($$return === undefined) return resolve({ done: true, value: value });
-        Promise.resolve($$return.call(iterator, value)).then(function (result) {
+        Promise.resolve(call($$return, iterator, value)).then(function (result) {
           anObject(result);
           resolve({ done: true, value: value });
         }, reject);
@@ -58,7 +59,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         state.done = true;
         var $$throw = getMethod(iterator, 'throw');
         if ($$throw === undefined) return reject(value);
-        resolve($$throw.call(iterator, value));
+        resolve(call($$throw, iterator, value));
       });
     }
   });

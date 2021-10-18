@@ -2,6 +2,7 @@
 // TODO: Remove from `core-js@4` since it's moved to entry points
 require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
@@ -24,7 +25,7 @@ $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
   test: function (str) {
     var exec = this.exec;
     if (!isCallable(exec)) return un$Test(this, str);
-    var result = exec.call(this, str);
+    var result = call(exec, this, str);
     if (result !== null && !isObject(result)) {
       throw new Error('RegExp exec method returned something other than an Object or null');
     }

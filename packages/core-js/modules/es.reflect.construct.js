@@ -1,16 +1,16 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
-var uncurryThis = require('../internals/function-uncurry-this');
+var apply = require('../internals/function-apply');
+var bind = require('../internals/function-bind');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var create = require('../internals/object-create');
-var bind = require('../internals/function-bind');
 var fails = require('../internals/fails');
 
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
-var functionApply = uncurryThis(Function.apply);
 var ObjectPrototype = Object.prototype;
+var push = [].push;
 
 // `Reflect.construct` method
 // https://tc39.es/ecma262/#sec-reflect.construct
@@ -20,9 +20,11 @@ var NEW_TARGET_BUG = fails(function () {
   function F() { /* empty */ }
   return !(nativeConstruct(function () { /* empty */ }, [], F) instanceof F);
 });
+
 var ARGS_BUG = !fails(function () {
   nativeConstruct(function () { /* empty */ });
 });
+
 var FORCED = NEW_TARGET_BUG || ARGS_BUG;
 
 $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
@@ -42,13 +44,13 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
       }
       // w/o altered newTarget, lot of arguments case
       var $args = [null];
-      $args.push.apply($args, args);
-      return new (bind.apply(Target, $args))();
+      apply(push, $args, args);
+      return new (apply(bind, Target, $args))();
     }
     // with altered newTarget, not support built-in constructors
     var proto = newTarget.prototype;
     var instance = create(isObject(proto) ? proto : ObjectPrototype);
-    var result = functionApply(Target, instance, args);
+    var result = apply(Target, instance, args);
     return isObject(result) ? result : instance;
   }
 });

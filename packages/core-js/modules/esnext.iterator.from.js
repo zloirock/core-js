@@ -1,5 +1,6 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
@@ -11,7 +12,7 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 var isPrototypeOf = uncurryThis({}.isPrototypeOf);
 
 var IteratorProxy = createIteratorProxy(function (args) {
-  var result = anObject(this.next.apply(this.iterator, args));
+  var result = anObject(apply(this.next, this.iterator, args));
   var done = this.done = !!result.done;
   if (!done) return result.value;
 }, true);

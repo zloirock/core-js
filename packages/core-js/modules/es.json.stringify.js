@@ -1,17 +1,23 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
 var $stringify = getBuiltIn('JSON', 'stringify');
-var re = /[\uD800-\uDFFF]/g;
+var tester = /[\uD800-\uDFFF]/g;
 var low = /^[\uD800-\uDBFF]$/;
 var hi = /^[\uDC00-\uDFFF]$/;
+var test = uncurryThis(tester.test);
+var charAt = uncurryThis(''.charAt);
+var charCodeAt = uncurryThis(''.charCodeAt);
+var replace = uncurryThis(''.replace);
+var numberToString = uncurryThis(1.0.toString);
 
 var fix = function (match, offset, string) {
-  var prev = string.charAt(offset - 1);
-  var next = string.charAt(offset + 1);
-  if ((low.test(match) && !hi.test(next)) || (hi.test(match) && !low.test(prev))) {
-    return '\\u' + match.charCodeAt(0).toString(16);
+  var prev = charAt(string, offset - 1);
+  var next = charAt(string, offset + 1);
+  if ((test(low, match) && !test(hi, next)) || (test(hi, match) && !test(low, prev))) {
+    return '\\u' + numberToString(charCodeAt(match, 0), 16);
   } return match;
 };
 
@@ -28,7 +34,7 @@ if ($stringify) {
     // eslint-disable-next-line no-unused-vars -- required for `.length`
     stringify: function stringify(it, replacer, space) {
       var result = $stringify.apply(null, arguments);
-      return typeof result == 'string' ? result.replace(re, fix) : result;
+      return typeof result == 'string' ? replace(result, tester, fix) : result;
     }
   });
 }

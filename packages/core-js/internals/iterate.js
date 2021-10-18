@@ -1,3 +1,4 @@
+var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -47,7 +48,7 @@ module.exports = function (iterable, unboundFunction, options) {
   }
 
   next = iterator.next;
-  while (!(step = next.call(iterator)).done) {
+  while (!(step = call(next, iterator)).done) {
     try {
       result = callFn(step.value);
     } catch (error) {

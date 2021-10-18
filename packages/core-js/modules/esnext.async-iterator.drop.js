@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
@@ -12,7 +13,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
     var loop = function () {
       try {
         Promise.resolve(
-          anObject(state.next.apply(state.iterator, state.remaining ? [] : args))
+          anObject(apply(state.next, state.iterator, state.remaining ? [] : args))
         ).then(function (step) {
           try {
             if (anObject(step).done) {

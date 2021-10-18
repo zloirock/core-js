@@ -1,6 +1,7 @@
 'use strict';
 /* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -94,7 +95,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
       if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
       matcher = getMethod(regexp, MATCH_ALL);
       if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
-      if (matcher) return matcher.call(regexp, O);
+      if (matcher) return call(matcher, regexp, O);
     } else if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
     S = toString(O);
     rx = new RegExp(regexp, 'g');

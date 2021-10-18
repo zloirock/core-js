@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var apply = require('../internals/function-apply');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
@@ -12,7 +13,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   var next = this.next;
   var result, done, value;
   while (true) {
-    result = anObject(next.apply(iterator, args));
+    result = anObject(apply(next, iterator, args));
     done = this.done = !!result.done;
     if (done) return;
     value = result.value;

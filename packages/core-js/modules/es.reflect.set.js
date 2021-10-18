@@ -1,4 +1,5 @@
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var isDataDescriptor = require('../internals/is-data-descriptor');
@@ -30,7 +31,7 @@ function set(target, propertyKey, V /* , receiver */) {
   } else {
     setter = ownDescriptor.set;
     if (setter === undefined) return false;
-    setter.call(receiver, V);
+    call(setter, receiver, V);
   } return true;
 }
 

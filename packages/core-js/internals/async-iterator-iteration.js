@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 // https://github.com/tc39/proposal-array-from-async
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
@@ -26,7 +27,7 @@ var createMethod = function (TYPE) {
         try {
           var returnMethod = getMethod(iterator, 'return');
           if (returnMethod) {
-            return Promise.resolve(returnMethod.call(iterator)).then(function () {
+            return Promise.resolve(call(returnMethod, iterator)).then(function () {
               method(argument);
             }, function (error) {
               reject(error);
@@ -46,7 +47,7 @@ var createMethod = function (TYPE) {
           if (IS_TO_ARRAY && (index > MAX_SAFE_INTEGER) && MAPPING) {
             throw TypeError('The allowed number of iterations has been exceeded');
           }
-          Promise.resolve(anObject(next.call(iterator))).then(function (step) {
+          Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
                 if (IS_TO_ARRAY) {

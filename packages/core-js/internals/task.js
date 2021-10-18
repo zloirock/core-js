@@ -1,4 +1,5 @@
 var global = require('../internals/global');
+var apply = require('../internals/function-apply');
 var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind-context');
@@ -55,7 +56,7 @@ if (!set || !clear) {
     while (argumentsLength > i) args.push(arguments[i++]);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func -- spec requirement
-      (isCallable(fn) ? fn : Function(fn)).apply(undefined, args);
+      apply(isCallable(fn) ? fn : Function(fn), undefined, args);
     };
     defer(counter);
     return counter;

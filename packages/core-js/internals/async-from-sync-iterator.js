@@ -1,4 +1,5 @@
 'use strict';
+var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var getMethod = require('../internals/get-method');
@@ -31,7 +32,7 @@ AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
     var state = getInternalState(this);
     var hasArg = !!arguments.length;
     return new Promise(function (resolve, reject) {
-      var result = anObject(state.next.apply(state.iterator, hasArg ? [arg] : []));
+      var result = anObject(apply(state.next, state.iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   },
@@ -41,7 +42,7 @@ AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
       if ($return === undefined) return resolve({ done: true, value: arg });
-      var result = anObject($return.apply(iterator, hasArg ? [arg] : []));
+      var result = anObject(apply($return, iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   },
@@ -51,7 +52,7 @@ AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
     return new Promise(function (resolve, reject) {
       var $throw = getMethod(iterator, 'throw');
       if ($throw === undefined) return reject(arg);
-      var result = anObject($throw.apply(iterator, hasArg ? [arg] : []));
+      var result = anObject(apply($throw, iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   }

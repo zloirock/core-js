@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
@@ -14,7 +15,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   return new Promise(function (resolve, reject) {
     var outerLoop = function () {
       try {
-        Promise.resolve(anObject(state.next.call(state.iterator))).then(function (step) {
+        Promise.resolve(anObject(call(state.next, state.iterator))).then(function (step) {
           try {
             if (anObject(step).done) {
               state.done = true;
@@ -36,7 +37,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
     var innerLoop = function () {
       if (innerIterator = state.innerIterator) {
         try {
-          Promise.resolve(anObject(state.innerNext.call(innerIterator))).then(function (result) {
+          Promise.resolve(anObject(call(state.innerNext, innerIterator))).then(function (result) {
             try {
               if (anObject(result).done) {
                 state.innerIterator = state.innerNext = null;

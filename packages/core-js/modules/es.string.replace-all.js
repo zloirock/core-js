@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var isCallable = require('../internals/is-callable');
@@ -42,7 +43,7 @@ $({ target: 'String', proto: true }, {
       }
       replacer = getMethod(searchValue, REPLACE);
       if (replacer) {
-        return replacer.call(searchValue, O, replaceValue);
+        return call(replacer, searchValue, O, replaceValue);
       } else if (IS_PURE && IS_REG_EXP) {
         return toString(O).replace(searchValue, replaceValue);
       }
