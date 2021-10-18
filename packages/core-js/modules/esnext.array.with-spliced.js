@@ -9,7 +9,8 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 $({ target: 'Array', proto: true }, {
   // eslint-disable-next-line no-unused-vars -- required for .length
   withSpliced: function withSpliced(start, deleteCount /* , ...items */) {
-    return arrayWithSpliced.apply({ O: toIndexedObject(this), C: Array }, arguments);
+    for (var i = 0, l = arguments.length, args = Array(l); i < l; i++) args[i] = arguments[i];
+    return arrayWithSpliced(toIndexedObject(this), Array, args);
   }
 });
 

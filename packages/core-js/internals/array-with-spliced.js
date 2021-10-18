@@ -7,11 +7,12 @@ var min = Math.min;
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.withSpliced
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.withSpliced
-module.exports = function (start, deleteCount /* , ...items */) {
-  var O = this.O;
+module.exports = function (O, C, args) {
+  var start = args[0];
+  var deleteCount = args[1];
   var len = lengthOfArrayLike(O);
   var actualStart = toAbsoluteIndex(start, len);
-  var argumentsLength = arguments.length;
+  var argumentsLength = args.length;
   var k = 0;
   var insertCount, actualDeleteCount, newLen, A;
   if (argumentsLength === 0) {
@@ -24,10 +25,10 @@ module.exports = function (start, deleteCount /* , ...items */) {
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
   }
   newLen = len + insertCount - actualDeleteCount;
-  A = new this.C(newLen);
+  A = new C(newLen);
 
   for (; k < actualStart; k++) A[k] = O[k];
-  for (; k < actualStart + insertCount; k++) A[k] = arguments[k - actualStart + 2];
+  for (; k < actualStart + insertCount; k++) A[k] = args[k - actualStart + 2];
   for (; k < newLen; k++) A[k] = O[k + actualDeleteCount - insertCount];
 
   return A;
