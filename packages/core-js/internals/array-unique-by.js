@@ -1,9 +1,9 @@
 'use strict';
+var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
-var getBuiltIn = require('../internals/get-built-in');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
 var push = uncurryThis([].push);

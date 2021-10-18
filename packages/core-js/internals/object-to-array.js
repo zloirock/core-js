@@ -5,6 +5,7 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
 var propertyIsEnumerable = uncurryThis($propertyIsEnumerable);
+var push = uncurryThis([].push);
 
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
@@ -18,7 +19,7 @@ var createMethod = function (TO_ENTRIES) {
     while (length > i) {
       key = keys[i++];
       if (!DESCRIPTORS || propertyIsEnumerable(O, key)) {
-        result.push(TO_ENTRIES ? [key, O[key]] : O[key]);
+        push(result, TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }
     return result;

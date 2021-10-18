@@ -15,6 +15,7 @@ var WEBKIT = require('../internals/engine-webkit-version');
 
 var test = [];
 var un$Sort = uncurryThis(test.sort);
+var push = uncurryThis(test.push);
 
 // IE8-
 var FAILS_ON_UNDEFINED = fails(function () {
@@ -88,7 +89,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     var itemsLength, index;
 
     for (index = 0; index < arrayLength; index++) {
-      if (index in array) items.push(array[index]);
+      if (index in array) push(items, array[index]);
     }
 
     items = internalSort(items, getSortCompare(comparefn));

@@ -1,8 +1,9 @@
 'use strict';
+var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var isObject = require('../internals/is-object');
 
-var slice = [].slice;
+var slice = uncurryThis([].slice);
 var factories = {};
 
 var construct = function (C, argsLength, args) {
@@ -17,9 +18,9 @@ var construct = function (C, argsLength, args) {
 // https://tc39.es/ecma262/#sec-function.prototype.bind
 module.exports = Function.bind || function bind(that /* , ...args */) {
   var fn = aCallable(this);
-  var partArgs = slice.call(arguments, 1);
+  var partArgs = slice(arguments, 1);
   var boundFunction = function bound(/* args... */) {
-    var args = partArgs.concat(slice.call(arguments));
+    var args = partArgs.concat(slice(arguments));
     return this instanceof boundFunction ? construct(fn, args.length, args) : fn.apply(that, args);
   };
   if (isObject(fn.prototype)) boundFunction.prototype = fn.prototype;

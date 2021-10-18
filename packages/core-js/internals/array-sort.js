@@ -1,12 +1,15 @@
-// TODO: use something more complex like timsort?
+var uncurryThis = require('../internals/function-uncurry-this');
+
 var floor = Math.floor;
+var push = uncurryThis([].push);
+var slice = uncurryThis([].slice);
 
 var mergeSort = function (array, comparefn) {
   var length = array.length;
   var middle = floor(length / 2);
   return length < 8 ? insertionSort(array, comparefn) : merge(
-    mergeSort(array.slice(0, middle), comparefn),
-    mergeSort(array.slice(middle), comparefn),
+    mergeSort(slice(array, 0, middle), comparefn),
+    mergeSort(slice(array, middle), comparefn),
     comparefn
   );
 };
@@ -35,9 +38,9 @@ var merge = function (left, right, comparefn) {
 
   while (lindex < llength || rindex < rlength) {
     if (lindex < llength && rindex < rlength) {
-      result.push(comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++]);
+      push(result, comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++]);
     } else {
-      result.push(lindex < llength ? left[lindex++] : right[rindex++]);
+      push(result, lindex < llength ? left[lindex++] : right[rindex++]);
     }
   } return result;
 };

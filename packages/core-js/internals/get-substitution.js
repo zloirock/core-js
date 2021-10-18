@@ -2,7 +2,9 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var toObject = require('../internals/to-object');
 
 var floor = Math.floor;
+var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
+var slice = uncurryThis(''.slice);
 var SUBSTITUTION_SYMBOLS = /\$([$&'`]|\d{1,2}|<[^>]*>)/g;
 var SUBSTITUTION_SYMBOLS_NO_NAMED = /\$([$&'`]|\d{1,2})/g;
 
@@ -18,13 +20,13 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
   }
   return replace(replacement, symbols, function (match, ch) {
     var capture;
-    switch (ch.charAt(0)) {
+    switch (charAt(ch, 0)) {
       case '$': return '$';
       case '&': return matched;
-      case '`': return str.slice(0, position);
-      case "'": return str.slice(tailPos);
+      case '`': return slice(str, 0, position);
+      case "'": return slice(str, tailPos);
       case '<':
-        capture = namedCaptures[ch.slice(1, -1)];
+        capture = namedCaptures[slice(ch, 1, -1)];
         break;
       default: // \d\d?
         var n = +ch;
@@ -32,7 +34,7 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
         if (n > m) {
           var f = floor(n / 10);
           if (f === 0) return match;
-          if (f <= m) return captures[f - 1] === undefined ? ch.charAt(1) : captures[f - 1] + ch.charAt(1);
+          if (f <= m) return captures[f - 1] === undefined ? charAt(ch, 1) : captures[f - 1] + charAt(ch, 1);
           return match;
         }
         capture = captures[n - 1];

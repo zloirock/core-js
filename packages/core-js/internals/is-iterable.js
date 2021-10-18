@@ -1,4 +1,5 @@
 var classof = require('../internals/classof');
+var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var Iterators = require('../internals/iterators');
 
@@ -8,6 +9,5 @@ module.exports = function (it) {
   var O = Object(it);
   return O[ITERATOR] !== undefined
     || '@@iterator' in O
-    // eslint-disable-next-line no-prototype-builtins -- safe
-    || Iterators.hasOwnProperty(classof(O));
+    || hasOwn(Iterators, classof(O));
 };

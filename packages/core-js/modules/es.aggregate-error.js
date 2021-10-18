@@ -10,6 +10,8 @@ var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 
+var push = [].push;
+
 var $AggregateError = function AggregateError(errors, message /* , options */) {
   var that = this;
   var options = arguments.length > 2 ? arguments[2] : undefined;
@@ -21,7 +23,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));
   installErrorCause(that, options);
   var errorsArray = [];
-  iterate(errors, errorsArray.push, { that: errorsArray });
+  iterate(errors, push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
   return that;
 };

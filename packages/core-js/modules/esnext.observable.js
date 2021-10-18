@@ -185,7 +185,7 @@ redefineAll($Observable, {
   of: function of() {
     var C = isConstructor(this) ? this : $Observable;
     var length = arguments.length;
-    var items = new Array(length);
+    var items = Array(length);
     var index = 0;
     while (index < length) items[index] = arguments[index++];
     return new C(function (observer) {

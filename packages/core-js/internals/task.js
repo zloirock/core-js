@@ -1,6 +1,7 @@
 var global = require('../internals/global');
 var apply = require('../internals/function-apply');
 var isCallable = require('../internals/is-callable');
+var hasOwn = require('../internals/has-own-property');
 var fails = require('../internals/fails');
 var bind = require('../internals/function-bind-context');
 var html = require('../internals/html');
@@ -24,8 +25,7 @@ try {
 } catch (error) { /* empty */ }
 
 var run = function (id) {
-  // eslint-disable-next-line no-prototype-builtins -- safe
-  if (queue.hasOwnProperty(id)) {
+  if (hasOwn(queue, id)) {
     var fn = queue[id];
     delete queue[id];
     fn();
@@ -50,10 +50,10 @@ var post = function (id) {
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
 if (!set || !clear) {
   set = function setImmediate(fn) {
-    var args = [];
-    var argumentsLength = arguments.length;
     var i = 1;
-    while (argumentsLength > i) args.push(arguments[i++]);
+    var length = arguments.length;
+    var args = Array(length - 1);
+    for (; length > i; i++) args[i - 1] = arguments[i];
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func -- spec requirement
       apply(isCallable(fn) ? fn : Function(fn), undefined, args);
