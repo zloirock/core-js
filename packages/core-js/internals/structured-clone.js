@@ -56,6 +56,20 @@ module.exports = function structuredCloneInternal(map, value) {
       // this is safe, since arraybuffer cannot have circular references
       cloned = new DataView(structuredCloneInternal(value.buffer), value.byteOffset, value.byteLength);
       break;
+    case 'Int8Array':
+    case 'Uint8Array':
+    case 'Uint8ClampedArray':
+    case 'Int16Array':
+    case 'Uint16Array':
+    case 'Int32Array':
+    case 'Uint32Array':
+    case 'Float32Array':
+    case 'Float64Array':
+    case 'BigInt64Array':
+    case 'BigUint64Array':
+      // TypedArray
+      cloned = new value.constructor(value);
+      break;
     case 'Map':
       cloned = new Map();
       deep = true;
