@@ -6,9 +6,10 @@ var thisNumberValue = require('../internals/this-number-value');
 var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
-var un$ToFixed = uncurryThis(1.0.toFixed);
-var repeat = uncurryThis($repeat);
 var floor = Math.floor;
+var repeat = uncurryThis($repeat);
+var stringSlice = uncurryThis(''.slice);
+var un$ToFixed = uncurryThis(1.0.toFixed);
 
 var pow = function (x, n, acc) {
   return n === 0 ? acc : n % 2 === 1 ? pow(x, n - 1, acc * x) : pow(x * x, n / 2, acc);
@@ -119,7 +120,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       k = result.length;
       result = sign + (k <= fractDigits
         ? '0.' + repeat('0', fractDigits - k) + result
-        : result.slice(0, k - fractDigits) + '.' + result.slice(k - fractDigits));
+        : stringSlice(result, 0, k - fractDigits) + '.' + stringSlice(result, k - fractDigits));
     } else {
       result = sign + result;
     } return result;

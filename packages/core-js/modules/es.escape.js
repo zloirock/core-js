@@ -1,11 +1,17 @@
 'use strict';
 var $ = require('../internals/export');
+var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 
 var raw = /[\w*+\-./@]/;
+var charAt = uncurryThis(''.charAt);
+var charCodeAt = uncurryThis(''.charCodeAt);
+var exec = uncurryThis(raw.exec);
+var numberToString = uncurryThis(1.0.toString);
+var toUpperCase = uncurryThis(''.toUpperCase);
 
 var hex = function (code, length) {
-  var result = code.toString(16);
+  var result = numberToString(code, 16);
   while (result.length < length) result = '0' + result;
   return result;
 };
@@ -20,15 +26,15 @@ $({ global: true }, {
     var index = 0;
     var chr, code;
     while (index < length) {
-      chr = str.charAt(index++);
-      if (raw.test(chr)) {
+      chr = charAt(str, index++);
+      if (exec(raw, chr)) {
         result += chr;
       } else {
-        code = chr.charCodeAt(0);
+        code = charCodeAt(chr, 0);
         if (code < 256) {
           result += '%' + hex(code, 2);
         } else {
-          result += '%u' + hex(code, 4).toUpperCase();
+          result += '%u' + toUpperCase(hex(code, 4));
         }
       }
     } return result;

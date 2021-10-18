@@ -1,5 +1,6 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
@@ -33,7 +34,8 @@ if ($stringify) {
   $({ target: 'JSON', stat: true, forced: FORCED }, {
     // eslint-disable-next-line no-unused-vars -- required for `.length`
     stringify: function stringify(it, replacer, space) {
-      var result = $stringify.apply(null, arguments);
+      for (var i = 0, l = arguments.length, args = Array(l); i < l; i++) args[i] = arguments[i];
+      var result = apply($stringify, null, args);
       return typeof result == 'string' ? replace(result, tester, fix) : result;
     }
   });

@@ -22,7 +22,6 @@ $({ target: 'Promise', stat: true }, {
       iterate(iterable, function (promise) {
         var index = counter++;
         var alreadyCalled = false;
-        values.push(undefined);
         remaining++;
         call(promiseResolve, C, promise).then(function (value) {
           if (alreadyCalled) return;

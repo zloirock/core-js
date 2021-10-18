@@ -13,9 +13,10 @@ var FunctionPrototype = Function.prototype;
 if (!(HAS_INSTANCE in FunctionPrototype)) {
   definePropertyModule.f(FunctionPrototype, HAS_INSTANCE, { value: function (O) {
     if (!isCallable(this) || !isObject(O)) return false;
-    if (!isObject(this.prototype)) return O instanceof this;
+    var P = this.prototype;
+    if (!isObject(P)) return O instanceof this;
     // for environment w/o native `@@hasInstance` logic enough `instanceof`, but add this:
-    while (O = getPrototypeOf(O)) if (this.prototype === O) return true;
+    while (O = getPrototypeOf(O)) if (P === O) return true;
     return false;
   } });
 }

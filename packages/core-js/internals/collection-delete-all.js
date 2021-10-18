@@ -3,7 +3,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 
 // https://github.com/tc39/collection-methods
-module.exports = function (/* ...elements */) {
+module.exports = function deleteAll(/* ...elements */) {
   var collection = anObject(this);
   var remover = aCallable(collection['delete']);
   var allDeleted = true;

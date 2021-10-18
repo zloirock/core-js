@@ -28,10 +28,11 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
 var getFlags = uncurryThis(regExpFlags);
-var n$MatchAll = ''.matchAll;
+var stringIndexOf = uncurryThis(''.indexOf);
+var un$MatchAll = uncurryThis(''.matchAll);
 
-var WORKS_WITH_NON_GLOBAL_REGEX = !!n$MatchAll && !fails(function () {
-  'a'.matchAll(/./);
+var WORKS_WITH_NON_GLOBAL_REGEX = !!un$MatchAll && !fails(function () {
+  un$MatchAll('a', /./);
 });
 
 // eslint-disable-next-line max-len -- ignore
@@ -59,7 +60,7 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
   return { value: match, done: false };
 });
 
-var $matchAll = function (string) {
+var $MatchAll = function (string) {
   var R = anObject(this);
   var S = toString(string);
   var C, flagsValue, flags, matcher, global, fullUnicode;
@@ -70,13 +71,11 @@ var $matchAll = function (string) {
   }
   flags = flagsValue === undefined ? '' : toString(flagsValue);
   matcher = new C(C === RegExp ? R.source : R, flags);
-  global = !!~flags.indexOf('g');
-  fullUnicode = !!~flags.indexOf('u');
+  global = !!~stringIndexOf(flags, 'g');
+  fullUnicode = !!~stringIndexOf(flags, 'u');
   matcher.lastIndex = toLength(R.lastIndex);
   return new $RegExpStringIterator(matcher, S, global, fullUnicode);
 };
-
-var u$MatchAll = uncurryThis($matchAll);
 
 // `String.prototype.matchAll` method
 // https://tc39.es/ecma262/#sec-string.prototype.matchall
@@ -90,17 +89,17 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
           ? regexp.flags
           : getFlags(regexp)
         ));
-        if (!~flags.indexOf('g')) throw TypeError('`.matchAll` does not allow non-global regexes');
+        if (!~stringIndexOf(flags, 'g')) throw TypeError('`.matchAll` does not allow non-global regexes');
       }
-      if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
+      if (WORKS_WITH_NON_GLOBAL_REGEX) return un$MatchAll(O, regexp);
       matcher = getMethod(regexp, MATCH_ALL);
-      if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
+      if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $MatchAll;
       if (matcher) return call(matcher, regexp, O);
-    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return n$MatchAll.apply(O, arguments);
+    } else if (WORKS_WITH_NON_GLOBAL_REGEX) return un$MatchAll(O, regexp);
     S = toString(O);
     rx = new RegExp(regexp, 'g');
-    return IS_PURE ? u$MatchAll(rx, S) : rx[MATCH_ALL](S);
+    return IS_PURE ? call($MatchAll, rx, S) : rx[MATCH_ALL](S);
   }
 });
 
-IS_PURE || MATCH_ALL in RegExpPrototype || redefine(RegExpPrototype, MATCH_ALL, $matchAll);
+IS_PURE || MATCH_ALL in RegExpPrototype || redefine(RegExpPrototype, MATCH_ALL, $MatchAll);

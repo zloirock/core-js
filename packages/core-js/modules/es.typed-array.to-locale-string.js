@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var fails = require('../internals/fails');
@@ -24,5 +25,6 @@ var FORCED = fails(function () {
 // `%TypedArray%.prototype.toLocaleString` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.tolocalestring
 exportTypedArrayMethod('toLocaleString', function toLocaleString() {
-  return $toLocaleString.apply(TO_LOCALE_STRING_BUG ? slice(aTypedArray(this)) : aTypedArray(this), arguments);
+  for (var i = 0, l = arguments.length, args = Array(l); i < l; i++) args[i] = arguments[i];
+  return apply($toLocaleString, TO_LOCALE_STRING_BUG ? slice(aTypedArray(this)) : aTypedArray(this), args);
 }, FORCED);

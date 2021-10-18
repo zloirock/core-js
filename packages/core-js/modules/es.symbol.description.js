@@ -7,7 +7,6 @@ var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var hasOwn = require('../internals/has-own-property');
 var isCallable = require('../internals/is-callable');
-var isObject = require('../internals/is-object');
 var defineProperty = require('../internals/object-define-property').f;
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
@@ -34,6 +33,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in NativeSymbol.
 
   var NATIVE_SYMBOL = String(NativeSymbol('test')) == 'Symbol(test)';
   var symbolToString = uncurryThis(symbolPrototype.toString);
+  var symbolValueOf = uncurryThis(symbolPrototype.valueOf);
   var regexp = /^Symbol\((.*)\)[^)]+$/;
   var replace = uncurryThis(''.replace);
   var slice = uncurryThis(''.slice);
@@ -41,7 +41,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in NativeSymbol.
   defineProperty(symbolPrototype, 'description', {
     configurable: true,
     get: function description() {
-      var symbol = isObject(this) ? this.valueOf() : this;
+      var symbol = symbolValueOf(this);
       var string = symbolToString(symbol);
       if (hasOwn(EmptyStringDescriptionStore, symbol)) return '';
       var desc = NATIVE_SYMBOL ? slice(string, 7, -1) : replace(string, regexp, '$1');
