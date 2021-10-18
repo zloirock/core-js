@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this');
 var isArray = require('../internals/is-array');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
@@ -10,11 +9,11 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var createProperty = require('../internals/create-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
+var un$Slice = require('../internals/array-slice');
 
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
-var un$Slice = uncurryThis([].slice);
 var max = Math.max;
 
 // `Array.prototype.slice` method

@@ -1,15 +1,15 @@
 var uncurryThis = require('../internals/function-uncurry-this');
+var arraySlice = require('../internals/array-slice');
 
 var floor = Math.floor;
 var push = uncurryThis([].push);
-var slice = uncurryThis([].slice);
 
 var mergeSort = function (array, comparefn) {
   var length = array.length;
   var middle = floor(length / 2);
   return length < 8 ? insertionSort(array, comparefn) : merge(
-    mergeSort(slice(array, 0, middle), comparefn),
-    mergeSort(slice(array, middle), comparefn),
+    mergeSort(arraySlice(array, 0, middle), comparefn),
+    mergeSort(arraySlice(array, middle), comparefn),
     comparefn
   );
 };

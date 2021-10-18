@@ -1,4 +1,5 @@
 var $ = require('../internals/export');
+var apply = require('../internals/function-apply');
 var getCompositeKeyNode = require('../internals/composite-key');
 var getBuiltIn = require('../internals/get-built-in');
 var create = require('../internals/object-create');
@@ -11,6 +12,6 @@ var initializer = function () {
 // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
 $({ global: true }, {
   compositeKey: function compositeKey() {
-    return getCompositeKeyNode.apply(Object, arguments).get('object', initializer);
+    return apply(getCompositeKeyNode, Object, arguments).get('object', initializer);
   }
 });

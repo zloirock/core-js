@@ -1,15 +1,14 @@
 'use strict';
 var global = require('../internals/global');
 var apply = require('../internals/function-apply');
-var uncurryThis = require('../internals/function-uncurry-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var fails = require('../internals/fails');
+var arraySlice = require('../internals/array-slice');
 
 var Int8Array = global.Int8Array;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var $toLocaleString = [].toLocaleString;
-var slice = uncurryThis([].slice);
 
 // iOS Safari 6.x fails here
 var TO_LOCALE_STRING_BUG = !!Int8Array && fails(function () {
@@ -25,6 +24,9 @@ var FORCED = fails(function () {
 // `%TypedArray%.prototype.toLocaleString` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.tolocalestring
 exportTypedArrayMethod('toLocaleString', function toLocaleString() {
-  for (var i = 0, l = arguments.length, args = Array(l); i < l; i++) args[i] = arguments[i];
-  return apply($toLocaleString, TO_LOCALE_STRING_BUG ? slice(aTypedArray(this)) : aTypedArray(this), args);
+  return apply(
+    $toLocaleString,
+    TO_LOCALE_STRING_BUG ? arraySlice(aTypedArray(this)) : aTypedArray(this),
+    arraySlice(arguments)
+  );
 }, FORCED);

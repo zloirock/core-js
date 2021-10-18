@@ -1,10 +1,8 @@
 /* eslint-disable es/no-object-getownpropertynames -- safe */
-var uncurryThis = require('../internals/function-uncurry-this');
 var classof = require('../internals/classof-raw');
 var toIndexedObject = require('../internals/to-indexed-object');
 var $getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-
-var slice = uncurryThis([].slice);
+var arraySlice = require('../internals/array-slice');
 
 var windowNames = typeof window == 'object' && window && Object.getOwnPropertyNames
   ? Object.getOwnPropertyNames(window) : [];
@@ -13,7 +11,7 @@ var getWindowNames = function (it) {
   try {
     return $getOwnPropertyNames(it);
   } catch (error) {
-    return slice(windowNames);
+    return arraySlice(windowNames);
   }
 };
 

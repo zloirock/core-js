@@ -1,10 +1,11 @@
 var global = require('../internals/global');
 var apply = require('../internals/function-apply');
+var bind = require('../internals/function-bind-context');
 var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
 var fails = require('../internals/fails');
-var bind = require('../internals/function-bind-context');
 var html = require('../internals/html');
+var arraySlice = require('../internals/array-slice');
 var createElement = require('../internals/document-create-element');
 var IS_IOS = require('../internals/engine-is-ios');
 var IS_NODE = require('../internals/engine-is-node');
@@ -50,10 +51,7 @@ var post = function (id) {
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
 if (!set || !clear) {
   set = function setImmediate(fn) {
-    var i = 1;
-    var length = arguments.length;
-    var args = Array(length - 1);
-    for (; length > i; i++) args[i - 1] = arguments[i];
+    var args = arraySlice(arguments, 1);
     queue[++counter] = function () {
       // eslint-disable-next-line no-new-func -- spec requirement
       apply(isCallable(fn) ? fn : Function(fn), undefined, args);

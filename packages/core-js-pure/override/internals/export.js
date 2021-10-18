@@ -1,5 +1,6 @@
 'use strict';
 var global = require('../internals/global');
+var apply = require('../internals/apply');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
@@ -17,7 +18,7 @@ var wrapConstructor = function (NativeConstructor) {
         case 1: return new NativeConstructor(a);
         case 2: return new NativeConstructor(a, b);
       } return new NativeConstructor(a, b, c);
-    } return NativeConstructor.apply(this, arguments);
+    } return apply(NativeConstructor, this, arguments);
   };
   Wrapper.prototype = NativeConstructor.prototype;
   return Wrapper;

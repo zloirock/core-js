@@ -28,6 +28,7 @@ var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var definePropertyModule = require('../internals/object-define-property');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
+var arraySlice = require('../internals/array-slice');
 var redefine = require('../internals/redefine');
 var shared = require('../internals/shared');
 var sharedKey = require('../internals/shared-key');
@@ -287,11 +288,8 @@ if ($stringify) {
   $({ target: 'JSON', stat: true, forced: FORCED_JSON_STRINGIFY }, {
     // eslint-disable-next-line no-unused-vars -- required for `.length`
     stringify: function stringify(it, replacer, space) {
-      var args = [it];
-      var index = 1;
-      var $replacer;
-      while (arguments.length > index) push(args, arguments[index++]);
-      $replacer = replacer;
+      var args = arraySlice(arguments);
+      var $replacer = replacer;
       if (!isObject(replacer) && it === undefined || isSymbol(it)) return; // IE8 returns string on undefined
       if (!isArray(replacer)) replacer = function (key, value) {
         if (isCallable($replacer)) value = call($replacer, this, key, value);

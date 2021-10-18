@@ -14,6 +14,7 @@ var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
 var assign = require('../internals/object-assign');
 var arrayFrom = require('../internals/array-from');
+var arraySlice = require('../internals/array-slice');
 var codeAt = require('../internals/string-multibyte').codeAt;
 var toASCII = require('../internals/string-punycode-to-ascii');
 var $toString = require('../internals/to-string');
@@ -50,7 +51,6 @@ var TAB_AND_NEW_LINE = /[\t\n\r]/g;
 /* eslint-enable regexp/no-control-character -- safe */
 var EOF;
 
-var arraySlice = uncurryThis([].slice);
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(ALPHA.exec);
 var join = uncurryThis([].join);

@@ -2,15 +2,17 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var isObject = require('../internals/is-object');
+var arraySlice = require('../internals/array-slice');
 
-var slice = uncurryThis([].slice);
+var concat = uncurryThis([].concat);
+var join = uncurryThis([].join);
 var factories = {};
 
 var construct = function (C, argsLength, args) {
   if (!(argsLength in factories)) {
     for (var list = [], i = 0; i < argsLength; i++) list[i] = 'a[' + i + ']';
     // eslint-disable-next-line no-new-func -- we have no proper alternatives, IE8- only
-    factories[argsLength] = Function('C,a', 'return new C(' + list.join(',') + ')');
+    factories[argsLength] = Function('C,a', 'return new C(' + join(list, ',') + ')');
   } return factories[argsLength](C, args);
 };
 
@@ -18,9 +20,9 @@ var construct = function (C, argsLength, args) {
 // https://tc39.es/ecma262/#sec-function.prototype.bind
 module.exports = Function.bind || function bind(that /* , ...args */) {
   var fn = aCallable(this);
-  var partArgs = slice(arguments, 1);
+  var partArgs = arraySlice(arguments, 1);
   var boundFunction = function bound(/* args... */) {
-    var args = partArgs.concat(slice(arguments));
+    var args = concat(partArgs, arraySlice(arguments));
     return this instanceof boundFunction ? construct(fn, args.length, args) : fn.apply(that, args);
   };
   if (isObject(fn.prototype)) boundFunction.prototype = fn.prototype;

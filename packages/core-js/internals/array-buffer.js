@@ -17,6 +17,7 @@ var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var defineProperty = require('../internals/object-define-property').f;
 var arrayFill = require('../internals/array-fill');
+var arraySlice = require('../internals/array-slice');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 
@@ -37,7 +38,6 @@ var ObjectPrototype = Object.prototype;
 var RangeError = global.RangeError;
 var fill = uncurryThis(arrayFill);
 var reverse = uncurryThis([].reverse);
-var slice = uncurryThis([].slice);
 
 var packIEEE754 = IEEE754.pack;
 var unpackIEEE754 = IEEE754.unpack;
@@ -76,7 +76,7 @@ var get = function (view, count, index, isLittleEndian) {
   if (intIndex + count > store.byteLength) throw RangeError(WRONG_INDEX);
   var bytes = getInternalState(store.buffer).bytes;
   var start = intIndex + store.byteOffset;
-  var pack = slice(bytes, start, start + count);
+  var pack = arraySlice(bytes, start, start + count);
   return isLittleEndian ? pack : reverse(pack);
 };
 

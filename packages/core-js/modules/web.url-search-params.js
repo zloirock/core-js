@@ -24,6 +24,7 @@ var createPropertyDescriptor = require('../internals/create-property-descriptor'
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var arraySlice = require('../internals/array-slice');
 
 var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
@@ -38,7 +39,6 @@ var Headers = getBuiltIn('Headers');
 var RequestPrototype = N$Request && N$Request.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
 
-var arraySlice = uncurryThis([].slice);
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
