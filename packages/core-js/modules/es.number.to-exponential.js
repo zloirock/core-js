@@ -1,37 +1,42 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
+var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
-var repeat = require('../internals/string-repeat');
+var arraySlice = require('../internals/array-slice');
+var $repeat = require('../internals/string-repeat');
 var log10 = require('../internals/math-log10');
 var fails = require('../internals/fails');
 
+var RangeError = global.RangeError;
+var String = global.String;
 var abs = Math.abs;
 var floor = Math.floor;
 var pow = Math.pow;
 var round = Math.round;
-var nativeToExponential = 1.0.toExponential;
-var slice = ''.slice;
+var un$ToExponential = uncurryThis(1.0.toExponential);
+var repeat = uncurryThis($repeat);
 
 // Edge 17-
-var ROUNDS_PROPERLY = nativeToExponential.call(-6.9e-11, 4) === '-6.9000e-11'
+var ROUNDS_PROPERLY = un$ToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // IE11- && Edge 14-
-  && nativeToExponential.call(1.255, 2) === '1.25e+0';
+  && un$ToExponential(1.255, 2) === '1.25e+0';
   // FF86-, enable after increasing maximum number of fraction digits in the implementation to 100
   // && nativeToExponential.call(25, 0) === '3e+1';
 
 // IE8-
 var THROWS_ON_INFINITY_FRACTION = fails(function () {
-  nativeToExponential.call(1, Infinity);
+  un$ToExponential(1, Infinity);
 }) && fails(function () {
-  nativeToExponential.call(1, -Infinity);
+  un$ToExponential(1, -Infinity);
 });
 
 // Safari <11 && FF <50
 var PROPER_NON_FINITE_THIS_CHECK = !fails(function () {
-  nativeToExponential.call(Infinity, Infinity);
+  un$ToExponential(Infinity, Infinity);
 }) && !fails(function () {
-  nativeToExponential.call(NaN, Infinity);
+  un$ToExponential(NaN, Infinity);
 });
 
 var FORCED = !ROUNDS_PROPERLY || !THROWS_ON_INFINITY_FRACTION || !PROPER_NON_FINITE_THIS_CHECK;
@@ -41,12 +46,12 @@ var FORCED = !ROUNDS_PROPERLY || !THROWS_ON_INFINITY_FRACTION || !PROPER_NON_FIN
 $({ target: 'Number', proto: true, forced: FORCED }, {
   toExponential: function toExponential(fractionDigits) {
     var x = thisNumberValue(this);
-    if (fractionDigits === undefined) return nativeToExponential.call(x);
+    if (fractionDigits === undefined) return un$ToExponential(x);
     var f = toIntegerOrInfinity(fractionDigits);
     if (!isFinite(x)) return String(x);
     // TODO: ES2018 increased the maximum number of fraction digits to 100, need to improve the implementation
     if (f < 0 || f > 20) throw RangeError('Incorrect fraction digits');
-    if (ROUNDS_PROPERLY) return nativeToExponential.call(x, f);
+    if (ROUNDS_PROPERLY) return un$ToExponential(x, f);
     var s = '';
     var m = '';
     var e = 0;
@@ -58,7 +63,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     }
     if (x === 0) {
       e = 0;
-      m = repeat.call('0', f + 1);
+      m = repeat('0', f + 1);
     } else {
       // this block is based on https://gist.github.com/SheetJSDev/1100ad56b9f856c95299ed0e068eea08
       // TODO: improve accuracy with big fraction digits
@@ -77,7 +82,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       m = String(n);
     }
     if (f !== 0) {
-      m = slice.call(m, 0, 1) + '.' + slice.call(m, 1);
+      m = arraySlice(m, 0, 1) + '.' + arraySlice(m, 1);
     }
     if (e === 0) {
       c = '+';
