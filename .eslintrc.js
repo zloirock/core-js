@@ -988,6 +988,7 @@ module.exports = {
   root: true,
   parserOptions: {
     ecmaVersion: 'latest',
+    sourceType: 'script',
   },
   env: {
     // unnececery global builtins disabled by related rules
