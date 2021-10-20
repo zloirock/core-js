@@ -78,6 +78,7 @@ module.exports = async function ({
       output: {
         path: tmpdir,
         filename: tempFileName,
+        hashFunction: 'md5',
       },
     });
 

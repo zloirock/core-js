@@ -16,6 +16,7 @@ module.exports = {
   target: ['node', 'es5'],
   stats: 'errors-warnings',
   output: {
+    hashFunction: 'md5',
     path: resolve(__dirname, './tests/bundles'),
   },
 };
