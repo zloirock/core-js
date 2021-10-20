@@ -1823,16 +1823,19 @@ export const data = {
     chrome: '46',
     deno: '1.7',
     firefox: '37',
+    node: '17.0',
     safari: '11.1',
   },
   'web.dom-exception.stack': {
     deno: '1.7',
     firefox: '37',
+    node: '17.0',
   },
   'web.dom-exception.to-string-tag': {
     chrome: '49',
     deno: '1.7',
     firefox: '51',
+    node: '17.0',
     safari: '11.1',
   },
   'web.immediate': {
