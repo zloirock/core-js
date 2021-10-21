@@ -7,21 +7,23 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
+var clearErrorStack = require('../internals/clear-error-stack');
 var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
+var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var Error = global.Error;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
-  var that = this;
+  var that = this instanceof $AggregateError ? this : create($AggregateErrorPrototype);
   var options = arguments.length > 2 ? arguments[2] : undefined;
-  if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message, options);
   if (setPrototypeOf) {
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
   createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));
+  if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(that, 'stack', clearErrorStack(that.stack, 1));
   installErrorCause(that, options);
   var errorsArray = [];
   iterate(errors, push, { that: errorsArray });
@@ -32,7 +34,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
 if (setPrototypeOf) setPrototypeOf($AggregateError, Error);
 else copyConstructorProperties($AggregateError, Error);
 
-$AggregateError.prototype = create(Error.prototype, {
+var $AggregateErrorPrototype = $AggregateError.prototype = create(Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),
   message: createPropertyDescriptor(1, ''),
   name: createPropertyDescriptor(1, 'AggregateError')
