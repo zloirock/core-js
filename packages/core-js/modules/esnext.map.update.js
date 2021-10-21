@@ -1,8 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
+
+var TypeError = global.TypeError;
 
 // `Set.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods

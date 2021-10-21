@@ -1,11 +1,15 @@
+var global = require('../internals/global');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
+var tryToString = require('../internals/try-to-string');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var bind = require('../internals/function-bind-context');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var iteratorClose = require('../internals/iterator-close');
+
+var TypeError = global.TypeError;
 
 var Result = function (stopped, result) {
   this.stopped = stopped;
@@ -36,7 +40,7 @@ module.exports = function (iterable, unboundFunction, options) {
     iterator = iterable;
   } else {
     iterFn = getIteratorMethod(iterable);
-    if (!iterFn) throw TypeError(String(iterable) + ' is not iterable');
+    if (!iterFn) throw TypeError(tryToString(iterable) + ' is not iterable');
     // optimisation for array iterators
     if (isArrayIteratorMethod(iterFn)) {
       for (index = 0, length = lengthOfArrayLike(iterable); length > index; index++) {

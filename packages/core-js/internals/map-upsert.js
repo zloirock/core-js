@@ -1,6 +1,9 @@
 'use strict';
+var global = require('../internals/global');
 var isCallable = require('../internals/is-callable');
 var anObject = require('../internals/an-object');
+
+var TypeError = global.TypeError;
 
 // `Map.prototype.upsert` method
 // https://github.com/thumbsupep/proposal-upsert

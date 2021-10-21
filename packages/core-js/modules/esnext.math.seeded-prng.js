@@ -1,4 +1,5 @@
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var anObject = require('../internals/an-object');
 var numberIsFinite = require('../internals/number-is-finite');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
@@ -6,9 +7,10 @@ var InternalStateModule = require('../internals/internal-state');
 
 var SEEDED_RANDOM = 'Seeded Random';
 var SEEDED_RANDOM_GENERATOR = SEEDED_RANDOM + ' Generator';
+var SEED_TYPE_ERROR = 'Math.seededPRNG() argument should have a "seed" field with a finite value.';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(SEEDED_RANDOM_GENERATOR);
-var SEED_TYPE_ERROR = 'Math.seededPRNG() argument should have a "seed" field with a finite value.';
+var TypeError = global.TypeError;
 
 var $SeededRandomGenerator = createIteratorConstructor(function SeededRandomGenerator(seed) {
   setInternalState(this, {

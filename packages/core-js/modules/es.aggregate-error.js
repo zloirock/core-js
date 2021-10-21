@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
@@ -10,6 +11,7 @@ var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 
+var Error = global.Error;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
@@ -17,7 +19,6 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   var options = arguments.length > 2 ? arguments[2] : undefined;
   if (!(that instanceof $AggregateError)) return new $AggregateError(errors, message, options);
   if (setPrototypeOf) {
-    // eslint-disable-next-line unicorn/error-message -- expected
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
   }
   createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));

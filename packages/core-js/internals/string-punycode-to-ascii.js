@@ -1,5 +1,6 @@
 'use strict';
 // based on https://github.com/bestiejs/punycode.js/blob/master/punycode.js
+var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var maxInt = 2147483647; // aka. 0x7FFFFFFF or 2^31-1
@@ -16,6 +17,7 @@ var regexSeparators = /[.\u3002\uFF0E\uFF61]/g; // RFC 3490 separators
 var OVERFLOW_ERROR = 'Overflow: input needs wider integers to process';
 var baseMinusTMin = base - tMin;
 
+var RangeError = global.RangeError;
 var exec = uncurryThis(regexSeparators.exec);
 var floor = Math.floor;
 var fromCharCode = String.fromCharCode;

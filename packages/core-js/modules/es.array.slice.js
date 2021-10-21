@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var isArray = require('../internals/is-array');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
@@ -14,6 +15,7 @@ var un$Slice = require('../internals/array-slice');
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
+var Array = global.Array;
 var max = Math.max;
 
 // `Array.prototype.slice` method

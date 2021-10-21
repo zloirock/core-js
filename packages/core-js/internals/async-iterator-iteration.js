@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 // https://github.com/tc39/proposal-array-from-async
+var global = require('../internals/global');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
@@ -8,6 +9,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
+var TypeError = global.TypeError;
 
 var createMethod = function (TYPE) {
   var IS_TO_ARRAY = TYPE == 0;

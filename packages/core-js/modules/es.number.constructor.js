@@ -18,6 +18,7 @@ var trim = require('../internals/string-trim').trim;
 var NUMBER = 'Number';
 var NativeNumber = global[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
+var TypeError = global.TypeError;
 var arraySlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 

@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -10,6 +11,7 @@ var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-specie
 
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('splice');
 
+var TypeError = global.TypeError;
 var max = Math.max;
 var min = Math.min;
 var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;

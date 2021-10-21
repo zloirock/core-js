@@ -13,8 +13,10 @@ var IS_NODE = require('../internals/engine-is-node');
 var set = global.setImmediate;
 var clear = global.clearImmediate;
 var process = global.process;
-var MessageChannel = global.MessageChannel;
 var Dispatch = global.Dispatch;
+var Function = global.Function;
+var MessageChannel = global.MessageChannel;
+var String = global.String;
 var counter = 0;
 var queue = {};
 var ONREADYSTATECHANGE = 'onreadystatechange';
@@ -53,7 +55,6 @@ if (!set || !clear) {
   set = function setImmediate(fn) {
     var args = arraySlice(arguments, 1);
     queue[++counter] = function () {
-      // eslint-disable-next-line no-new-func -- spec requirement
       apply(isCallable(fn) ? fn : Function(fn), undefined, args);
     };
     defer(counter);

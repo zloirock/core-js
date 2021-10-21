@@ -1,10 +1,12 @@
 'use strict';
+var global = require('../internals/global');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toOffset = require('../internals/to-offset');
 var toObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 
+var RangeError = global.RangeError;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 

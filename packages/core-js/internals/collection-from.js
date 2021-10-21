@@ -1,9 +1,12 @@
 'use strict';
 // https://tc39.github.io/proposal-setmap-offrom/
+var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var aConstructor = require('../internals/a-constructor');
 var bind = require('../internals/function-bind-context');
 var iterate = require('../internals/iterate');
+
+var push = uncurryThis([].push);
 
 module.exports = function from(source /* , mapFn, thisArg */) {
   var length = arguments.length;
@@ -18,7 +21,7 @@ module.exports = function from(source /* , mapFn, thisArg */) {
     n = 0;
     boundFunction = bind(mapFn, length > 2 ? arguments[2] : undefined);
     iterate(source, function (nextItem) {
-      array.push(boundFunction(nextItem, n++));
+      push(array, boundFunction(nextItem, n++));
     });
   } else {
     iterate(source, array.push, { that: array });

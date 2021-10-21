@@ -1,7 +1,10 @@
+var global = require('../internals/global');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+
+var TypeError = global.TypeError;
 
 // `Array.prototype.{ reduce, reduceRight }` methods implementation
 var createMethod = function (IS_RIGHT) {

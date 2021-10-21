@@ -1,9 +1,11 @@
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
 var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
+var Array = global.Array;
 var $stringify = getBuiltIn('JSON', 'stringify');
 var tester = /[\uD800-\uDFFF]/g;
 var low = /^[\uD800-\uDBFF]$/;

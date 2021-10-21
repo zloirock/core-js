@@ -1,3 +1,4 @@
+var global = require('../internals/global');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IndexedObject = require('../internals/indexed-object');
@@ -7,6 +8,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var objectCreate = require('../internals/object-create');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
+var Array = global.Array;
 var push = uncurryThis([].push);
 
 module.exports = function ($this, callbackfn, that, specificConstructor) {

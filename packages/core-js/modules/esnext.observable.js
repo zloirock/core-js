@@ -1,6 +1,7 @@
 'use strict';
 // https://github.com/tc39/proposal-observable
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var call = require('../internals/function-call');
 var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
@@ -23,6 +24,7 @@ var InternalStateModule = require('../internals/internal-state');
 var OBSERVABLE = wellKnownSymbol('observable');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
+var Array = global.Array;
 
 var cleanupSubscription = function (subscriptionState) {
   var cleanup = subscriptionState.cleanup;

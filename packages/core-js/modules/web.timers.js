@@ -6,13 +6,13 @@ var userAgent = require('../internals/engine-user-agent');
 var arraySlice = require('../internals/array-slice');
 
 var MSIE = /MSIE .\./.test(userAgent); // <- dirty ie9- check
+var Function = global.Function;
 
 var wrap = function (scheduler) {
   return function (handler, timeout /* , ...arguments */) {
     var boundArgs = arguments.length > 2;
     var args = boundArgs ? arraySlice(arguments, 2) : undefined;
     return scheduler(boundArgs ? function () {
-      // eslint-disable-next-line no-new-func -- spec requirement
       apply(isCallable(handler) ? handler : Function(handler), this, args);
     } : handler, timeout);
   };

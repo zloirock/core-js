@@ -1,3 +1,7 @@
+var global = require('../internals/global');
+
+var String = global.String;
+
 module.exports = function (argument) {
   try {
     return String(argument);

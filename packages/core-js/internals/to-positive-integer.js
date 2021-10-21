@@ -1,4 +1,7 @@
+var global = require('../internals/global');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
+
+var RangeError = global.RangeError;
 
 module.exports = function (it) {
   var result = toIntegerOrInfinity(it);

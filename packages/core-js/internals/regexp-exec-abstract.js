@@ -1,8 +1,11 @@
+var global = require('../internals/global');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var isCallable = require('../internals/is-callable');
 var classof = require('../internals/classof-raw');
 var regexpExec = require('../internals/regexp-exec');
+
+var TypeError = global.TypeError;
 
 // `RegExpExec` abstract operation
 // https://tc39.es/ecma262/#sec-regexpexec

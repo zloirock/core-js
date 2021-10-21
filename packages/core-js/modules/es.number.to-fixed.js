@@ -1,11 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
 var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
+var RangeError = global.RangeError;
+var String = global.String;
 var floor = Math.floor;
 var repeat = uncurryThis($repeat);
 var stringSlice = uncurryThis(''.slice);

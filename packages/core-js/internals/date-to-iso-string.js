@@ -1,8 +1,10 @@
 'use strict';
+var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var padStart = require('../internals/string-pad').start;
 
+var RangeError = global.RangeError;
 var abs = Math.abs;
 var DatePrototype = Date.prototype;
 var n$DateToISOString = DatePrototype.toISOString;

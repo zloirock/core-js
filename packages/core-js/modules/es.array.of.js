@@ -1,12 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var fails = require('../internals/fails');
 var isConstructor = require('../internals/is-constructor');
 var createProperty = require('../internals/create-property');
 
+var Array = global.Array;
+
 var ISNT_GENERIC = fails(function () {
   function F() { /* empty */ }
-  // eslint-disable-next-line es/no-array-of -- required for testing
   return !(Array.of.call(F) instanceof F);
 });
 

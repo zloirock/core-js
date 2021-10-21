@@ -2,6 +2,7 @@
 // TODO: Remove from `core-js@4` since it's moved to entry points
 require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
@@ -17,6 +18,7 @@ var DELEGATES_TO_EXEC = function () {
   return re.test('abc') === true && execCalled;
 }();
 
+var Error = global.Error;
 var un$Test = uncurryThis(/./.test);
 
 // `RegExp.prototype.test` method

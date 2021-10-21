@@ -1,4 +1,7 @@
+var global = require('../internals/global');
 var isRegExp = require('../internals/is-regexp');
+
+var TypeError = global.TypeError;
 
 module.exports = function (it) {
   if (isRegExp(it)) {

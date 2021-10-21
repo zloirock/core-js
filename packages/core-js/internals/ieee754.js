@@ -1,4 +1,7 @@
 // IEEE754 conversions based on https://github.com/feross/ieee754
+var global = require('../internals/global');
+
+var Array = global.Array;
 var abs = Math.abs;
 var pow = Math.pow;
 var floor = Math.floor;

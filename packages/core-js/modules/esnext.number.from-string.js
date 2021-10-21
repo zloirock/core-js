@@ -1,11 +1,15 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var parseInt = require('../internals/number-parse-int');
 
 var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
 var INVALID_RADIX = 'Invalid radix';
+var RangeError = global.RangeError;
+var SyntaxError = global.SyntaxError;
+var TypeError = global.TypeError;
 var valid = /^[\da-z]+$/;
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(valid.exec);

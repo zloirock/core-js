@@ -1,9 +1,13 @@
 var $ = require('../internals/export');
+var global = require('../internals/global');
+var uncurryThis = require('../internals/function-uncurry-this');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 
+var RangeError = global.RangeError;
 var fromCharCode = String.fromCharCode;
 // eslint-disable-next-line es/no-string-fromcodepoint -- required for testing
 var $fromCodePoint = String.fromCodePoint;
+var join = uncurryThis([].join);
 
 // length should be 1, old FF problem
 var INCORRECT_LENGTH = !!$fromCodePoint && $fromCodePoint.length != 1;
@@ -23,6 +27,6 @@ $({ target: 'String', stat: true, forced: INCORRECT_LENGTH }, {
       elements[i] = code < 0x10000
         ? fromCharCode(code)
         : fromCharCode(((code -= 0x10000) >> 10) + 0xD800, code % 0x400 + 0xDC00);
-    } return elements.join('');
+    } return join(elements, '');
   }
 });

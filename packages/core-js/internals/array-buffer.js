@@ -35,6 +35,7 @@ var $ArrayBuffer = NativeArrayBuffer;
 var $DataView = global[DATA_VIEW];
 var $DataViewPrototype = $DataView && $DataView[PROTOTYPE];
 var ObjectPrototype = Object.prototype;
+var Array = global.Array;
 var RangeError = global.RangeError;
 var fill = uncurryThis(arrayFill);
 var reverse = uncurryThis([].reverse);

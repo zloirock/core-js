@@ -23,6 +23,7 @@ var Uint8ClampedArrayPrototype = Uint8ClampedArray && Uint8ClampedArray.prototyp
 var TypedArray = Int8Array && getPrototypeOf(Int8Array);
 var TypedArrayPrototype = Int8ArrayPrototype && getPrototypeOf(Int8ArrayPrototype);
 var ObjectPrototype = Object.prototype;
+var TypeError = global.TypeError;
 var isPrototypeOf = uncurryThis(ObjectPrototype.isPrototypeOf);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');

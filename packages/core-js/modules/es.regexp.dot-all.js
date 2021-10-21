@@ -1,8 +1,12 @@
+var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var defineProperty = require('../internals/object-define-property').f;
 var getInternalState = require('../internals/internal-state').get;
+
+var RegExp = global.RegExp;
 var RegExpPrototype = RegExp.prototype;
+var TypeError = global.TypeError;
 
 // `RegExp.prototype.dotAll` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.dotall
