@@ -76,9 +76,9 @@ module.exports = async function ({
       },
       entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
-        path: tmpdir,
         filename: tempFileName,
         hashFunction: 'md5',
+        path: tmpdir,
       },
     });
 
