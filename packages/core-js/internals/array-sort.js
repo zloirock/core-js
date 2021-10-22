@@ -1,13 +1,12 @@
-var uncurryThis = require('../internals/function-uncurry-this');
 var arraySlice = require('../internals/array-slice');
 
 var floor = Math.floor;
-var push = uncurryThis([].push);
 
 var mergeSort = function (array, comparefn) {
   var length = array.length;
   var middle = floor(length / 2);
   return length < 8 ? insertionSort(array, comparefn) : merge(
+    array,
     mergeSort(arraySlice(array, 0, middle), comparefn),
     mergeSort(arraySlice(array, middle), comparefn),
     comparefn
@@ -29,20 +28,20 @@ var insertionSort = function (array, comparefn) {
   } return array;
 };
 
-var merge = function (left, right, comparefn) {
+var merge = function (array, left, right, comparefn) {
   var llength = left.length;
   var rlength = right.length;
   var lindex = 0;
   var rindex = 0;
-  var result = [];
+  var index = 0;
 
   while (lindex < llength || rindex < rlength) {
     if (lindex < llength && rindex < rlength) {
-      push(result, comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++]);
+      array[index++] = comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++];
     } else {
-      push(result, lindex < llength ? left[lindex++] : right[rindex++]);
+      array[index++] = lindex < llength ? left[lindex++] : right[rindex++];
     }
-  } return result;
+  } return array;
 };
 
 module.exports = mergeSort;

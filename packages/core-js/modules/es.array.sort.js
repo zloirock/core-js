@@ -92,7 +92,8 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
       if (index in array) push(items, array[index]);
     }
 
-    items = internalSort(items, getSortCompare(comparefn));
+    internalSort(items, getSortCompare(comparefn));
+
     itemsLength = items.length;
     index = 0;
 
