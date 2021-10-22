@@ -1,6 +1,7 @@
 var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
+var classof = require('../internals/classof-raw');
 var defineProperty = require('../internals/object-define-property').f;
 var getInternalState = require('../internals/internal-state').get;
 
@@ -17,7 +18,7 @@ if (DESCRIPTORS && UNSUPPORTED_DOT_ALL) {
       if (this === RegExpPrototype) return undefined;
       // We can't use InternalStateModule.getterFor because
       // we don't add metadata for regexps created by a literal.
-      if (this instanceof RegExp) {
+      if (classof(this) === 'RegExp') {
         return !!getInternalState(this).dotAll;
       }
       throw TypeError('Incompatible receiver, RegExp required');
