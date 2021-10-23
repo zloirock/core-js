@@ -71,6 +71,8 @@ const base = {
   'no-unsafe-optional-chaining': ERROR,
   // disallow loops with a body that allows only one iteration
   'no-unreachable-loop': ERROR,
+  // disallow unused private class members
+  'no-unused-private-class-members': ERROR,
   // disallow comparisons with the value NaN
   'use-isnan': ERROR,
   // disallow unreachable statements after a return, throw, continue, or break statement
