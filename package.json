@@ -56,7 +56,7 @@
     "phantomjs-prebuilt": "~2.1.16",
     "promises-aplus-tests": "^2.1.2",
     "puppeteer": "~10.4.0",
-    "p-timeout": "^5.0.1",
+    "p-timeout": "^5.0.2",
     "qunit": "^2.17.2",
     "semver": "^7.3.5",
     "terser": "^5.9.0",
