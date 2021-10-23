@@ -1,7 +1,8 @@
 'use strict';
-var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var isCallable = require('../internals/is-callable');
 var anObject = require('../internals/an-object');
@@ -20,7 +21,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
       hasCheck = aCallable(otherSet.has);
     }
     return !iterate(iterator, function (value, stop) {
-      if (hasCheck.call(otherSet, value) === false) return stop();
+      if (call(hasCheck, otherSet, value) === false) return stop();
     }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
   }
 });

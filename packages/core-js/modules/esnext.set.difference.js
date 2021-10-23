@@ -1,7 +1,8 @@
 'use strict';
-var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var speciesConstructor = require('../internals/species-constructor');
@@ -15,7 +16,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
     var remover = aCallable(newSet['delete']);
     iterate(iterable, function (value) {
-      remover.call(newSet, value);
+      call(remover, newSet, value);
     });
     return newSet;
   }

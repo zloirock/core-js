@@ -1,4 +1,5 @@
 'use strict';
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 
@@ -9,7 +10,7 @@ module.exports = function deleteAll(/* ...elements */) {
   var allDeleted = true;
   var wasDeleted;
   for (var k = 0, len = arguments.length; k < len; k++) {
-    wasDeleted = remover.call(collection, arguments[k]);
+    wasDeleted = call(remover, collection, arguments[k]);
     allDeleted = allDeleted && wasDeleted;
   }
   return !!allDeleted;

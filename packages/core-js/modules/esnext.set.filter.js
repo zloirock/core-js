@@ -1,7 +1,8 @@
 'use strict';
-var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var bind = require('../internals/function-bind-context');
@@ -19,7 +20,7 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();
     var adder = aCallable(newSet.add);
     iterate(iterator, function (value) {
-      if (boundFunction(value, value, set)) adder.call(newSet, value);
+      if (boundFunction(value, value, set)) call(adder, newSet, value);
     }, { IS_ITERATOR: true });
     return newSet;
   }

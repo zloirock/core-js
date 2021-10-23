@@ -1,10 +1,11 @@
 'use strict';
-var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var bind = require('../internals/function-bind-context');
+var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var bind = require('../internals/function-bind-context');
 var speciesConstructor = require('../internals/species-constructor');
 var getMapIterator = require('../internals/get-map-iterator');
 var iterate = require('../internals/iterate');
@@ -19,7 +20,7 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
     var newMap = new (speciesConstructor(map, getBuiltIn('Map')))();
     var setter = aCallable(newMap.set);
     iterate(iterator, function (key, value) {
-      if (boundFunction(value, key, map)) setter.call(newMap, key, value);
+      if (boundFunction(value, key, map)) call(setter, newMap, key, value);
     }, { AS_ENTRIES: true, IS_ITERATOR: true });
     return newMap;
   }

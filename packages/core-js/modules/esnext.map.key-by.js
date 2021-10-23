@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
 
@@ -11,7 +12,7 @@ $({ target: 'Map', stat: true }, {
     aCallable(keyDerivative);
     var setter = aCallable(newMap.set);
     iterate(iterable, function (element) {
-      setter.call(newMap, keyDerivative(element), element);
+      call(setter, newMap, keyDerivative(element), element);
     });
     return newMap;
   }

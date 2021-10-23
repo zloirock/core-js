@@ -1,7 +1,8 @@
 'use strict';
+var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
-var IS_PURE = require('../internals/is-pure');
+var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
 
@@ -12,14 +13,17 @@ var TypeError = global.TypeError;
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   update: function update(key, callback /* , thunk */) {
     var map = anObject(this);
+    var get = aCallable(map.get);
+    var has = aCallable(map.has);
+    var set = aCallable(map.set);
     var length = arguments.length;
     aCallable(callback);
-    var isPresentInMap = map.has(key);
+    var isPresentInMap = call(has, map, key);
     if (!isPresentInMap && length < 3) {
       throw TypeError('Updating absent value');
     }
-    var value = isPresentInMap ? map.get(key) : aCallable(length > 2 ? arguments[2] : undefined)(key, map);
-    map.set(key, callback(value, key, map));
+    var value = isPresentInMap ? call(get, map, key) : aCallable(length > 2 ? arguments[2] : undefined)(key, map);
+    call(set, map, key, callback(value, key, map));
     return map;
   }
 });

@@ -1,6 +1,6 @@
 'use strict';
-var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
+var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var getMapIterator = require('../internals/get-map-iterator');
 var sameValueZero = require('../internals/same-value-zero');
