@@ -18,7 +18,7 @@ var patchedExec = nativeExec;
 var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/;
@@ -64,7 +64,7 @@ if (PATCH) {
         flags += 'g';
       }
 
-      strCopy = slice(str, re.lastIndex);
+      strCopy = stringSlice(str, re.lastIndex);
       // Support anchored sticky behavior.
       if (re.lastIndex > 0 && (!re.multiline || re.multiline && charAt(str, re.lastIndex - 1) !== '\n')) {
         source = '(?: ' + source + ')';
@@ -85,8 +85,8 @@ if (PATCH) {
 
     if (sticky) {
       if (match) {
-        match.input = slice(match.input, charsAdded);
-        match[0] = slice(match[0], charsAdded);
+        match.input = stringSlice(match.input, charsAdded);
+        match[0] = stringSlice(match[0], charsAdded);
         match.index = re.lastIndex;
         re.lastIndex += match[0].length;
       } else re.lastIndex = 0;

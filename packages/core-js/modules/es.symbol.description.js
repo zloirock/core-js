@@ -37,7 +37,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in NativeSymbol.
   var symbolValueOf = uncurryThis(symbolPrototype.valueOf);
   var regexp = /^Symbol\((.*)\)[^)]+$/;
   var replace = uncurryThis(''.replace);
-  var slice = uncurryThis(''.slice);
+  var stringSlice = uncurryThis(''.slice);
 
   defineProperty(symbolPrototype, 'description', {
     configurable: true,
@@ -45,7 +45,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in NativeSymbol.
       var symbol = symbolValueOf(this);
       var string = symbolToString(symbol);
       if (hasOwn(EmptyStringDescriptionStore, symbol)) return '';
-      var desc = NATIVE_SYMBOL ? slice(string, 7, -1) : replace(string, regexp, '$1');
+      var desc = NATIVE_SYMBOL ? stringSlice(string, 7, -1) : replace(string, regexp, '$1');
       return desc === '' ? undefined : desc;
     }
   });

@@ -3,12 +3,13 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 
-var hex2 = /^[\da-f]{2}$/i;
-var hex4 = /^[\da-f]{4}$/i;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
-var exec = uncurryThis(hex2.exec);
+var exec = uncurryThis(/./.exec);
 var stringSlice = uncurryThis(''.slice);
+
+var hex2 = /^[\da-f]{2}$/i;
+var hex4 = /^[\da-f]{4}$/i;
 
 // `unescape` method
 // https://tc39.es/ecma262/#sec-unescape-string

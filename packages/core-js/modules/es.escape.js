@@ -3,12 +3,13 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 
-var raw = /[\w*+\-./@]/;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
-var exec = uncurryThis(raw.exec);
+var exec = uncurryThis(/./.exec);
 var numberToString = uncurryThis(1.0.toString);
 var toUpperCase = uncurryThis(''.toUpperCase);
+
+var raw = /[\w*+\-./@]/;
 
 var hex = function (code, length) {
   var result = numberToString(code, 16);

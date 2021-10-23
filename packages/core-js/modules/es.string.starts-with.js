@@ -11,7 +11,7 @@ var IS_PURE = require('../internals/is-pure');
 
 // eslint-disable-next-line es/no-string-prototype-startswith -- safe
 var un$StartsWith = uncurryThis(''.startsWith);
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 var min = Math.min;
 
 var CORRECT_IS_REGEXP_LOGIC = correctIsRegExpLogic('startsWith');
@@ -31,6 +31,6 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     var search = toString(searchString);
     return un$StartsWith
       ? un$StartsWith(that, search, index)
-      : slice(that, index, index + search.length) === search;
+      : stringSlice(that, index, index + search.length) === search;
   }
 });

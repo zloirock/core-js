@@ -5,7 +5,7 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toString = require('../internals/to-string');
 
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 var max = Math.max;
 var min = Math.min;
 
@@ -25,6 +25,6 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     intLength = length === undefined ? size : toIntegerOrInfinity(length);
     if (intLength <= 0 || intLength === Infinity) return '';
     intEnd = min(intStart + intLength, size);
-    return intStart >= intEnd ? '' : slice(that, intStart, intEnd);
+    return intStart >= intEnd ? '' : stringSlice(that, intStart, intEnd);
   }
 });

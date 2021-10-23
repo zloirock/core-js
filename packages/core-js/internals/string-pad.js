@@ -6,7 +6,7 @@ var $repeat = require('../internals/string-repeat');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
 var repeat = uncurryThis($repeat);
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 var ceil = Math.ceil;
 
 // `String.prototype.{ padStart, padEnd }` methods implementation
@@ -20,7 +20,7 @@ var createMethod = function (IS_END) {
     if (intMaxLength <= stringLength || fillStr == '') return S;
     fillLen = intMaxLength - stringLength;
     stringFiller = repeat(fillStr, ceil(fillLen / fillStr.length));
-    if (stringFiller.length > fillLen) stringFiller = slice(stringFiller, 0, fillLen);
+    if (stringFiller.length > fillLen) stringFiller = stringSlice(stringFiller, 0, fillLen);
     return IS_END ? S + stringFiller : stringFiller + S;
   };
 };

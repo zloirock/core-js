@@ -4,7 +4,7 @@ var toObject = require('../internals/to-object');
 var floor = Math.floor;
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 var SUBSTITUTION_SYMBOLS = /\$([$&'`]|\d{1,2}|<[^>]*>)/g;
 var SUBSTITUTION_SYMBOLS_NO_NAMED = /\$([$&'`]|\d{1,2})/g;
 
@@ -23,10 +23,10 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
     switch (charAt(ch, 0)) {
       case '$': return '$';
       case '&': return matched;
-      case '`': return slice(str, 0, position);
-      case "'": return slice(str, tailPos);
+      case '`': return stringSlice(str, 0, position);
+      case "'": return stringSlice(str, tailPos);
       case '<':
-        capture = namedCaptures[slice(ch, 1, -1)];
+        capture = namedCaptures[stringSlice(ch, 1, -1)];
         break;
       default: // \d\d?
         var n = +ch;

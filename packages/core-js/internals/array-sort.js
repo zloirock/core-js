@@ -33,14 +33,11 @@ var merge = function (array, left, right, comparefn) {
   var rlength = right.length;
   var lindex = 0;
   var rindex = 0;
-  var index = 0;
 
   while (lindex < llength || rindex < rlength) {
-    if (lindex < llength && rindex < rlength) {
-      array[index++] = comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++];
-    } else {
-      array[index++] = lindex < llength ? left[lindex++] : right[rindex++];
-    }
+    array[lindex + rindex] = (lindex < llength && rindex < rlength)
+      ? comparefn(left[lindex], right[rindex]) <= 0 ? left[lindex++] : right[rindex++]
+      : lindex < llength ? left[lindex++] : right[rindex++];
   } return array;
 };
 

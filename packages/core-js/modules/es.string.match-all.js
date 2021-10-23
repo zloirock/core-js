@@ -62,7 +62,7 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
   return { value: match, done: false };
 });
 
-var $MatchAll = function (string) {
+var $matchAll = function (string) {
   var R = anObject(this);
   var S = toString(string);
   var C, flagsValue, flags, matcher, $global, fullUnicode;
@@ -95,13 +95,13 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
       }
       if (WORKS_WITH_NON_GLOBAL_REGEX) return un$MatchAll(O, regexp);
       matcher = getMethod(regexp, MATCH_ALL);
-      if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $MatchAll;
+      if (matcher === undefined && IS_PURE && classof(regexp) == 'RegExp') matcher = $matchAll;
       if (matcher) return call(matcher, regexp, O);
     } else if (WORKS_WITH_NON_GLOBAL_REGEX) return un$MatchAll(O, regexp);
     S = toString(O);
     rx = new RegExp(regexp, 'g');
-    return IS_PURE ? call($MatchAll, rx, S) : rx[MATCH_ALL](S);
+    return IS_PURE ? call($matchAll, rx, S) : rx[MATCH_ALL](S);
   }
 });
 
-IS_PURE || MATCH_ALL in RegExpPrototype || redefine(RegExpPrototype, MATCH_ALL, $MatchAll);
+IS_PURE || MATCH_ALL in RegExpPrototype || redefine(RegExpPrototype, MATCH_ALL, $matchAll);

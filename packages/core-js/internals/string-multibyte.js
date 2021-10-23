@@ -5,7 +5,7 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
-var slice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 
 var createMethod = function (CONVERT_TO_STRING) {
   return function ($this, pos) {
@@ -17,8 +17,12 @@ var createMethod = function (CONVERT_TO_STRING) {
     first = charCodeAt(S, position);
     return first < 0xD800 || first > 0xDBFF || position + 1 === size
       || (second = charCodeAt(S, position + 1)) < 0xDC00 || second > 0xDFFF
-        ? CONVERT_TO_STRING ? charAt(S, position) : first
-        : CONVERT_TO_STRING ? slice(S, position, position + 2) : (first - 0xD800 << 10) + (second - 0xDC00) + 0x10000;
+        ? CONVERT_TO_STRING
+          ? charAt(S, position)
+          : first
+        : CONVERT_TO_STRING
+          ? stringSlice(S, position, position + 2)
+          : (first - 0xD800 << 10) + (second - 0xDC00) + 0x10000;
   };
 };
 

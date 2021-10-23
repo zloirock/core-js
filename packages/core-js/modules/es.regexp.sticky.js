@@ -5,7 +5,6 @@ var classof = require('../internals/classof-raw');
 var defineProperty = require('../internals/object-define-property').f;
 var getInternalState = require('../internals/internal-state').get;
 
-var RegExp = global.RegExp;
 var RegExpPrototype = RegExp.prototype;
 var TypeError = global.TypeError;
 
