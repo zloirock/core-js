@@ -20,11 +20,10 @@ module.exports = function uniqueBy(resolver) {
   var length = lengthOfArrayLike(that);
   var result = arraySpeciesCreate(that, 0);
   var map = new Map();
-  var resolverFunction, index, item, key;
-  if (resolver != null) resolverFunction = aCallable(resolver);
-  else resolverFunction = function (value) {
+  var resolverFunction = resolver != null ? aCallable(resolver) : function (value) {
     return value;
   };
+  var index, item, key;
   for (index = 0; index < length; index++) {
     item = that[index];
     key = resolverFunction(item);
