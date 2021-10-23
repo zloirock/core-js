@@ -1,28 +1,21 @@
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.set');
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var iterate = require('../internals/iterate');
+var $arrayUniqueBy = require('../internals/array-unique-by');
 
-var Set = getBuiltIn('Set');
+var arrayUniqueBy = uncurryThis($arrayUniqueBy);
+var concat = uncurryThis([].concat);
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
 var toMetadataKey = ReflectMetadataModule.toKey;
-
-var from = function (iter) {
-  var result = [];
-  iterate(iter, result.push, { that: result });
-  return result;
-};
 
 var ordinaryMetadataKeys = function (O, P) {
   var oKeys = ordinaryOwnMetadataKeys(O, P);
   var parent = getPrototypeOf(O);
   if (parent === null) return oKeys;
   var pKeys = ordinaryMetadataKeys(parent, P);
-  return pKeys.length ? oKeys.length ? from(new Set(oKeys.concat(pKeys))) : pKeys : oKeys;
+  return pKeys.length ? oKeys.length ? arrayUniqueBy(concat(oKeys, pKeys)) : pKeys : oKeys;
 };
 
 // `Reflect.getMetadataKeys` method

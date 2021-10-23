@@ -6,6 +6,11 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var arraySpeciesCreate = require('../internals/array-species-create');
 
+var Map = getBuiltIn('Map');
+var MapPrototype = Map.prototype;
+var mapForEach = uncurryThis(MapPrototype.forEach);
+var mapHas = uncurryThis(MapPrototype.has);
+var mapSet = uncurryThis(MapPrototype.set);
 var push = uncurryThis([].push);
 
 // `Array.prototype.uniqueBy` method
@@ -14,7 +19,6 @@ module.exports = function uniqueBy(resolver) {
   var that = toObject(this);
   var length = lengthOfArrayLike(that);
   var result = arraySpeciesCreate(that, 0);
-  var Map = getBuiltIn('Map');
   var map = new Map();
   var resolverFunction, index, item, key;
   if (resolver != null) resolverFunction = aCallable(resolver);
@@ -24,9 +28,9 @@ module.exports = function uniqueBy(resolver) {
   for (index = 0; index < length; index++) {
     item = that[index];
     key = resolverFunction(item);
-    if (!map.has(key)) map.set(key, item);
+    if (!mapHas(map, key)) mapSet(map, key, item);
   }
-  map.forEach(function (value) {
+  mapForEach(map, function (value) {
     push(result, value);
   });
   return result;

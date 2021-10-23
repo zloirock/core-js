@@ -2,10 +2,13 @@
 require('../modules/es.map');
 require('../modules/es.weak-map');
 var getBuiltIn = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var shared = require('../internals/shared');
 
 var Map = getBuiltIn('Map');
 var WeakMap = getBuiltIn('WeakMap');
+var push = uncurryThis([].push);
+
 var metadata = shared('metadata');
 var store = metadata.store || (metadata.store = new WeakMap());
 
@@ -39,7 +42,7 @@ var ordinaryDefineOwnMetadata = function (MetadataKey, MetadataValue, O, P) {
 var ordinaryOwnMetadataKeys = function (target, targetKey) {
   var metadataMap = getOrCreateMetadataMap(target, targetKey, false);
   var keys = [];
-  if (metadataMap) metadataMap.forEach(function (_, key) { keys.push(key); });
+  if (metadataMap) metadataMap.forEach(function (_, key) { push(keys, key); });
   return keys;
 };
 
