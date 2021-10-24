@@ -2,7 +2,6 @@
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
-var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
@@ -11,6 +10,7 @@ var tryToString = require('../internals/try-to-string');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var redefine = require('../internals/redefine');
 var defineProperty = require('../internals/object-define-property').f;
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -24,7 +24,6 @@ var TypedArray = Int8Array && getPrototypeOf(Int8Array);
 var TypedArrayPrototype = Int8ArrayPrototype && getPrototypeOf(Int8ArrayPrototype);
 var ObjectPrototype = Object.prototype;
 var TypeError = global.TypeError;
-var isPrototypeOf = uncurryThis(ObjectPrototype.isPrototypeOf);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
