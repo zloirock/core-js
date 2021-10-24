@@ -1,9 +1,10 @@
-var trim = require('../string/virtual/trim');
+var isPrototypeOf = require('../../internals/object-is-prototype-of');
+var method = require('../string/virtual/trim');
 
 var StringPrototype = String.prototype;
 
 module.exports = function (it) {
   var own = it.trim;
   return typeof it == 'string' || it === StringPrototype
-    || (it instanceof String && own === StringPrototype.trim) ? trim : own;
+    || (isPrototypeOf(StringPrototype, it) && own === StringPrototype.trim) ? method : own;
 };

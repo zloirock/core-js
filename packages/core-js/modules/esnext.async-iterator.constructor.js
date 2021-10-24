@@ -11,7 +11,7 @@ var IS_PURE = require('../internals/is-pure');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var AsyncIteratorConstructor = function AsyncIterator() {
-  anInstance(this, AsyncIteratorConstructor);
+  anInstance(this, AsyncIteratorPrototype);
 };
 
 AsyncIteratorConstructor.prototype = AsyncIteratorPrototype;

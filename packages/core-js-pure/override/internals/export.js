@@ -12,7 +12,7 @@ var hasOwn = require('../internals/has-own-property');
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
-    if (this instanceof NativeConstructor) {
+    if (this instanceof Wrapper) {
       switch (arguments.length) {
         case 0: return new NativeConstructor();
         case 1: return new NativeConstructor(a);

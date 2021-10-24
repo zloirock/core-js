@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var global = require('../internals/global');
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
@@ -17,7 +18,7 @@ var Error = global.Error;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
-  var that = this instanceof $AggregateError ? this : create($AggregateErrorPrototype);
+  var that = isPrototypeOf(AggregateErrorPrototype, this) ? this : create(AggregateErrorPrototype);
   var options = arguments.length > 2 ? arguments[2] : undefined;
   if (setPrototypeOf) {
     that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
@@ -34,7 +35,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
 if (setPrototypeOf) setPrototypeOf($AggregateError, Error);
 else copyConstructorProperties($AggregateError, Error);
 
-var $AggregateErrorPrototype = $AggregateError.prototype = create(Error.prototype, {
+var AggregateErrorPrototype = $AggregateError.prototype = create(Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),
   message: createPropertyDescriptor(1, ''),
   name: createPropertyDescriptor(1, 'AggregateError')

@@ -1,10 +1,11 @@
 var global = require('../internals/global');
+var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var tryToString = require('../internals/try-to-string');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var bind = require('../internals/function-bind-context');
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var iteratorClose = require('../internals/iterator-close');
@@ -15,6 +16,8 @@ var Result = function (stopped, result) {
   this.stopped = stopped;
   this.result = result;
 };
+
+var ResultPrototype = Result.prototype;
 
 module.exports = function (iterable, unboundFunction, options) {
   var that = options && options.that;
@@ -45,7 +48,7 @@ module.exports = function (iterable, unboundFunction, options) {
     if (isArrayIteratorMethod(iterFn)) {
       for (index = 0, length = lengthOfArrayLike(iterable); length > index; index++) {
         result = callFn(iterable[index]);
-        if (result && result instanceof Result) return result;
+        if (result && isPrototypeOf(ResultPrototype, result)) return result;
       } return new Result(false);
     }
     iterator = getIterator(iterable, iterFn);
@@ -58,6 +61,6 @@ module.exports = function (iterable, unboundFunction, options) {
     } catch (error) {
       iteratorClose(iterator, 'throw', error);
     }
-    if (typeof result == 'object' && result && result instanceof Result) return result;
+    if (typeof result == 'object' && result && isPrototypeOf(ResultPrototype, result)) return result;
   } return new Result(false);
 };

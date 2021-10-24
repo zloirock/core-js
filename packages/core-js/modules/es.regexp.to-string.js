@@ -3,6 +3,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var PROPER_FUNCTION_NAME = require('../internals/function-name').PROPER;
 var redefine = require('../internals/redefine');
 var anObject = require('../internals/an-object');
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var $toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 var regExpFlags = require('../internals/regexp-flags');
@@ -23,7 +24,7 @@ if (NOT_GENERIC || INCORRECT_NAME) {
     var R = anObject(this);
     var p = $toString(R.source);
     var rf = R.flags;
-    var f = $toString(rf === undefined && R instanceof RegExp && !('flags' in RegExpPrototype) ? getFlags(R) : rf);
+    var f = $toString(rf === undefined && isPrototypeOf(RegExpPrototype, R) && !('flags' in RegExpPrototype) ? getFlags(R) : rf);
     return '/' + p + '/' + f;
   }, { unsafe: true });
 }

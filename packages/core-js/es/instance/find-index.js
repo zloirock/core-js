@@ -1,8 +1,9 @@
-var findIndex = require('../array/virtual/find-index');
+var isPrototypeOf = require('../../internals/object-is-prototype-of');
+var method = require('../array/virtual/find-index');
 
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {
   var own = it.findIndex;
-  return it === ArrayPrototype || (it instanceof Array && own === ArrayPrototype.findIndex) ? findIndex : own;
+  return it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && own === ArrayPrototype.findIndex) ? method : own;
 };

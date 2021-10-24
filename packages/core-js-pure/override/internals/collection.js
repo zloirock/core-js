@@ -34,19 +34,21 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     InternalMetadataModule.enable();
   } else {
     Constructor = wrapper(function (target, iterable) {
-      setInternalState(anInstance(target, Constructor, CONSTRUCTOR_NAME), {
+      setInternalState(anInstance(target, Prototype), {
         type: CONSTRUCTOR_NAME,
         collection: new NativeConstructor()
       });
       if (iterable != undefined) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
     });
 
+    var Prototype = Constructor.prototype;
+
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
     forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
       var IS_ADDER = KEY == 'add' || KEY == 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) {
-        createNonEnumerableProperty(Constructor.prototype, KEY, function (a, b) {
+        createNonEnumerableProperty(Prototype, KEY, function (a, b) {
           var collection = getInternalState(this).collection;
           if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
           var result = collection[KEY](a === 0 ? 0 : a, b);
@@ -55,7 +57,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
       }
     });
 
-    IS_WEAK || defineProperty(Constructor.prototype, 'size', {
+    IS_WEAK || defineProperty(Prototype, 'size', {
       configurable: true,
       get: function () {
         return getInternalState(this).collection.size;

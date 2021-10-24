@@ -10,6 +10,7 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof-raw');
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isRegExp = require('../internals/is-regexp');
 var regExpFlags = require('../internals/regexp-flags');
 var getMethod = require('../internals/get-method');
@@ -37,7 +38,6 @@ var WORKS_WITH_NON_GLOBAL_REGEX = !!un$MatchAll && !fails(function () {
   un$MatchAll('a', /./);
 });
 
-// eslint-disable-next-line max-len -- ignore
 var $RegExpStringIterator = createIteratorConstructor(function RegExpStringIterator(regexp, string, $global, fullUnicode) {
   setInternalState(this, {
     type: REGEXP_STRING_ITERATOR,
@@ -68,7 +68,7 @@ var $matchAll = function (string) {
   var C, flagsValue, flags, matcher, $global, fullUnicode;
   C = speciesConstructor(R, RegExp);
   flagsValue = R.flags;
-  if (flagsValue === undefined && R instanceof RegExp && !('flags' in RegExpPrototype)) {
+  if (flagsValue === undefined && isPrototypeOf(RegExpPrototype, R) && !('flags' in RegExpPrototype)) {
     flagsValue = getFlags(R);
   }
   flags = flagsValue === undefined ? '' : toString(flagsValue);

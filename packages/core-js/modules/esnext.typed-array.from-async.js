@@ -11,7 +11,6 @@ var exportTypedArrayStaticMethod = ArrayBufferViewCore.exportTypedArrayStaticMet
 
 // `%TypedArray%.fromAsync` method
 // https://github.com/tc39/proposal-array-from-async
-// eslint-disable-next-line -- required for .length
 exportTypedArrayStaticMethod('fromAsync', function fromAsync(asyncItems /* , mapfn = undefined, thisArg = undefined */) {
   var C = this;
   var argumentsLength = arguments.length;

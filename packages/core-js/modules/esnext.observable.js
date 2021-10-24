@@ -150,11 +150,13 @@ if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
 });
 
 var $Observable = function Observable(subscriber) {
-  anInstance(this, $Observable, 'Observable');
+  anInstance(this, ObservablePrototype);
   setInternalState(this, { subscriber: aCallable(subscriber) });
 };
 
-redefineAll($Observable.prototype, {
+var ObservablePrototype = $Observable.prototype;
+
+redefineAll(ObservablePrototype, {
   subscribe: function subscribe(observer) {
     var length = arguments.length;
     return new Subscription(isCallable(observer) ? {
@@ -199,7 +201,7 @@ redefineAll($Observable, {
   }
 });
 
-redefine($Observable.prototype, OBSERVABLE, function () { return this; });
+redefine(ObservablePrototype, OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
   Observable: $Observable

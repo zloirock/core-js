@@ -23,7 +23,7 @@ var FORCED = IS_PURE
   || !fails(function () { NativeIterator({}); });
 
 var IteratorConstructor = function Iterator() {
-  anInstance(this, IteratorConstructor);
+  anInstance(this, IteratorPrototype);
 };
 
 if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) {

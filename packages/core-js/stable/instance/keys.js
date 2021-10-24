@@ -1,6 +1,9 @@
 require('../../modules/web.dom-collections.iterator');
-var keys = require('../array/virtual/keys');
 var classof = require('../../internals/classof');
+var hasOwn = require('../../internals/has-own-property');
+var isPrototypeOf = require('../../internals/object-is-prototype-of');
+var method = require('../array/virtual/keys');
+
 var ArrayPrototype = Array.prototype;
 
 var DOMIterables = {
@@ -10,7 +13,6 @@ var DOMIterables = {
 
 module.exports = function (it) {
   var own = it.keys;
-  return it === ArrayPrototype || (it instanceof Array && own === ArrayPrototype.keys)
-    // eslint-disable-next-line no-prototype-builtins -- safe
-    || DOMIterables.hasOwnProperty(classof(it)) ? keys : own;
+  return it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && own === ArrayPrototype.keys)
+    || hasOwn(DOMIterables, classof(it)) ? method : own;
 };

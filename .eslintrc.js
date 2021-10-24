@@ -225,7 +225,7 @@ const base = {
   'linebreak-style': [ERROR, 'unix'],
   // specify the maximum length of a line in your program
   'max-len': [ERROR, {
-    code: 120,
+    code: 140,
     tabWidth: 2,
     ignoreRegExpLiterals: true,
     ignoreTemplateLiterals: true,
