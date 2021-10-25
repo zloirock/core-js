@@ -11,10 +11,11 @@ var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
+var Error = getBuiltIn('Error');
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
 
 var $DOMException = function DOMException() {
-  anInstance(this, $DOMException, DOM_EXCEPTION);
+  anInstance(this, DOMExceptionPrototype);
   var argumentsLength = arguments.length;
   var message = normalizeStringArgument(argumentsLength < 1 ? undefined : arguments[0]);
   var name = normalizeStringArgument(argumentsLength < 2 ? undefined : arguments[1], 'Error');
@@ -26,7 +27,7 @@ var $DOMException = function DOMException() {
   return that;
 };
 
-$DOMException.prototype = NativeDOMException.prototype;
+var DOMExceptionPrototype = $DOMException.prototype = NativeDOMException.prototype;
 
 var ERROR_HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 var DOM_EXCEPTION_HAS_STACK = 'stack' in new NativeDOMException(1, 2);

@@ -17,21 +17,22 @@ var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
-var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var DOM_EXCEPTION = 'DOMException';
-var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
+var Error = getBuiltIn('Error');
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
 var ErrorPrototype = Error.prototype;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
+var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
+var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 
 var codeFor = function (name) {
   return hasOwn(DOMExceptionConstants, name) && DOMExceptionConstants[name].m ? DOMExceptionConstants[name].c : 0;
 };
 
 var $DOMException = function DOMException() {
-  anInstance(this, $DOMException, DOM_EXCEPTION);
+  anInstance(this, DOMExceptionPrototype);
   var argumentsLength = arguments.length;
   var message = normalizeStringArgument(argumentsLength < 1 ? undefined : arguments[0]);
   var name = normalizeStringArgument(argumentsLength < 2 ? undefined : arguments[1], 'Error');
@@ -54,7 +55,7 @@ var $DOMException = function DOMException() {
   }
 };
 
-var $DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
+var DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
 
 var createGetterDescriptor = function (get) {
   return { enumerable: true, configurable: true, get: get };
@@ -66,13 +67,13 @@ var getterFor = function (key) {
   });
 };
 
-if (DESCRIPTORS) defineProperties($DOMExceptionPrototype, {
+if (DESCRIPTORS) defineProperties(DOMExceptionPrototype, {
   name: getterFor('name'),
   message: getterFor('message'),
   code: getterFor('code')
 });
 
-defineProperty($DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
+defineProperty(DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
 
 // FF36- DOMException is a function, but can't be constructed
 var INCORRECT_CONSTRUCTOR = fails(function () {
