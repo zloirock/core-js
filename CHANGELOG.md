@@ -1,6 +1,9 @@
 ## Changelog
 ##### Unreleased
 - Most built-ins are encapsulated in `core-js` for preventing possible cases of breaking / observing the internal state by patching / deleting of them
+  - Avoid `.call` / `.apply` prototype methods that could be patched
+  - Avoid `instanceof` operator - implicit `.prototype` / `@@hasInstance` access that could be patched
+  - Avoid `RegExp#test`, `String#match` and some over methods - implicit `.exec` and `RegExp` well-known symbols access that could be patched
 - Clearing of `Error` stack from extra entries experimentally added to `AggregateError`, [#996](https://github.com/zloirock/core-js/pull/996), in case lack of problems it will be extended to other cases
 - In engines with native `Symbol` support, new well-known symbols created with usage `Symbol.for` for ensuring the same keys in different realms, [#998](https://github.com/zloirock/core-js/issues/998)
 - Added a workaround of [a BrowserFS NodeJS `process` polyfill bug](https://github.com/jvilk/bfs-process/issues/5) that incorrectly reports V8 version that's used in some cases of `core-js` feature detection
@@ -10,6 +13,7 @@
 - Added NodeJS 17.0 compat data mapping
 - Added Opera Android 65 compat data mapping
 - Updated Electron 16.0 compat data mapping
+- Many other minor fixes and improvements
 
 ##### 3.18.3 - 2021.10.13
 - Fixed the prototype chain of `AggregateError` constructor that should contain `Error` constructor
