@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var toIndexedObject = require('../internals/to-indexed-object');
@@ -7,6 +8,7 @@ var arrayFromConstructorAndList = require('../internals/array-from-constructor-a
 var getVirtual = require('../internals/entry-virtual');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
+var Array = global.Array;
 var sort = uncurryThis(getVirtual('Array').sort);
 
 // `Array.prototype.withSorted` method

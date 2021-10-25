@@ -1,6 +1,8 @@
+var global = require('../internals/global');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var isIntegralNumber = require('../internals/is-integral-number');
 
+var RangeError = global.RangeError;
 var ERROR_MESSAGE = 'Incorrect index';
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.withAt
