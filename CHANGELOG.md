@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.19.0 - 2021.10.25
 - Most built-ins are encapsulated in `core-js` for preventing possible cases of breaking / observing the internal state by patching / deleting of them
   - Avoid `.call` / `.apply` prototype methods that could be patched
   - Avoid `instanceof` operator - implicit `.prototype` / `@@hasInstance` access that could be patched
