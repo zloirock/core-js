@@ -8,6 +8,7 @@ var anInstance = require('../internals/an-instance');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
+var clearErrorStack = require('../internals/clear-error-stack');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
@@ -22,7 +23,7 @@ var $DOMException = function DOMException() {
   var that = new NativeDOMException(message, name);
   var error = Error(message);
   error.name = DOM_EXCEPTION;
-  defineProperty(that, 'stack', createPropertyDescriptor(1, error.stack));
+  defineProperty(that, 'stack', createPropertyDescriptor(1, clearErrorStack(error.stack, 1)));
   inheritIfRequired(that, this, $DOMException);
   return that;
 };

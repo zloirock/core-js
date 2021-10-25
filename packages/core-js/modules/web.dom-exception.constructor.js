@@ -13,6 +13,7 @@ var anObject = require('../internals/an-object');
 var errorToString = require('../internals/error-to-string');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
+var clearErrorStack = require('../internals/clear-error-stack');
 var InternalStateModule = require('../internals/internal-state');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
@@ -51,7 +52,7 @@ var $DOMException = function DOMException() {
   if (HAS_STACK) {
     var error = Error(message);
     error.name = DOM_EXCEPTION;
-    defineProperty(this, 'stack', createPropertyDescriptor(1, error.stack));
+    defineProperty(this, 'stack', createPropertyDescriptor(1, clearErrorStack(error.stack, 1)));
   }
 };
 
