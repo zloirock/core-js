@@ -1,4 +1,3 @@
-require('../../modules/esnext.error.cause');
-var path = require('../../internals/path');
+var parent = require('../../stable/error/constructor');
 
-module.exports = path;
+module.exports = parent;

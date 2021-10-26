@@ -119,6 +119,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('map' in load(NS, 'array/virtual'));
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
+    ok(load(NS, 'error/constructor').Error(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'error').Error(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));
     ok(load(NS, 'math/atanh')(1) === Infinity);
@@ -607,8 +609,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'bigint');
     ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
     ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
-    ok(load(NS, 'error/constructor').Error(1, { cause: 7 }).cause === 7);
-    ok(load(NS, 'error').Error(1, { cause: 7 }).cause === 7);
     ok(!load(NS, 'function/is-callable')(class { /* empty */ }));
     ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);

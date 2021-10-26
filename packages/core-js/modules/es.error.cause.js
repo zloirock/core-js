@@ -5,6 +5,7 @@ var wrapErrorConstructorWithCause = require('../internals/wrap-error-constructor
 
 var FORCED = Error('e', { cause: 7 }).cause !== 7;
 
+// https://github.com/tc39/proposal-error-cause
 $({ global: true, forced: FORCED }, {
   Error: wrapErrorConstructorWithCause('Error', function (init) {
     return function Error(message) { return apply(init, this, arguments); };

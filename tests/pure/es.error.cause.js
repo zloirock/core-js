@@ -1,6 +1,6 @@
 import { PROTO } from '../helpers/constants';
 
-import path from 'core-js-pure/features/error';
+import path from 'core-js-pure/es/error';
 import create from 'core-js-pure/es/object/create';
 
 for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
