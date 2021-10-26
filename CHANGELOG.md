@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed Safari 15.1 compat data (some features were not added)
+- Added iOS Safari 15.1 compat data mapping
 
 ##### 3.19.0 - 2021.10.25
 - Most built-ins are encapsulated in `core-js` for preventing possible cases of breaking / observing the internal state by patching / deleting of them
