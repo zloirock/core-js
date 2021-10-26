@@ -11,6 +11,7 @@ var fails = require('../internals/fails');
 
 var RangeError = global.RangeError;
 var String = global.String;
+var isFinite = global.isFinite;
 var abs = Math.abs;
 var floor = Math.floor;
 var pow = Math.pow;
