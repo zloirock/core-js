@@ -11,7 +11,7 @@ var push = uncurryThis(ArrayPrototype.push);
 var join = uncurryThis(ArrayPrototype.join);
 
 // `String.cooked` method
-// https://github.com/bathos/proposal-string-cooked
+// https://github.com/tc39/proposal-string-cooked
 $({ target: 'String', stat: true }, {
   cooked: function cooked(template /* , ...substitutions */) {
     var cookedTemplate = toIndexedObject(template);

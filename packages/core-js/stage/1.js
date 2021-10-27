@@ -16,6 +16,7 @@ require('../proposals/pattern-matching');
 require('../proposals/promise-try');
 require('../proposals/seeded-random');
 require('../proposals/string-code-points');
+require('../proposals/string-cooked');
 var parent = require('./2');
 
 module.exports = parent;
