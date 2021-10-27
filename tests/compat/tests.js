@@ -1514,9 +1514,6 @@ GLOBAL.tests = {
   'esnext.symbol.observable': function () {
     return Symbol.observable;
   },
-  'esnext.typed-array.from-async': function () {
-    return Int8Array.fromAsync;
-  },
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
   },

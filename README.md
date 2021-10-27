@@ -2358,16 +2358,11 @@ Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/mas
 class Array {
   static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;
 }
-
-class %TypedArray% {
-  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: number, index: number, target) => number, thisArg?: any): %TypedArray%;
-}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-from-async
 core-js(-pure)/features/array/from-async
-core-js/features/typed-array/from-async
 ```
 [*Example*](https://goo.gl/Jt7SsD):
 ```js
@@ -2395,22 +2390,17 @@ core-js/features/typed-array/filter-reject
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
 ##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js) and [`esnext.typed-array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.group-by.js).
+Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js).
 ```js
 class Array {
   groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
   groupByMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
-}
-
-class %TypedArray% {
-  groupBy(callbackfn: (value: number, index: number, target: %TypedArray%) => key, thisArg?: any): { [key]: %TypedArray% };
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-grouping
 core-js(-pure)/features/array(/virtual)/group-by
-core-js/features/typed-array/group-by
 ```
 [*Examples*](t.ly/VggI):
 ```js

@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var $groupBy = require('../internals/array-group-by');
 var typedArraySpeciesConstructor = require('../internals/typed-array-species-constructor');

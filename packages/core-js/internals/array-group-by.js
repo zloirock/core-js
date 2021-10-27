@@ -27,6 +27,7 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
     if (key in target) push(target[key], value);
     else target[key] = [value];
   }
+  // TODO: Remove this block from `core-js@4`
   if (specificConstructor) {
     Constructor = specificConstructor(O);
     if (Constructor !== Array) {
