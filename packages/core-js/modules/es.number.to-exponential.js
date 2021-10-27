@@ -4,7 +4,6 @@ var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
-var arraySlice = require('../internals/array-slice');
 var $repeat = require('../internals/string-repeat');
 var log10 = require('../internals/math-log10');
 var fails = require('../internals/fails');
@@ -18,6 +17,7 @@ var pow = Math.pow;
 var round = Math.round;
 var un$ToExponential = uncurryThis(1.0.toExponential);
 var repeat = uncurryThis($repeat);
+var stringSlice = uncurryThis(''.slice);
 
 // Edge 17-
 var ROUNDS_PROPERLY = un$ToExponential(-6.9e-11, 4) === '-6.9000e-11'
@@ -83,7 +83,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       m = String(n);
     }
     if (f !== 0) {
-      m = arraySlice(m, 0, 1) + '.' + arraySlice(m, 1);
+      m = stringSlice(m, 0, 1) + '.' + stringSlice(m, 1);
     }
     if (e === 0) {
       c = '+';
