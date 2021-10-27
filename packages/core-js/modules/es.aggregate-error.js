@@ -18,11 +18,11 @@ var Error = global.Error;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
-  var that = isPrototypeOf(AggregateErrorPrototype, this) ? this : create(AggregateErrorPrototype);
   var options = arguments.length > 2 ? arguments[2] : undefined;
-  if (setPrototypeOf) {
-    that = setPrototypeOf(new Error(undefined), getPrototypeOf(that));
-  }
+  var isInstance = isPrototypeOf(AggregateErrorPrototype, this);
+  var that = setPrototypeOf
+    ? setPrototypeOf(new Error(undefined), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype)
+    : isInstance ? this : create(AggregateErrorPrototype);
   createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));
   if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(that, 'stack', clearErrorStack(that.stack, 1));
   installErrorCause(that, options);
