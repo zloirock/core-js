@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed inheritance of Electron compat data `web.` modules
 - Fixed Safari 15.1 compat data (some features were not added)
 - Added iOS Safari 15.1 compat data mapping
 
