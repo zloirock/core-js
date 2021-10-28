@@ -1523,9 +1523,6 @@ GLOBAL.tests = {
   'esnext.typed-array.find-last-index': function () {
     return Int8Array.prototype.findLastIndex;
   },
-  'esnext.typed-array.group-by': function () {
-    return Int8Array.prototype.groupBy;
-  },
   'esnext.typed-array.to-reversed': function () {
     return Int8Array.prototype.toReversed;
   },

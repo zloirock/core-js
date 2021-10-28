@@ -1451,6 +1451,8 @@ export const data = {
   },
   'esnext.array.group-by': {
   },
+  'esnext.array.group-by-map': {
+  },
   'esnext.array.is-template-object': {
   },
   // TODO: Remove from `core-js@4`
