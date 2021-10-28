@@ -40,7 +40,7 @@
     "eslint-plugin-jsonc": "^1.7.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-qunit": "^7.0.0",
-    "eslint-plugin-regexp": "^1.4.1",
+    "eslint-plugin-regexp": "^1.5.0",
     "eslint-plugin-sonarjs": "~0.10.0",
     "eslint-plugin-unicorn": "^37.0.1",
     "jsonc-eslint-parser": "^1.4.1",
