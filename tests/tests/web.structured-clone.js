@@ -198,9 +198,24 @@ QUnit.module('structuredClone', () => {
     ];
 
     for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
-      assert.equal(orig.name, clone.name);
+      assert.equal(orig.constructor === AggregateError ? Error : orig.constructor, clone.constructor);
+      assert.equal(orig.name === 'AggregateError' ? 'Error' : orig.name, clone.name);
       assert.equal(orig.message, clone.message);
+      assert.equal(orig.stack, clone.stack);
     });
+
+    const aggregates = [
+      new AggregateError([1, 2]),
+      new AggregateError([1, 2], 42),
+    ];
+
+    for (const error of aggregates) {
+      const clone = structuredClone(error);
+      assert.equal(Error, clone.constructor);
+      assert.equal('Error', clone.name);
+      assert.equal(error.message, clone.message);
+      assert.equal(error.stack, clone.stack);
+    }
   });
 
   // Arrays
@@ -286,6 +301,20 @@ QUnit.module('structuredClone', () => {
         // TODO: async
         // assert.equal(await orig.text(), await clone.text());
       });
+  });
+
+  if (typeof DOMException == 'function') QUnit.test('DOMException', assert => {
+    const errors = [
+      new DOMException(),
+      new DOMException('foo', 'DataCloneError'),
+    ];
+
+    for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
+      assert.equal(orig.name, clone.name);
+      assert.equal(orig.message, clone.message);
+      assert.equal(orig.code, clone.code);
+      assert.equal(orig.stack, clone.stack);
+    });
   });
 
   if (typeof File == 'function') QUnit.test('File', assert => {

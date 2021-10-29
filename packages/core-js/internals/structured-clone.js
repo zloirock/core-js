@@ -1,13 +1,22 @@
 'use strict';
-var isSymbol = require('../internals/is-symbol');
-var classof = require('../internals/classof');
+var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
 var isObject = require('../internals/is-object');
+var isSymbol = require('../internals/is-symbol');
+var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
+var Date = global.Date;
+var Error = global.Error;
+var EvalError = global.EvalError;
+var RangeError = global.RangeError;
+var ReferenceError = global.ReferenceError;
+var SyntaxError = global.SyntaxError;
+var TypeError = global.TypeError;
+var URIError = global.URIError;
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
 
@@ -30,7 +39,7 @@ module.exports = function structuredCloneInternal(map, value) {
   // effectively preserves circular references
   if (map.has(value)) return map.get(value);
 
-  var cloned, deep, key;
+  var C, cloned, deep, key;
   var type = classof(value);
 
   switch (type) {
@@ -87,7 +96,32 @@ module.exports = function structuredCloneInternal(map, value) {
       deep = true;
       break;
     case 'Error':
-      cloned = value.constructor(value.message.toString());
+      switch (value.name) {
+        case 'Error':
+          C = Error;
+          break;
+        case 'EvalError':
+          C = EvalError;
+          break;
+        case 'RangeError':
+          C = RangeError;
+          break;
+        case 'ReferenceError':
+          C = ReferenceError;
+          break;
+        case 'SyntaxError':
+          C = SyntaxError;
+          break;
+        case 'TypeError':
+          C = TypeError;
+          break;
+        case 'URIError':
+          C = URIError;
+          break;
+        default:
+          C = Error;
+      }
+      cloned = C(value.message);
       deep = true; // clone stack after storing in the weakmap
       break;
     case 'Array':
@@ -100,6 +134,10 @@ module.exports = function structuredCloneInternal(map, value) {
       break;
     case 'Blob':
       cloned = value.slice(0, value.size, value.type);
+      break;
+    case 'DOMException':
+      cloned = new (getBuiltin('DOMException'))(value.message, value.name);
+      deep = true; // clone stack after storing in the weakmap
       break;
     case 'File':
       cloned = new File(
@@ -134,6 +172,7 @@ module.exports = function structuredCloneInternal(map, value) {
       });
       break;
     case 'Error':
+    case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(map, value.stack));
       break;
     case 'Array':
