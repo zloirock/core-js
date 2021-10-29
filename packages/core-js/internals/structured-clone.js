@@ -1,6 +1,7 @@
 'use strict';
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof');
@@ -9,6 +10,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
+var Object = global.Object;
 var Date = global.Date;
 var Error = global.Error;
 var EvalError = global.EvalError;
@@ -19,13 +21,22 @@ var TypeError = global.TypeError;
 var URIError = global.URIError;
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
+var MapPrototype = Map.prototype;
+var mapHas = uncurryThis(MapPrototype.has);
+var mapGet = uncurryThis(MapPrototype.get);
+var mapSet = uncurryThis(MapPrototype.set);
+var setAdd = uncurryThis(Set.prototype.add);
+var bolleanValueOf = uncurryThis(true.valueOf);
+var numberValueOf = uncurryThis(1.0.valueOf);
+var stringValueOf = uncurryThis(''.valueOf);
+var getTime = uncurryThis(Date.prototype.getTime);
 
-function createDataCloneError(message) {
+var createDataCloneError = function (message) {
   if (typeof DOMException === 'function') {
     return new DOMException(message, 'DataCloneError');
   }
   return new Error(message);
-}
+};
 
 /**
  * Tries best to replicate structuredClone behaviour.
@@ -33,37 +44,44 @@ function createDataCloneError(message) {
  * @param {Map<object, object>} map cache map
  * @param {any} value object to clone
  */
-module.exports = function structuredCloneInternal(map, value) {
+var structuredCloneInternal = module.exports = function (map, value) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (!isObject(value)) return value;
   // effectively preserves circular references
-  if (map.has(value)) return map.get(value);
+  if (mapHas(map, value)) return mapGet(map, value);
 
   var C, cloned, deep, key;
   var type = classof(value);
 
   switch (type) {
-    case 'Boolean':
     case 'BigInt':
-    case 'Number':
-    case 'String':
+      // can be a 3rd party polyfill
       cloned = Object(value.valueOf());
       break;
+    case 'Boolean':
+      cloned = Object(bolleanValueOf(value));
+      break;
+    case 'Number':
+      cloned = Object(numberValueOf(value));
+      break;
+    case 'String':
+      cloned = Object(stringValueOf(value));
+      break;
     case 'Date':
-      cloned = new Date(value.valueOf());
+      cloned = new Date(getTime(value));
       break;
     case 'RegExp':
       cloned = new RegExp(value);
       break;
     case 'ArrayBuffer':
-      if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
-      // falls through
     case 'SharedArrayBuffer':
+      if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
       cloned = value.slice(0);
       break;
     case 'DataView':
       // eslint-disable-next-line es/no-typed-arrays -- ok
       cloned = new DataView(
+        // this is safe, since arraybuffer cannot have circular references
         structuredCloneInternal(map, value.buffer),
         value.byteOffset,
         value.byteLength
@@ -80,8 +98,8 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'Float64Array':
     case 'BigInt64Array':
     case 'BigUint64Array':
-      // this is safe, since arraybuffer cannot have circular references
-      cloned = new value.constructor(
+      cloned = new global[type](
+        // this is safe, since arraybuffer cannot have circular references
         structuredCloneInternal(map, value.buffer),
         value.byteOffset,
         value.length
@@ -158,17 +176,17 @@ module.exports = function structuredCloneInternal(map, value) {
       throw createDataCloneError('Uncloneable type: ' + type);
   }
 
-  map.set(value, cloned);
+  mapSet(map, value, cloned);
 
   if (deep) switch (type) {
     case 'Map':
       value.forEach(function (v, k) {
-        cloned.set(structuredCloneInternal(map, k), structuredCloneInternal(map, v));
+        mapSet(cloned, structuredCloneInternal(map, k), structuredCloneInternal(map, v));
       });
       break;
     case 'Set':
       value.forEach(function (v) {
-        cloned.add(structuredCloneInternal(map, v));
+        setAdd(cloned, structuredCloneInternal(map, v));
       });
       break;
     case 'Error':

@@ -1852,7 +1852,7 @@ export const data = {
   },
   'web.structured-clone': {
     deno: '1.14',
-    firefox: '94',
+    firefox: '94', // BUGGY
     node: '17.0',
   },
   'web.timers': {

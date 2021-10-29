@@ -348,7 +348,6 @@ QUnit.module('structuredClone', () => {
   //
   QUnit.test('Non-serializable types', assert => {
     const nons = [
-      // ECMAScript types
       function () { return 1; },
       Symbol('desc'),
       GLOBAL,
