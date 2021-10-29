@@ -177,6 +177,11 @@ var structuredCloneInternal = module.exports = function (map, value) {
     case 'DOMMatrixReadOnly':
       cloned = global[type].fromMatrix(value);
       break;
+    case 'AudioData':
+    case 'VideoFrame':
+      // reference to the same media resource as the original
+      cloned = value.clone();
+      break;
     case 'File':
       cloned = new File(
         [value],
