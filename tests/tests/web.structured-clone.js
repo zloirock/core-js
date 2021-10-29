@@ -1,9 +1,7 @@
-/* eslint-disable max-nested-callbacks -- teehee */
-/* eslint-disable no-restricted-globals -- wpt */
-
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
+import { fromSource } from '../helpers/helpers';
 
 const { from } = Array;
 const { assign, getPrototypeOf, keys } = Object;
@@ -12,6 +10,7 @@ QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {
     assert.isFunction(structuredClone, 'structuredClone is a function');
     assert.name(structuredClone, 'structuredClone');
+    assert.arity(structuredClone, 1);
   });
 
   function cloneTest(value, verifyFunc) {
@@ -57,14 +56,15 @@ QUnit.module('structuredClone', () => {
     Number.MAX_VALUE,
     Infinity,
   ];
-  // FIXME: Crashes
-  /* const bigints = [
+
+  const bigints = fromSource(`[
     -12345678901234567890n,
     -1n,
     0n,
     1n,
     12345678901234567890n,
-  ]; */
+  ]`) || [];
+
   const strings = [
     '',
     'this is a sample string',
@@ -72,23 +72,25 @@ QUnit.module('structuredClone', () => {
   ];
 
   QUnit.test('primitives', assert => {
-    [undefined, null].concat(booleans, numbers, /* bigints,*/ strings)
-      .forEach(value => cloneTest(value, (orig, clone) => {
-        assert.same(orig, clone, 'primitives should be same after cloned');
-      }));
+    const primitives = [undefined, null].concat(booleans, numbers, bigints, strings);
+
+    for (const value of primitives) cloneTest(value, (orig, clone) => {
+      assert.same(orig, clone, 'primitives should be same after cloned');
+    });
   });
 
   // "Primitive" Objects (Boolean, Number, BigInt, String)
   QUnit.test('primitive objects', assert => {
-    [].concat(booleans, numbers, strings)
-      .forEach(value => cloneObjectTest(assert, Object(value), (orig, clone) => {
-        assert.same(orig.valueOf(), clone.valueOf(), 'primitive wrappers should have same value');
-      }));
+    const primitives = [].concat(booleans, numbers, bigints, strings);
+
+    for (const value of primitives) cloneObjectTest(assert, Object(value), (orig, clone) => {
+      assert.same(orig.valueOf(), clone.valueOf(), 'primitive wrappers should have same value');
+    });
   });
 
   // Dates
   QUnit.test('Date', assert => {
-    [
+    const dates = [
       new Date(-1e13),
       new Date(-1e12),
       new Date(-1e9),
@@ -100,17 +102,19 @@ QUnit.module('structuredClone', () => {
       new Date(1e9),
       new Date(1e12),
       new Date(1e13),
-    ].forEach(value => cloneTest(value, (orig, clone) => {
+    ];
+
+    for (const date of dates) cloneTest(date, (orig, clone) => {
       assert.notEqual(orig, clone);
       assert.equal(typeof clone, 'object');
       assert.equal(getPrototypeOf(orig), getPrototypeOf(clone));
       assert.equal(orig.valueOf(), clone.valueOf());
-    }));
+    });
   });
 
   // Regular Expressions
   QUnit.test('RegExp', assert => {
-    [
+    const regexes = [
       new RegExp(),
       /abc/,
       /abc/g,
@@ -120,10 +124,14 @@ QUnit.module('structuredClone', () => {
       /abc/g,
       /abc/i,
       /abc/gi,
-      // /abc/giuy, -- Crashes
-    ].forEach((value, i) => cloneObjectTest(assert, value, (orig, clone) => {
-      assert.equal(orig.toString(), clone.toString(), `regex ${ i }`);
-    }));
+    ];
+
+    const giuy = fromSource('/abc/giuy');
+    if (giuy) regexes.push(giuy);
+
+    for (const regex of regexes) cloneObjectTest(assert, regex, (orig, clone) => {
+      assert.equal(orig.toString(), clone.toString(), `regex ${ regex }`);
+    });
   });
 
   // ArrayBuffer
@@ -137,7 +145,7 @@ QUnit.module('structuredClone', () => {
 
   // Array Buffer Views
   if (DESCRIPTORS) QUnit.test('ArrayBufferView', assert => {
-    [
+    const arrays = [
       new Uint8Array([]),
       new Uint8Array([0, 1, 254, 255]),
       new Uint16Array([0x0000, 0x0001, 0xFFFE, 0xFFFF]),
@@ -148,9 +156,11 @@ QUnit.module('structuredClone', () => {
       new Uint8ClampedArray([0, 1, 254, 255]),
       new Float32Array([-Infinity, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, Infinity, NaN]),
       new Float64Array([-Infinity, -Number.MAX_VALUE, -Number.MIN_VALUE, 0, Number.MIN_VALUE, Number.MAX_VALUE, Infinity, NaN]),
-    ].forEach(value => cloneObjectTest(assert, value, (orig, clone) => {
+    ];
+
+    for (const array of arrays) cloneObjectTest(assert, array, (orig, clone) => {
       assert.arrayEqual(orig, clone);
-    }));
+    });
   });
 
   // Map
@@ -170,7 +180,7 @@ QUnit.module('structuredClone', () => {
 
   // Error
   QUnit.test('Error', assert => {
-    [
+    const errors = [
       new Error(),
       new Error('abc', 'def'),
       new EvalError(),
@@ -185,15 +195,17 @@ QUnit.module('structuredClone', () => {
       new TypeError('ghi', 'jkl'),
       new URIError(),
       new URIError('ghi', 'jkl'),
-    ].forEach(value => cloneObjectTest(assert, value, (orig, clone) => {
+    ];
+
+    for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
       assert.equal(orig.name, clone.name);
       assert.equal(orig.message, clone.message);
-    }));
+    });
   });
 
   // Arrays
   QUnit.test('Array', assert => {
-    [
+    const arrays = [
       [],
       [1, 2, 3],
       assign(
@@ -202,22 +214,24 @@ QUnit.module('structuredClone', () => {
       assign(
         ['foo', 'bar'],
         { a: true, b: false, foo: 123, bar: 456, '': null }),
-    ].forEach((value, i) => cloneObjectTest(assert, value, (orig, clone) => {
-      assert.deepEqual(value, clone, `array content should be same: ${ i }`);
-      assert.deepEqual(keys(value), keys(clone), `array key should be same: ${ i }`);
-      keys(orig).forEach(key => {
+    ];
+
+    for (const array of arrays) cloneObjectTest(assert, array, (orig, clone) => {
+      assert.deepEqual(orig, clone, `array content should be same: ${ array }`);
+      assert.deepEqual(keys(orig), keys(clone), `array key should be same: ${ array }`);
+      for (const key of keys(orig)) {
         assert.equal(orig[key], clone[key], `Property ${ key }`);
-      });
-    }));
+      }
+    });
   });
 
   // Objects
   QUnit.test('Object', assert => {
     cloneObjectTest(assert, { foo: true, bar: false }, (orig, clone) => {
       assert.deepEqual(keys(orig), keys(clone));
-      keys(orig).forEach(key => {
+      for (const key of keys(orig)) {
         assert.equal(orig[key], clone[key], `Property ${ key }`);
-      });
+      }
     });
   });
 
@@ -233,18 +247,20 @@ QUnit.module('structuredClone', () => {
   // Geometry types
   // FIXME: PhantomJS Can't run this test due to unsupported API.
   QUnit.skip('Geometry types', assert => {
-    [
+    const array = [
       new DOMMatrix(),
       new DOMMatrixReadOnly(),
       new DOMPoint(),
       new DOMPointReadOnly(),
       new DOMRect(),
       new DOMRectReadOnly(),
-    ].forEach(value => cloneObjectTest(assert, value, (orig, clone) => {
-      keys(getPrototypeOf(orig)).forEach(key => {
+    ];
+
+    for (const typ of array) cloneObjectTest(assert, typ, (orig, clone) => {
+      for (const key of keys(getPrototypeOf(orig))) {
         assert.equal(orig[key], clone[key], `Property ${ key }`);
-      });
-    }));
+      }
+    });
   });
 
   if (typeof ImageData == 'function') QUnit.test('ImageData', assert => {
@@ -288,15 +304,13 @@ QUnit.module('structuredClone', () => {
 
   // FileList - exposed in Workers, but not constructable.
   QUnit.skip('FileList', assert => {
-    if ('document' in self) {
+    if ('document' in GLOBAL) {
       // TODO: Test with populated list.
       cloneObjectTest(
         assert,
-        assign(document.createElement('input'),
-          { type: 'file', multiple: true }).files,
-        (orig, clone) => {
-          assert.equal(orig.length, clone.length);
-        });
+        assign(document.createElement('input'), { type: 'file', multiple: true }).files,
+        (orig, clone) => assert.equal(orig.length, clone.length),
+      );
     }
   });
 
@@ -304,15 +318,16 @@ QUnit.module('structuredClone', () => {
   // Non-serializable types
   //
   QUnit.test('Non-serializable types', assert => {
-    [
+    const nons = [
       // ECMAScript types
       function () { return 1; },
       Symbol('desc'),
+      GLOBAL,
+    ];
 
-      // Non-[Serializable] platform objects
-      self,
-      new Event(''),
-      new MessageChannel(),
-    ].forEach(it => cloneFailureTest(assert, it));
+    if (typeof Event == 'function') nons.push(new Event(''));
+    if (typeof MessageChannel == 'function') nons.push(new MessageChannel());
+
+    for (const it of nons) cloneFailureTest(assert, it);
   });
 });
