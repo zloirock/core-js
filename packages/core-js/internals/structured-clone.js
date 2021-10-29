@@ -52,12 +52,13 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'SharedArrayBuffer':
       cloned = value.slice(0);
       break;
-    case 'Blob':
-      cloned = value.slice(0, value.size, value.type);
-      break;
     case 'DataView':
       // eslint-disable-next-line es/no-typed-arrays -- ok
-      cloned = new DataView(structuredCloneInternal(map, value.buffer), value.byteOffset, value.byteLength);
+      cloned = new DataView(
+        structuredCloneInternal(map, value.buffer),
+        value.byteOffset,
+        value.byteLength
+      );
       break;
     case 'Int8Array':
     case 'Uint8Array':
@@ -71,7 +72,11 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'BigInt64Array':
     case 'BigUint64Array':
       // this is safe, since arraybuffer cannot have circular references
-      cloned = new value.constructor(structuredCloneInternal(map, value.buffer), value.byteOffset, value.length);
+      cloned = new value.constructor(
+        structuredCloneInternal(map, value.buffer),
+        value.byteOffset,
+        value.length
+      );
       break;
     case 'Map':
       cloned = new Map();
@@ -92,6 +97,24 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'Object':
       cloned = {};
       deep = true;
+      break;
+    case 'Blob':
+      cloned = value.slice(0, value.size, value.type);
+      break;
+    case 'File':
+      cloned = new File(
+        [value],
+        value.name,
+        { type: value.type, lastModified: value.lastModified }
+      );
+      break;
+    case 'ImageData':
+      cloned = new ImageData(
+        structuredCloneInternal(map, value.data),
+        value.width,
+        value.height,
+        { colorSpace: value.colorSpace }
+      );
       break;
     default:
       throw createDataCloneError('Uncloneable type: ' + type);

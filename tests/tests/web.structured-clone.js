@@ -147,9 +147,7 @@ QUnit.module('structuredClone', () => {
       new Int32Array([0x00000000, 0x00000001, 0xFFFFFFFE, 0xFFFFFFFF]),
       new Uint8ClampedArray([0, 1, 254, 255]),
       new Float32Array([-Infinity, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, Infinity, NaN]),
-      // TODO:
-      // new Float64Array([-Infinity, -Number.MAX_VALUE, -Number.MIN_VALUE, 0,
-      //  Number.MIN_VALUE, Number.MAX_VALUE, Infinity, NaN]),
+      new Float64Array([-Infinity, -Number.MAX_VALUE, -Number.MIN_VALUE, 0, Number.MIN_VALUE, Number.MAX_VALUE, Infinity, NaN]),
     ].forEach(value => cloneObjectTest(assert, value, (orig, clone) => {
       assert.arrayEqual(orig, clone);
     }));
@@ -249,9 +247,7 @@ QUnit.module('structuredClone', () => {
     }));
   });
 
-  // ImageData
-  // FIXME: PhantomJS Can't run this test due to unsupported API.
-  QUnit.skip('ImageData', assert => { // Crashes
+  if (typeof ImageData == 'function') QUnit.test('ImageData', assert => {
     const imageData = new ImageData(8, 8);
     for (let i = 0; i < 256; ++i) {
       imageData.data[i] = i;
@@ -259,25 +255,24 @@ QUnit.module('structuredClone', () => {
     cloneObjectTest(assert, imageData, (orig, clone) => {
       assert.equal(orig.width, clone.width);
       assert.equal(orig.height, clone.height);
+      assert.equal(orig.colorSpace, clone.colorSpace);
       assert.arrayEqual(orig.data, clone.data);
     });
   });
 
-  // Blob
-  QUnit.test('Blob', assert => {
+  if (typeof Blob == 'function') QUnit.test('Blob', assert => {
     cloneObjectTest(
       assert,
       new Blob(['This is a test.'], { type: 'a/b' }),
       (orig, clone) => {
         assert.equal(orig.size, clone.size);
         assert.equal(orig.type, clone.type);
+        // TODO: async
         // assert.equal(await orig.text(), await clone.text());
       });
   });
 
-  // File
-  // FIXME: PhantomJS Can't run this test due to unsupported API.
-  QUnit.skip('File', assert => {
+  if (typeof File == 'function') QUnit.test('File', assert => {
     cloneObjectTest(
       assert,
       new File(['This is a test.'], 'foo.txt', { type: 'c/d' }),
@@ -286,6 +281,7 @@ QUnit.module('structuredClone', () => {
         assert.equal(orig.type, clone.type);
         assert.equal(orig.name, clone.name);
         assert.equal(orig.lastModified, clone.lastModified);
+        // TODO: async
         // assert.equal(await orig.text(), await clone.text());
       });
   });
