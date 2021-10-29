@@ -1,17 +1,24 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
+/* eslint-disable es/no-typed-arrays -- safe */
+import { GLOBAL } from '../helpers/constants';
 import { fromSource } from '../helpers/helpers';
 
-const { from } = Array;
-const { assign, getPrototypeOf, keys } = Object;
+import structuredClone from 'core-js-pure/stable/structured-clone';
+import from from 'core-js-pure/es/array/from';
+import assign from 'core-js-pure/es/object/assign';
+import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+import keys from 'core-js-pure/es/object/keys';
+import Symbol from 'core-js-pure/es/symbol';
+import Map from 'core-js-pure/es/map';
+import Set from 'core-js-pure/es/set';
+import AggregateError from 'core-js-pure/es/aggregate-error';
 
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {
     assert.isFunction(structuredClone, 'structuredClone is a function');
     assert.name(structuredClone, 'structuredClone');
     assert.arity(structuredClone, 1);
-    assert.looksNative(structuredClone);
   });
 
   function cloneTest(value, verifyFunc) {
@@ -136,7 +143,7 @@ QUnit.module('structuredClone', () => {
   });
 
   // ArrayBuffer
-  if (DESCRIPTORS) QUnit.test('ArrayBuffer', assert => { // Crashes
+  if (typeof Uint8Array == 'function') QUnit.test('ArrayBuffer', assert => { // Crashes
     cloneObjectTest(assert, new Uint8Array([0, 1, 254, 255]).buffer, (orig, clone) => {
       assert.arrayEqual(new Uint8Array(orig), new Uint8Array(clone));
     });
@@ -145,7 +152,7 @@ QUnit.module('structuredClone', () => {
   // TODO SharedArrayBuffer
 
   // Array Buffer Views
-  if (DESCRIPTORS) QUnit.test('ArrayBufferView', assert => {
+  if (typeof Uint8ClampedArray == 'function') QUnit.test('ArrayBufferView', assert => {
     const arrays = [
       new Uint8Array([]),
       new Uint8Array([0, 1, 254, 255]),
