@@ -1852,8 +1852,8 @@ export const data = {
   },
   'web.structured-clone': {
     deno: '1.14',
-    node: '17.0.0',
-    firefox: '94'
+    firefox: '94',
+    node: '17.0',
   },
   'web.timers': {
     android: '1.5',

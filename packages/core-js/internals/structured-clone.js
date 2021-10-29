@@ -1,15 +1,15 @@
 'use strict';
 var isSymbol = require('../internals/is-symbol');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names');
 var classof = require('../internals/classof');
 var getBuiltin = require('../internals/get-built-in');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
+var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
-var DataView = getBuiltin('DataView');
 
 function createDataCloneError(message) {
   if (typeof DOMException === 'function') {
@@ -27,9 +27,10 @@ function createDataCloneError(message) {
 module.exports = function structuredCloneInternal(map, value) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (!isObject(value)) return value;
-  if (map.has(value)) return map.get(value); // effectively preserves circular references
+  // effectively preserves circular references
+  if (map.has(value)) return map.get(value);
 
-  var cloned, i, deep;
+  var cloned, deep, key;
   var type = classof(value);
 
   switch (type) {
@@ -46,15 +47,17 @@ module.exports = function structuredCloneInternal(map, value) {
       cloned = new RegExp(value);
       break;
     case 'ArrayBuffer':
-      if (!isArrayBufferDetached()) throw createDataCloneError('ArrayBuffer is deatched');
+      if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
       // falls through
     case 'SharedArrayBuffer':
-    case 'Blob':
       cloned = value.slice(0);
       break;
+    case 'Blob':
+      cloned = value.slice(0, value.size, value.type);
+      break;
     case 'DataView':
-      // this is safe, since arraybuffer cannot have circular references
-      cloned = new DataView(structuredCloneInternal(value.buffer), value.byteOffset, value.byteLength);
+      // eslint-disable-next-line es/no-typed-arrays -- ok
+      cloned = new DataView(structuredCloneInternal(map, value.buffer), value.byteOffset, value.byteLength);
       break;
     case 'Int8Array':
     case 'Uint8Array':
@@ -67,8 +70,8 @@ module.exports = function structuredCloneInternal(map, value) {
     case 'Float64Array':
     case 'BigInt64Array':
     case 'BigUint64Array':
-      // TypedArray
-      cloned = new value.constructor(value);
+      // this is safe, since arraybuffer cannot have circular references
+      cloned = new value.constructor(structuredCloneInternal(map, value.buffer), value.byteOffset, value.length);
       break;
     case 'Map':
       cloned = new Map();
@@ -108,22 +111,12 @@ module.exports = function structuredCloneInternal(map, value) {
       });
       break;
     case 'Error':
-      // Attempt to clone the stack.
-      if (
-        !hasOwn(value, 'stack') && // Chrome, Safari
-        !hasOwn(Error.prototype, 'stack') // Firefox
-      ) break;
-      try {
-        cloned.stack = structuredCloneInternal(map, value.stack);
-      } catch (_) {
-        return cloned; // Stack cloning not avaliable.
-      }
+      if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(map, value.stack));
       break;
     case 'Array':
     case 'Object':
-      var properties = getOwnPropertyNames.f(value);
-      for (i = 0; i < properties.length; i++) {
-        cloned[properties[i]] = structuredCloneInternal(map, value[properties[i]]);
+      for (key in value) if (hasOwn(value, key)) {
+        cloned[key] = structuredCloneInternal(map, value[key]);
       }
       break;
   }

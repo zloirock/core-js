@@ -1,12 +1,19 @@
 var $ = require('../internals/export');
+var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
+var anObject = require('../internals/an-object');
 var structuredCloneImpl = require('../internals/structured-clone');
+
 var Map = getBuiltIn('Map');
+var TypeError = global.TypeError;
 
 $({ global: true, enumerable: true, sham: true }, {
-  structuredClone: function structuredClone(value/* , { transfer } */) {
-    var transfer = arguments.length > 1 && arguments[1] !== undefined ? arguments[1].transfer : undefined;
+  structuredClone: function structuredClone(value /* , { transfer } */) {
+    var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
+    var transfer = options && options.transfer;
 
-    return structuredCloneImpl(new Map(), value, transfer || []);
+    if (transfer !== undefined) throw new TypeError('Transfer option is not supported');
+
+    return structuredCloneImpl(new Map(), value);
   }
 });

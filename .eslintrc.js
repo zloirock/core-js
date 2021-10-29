@@ -1119,11 +1119,12 @@ module.exports = {
         'tests/compat/**',
       ],
       globals: {
-        compositeKey: READONLY,
-        compositeSymbol: READONLY,
         AsyncIterator: READONLY,
         Iterator: READONLY,
         Observable: READONLY,
+        compositeKey: READONLY,
+        compositeSymbol: READONLY,
+        structuredClone: READONLY,
       },
     },
     {
