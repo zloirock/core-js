@@ -1224,20 +1224,20 @@ GLOBAL.tests = {
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
+  'esnext.array.to-reversed': function () {
+    return [].toReversed;
+  },
+  'esnext.array.to-sorted': function () {
+    return [].toSorted;
+  },
+  'esnext.array.to-spliced': function () {
+    return [].toSpliced;
+  },
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },
-  'esnext.array.with-at': function () {
-    return [].withAt;
-  },
-  'esnext.array.with-reversed': function () {
-    return [].withReversed;
-  },
-  'esnext.array.with-sorted': function () {
-    return [].withSorted;
-  },
-  'esnext.array.with-spliced': function () {
-    return [].withSpliced;
+  'esnext.array.with': function () {
+    return []['with'];
   },
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
@@ -1526,20 +1526,20 @@ GLOBAL.tests = {
   'esnext.typed-array.group-by': function () {
     return Int8Array.prototype.groupBy;
   },
+  'esnext.typed-array.to-reversed': function () {
+    return Int8Array.prototype.toReversed;
+  },
+  'esnext.typed-array.to-sorted': function () {
+    return Int8Array.prototype.toSorted;
+  },
+  'esnext.typed-array.to-spliced': function () {
+    return Int8Array.prototype.toSpliced;
+  },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
   },
-  'esnext.typed-array.with-at': function () {
-    return Int8Array.prototype.withAt;
-  },
-  'esnext.typed-array.with-reversed': function () {
-    return Int8Array.prototype.withReversed;
-  },
-  'esnext.typed-array.with-sorted': function () {
-    return Int8Array.prototype.withSorted;
-  },
-  'esnext.typed-array.with-spliced': function () {
-    return Int8Array.prototype.withSpliced;
+  'esnext.typed-array.with': function () {
+    return Int8Array.prototype['with'];
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

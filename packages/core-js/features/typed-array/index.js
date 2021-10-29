@@ -10,10 +10,10 @@ require('../../modules/esnext.typed-array.filter-reject');
 require('../../modules/esnext.typed-array.find-last');
 require('../../modules/esnext.typed-array.find-last-index');
 require('../../modules/esnext.typed-array.group-by');
+require('../../modules/esnext.typed-array.to-reversed');
+require('../../modules/esnext.typed-array.to-sorted');
+require('../../modules/esnext.typed-array.to-spliced');
 require('../../modules/esnext.typed-array.unique-by');
-require('../../modules/esnext.typed-array.with-at');
-require('../../modules/esnext.typed-array.with-reversed');
-require('../../modules/esnext.typed-array.with-sorted');
-require('../../modules/esnext.typed-array.with-spliced');
+require('../../modules/esnext.typed-array.with');
 
 module.exports = parent;
