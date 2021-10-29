@@ -255,28 +255,83 @@ QUnit.module('structuredClone', () => {
   //
 
   // TODO: Test these additional interfaces:
-  // * DOMQuad
-  // * DOMException
   // * RTCCertificate
 
   // Geometry types
-  // FIXME: PhantomJS Can't run this test due to unsupported API.
-  QUnit.skip('Geometry types', assert => {
-    const array = [
-      new DOMMatrix(),
-      new DOMMatrixReadOnly(),
-      new DOMPoint(),
-      new DOMPointReadOnly(),
-      new DOMRect(),
-      new DOMRectReadOnly(),
-    ];
-
-    for (const typ of array) cloneObjectTest(assert, typ, (orig, clone) => {
-      for (const key of keys(getPrototypeOf(orig))) {
-        assert.equal(orig[key], clone[key], `Property ${ key }`);
-      }
+  if (typeof DOMMatrix == 'function' && typeof DOMMatrix.fromMatrix == 'function') {
+    QUnit.test('Geometry types, DOMMatrix', assert => {
+      cloneObjectTest(assert, new DOMMatrix(), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
     });
-  });
+  }
+
+  if (typeof DOMMatrixReadOnly == 'function' && typeof DOMMatrixReadOnly.fromMatrix == 'function') {
+    QUnit.test('Geometry types, DOMMatrixReadOnly', assert => {
+      cloneObjectTest(assert, new DOMMatrixReadOnly(), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
+
+  if (typeof DOMPoint == 'function' && typeof DOMPoint.fromPoint == 'function') {
+    QUnit.test('Geometry types, DOMPoint', assert => {
+      cloneObjectTest(assert, new DOMPoint(1, 2, 3, 4), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
+
+  if (typeof DOMPointReadOnly == 'function' && typeof DOMPointReadOnly.fromPoint == 'function') {
+    QUnit.test('Geometry types, DOMPointReadOnly', assert => {
+      cloneObjectTest(assert, new DOMPointReadOnly(1, 2, 3, 4), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
+
+  if (typeof DOMPoint == 'function' && typeof DOMQuad == 'function') {
+    QUnit.test('Geometry types, DOMQuad', assert => {
+      cloneObjectTest(assert, new DOMQuad(
+        new DOMPoint(1, 2, 3, 4),
+        new DOMPoint(2, 2, 3, 4),
+        new DOMPoint(1, 3, 3, 4),
+        new DOMPoint(1, 2, 4, 4),
+      ), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.deepEqual(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
+
+  if (typeof DOMRect == 'function' && typeof DOMRect.fromRect == 'function') {
+    QUnit.test('Geometry types, DOMRect', assert => {
+      cloneObjectTest(assert, new DOMRect(1, 2, 3, 4), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
+
+  if (typeof DOMRectReadOnly == 'function' && typeof DOMRectReadOnly.fromRect == 'function') {
+    QUnit.test('Geometry types, DOMRectReadOnly', assert => {
+      cloneObjectTest(assert, new DOMRectReadOnly(1, 2, 3, 4), (orig, clone) => {
+        for (const key of keys(getPrototypeOf(orig))) {
+          assert.equal(orig[key], clone[key], `Property ${ key }`);
+        }
+      });
+    });
+  }
 
   if (typeof ImageData == 'function') QUnit.test('ImageData', assert => {
     const imageData = new ImageData(8, 8);

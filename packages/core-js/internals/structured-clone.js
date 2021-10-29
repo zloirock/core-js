@@ -140,7 +140,7 @@ var structuredCloneInternal = module.exports = function (map, value) {
           C = Error;
       }
       cloned = C(value.message);
-      deep = true; // clone stack after storing in the weakmap
+      deep = true; // clone stack after storing in the map
       break;
     case 'Array':
       cloned = [];
@@ -155,7 +155,27 @@ var structuredCloneInternal = module.exports = function (map, value) {
       break;
     case 'DOMException':
       cloned = new (getBuiltin('DOMException'))(value.message, value.name);
-      deep = true; // clone stack after storing in the weakmap
+      deep = true; // clone stack after storing in the map
+      break;
+    case 'DOMPoint':
+    case 'DOMPointReadOnly':
+      cloned = global[type].fromPoint(value);
+      break;
+    case 'DOMQuad':
+      cloned = new DOMQuad(
+        structuredCloneInternal(map, value.p1),
+        structuredCloneInternal(map, value.p2),
+        structuredCloneInternal(map, value.p3),
+        structuredCloneInternal(map, value.p4)
+      );
+      break;
+    case 'DOMRect':
+    case 'DOMRectReadOnly':
+      cloned = global[type].fromRect(value);
+      break;
+    case 'DOMMatrix':
+    case 'DOMMatrixReadOnly':
+      cloned = global[type].fromMatrix(value);
       break;
     case 'File':
       cloned = new File(
