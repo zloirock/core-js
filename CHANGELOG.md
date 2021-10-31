@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- `.findLast` methods family marked as supported [from Chrome 97](https://v8.dev/features/finding-in-arrays#support)
 - Fixed inheritance of Electron compat data `web.` modules
 - Fixed Safari 15.1 compat data (some features were not added)
 - Added iOS Safari 15.1 compat data mapping

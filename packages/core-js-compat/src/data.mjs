@@ -1442,9 +1442,11 @@ export const data = {
   'esnext.array.filter-reject': {
   },
   'esnext.array.find-last': {
+    chrome: '97',
     safari: '15.4',
   },
   'esnext.array.find-last-index': {
+    chrome: '97',
     safari: '15.4',
   },
   'esnext.array.group-by': {
@@ -1718,9 +1720,11 @@ export const data = {
   'esnext.typed-array.filter-reject': {
   },
   'esnext.typed-array.find-last': {
+    chrome: '97',
     safari: '15.4',
   },
   'esnext.typed-array.find-last-index': {
+    chrome: '97',
     safari: '15.4',
   },
   'esnext.typed-array.group-by': {
