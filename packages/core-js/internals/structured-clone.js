@@ -76,17 +76,10 @@ var structuredCloneInternal = module.exports = function (map, value) {
     case 'ArrayBuffer':
     case 'SharedArrayBuffer':
       if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
-      cloned = value.slice(0);
+      // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
+      cloned = type === 'SharedArrayBuffer' ? value : value.slice(0);
       break;
     case 'DataView':
-      // eslint-disable-next-line es/no-typed-arrays -- ok
-      cloned = new DataView(
-        // this is safe, since arraybuffer cannot have circular references
-        structuredCloneInternal(map, value.buffer),
-        value.byteOffset,
-        value.byteLength
-      );
-      break;
     case 'Int8Array':
     case 'Uint8Array':
     case 'Uint8ClampedArray':
@@ -102,7 +95,7 @@ var structuredCloneInternal = module.exports = function (map, value) {
         // this is safe, since arraybuffer cannot have circular references
         structuredCloneInternal(map, value.buffer),
         value.byteOffset,
-        value.length
+        type === 'DataView' ? value.byteLength : value.length
       );
       break;
     case 'Map':
