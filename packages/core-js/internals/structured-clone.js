@@ -44,11 +44,13 @@ var createDataCloneError = function (message) {
  * @param {Map<object, object>} map cache map
  * @param {any} value object to clone
  */
-var structuredCloneInternal = module.exports = function (map, value) {
+var structuredCloneInternal = module.exports = function (value, map) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (!isObject(value)) return value;
   // effectively preserves circular references
-  if (mapHas(map, value)) return mapGet(map, value);
+  if (map) {
+    if (mapHas(map, value)) return mapGet(map, value);
+  } else map = new Map();
 
   var C, cloned, deep, key;
   var type = classof(value);
@@ -93,7 +95,7 @@ var structuredCloneInternal = module.exports = function (map, value) {
     case 'BigUint64Array':
       cloned = new global[type](
         // this is safe, since arraybuffer cannot have circular references
-        structuredCloneInternal(map, value.buffer),
+        structuredCloneInternal(value.buffer, map),
         value.byteOffset,
         type === 'DataView' ? value.byteLength : value.length
       );
@@ -156,10 +158,10 @@ var structuredCloneInternal = module.exports = function (map, value) {
       break;
     case 'DOMQuad':
       cloned = new DOMQuad(
-        structuredCloneInternal(map, value.p1),
-        structuredCloneInternal(map, value.p2),
-        structuredCloneInternal(map, value.p3),
-        structuredCloneInternal(map, value.p4)
+        structuredCloneInternal(value.p1, map),
+        structuredCloneInternal(value.p2, map),
+        structuredCloneInternal(value.p3, map),
+        structuredCloneInternal(value.p4, map)
       );
       break;
     case 'DOMRect':
@@ -172,7 +174,6 @@ var structuredCloneInternal = module.exports = function (map, value) {
       break;
     case 'AudioData':
     case 'VideoFrame':
-      // reference to the same media resource as the original
       cloned = value.clone();
       break;
     case 'File':
@@ -184,7 +185,7 @@ var structuredCloneInternal = module.exports = function (map, value) {
       break;
     case 'ImageData':
       cloned = new ImageData(
-        structuredCloneInternal(map, value.data),
+        structuredCloneInternal(value.data, map),
         value.width,
         value.height,
         { colorSpace: value.colorSpace }
@@ -199,22 +200,22 @@ var structuredCloneInternal = module.exports = function (map, value) {
   if (deep) switch (type) {
     case 'Map':
       value.forEach(function (v, k) {
-        mapSet(cloned, structuredCloneInternal(map, k), structuredCloneInternal(map, v));
+        mapSet(cloned, structuredCloneInternal(k, map), structuredCloneInternal(v, map));
       });
       break;
     case 'Set':
       value.forEach(function (v) {
-        setAdd(cloned, structuredCloneInternal(map, v));
+        setAdd(cloned, structuredCloneInternal(v, map));
       });
       break;
     case 'Error':
     case 'DOMException':
-      if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(map, value.stack));
+      if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map));
       break;
     case 'Array':
     case 'Object':
       for (key in value) if (hasOwn(value, key)) {
-        cloned[key] = structuredCloneInternal(map, value[key]);
+        cloned[key] = structuredCloneInternal(value[key], map);
       }
       break;
   }

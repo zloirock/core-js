@@ -1,11 +1,9 @@
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
-var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
-var structuredCloneImpl = require('../internals/structured-clone');
+var structuredCloneInternal = require('../internals/structured-clone');
 
-var Map = getBuiltIn('Map');
 var TypeError = global.TypeError;
 
 $({ global: true, enumerable: true, sham: true, forced: IS_PURE }, {
@@ -15,6 +13,6 @@ $({ global: true, enumerable: true, sham: true, forced: IS_PURE }, {
 
     if (transfer !== undefined) throw new TypeError('Transfer option is not supported');
 
-    return structuredCloneImpl(new Map(), value);
+    return structuredCloneInternal(value);
   }
 });
