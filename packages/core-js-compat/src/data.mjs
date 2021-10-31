@@ -1852,7 +1852,8 @@ export const data = {
   },
   'web.structured-clone': {
     deno: '1.14',
-    firefox: '94', // BUGGY
+    // current FF implementation can't clone errors
+    // firefox: '94',
     node: '17.0',
   },
   'web.timers': {

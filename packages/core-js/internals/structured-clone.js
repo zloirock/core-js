@@ -10,6 +10,7 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
+var n$StructuredClone = global.structuredClone;
 var Object = global.Object;
 var Date = global.Date;
 var Error = global.Error;
@@ -79,7 +80,7 @@ var structuredCloneInternal = module.exports = function (value, map) {
     case 'SharedArrayBuffer':
       if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
       // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
-      cloned = type === 'SharedArrayBuffer' ? value : value.slice(0);
+      cloned = type === 'SharedArrayBuffer' ? n$StructuredClone ? n$StructuredClone(value) : value : value.slice(0);
       break;
     case 'DataView':
     case 'Int8Array':
@@ -192,7 +193,8 @@ var structuredCloneInternal = module.exports = function (value, map) {
       );
       break;
     default:
-      throw createDataCloneError('Uncloneable type: ' + type);
+      if (n$StructuredClone) cloned = n$StructuredClone(value);
+      else throw createDataCloneError('Uncloneable type: ' + type);
   }
 
   mapSet(map, value, cloned);

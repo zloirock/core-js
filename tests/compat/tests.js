@@ -1672,7 +1672,7 @@ GLOBAL.tests = {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
   'web.structured-clone': function () {
-    return typeof structuredClone === 'function';
+    return structuredClone(Error('a')).message === 'a';
   },
   'web.timers': function () {
     return !/MSIE .\./.test(USERAGENT);
