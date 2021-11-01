@@ -193,10 +193,10 @@ QUnit.module('structuredClone', () => {
     ];
 
     for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
-      assert.equal(orig.constructor === AggregateError ? Error : orig.constructor, clone.constructor);
-      assert.equal(orig.name === 'AggregateError' ? 'Error' : orig.name, clone.name);
-      assert.equal(orig.message, clone.message);
-      assert.equal(orig.stack, clone.stack);
+      assert.equal(orig.constructor, clone.constructor, `constructor ${ orig.name }`);
+      assert.equal(orig.name, clone.name, `name ${ orig.name }`);
+      assert.equal(orig.message, clone.message, `message ${ orig.name }`);
+      assert.equal(orig.stack, clone.stack, `stack ${ orig.name }`);
     });
 
     const aggregates = [
