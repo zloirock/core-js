@@ -6,12 +6,11 @@ var InternalMetadataModule = require('../internals/internal-metadata');
 var collection = require('../internals/collection');
 var collectionWeak = require('../internals/collection-weak');
 var isObject = require('../internals/is-object');
+var isExtensible = require('../internals/object-is-extensible');
 var enforceIternalState = require('../internals/internal-state').enforce;
 var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
 
 var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
-// eslint-disable-next-line es/no-object-isextensible -- safe
-var isExtensible = Object.isExtensible;
 var InternalWeakMap;
 
 var wrapper = function (init) {

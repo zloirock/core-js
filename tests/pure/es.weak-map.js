@@ -63,6 +63,12 @@ QUnit.test('WeakMap', assert => {
     object = {};
     assert.same(new Subclass().set(object, 2).get(object), 2, 'correct subclassing with native classes #3');
   }
+
+  if (typeof ArrayBuffer == 'function') {
+    const buffer = new ArrayBuffer(8);
+    const map = new WeakMap([[buffer, 8]]);
+    assert.ok(map.has(buffer), 'works with ArrayBuffer keys');
+  }
 });
 
 QUnit.test('WeakMap#delete', assert => {

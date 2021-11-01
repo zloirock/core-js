@@ -1,6 +1,10 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround for FF26- bug where `ArrayBuffer`s are non-extensible, but `Object.isExtensible` does not report it:
+  - Fixed in `Object.{ isExtensible, isSealed, isFrozen }` and `Reflect.isExtensible`
+  - Fixed handling of `ArrayBuffer`s as collections keys
 - Fixed `Object#toString` on `AggregateError` in IE10-
+- Fixed possible lack of dependencies of `WeakMap` in IE8-
 - `.findLast` methods family marked as supported [from Chrome 97](https://chromestatus.com/features#milestone%3D97)
 - Fixed inheritance of Electron compat data `web.` modules
 - Fixed Safari 15.1 compat data (some features were not added)

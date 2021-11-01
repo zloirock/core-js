@@ -59,6 +59,10 @@ QUnit.test('WeakSet', assert => {
     object = {};
     assert.ok(new Subclass().add(object).has(object), 'correct subclassing with native classes #3');
   }
+
+  const buffer = new ArrayBuffer(8);
+  const set = new WeakSet([buffer]);
+  assert.ok(set.has(buffer), 'works with ArrayBuffer keys');
 });
 
 QUnit.test('WeakSet#add', assert => {

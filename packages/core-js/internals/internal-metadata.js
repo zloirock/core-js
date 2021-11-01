@@ -6,17 +6,13 @@ var hasOwn = require('../internals/has-own-property');
 var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertyNamesExternalModule = require('../internals/object-get-own-property-names-external');
+var isExtensible = require('../internals/object-is-extensible');
 var uid = require('../internals/uid');
 var FREEZING = require('../internals/freezing');
 
 var REQUIRED = false;
 var METADATA = uid('meta');
 var id = 0;
-
-// eslint-disable-next-line es/no-object-isextensible -- safe
-var isExtensible = Object.isExtensible || function () {
-  return true;
-};
 
 var setMetadata = function (it) {
   defineProperty(it, METADATA, { value: {

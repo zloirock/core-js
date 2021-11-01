@@ -55,6 +55,12 @@ QUnit.test('Map', assert => {
     assert.ok(new Subclass() instanceof Map, 'correct subclassing with native classes #2');
     assert.strictEqual(new Subclass().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
   }
+
+  if (typeof ArrayBuffer == 'function') {
+    const buffer = new ArrayBuffer(8);
+    const map = new Map([[buffer, 8]]);
+    assert.ok(map.has(buffer), 'works with ArrayBuffer keys');
+  }
 });
 
 QUnit.test('Map#clear', assert => {

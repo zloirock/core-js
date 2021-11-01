@@ -18,7 +18,7 @@ QUnit.test('Set', assert => {
   assert.ok('forEach' in Set.prototype, 'forEach in Set.prototype');
   assert.ok('has' in Set.prototype, 'has in Set.prototype');
   assert.ok(new Set() instanceof Set, 'new Set instanceof Set');
-  const set = new Set();
+  let set = new Set();
   set.add(1);
   set.add(2);
   set.add(3);
@@ -73,6 +73,12 @@ QUnit.test('Set', assert => {
     assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
     assert.ok(new Subclass() instanceof Set, 'correct subclassing with native classes #2');
     assert.ok(new Subclass().add(2).has(2), 'correct subclassing with native classes #3');
+  }
+
+  if (typeof ArrayBuffer == 'function') {
+    const buffer = new ArrayBuffer(8);
+    set = new Set([buffer]);
+    assert.ok(set.has(buffer), 'works with ArrayBuffer keys');
   }
 });
 
