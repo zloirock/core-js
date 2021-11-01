@@ -179,7 +179,9 @@ var structuredCloneInternal = module.exports = function (value, map) {
       break;
     case 'DOMPoint':
     case 'DOMPointReadOnly':
-      cloned = global[type].fromPoint(value);
+      cloned = global[type].fromPoint
+        ? global[type].fromPoint(value)
+        : new global[type](value.x, value.y, value.z, value.w);
       break;
     case 'DOMQuad':
       cloned = new DOMQuad(
@@ -191,11 +193,15 @@ var structuredCloneInternal = module.exports = function (value, map) {
       break;
     case 'DOMRect':
     case 'DOMRectReadOnly':
-      cloned = global[type].fromRect(value);
+      cloned = global[type].fromRect
+        ? global[type].fromRect(value)
+        : new global[type](value.x, value.y, value.width, value.height);
       break;
     case 'DOMMatrix':
     case 'DOMMatrixReadOnly':
-      cloned = global[type].fromMatrix(value);
+      cloned = global[type].fromMatrix
+        ? global[type].fromMatrix(value)
+        : new global[type](value);
       break;
     case 'AudioData':
     case 'VideoFrame':

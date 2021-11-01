@@ -255,7 +255,7 @@ QUnit.module('structuredClone', () => {
   // [Serializable] Platform objects
 
   // Geometry types
-  if (typeof DOMMatrix == 'function' && typeof DOMMatrix.fromMatrix == 'function') {
+  if (typeof DOMMatrix == 'function') {
     QUnit.test('Geometry types, DOMMatrix', assert => {
       cloneObjectTest(assert, new DOMMatrix(), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -275,7 +275,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMPoint == 'function' && typeof DOMPoint.fromPoint == 'function') {
+  if (typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMPoint', assert => {
       cloneObjectTest(assert, new DOMPoint(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
@@ -295,7 +295,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMQuad == 'function' && typeof DOMPoint == 'function' && typeof DOMPoint.fromPoint == 'function') {
+  if (typeof DOMQuad == 'function' && typeof DOMPoint == 'function') {
     QUnit.test('Geometry types, DOMQuad', assert => {
       cloneObjectTest(assert, new DOMQuad(
         new DOMPoint(1, 2, 3, 4),
@@ -310,7 +310,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMRect == 'function' && typeof DOMRect.fromRect == 'function') {
+  if (typeof DOMRect == 'function') {
     QUnit.test('Geometry types, DOMRect', assert => {
       cloneObjectTest(assert, new DOMRect(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
