@@ -2,18 +2,18 @@
 var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
+var uid = require('../internals/uid');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
-var structuredCloneFromMark = require('../internals/structured-clone-from-mark');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
-var n$StructuredClone = global.structuredClone || structuredCloneFromMark;
 var Object = global.Object;
 var Date = global.Date;
 var Error = global.Error;
@@ -26,6 +26,9 @@ var URIError = global.URIError;
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
 var MapPrototype = Map.prototype;
+var performance = global.performance;
+var mark = performance && performance.mark;
+var clearMarks = performance && performance.clearMarks;
 var mapHas = uncurryThis(MapPrototype.has);
 var mapGet = uncurryThis(MapPrototype.get);
 var mapSet = uncurryThis(MapPrototype.set);
@@ -34,6 +37,21 @@ var bolleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
 var getTime = uncurryThis(Date.prototype.getTime);
+var PERFORMANCE_MARK = uid('structuredClone');
+
+var structuredCloneFromMark = (function (structuredClone) {
+  return !fails(function () {
+    var set = new global.Set([42]);
+    var cloned = structuredClone(set);
+    return cloned === set || !set.has(42);
+  }) && structuredClone;
+})(function (value) {
+  var cloned = call(mark, performance, PERFORMANCE_MARK, { detail: value }).detail;
+  call(clearMarks, performance, PERFORMANCE_MARK);
+  return cloned;
+});
+
+var nativeRestrictedStructuredClone = global.structuredClone || structuredCloneFromMark;
 
 var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
   // current Safari implementation can't clone errors
@@ -87,8 +105,9 @@ var structuredCloneInternal = module.exports = function (value, map) {
     case 'ArrayBuffer':
     case 'SharedArrayBuffer':
       if (isArrayBufferDetached(value)) throw createDataCloneError('ArrayBuffer is deatched');
-      // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
-      cloned = type === 'SharedArrayBuffer' ? n$StructuredClone ? n$StructuredClone(value) : value : value.slice(0);
+      cloned = type === 'ArrayBuffer' ? value.slice(0)
+        // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
+        : nativeRestrictedStructuredClone ? nativeRestrictedStructuredClone(value) : value;
       break;
     case 'DataView':
     case 'Int8Array':
@@ -201,7 +220,7 @@ var structuredCloneInternal = module.exports = function (value, map) {
       );
       break;
     default:
-      if (n$StructuredClone) cloned = n$StructuredClone(value);
+      if (nativeRestrictedStructuredClone) cloned = nativeRestrictedStructuredClone(value);
       else throw createDataCloneError('Uncloneable type: ' + type);
   }
 
