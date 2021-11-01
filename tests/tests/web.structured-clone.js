@@ -303,7 +303,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMRect == 'function') {
+  if (fromSource('new DOMRect(1, 2, 3, 4)')) {
     QUnit.test('Geometry types, DOMRect', assert => {
       cloneObjectTest(assert, new DOMRect(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
