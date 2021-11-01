@@ -295,7 +295,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof DOMPoint == 'function' && typeof DOMQuad == 'function') {
+  if (typeof DOMQuad == 'function' && typeof DOMPoint == 'function' && typeof DOMPoint.fromPoint == 'function') {
     QUnit.test('Geometry types, DOMQuad', assert => {
       cloneObjectTest(assert, new DOMQuad(
         new DOMPoint(1, 2, 3, 4),
