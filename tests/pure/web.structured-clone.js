@@ -35,13 +35,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  function cloneFailureTest(assert, value) {
-    assert.throws(() => structuredClone(value), typeof DOMException === 'function' ? DOMException : Error);
-  }
-
-  //
   // ECMAScript types
-  //
 
   // Primitive values: Undefined, Null, Boolean, Number, BigInt, String
   const booleans = [false, true];
@@ -258,12 +252,7 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  //
   // [Serializable] Platform objects
-  //
-
-  // TODO: Test these additional interfaces:
-  // * RTCCertificate
 
   // Geometry types
   if (typeof DOMMatrix == 'function' && typeof DOMMatrix.fromMatrix == 'function') {
@@ -341,7 +330,7 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (typeof ImageData == 'function') QUnit.test('ImageData', assert => {
+  if (fromSource('new ImageData(8, 8)')) QUnit.test('ImageData', assert => {
     const imageData = new ImageData(8, 8);
     for (let i = 0; i < 256; ++i) {
       imageData.data[i] = i;
@@ -354,7 +343,7 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  if (typeof Blob == 'function') QUnit.test('Blob', assert => {
+  if (fromSource('new Blob(["test"])')) QUnit.test('Blob', assert => {
     cloneObjectTest(
       assert,
       new Blob(['This is a test.'], { type: 'a/b' }),
@@ -366,7 +355,8 @@ QUnit.module('structuredClone', () => {
       });
   });
 
-  if (typeof DOMException == 'function') QUnit.test('DOMException', assert => {
+  // TODO: remove check after https://github.com/zloirock/core-js/pull/991
+  if (fromSource('new DOMException')) QUnit.test('DOMException', assert => {
     const errors = [
       new DOMException(),
       new DOMException('foo', 'DataCloneError'),
@@ -380,7 +370,7 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  if (typeof File == 'function') QUnit.test('File', assert => {
+  if (fromSource('new File(["test"], "foo.txt")')) QUnit.test('File', assert => {
     cloneObjectTest(
       assert,
       new File(['This is a test.'], 'foo.txt', { type: 'c/d' }),
@@ -406,9 +396,7 @@ QUnit.module('structuredClone', () => {
     }
   });
 
-  //
   // Non-serializable types
-  //
   QUnit.test('Non-serializable types', assert => {
     const nons = [
       function () { return 1; },
@@ -416,9 +404,14 @@ QUnit.module('structuredClone', () => {
       GLOBAL,
     ];
 
-    if (typeof Event == 'function') nons.push(new Event(''));
-    if (typeof MessageChannel == 'function') nons.push(new MessageChannel());
+    const event = fromSource('new Event("")');
+    const channel = fromSource('new MessageChannel');
 
-    for (const it of nons) cloneFailureTest(assert, it);
+    if (event) nons.push(event);
+    if (channel) nons.push(channel);
+
+    for (const it of nons) {
+      assert.throws(() => structuredClone(it), fromSource('new DOMException') ? DOMException : TypeError);
+    }
   });
 });

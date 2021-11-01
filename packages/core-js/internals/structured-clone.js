@@ -59,9 +59,11 @@ var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
 });
 
 var createDataCloneError = function (message) {
-  if (typeof DOMException === 'function') {
+  try {
     return new DOMException(message, 'DataCloneError');
-  } return Error(message);
+  } catch (error) {
+    return TypeError(message);
+  }
 };
 
 /**
