@@ -12,17 +12,23 @@ var clearErrorStack = require('../internals/clear-error-stack');
 var installErrorCause = require('../internals/install-error-cause');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var Error = global.Error;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
   var options = arguments.length > 2 ? arguments[2] : undefined;
   var isInstance = isPrototypeOf(AggregateErrorPrototype, this);
-  var that = setPrototypeOf
-    ? setPrototypeOf(new Error(undefined), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype)
-    : isInstance ? this : create(AggregateErrorPrototype);
+  var that;
+  if (setPrototypeOf) {
+    that = setPrototypeOf(new Error(undefined), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype);
+  } else {
+    that = isInstance ? this : create(AggregateErrorPrototype);
+    createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
+  }
   createNonEnumerableProperty(that, 'message', normalizeStringArgument(message, ''));
   if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(that, 'stack', clearErrorStack(that.stack, 1));
   installErrorCause(that, options);

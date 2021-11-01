@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed `Object#toString` on `AggregateError` in IE10-
 - `.findLast` methods family marked as supported [from Chrome 97](https://chromestatus.com/features#milestone%3D97)
 - Fixed inheritance of Electron compat data `web.` modules
 - Fixed Safari 15.1 compat data (some features were not added)
