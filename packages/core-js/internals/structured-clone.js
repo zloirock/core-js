@@ -2,7 +2,6 @@
 var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
-var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -26,9 +25,7 @@ var URIError = global.URIError;
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
 var MapPrototype = Map.prototype;
-var performance = global.performance;
-var mark = performance && performance.mark;
-var clearMarks = performance && performance.clearMarks;
+var PerformanceMark = global.PerformanceMark;
 var mapHas = uncurryThis(MapPrototype.has);
 var mapGet = uncurryThis(MapPrototype.get);
 var mapSet = uncurryThis(MapPrototype.set);
@@ -46,9 +43,7 @@ var structuredCloneFromMark = (function (structuredClone) {
     return cloned === set || !set.has(42);
   }) && structuredClone;
 })(function (value) {
-  var cloned = call(mark, performance, PERFORMANCE_MARK, { detail: value }).detail;
-  call(clearMarks, performance, PERFORMANCE_MARK);
-  return cloned;
+  return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });
 
 var nativeRestrictedStructuredClone = global.structuredClone || structuredCloneFromMark;
