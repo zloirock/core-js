@@ -1,16 +1,19 @@
 'use strict';
+var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
+var fails = require('../internals/fails');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
+var structuredCloneFromMark = require('../internals/structured-clone-from-mark');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
-var n$StructuredClone = global.structuredClone;
+var n$StructuredClone = global.structuredClone || structuredCloneFromMark;
 var Object = global.Object;
 var Date = global.Date;
 var Error = global.Error;
@@ -32,11 +35,15 @@ var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
 var getTime = uncurryThis(Date.prototype.getTime);
 
+var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
+  // current Safari implementation can't clone errors
+  return structuredCloneFromMark(Error('a')).message !== 'a';
+});
+
 var createDataCloneError = function (message) {
   if (typeof DOMException === 'function') {
     return new DOMException(message, 'DataCloneError');
-  }
-  return new Error(message);
+  } return Error(message);
 };
 
 /**
@@ -48,6 +55,7 @@ var createDataCloneError = function (message) {
 var structuredCloneInternal = module.exports = function (value, map) {
   if (isSymbol(value)) throw createDataCloneError('Symbols are not cloneable');
   if (!isObject(value)) return value;
+  if (USE_STRUCTURED_CLONE_FROM_MARK) return structuredCloneFromMark(value);
   // effectively preserves circular references
   if (map) {
     if (mapHas(map, value)) return mapGet(map, value);
