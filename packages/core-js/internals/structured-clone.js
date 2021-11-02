@@ -76,8 +76,8 @@ var structuredCloneInternal = module.exports = function (value, map) {
     if (mapHas(map, value)) return mapGet(map, value);
   } else map = new Map();
 
-  var C, cloned, deep, key;
   var type = classof(value);
+  var C, cloned, deep, dataTransfer, i, length, key;
 
   switch (type) {
     case 'BigInt':
@@ -213,6 +213,13 @@ var structuredCloneInternal = module.exports = function (value, map) {
         value.name,
         { type: value.type, lastModified: value.lastModified }
       );
+      break;
+    case 'FileList':
+      dataTransfer = new DataTransfer();
+      for (i = 0, length = value.length; i < length; i++) {
+        dataTransfer.items.add(structuredCloneInternal(value[i], map));
+      }
+      cloned = dataTransfer.files;
       break;
     case 'ImageData':
       cloned = new ImageData(

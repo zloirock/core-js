@@ -377,16 +377,21 @@ QUnit.module('structuredClone', () => {
       });
   });
 
-  // FileList - exposed in Workers, but not constructable.
-  QUnit.skip('FileList', assert => {
-    if ('document' in GLOBAL) {
-      // TODO: Test with populated list.
-      cloneObjectTest(
-        assert,
-        assign(document.createElement('input'), { type: 'file', multiple: true }).files,
-        (orig, clone) => assert.equal(orig.length, clone.length),
-      );
-    }
+  // FileList
+  if (fromSource('new File(["test"], "foo.txt")') && fromSource('new DataTransfer()')) QUnit.test('FileList', assert => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['test'], 'foo.txt'));
+    cloneObjectTest(
+      assert,
+      transfer.files,
+      (orig, clone) => {
+        assert.equal(1, clone.length);
+        assert.equal(orig[0].size, clone[0].size);
+        assert.equal(orig[0].type, clone[0].type);
+        assert.equal(orig[0].name, clone[0].name);
+        assert.equal(orig[0].lastModified, clone[0].lastModified);
+      },
+    );
   });
 
   // Non-serializable types
