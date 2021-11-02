@@ -36,6 +36,7 @@ var stringValueOf = uncurryThis(''.valueOf);
 var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 
+// Chrome 78+, Safari 14.1+
 var structuredCloneFromMark = (function (structuredClone) {
   return !fails(function () {
     var set = new global.Set([42]);
@@ -46,9 +47,15 @@ var structuredCloneFromMark = (function (structuredClone) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });
 
+// + FF94+
 var nativeRestrictedStructuredClone = global.structuredClone || structuredCloneFromMark;
 
 var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
+  // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
+  if (typeof DOMException == 'function') {
+    var test = structuredCloneFromMark(new DOMException('a', 'DataCloneError'));
+    if (test.name !== 'DataCloneError' || test.message !== 'a') return true;
+  }
   // current Safari implementation can't clone errors
   return structuredCloneFromMark(Error('a')).message !== 'a';
 });
@@ -208,11 +215,7 @@ var structuredCloneInternal = module.exports = function (value, map) {
       cloned = value.clone();
       break;
     case 'File':
-      cloned = new File(
-        [value],
-        value.name,
-        { type: value.type, lastModified: value.lastModified }
-      );
+      cloned = new File([value], value.name, value);
       break;
     case 'FileList':
       dataTransfer = new DataTransfer();
