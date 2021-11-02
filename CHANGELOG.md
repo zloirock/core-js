@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.19.1 - 2021.11.03
 - Added a workaround for FF26- bug where `ArrayBuffer`s are non-extensible, but `Object.isExtensible` does not report it:
   - Fixed in `Object.{ isExtensible, isSealed, isFrozen }` and `Reflect.isExtensible`
   - Fixed handling of `ArrayBuffer`s as collections keys
