@@ -1,17 +1,272 @@
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
+var getBuiltin = require('../internals/get-built-in');
+var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
+var uid = require('../internals/uid');
+var isObject = require('../internals/is-object');
+var isSymbol = require('../internals/is-symbol');
 var anObject = require('../internals/an-object');
-var structuredCloneInternal = require('../internals/structured-clone');
+var classof = require('../internals/classof');
+var hasOwn = require('../internals/has-own-property');
+var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
+var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
-var n$StructuredClone = global.structuredClone;
+var nativeStructuredClone = global.structuredClone;
+var Object = global.Object;
+var Date = global.Date;
+var Error = global.Error;
+var EvalError = global.EvalError;
+var RangeError = global.RangeError;
+var ReferenceError = global.ReferenceError;
+var SyntaxError = global.SyntaxError;
 var TypeError = global.TypeError;
+var URIError = global.URIError;
+var PerformanceMark = global.PerformanceMark;
+var Set = getBuiltin('Set');
+var Map = getBuiltin('Map');
+var MapPrototype = Map.prototype;
+var mapHas = uncurryThis(MapPrototype.has);
+var mapGet = uncurryThis(MapPrototype.get);
+var mapSet = uncurryThis(MapPrototype.set);
+var setAdd = uncurryThis(Set.prototype.add);
+var bolleanValueOf = uncurryThis(true.valueOf);
+var numberValueOf = uncurryThis(1.0.valueOf);
+var stringValueOf = uncurryThis(''.valueOf);
+var getTime = uncurryThis(Date.prototype.getTime);
+var PERFORMANCE_MARK = uid('structuredClone');
+var DATA_CLONE_ERROR = 'DataCloneError';
+
+// Chrome 78+, Safari 14.1+
+var structuredCloneFromMark = (function (structuredCloneFromMarkImpl) {
+  return !fails(function () {
+    var set = new global.Set([42]);
+    var cloned = structuredCloneFromMarkImpl(set);
+    return cloned === set || !set.has(42);
+  }) && structuredCloneFromMarkImpl;
+})(function (value) {
+  return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
+});
+
+// + FF94+
+var nativeRestrictedStructuredClone = nativeStructuredClone || structuredCloneFromMark;
+
+var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
+  // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
+  if (typeof DOMException == 'function') {
+    var test = structuredCloneFromMark(new DOMException(PERFORMANCE_MARK, DATA_CLONE_ERROR));
+    if (test.name !== DATA_CLONE_ERROR || test.message !== PERFORMANCE_MARK) return true;
+  }
+  // current Safari implementation can't clone errors
+  return structuredCloneFromMark(Error(PERFORMANCE_MARK)).message !== PERFORMANCE_MARK;
+});
+
+// waiting for https://github.com/zloirock/core-js/pull/991
+var DOMException = function (message, name) {
+  try {
+    return new global.DOMException(message, name);
+  } catch (error) {
+    return TypeError(message);
+  }
+};
+
+var structuredCloneInternal = function (value, map) {
+  if (isSymbol(value)) throw new DOMException('Symbols are not cloneable', DATA_CLONE_ERROR);
+  if (!isObject(value)) return value;
+  if (USE_STRUCTURED_CLONE_FROM_MARK) return structuredCloneFromMark(value);
+  // effectively preserves circular references
+  if (map) {
+    if (mapHas(map, value)) return mapGet(map, value);
+  } else map = new Map();
+
+  var type = classof(value);
+  var C, cloned, deep, dataTransfer, i, length, key;
+
+  switch (type) {
+    case 'BigInt':
+      // can be a 3rd party polyfill
+      cloned = Object(value.valueOf());
+      break;
+    case 'Boolean':
+      cloned = Object(bolleanValueOf(value));
+      break;
+    case 'Number':
+      cloned = Object(numberValueOf(value));
+      break;
+    case 'String':
+      cloned = Object(stringValueOf(value));
+      break;
+    case 'Date':
+      cloned = new Date(getTime(value));
+      break;
+    case 'RegExp':
+      cloned = new RegExp(value);
+      break;
+    case 'ArrayBuffer':
+    case 'SharedArrayBuffer':
+      if (isArrayBufferDetached(value)) throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
+      cloned = type === 'ArrayBuffer' ? value.slice(0)
+        // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
+        : nativeRestrictedStructuredClone ? nativeRestrictedStructuredClone(value) : value;
+      break;
+    case 'DataView':
+    case 'Int8Array':
+    case 'Uint8Array':
+    case 'Uint8ClampedArray':
+    case 'Int16Array':
+    case 'Uint16Array':
+    case 'Int32Array':
+    case 'Uint32Array':
+    case 'Float32Array':
+    case 'Float64Array':
+    case 'BigInt64Array':
+    case 'BigUint64Array':
+      cloned = new global[type](
+        // this is safe, since arraybuffer cannot have circular references
+        structuredCloneInternal(value.buffer, map),
+        value.byteOffset,
+        type === 'DataView' ? value.byteLength : value.length
+      );
+      break;
+    case 'Map':
+      cloned = new Map();
+      deep = true;
+      break;
+    case 'Set':
+      cloned = new Set();
+      deep = true;
+      break;
+    case 'Error':
+      switch (value.name) {
+        case 'Error':
+          C = Error;
+          break;
+        case 'EvalError':
+          C = EvalError;
+          break;
+        case 'RangeError':
+          C = RangeError;
+          break;
+        case 'ReferenceError':
+          C = ReferenceError;
+          break;
+        case 'SyntaxError':
+          C = SyntaxError;
+          break;
+        case 'TypeError':
+          C = TypeError;
+          break;
+        case 'URIError':
+          C = URIError;
+          break;
+        default:
+          C = Error;
+      }
+      cloned = C(value.message);
+      deep = true; // clone stack after storing in the map
+      break;
+    case 'Array':
+      cloned = [];
+      deep = true;
+      break;
+    case 'Object':
+      cloned = {};
+      deep = true;
+      break;
+    case 'Blob':
+      cloned = value.slice(0, value.size, value.type);
+      break;
+    case 'DOMException':
+      cloned = new DOMException(value.message, value.name);
+      deep = true; // clone stack after storing in the map
+      break;
+    case 'DOMPoint':
+    case 'DOMPointReadOnly':
+      cloned = global[type].fromPoint
+        ? global[type].fromPoint(value)
+        : new global[type](value.x, value.y, value.z, value.w);
+      break;
+    case 'DOMQuad':
+      cloned = new DOMQuad(
+        structuredCloneInternal(value.p1, map),
+        structuredCloneInternal(value.p2, map),
+        structuredCloneInternal(value.p3, map),
+        structuredCloneInternal(value.p4, map)
+      );
+      break;
+    case 'DOMRect':
+    case 'DOMRectReadOnly':
+      cloned = global[type].fromRect
+        ? global[type].fromRect(value)
+        : new global[type](value.x, value.y, value.width, value.height);
+      break;
+    case 'DOMMatrix':
+    case 'DOMMatrixReadOnly':
+      cloned = global[type].fromMatrix
+        ? global[type].fromMatrix(value)
+        : new global[type](value);
+      break;
+    case 'AudioData':
+    case 'VideoFrame':
+      cloned = value.clone();
+      break;
+    case 'File':
+      cloned = new File([value], value.name, value);
+      break;
+    case 'FileList':
+      dataTransfer = new DataTransfer();
+      for (i = 0, length = value.length; i < length; i++) {
+        dataTransfer.items.add(structuredCloneInternal(value[i], map));
+      }
+      cloned = dataTransfer.files;
+      break;
+    case 'ImageData':
+      cloned = new ImageData(
+        structuredCloneInternal(value.data, map),
+        value.width,
+        value.height,
+        { colorSpace: value.colorSpace }
+      );
+      break;
+    default:
+      if (nativeRestrictedStructuredClone) cloned = nativeRestrictedStructuredClone(value);
+      else throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
+  }
+
+  mapSet(map, value, cloned);
+
+  if (deep) switch (type) {
+    case 'Map':
+      value.forEach(function (v, k) {
+        mapSet(cloned, structuredCloneInternal(k, map), structuredCloneInternal(v, map));
+      });
+      break;
+    case 'Set':
+      value.forEach(function (v) {
+        setAdd(cloned, structuredCloneInternal(v, map));
+      });
+      break;
+    case 'Error':
+    case 'DOMException':
+      if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map));
+      break;
+    case 'Array':
+    case 'Object':
+      for (key in value) if (hasOwn(value, key)) {
+        cloned[key] = structuredCloneInternal(value[key], map);
+      }
+      break;
+  }
+
+  return cloned;
+};
 
 var FORCED = IS_PURE || fails(function () {
   // current FF implementation can't clone errors
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
-  return n$StructuredClone(Error('a')).message !== 'a';
+  return nativeStructuredClone(Error('a')).message !== 'a';
 });
 
 $({ global: true, enumerable: true, sham: true, forced: FORCED }, {
@@ -20,7 +275,7 @@ $({ global: true, enumerable: true, sham: true, forced: FORCED }, {
     var transfer = options && options.transfer;
 
     if (transfer !== undefined) {
-      if (!IS_PURE && n$StructuredClone) return n$StructuredClone(value, options);
+      if (!IS_PURE && nativeStructuredClone) return nativeStructuredClone(value, options);
       throw TypeError('Transfer option is not supported');
     }
 
