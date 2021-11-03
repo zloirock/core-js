@@ -38,12 +38,21 @@ var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 
+// waiting for https://github.com/zloirock/core-js/pull/991
+var DOMException = function (message, name) {
+  try {
+    return new global.DOMException(message, name);
+  } catch (error) {
+    return TypeError(message);
+  }
+};
+
 // Chrome 78+, Safari 14.1+
 var structuredCloneFromMark = (function (structuredCloneFromMarkImpl) {
   return !fails(function () {
     var set = new global.Set([42]);
     var cloned = structuredCloneFromMarkImpl(set);
-    return cloned === set || !set.has(42);
+    return cloned === set || !cloned.has(42);
   }) && structuredCloneFromMarkImpl;
 })(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
@@ -54,22 +63,11 @@ var nativeRestrictedStructuredClone = nativeStructuredClone || structuredCloneFr
 
 var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
   // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
-  if (typeof DOMException == 'function') {
-    var test = structuredCloneFromMark(new DOMException(PERFORMANCE_MARK, DATA_CLONE_ERROR));
-    if (test.name !== DATA_CLONE_ERROR || test.message !== PERFORMANCE_MARK) return true;
-  }
-  // current Safari implementation can't clone errors
-  return structuredCloneFromMark(Error(PERFORMANCE_MARK)).message !== PERFORMANCE_MARK;
+  var test = structuredCloneFromMark(new DOMException(PERFORMANCE_MARK, DATA_CLONE_ERROR));
+  return test.name !== DATA_CLONE_ERROR || test.message !== PERFORMANCE_MARK
+    // current Safari implementation can't clone errors
+    || structuredCloneFromMark(Error(PERFORMANCE_MARK)).message !== PERFORMANCE_MARK;
 });
-
-// waiting for https://github.com/zloirock/core-js/pull/991
-var DOMException = function (message, name) {
-  try {
-    return new global.DOMException(message, name);
-  } catch (error) {
-    return TypeError(message);
-  }
-};
 
 var structuredCloneInternal = function (value, map) {
   if (isSymbol(value)) throw new DOMException('Symbols are not cloneable', DATA_CLONE_ERROR);
