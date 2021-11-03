@@ -1221,6 +1221,9 @@ GLOBAL.tests = {
   'esnext.array.group-by': function () {
     return [].groupBy;
   },
+  'esnext.array.group-by-map': function () {
+    return [].groupByMap;
+  },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
