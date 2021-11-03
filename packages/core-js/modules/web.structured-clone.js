@@ -11,7 +11,6 @@ var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var isArrayBufferDetached = require('../internals/array-buffer-is-deatched');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var nativeStructuredClone = global.structuredClone;
@@ -105,11 +104,16 @@ var structuredCloneInternal = function (value, map) {
       cloned = new RegExp(value);
       break;
     case 'ArrayBuffer':
+      // detached buffers throws on `.slice`
+      try {
+        cloned = value.slice(0);
+      } catch (error) {
+        throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
+      }
+      break;
     case 'SharedArrayBuffer':
-      if (isArrayBufferDetached(value)) throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
-      cloned = type === 'ArrayBuffer' ? value.slice(0)
-        // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
-        : nativeRestrictedStructuredClone ? nativeRestrictedStructuredClone(value) : value;
+      // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
+      cloned = nativeRestrictedStructuredClone ? nativeRestrictedStructuredClone(value) : value;
       break;
     case 'DataView':
     case 'Int8Array':
