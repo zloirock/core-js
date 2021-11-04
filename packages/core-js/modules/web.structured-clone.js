@@ -106,9 +106,6 @@ var structuredCloneInternal = function (value, map) {
       break;
     case 'Error':
       switch (value.name) {
-        case 'Error':
-          C = Error;
-          break;
         case 'EvalError':
           C = EvalError;
           break;
