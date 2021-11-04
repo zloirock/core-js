@@ -42,7 +42,7 @@
     "eslint-plugin-qunit": "^7.0.0",
     "eslint-plugin-regexp": "^1.5.0",
     "eslint-plugin-sonarjs": "~0.10.0",
-    "eslint-plugin-unicorn": "^37.0.1",
+    "eslint-plugin-unicorn": "^38.0.0",
     "jsonc-eslint-parser": "^1.4.1",
     "karma": "^6.3.7",
     "karma-chrome-launcher": "^3.1.0",
