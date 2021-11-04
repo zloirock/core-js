@@ -25,6 +25,10 @@ var SyntaxError = global.SyntaxError;
 var TypeError = global.TypeError;
 var URIError = global.URIError;
 var PerformanceMark = global.PerformanceMark;
+var WebAssembly = global.WebAssembly;
+var CompileError = WebAssembly && WebAssembly.CompileError || Error;
+var LinkError = WebAssembly && WebAssembly.LinkError || Error;
+var RuntimeError = WebAssembly && WebAssembly.RuntimeError || Error;
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
 var MapPrototype = Map.prototype;
@@ -48,27 +52,36 @@ var DOMException = function (message, name) {
   }
 };
 
-// Chrome 78+, Safari 14.1+
-var structuredCloneFromMark = (function (structuredCloneFromMarkImpl) {
+var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var set = new global.Set([42]);
-    var cloned = structuredCloneFromMarkImpl(set);
-    return cloned === set || !cloned.has(42);
-  }) && structuredCloneFromMarkImpl;
+    var set = new global.Set([7]);
+    var cloned = structuredCloneImplementation(set);
+    return cloned === set || !cloned.has(7);
+  });
+};
+
+// https://github.com/whatwg/html/pull/5749
+var checkNewErrorsSemantic = function (structuredCloneImplementation) {
+  return !fails(function () {
+    var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
+    return test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
+  });
+};
+
+// Chrome 78+, Safari 14.1+
+var structuredCloneFromMark = (function (structuredCloneFromMarkImplementation) {
+  return checkBasicSemantic(structuredCloneFromMarkImplementation) && structuredCloneFromMarkImplementation;
 })(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });
 
-// + FF94+
-var nativeRestrictedStructuredClone = nativeStructuredClone || structuredCloneFromMark;
+// + FF94+, Node 17.0+, Deno 1.14+
+var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) ? nativeStructuredClone : structuredCloneFromMark;
 
-var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !fails(function () {
-  // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
-  var test = structuredCloneFromMark(new DOMException(PERFORMANCE_MARK, DATA_CLONE_ERROR));
-  return test.name !== DATA_CLONE_ERROR || test.message !== PERFORMANCE_MARK
-    // current Safari implementation can't clone errors
-    || structuredCloneFromMark(Error(PERFORMANCE_MARK)).message !== PERFORMANCE_MARK;
-});
+// Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
+// current Safari implementation can't clone errors
+// no one of current implementations supports new (html/5749) error cloning semantic
+var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && checkNewErrorsSemantic(structuredCloneFromMark);
 
 var throwUncloneableType = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
@@ -85,7 +98,7 @@ var structuredCloneInternal = function (value, map) {
 
   var type = classof(value);
   var deep = false;
-  var C, cloned, dataTransfer, i, length, key;
+  var C, name, cloned, dataTransfer, i, length, key;
 
   switch (type) {
     case 'Array':
@@ -105,29 +118,41 @@ var structuredCloneInternal = function (value, map) {
       deep = true;
       break;
     case 'Error':
-      switch (value.name) {
+      name = value.name;
+      switch (name) {
+        case 'AggregateError':
+          cloned = getBuiltin('AggregateError')([]);
+          break;
         case 'EvalError':
-          C = EvalError;
+          cloned = EvalError();
           break;
         case 'RangeError':
-          C = RangeError;
+          cloned = RangeError();
           break;
         case 'ReferenceError':
-          C = ReferenceError;
+          cloned = ReferenceError();
           break;
         case 'SyntaxError':
-          C = SyntaxError;
+          cloned = SyntaxError();
           break;
         case 'TypeError':
-          C = TypeError;
+          cloned = TypeError();
           break;
         case 'URIError':
-          C = URIError;
+          cloned = URIError();
+          break;
+        case 'CompileError':
+          cloned = CompileError();
+          break;
+        case 'LinkError':
+          cloned = LinkError();
+          break;
+        case 'RuntimeError':
+          cloned = RuntimeError();
           break;
         default:
-          C = Error;
+          cloned = Error();
       }
-      cloned = C(value.message);
       deep = true;
       break;
     case 'DOMException':
@@ -294,8 +319,12 @@ var structuredCloneInternal = function (value, map) {
       });
       break;
     case 'Error':
+      createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map));
       if (hasOwn(value, 'cause')) {
         createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map));
+      }
+      if (name == 'AggregateError') {
+        cloned.errors = structuredCloneInternal(value.errors, map);
       } // fallthrough
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
@@ -306,11 +335,10 @@ var structuredCloneInternal = function (value, map) {
   return cloned;
 };
 
-var FORCED_REPLACEMENT = IS_PURE || fails(function () {
-  // current FF implementation can't clone errors
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
-  return nativeStructuredClone(Error('a')).message !== 'a';
-});
+// current FF implementation can't clone errors
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
+// no one of current implementations supports new (html/5749) error cloning semantic
+var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
 
 $({ global: true, enumerable: true, sham: true, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
