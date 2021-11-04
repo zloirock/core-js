@@ -177,39 +177,41 @@ QUnit.module('structuredClone', () => {
   QUnit.test('Error', assert => {
     const errors = [
       new Error(),
-      new Error('abc', 'def'),
+      new Error('abc', 'def', { cause: 42 }),
       new EvalError(),
-      new EvalError('ghi', 'jkl'),
+      new EvalError('ghi', 'jkl', { cause: 42 }),
       new RangeError(),
-      new RangeError('ghi', 'jkl'),
+      new RangeError('ghi', 'jkl', { cause: 42 }),
       new ReferenceError(),
-      new ReferenceError('ghi', 'jkl'),
+      new ReferenceError('ghi', 'jkl', { cause: 42 }),
       new SyntaxError(),
-      new SyntaxError('ghi', 'jkl'),
+      new SyntaxError('ghi', 'jkl', { cause: 42 }),
       new TypeError(),
-      new TypeError('ghi', 'jkl'),
+      new TypeError('ghi', 'jkl', { cause: 42 }),
       new URIError(),
-      new URIError('ghi', 'jkl'),
+      new URIError('ghi', 'jkl', { cause: 42 }),
     ];
 
     for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
-      assert.equal(orig.constructor, clone.constructor, `constructor ${ orig.name }`);
-      assert.equal(orig.name, clone.name, `name ${ orig.name }`);
-      assert.equal(orig.message, clone.message, `message ${ orig.name }`);
-      assert.equal(orig.stack, clone.stack, `stack ${ orig.name }`);
+      assert.equal(orig.constructor, clone.constructor, `${ orig.name }#constructor`);
+      assert.equal(orig.name, clone.name, `${ orig.name }#name`);
+      assert.equal(orig.message, clone.message, `${ orig.name }#message`);
+      assert.equal(orig.stack, clone.stack, `${ orig.name }#stack`);
+      assert.equal(orig.cause, clone.cause, `${ orig.name }#cause`);
     });
 
     const aggregates = [
       new AggregateError([1, 2]),
-      new AggregateError([1, 2], 42),
+      new AggregateError([1, 2], 42, { cause: 42 }),
     ];
 
     for (const error of aggregates) {
       const clone = structuredClone(error);
-      assert.equal(Error, clone.constructor);
-      assert.equal('Error', clone.name);
-      assert.equal(error.message, clone.message);
-      assert.equal(error.stack, clone.stack);
+      assert.equal(Error, clone.constructor, 'AggregateError#constructor');
+      assert.equal('Error', clone.name, 'AggregateError#name');
+      assert.equal(error.message, clone.message, 'AggregateError#message');
+      assert.equal(error.stack, clone.stack, 'AggregateError#stack');
+      assert.equal(error.cause, clone.cause, 'AggregateError#cause');
     }
   });
 

@@ -131,11 +131,11 @@ var structuredCloneInternal = function (value, map) {
           C = Error;
       }
       cloned = C(value.message);
-      deep = ERROR_STACK_INSTALLABLE;
+      deep = true;
       break;
     case 'DOMException':
       cloned = new DOMException(value.message, value.name);
-      deep = ERROR_STACK_INSTALLABLE;
+      deep = true;
       break;
     case 'DataView':
     case 'Int8Array':
@@ -297,10 +297,13 @@ var structuredCloneInternal = function (value, map) {
       });
       break;
     case 'Error':
+      if (hasOwn(value, 'cause')) {
+        createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map));
+      } // fallthrough
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
         createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map));
-      } break;
+      }
   }
 
   return cloned;
