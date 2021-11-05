@@ -2,9 +2,8 @@ import { GLOBAL, PROTO } from '../helpers/constants';
 
 const { create } = Object;
 
-for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
+function runErrorTestCase($Error, ERROR_NAME) {
   QUnit.test(`${ ERROR_NAME } constructor with 'cause' param`, assert => {
-    const $Error = GLOBAL[ERROR_NAME];
     assert.isFunction($Error);
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
@@ -47,4 +46,12 @@ for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 
     // eslint-disable-next-line no-prototype-builtins -- safe
     assert.ok(!error.hasOwnProperty('cause'), 'default instance cause missed');
   });
+}
+
+for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
+  runErrorTestCase(GLOBAL[ERROR_NAME], ERROR_NAME);
+}
+
+if (GLOBAL.WebAssembly) for (const ERROR_NAME of ['CompileError', 'LinkError', 'RuntimeError']) {
+  if (GLOBAL.WebAssembly[ERROR_NAME]) runErrorTestCase(GLOBAL.WebAssembly[ERROR_NAME], ERROR_NAME);
 }

@@ -14,7 +14,7 @@ var IS_PURE = require('../internals/is-pure');
 
 module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var OPTIONS_POSITION = IS_AGGREGATE_ERROR ? 2 : 1;
-  var OriginalError = getBuiltIn(ERROR_NAME);
+  var OriginalError = apply(getBuiltIn, null, ERROR_NAME.split('.'));
 
   if (!OriginalError) return;
 

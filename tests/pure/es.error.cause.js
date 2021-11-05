@@ -3,9 +3,8 @@ import { PROTO } from '../helpers/constants';
 import path from 'core-js-pure/es/error';
 import create from 'core-js-pure/es/object/create';
 
-for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
+function runErrorTestCase($Error, ERROR_NAME) {
   QUnit.test(`${ ERROR_NAME } constructor with 'cause' param`, assert => {
-    const $Error = path[ERROR_NAME];
     assert.isFunction($Error);
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
@@ -43,4 +42,12 @@ for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 
     // eslint-disable-next-line no-prototype-builtins -- safe
     assert.ok(!error.hasOwnProperty('cause'), 'default instance cause missed');
   });
+}
+
+for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']) {
+  runErrorTestCase(path[ERROR_NAME], ERROR_NAME);
+}
+
+if (path.WebAssembly) for (const ERROR_NAME of ['CompileError', 'LinkError', 'RuntimeError']) {
+  if (path.WebAssembly[ERROR_NAME]) runErrorTestCase(path.WebAssembly[ERROR_NAME], ERROR_NAME);
 }
