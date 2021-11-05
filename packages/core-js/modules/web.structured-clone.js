@@ -2,6 +2,7 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -14,7 +15,6 @@ var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
-var nativeStructuredClone = global.structuredClone;
 var Object = global.Object;
 var Date = global.Date;
 var Error = global.Error;
@@ -25,6 +25,9 @@ var SyntaxError = global.SyntaxError;
 var TypeError = global.TypeError;
 var URIError = global.URIError;
 var PerformanceMark = global.PerformanceMark;
+var performance = global.performance;
+var mark = performance && performance.mark;
+var clearMarks = performance && performance.clearMarks;
 var WebAssembly = global.WebAssembly;
 var CompileError = WebAssembly && WebAssembly.CompileError || Error;
 var LinkError = WebAssembly && WebAssembly.LinkError || Error;
@@ -54,9 +57,10 @@ var DOMException = function (message, name) {
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var set = new global.Set([7]);
-    var cloned = structuredCloneImplementation(set);
-    return cloned === set || !cloned.has(7);
+    var set1 = new global.Set([7]);
+    var set2 = structuredCloneImplementation(set1);
+    var number = structuredCloneImplementation(Object(7));
+    return set2 == set1 || !set2.has(7) || typeof number != 'object' || number != 7;
   });
 };
 
@@ -64,18 +68,26 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
 var checkNewErrorsSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
-    return test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
+    return test.name != 'AggregateError' || test.errors[0] != 1 || test.message != PERFORMANCE_MARK || test.cause != 3;
   });
 };
 
-// Chrome 78+, Safari 14.1+
-var structuredCloneFromMark = (function (structuredCloneFromMarkImplementation) {
-  return checkBasicSemantic(structuredCloneFromMarkImplementation) && structuredCloneFromMarkImplementation;
+// FF94+, NodeJS 17.0+, Deno 1.14+
+var nativeStructuredClone = global.structuredClone;
+
+// Chrome 78+, Safari 14.1+, NodeJS 16.0+, Deno 1.11+ (old Deno implementations too naive)
+var structuredCloneFromMark = (function (structuredCloneFromMarkConstructorImplementation, structuredCloneFromMarkImplementation) {
+  return checkBasicSemantic(structuredCloneFromMarkConstructorImplementation) ? structuredCloneFromMarkConstructorImplementation
+    : checkBasicSemantic(structuredCloneFromMarkImplementation) && structuredCloneFromMarkImplementation;
 })(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
+}, function (value) {
+  // NodeJS haven't `PerformanceMark` constructor
+  var result = call(mark, performance, PERFORMANCE_MARK, { detail: value });
+  call(clearMarks, performance, PERFORMANCE_MARK);
+  return result.detail;
 });
 
-// + FF94+, Node 17.0+, Deno 1.14+
 var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) ? nativeStructuredClone : structuredCloneFromMark;
 
 // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
