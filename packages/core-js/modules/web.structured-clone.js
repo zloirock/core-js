@@ -359,7 +359,7 @@ var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
   return buffer.byteLength != 0 || clone.byteLength != 8;
 });
 
-$({ global: true, enumerable: true, sham: true, forced: FORCED_REPLACEMENT }, {
+$({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
