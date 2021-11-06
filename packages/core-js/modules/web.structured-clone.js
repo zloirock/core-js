@@ -349,11 +349,24 @@ var structuredCloneInternal = function (value, map) {
   return cloned;
 };
 
-var tryToTransfer = function (array, length, map) {
+var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
+  var buffer = new global.ArrayBuffer(8);
+  var clone = nativeStructuredClone(buffer, { transfer: [buffer] });
+  return buffer.byteLength != 0 || clone.byteLength != 8;
+});
+
+var tryToTransfer = function (transfer, map) {
+  if (!isArray(transfer)) throw TypeError('Transfer option should be an array');
+
   var i = 0;
-  var value, type, transferred, canvas, context;
-  for (;i < length; i++) {
-    value = array[i];
+  var length = lengthOfArrayLike(transfer);
+  var value, type, transferredArray, transferred, canvas, context;
+
+  if (PROPER_TRANSFER) {
+    transferredArray = nativeStructuredClone(transfer, { transfer: transfer });
+    while (i < length) mapSet(map, transfer[i], transferredArray[i++]);
+  } else while (i < length) {
+    value = transfer[i++];
     if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
     type = classof(value);
     try {
@@ -378,28 +391,17 @@ var tryToTransfer = function (array, length, map) {
 // current FF implementation can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
 // no one of current implementations supports new (html/5749) error cloning semantic
-var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
-
-var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
-  var buffer = new global.ArrayBuffer(8);
-  var clone = nativeStructuredClone(buffer, { transfer: [buffer] });
-  return buffer.byteLength != 0 || clone.byteLength != 8;
-});
+var FORCED_REPLACEMENT = IS_PURE || !PROPER_TRANSFER || !checkNewErrorsSemantic(nativeStructuredClone);
 
 $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
-    var map, transferred, length;
+    var map;
 
     if (transfer !== undefined) {
-      if (!isArray(transfer)) throw TypeError('Transfer option should be an array');
-      length = lengthOfArrayLike(transfer);
       map = new Map();
-      if (PROPER_TRANSFER) {
-        transferred = nativeStructuredClone(transfer, { transfer: transfer });
-        while (length--) mapSet(map, transfer[length], transferred[length]);
-      } else tryToTransfer(transfer, length, map);
+      tryToTransfer(transfer, map);
     }
 
     return structuredCloneInternal(value, map);
