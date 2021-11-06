@@ -13,6 +13,7 @@ var isSymbol = require('../internals/is-symbol');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
+var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
@@ -320,7 +321,7 @@ var structuredCloneInternal = function (value, map) {
     case 'Array':
     case 'Object':
       for (key in value) if (hasOwn(value, key)) {
-        cloned[key] = structuredCloneInternal(value[key], map);
+        createProperty(cloned, key, structuredCloneInternal(value[key], map));
       } break;
     case 'Map':
       value.forEach(function (v, k) {
