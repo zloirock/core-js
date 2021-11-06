@@ -94,7 +94,7 @@ var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) 
 // Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
 // current Safari implementation can't clone errors
 // no one of current implementations supports new (html/5749) error cloning semantic
-var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && checkNewErrorsSemantic(structuredCloneFromMark);
+var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !nativeStructuredClone && checkNewErrorsSemantic(structuredCloneFromMark);
 
 var throwUncloneableType = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
