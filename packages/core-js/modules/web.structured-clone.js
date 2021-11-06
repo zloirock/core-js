@@ -14,6 +14,7 @@ var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var Object = global.Object;
@@ -210,7 +211,7 @@ var structuredCloneInternal = function (value, map) {
       C = global.DataTransfer;
       if (isConstructor(C)) {
         dataTransfer = new C();
-        for (i = 0, length = value.length; i < length; i++) {
+        for (i = 0, length = lengthOfArrayLike(value); i < length; i++) {
           dataTransfer.items.add(structuredCloneInternal(value[i], map));
         }
         cloned = dataTransfer.files;
@@ -348,6 +349,32 @@ var structuredCloneInternal = function (value, map) {
   return cloned;
 };
 
+var tryToTransfer = function (array, length, map) {
+  var i = 0;
+  var value, type, transferred, canvas, context;
+  for (;i < length; i++) {
+    value = array[i];
+    if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
+    type = classof(value);
+    try {
+      switch (type) {
+        case 'ImageBitmap':
+          canvas = new OffscreenCanvas(value.width, value.height);
+          context = canvas.getContext('bitmaprenderer');
+          context.transferFromImageBitmap(value);
+          transferred = canvas.transferToImageBitmap();
+          break;
+        case 'AudioData':
+        case 'VideoFrame':
+          transferred = value.clone();
+          value.close();
+      }
+    } catch (error) { /* empty */ }
+    if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
+    mapSet(map, value, transferred);
+  }
+};
+
 // current FF implementation can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
 // no one of current implementations supports new (html/5749) error cloning semantic
@@ -363,15 +390,16 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
-    var map, transfered, i;
+    var map, transferred, length;
 
     if (transfer !== undefined) {
-      if (!PROPER_TRANSFER) throw TypeError('Transfer option is not supported');
       if (!isArray(transfer)) throw TypeError('Transfer option should be an array');
+      length = lengthOfArrayLike(transfer);
       map = new Map();
-      transfered = nativeStructuredClone(transfer, { transfer: transfer });
-      i = transfered.length;
-      while (i--) mapSet(map, transfer[i], transfered[i]);
+      if (PROPER_TRANSFER) {
+        transferred = nativeStructuredClone(transfer, { transfer: transfer });
+        while (length--) mapSet(map, transfer[length], transferred[length]);
+      } else tryToTransfer(transfer, length, map);
     }
 
     return structuredCloneInternal(value, map);
