@@ -77,7 +77,7 @@ var checkNewErrorsSemantic = function (structuredCloneImplementation) {
   });
 };
 
-// FF94+, NodeJS 17.0+, Deno 1.14+
+// FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.14+
 var nativeStructuredClone = global.structuredClone;
 
 // Chrome 78+, Safari 14.1+, NodeJS 16.0+, Deno 1.11+ (old Deno implementations too naive)
@@ -422,7 +422,7 @@ var tryToTransfer = function (transfer, map) {
   }
 };
 
-// current FF implementation can't clone errors
+// current FF and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
 // no one of current implementations supports new (html/5749) error cloning semantic
 var FORCED_REPLACEMENT = IS_PURE || !PROPER_TRANSFER || !checkNewErrorsSemantic(nativeStructuredClone);
