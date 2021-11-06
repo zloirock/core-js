@@ -6,6 +6,7 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
+var isArray = require('../internals/is-array');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
@@ -352,16 +353,27 @@ var structuredCloneInternal = function (value, map) {
 // no one of current implementations supports new (html/5749) error cloning semantic
 var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
 
+var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
+  var buffer = new global.ArrayBuffer(8);
+  var clone = nativeStructuredClone(buffer, { transfer: [buffer] });
+  return buffer.byteLength != 0 || clone.byteLength != 8;
+});
+
 $({ global: true, enumerable: true, sham: true, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
-    var transfer = options && options.transfer;
+    var transfer = options ? options.transfer : undefined;
+    var map, transfered, i;
 
     if (transfer !== undefined) {
-      if (!IS_PURE && nativeStructuredClone) return nativeStructuredClone(value, options);
-      throw TypeError('Transfer option is not supported');
+      if (!PROPER_TRANSFER) throw TypeError('Transfer option is not supported');
+      if (!isArray(transfer)) throw TypeError('Transfer option should be an array');
+      map = new Map();
+      transfered = nativeStructuredClone(transfer, { transfer: transfer });
+      i = transfered.length;
+      while (i--) mapSet(map, transfer[i], transfered[i]);
     }
 
-    return structuredCloneInternal(value);
+    return structuredCloneInternal(value, map);
   }
 });
