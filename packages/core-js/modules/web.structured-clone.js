@@ -77,9 +77,9 @@ var checkNewErrorsSemantic = function (structuredCloneImplementation) {
 var nativeStructuredClone = global.structuredClone;
 
 // Chrome 78+, Safari 14.1+, NodeJS 16.0+, Deno 1.11+ (old Deno implementations too naive)
-var structuredCloneFromMark = (function (structuredCloneFromMarkConstructorImplementation, structuredCloneFromMarkImplementation) {
-  return checkBasicSemantic(structuredCloneFromMarkConstructorImplementation) ? structuredCloneFromMarkConstructorImplementation
-    : checkBasicSemantic(structuredCloneFromMarkImplementation) && structuredCloneFromMarkImplementation;
+var structuredCloneFromMark = !nativeStructuredClone && (function (fromMarkConstructor, fromMark) {
+  return checkBasicSemantic(fromMarkConstructor) ? fromMarkConstructor
+    : checkBasicSemantic(fromMark) && fromMark;
 })(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 }, function (value) {
