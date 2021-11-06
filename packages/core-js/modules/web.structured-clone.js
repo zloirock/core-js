@@ -7,6 +7,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
 var isArray = require('../internals/is-array');
+var isCallable = require('../internals/is-callable');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
@@ -48,6 +49,7 @@ var stringValueOf = uncurryThis(''.valueOf);
 var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
+var TRANSFERRING = 'Transferring';
 
 // waiting for https://github.com/zloirock/core-js/pull/991
 var DOMException = function (message, name) {
@@ -98,12 +100,16 @@ var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) 
 // no one of current implementations supports new (html/5749) error cloning semantic
 var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !nativeStructuredClone && checkNewErrorsSemantic(structuredCloneFromMark);
 
-var throwUncloneableType = function (type) {
+var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
 };
 
+var throwUnpolyfillable = function (type, kind) {
+  throw new DOMException((kind || 'Cloning') + ' of ' + type + ' cannot be properly polyfilled in this engine', DATA_CLONE_ERROR);
+};
+
 var structuredCloneInternal = function (value, map) {
-  if (isSymbol(value)) throwUncloneableType('Symbol');
+  if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
   if (USE_STRUCTURED_CLONE_FROM_MARK) return structuredCloneFromMark(value);
   // effectively preserves circular references
@@ -187,7 +193,7 @@ var structuredCloneInternal = function (value, map) {
     case 'BigInt64Array':
     case 'BigUint64Array':
       C = global[type];
-      if (!isConstructor(C)) throwUncloneableType(type);
+      if (!isConstructor(C)) throwUnpolyfillable(type);
       cloned = new C(
         // this is safe, since arraybuffer cannot have circular references
         structuredCloneInternal(value.buffer, map),
@@ -206,7 +212,7 @@ var structuredCloneInternal = function (value, map) {
         );
       } else if (nativeRestrictedStructuredClone) {
         cloned = nativeRestrictedStructuredClone(value);
-      } else throwUncloneableType(type);
+      } else throwUnpolyfillable(type);
       break;
     case 'FileList':
       C = global.DataTransfer;
@@ -218,7 +224,7 @@ var structuredCloneInternal = function (value, map) {
         cloned = dataTransfer.files;
       } else if (nativeRestrictedStructuredClone) {
         cloned = nativeRestrictedStructuredClone(value);
-      } else throwUncloneableType(type);
+      } else throwUnpolyfillable(type);
       break;
     case 'ImageData':
       C = global.ImageData;
@@ -231,7 +237,7 @@ var structuredCloneInternal = function (value, map) {
         );
       } else if (nativeRestrictedStructuredClone) {
         cloned = nativeRestrictedStructuredClone(value);
-      } else throwUncloneableType(type);
+      } else throwUnpolyfillable(type);
       break;
     default:
       if (nativeRestrictedStructuredClone) {
@@ -271,47 +277,62 @@ var structuredCloneInternal = function (value, map) {
           try {
             cloned = value.slice(0, value.size, value.type);
           } catch (error) {
-            throwUncloneableType(type);
+            throwUnpolyfillable(type);
           } break;
         case 'DOMPoint':
         case 'DOMPointReadOnly':
           C = global[type];
           try {
-            cloned = C.fromPoint ? C.fromPoint(value) : new C(value.x, value.y, value.z, value.w);
+            cloned = C.fromPoint
+              ? C.fromPoint(value)
+              : new C(value.x, value.y, value.z, value.w);
           } catch (error) {
-            throwUncloneableType(type);
+            throwUnpolyfillable(type);
           } break;
         case 'DOMRect':
         case 'DOMRectReadOnly':
           C = global[type];
           try {
-            cloned = C.fromRect ? C.fromRect(value) : new C(value.x, value.y, value.width, value.height);
+            cloned = C.fromRect
+              ? C.fromRect(value)
+              : new C(value.x, value.y, value.width, value.height);
           } catch (error) {
-            throwUncloneableType(type);
+            throwUnpolyfillable(type);
           } break;
         case 'DOMMatrix':
         case 'DOMMatrixReadOnly':
           C = global[type];
           try {
-            cloned = C.fromMatrix ? C.fromMatrix(value) : new C(value);
+            cloned = C.fromMatrix
+              ? C.fromMatrix(value)
+              : new C(value);
           } catch (error) {
-            throwUncloneableType(type);
+            throwUnpolyfillable(type);
           } break;
         case 'AudioData':
         case 'VideoFrame':
+          if (!isCallable(value.clone)) throwUnpolyfillable(type);
           try {
             cloned = value.clone();
           } catch (error) {
-            throwUncloneableType(type);
+            throwUncloneable(type);
           } break;
         case 'File':
           try {
             cloned = new File([value], value.name, value);
           } catch (error) {
-            throwUncloneableType(type);
+            throwUnpolyfillable(type);
           } break;
+        case 'CryptoKey':
+        case 'GPUCompilationMessage':
+        case 'GPUCompilationInfo':
+        case 'ImageBitmap':
+        case 'RTCCertificate':
+        case 'WebAssembly.Module':
+          throwUnpolyfillable(type);
+          // break omitted
         default:
-          throwUncloneableType(type);
+          throwUncloneable(type);
       }
   }
 
@@ -340,7 +361,7 @@ var structuredCloneInternal = function (value, map) {
       }
       if (name == 'AggregateError') {
         cloned.errors = structuredCloneInternal(value.errors, map);
-      } // fallthrough
+      } // break omitted
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
         createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map));
@@ -361,7 +382,7 @@ var tryToTransfer = function (transfer, map) {
 
   var i = 0;
   var length = lengthOfArrayLike(transfer);
-  var value, type, transferredArray, transferred, canvas, context;
+  var value, type, C, transferredArray, transferred, canvas, context;
 
   if (PROPER_TRANSFER) {
     transferredArray = nativeStructuredClone(transfer, { transfer: transfer });
@@ -369,21 +390,33 @@ var tryToTransfer = function (transfer, map) {
   } else while (i < length) {
     value = transfer[i++];
     if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
+
     type = classof(value);
-    try {
-      switch (type) {
-        case 'ImageBitmap':
-          canvas = new OffscreenCanvas(value.width, value.height);
+
+    switch (type) {
+      case 'ArrayBuffer':
+        throwUnpolyfillable(type, TRANSFERRING);
+        // break omitted
+      case 'ImageBitmap':
+        C = global.OffscreenCanvas;
+        if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
+        try {
+          canvas = new C(value.width, value.height);
           context = canvas.getContext('bitmaprenderer');
           context.transferFromImageBitmap(value);
           transferred = canvas.transferToImageBitmap();
-          break;
-        case 'AudioData':
-        case 'VideoFrame':
+        } catch (error) { /* empty */ }
+        break;
+      case 'AudioData':
+      case 'VideoFrame':
+        if (!isCallable(value.clone) || !isCallable(value.close)) throwUnpolyfillable(type, TRANSFERRING);
+        try {
           transferred = value.clone();
           value.close();
-      }
-    } catch (error) { /* empty */ }
+        } catch (error) { /* empty */ }
+        break;
+    }
+
     if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
     mapSet(map, value, transferred);
   }

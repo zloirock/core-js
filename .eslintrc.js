@@ -108,7 +108,7 @@ const base = {
   // disallow unnecessary labels
   'no-extra-label': ERROR,
   // disallow fallthrough of case statements
-  'no-fallthrough': ERROR,
+  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
   // disallow the use of leading or trailing decimal points in numeric literals
   'no-floating-decimal': ERROR,
   // disallow reassignments of native objects
