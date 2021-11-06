@@ -6,11 +6,11 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
+var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
@@ -43,6 +43,7 @@ var mapHas = uncurryThis(MapPrototype.has);
 var mapGet = uncurryThis(MapPrototype.get);
 var mapSet = uncurryThis(MapPrototype.set);
 var setAdd = uncurryThis(Set.prototype.add);
+var push = uncurryThis([].push);
 var bolleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
@@ -377,8 +378,14 @@ var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
   return buffer.byteLength != 0 || clone.byteLength != 8;
 });
 
-var tryToTransfer = function (transfer, map) {
-  if (!isArray(transfer)) throw TypeError('Transfer option should be an array');
+var tryToTransfer = function (rawTransfer, map) {
+  if (!isObject(rawTransfer)) throw TypeError('Transfer option cannot be converted to a sequence');
+
+  var transfer = [];
+
+  iterate(rawTransfer, function (value) {
+    push(transfer, anObject(value));
+  });
 
   var i = 0;
   var length = lengthOfArrayLike(transfer);
