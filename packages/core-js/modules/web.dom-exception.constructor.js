@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var tryNodeRequire = require('../internals/try-node-require');
 var getBuiltIn = require('../internals/get-built-in');
 var fails = require('../internals/fails');
 var create = require('../internals/object-create');
@@ -19,13 +20,23 @@ var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
+var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var Error = getBuiltIn('Error');
-var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
+// NodeJS < 17.0 does not expose `DOMException` to global
+var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
+  try {
+    // NodeJS < 15.0 does not expose `MessageChannel` to global
+    var MessageChannel = getBuiltIn('MessageChannel') || tryNodeRequire('worker_threads').MessageChannel;
+    // eslint-disable-next-line es/no-weak-map, unicorn/require-post-message-target-origin -- safe
+    new MessageChannel().port1.postMessage(new WeakMap());
+  } catch (error) {
+    if (error.name == DATA_CLONE_ERR && error.code == 25) return error.constructor;
+  }
+})();
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
 var ErrorPrototype = Error.prototype;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
-var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var HAS_STACK = 'stack' in Error(DOM_EXCEPTION);
 
 var codeFor = function (name) {
@@ -101,7 +112,7 @@ var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISS
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
 $({ global: true, forced: FORCED_CONSTRUCTOR }, {
-  DOMException: $DOMException
+  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
 });
 
 var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
