@@ -112,7 +112,7 @@ var throwUnpolyfillable = function (type, kind) {
 var structuredCloneInternal = function (value, map) {
   if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
-  if (USE_STRUCTURED_CLONE_FROM_MARK) return structuredCloneFromMark(value);
+  if (USE_STRUCTURED_CLONE_FROM_MARK && !map) return structuredCloneFromMark(value);
   // effectively preserves circular references
   if (map) {
     if (mapHas(map, value)) return mapGet(map, value);
