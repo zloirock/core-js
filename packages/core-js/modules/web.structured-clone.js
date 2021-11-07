@@ -401,9 +401,6 @@ var tryToTransfer = function (rawTransfer, map) {
     type = classof(value);
 
     switch (type) {
-      case 'ArrayBuffer':
-        throwUnpolyfillable(type, TRANSFERRING);
-        // break omitted
       case 'ImageBitmap':
         C = global.OffscreenCanvas;
         if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
@@ -422,6 +419,13 @@ var tryToTransfer = function (rawTransfer, map) {
           value.close();
         } catch (error) { /* empty */ }
         break;
+      case 'ArrayBuffer':
+      case 'MessagePort':
+      case 'OffscreenCanvas':
+      case 'ReadableStream':
+      case 'TransformStream':
+      case 'WritableStream':
+        throwUnpolyfillable(type, TRANSFERRING);
     }
 
     if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
