@@ -78,10 +78,18 @@ var checkNewErrorsSemantic = function (structuredCloneImplementation) {
   });
 };
 
-// FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.14+
+// FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.13+
+// current FF and Safari implementations can't clone errors
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
+// no one of current implementations supports new (html/5749) error cloning semantic
 var nativeStructuredClone = global.structuredClone;
 
+var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
+
 // Chrome 78+, Safari 14.1+, NodeJS 16.0+, Deno 1.11+ (old Deno implementations too naive)
+// Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
+// current Safari implementation can't clone errors
+// no one of current implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && (function (fromMarkConstructor, fromMark) {
   return checkBasicSemantic(fromMarkConstructor) ? fromMarkConstructor
     : checkBasicSemantic(fromMark) && fromMark;
@@ -96,11 +104,6 @@ var structuredCloneFromMark = !nativeStructuredClone && (function (fromMarkConst
 
 var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) ? nativeStructuredClone : structuredCloneFromMark;
 
-// Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
-// current Safari implementation can't clone errors
-// no one of current implementations supports new (html/5749) error cloning semantic
-var USE_STRUCTURED_CLONE_FROM_MARK = !IS_PURE && !nativeStructuredClone && checkNewErrorsSemantic(structuredCloneFromMark);
-
 var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
 };
@@ -112,7 +115,6 @@ var throwUnpolyfillable = function (type, kind) {
 var structuredCloneInternal = function (value, map) {
   if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
-  if (USE_STRUCTURED_CLONE_FROM_MARK && !map) return structuredCloneFromMark(value);
   // effectively preserves circular references
   if (map) {
     if (mapHas(map, value)) return mapGet(map, value);
@@ -432,11 +434,6 @@ var tryToTransfer = function (rawTransfer, map) {
     mapSet(map, value, transferred);
   }
 };
-
-// current FF and Safari implementations can't clone errors
-// https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
-// no one of current implementations supports new (html/5749) error cloning semantic
-var FORCED_REPLACEMENT = IS_PURE || !PROPER_TRANSFER || !checkNewErrorsSemantic(nativeStructuredClone);
 
 $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
