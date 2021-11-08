@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
+  - Moved to the stage 2
+  - Added `Array.prototype.groupByMap` method
+  - Removed `@@species` support
 - Added [change `Array` by copy stage 2 proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - `Array.prototype.toReversed`
   - `Array.prototype.toSorted`
