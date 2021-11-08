@@ -458,7 +458,7 @@ core-js(-pure)/es|stable|features/object/define-setter
 core-js(-pure)/es|stable|features/object/lookup-getter
 core-js(-pure)/es|stable|features/object/lookup-setter
 ```
-[*Examples*](http://es6.zloirock.ru/#var%20foo%20%3D%20%7Bq%3A%201%2C%20w%3A%202%7D%0A%20%20%2C%20bar%20%3D%20%7Be%3A%203%2C%20r%3A%204%7D%0A%20%20%2C%20baz%20%3D%20%7Bt%3A%205%2C%20y%3A%206%7D%3B%0AObject.assign(foo%2C%20bar%2C%20baz)%3B%0Alog(foo)%3B%20%2F%2F%20%3D%3E%20%7Bq%3A%201%2C%20w%3A%202%2C%20e%3A%203%2C%20r%3A%204%2C%20t%3A%205%2C%20y%3A%206%7D%0A%0Alog(Object.is(NaN%2C%20NaN))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.is(0%2C%20-0))%3B%20%20%20%20%2F%2F%20%3D%3E%20false%0Alog(Object.is(42%2C%2042))%3B%20%20%20%2F%2F%20%3D%3E%20true%0Alog(Object.is(42%2C%20'42'))%3B%20%2F%2F%20%3D%3E%20false%0A%0Afunction%20Parent()%7B%7D%0Afunction%20Child()%7B%7D%0AObject.setPrototypeOf(Child.prototype%2C%20Parent.prototype)%3B%0Alog(new%20Child%20instanceof%20Child)%3B%20%20%2F%2F%20%3D%3E%20true%0Alog(new%20Child%20instanceof%20Parent)%3B%20%2F%2F%20%3D%3E%20true%0A%0Avar%20O%20%3D%20%7B%7D%3B%0AO%5BSymbol.toStringTag%5D%20%3D%20'Foo'%3B%0Alog(''%20%2B%20O)%3B%20%2F%2F%20%3D%3E%20'%5Bobject%20Foo%5D'%0A%0Alog(Object.keys('qwe'))%3B%20%2F%2F%20%3D%3E%20%5B'0'%2C%20'1'%2C%20'2'%5D%0Alog(Object.getPrototypeOf('qwe')%20%3D%3D%3D%20String.prototype)%3B%20%2F%2F%20%3D%3E%20true%0A%0Alog(Object.values(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%3B%20%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0Alog(Object.entries(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%3B%20%2F%2F%20%3D%3E%20%5B%5B'a'%2C%201%5D%2C%20%5B'b'%2C%202%5D%2C%20%5B'c'%2C%203%5D%5D%0A%0Afor(let%20%5Bkey%2C%20value%5D%20of%20Object.entries(%7Ba%3A%201%2C%20b%3A%202%2C%20c%3A%203%7D))%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'c'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%201%2C%202%2C%203%0A%7D%0A%0A%2F%2F%20Shallow%20object%20cloning%20with%20prototype%20and%20descriptors%3A%0A%2F%2F%20let%20copy%20%3D%20Object.create(Object.getPrototypeOf(object)%2C%20Object.getOwnPropertyDescriptors(object))%3B%0A%2F%2F%20Mixin%3A%0A%2F%2F%20Object.defineProperties(target%2C%20Object.getOwnPropertyDescriptors(source))%3B%0A%0Aconst%20map%20%3D%20new%20Map(%5B%5B'a'%2C%201%5D%2C%20%5B'b'%2C%202%5D%5D)%3B%0Alog(Object.fromEntries(map))%3B%20%2F%2F%20%3D%3E%20%7B%20a%3A%201%2C%20b%3A%202%20%7D%0A%0Aclass%20Unit%20%7B%0A%20%20constructor(id)%20%7B%0A%20%20%20%20this.id%20%3D%20id%3B%0A%20%20%7D%0A%20%20toString()%20%7B%0A%20%20%20%20return%20%60unit%24%7B%20this.id%20%7D%60%3B%0A%20%20%7D%0A%7D%0A%0Aconst%20units%20%3D%20new%20Set(%5Bnew%20Unit(101)%2C%20new%20Unit(102)%5D)%3B%0A%0Alog(Object.fromEntries(units.entries()))%3B%20%2F%2F%20%3D%3E%20%7B%20unit101%3A%20Unit%20%7B%20id%3A%20101%20%7D%2C%20unit102%3A%20Unit%20%7B%20id%3A%20102%20%7D%20%7D%0A%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%20%20%20%20%2F%2F%20%3D%3E%20false):
+[*Examples*](t.ly/j1Uw):
 ```js
 let foo = { q: 1, w: 2 };
 let bar = { e: 3, r: 4 };
@@ -644,7 +644,7 @@ core-js(-pure)/es|stable|features/array/virtual/sort
 core-js(-pure)/es|stable|features/array/virtual/splice
 core-js(-pure)/es|stable|features/array/virtual/values
 ```
-[*Examples*](http://es6.zloirock.ru/#log(Array.from(new%20Set(%5B1%2C%202%2C%203%2C%202%2C%201%5D)))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0Alog(Array.from(%7B0%3A%201%2C%201%3A%202%2C%202%3A%203%2C%20length%3A%203%7D))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0Alog(Array.from('123'%2C%20Number))%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0Alog(Array.from('123'%2C%20function(it)%7B%0A%20%20return%20it%20*%20it%3B%0A%7D))%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%2C%204%2C%209%5D%0A%0Alog(Array.of(1))%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%5D%0Alog(Array.of(1%2C%202%2C%203))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0A%0Avar%20array%20%3D%20%5B'a'%2C%20'b'%2C%20'c'%5D%3B%0A%0Afor(var%20val%20of%20array)log(val)%3B%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'c'%0Afor(var%20val%20of%20array.values())log(val)%3B%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'c'%0Afor(var%20key%20of%20array.keys())log(key)%3B%20%20%20%2F%2F%20%3D%3E%200%2C%201%2C%202%0Afor(var%20%5Bkey%2C%20val%5D%20of%20array.entries())%7B%0A%20%20log(key)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%200%2C%201%2C%202%0A%20%20log(val)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'c'%0A%7D%0A%0Afunction%20isOdd(val)%7B%0A%20%20return%20val%20%25%202%3B%0A%7D%0Alog(%5B4%2C%208%2C%2015%2C%2016%2C%2023%2C%2042%5D.find(isOdd))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%2015%0Alog(%5B4%2C%208%2C%2015%2C%2016%2C%2023%2C%2042%5D.findIndex(isOdd))%3B%20%2F%2F%20%3D%3E%202%0Alog(%5B4%2C%208%2C%2015%2C%2016%2C%2023%2C%2042%5D.find(isNaN))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20undefined%0Alog(%5B4%2C%208%2C%2015%2C%2016%2C%2023%2C%2042%5D.findIndex(isNaN))%3B%20%2F%2F%20%3D%3E%20-1%0A%0Alog(Array(5).fill(42))%3B%20%2F%2F%20%3D%3E%20%5B42%2C%2042%2C%2042%2C%2042%2C%2042%5D%0A%0Alog(%5B1%2C%202%2C%203%2C%204%2C%205%5D.copyWithin(0%2C%203))%3B%20%2F%2F%20%3D%3E%20%5B4%2C%205%2C%203%2C%204%2C%205%5D%0A%0Alog(%5B1%2C%202%2C%203%5D.includes(2))%3B%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog(%5B1%2C%202%2C%203%5D.includes(4))%3B%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20false%0Alog(%5B1%2C%202%2C%203%5D.includes(2%2C%202))%3B%20%20%20%20%20%2F%2F%20%3D%3E%20false%0A%0Alog(%5BNaN%5D.indexOf(NaN))%3B%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20-1%0Alog(%5BNaN%5D.includes(NaN))%3B%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog(Array(1).indexOf(undefined))%3B%20%20%2F%2F%20%3D%3E%20-1%0Alog(Array(1).includes(undefined))%3B%20%2F%2F%20%3D%3E%20true%0A%0Alog(%5B%7B%20a%3A%201%2C%20b%3A%202%20%7D%2C%20%7B%20a%3A%203%2C%20b%3A%204%20%7D%2C%20%7B%20a%3A%205%2C%20b%3A%206%20%7D%5D.flatMap(it%20%3D%3E%20%5Bit.a%2C%20it.b%5D))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%5D%0A%0Alog(%5B1%2C%202%2C%203%5D.at(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(%5B1%2C%202%2C%203%5D.at(-1))%3B%20%2F%2F%20%3D%3E%203):
+[*Examples*](t.ly/0qoU):
 ```js
 Array.from(new Set([1, 2, 3, 2, 1]));        // => [1, 2, 3]
 Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
@@ -812,7 +812,7 @@ core-js/es|stable|features/regexp/to-string
 core-js/es|stable|features/escape
 core-js/es|stable|features/unescape
 ```
-[*Examples*](http://es6.zloirock.ru/#for(var%20val%20of%20'a%F0%A0%AE%B7b')%7B%0A%20%20log(val)%3B%20%2F%2F%20%3D%3E%20'a'%2C%20'%F0%A0%AE%B7'%2C%20'b'%0A%7D%0A%0Alog('foobarbaz'.includes('bar'))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.includes('bar'%2C%204))%3B%20%20%20%2F%2F%20%3D%3E%20false%0Alog('foobarbaz'.startsWith('foo'))%3B%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.startsWith('bar'%2C%203))%3B%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.endsWith('baz'))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20true%0Alog('foobarbaz'.endsWith('bar'%2C%206))%3B%20%20%20%2F%2F%20%3D%3E%20true%0A%0Alog('string'.repeat(3))%3B%20%2F%2F%20%3D%3E%20'stringstringstring'%0A%0Alog('hello'.padStart(10))%3B%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%20%20%20%20%20hello'%0Alog('hello'.padStart(10%2C%20'1234'))%3B%20%2F%2F%20%3D%3E%20'12341hello'%0Alog('hello'.padEnd(10))%3B%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'hello%20%20%20%20%20'%0Alog('hello'.padEnd(10%2C%20'1234'))%3B%20%20%20%2F%2F%20%3D%3E%20'hello12341'%0A%0Alog('%F0%A0%AE%B7'.codePointAt(0))%3B%20%2F%2F%20%3D%3E%20134071%0A%0Avar%20name%20%3D%20'Bob'%3B%0Alog(String.raw%60Hi%5Cn%24%7Bname%7D!%60)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'Hi%5C%5CnBob!'%20(ES6%20template%20string%20syntax)%0Alog(String.raw(%7B%20raw%3A%20'test'%20%7D%2C%200%2C%201%2C%202))%3B%20%2F%2F%20%3D%3E%20%2F%2F%20't0e1s2t'%0A%0Alog('foo'.bold())%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Cb%3Efoo%3C%2Fb%3E'%0Alog('bar'.anchor('a%22b'))%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Ca%20name%3D%22a%26quot%3Bb%22%3Ebar%3C%2Fa%3E'%0Alog('baz'.link('http%3A%2F%2Fexample.com'))%3B%20%2F%2F%20%3D%3E%20'%3Ca%20href%3D%22http%3A%2F%2Fexample.com%22%3Ebaz%3C%2Fa%3E'%0A%0Alog(RegExp('.'%2C%20's').test('%5Cn'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(RegExp('.'%2C%20's').dotAll)%3B%20%20%20%20%20%2F%2F%20%3D%3E%20true%0A%0Alog(RegExp('foo%3A(%3F%3Cfoo%3E%5C%5Cw%2B)%2Cbar%3A(%3F%3Cbar%3E%5C%5Cw%2B)').exec('foo%3Aabc%2Cbar%3Adef').groups.bar)%3B%20%2F%2F%20%3D%3E%20'def'%0A%0Alog('foo%3Aabc%2Cbar%3Adef'.replace(RegExp('foo%3A(%3F%3Cfoo%3E%5C%5Cw%2B)%2Cbar%3A(%3F%3Cbar%3E%5C%5Cw%2B)')%2C%20'%24%3Cbar%3E%2C%24%3Cfoo%3E'))%3B%20%2F%2F%20%3D%3E%20'def%2Cabc'%0A%0Alog(RegExp(%2F.%2Fg%2C%20'm'))%3B%20%2F%2F%20%3D%3E%20%2F.%2Fm%0A%0Alog(%2Ffoo%2F.flags)%3B%20%20%20%20%2F%2F%20%3D%3E%20''%0Alog(%2Ffoo%2Fgim.flags)%3B%20%2F%2F%20%3D%3E%20'gim'%0A%0Alog(RegExp('foo'%2C%20'y').sticky)%3B%20%2F%2F%20%3D%3E%20true%0A%0Aconst%20text%20%3D%20'First%20line%5CnSecond%20line'%3B%0Aconst%20regex%20%3D%20RegExp('(%5C%5CS%2B)%20line%5C%5Cn%3F'%2C%20'y')%3B%0A%0Alog(regex.exec(text)%5B1%5D)%3B%20%2F%2F%20%3D%3E%20'First'%0Alog(regex.exec(text)%5B1%5D)%3B%20%2F%2F%20%3D%3E%20'Second'%0Alog(regex.exec(text))%3B%20%20%20%20%2F%2F%20%3D%3E%20null%0A%0Alog('foo'.match(%7B%5BSymbol.match%5D%3A%20_%20%3D%3E%201%7D))%3B%20%20%20%20%20%2F%2F%20%3D%3E%201%0Alog('foo'.replace(%7B%5BSymbol.replace%5D%3A%20_%20%3D%3E%202%7D))%3B%20%2F%2F%20%3D%3E%202%0Alog('foo'.search(%7B%5BSymbol.search%5D%3A%20_%20%3D%3E%203%7D))%3B%20%20%20%2F%2F%20%3D%3E%203%0Alog('foo'.split(%7B%5BSymbol.split%5D%3A%20_%20%3D%3E%204%7D))%3B%20%20%20%20%20%2F%2F%20%3D%3E%204%0A%0Alog(RegExp.prototype.toString.call(%7Bsource%3A%20'foo'%2C%20flags%3A%20'bar'%7D))%3B%0A%0Alog('%20%20%20hello%20%20%20'.trimLeft())%3B%20%20%2F%2F%20%3D%3E%20'hello%20%20%20'%0Alog('%20%20%20hello%20%20%20'.trimRight())%3B%20%2F%2F%20%3D%3E%20'%20%20%20hello'%0Alog('%20%20%20hello%20%20%20'.trimStart())%3B%20%2F%2F%20%3D%3E%20'hello%20%20%20'%0Alog('%20%20%20hello%20%20%20'.trimEnd())%3B%20%20%20%2F%2F%20%3D%3E%20'%20%20%20hello'%0A%0Afor%20(let%20%5B_%2C%20d%2C%20D%5D%20of%20'1111a2b3cccc'.matchAll(%2F(%5Cd)(%5CD)%2Fg))%20%7B%0A%20%20log(d%2C%20D)%3B%20%2F%2F%20%3D%3E%201%20a%2C%202%20b%2C%203%20c%0A%7D%0A%0Alog('Test%20abc%20test%20test%20abc%20test.'.replaceAll('abc'%2C%20'foo'))%3B%20%2F%2F%20-%3E%20'Test%20foo%20test%20test%20foo%20test.')%0A%0Alog('abc'.at(1))%3B%20%20%2F%2F%20%3D%3E%20'b'%0Alog('abc'.at(-1))%3B%20%2F%2F%20%3D%3E%20'c'):
+[*Examples*](t.ly/ex9y):
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // => 'a', '𠮷', 'b'
@@ -1611,7 +1611,7 @@ core-js/es|stable|features/typed-array/to-locale-string
 core-js/es|stable|features/typed-array/to-string
 core-js/es|stable|features/typed-array/values
 ```
-[*Examples*](http://es6.zloirock.ru/#log(new%20Int32Array(4))%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B0%2C%200%2C%200%2C%200%5D%0Alog(new%20Uint8ClampedArray(%5B1%2C%202%2C%203%2C%20666%5D))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%2C%20255%5D%0Alog(new%20Float32Array(new%20Set(%5B1%2C%202%2C%203%2C%202%2C%201%5D)))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%202%2C%203%5D%0A%0Avar%20buffer%20%3D%20new%20ArrayBuffer(8)%3B%0Avar%20view%20%20%20%3D%20new%20DataView(buffer)%3B%0Aview.setFloat64(0%2C%20123.456%2C%20true)%3B%0Alog(new%20Uint8Array(buffer.slice(4)))%3B%20%2F%2F%20%3D%3E%20%5B47%2C%20221%2C%2094%2C%2064%5D%0A%0Alog(Int8Array.of(1%2C%201.5%2C%205.7%2C%20745))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%20%5B1%2C%201%2C%205%2C%20-23%5D%0Alog(Uint8Array.from(%5B1%2C%201.5%2C%205.7%2C%20745%5D))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%201%2C%205%2C%20233%5D%0A%0Avar%20typed%20%3D%20new%20Uint8Array(%5B1%2C%202%2C%203%5D)%3B%0A%0Avar%20a%20%3D%20typed.slice(1)%3B%20%20%20%20%2F%2F%20%3D%3E%20%5B2%2C%203%5D%0Alog(a)%3B%0Alog(typed.buffer%20%3D%3D%3D%20a.buffer)%3B%20%2F%2F%20%3D%3E%20false%0Avar%20b%20%3D%20typed.subarray(1)%3B%20%2F%2F%20%3D%3E%20%5B2%2C%203%5D%0Alog(b)%3B%0Alog(typed.buffer%20%3D%3D%3D%20b.buffer)%3B%20%2F%2F%20%3D%3E%20true%0A%0Alog(typed.filter(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B1%2C%203%5D%0Alog(typed.map(it%20%3D%3E%20it%20*%201.5))%3B%20%20%2F%2F%20%3D%3E%20%5B1%2C%203%2C%204%5D%0A%0Afor(var%20val%20of%20typed)log(val)%3B%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%201%2C%202%2C%203%0Afor(var%20val%20of%20typed.values())log(val)%3B%20%2F%2F%20%3D%3E%201%2C%202%2C%203%0Afor(var%20key%20of%20typed.keys())log(key)%3B%20%20%20%2F%2F%20%3D%3E%200%2C%201%2C%202%0Afor(var%20%5Bkey%2C%20val%5D%20of%20typed.entries())%7B%0A%20%20log(key)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%200%2C%201%2C%202%0A%20%20log(val)%3B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%3D%3E%201%2C%202%2C%203%0A%7D%0A%0Alog(new%20Int32Array(%5B1%2C%202%2C%203%5D).at(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(new%20Int32Array(%5B1%2C%202%2C%203%5D).at(-1))%3B%20%2F%2F%20%3D%3E%203):
+[*Examples*](t.ly/w98j):
 ```js
 new Int32Array(4);                          // => [0, 0, 0, 0]
 new Uint8ClampedArray([1, 2, 3, 666]);      // => [1, 2, 3, 255]
@@ -1716,7 +1716,7 @@ namespace JSON {
 core-js(-pure)/es|stable|features/json/stringify
 core-js(-pure)/es|stable|features/json/to-string-tag
 ```
-[*Examples*](http://es6.zloirock.ru/#log(JSON.stringify(%7B%20'%F0%A0%AE%B7'%3A%20%5B'%5CuDF06%5CuD834'%5D%20%7D))%3B%20%2F%2F%20%3D%3E%20'%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D'):
+[*Examples*](t.ly/YJeG):
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 ```
@@ -1845,7 +1845,7 @@ class Object {
 core-js/proposals/accessible-object-hasownproperty
 core-js(-pure)/es|stable|features/object/has-own
 ```
-[*Examples*](http://es6.zloirock.ru/#log(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'foo'))%3B%20%2F%2F%20%3D%3E%20true%0Alog(Object.hasOwn(%7B%20foo%3A%2042%20%7D%2C%20'bar'))%3B%20%2F%2F%20%3D%3E%20false%0Alog(Object.hasOwn(%7B%7D%2C%20'toString'))%3B%20%2F%2F%20%3D%3E%20false):
+[*Examples*](t.ly/KY37):
 ```js
 Object.hasOwn({ foo: 42 }, 'foo'); // => true
 Object.hasOwn({ foo: 42 }, 'bar'); // => false
@@ -1873,7 +1873,7 @@ core-js(-pure)/es|stable|features/array/at
 core-js(-pure)/es|stable|features/string/at
 core-js(-pure)/es|stable|features/typed-array/at
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%5D.at(1))%3B%20%20%2F%2F%20%3D%3E%202%0Alog(%5B1%2C%202%2C%203%5D.at(-1))%3B%20%2F%2F%20%3D%3E%203):
+[*Examples*](t.ly/L6E8):
 ```js
 [1, 2, 3].at(1);  // => 2
 [1, 2, 3].at(-1); // => 3
@@ -1906,7 +1906,7 @@ core-js(-pure)/features(/virtual)/array/find-last-index
 core-js/features/typed-array/find-last
 core-js/features/typed-array/find-last-index
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%5D.findLast(it%20%3D%3E%20it%20%25%202))%3B%20%20%20%20%20%20%2F%2F%20%3D%3E%203%0Alog(%5B1%2C%202%2C%203%2C%204%5D.findLastIndex(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%202):
+[*Examples*](t.ly/TwKr):
 ```js
 [1, 2, 3, 4].findLast(it => it % 2);      // => 3
 [1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
@@ -1986,7 +1986,7 @@ core-js(-pure)/features/iterator/some
 core-js(-pure)/features/iterator/take
 core-js(-pure)/features/iterator/to-array
 ```
-[Examples](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D.values()%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray())%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D%0A%0Alog(Iterator.from(%7B%0A%20%20next%3A%20()%20%3D%3E%20(%7B%20done%3A%20Math.random()%20%3E%20.9%2C%20value%3A%20Math.random()%20*%2010%20%7C%200%20%7D)%0A%7D).toArray())%3B%20%2F%2F%20%3D%3E%20%5B7%2C%206%2C%203%2C%200%2C%202%2C%208%5D%0A%0AAsyncIterator.from(%5B1%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%5D)%0A%20%20.drop(1)%0A%20%20.take(5)%0A%20%20.filter(it%20%3D%3E%20it%20%25%202)%0A%20%20.map(it%20%3D%3E%20it%20**%202)%0A%20%20.toArray()%0A%20%20.then(log)%3B%20%2F%2F%20%3D%3E%20%5B9%2C%2025%5D):
+[Examples](t.ly/FEp1):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -2071,7 +2071,7 @@ core-js/proposals/map-upsert
 core-js(-pure)/features/map/emplace
 core-js(-pure)/features/weak-map/emplace
 ```
-[*Examples*](http://es6.zloirock.ru/#const%20map%20%3D%20new%20Map(%5B%5B'a'%2C%202%5D%5D)%3B%0A%0Amap.emplace('a'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%204%0A%0Amap.emplace('b'%2C%20%7B%20update%3A%20it%20%3D%3E%20it%20**%202%2C%20insert%3A%20()%20%3D%3E%203%7D)%3B%20%2F%2F%20%3D%3E%203%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20map)%7B%0A%20%20log(key%2C%20value)%3B%20%2F%2F%20%3D%3E%20Map%20%7B%20'a'%3A%204%2C%20'b'%3A%203%20%7D%0A%7D):
+[*Examples*](t.ly/1PXW):
 ```js
 const map = new Map([['a', 2]]);
 
@@ -2336,7 +2336,7 @@ core-js/proposals/array-filtering
 core-js(-pure)/features/array(/virtual)/filter-reject
 core-js/features/typed-array/filter-reject
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.filterReject(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%5B2%2C%204%5D):
+[*Examples*](t.ly/OOO2):
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
@@ -2357,7 +2357,7 @@ core-js/proposals/array-grouping
 core-js(-pure)/features/array(/virtual)/group-by
 core-js/features/typed-array/group-by
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%204%2C%205%5D.groupBy(it%20%3D%3E%20it%20%25%202))%3B%20%2F%2F%20%3D%3E%20%7B%201%3A%20%5B1%2C%203%2C%205%5D%2C%200%3A%20%5B2%2C%204%5D%20%7D):
+[*Examples*](t.ly/VggI):
 ```js
 [1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 ````
@@ -2378,7 +2378,7 @@ core-js/proposals/array-unique
 core-js(-pure)/features/array(/virtual)/unique-by
 core-js/features/typed-array/unique-by
 ```
-[*Examples*](http://es6.zloirock.ru/#log(%5B1%2C%202%2C%203%2C%202%2C%201%5D.uniqueBy())%3B%20%20%2F%2F%20%5B1%2C%202%2C%203%5D%0A%0Aconst%20data%20%3D%20%5B%0A%20%20%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%0A%20%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%0A%5D%3B%0A%0Alog(data.uniqueBy('uid'))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D%0A%0Alog(data.uniqueBy((%7B%20id%2C%20uid%20%7D)%20%3D%3E%20%60%24%7Bid%7D-%24%7Buid%7D%60))%3B%20%2F%2F%20%3D%3E%20%5B%7B%20id%3A%201%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%202%2C%20uid%3A%2010000%20%7D%2C%20%7B%20id%3A%203%2C%20uid%3A%2010001%20%7D%5D):
+[*Examples*](t.ly/cEFZ):
 ```js
 [1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
 
@@ -2429,7 +2429,7 @@ core-js/proposals/number-range
 core-js(-pure)/features/bigint/range
 core-js(-pure)/features/number/range
 ```
-[*Example*](http://es6.zloirock.ru/#for%20(const%20i%20of%20Number.range(1%2C%2010%2C%20%7B%20step%3A%203%2C%20inclusive%3A%20true%20%7D))%20%7B%0A%20%20log(i)%3B%20%2F%2F%20%3D%3E%201%2C%204%2C%207%2C%2010%0A%7D):
+[*Example*](t.ly/KvQ9):
 ```js
 for (const i of Number.range(1, 10)) {
   console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
@@ -2565,7 +2565,7 @@ core-js(-pure)/features/object/iterate-keys
 core-js(-pure)/features/object/iterate-values
 core-js(-pure)/features/object/iterate-entries
 ```
-[*Example*](http://es6.zloirock.ru/#const%20obj%20%3D%20%7B%20foo%3A%20'bar'%2C%20baz%3A%20'blah'%20%7D%3B%0A%0Afor%20(const%20%5Bkey%2C%20value%5D%20of%20Object.iterateEntries(obj))%20%7B%0A%20%20log(%60%24%7Bkey%7D%20-%3E%20%24%7Bvalue%7D%60)%3B%0A%7D%0A%0Afor%20(const%20key%20of%20Object.iterateKeys(obj))%20%7B%0A%20%20log(key)%3B%0A%7D%0A%0Afor%20(const%20value%20of%20Object.iterateValues(obj))%20%7B%0A%20%20log(value)%3B%0A%7D):
+[*Example*](t.ly/3pb0):
 ```js
 const obj = { foo: 'bar', baz: 'blah' };
 
@@ -2800,7 +2800,7 @@ core-js(-pure)/stable|features/url
 core-js/stable|features/url/to-json
 core-js(-pure)/stable|features/url-search-params
 ```
-[*Examples*](http://es6.zloirock.ru/#const%20url%20%3D%20new%20URL('http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment')%3B%0A%0Alog(url.href)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0Alog(url.origin)%3B%20%20%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Fexample.com%3A8080'%0Alog(url.protocol)%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A'%0Alog(url.username)%3B%20%20%20%2F%2F%20%3D%3E%20'login'%0Alog(url.password)%3B%20%20%20%2F%2F%20%3D%3E%20'password'%0Alog(url.host)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'example.com%3A8080'%0Alog(url.hostname)%3B%20%20%20%2F%2F%20%3D%3E%20'example.com'%0Alog(url.port)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'8080'%0Alog(url.pathname)%3B%20%20%20%2F%2F%20%3D%3E%20'%2Ffoo%2Fbar'%0Alog(url.search)%3B%20%20%20%20%20%2F%2F%20%3D%3E%20'%3Fa%3D1%26b%3D2%26a%3D3'%0Alog(url.hash)%3B%20%20%20%20%20%20%20%2F%2F%20%3D%3E%20'%23fragment'%0Alog(url.toJSON())%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0Alog(url.toString())%3B%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2Ffoo%2Fbar%3Fa%3D1%26b%3D2%26a%3D3%23fragment'%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20url.searchParams)%20%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'b'%2C%20'a'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%20'1'%2C%20'2'%2C%20'3'%0A%7D%0A%0Aurl.pathname%20%3D%20''%3B%0Aurl.searchParams.append('c'%2C%204)%3B%0A%0Alog(url.search)%3B%20%2F%2F%20%3D%3E%20'%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4'%0Alog(url.href)%3B%20%20%20%2F%2F%20%3D%3E%20'http%3A%2F%2Flogin%3Apassword%40example.com%3A8080%2F%3Fa%3D1%26b%3D2%26a%3D3%26c%3D4%23fragment'%0A%0Aconst%20params%20%3D%20new%20URLSearchParams('%3Fa%3D1%26b%3D2%26a%3D3')%3B%0A%0Aparams.append('c'%2C%204)%3B%0Aparams.append('a'%2C%202)%3B%0Aparams.sort()%3B%0A%0Afor%20(let%20%5Bkey%2C%20value%5D%20of%20params)%20%7B%0A%20%20log(key)%3B%20%20%20%2F%2F%20%3D%3E%20'a'%2C%20'a'%2C%20'a'%2C%20'b'%2C%20'c'%0A%20%20log(value)%3B%20%2F%2F%20%3D%3E%20'1'%2C%20'3'%2C%20'2'%2C%20'2'%2C%20'4'%0A%7D%0A%0Alog(params.toString())%3B%20%2F%2F%20%3D%3E%20'a%3D1%26a%3D3%26a%3D2%26b%3D2%26c%3D4'):
+[*Examples*](t.ly/ZiA6'):
 ```js
 const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
