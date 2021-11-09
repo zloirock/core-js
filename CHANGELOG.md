@@ -1,5 +1,14 @@
 ## Changelog
 ##### Unreleased
+- Added [change `Array` by copy stage 2 proposal](https://github.com/tc39/proposal-change-array-by-copy):
+  - `Array.prototype.toReversed`
+  - `Array.prototype.toSorted`
+  - `Array.prototype.toSpliced`
+  - `Array.prototype.with`
+  - `%TypedArray%.prototype.toReversed`
+  - `%TypedArray%.prototype.toSorted`
+  - `%TypedArray%.prototype.toSpliced`
+  - `%TypedArray%.prototype.with`
 - Added `Iterator.prototype.toAsync` method from [the iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers)
 - Added [`String.cooked` stage 1 proposal](https://github.com/tc39/proposal-string-cooked):
   - `String.cooked`
