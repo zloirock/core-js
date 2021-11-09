@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Opera 83+ compat data mapping
 
 ##### 3.19.1 - 2021.11.03
 - Added a workaround for FF26- bug where `ArrayBuffer`s are non-extensible, but `Object.isExtensible` does not report it:

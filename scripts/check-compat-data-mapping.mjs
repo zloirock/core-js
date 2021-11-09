@@ -52,7 +52,7 @@ const operaMobile = await latestMDN('opera_android');
 assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobile');
 
 const opera = await latestMDN('opera');
-assert(opera.engine - opera.version === 14, 'Opera');
+assert(opera.engine - opera.version === 13, 'Opera');
 
 const ios = await latestMDN('safari_ios');
 assert(cmp(coerce(ios.version), '<=', coerce(latest(mapping.SafariToIOS)[1])), 'iOS Safari');
