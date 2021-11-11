@@ -1,4 +1,3 @@
-/* eslint-disable import/no-import-module-exports -- false positive */
 /* https://github.com/import-js/eslint-plugin-import/issues/2181 */
 import { data, modules } from 'core-js-compat/src/data.mjs';
 import external from 'core-js-compat/src/external.mjs';
