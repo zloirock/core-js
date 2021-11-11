@@ -234,7 +234,7 @@ const base = {
   // enforce a maximum depth that callbacks can be nested
   'max-nested-callbacks': [ERROR, 4],
   // specify the maximum number of statement allowed in a function
-  'max-statements': [ERROR, 40],
+  'max-statements': [ERROR, 50],
   // require a capital letter for constructors
   'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
   // require parentheses when invoking a constructor with no arguments
