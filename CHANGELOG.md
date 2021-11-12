@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Updated Deno compat data mapping
+- Added iOS Safari 15.2 compat data mapping
 - Added Opera 83+ compat data mapping
 
 ##### 3.19.1 - 2021.11.03
