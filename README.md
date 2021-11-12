@@ -95,7 +95,27 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [ECMAScript: JSON](#ecmascript-json)
     - [ECMAScript: globalThis](#ecmascript-globalthis)
   - [ECMAScript proposals](#ecmascript-proposals)
-    - [Stage 4 proposals](#stage-4-proposals)
+    - [Finished proposals](#finished-proposals)
+      - [`globalThis`](#globalthis)
+      - [Relative indexing method](#relative-indexing-method)
+      - [`Array.prototype.includes`](#arrayprototypeincludes)
+      - [`Array.prototype.flat` / `Array.prototype.flatMap`](#arrayprototypeflat--arrayprototypeflatmap)
+      - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
+      - [`Object.fromEntries`](#objectfromentries)
+      - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
+      - [Accessible `Object.prototype.hasOwnProperty`](#accessible-objectprototypehasownproperty)
+      - [`String` padding](#string-padding)
+      - [`String.prototype.matchAll`](#stringmatchall)
+      - [`String.prototype.replaceAll`](#stringreplaceall)
+      - [`String.prototype.trimStart` / `String.prototype.trimEnd`](#stringprototypetrimstart-stringprototypetrimend)
+      - [`RegExp` `s` (`dotAll`) flag](#regexp-s-dotall-flag)
+      - [`RegExp` named capture groups](#regexp-named-capture-groups)
+      - [`Promise.allSettled`](#promiseallsettled)
+      - [`Promise.any`](#promiseany)
+      - [`Promise.prototype.finally`](#promiseprototypefinally)
+      - [`Symbol.asyncIterator` for asynchronous iteration](#symbolasynciterator-for-asynchronous-iteration)
+      - [`Symbol.prototype.description`](#symbolprototypedescription)
+      - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Array` grouping](#array-grouping)
       - [`Array` find from last](#array-find-from-last)
@@ -1790,122 +1810,20 @@ globalThis.Array === Array; // => true
 
 ### ECMAScript proposals[⬆](#index)
 [The TC39 process.](https://tc39.github.io/process-document/)
-`core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
-#### Stage 4 proposals[⬆](#index)
 
-Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be removed from proposals namespace in the next major `core-js` version.
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/4
-```
+#### Finished proposals[⬆](#index)
+
+Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only featues for a specific proposal like `core-js/proposals/proposal-name`.
+
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
-Module [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
 ```js
 let globalThis: Object;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/global-this
-core-js(-pure)/es|stable|features/global-this
 ```
-[*Examples*](https://goo.gl/LAifsc):
-```js
-globalThis.Array === Array; // => true
-```
-##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index).
-Module [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js).
-
-```js
-class String {
-  matchAll(regexp: RegExp): Iterator;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-match-all
-core-js/es|stable|features/string/match-all
-```
-##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
-Module [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-replace-all
-core-js/es|stable|features/string/replace-all
-```
-[*Examples*](https://goo.gl/wUXNXN):
-```js
-'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
-```
-##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
-Module [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-all-settled
-core-js(-pure)/es|stable|features/promise/all-settled
-```
-##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
-Modules [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js)
-```js
-class AggregateError {
-  constructor(errors: Iterable, message: string): AggregateError;
-  errors: Array<any>;
-  message: string;
-}
-
-class Promise {
-  static any(promises: Iterable): Promise<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-any
-core-js(-pure)/es|stable|features/promise/any
-core-js(-pure)/es|stable|features/aggregate-error
-```
-[*Examples*](https://goo.gl/iErvmp):
-```js
-Promise.any([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => 1
-
-Promise.any([
-  Promise.reject(1),
-  Promise.reject(2),
-  Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
-```
-##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
-Module [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js).
-```js
-class Object {
-  static hasOwn(object: object, key: PropertyKey): boolean;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/accessible-object-hasownproperty
-core-js(-pure)/es|stable|features/object/has-own
-```
-[*Examples*](t.ly/KY37):
-```js
-Object.hasOwn({ foo: 42 }, 'foo'); // => true
-Object.hasOwn({ foo: 42 }, 'bar'); // => false
-Object.hasOwn({}, 'toString');     // => false
-````
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
-Modules [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js)
 ```js
 class Array {
   at(index: int): any;
@@ -1922,17 +1840,216 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/relative-indexing-method
-core-js(-pure)/es|stable|features/array/at
-core-js(-pure)/es|stable|features/string/at
-core-js(-pure)/es|stable|features/typed-array/at
 ```
-[*Examples*](t.ly/L6E8):
+##### [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)[⬆](#index)
 ```js
-[1, 2, 3].at(1);  // => 2
-[1, 2, 3].at(-1); // => 3
+class Array {
+  includes(searchElement: any, from?: number): boolean;
+}
+
+class %TypedArray% {
+  includes(searchElement: any, from?: number): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-includes
+```
+##### [`Array.prototype.flat` / `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)[⬆](#index)
+```js
+class Array {
+  flat(depthArg?: number = 1): Array<mixed>;
+  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-flat-map
+```
+##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
+```js
+class Object {
+  static entries(object: Object): Array<[string, mixed]>;
+  static values(object: any): Array<mixed>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-values-entries
+```
+##### [`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)[⬆](#index)
+```js
+class Object {
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-from-entries
+```
+##### [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors)[⬆](#index)
+```js
+class Object {
+  static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-getownpropertydescriptors
+```
+##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
+```js
+class Object {
+  static hasOwn(object: object, key: PropertyKey): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/accessible-object-hasownproperty
+```
+##### [`String` padding](https://github.com/tc39/proposal-string-pad-start-end)[⬆](#index)
+```js
+class String {
+  padStart(length: number, fillStr?: string = ' '): string;
+  padEnd(length: number, fillStr?: string = ' '): string;
+}
+
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/string-padding
+```
+##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index).
+```js
+class String {
+  matchAll(regexp: RegExp): Iterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-match-all
+```
+##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
+```js
+class String {
+  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-replace-all
+```
+##### [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)[⬆](#index)
+```js
+class String {
+  trimLeft(): string;
+  trimRight(): string;
+  trimStart(): string;
+  trimEnd(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-left-right-trim
+```
+##### [`RegExp` `s` (`dotAll`) flag](https://github.com/tc39/proposal-regexp-dotall-flag)[⬆](#index)
+```js
+// patched for support `RegExp` dotAll (`s`) flag:
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp;
+  exec(): Array<string | undefined> | null;
+  readonly attribute dotAll: boolean;
+  readonly attribute flags: string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-dotall-flag
+```
+##### [`RegExp` named capture groups](https://github.com/tc39/proposal-regexp-named-groups)[⬆](#index)
+```js
+// patched for support `RegExp` named capture groups:
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp;
+  exec(): Array<string | undefined> | null;
+  @@replace(string: string, replaceValue: Function | string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-named-groups
+```
+##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
+```js
+class Promise {
+  static allSettled(iterable: Iterable): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-all-settled
+```
+##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
+```js
+class AggregateError {
+  constructor(errors: Iterable, message: string): AggregateError;
+  errors: Array<any>;
+  message: string;
+}
+
+class Promise {
+  static any(promises: Iterable): Promise<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-any
+```
+##### [`Promise.prototype.finally`](https://github.com/tc39/proposal-promise-finally)[⬆](#index)
+```js
+class Promise {
+  finally(onFinally: Function): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-finally
+```
+##### [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)[⬆](#index)
+```js
+class Symbol {
+  static asyncIterator: @@asyncIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/async-iteration
+```
+##### [`Symbol.prototype.description`](https://github.com/tc39/proposal-Symbol-description)[⬆](#index)
+```js
+class Symbol {
+  readonly attribute description: string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/symbol-description
+```
+##### [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)[⬆](#index)
+```js
+namespace JSON {
+  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/well-formed-stringify
 ```
 
 #### Stage 3 proposals[⬆](#index)
+
+`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
+
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/3

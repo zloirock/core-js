@@ -799,13 +799,16 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   load('proposals/accessible-object-hasownproperty');
-  load('proposals/array-last');
   load('proposals/array-filtering');
   load('proposals/array-find-from-last');
+  load('proposals/array-flat-map');
   load('proposals/array-from-async');
   load('proposals/array-grouping');
+  load('proposals/array-includes');
   load('proposals/array-is-template-object');
+  load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/async-iteration');
   load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
@@ -823,23 +826,33 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/math-signbit');
   load('proposals/number-from-string');
   load('proposals/number-range');
+  load('proposals/object-from-entries');
   load('proposals/object-iteration');
+  load('proposals/object-getownpropertydescriptors');
+  load('proposals/object-values-entries');
   load('proposals/observable');
   load('proposals/pattern-matching');
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
+  load('proposals/promise-finally');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
+  load('proposals/regexp-dotall-flag');
+  load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
   load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
+  load('proposals/string-left-right-trim');
   load('proposals/string-match-all');
+  load('proposals/string-padding');
   load('proposals/string-replace-all');
-  load('proposals/using-statement');
+  load('proposals/symbol-description');
   load('proposals/url');
+  load('proposals/using-statement');
+  load('proposals/well-formed-stringify');
   load('proposals');
 
   ok(load('stage/4'));
