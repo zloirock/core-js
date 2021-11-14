@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/keys');
+var parent = require('../../actual/instance/keys');
 
 module.exports = parent;

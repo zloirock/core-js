@@ -1,3 +1,3 @@
-var parent = require('../../stable/symbol/match');
+var parent = require('../../actual/symbol/match');
 
 module.exports = parent;

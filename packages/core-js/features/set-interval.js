@@ -1,3 +1,3 @@
-var parent = require('../stable/set-interval');
+var parent = require('../actual/set-interval');
 
 module.exports = parent;

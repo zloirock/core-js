@@ -16,7 +16,7 @@ function load(...components) {
 }
 
 for (PATH of ['core-js-pure', 'core-js']) {
-  for (const NS of ['es', 'stable', 'features']) {
+  for (const NS of ['es', 'stable', 'actual', 'features']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
@@ -544,7 +544,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
   }
 
-  for (const NS of ['stable', 'features']) {
+  for (const NS of ['stable', 'actual', 'features']) {
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
@@ -562,6 +562,25 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
 
+  for (const NS of ['actual', 'features']) {
+    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
+    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
+
+    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
+    ok(typeof instanceFindLastIndex == 'function');
+    ok(instanceFindLastIndex({}) === undefined);
+    ok(typeof instanceFindLastIndex([]) == 'function');
+    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
+
+    const instanceFindLast = load(NS, 'instance/find-last');
+    ok(typeof instanceFindLast == 'function');
+    ok(instanceFindLast({}) === undefined);
+    ok(typeof instanceFindLast([]) == 'function');
+    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
+  }
+
   {
     const NS = 'features';
 
@@ -572,8 +591,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/filter-out') == 'function');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
-    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/group-by') == 'function');
     ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');
@@ -586,8 +603,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'array/virtual/filter-out') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
-    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
@@ -724,18 +739,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceCodePoints({}) === undefined);
     ok(typeof instanceCodePoints('') == 'function');
     ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
-
-    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
-    ok(typeof instanceFindLastIndex == 'function');
-    ok(instanceFindLastIndex({}) === undefined);
-    ok(typeof instanceFindLastIndex([]) == 'function');
-    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
-
-    const instanceFindLast = load(NS, 'instance/find-last');
-    ok(typeof instanceFindLast == 'function');
-    ok(instanceFindLast({}) === undefined);
-    ok(typeof instanceFindLast([]) == 'function');
-    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
 
     const instanceFilterOut = load(NS, 'instance/filter-out');
     ok(typeof instanceFilterOut == 'function');
@@ -878,7 +881,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load(''));
 }
 
-for (const NS of ['es', 'stable', 'features']) {
+for (const NS of ['es', 'stable', 'actual', 'features']) {
   ok(typeof load(NS, 'string/match') == 'function');
   ok('next' in load(NS, 'string/match-all')('a', /./g));
   ok(typeof load(NS, 'string/replace') == 'function');
@@ -931,14 +934,17 @@ for (const NS of ['es', 'stable', 'features']) {
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
+for (const NS of ['actual', 'features']) {
+  load(NS, 'typed-array/find-last');
+  load(NS, 'typed-array/find-last-index');
+}
+
 {
   const NS = 'features';
 
   load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
-  load(NS, 'typed-array/find-last');
-  load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
   load(NS, 'typed-array/with');

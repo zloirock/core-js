@@ -1,3 +1,3 @@
-var parent = require('../../stable/object/get-prototype-of');
+var parent = require('../../actual/object/get-prototype-of');
 
 module.exports = parent;

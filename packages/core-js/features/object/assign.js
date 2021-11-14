@@ -1,3 +1,3 @@
-var parent = require('../../stable/object/assign');
+var parent = require('../../actual/object/assign');
 
 module.exports = parent;

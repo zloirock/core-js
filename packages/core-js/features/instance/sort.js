@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/sort');
+var parent = require('../../actual/instance/sort');
 
 module.exports = parent;

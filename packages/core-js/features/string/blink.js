@@ -1,3 +1,3 @@
-var parent = require('../../stable/string/blink');
+var parent = require('../../actual/string/blink');
 
 module.exports = parent;

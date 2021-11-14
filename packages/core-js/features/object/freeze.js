@@ -1,3 +1,3 @@
-var parent = require('../../stable/object/freeze');
+var parent = require('../../actual/object/freeze');
 
 module.exports = parent;

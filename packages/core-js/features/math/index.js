@@ -1,4 +1,4 @@
-var parent = require('../../stable/math');
+var parent = require('../../actual/math');
 require('../../modules/esnext.math.clamp');
 require('../../modules/esnext.math.deg-per-rad');
 require('../../modules/esnext.math.degrees');

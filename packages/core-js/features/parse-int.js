@@ -1,3 +1,3 @@
-var parent = require('../stable/parse-int');
+var parent = require('../actual/parse-int');
 
 module.exports = parent;

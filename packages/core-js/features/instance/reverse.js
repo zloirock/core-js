@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/reverse');
+var parent = require('../../actual/instance/reverse');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/starts-with');
+var parent = require('../../actual/instance/starts-with');
 
 module.exports = parent;

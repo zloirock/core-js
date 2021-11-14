@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/concat');
+var parent = require('../../actual/array/concat');
 
 module.exports = parent;

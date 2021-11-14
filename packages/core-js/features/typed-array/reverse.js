@@ -1,3 +1,3 @@
-var parent = require('../../stable/typed-array/reverse');
+var parent = require('../../actual/typed-array/reverse');
 
 module.exports = parent;

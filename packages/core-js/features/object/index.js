@@ -1,4 +1,4 @@
-var parent = require('../../stable/object');
+var parent = require('../../actual/object');
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.object.has-own');
 require('../../modules/esnext.object.iterate-entries');

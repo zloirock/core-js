@@ -1,3 +1,3 @@
-var parent = require('../../stable/string/sub');
+var parent = require('../../actual/string/sub');
 
 module.exports = parent;

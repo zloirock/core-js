@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/for-each');
+var parent = require('../../actual/array/for-each');
 
 module.exports = parent;

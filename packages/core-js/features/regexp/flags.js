@@ -1,3 +1,3 @@
-var parent = require('../../stable/regexp/flags');
+var parent = require('../../actual/regexp/flags');
 
 module.exports = parent;

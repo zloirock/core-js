@@ -1,4 +1,4 @@
-var parent = require('../../stable/array');
+var parent = require('../../actual/array');
 require('../../modules/es.map');
 require('../../modules/es.promise');
 require('../../modules/esnext.array.from-async');
@@ -7,8 +7,6 @@ require('../../modules/esnext.array.at');
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.array.filter-out');
 require('../../modules/esnext.array.filter-reject');
-require('../../modules/esnext.array.find-last');
-require('../../modules/esnext.array.find-last-index');
 require('../../modules/esnext.array.group-by');
 require('../../modules/esnext.array.group-by-to-map');
 require('../../modules/esnext.array.is-template-object');
