@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/es/symbol';
+import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import groupBy from 'core-js-pure/features/array/group-by';
-import getPrototypeOf from 'core-js-pure/features/object/get-prototype-of';
 
 QUnit.test('Array#groupBy', assert => {
   assert.isFunction(groupBy);

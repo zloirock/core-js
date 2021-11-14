@@ -1,5 +1,5 @@
-import acosh from 'core-js-pure/features/math/acosh';
-import EPSILON from 'core-js-pure/features/number/epsilon';
+import acosh from 'core-js-pure/es/math/acosh';
+import EPSILON from 'core-js-pure/es/number/epsilon';
 
 QUnit.test('Math.acosh', assert => {
   assert.isFunction(acosh);

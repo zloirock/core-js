@@ -1,7 +1,7 @@
-import Iterator from 'core-js-pure/features/iterator';
-
 import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
+
+import Iterator from 'core-js-pure/features/iterator';
 
 QUnit.test('Iterator#forEach', assert => {
   const { forEach } = Iterator.prototype;

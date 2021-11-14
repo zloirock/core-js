@@ -1,5 +1,6 @@
 import { createAsyncIterable, createIterable } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
+
 import Promise from 'core-js-pure/es/promise';
 import fromAsync from 'core-js-pure/features/array/from-async';
 

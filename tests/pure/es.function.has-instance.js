@@ -1,7 +1,7 @@
-import HAS_INSTANCE from 'core-js-pure/features/symbol/has-instance';
+import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Function#@@hasInstance', assert => {
-  assert.true(HAS_INSTANCE in Function.prototype);
-  assert.true(Function[HAS_INSTANCE](() => { /* empty */ }));
-  assert.false(Function[HAS_INSTANCE]({}));
+  assert.true(Symbol.hasInstance in Function.prototype);
+  assert.true(Function[Symbol.hasInstance](() => { /* empty */ }));
+  assert.false(Function[Symbol.hasInstance]({}));
 });

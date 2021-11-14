@@ -1,4 +1,4 @@
-import from from 'core-js-pure/features/array/from';
+import from from 'core-js-pure/es/array/from';
 import range from 'core-js-pure/features/number/range';
 
 QUnit.test('range', assert => {

@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 
-import repeat from 'core-js-pure/features/string/repeat';
+import repeat from 'core-js-pure/es/string/repeat';
 
 QUnit.test('String#repeat', assert => {
   assert.isFunction(repeat);

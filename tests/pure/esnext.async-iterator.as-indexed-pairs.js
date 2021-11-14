@@ -1,6 +1,6 @@
-import AsyncIterator from 'core-js-pure/features/async-iterator';
-
 import { createIterator } from '../helpers/helpers';
+
+import AsyncIterator from 'core-js-pure/features/async-iterator';
 
 QUnit.test('AsyncIterator#asIndexedPairs', assert => {
   assert.expect(8);

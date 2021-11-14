@@ -1,10 +1,14 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { Symbol, WeakSet } from 'core-js-pure';
 import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
+import freeze from 'core-js-pure/es/object/freeze';
+import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
+import keys from 'core-js-pure/es/object/keys';
+import ownKeys from 'core-js-pure/es/reflect/own-keys';
+import Symbol from 'core-js-pure/es/symbol';
+import WeakSet from 'core-js-pure/es/weak-set';
 
 QUnit.test('WeakSet', assert => {
   assert.isFunction(WeakSet);

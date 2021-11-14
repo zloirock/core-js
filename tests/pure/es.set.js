@@ -3,12 +3,18 @@
 import { createIterable, is, nativeSubclass } from '../helpers/helpers';
 import { DESCRIPTORS } from '../helpers/constants';
 
-import { Set, Map, Symbol } from 'core-js-pure';
-import getIterator from 'core-js-pure/features/get-iterator';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
-import { freeze, getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
+import getIterator from 'core-js-pure/es/get-iterator';
+import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 import from from 'core-js-pure/features/array/from';
+import freeze from 'core-js-pure/es/object/freeze';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
+import keys from 'core-js-pure/es/object/keys';
+import ownKeys from 'core-js-pure/es/reflect/own-keys';
+import Symbol from 'core-js-pure/es/symbol';
+import Map from 'core-js-pure/es/map';
+import Set from 'core-js-pure/es/set';
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);

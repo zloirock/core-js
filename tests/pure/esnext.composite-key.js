@@ -1,8 +1,8 @@
 
 import { FREEZING } from '../helpers/constants';
 
+import { getPrototypeOf, isFrozen } from 'core-js-pure/es/object';
 import compositeKey from 'core-js-pure/features/composite-key';
-import { getPrototypeOf, isFrozen } from 'core-js-pure/features/object';
 
 QUnit.test('compositeKey', assert => {
   assert.isFunction(compositeKey);

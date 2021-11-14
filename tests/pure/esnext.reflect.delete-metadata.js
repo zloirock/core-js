@@ -1,5 +1,7 @@
-import { defineMetadata, hasOwnMetadata, deleteMetadata } from 'core-js-pure/features/reflect';
 import create from 'core-js-pure/features/object/create';
+import defineMetadata from 'core-js-pure/features/reflect/define-metadata';
+import hasOwnMetadata from 'core-js-pure/features/reflect/has-own-metadata';
+import deleteMetadata from 'core-js-pure/features/reflect/delete-metadata';
 
 QUnit.test('Reflect.deleteMetadata', assert => {
   assert.isFunction(deleteMetadata);

@@ -1,18 +1,18 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import core from 'core-js-pure';
-import {
-  defineProperty,
-  defineProperties,
-  getOwnPropertyDescriptor,
-  getOwnPropertyNames,
-  getOwnPropertySymbols,
-  keys,
-  create,
-} from 'core-js-pure/features/object';
+import create from 'core-js-pure/features/object/create';
+import defineProperty from 'core-js-pure/features/object/define-property';
+import defineProperties from 'core-js-pure/features/object/define-properties';
+import getOwnPropertyDescriptor from 'core-js-pure/features/object/get-own-property-descriptor';
+import getOwnPropertyNames from 'core-js-pure/features/object/get-own-property-names';
+import getOwnPropertySymbols from 'core-js-pure/features/object/get-own-property-symbols';
+import keys from 'core-js-pure/features/object/keys';
 import ownKeys from 'core-js-pure/features/reflect/own-keys';
-
-const { Symbol, JSON } = core;
+import JSON from 'core-js-pure/features/json';
+import Map from 'core-js-pure/features/map';
+import Set from 'core-js-pure/features/set';
+import Promise from 'core-js-pure/features/promise';
+import Symbol from 'core-js-pure/features/symbol';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
@@ -268,11 +268,11 @@ if (DESCRIPTORS) {
     assert.same(object[d], undefined, 'd');
   });
 
-  const constructors = ['Map', 'Set', 'Promise'];
-  for (const name of constructors) {
+  const constructors = { Map, Set, Promise };
+  for (const name in constructors) {
     QUnit.test(`${ name }@@species`, assert => {
-      assert.same(core[name][Symbol.species], core[name], `${ name }@@species === ${ name }`);
-      const Subclass = create(core[name]);
+      assert.same(constructors[name][Symbol.species], constructors[name], `${ name }@@species === ${ name }`);
+      const Subclass = create(constructors[name]);
       assert.same(Subclass[Symbol.species], Subclass, `${ name } subclass`);
     });
   }

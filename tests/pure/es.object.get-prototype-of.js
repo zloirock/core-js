@@ -1,6 +1,7 @@
 import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
 
-import { create, getPrototypeOf } from 'core-js-pure/features/object';
+import create from 'core-js-pure/features/object/create';
+import getPrototypeOf from 'core-js-pure/features/object/get-prototype-of';
 
 QUnit.test('Object.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);

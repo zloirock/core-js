@@ -1,7 +1,7 @@
 // TODO: Remove from `core-js@4`
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/es/symbol';
 import filterOut from 'core-js-pure/features/array/filter-out';
 
 QUnit.test('Array#filterOut', assert => {
