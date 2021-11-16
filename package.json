@@ -112,18 +112,19 @@
     "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-targets-parser check",
     "ci": "run-s init bundle test-unit test-promises test-observables test-entries test-targets-parser",
     "clean-dependencies": "node scripts/clean-dependencies.mjs",
-    "refresh": "npm run clean-dependencies && npm i && npm t",
+    "refresh": "npm run clean-dependencies && npm it",
     "downloads": "zx scripts/downloads-by-versions.mjs",
     "downloads-main-only": "zx scripts/downloads-by-versions.mjs --main-only",
     "usage": "zx scripts/usage.mjs",
-    "usage-100": "zx scripts/usage.mjs -l=100",
     "usage-1000": "zx scripts/usage.mjs -l=1000",
     "usage-10000": "zx scripts/usage.mjs -l=10000",
     "update-version": "zx scripts/update-version.mjs && zx scripts/bundle.mjs --deno",
     "publish": "lerna publish from-package --yes",
+    "c": "npm run check",
+    "d": "npm run check-dependencies",
     "l": "npm run lint",
     "m": "npm run check-mapping",
-    "o": "npm run check-dependencies",
-    "r": "npm run refresh"
+    "r": "npm run refresh",
+    "u": "npm run update-version"
   }
 }
