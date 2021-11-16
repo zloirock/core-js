@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, NODE } from '../helpers/constants';
 import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';
 import toASCIITestData from '../wpt-url-resources/toascii';
@@ -9,7 +9,7 @@ QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
   assert.arity(URL, 1);
   assert.name(URL, 'URL');
-  assert.looksNative(URL);
+  if (!NODE) assert.looksNative(URL);
 
   assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
   assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');
@@ -564,7 +564,7 @@ QUnit.test('URL#toJSON', assert => {
   assert.arity(toJSON, 0);
   assert.name(toJSON, 'toJSON');
   assert.enumerable(URL.prototype, 'toJSON');
-  assert.looksNative(toJSON);
+  if (!NODE) assert.looksNative(toJSON);
 
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toJSON(), 'http://zloirock.ru/');
@@ -581,7 +581,7 @@ QUnit.test('URL#toString', assert => {
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
   assert.enumerable(URL.prototype, 'toString');
-  assert.looksNative(toString);
+  if (!NODE) assert.looksNative(toString);
 
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toString(), 'http://zloirock.ru/');

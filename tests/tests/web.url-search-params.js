@@ -1,11 +1,11 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, NODE } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
 QUnit.test('URLSearchParams', assert => {
   assert.isFunction(URLSearchParams);
   assert.arity(URLSearchParams, 0);
   assert.name(URLSearchParams, 'URLSearchParams');
-  assert.looksNative(URLSearchParams);
+  if (!NODE) assert.looksNative(URLSearchParams);
 
   assert.same(String(new URLSearchParams()), '');
   assert.same(String(new URLSearchParams('')), '');
@@ -144,7 +144,7 @@ QUnit.test('URLSearchParams#append', assert => {
   assert.arity(append, 2);
   assert.name(append, 'append');
   assert.enumerable(URLSearchParams.prototype, 'append');
-  assert.looksNative(append);
+  if (!NODE) assert.looksNative(append);
 
   assert.same(new URLSearchParams().append('a', 'b'), undefined, 'void');
 
@@ -196,7 +196,7 @@ QUnit.test('URLSearchParams#delete', assert => {
   assert.isFunction($delete);
   assert.arity($delete, 1);
   assert.enumerable(URLSearchParams.prototype, 'delete');
-  assert.looksNative($delete);
+  if (!NODE) assert.looksNative($delete);
 
   let params = new URLSearchParams('a=b&c=d');
   params.delete('a');
@@ -253,7 +253,7 @@ QUnit.test('URLSearchParams#get', assert => {
   assert.arity(get, 1);
   assert.name(get, 'get');
   assert.enumerable(URLSearchParams.prototype, 'get');
-  assert.looksNative(get);
+  if (!NODE) assert.looksNative(get);
 
   let params = new URLSearchParams('a=b&c=d');
   assert.same(params.get('a'), 'b');
@@ -320,7 +320,7 @@ QUnit.test('URLSearchParams#getAll', assert => {
   assert.arity(getAll, 1);
   assert.name(getAll, 'getAll');
   assert.enumerable(URLSearchParams.prototype, 'getAll');
-  assert.looksNative(getAll);
+  if (!NODE) assert.looksNative(getAll);
 
   let params = new URLSearchParams('a=b&c=d');
   assert.arrayEqual(params.getAll('a'), ['b']);
@@ -352,7 +352,7 @@ QUnit.test('URLSearchParams#has', assert => {
   assert.arity(has, 1);
   assert.name(has, 'has');
   assert.enumerable(URLSearchParams.prototype, 'has');
-  assert.looksNative(has);
+  if (!NODE) assert.looksNative(has);
 
   let params = new URLSearchParams('a=b&c=d');
   assert.same(params.has('a'), true);
@@ -389,7 +389,7 @@ QUnit.test('URLSearchParams#set', assert => {
   assert.arity(set, 2);
   assert.name(set, 'set');
   assert.enumerable(URLSearchParams.prototype, 'set');
-  assert.looksNative(set);
+  if (!NODE) assert.looksNative(set);
 
   let params = new URLSearchParams('a=b&c=d');
   params.set('a', 'B');
@@ -424,7 +424,7 @@ QUnit.test('URLSearchParams#sort', assert => {
   assert.arity(sort, 0);
   assert.name(sort, 'sort');
   assert.enumerable(URLSearchParams.prototype, 'sort');
-  assert.looksNative(sort);
+  if (!NODE) assert.looksNative(sort);
 
   let params = new URLSearchParams('a=1&b=4&a=3&b=2');
   params.sort();
@@ -519,7 +519,7 @@ QUnit.test('URLSearchParams#toString', assert => {
   assert.isFunction(toString);
   assert.arity(toString, 0);
   assert.name(toString, 'toString');
-  assert.looksNative(toString);
+  if (!NODE) assert.looksNative(toString);
 
   let params = new URLSearchParams();
   params.append('a', 'b c');
@@ -618,7 +618,7 @@ QUnit.test('URLSearchParams#forEach', assert => {
   assert.arity(forEach, 1);
   assert.name(forEach, 'forEach');
   assert.enumerable(URLSearchParams.prototype, 'forEach');
-  assert.looksNative(forEach);
+  if (!NODE) assert.looksNative(forEach);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
   let params = new URLSearchParams('a=1&b=2&c=3');
@@ -663,7 +663,7 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.arity(entries, 0);
   assert.name(entries, 'entries');
   assert.enumerable(URLSearchParams.prototype, 'entries');
-  assert.looksNative(entries);
+  if (!NODE) assert.looksNative(entries);
 
   const expectedValues = { a: '1', b: '2', c: '3' };
   let params = new URLSearchParams('a=1&b=2&c=3');
@@ -711,7 +711,7 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.arity(keys, 0);
   assert.name(keys, 'keys');
   assert.enumerable(URLSearchParams.prototype, 'keys');
-  assert.looksNative(keys);
+  if (!NODE) assert.looksNative(keys);
 
   let iterator = new URLSearchParams('a=1&b=2&c=3').keys();
   let result = '';
@@ -754,7 +754,7 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.arity(values, 0);
   assert.name(values, 'values');
   assert.enumerable(URLSearchParams.prototype, 'values');
-  assert.looksNative(values);
+  if (!NODE) assert.looksNative(values);
 
   let iterator = new URLSearchParams('a=1&b=2&c=3').values();
   let result = '';
@@ -796,7 +796,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.isFunction(entries);
   assert.arity(entries, 0);
   assert.name(entries, 'entries');
-  assert.looksNative(entries);
+  if (!NODE) assert.looksNative(entries);
 
   assert.same(entries, URLSearchParams.prototype.entries);
 

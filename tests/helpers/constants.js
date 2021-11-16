@@ -12,6 +12,8 @@ export const GLOBAL = Function('return this')();
 
 export const NATIVE = GLOBAL.NATIVE || false;
 
+export const NODE = Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
+
 export const TYPED_ARRAYS = {
   Float32Array: 4,
   Float64Array: 8,
