@@ -1,0 +1,56 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: use NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: '17'
+      - name: install dependencies
+        run: npm install
+      - name: lint
+        run: npm run lint
+
+  karma:
+    name: karma
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: use NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: '17'
+      - name: install dependencies
+        run: npm install
+      - name: karma
+        run: npm run ci-karma
+
+  tests:
+    name: tests
+    strategy:
+      matrix:
+        os:
+          - 'ubuntu-latest'
+          - 'windows-latest'
+          - 'macos-latest'
+        node:
+          - '14.15'
+          - '16.11'
+          - '17'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: use NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node }}
+      - name: install dependencies
+        run: npm install
+      - name: tests
+        run: npm run ci-tests
