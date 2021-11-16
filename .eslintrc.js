@@ -873,8 +873,6 @@ const qunit = {
   'qunit/assert-args': ERROR,
   // forbid the use of assert.equal
   'qunit/no-assert-equal': ERROR,
-  // require use of boolean assertions
-  'qunit/no-assert-equal-boolean': ERROR,
   // forbid async calls in loops
   'qunit/no-async-in-loops': ERROR,
   // disallow async module callbacks

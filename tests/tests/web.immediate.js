@@ -17,7 +17,7 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   }).catch(() => {
     assert.ok(false, 'setImmediate works');
   }).then(assert.async());
-  assert.false(called, 'setImmediate is async');
+  assert.same(false, called, 'setImmediate is async');
   timeLimitedPromise(1e3, resolve => {
     setImmediate((a, b) => {
       resolve(a + b);

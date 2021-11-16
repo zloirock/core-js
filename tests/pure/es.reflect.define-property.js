@@ -10,7 +10,7 @@ QUnit.test('Reflect.defineProperty', assert => {
     assert.name(defineProperty, 'defineProperty');
   }
   let object = {};
-  assert.true(defineProperty(object, 'foo', { value: 123 }));
+  assert.same(true, defineProperty(object, 'foo', { value: 123 }));
   assert.same(object.foo, 123);
   if (DESCRIPTORS) {
     object = {};
@@ -24,7 +24,7 @@ QUnit.test('Reflect.defineProperty', assert => {
       configurable: false,
       writable: false,
     });
-    assert.false(defineProperty(object, 'foo', {
+    assert.same(false, defineProperty(object, 'foo', {
       value: 42,
     }));
   }

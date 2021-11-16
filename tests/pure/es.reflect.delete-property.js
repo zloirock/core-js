@@ -10,10 +10,10 @@ QUnit.test('Reflect.deleteProperty', assert => {
     assert.name(deleteProperty, 'deleteProperty');
   }
   const object = { bar: 456 };
-  assert.true(deleteProperty(object, 'bar'));
+  assert.same(true, deleteProperty(object, 'bar'));
   assert.same(keys(object).length, 0);
   if (DESCRIPTORS) {
-    assert.false(deleteProperty(defineProperty({}, 'foo', {
+    assert.same(false, deleteProperty(defineProperty({}, 'foo', {
       value: 42,
     }), 'foo'));
   }

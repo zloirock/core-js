@@ -3,9 +3,9 @@ import { DESCRIPTORS } from '../helpers/constants';
 if (DESCRIPTORS) {
   QUnit.test('RegExp#sticky', assert => {
     const re = new RegExp('a', 'y');
-    assert.true(re.sticky, '.sticky is true');
+    assert.same(true, re.sticky, '.sticky is true');
     assert.same(re.flags, 'y', '.flags contains y');
-    assert.false(/a/.sticky);
+    assert.same(false, /a/.sticky);
 
     const stickyGetter = Object.getOwnPropertyDescriptor(RegExp.prototype, 'sticky').get;
     if (typeof stickyGetter == 'function') {

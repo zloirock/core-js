@@ -147,9 +147,9 @@ QUnit.test('Set#delete', assert => {
   set.add(1);
   set.add(array);
   assert.same(set.size, 5);
-  assert.true(set.delete(NaN));
+  assert.same(true, set.delete(NaN));
   assert.same(set.size, 4);
-  assert.false(set.delete(4));
+  assert.same(false, set.delete(4));
   assert.same(set.size, 4);
   set.delete([]);
   assert.same(set.size, 4);

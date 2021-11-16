@@ -25,7 +25,7 @@ QUnit.test('Reflect.set', assert => {
     });
     set(target, 'bar', 1, receiver);
     assert.same(receiver.bar, 1, 'receiver.bar === 1');
-    assert.false(getOwnPropertyDescriptor(receiver, 'bar').enumerable, 'enumerability not overridden');
+    assert.same(false, getOwnPropertyDescriptor(receiver, 'bar').enumerable, 'enumerability not overridden');
     let out = null;
     target = create(defineProperty({ z: 3 }, 'w', {
       set() {
@@ -48,19 +48,19 @@ QUnit.test('Reflect.set', assert => {
         configurable: false,
       },
     });
-    assert.true(set(target, 'x', 2, target), 'set x');
+    assert.same(true, set(target, 'x', 2, target), 'set x');
     assert.same(target.x, 2, 'set x');
     out = null;
-    assert.true(set(target, 'y', 2, target), 'set y');
+    assert.same(true, set(target, 'y', 2, target), 'set y');
     assert.same(out, target, 'set y');
-    assert.true(set(target, 'z', 4, target));
+    assert.same(true, set(target, 'z', 4, target));
     assert.same(target.z, 4, 'set z');
     out = null;
-    assert.true(set(target, 'w', 1, target), 'set w');
+    assert.same(true, set(target, 'w', 1, target), 'set w');
     assert.same(out, target, 'set w');
-    assert.true(set(target, 'u', 0, target), 'set u');
+    assert.same(true, set(target, 'u', 0, target), 'set u');
     assert.same(target.u, 0, 'set u');
-    assert.false(set(target, 'c', 2, target), 'set c');
+    assert.same(false, set(target, 'c', 2, target), 'set c');
     assert.same(target.c, 1, 'set c');
 
     // https://github.com/zloirock/core-js/issues/392
@@ -68,7 +68,7 @@ QUnit.test('Reflect.set', assert => {
       writable: false,
       configurable: true,
     });
-    assert.false(set(getPrototypeOf(o), 'test', 1, o));
+    assert.same(false, set(getPrototypeOf(o), 'test', 1, o));
 
     // https://github.com/zloirock/core-js/issues/393
     o = defineProperty({}, 'test', {

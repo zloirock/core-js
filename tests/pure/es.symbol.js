@@ -154,7 +154,7 @@ if (DESCRIPTORS) {
       enumerable: true,
     };
     defineProperty(object, f, descriptor);
-    assert.true(descriptor.enumerable, 'defineProperty not changes descriptor object');
+    assert.same(true, descriptor.enumerable, 'defineProperty not changes descriptor object');
     assert.deepEqual(getOwnPropertyDescriptor(object, 'a'), {
       configurable: true,
       writable: true,
@@ -196,7 +196,7 @@ if (DESCRIPTORS) {
     assert.same(getOwnPropertyDescriptor(object, i), undefined, 'getOwnPropertyDescriptor i');
     assert.same(getOwnPropertyDescriptor(object, j), undefined, 'getOwnPropertyDescriptor j');
     assert.same(getOwnPropertyDescriptor(object, 'k'), undefined, 'getOwnPropertyDescriptor k');
-    assert.false(getOwnPropertyDescriptor(Object.prototype, 'toString').enumerable, 'getOwnPropertyDescriptor on Object.prototype');
+    assert.same(false, getOwnPropertyDescriptor(Object.prototype, 'toString').enumerable, 'getOwnPropertyDescriptor on Object.prototype');
     assert.same(getOwnPropertyDescriptor(Object.prototype, d), undefined, 'getOwnPropertyDescriptor on Object.prototype missed symbol');
     assert.same(keys(object).length, 2, 'Object.keys');
     assert.same(getOwnPropertyNames(object).length, 3, 'Object.getOwnPropertyNames');

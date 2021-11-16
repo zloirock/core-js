@@ -13,5 +13,5 @@ if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
   assert.throws(() => setPrototypeOf({}, 42), TypeError);
   assert.throws(() => setPrototypeOf(42, {}), TypeError, 'throws on primitive');
   object = {};
-  assert.false(setPrototypeOf(object, object), 'false on recursive __proto__');
+  assert.same(false, setPrototypeOf(object, object), 'false on recursive __proto__');
 });
