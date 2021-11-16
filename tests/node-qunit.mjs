@@ -1,13 +1,15 @@
-import testrunner from 'node-qunit';
+import { options, run } from 'node-qunit';
 import { promisify } from 'util';
 
-Object.assign(testrunner.options.log, {
+Object.assign(options.log, {
   assertions: false,
   tests: false,
   globalSummary: false,
 });
 
-const { failed } = await promisify(testrunner.run)([
+options.maxBlockDuration = 6e4;
+
+const { failed } = await promisify(run)([
   {
     code: './packages/core-js-bundle/index.js',
     tests: './tests/bundles/tests.js',
