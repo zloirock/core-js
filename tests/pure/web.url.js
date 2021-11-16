@@ -1,5 +1,5 @@
 /* eslint-disable es/no-object-getownpropertydescriptor -- safe */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, NODE } from '../helpers/constants';
 import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';
 import toASCIITestData from '../wpt-url-resources/toascii';
@@ -10,7 +10,7 @@ const { hasOwnProperty } = Object.prototype;
 
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
-  assert.arity(URL, 1);
+  if (!NODE) assert.arity(URL, 1);
 
   assert.same(String(new URL('http://www.domain.com/a/b')), 'http://www.domain.com/a/b');
   assert.same(String(new URL('/c/d', 'http://www.domain.com/a/b')), 'http://www.domain.com/c/d');

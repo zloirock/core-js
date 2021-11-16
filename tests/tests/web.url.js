@@ -7,7 +7,7 @@ const { hasOwnProperty } = Object.prototype;
 
 QUnit.test('URL constructor', assert => {
   assert.isFunction(URL);
-  assert.arity(URL, 1);
+  if (!NODE) assert.arity(URL, 1);
   assert.name(URL, 'URL');
   if (!NODE) assert.looksNative(URL);
 
