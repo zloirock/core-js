@@ -2,14 +2,14 @@ import signbit from 'core-js-pure/features/math/signbit';
 
 QUnit.test('Math.signbit', assert => {
   assert.isFunction(signbit);
-  assert.strictEqual(signbit(NaN), false);
-  assert.strictEqual(signbit(), false);
-  assert.strictEqual(signbit(-0), true);
-  assert.strictEqual(signbit(0), false);
-  assert.strictEqual(signbit(Infinity), false);
-  assert.strictEqual(signbit(-Infinity), true);
-  assert.strictEqual(signbit(13510798882111488), false);
-  assert.strictEqual(signbit(-13510798882111488), true);
-  assert.strictEqual(signbit(42.5), false);
-  assert.strictEqual(signbit(-42.5), true);
+  assert.false(signbit(NaN));
+  assert.false(signbit());
+  assert.true(signbit(-0));
+  assert.false(signbit(0));
+  assert.false(signbit(Infinity));
+  assert.true(signbit(-Infinity));
+  assert.false(signbit(13510798882111488));
+  assert.true(signbit(-13510798882111488));
+  assert.false(signbit(42.5));
+  assert.true(signbit(-42.5));
 });

@@ -10,7 +10,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.uniqueBy', assert => {
     assert.name(uniqueBy, 'uniqueBy', `${ name }::uniqueBy name is 'uniqueBy'`);
     assert.looksNative(uniqueBy, `${ name }::uniqueBy looks native`);
     const array = new TypedArray([1, 2, 3, 2, 1]);
-    assert.ok(array.uniqueBy() !== array);
+    assert.notStrictEqual(array.uniqueBy(), array);
     assert.deepEqual(array.uniqueBy(), new TypedArray([1, 2, 3]));
     let values = '';
     new TypedArray([1, 2, 3]).uniqueBy(value => {

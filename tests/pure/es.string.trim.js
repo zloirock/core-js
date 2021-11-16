@@ -4,9 +4,9 @@ import trim from 'core-js-pure/features/string/trim';
 
 QUnit.test('String#trim', assert => {
   assert.isFunction(trim);
-  assert.strictEqual(trim(' \n  q w e \n  '), 'q w e', 'removes whitespaces at left & right side of string');
-  assert.strictEqual(trim(WHITESPACES), '', 'removes all whitespaces');
-  assert.strictEqual(trim('\u200B\u0085'), '\u200B\u0085', "shouldn't remove this symbols");
+  assert.same(trim(' \n  q w e \n  '), 'q w e', 'removes whitespaces at left & right side of string');
+  assert.same(trim(WHITESPACES), '', 'removes all whitespaces');
+  assert.same(trim('\u200B\u0085'), '\u200B\u0085', "shouldn't remove this symbols");
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {

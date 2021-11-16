@@ -24,15 +24,15 @@ QUnit.test('Set', assert => {
   set.add(3);
   set.add(2);
   set.add(1);
-  assert.strictEqual(set.size, 3);
+  assert.same(set.size, 3);
   const result = [];
   set.forEach(val => {
     result.push(val);
   });
   assert.deepEqual(result, [1, 2, 3]);
-  assert.strictEqual(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
-  assert.strictEqual(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
-  assert.strictEqual(new Set([NaN, NaN, NaN]).size, 1);
+  assert.same(new Set(createIterable([1, 2, 3])).size, 3, 'Init from iterable');
+  assert.same(new Set([freeze({}), 1]).size, 2, 'Support frozen objects');
+  assert.same(new Set([NaN, NaN, NaN]).size, 1);
   assert.deepEqual(from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   let done = false;
   const { add } = Set.prototype;
@@ -92,18 +92,18 @@ QUnit.test('Set#add', assert => {
   set.add(2);
   set.add(1);
   set.add(array);
-  assert.strictEqual(set.size, 5);
+  assert.same(set.size, 5);
   const chain = set.add(NaN);
-  assert.strictEqual(chain, set);
-  assert.strictEqual(set.size, 5);
+  assert.same(chain, set);
+  assert.same(set.size, 5);
   set.add(2);
-  assert.strictEqual(set.size, 5);
+  assert.same(set.size, 5);
   set.add(array);
-  assert.strictEqual(set.size, 5);
+  assert.same(set.size, 5);
   set.add([]);
-  assert.strictEqual(set.size, 6);
+  assert.same(set.size, 6);
   set.add(4);
-  assert.strictEqual(set.size, 7);
+  assert.same(set.size, 7);
   const frozen = freeze({});
   set = new Set();
   set.add(frozen);
@@ -114,7 +114,7 @@ QUnit.test('Set#clear', assert => {
   assert.isFunction(Set.prototype.clear);
   let set = new Set();
   set.clear();
-  assert.strictEqual(set.size, 0);
+  assert.same(set.size, 0);
   set = new Set();
   set.add(1);
   set.add(2);
@@ -122,7 +122,7 @@ QUnit.test('Set#clear', assert => {
   set.add(2);
   set.add(1);
   set.clear();
-  assert.strictEqual(set.size, 0);
+  assert.same(set.size, 0);
   assert.ok(!set.has(1));
   assert.ok(!set.has(2));
   assert.ok(!set.has(3));
@@ -131,7 +131,7 @@ QUnit.test('Set#clear', assert => {
   set.add(1);
   set.add(frozen);
   set.clear();
-  assert.strictEqual(set.size, 0, 'Support frozen objects');
+  assert.same(set.size, 0, 'Support frozen objects');
   assert.ok(!set.has(1));
   assert.ok(!set.has(frozen));
 });
@@ -146,20 +146,20 @@ QUnit.test('Set#delete', assert => {
   set.add(2);
   set.add(1);
   set.add(array);
-  assert.strictEqual(set.size, 5);
-  assert.strictEqual(set.delete(NaN), true);
-  assert.strictEqual(set.size, 4);
-  assert.strictEqual(set.delete(4), false);
-  assert.strictEqual(set.size, 4);
+  assert.same(set.size, 5);
+  assert.true(set.delete(NaN));
+  assert.same(set.size, 4);
+  assert.false(set.delete(4));
+  assert.same(set.size, 4);
   set.delete([]);
-  assert.strictEqual(set.size, 4);
+  assert.same(set.size, 4);
   set.delete(array);
-  assert.strictEqual(set.size, 3);
+  assert.same(set.size, 3);
   const frozen = freeze({});
   set.add(frozen);
-  assert.strictEqual(set.size, 4);
+  assert.same(set.size, 4);
   set.delete(frozen);
-  assert.strictEqual(set.size, 3);
+  assert.same(set.size, 3);
 });
 
 QUnit.test('Set#forEach', assert => {
@@ -176,7 +176,7 @@ QUnit.test('Set#forEach', assert => {
     count++;
     result.push(value);
   });
-  assert.strictEqual(count, 3);
+  assert.same(count, 3);
   assert.deepEqual(result, [1, 2, 3]);
   set = new Set();
   set.add('0');
@@ -193,7 +193,7 @@ QUnit.test('Set#forEach', assert => {
       set.add('4');
     }
   });
-  assert.strictEqual(result, '0124');
+  assert.same(result, '0124');
   set = new Set();
   set.add('0');
   result = '';
@@ -202,7 +202,7 @@ QUnit.test('Set#forEach', assert => {
     if (result !== '') throw new Error();
     result += it;
   });
-  assert.strictEqual(result, '0');
+  assert.same(result, '0');
   assert.throws(() => {
     Set.prototype.forEach.call(new Map(), () => { /* empty */ });
   }, 'non-generic');
@@ -232,8 +232,8 @@ QUnit.test('Set#size', assert => {
   const set = new Set();
   set.add(1);
   const { size } = set;
-  assert.strictEqual(typeof size, 'number', 'size is number');
-  assert.strictEqual(size, 1, 'size is correct');
+  assert.same(typeof size, 'number', 'size is number');
+  assert.same(size, 1, 'size is correct');
   if (DESCRIPTORS) {
     const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
     assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
@@ -247,14 +247,14 @@ QUnit.test('Set#size', assert => {
 QUnit.test('Set & -0', assert => {
   let set = new Set();
   set.add(-0);
-  assert.strictEqual(set.size, 1);
+  assert.same(set.size, 1);
   assert.ok(set.has(0));
   assert.ok(set.has(-0));
   set.forEach(it => {
     assert.ok(!is(it, -0));
   });
   set.delete(-0);
-  assert.strictEqual(set.size, 0);
+  assert.same(set.size, 0);
   set = new Set([-0]);
   set.forEach(key => {
     assert.ok(!is(key, -0));
@@ -269,8 +269,8 @@ QUnit.test('Set & -0', assert => {
 });
 
 QUnit.test('Set#@@toStringTag', assert => {
-  assert.strictEqual(Set.prototype[Symbol.toStringTag], 'Set', 'Set::@@toStringTag is `Set`');
-  assert.strictEqual(String(new Set()), '[object Set]', 'correct stringification');
+  assert.same(Set.prototype[Symbol.toStringTag], 'Set', 'Set::@@toStringTag is `Set`');
+  assert.same(String(new Set()), '[object Set]', 'correct stringification');
 });
 
 QUnit.test('Set Iterator', assert => {
@@ -302,7 +302,7 @@ QUnit.test('Set#keys', assert => {
   const iterator = set.keys();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
@@ -330,7 +330,7 @@ QUnit.test('Set#values', assert => {
   const iterator = set.values();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
@@ -358,7 +358,7 @@ QUnit.test('Set#entries', assert => {
   const iterator = set.entries();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Set Iterator');
   assert.deepEqual(iterator.next(), {
     value: ['q', 'q'],
     done: false,
@@ -385,8 +385,8 @@ QUnit.test('Set#@@iterator', assert => {
   const iterator = getIterator(set);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Set Iterator');
-  assert.strictEqual(String(iterator), '[object Set Iterator]');
+  assert.same(iterator[Symbol.toStringTag], 'Set Iterator');
+  assert.same(String(iterator), '[object Set Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,

@@ -6,7 +6,7 @@ QUnit.test('setTimeout / clearTimeout', assert => {
   timeLimitedPromise(1e3, resolve => {
     setTimeout((a, b) => { resolve(a + b); }, 10, 'a', 'b');
   }).then(it => {
-    assert.strictEqual(it, 'ab', 'setTimeout works with additional args');
+    assert.same(it, 'ab', 'setTimeout works with additional args');
   }).catch(() => {
     assert.ok(false, 'setTimeout works with additional args');
   }).then(assert.async());

@@ -4,8 +4,8 @@ import repeat from 'core-js-pure/features/string/repeat';
 
 QUnit.test('String#repeat', assert => {
   assert.isFunction(repeat);
-  assert.strictEqual(repeat('qwe', 3), 'qweqweqwe');
-  assert.strictEqual(repeat('qwe', 2.5), 'qweqwe');
+  assert.same(repeat('qwe', 3), 'qweqweqwe');
+  assert.same(repeat('qwe', 2.5), 'qweqwe');
   assert.throws(() => repeat('qwe', -1), RangeError);
   assert.throws(() => repeat('qwe', Infinity), RangeError);
 

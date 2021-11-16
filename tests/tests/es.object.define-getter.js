@@ -15,7 +15,8 @@ if (DESCRIPTORS) {
       this.foo = 43;
     });
     object.key = 44;
-    assert.ok(object.key === 42 && object.foo === 43, 'works with setter');
+    assert.same(object.key, 42, 'works with getter #1');
+    assert.same(object.foo, 43, 'works with getter #2');
     if (STRICT) {
       assert.throws(() => __defineGetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
       assert.throws(() => __defineGetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');

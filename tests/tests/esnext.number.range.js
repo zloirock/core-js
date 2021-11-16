@@ -43,7 +43,7 @@ QUnit.test('Number.range', assert => {
   assert.deepEqual(iterator.start, 1);
   assert.deepEqual(iterator.end, 3);
   assert.deepEqual(iterator.step, 1);
-  assert.deepEqual(iterator.inclusive, false);
+  assert.false(iterator.inclusive);
 
   iterator = range(-1, -3, { inclusive: true });
   assert.deepEqual(iterator.start, -1);

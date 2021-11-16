@@ -6,8 +6,8 @@ import from from 'core-js-pure/features/array/from';
 QUnit.test('String#@@iterator', assert => {
   let iterator = getIterator('qwe');
   assert.isIterator(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'String Iterator');
-  assert.strictEqual(String(iterator), '[object String Iterator]');
+  assert.same(iterator[Symbol.toStringTag], 'String Iterator');
+  assert.same(String(iterator), '[object String Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
@@ -24,7 +24,7 @@ QUnit.test('String#@@iterator', assert => {
     value: undefined,
     done: true,
   });
-  assert.strictEqual(from('𠮷𠮷𠮷').length, 3);
+  assert.same(from('𠮷𠮷𠮷').length, 3);
   iterator = getIterator('𠮷𠮷𠮷');
   assert.deepEqual(iterator.next(), {
     value: '𠮷',

@@ -14,7 +14,7 @@ QUnit.test('Object.iterateEntries', assert => {
   const iterator = iterateEntries(object);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Object Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Object Iterator');
   assert.deepEqual(iterator.next(), {
     value: ['q', 1],
     done: false,

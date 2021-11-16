@@ -28,7 +28,7 @@ QUnit.test('Array#some', assert => {
     result += key;
     return false;
   });
-  assert.ok(result === '012');
+  assert.same(result, '012');
   array = [1, 2, 3];
   assert.ok(!array.some((value, key, that) => that !== array));
   if (STRICT) {

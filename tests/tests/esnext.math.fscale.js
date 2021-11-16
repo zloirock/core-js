@@ -9,5 +9,5 @@ QUnit.test('Math.fscale', assert => {
   assert.same(fscale(0, 3, 5, 8, 10), 5);
   assert.same(fscale(1, 1, 1, 1, 1), NaN);
   assert.same(fscale(-1, -1, -1, -1, -1), NaN);
-  assert.strictEqual(fscale(3, 1, 2, 1, PI), fround((3 - 1) * (PI - 1) / (2 - 1) + 1));
+  assert.same(fscale(3, 1, 2, 1, PI), fround((3 - 1) * (PI - 1) / (2 - 1) + 1));
 });

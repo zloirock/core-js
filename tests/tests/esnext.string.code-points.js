@@ -12,8 +12,8 @@ QUnit.test('String#codePoints', assert => {
   let iterator = 'qwe'.codePoints();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'String Iterator');
-  assert.strictEqual(String(iterator), '[object String Iterator]');
+  assert.same(iterator[Symbol.toStringTag], 'String Iterator');
+  assert.same(String(iterator), '[object String Iterator]');
   assert.deepEqual(iterator.next(), {
     value: { codePoint: 113, position: 0 },
     done: false,

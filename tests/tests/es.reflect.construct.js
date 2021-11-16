@@ -9,13 +9,13 @@ QUnit.test('Reflect.construct', assert => {
   function A(a, b, c) {
     this.qux = a + b + c;
   }
-  assert.strictEqual(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
+  assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'basic');
   A.apply = 42;
-  assert.strictEqual(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
+  assert.same(construct(A, ['foo', 'bar', 'baz']).qux, 'foobarbaz', 'works with redefined apply');
   const instance = construct(function () {
     this.x = 42;
   }, [], Array);
-  assert.strictEqual(instance.x, 42, 'constructor with newTarget');
+  assert.same(instance.x, 42, 'constructor with newTarget');
   assert.ok(instance instanceof Array, 'prototype with newTarget');
   assert.throws(() => construct(42, []), TypeError, 'throws on primitive');
   function B() { /* empty */ }

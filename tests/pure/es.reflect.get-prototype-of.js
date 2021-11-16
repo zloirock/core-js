@@ -8,7 +8,7 @@ QUnit.test('Reflect.getPrototypeOf', assert => {
   if ('name' in getPrototypeOf) {
     assert.name(getPrototypeOf, 'getPrototypeOf');
   }
-  assert.strictEqual(getPrototypeOf([]), Array.prototype);
+  assert.same(getPrototypeOf([]), Array.prototype);
   assert.throws(() => getPrototypeOf(42), TypeError, 'throws on primitive');
 });
 

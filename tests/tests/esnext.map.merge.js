@@ -10,7 +10,7 @@ QUnit.test('Map#merge', assert => {
 
   const map = new Map([[1, 2]]);
   const result = map.merge([[3, 4]]);
-  assert.ok(result === map);
+  assert.same(result, map);
   assert.ok(result instanceof Map);
 
   assert.deepEqual(from(new Map([[1, 2], [3, 4]]).merge([[5, 6]])), [[1, 2], [3, 4], [5, 6]]);

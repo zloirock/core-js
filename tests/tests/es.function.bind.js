@@ -15,14 +15,14 @@ QUnit.test('Function#bind', assert => {
   }
   const instance = new (A.bind(null, 1))(2);
   assert.ok(instance instanceof A);
-  assert.strictEqual(instance.a, 1);
-  assert.strictEqual(instance.b, 2);
+  assert.same(instance.a, 1);
+  assert.same(instance.b, 2);
   assert.same((it => it).bind(null, 42)(), 42);
   const regExpTest = RegExp.prototype.test.bind(/a/);
   assert.ok(regExpTest('a'));
   const Date2017 = Date.bind(null, 2017);
   const date = new Date2017(11);
   assert.ok(date instanceof Date);
-  assert.strictEqual(date.getFullYear(), 2017);
-  assert.strictEqual(date.getMonth(), 11);
+  assert.same(date.getFullYear(), 2017);
+  assert.same(date.getMonth(), 11);
 });

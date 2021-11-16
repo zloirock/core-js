@@ -6,10 +6,10 @@ QUnit.test('Math.cosh', assert => {
   assert.looksNative(cosh);
   assert.nonEnumerable(Math, 'cosh');
   assert.same(cosh(NaN), NaN);
-  assert.strictEqual(cosh(0), 1);
-  assert.strictEqual(cosh(-0), 1);
-  assert.strictEqual(cosh(Infinity), Infinity);
-  assert.strictEqual(cosh(-Infinity), Infinity);
+  assert.same(cosh(0), 1);
+  assert.same(cosh(-0), 1);
+  assert.same(cosh(Infinity), Infinity);
+  assert.same(cosh(-Infinity), Infinity);
   assert.epsilon(cosh(12), 81377.395712574, 1e-9);
   assert.epsilon(cosh(22), 1792456423.065795780980053377, 1e-5);
   assert.epsilon(cosh(-10), 11013.23292010332313972137);

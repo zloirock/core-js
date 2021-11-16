@@ -1,4 +1,4 @@
-/* eslint-disable no-self-compare -- required for testing */
+
 import { FREEZING } from '../helpers/constants';
 
 const { getPrototypeOf, isFrozen } = Object;
@@ -18,27 +18,27 @@ QUnit.test('compositeKey', assert => {
   const b = ['b'];
   const c = ['c'];
 
-  assert.ok(compositeKey(a) === compositeKey(a));
-  assert.ok(compositeKey(a) !== compositeKey(['a']));
-  assert.ok(compositeKey(a) !== compositeKey(a, 1));
-  assert.ok(compositeKey(a) !== compositeKey(a, b));
-  assert.ok(compositeKey(a, 1) === compositeKey(a, 1));
-  assert.ok(compositeKey(a, b) === compositeKey(a, b));
-  assert.ok(compositeKey(a, b) !== compositeKey(b, a));
-  assert.ok(compositeKey(a, b, c) === compositeKey(a, b, c));
-  assert.ok(compositeKey(a, b, c) !== compositeKey(c, b, a));
-  assert.ok(compositeKey(a, b, c) !== compositeKey(a, c, b));
-  assert.ok(compositeKey(a, b, c, 1) !== compositeKey(a, b, c));
-  assert.ok(compositeKey(a, b, c, 1) === compositeKey(a, b, c, 1));
-  assert.ok(compositeKey(1, a) === compositeKey(1, a));
-  assert.ok(compositeKey(1, a) !== compositeKey(a, 1));
-  assert.ok(compositeKey(1, a, 2, b) === compositeKey(1, a, 2, b));
-  assert.ok(compositeKey(1, a, 2, b) !== compositeKey(1, a, b, 2));
-  assert.ok(compositeKey(1, 2, a, b) === compositeKey(1, 2, a, b));
-  assert.ok(compositeKey(1, 2, a, b) !== compositeKey(1, a, b, 2));
-  assert.ok(compositeKey(a, a) === compositeKey(a, a));
-  assert.ok(compositeKey(a, a) !== compositeKey(a, ['a']));
-  assert.ok(compositeKey(a, a) !== compositeKey(a, b));
+  assert.same(compositeKey(a), compositeKey(a));
+  assert.notStrictEqual(compositeKey(a), compositeKey(['a']));
+  assert.notStrictEqual(compositeKey(a), compositeKey(a, 1));
+  assert.notStrictEqual(compositeKey(a), compositeKey(a, b));
+  assert.same(compositeKey(a, 1), compositeKey(a, 1));
+  assert.same(compositeKey(a, b), compositeKey(a, b));
+  assert.notStrictEqual(compositeKey(a, b), compositeKey(b, a));
+  assert.same(compositeKey(a, b, c), compositeKey(a, b, c));
+  assert.notStrictEqual(compositeKey(a, b, c), compositeKey(c, b, a));
+  assert.notStrictEqual(compositeKey(a, b, c), compositeKey(a, c, b));
+  assert.notStrictEqual(compositeKey(a, b, c, 1), compositeKey(a, b, c));
+  assert.same(compositeKey(a, b, c, 1), compositeKey(a, b, c, 1));
+  assert.same(compositeKey(1, a), compositeKey(1, a));
+  assert.notStrictEqual(compositeKey(1, a), compositeKey(a, 1));
+  assert.same(compositeKey(1, a, 2, b), compositeKey(1, a, 2, b));
+  assert.notStrictEqual(compositeKey(1, a, 2, b), compositeKey(1, a, b, 2));
+  assert.same(compositeKey(1, 2, a, b), compositeKey(1, 2, a, b));
+  assert.notStrictEqual(compositeKey(1, 2, a, b), compositeKey(1, a, b, 2));
+  assert.same(compositeKey(a, a), compositeKey(a, a));
+  assert.notStrictEqual(compositeKey(a, a), compositeKey(a, ['a']));
+  assert.notStrictEqual(compositeKey(a, a), compositeKey(a, b));
 
   assert.throws(() => compositeKey(), TypeError);
   assert.throws(() => compositeKey(1, 2), TypeError);

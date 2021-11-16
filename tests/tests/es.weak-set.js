@@ -19,9 +19,9 @@ QUnit.test('WeakSet', assert => {
   const weakset = new WeakSet();
   const frozen = freeze({});
   weakset.add(frozen);
-  assert.strictEqual(weakset.has(frozen), true, 'works with frozen objects, #1');
+  assert.true(weakset.has(frozen), 'works with frozen objects, #1');
   weakset.delete(frozen);
-  assert.strictEqual(weakset.has(frozen), false, 'works with frozen objects, #2');
+  assert.false(weakset.has(frozen), 'works with frozen objects, #2');
   let done = false;
   try {
     new WeakSet(createIterable([null, 1, 2], {
@@ -72,7 +72,7 @@ QUnit.test('WeakSet#add', assert => {
   assert.looksNative(WeakSet.prototype.add);
   assert.nonEnumerable(WeakSet.prototype, 'add');
   const weakset = new WeakSet();
-  assert.ok(weakset.add({}) === weakset, 'chaining');
+  assert.same(weakset.add({}), weakset, 'chaining');
   assert.throws(() => new WeakSet().add(42), 'throws with primitive keys');
 });
 
@@ -84,9 +84,11 @@ QUnit.test('WeakSet#delete', assert => {
   const a = {};
   const b = {};
   const weakset = new WeakSet().add(a).add(b);
-  assert.ok(weakset.has(a) && weakset.has(b), 'WeakSet has values before .delete()');
+  assert.ok(weakset.has(a), 'WeakSet has values before .delete() #1');
+  assert.ok(weakset.has(b), 'WeakSet has values before .delete() #2');
   weakset.delete(a);
-  assert.ok(!weakset.has(a) && weakset.has(b), 'WeakSet has`nt value after .delete()');
+  assert.ok(!weakset.has(a), 'WeakSet hasn`t value after .delete() #1');
+  assert.ok(weakset.has(b), 'WeakSet hasn`t value after .delete() #2');
   assert.notThrows(() => !weakset.delete(1), 'return false on primitive');
 });
 
@@ -107,6 +109,6 @@ QUnit.test('WeakSet#has', assert => {
 });
 
 QUnit.test('WeakSet::@@toStringTag', assert => {
-  assert.strictEqual(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
-  assert.strictEqual(String(new WeakSet()), '[object WeakSet]', 'correct stringification');
+  assert.same(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+  assert.same(String(new WeakSet()), '[object WeakSet]', 'correct stringification');
 });

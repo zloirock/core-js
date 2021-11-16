@@ -18,17 +18,17 @@ QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
   const symbol1 = Symbol('symbol');
   const symbol2 = Symbol('symbol');
-  assert.ok(symbol1 !== symbol2, 'Symbol("symbol") !== Symbol("symbol")');
+  assert.notStrictEqual(symbol1, symbol2, 'Symbol("symbol") !== Symbol("symbol")');
   const object = {};
   object[symbol1] = 42;
-  assert.ok(object[symbol1] === 42, 'Symbol() work as key');
-  assert.ok(object[symbol2] !== 42, 'Various symbols from one description are various keys');
+  assert.same(object[symbol1], 42, 'Symbol() work as key');
+  assert.notStrictEqual(object[symbol2], 42, 'Various symbols from one description are various keys');
   // assert.throws(() => Symbol(Symbol('foo')), 'throws on symbol argument');
   if (DESCRIPTORS) {
     let count = 0;
     // eslint-disable-next-line no-unused-vars -- required for testing
     for (const key in object) count++;
-    assert.ok(count === 0, 'object[Symbol()] is not enumerable');
+    assert.same(count, 0, 'object[Symbol()] is not enumerable');
   }
 });
 
@@ -57,8 +57,8 @@ QUnit.test('Global symbol registry', assert => {
   assert.isFunction(Symbol.for, 'Symbol.for is function');
   assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
   const symbol = Symbol.for('foo');
-  assert.strictEqual(Symbol.for('foo'), symbol);
-  assert.strictEqual(Symbol.keyFor(symbol), 'foo');
+  assert.same(Symbol.for('foo'), symbol);
+  assert.same(Symbol.keyFor(symbol), 'foo');
   assert.throws(() => Symbol.for(Symbol('foo')), 'throws on symbol argument');
   assert.throws(() => Symbol.keyFor('foo'), 'throws on non-symbol');
 });
@@ -70,7 +70,7 @@ QUnit.test('Symbol#@@toPrimitive', assert => {
 });
 
 QUnit.test('Symbol#@@toStringTag', assert => {
-  assert.ok(Symbol.prototype[Symbol.toStringTag] === 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
+  assert.same(Symbol.prototype[Symbol.toStringTag], 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
 });
 
 QUnit.test('Object.getOwnPropertySymbols', assert => {
@@ -79,15 +79,15 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
   prototype[Symbol()] = 42;
   prototype[Symbol()] = 43;
   assert.deepEqual(getOwnPropertyNames(prototype).sort(), ['e', 'q', 'w']);
-  assert.strictEqual(getOwnPropertySymbols(prototype).length, 2);
+  assert.same(getOwnPropertySymbols(prototype).length, 2);
   const object = create(prototype);
   object.a = 1;
   object.s = 2;
   object.d = 3;
   object[Symbol()] = 44;
   assert.deepEqual(getOwnPropertyNames(object).sort(), ['a', 'd', 's']);
-  assert.strictEqual(getOwnPropertySymbols(object).length, 1);
-  assert.strictEqual(getOwnPropertySymbols(Object.prototype).length, 0);
+  assert.same(getOwnPropertySymbols(object).length, 1);
+  assert.same(getOwnPropertySymbols(Object.prototype).length, 0);
   const primitives = [42, 'foo', false];
   for (const value of primitives) {
     assert.notThrows(() => getOwnPropertySymbols(value), `accept ${ typeof value }`);
@@ -96,26 +96,26 @@ QUnit.test('Object.getOwnPropertySymbols', assert => {
 
 if (JSON) {
   QUnit.test('Symbols & JSON.stringify', assert => {
-    assert.strictEqual(JSON.stringify([
+    assert.same(JSON.stringify([
       1,
       Symbol('foo'),
       false,
       Symbol('bar'),
       {},
     ]), '[1,null,false,null,{}]', 'array value');
-    assert.strictEqual(JSON.stringify({
+    assert.same(JSON.stringify({
       symbol: Symbol('symbol'),
     }), '{}', 'object value');
     if (DESCRIPTORS) {
       const object = { bar: 2 };
       object[Symbol('symbol')] = 1;
-      assert.strictEqual(JSON.stringify(object), '{"bar":2}', 'object key');
+      assert.same(JSON.stringify(object), '{"bar":2}', 'object key');
     }
-    assert.strictEqual(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
+    assert.same(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
     if (typeof Symbol() == 'symbol') {
-      assert.strictEqual(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+      assert.same(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
     }
-    assert.strictEqual(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
+    assert.same(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
   });
 }
 
@@ -154,7 +154,7 @@ if (DESCRIPTORS) {
       enumerable: true,
     };
     defineProperty(object, f, descriptor);
-    assert.strictEqual(descriptor.enumerable, true, 'defineProperty not changes descriptor object');
+    assert.true(descriptor.enumerable, 'defineProperty not changes descriptor object');
     assert.deepEqual(getOwnPropertyDescriptor(object, 'a'), {
       configurable: true,
       writable: true,
@@ -191,17 +191,17 @@ if (DESCRIPTORS) {
       enumerable: true,
       value: 'f',
     }, 'getOwnPropertyDescriptor f');
-    assert.strictEqual(getOwnPropertyDescriptor(object, 'g'), undefined, 'getOwnPropertyDescriptor g');
-    assert.strictEqual(getOwnPropertyDescriptor(object, 'h'), undefined, 'getOwnPropertyDescriptor h');
-    assert.strictEqual(getOwnPropertyDescriptor(object, i), undefined, 'getOwnPropertyDescriptor i');
-    assert.strictEqual(getOwnPropertyDescriptor(object, j), undefined, 'getOwnPropertyDescriptor j');
-    assert.strictEqual(getOwnPropertyDescriptor(object, 'k'), undefined, 'getOwnPropertyDescriptor k');
-    assert.strictEqual(getOwnPropertyDescriptor(Object.prototype, 'toString').enumerable, false, 'getOwnPropertyDescriptor on Object.prototype');
-    assert.strictEqual(getOwnPropertyDescriptor(Object.prototype, d), undefined, 'getOwnPropertyDescriptor on Object.prototype missed symbol');
-    assert.strictEqual(keys(object).length, 2, 'Object.keys');
-    assert.strictEqual(getOwnPropertyNames(object).length, 3, 'Object.getOwnPropertyNames');
-    assert.strictEqual(getOwnPropertySymbols(object).length, 3, 'Object.getOwnPropertySymbols');
-    assert.strictEqual(ownKeys(object).length, 6, 'Reflect.ownKeys');
+    assert.same(getOwnPropertyDescriptor(object, 'g'), undefined, 'getOwnPropertyDescriptor g');
+    assert.same(getOwnPropertyDescriptor(object, 'h'), undefined, 'getOwnPropertyDescriptor h');
+    assert.same(getOwnPropertyDescriptor(object, i), undefined, 'getOwnPropertyDescriptor i');
+    assert.same(getOwnPropertyDescriptor(object, j), undefined, 'getOwnPropertyDescriptor j');
+    assert.same(getOwnPropertyDescriptor(object, 'k'), undefined, 'getOwnPropertyDescriptor k');
+    assert.false(getOwnPropertyDescriptor(Object.prototype, 'toString').enumerable, 'getOwnPropertyDescriptor on Object.prototype');
+    assert.same(getOwnPropertyDescriptor(Object.prototype, d), undefined, 'getOwnPropertyDescriptor on Object.prototype missed symbol');
+    assert.same(keys(object).length, 2, 'Object.keys');
+    assert.same(getOwnPropertyNames(object).length, 3, 'Object.getOwnPropertyNames');
+    assert.same(getOwnPropertySymbols(object).length, 3, 'Object.getOwnPropertySymbols');
+    assert.same(ownKeys(object).length, 6, 'Reflect.ownKeys');
     delete object[e];
     object[e] = 'e';
     assert.deepEqual(getOwnPropertyDescriptor(object, e), {
@@ -234,10 +234,10 @@ if (DESCRIPTORS) {
       },
     });
     const object = defineProperties({}, descriptors);
-    assert.strictEqual(object.a, 'a', 'a');
-    assert.strictEqual(object.b, undefined, 'b');
-    assert.strictEqual(object[c], 'c', 'c');
-    assert.strictEqual(object[d], undefined, 'd');
+    assert.same(object.a, 'a', 'a');
+    assert.same(object.b, undefined, 'b');
+    assert.same(object[c], 'c', 'c');
+    assert.same(object[d], undefined, 'd');
   });
 
   QUnit.test('Symbols & Object.create', assert => {
@@ -262,25 +262,25 @@ if (DESCRIPTORS) {
       },
     });
     const object = create(null, descriptors);
-    assert.strictEqual(object.a, 'a', 'a');
-    assert.strictEqual(object.b, undefined, 'b');
-    assert.strictEqual(object[c], 'c', 'c');
-    assert.strictEqual(object[d], undefined, 'd');
+    assert.same(object.a, 'a', 'a');
+    assert.same(object.b, undefined, 'b');
+    assert.same(object[c], 'c', 'c');
+    assert.same(object[d], undefined, 'd');
   });
 
   const constructors = ['Map', 'Set', 'Promise'];
   for (const name of constructors) {
     QUnit.test(`${ name }@@species`, assert => {
-      assert.strictEqual(core[name][Symbol.species], core[name], `${ name }@@species === ${ name }`);
+      assert.same(core[name][Symbol.species], core[name], `${ name }@@species === ${ name }`);
       const Subclass = create(core[name]);
-      assert.strictEqual(Subclass[Symbol.species], Subclass, `${ name } subclass`);
+      assert.same(Subclass[Symbol.species], Subclass, `${ name } subclass`);
     });
   }
 
   QUnit.test('Array@@species', assert => {
-    assert.strictEqual(Array[Symbol.species], Array, 'Array@@species === Array');
+    assert.same(Array[Symbol.species], Array, 'Array@@species === Array');
     const Subclass = create(Array);
-    assert.strictEqual(Subclass[Symbol.species], Subclass, 'Array subclass');
+    assert.same(Subclass[Symbol.species], Subclass, 'Array subclass');
   });
 
   QUnit.test('Symbol.sham flag', assert => {

@@ -7,9 +7,9 @@ QUnit.test('String#trim', assert => {
   assert.name(trim, 'trim');
   assert.looksNative(trim);
   assert.nonEnumerable(String.prototype, 'trim');
-  assert.strictEqual(' \n  q w e \n  '.trim(), 'q w e', 'removes whitespaces at left & right side of string');
-  assert.strictEqual(WHITESPACES.trim(), '', 'removes all whitespaces');
-  assert.strictEqual('\u200B\u0085'.trim(), '\u200B\u0085', "shouldn't remove this symbols");
+  assert.same(' \n  q w e \n  '.trim(), 'q w e', 'removes whitespaces at left & right side of string');
+  assert.same(WHITESPACES.trim(), '', 'removes all whitespaces');
+  assert.same('\u200B\u0085'.trim(), '\u200B\u0085', "shouldn't remove this symbols");
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => trim.call(Symbol()), 'throws on symbol context');

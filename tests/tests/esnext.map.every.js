@@ -25,7 +25,7 @@ QUnit.test('Map#every', assert => {
   }, 1));
   let result = '';
   map.every((value, key) => result += key);
-  assert.ok(result === '012');
+  assert.same(result, '012');
   assert.ok(map.every((value, key, that) => that === map));
 
   assert.throws(() => every.call(new Set(), () => { /* empty */ }), TypeError);

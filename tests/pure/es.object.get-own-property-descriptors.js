@@ -10,7 +10,7 @@ QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   const symbol = Symbol('4');
   object[symbol] = 4;
   const descriptors = getOwnPropertyDescriptors(object);
-  assert.strictEqual(descriptors.q, undefined);
+  assert.same(descriptors.q, undefined);
   assert.deepEqual(descriptors.w, {
     enumerable: true,
     configurable: true,
@@ -32,7 +32,7 @@ QUnit.test('Object.getOwnPropertyDescriptors', assert => {
       value: 3,
     });
   }
-  assert.strictEqual(descriptors[symbol].value, 4);
+  assert.same(descriptors[symbol].value, 4);
 });
 
 QUnit.test('Object.getOwnPropertyDescriptors.sham flag', assert => {

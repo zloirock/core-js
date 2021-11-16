@@ -11,9 +11,9 @@ QUnit.test('Array.of', assert => {
   class C { /* empty */ }
   const instance = of.call(C, 1, 2);
   assert.ok(instance instanceof C);
-  assert.strictEqual(instance[0], 1);
-  assert.strictEqual(instance[1], 2);
-  assert.strictEqual(instance.length, 2);
+  assert.same(instance[0], 1);
+  assert.same(instance[1], 2);
+  assert.same(instance.length, 2);
   if (DESCRIPTORS) {
     let called = false;
     defineProperty(C.prototype, 0, {

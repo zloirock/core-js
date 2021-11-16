@@ -25,7 +25,7 @@ QUnit.test('Array#every', assert => {
   }, 1));
   let result = '';
   [1, 2, 3].every((value, key) => result += key);
-  assert.ok(result === '012');
+  assert.same(result, '012');
   array = [1, 2, 3];
   assert.ok(array.every((value, key, that) => that === array));
   if (STRICT) {

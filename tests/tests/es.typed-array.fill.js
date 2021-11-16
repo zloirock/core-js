@@ -10,7 +10,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
     assert.name(fill, 'fill', `${ name }::fill name is 'fill'`);
     assert.looksNative(fill, `${ name }::fill looks native`);
     const array = new TypedArray(5);
-    assert.strictEqual(array.fill(5), array, 'return this');
+    assert.same(array.fill(5), array, 'return this');
     assert.arrayEqual(new TypedArray(5).fill(5), [5, 5, 5, 5, 5], 'basic');
     assert.arrayEqual(new TypedArray(5).fill(5, 1), [0, 5, 5, 5, 5], 'start index');
     assert.arrayEqual(new TypedArray(5).fill(5, 1, 4), [0, 5, 5, 5, 0], 'end index');

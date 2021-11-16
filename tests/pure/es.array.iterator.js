@@ -7,8 +7,8 @@ QUnit.test('Array#@@iterator', assert => {
   const iterator = getIterator(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
-  assert.strictEqual(String(iterator), '[object Array Iterator]');
+  assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
+  assert.same(String(iterator), '[object Array Iterator]');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
@@ -32,7 +32,7 @@ QUnit.test('Array#keys', assert => {
   const iterator = keys(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: 0,
     done: false,
@@ -56,7 +56,7 @@ QUnit.test('Array#values', assert => {
   const iterator = values(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: 'q',
     done: false,
@@ -80,7 +80,7 @@ QUnit.test('Array#entries', assert => {
   const iterator = entries(['q', 'w', 'e']);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
   assert.deepEqual(iterator.next(), {
     value: [0, 'q'],
     done: false,

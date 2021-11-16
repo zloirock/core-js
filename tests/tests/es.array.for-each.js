@@ -20,29 +20,29 @@ QUnit.test('Array#forEach', assert => {
   [1, 2, 3].forEach(value => {
     result += value;
   });
-  assert.ok(result === '123');
+  assert.same(result, '123');
   result = '';
   [1, 2, 3].forEach((value, key) => {
     result += key;
   });
-  assert.ok(result === '012');
+  assert.same(result, '012');
   result = '';
   [1, 2, 3].forEach((value, key, that) => {
     result += that;
   });
-  assert.ok(result === '1,2,31,2,31,2,3');
+  assert.same(result, '1,2,31,2,31,2,3');
   result = '';
   [1, 2, 3].forEach(function () {
     result += this;
   }, 1);
-  assert.ok(result === '111');
+  assert.same(result, '111');
   result = '';
   array = [];
   array[5] = '';
   array.forEach((value, key) => {
     result += key;
   });
-  assert.ok(result === '5');
+  assert.same(result, '5');
   if (STRICT) {
     assert.throws(() => {
       forEach.call(null, () => { /* empty */ });

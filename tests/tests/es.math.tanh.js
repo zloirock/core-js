@@ -10,8 +10,8 @@ QUnit.test('Math.tanh', assert => {
   assert.same(tanh(NaN), NaN);
   assert.same(tanh(0), 0);
   assert.same(tanh(-0), -0);
-  assert.strictEqual(tanh(Infinity), 1);
-  assert.strictEqual(tanh(90), 1);
+  assert.same(tanh(Infinity), 1);
+  assert.same(tanh(90), 1);
   assert.epsilon(tanh(10), 0.9999999958776927);
-  if (NATIVE) assert.strictEqual(tanh(710), 1);
+  if (NATIVE) assert.same(tanh(710), 1);
 });

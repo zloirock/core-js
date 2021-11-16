@@ -6,16 +6,16 @@ import { assign, keys, defineProperty } from 'core-js-pure/features/object';
 QUnit.test('Object.assign', assert => {
   assert.isFunction(assign);
   let object = { q: 1 };
-  assert.strictEqual(object, assign(object, { bar: 2 }), 'assign return target');
-  assert.strictEqual(object.bar, 2, 'assign define properties');
+  assert.same(object, assign(object, { bar: 2 }), 'assign return target');
+  assert.same(object.bar, 2, 'assign define properties');
   assert.deepEqual(assign({}, { q: 1 }, { w: 2 }), { q: 1, w: 2 });
   assert.deepEqual(assign({}, 'qwe'), { 0: 'q', 1: 'w', 2: 'e' });
   assert.throws(() => assign(null, { q: 1 }), TypeError);
   assert.throws(() => assign(undefined, { q: 1 }), TypeError);
   let string = assign('qwe', { q: 1 });
-  assert.strictEqual(typeof string, 'object');
-  assert.strictEqual(String(string), 'qwe');
-  assert.strictEqual(string.q, 1);
+  assert.same(typeof string, 'object');
+  assert.same(String(string), 'qwe');
+  assert.same(string.q, 1);
   assert.same(assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug');
   if (DESCRIPTORS) {
     object = { baz: 1 };
@@ -24,7 +24,7 @@ QUnit.test('Object.assign', assert => {
         return this.baz + 1;
       },
     }));
-    assert.ok(object.bar === undefined, "assign don't copy descriptors");
+    assert.same(object.bar, undefined, "assign don't copy descriptors");
     object = { a: 'a' };
     const c = Symbol('c');
     const d = Symbol('d');
@@ -32,19 +32,19 @@ QUnit.test('Object.assign', assert => {
     defineProperty(object, 'b', { value: 'b' });
     defineProperty(object, d, { value: 'd' });
     const object2 = assign({}, object);
-    assert.strictEqual(object2.a, 'a', 'a');
-    assert.strictEqual(object2.b, undefined, 'b');
-    assert.strictEqual(object2[c], 'c', 'c');
-    assert.strictEqual(object2[d], undefined, 'd');
+    assert.same(object2.a, 'a', 'a');
+    assert.same(object2.b, undefined, 'b');
+    assert.same(object2[c], 'c', 'c');
+    assert.same(object2[d], undefined, 'd');
     try {
-      assert.strictEqual(Function('assign', `
+      assert.same(Function('assign', `
         return assign({ b: 1 }, { get a() {
           delete this.b;
         }, b: 2 });
       `)(assign).b, 1);
     } catch { /* empty */ }
     try {
-      assert.strictEqual(Function('assign', `
+      assert.same(Function('assign', `
         return assign({ b: 1 }, { get a() {
           Object.defineProperty(this, "b", {
             value: 4,
@@ -60,5 +60,5 @@ QUnit.test('Object.assign', assert => {
     const chr = string.charAt(i);
     result[chr] = chr;
   }
-  assert.strictEqual(keys(assign({}, result)).join(''), string);
+  assert.same(keys(assign({}, result)).join(''), string);
 });

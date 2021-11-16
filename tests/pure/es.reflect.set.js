@@ -10,12 +10,12 @@ QUnit.test('Reflect.set', assert => {
   }
   const object = {};
   assert.ok(set(object, 'quux', 654), true);
-  assert.strictEqual(object.quux, 654);
+  assert.same(object.quux, 654);
   let target = {};
   const receiver = {};
   set(target, 'foo', 1, receiver);
-  assert.strictEqual(target.foo, undefined, 'target.foo === undefined');
-  assert.strictEqual(receiver.foo, 1, 'receiver.foo === 1');
+  assert.same(target.foo, undefined, 'target.foo === undefined');
+  assert.same(receiver.foo, 1, 'receiver.foo === 1');
   if (DESCRIPTORS) {
     defineProperty(receiver, 'bar', {
       value: 0,
@@ -24,8 +24,8 @@ QUnit.test('Reflect.set', assert => {
       configurable: true,
     });
     set(target, 'bar', 1, receiver);
-    assert.strictEqual(receiver.bar, 1, 'receiver.bar === 1');
-    assert.strictEqual(getOwnPropertyDescriptor(receiver, 'bar').enumerable, false, 'enumerability not overridden');
+    assert.same(receiver.bar, 1, 'receiver.bar === 1');
+    assert.false(getOwnPropertyDescriptor(receiver, 'bar').enumerable, 'enumerability not overridden');
     let out = null;
     target = create(defineProperty({ z: 3 }, 'w', {
       set() {
@@ -48,27 +48,27 @@ QUnit.test('Reflect.set', assert => {
         configurable: false,
       },
     });
-    assert.strictEqual(set(target, 'x', 2, target), true, 'set x');
-    assert.strictEqual(target.x, 2, 'set x');
+    assert.true(set(target, 'x', 2, target), 'set x');
+    assert.same(target.x, 2, 'set x');
     out = null;
-    assert.strictEqual(set(target, 'y', 2, target), true, 'set y');
-    assert.strictEqual(out, target, 'set y');
-    assert.strictEqual(set(target, 'z', 4, target), true);
-    assert.strictEqual(target.z, 4, 'set z');
+    assert.true(set(target, 'y', 2, target), 'set y');
+    assert.same(out, target, 'set y');
+    assert.true(set(target, 'z', 4, target));
+    assert.same(target.z, 4, 'set z');
     out = null;
-    assert.strictEqual(set(target, 'w', 1, target), true, 'set w');
-    assert.strictEqual(out, target, 'set w');
-    assert.strictEqual(set(target, 'u', 0, target), true, 'set u');
-    assert.strictEqual(target.u, 0, 'set u');
-    assert.strictEqual(set(target, 'c', 2, target), false, 'set c');
-    assert.strictEqual(target.c, 1, 'set c');
+    assert.true(set(target, 'w', 1, target), 'set w');
+    assert.same(out, target, 'set w');
+    assert.true(set(target, 'u', 0, target), 'set u');
+    assert.same(target.u, 0, 'set u');
+    assert.false(set(target, 'c', 2, target), 'set c');
+    assert.same(target.c, 1, 'set c');
 
     // https://github.com/zloirock/core-js/issues/392
     let o = defineProperty({}, 'test', {
       writable: false,
       configurable: true,
     });
-    assert.strictEqual(set(getPrototypeOf(o), 'test', 1, o), false);
+    assert.false(set(getPrototypeOf(o), 'test', 1, o));
 
     // https://github.com/zloirock/core-js/issues/393
     o = defineProperty({}, 'test', {

@@ -8,7 +8,7 @@ QUnit.test('Array#fill', assert => {
   assert.looksNative(fill);
   assert.nonEnumerable(Array.prototype, 'fill');
   const array = new Array(5);
-  assert.strictEqual(array.fill(5), array);
+  assert.same(array.fill(5), array);
   assert.deepEqual(Array(5).fill(5), [5, 5, 5, 5, 5]);
   assert.deepEqual(Array(5).fill(5, 1), [undefined, 5, 5, 5, 5]);
   assert.deepEqual(Array(5).fill(5, 1, 4), [undefined, 5, 5, 5, undefined]);

@@ -10,7 +10,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.copyWithin', assert => {
     assert.name(copyWithin, 'copyWithin', `${ name }::copyWithin name is 'copyWithin'`);
     assert.looksNative(copyWithin, `${ name }::copyWithin looks native`);
     const array = new TypedArray(5);
-    assert.strictEqual(array.copyWithin(0), array, 'return this');
+    assert.same(array.copyWithin(0), array, 'return this');
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(0, 3), [4, 5, 3, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(1, 3), [1, 4, 5, 4, 5]);
     assert.arrayEqual(new TypedArray([1, 2, 3, 4, 5]).copyWithin(1, 2), [1, 3, 4, 5, 5]);

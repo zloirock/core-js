@@ -13,5 +13,5 @@ QUnit.test('getIteratorMethod helper', assert => {
     return arguments;
   }()));
   assert.isFunction(getIteratorMethod(Array.prototype));
-  assert.strictEqual(getIteratorMethod({}), undefined);
+  assert.same(getIteratorMethod({}), undefined);
 });

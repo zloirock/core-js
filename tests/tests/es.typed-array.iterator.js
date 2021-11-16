@@ -14,7 +14,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
     const iterator = new TypedArray([1, 2, 3]).keys();
     assert.isIterator(iterator);
     assert.isIterable(iterator);
-    assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+    assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 0,
       done: false,
@@ -47,7 +47,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
     const iterator = new TypedArray([1, 2, 3]).values();
     assert.isIterator(iterator);
     assert.isIterable(iterator);
-    assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+    assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 1,
       done: false,
@@ -80,7 +80,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
     const iterator = new TypedArray([1, 2, 3]).entries();
     assert.isIterator(iterator);
     assert.isIterable(iterator);
-    assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+    assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: [0, 1],
       done: false,
@@ -109,11 +109,11 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
     assert.arity(TypedArray.prototype[Symbol.iterator], 0, `${ name }::@@iterator arity is 0`);
     assert.name(TypedArray.prototype[Symbol.iterator], 'values', `${ name }::@@iterator name is 'values'`);
     assert.looksNative(TypedArray.prototype[Symbol.iterator], `${ name }::@@iterator looks native`);
-    assert.strictEqual(TypedArray.prototype[Symbol.iterator], TypedArray.prototype.values);
+    assert.same(TypedArray.prototype[Symbol.iterator], TypedArray.prototype.values);
     const iterator = new TypedArray([1, 2, 3])[Symbol.iterator]();
     assert.isIterator(iterator);
     assert.isIterable(iterator);
-    assert.strictEqual(iterator[Symbol.toStringTag], 'Array Iterator');
+    assert.same(iterator[Symbol.toStringTag], 'Array Iterator');
     assert.deepEqual(iterator.next(), {
       value: 1,
       done: false,

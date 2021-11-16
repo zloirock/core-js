@@ -7,9 +7,9 @@ QUnit.test('String#trimLeft', assert => {
   assert.name(trimLeft, 'trimStart');
   assert.looksNative(trimLeft);
   assert.nonEnumerable(String.prototype, 'trimLeft');
-  assert.strictEqual(' \n  q w e \n  '.trimLeft(), 'q w e \n  ', 'removes whitespaces at left side of string');
-  assert.strictEqual(WHITESPACES.trimLeft(), '', 'removes all whitespaces');
-  assert.strictEqual('\u200B\u0085'.trimLeft(), '\u200B\u0085', "shouldn't remove this symbols");
+  assert.same(' \n  q w e \n  '.trimLeft(), 'q w e \n  ', 'removes whitespaces at left side of string');
+  assert.same(WHITESPACES.trimLeft(), '', 'removes all whitespaces');
+  assert.same('\u200B\u0085'.trimLeft(), '\u200B\u0085', "shouldn't remove this symbols");
 
   assert.throws(() => trimLeft.call(Symbol()), 'throws on symbol context');
 
@@ -27,9 +27,9 @@ QUnit.test('String#trimStart', assert => {
   assert.looksNative(trimStart);
   assert.nonEnumerable(String.prototype, 'trimStart');
   assert.same(trimStart, trimLeft, 'same #trimLeft');
-  assert.strictEqual(' \n  q w e \n  '.trimStart(), 'q w e \n  ', 'removes whitespaces at left side of string');
-  assert.strictEqual(WHITESPACES.trimStart(), '', 'removes all whitespaces');
-  assert.strictEqual('\u200B\u0085'.trimStart(), '\u200B\u0085', "shouldn't remove this symbols");
+  assert.same(' \n  q w e \n  '.trimStart(), 'q w e \n  ', 'removes whitespaces at left side of string');
+  assert.same(WHITESPACES.trimStart(), '', 'removes all whitespaces');
+  assert.same('\u200B\u0085'.trimStart(), '\u200B\u0085', "shouldn't remove this symbols");
 
   assert.throws(() => trimStart.call(Symbol()), 'throws on symbol context');
 

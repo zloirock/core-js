@@ -5,7 +5,7 @@ import fill from 'core-js-pure/features/array/fill';
 QUnit.test('Array#fill', assert => {
   assert.isFunction(fill);
   const array = fill(Array(5), 5);
-  assert.strictEqual(array, array);
+  assert.same(array, array);
   assert.deepEqual(fill(Array(5), 5), [5, 5, 5, 5, 5]);
   assert.deepEqual(fill(Array(5), 5, 1), [undefined, 5, 5, 5, 5]);
   assert.deepEqual(fill(Array(5), 5, 1, 4), [undefined, 5, 5, 5, undefined]);

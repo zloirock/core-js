@@ -8,9 +8,9 @@ QUnit.test('Set#join', assert => {
   assert.looksNative(join);
   assert.nonEnumerable(Set.prototype, 'join');
 
-  assert.strictEqual(new Set([1, 2, 3]).join(), '1,2,3');
-  assert.strictEqual(new Set([1, 2, 3]).join(undefined), '1,2,3');
-  assert.strictEqual(new Set([1, 2, 3]).join('|'), '1|2|3');
+  assert.same(new Set([1, 2, 3]).join(), '1,2,3');
+  assert.same(new Set([1, 2, 3]).join(undefined), '1,2,3');
+  assert.same(new Set([1, 2, 3]).join('|'), '1|2|3');
 
   assert.throws(() => join.call(new Map()), TypeError);
   assert.throws(() => join.call({}), TypeError);

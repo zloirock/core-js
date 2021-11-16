@@ -161,8 +161,8 @@ QUnit.test('Promise#catch', assert => {
 });
 
 QUnit.test('Promise#@@toStringTag', assert => {
-  assert.ok(Promise.prototype[Symbol.toStringTag] === 'Promise', 'Promise::@@toStringTag is `Promise`');
-  assert.strictEqual(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
+  assert.same(Promise.prototype[Symbol.toStringTag], 'Promise', 'Promise::@@toStringTag is `Promise`');
+  assert.same(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
 });
 
 QUnit.test('Promise.all', assert => {
@@ -352,21 +352,21 @@ if (PROTO) QUnit.test('Promise subclassing', assert => {
   SubPromise.prototype = create(Promise.prototype);
   SubPromise.prototype.constructor = SubPromise;
   let promise1 = SubPromise.resolve(5);
-  assert.strictEqual(promise1.mine, 'subclass');
+  assert.same(promise1.mine, 'subclass');
   promise1 = promise1.then(it => {
-    assert.strictEqual(it, 5);
+    assert.same(it, 5);
   });
-  assert.strictEqual(promise1.mine, 'subclass');
+  assert.same(promise1.mine, 'subclass');
   let promise2 = new SubPromise(resolve => {
     resolve(6);
   });
-  assert.strictEqual(promise2.mine, 'subclass');
+  assert.same(promise2.mine, 'subclass');
   promise2 = promise2.then(it => {
-    assert.strictEqual(it, 6);
+    assert.same(it, 6);
   });
-  assert.strictEqual(promise2.mine, 'subclass');
+  assert.same(promise2.mine, 'subclass');
   const promise3 = SubPromise.all([promise1, promise2]);
-  assert.strictEqual(promise3.mine, 'subclass');
+  assert.same(promise3.mine, 'subclass');
   assert.ok(promise3 instanceof Promise);
   assert.ok(promise3 instanceof SubPromise);
   promise3.then(assert.async(), error => {

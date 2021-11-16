@@ -7,13 +7,13 @@ QUnit.test('String#padStart', assert => {
   assert.name(padStart, 'padStart');
   assert.looksNative(padStart);
   assert.nonEnumerable(String.prototype, 'padStart');
-  assert.strictEqual('abc'.padStart(5), '  abc');
-  assert.strictEqual('abc'.padStart(4, 'de'), 'dabc');
-  assert.strictEqual('abc'.padStart(), 'abc');
-  assert.strictEqual('abc'.padStart(5, '_'), '__abc');
-  assert.strictEqual(''.padStart(0), '');
-  assert.strictEqual('foo'.padStart(1), 'foo');
-  assert.strictEqual('foo'.padStart(5, ''), 'foo');
+  assert.same('abc'.padStart(5), '  abc');
+  assert.same('abc'.padStart(4, 'de'), 'dabc');
+  assert.same('abc'.padStart(), 'abc');
+  assert.same('abc'.padStart(5, '_'), '__abc');
+  assert.same(''.padStart(0), '');
+  assert.same('foo'.padStart(1), 'foo');
+  assert.same('foo'.padStart(5, ''), 'foo');
 
   assert.throws(() => padStart.call(Symbol(), 10, 'a'), 'throws on symbol context');
   assert.throws(() => padStart.call('a', 10, Symbol()), 'throws on symbol argument');

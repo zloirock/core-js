@@ -11,7 +11,7 @@ QUnit.test('Set#intersection', assert => {
   assert.nonEnumerable(Set.prototype, 'intersection');
 
   const set = new Set([1]);
-  assert.ok(set.intersection([2]) !== set);
+  assert.notStrictEqual(set.intersection([2]), set);
 
   assert.deepEqual(from(new Set([1, 2, 3]).intersection([4, 5])), []);
   assert.deepEqual(from(new Set([1, 2, 3]).intersection([2, 3, 4])), [2, 3]);

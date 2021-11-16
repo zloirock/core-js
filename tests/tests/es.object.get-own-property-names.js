@@ -16,7 +16,7 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   }
   F1.prototype.q = F2.prototype.q = 1;
   const names = getOwnPropertyNames([1, 2, 3]);
-  assert.strictEqual(names.length, 4);
+  assert.same(names.length, 4);
   assert.ok(includes(names, '0'));
   assert.ok(includes(names, '1'));
   assert.ok(includes(names, '2'));

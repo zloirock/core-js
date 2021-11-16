@@ -10,9 +10,9 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.slice', assert => {
     assert.name(slice, 'slice', `${ name }::slice name is 'slice'`);
     assert.looksNative(slice, `${ name }::slice looks native`);
     const array = new TypedArray([1, 2, 3, 4, 5]);
-    assert.ok(array.slice() !== array, 'returns new array');
+    assert.notStrictEqual(array.slice(), array, 'returns new array');
     assert.ok(array.slice() instanceof TypedArray, 'correct instance');
-    assert.ok(array.slice().buffer !== array.buffer, 'with new buffer');
+    assert.notStrictEqual(array.slice().buffer, array.buffer, 'with new buffer');
     assert.arrayEqual(array.slice(), array);
     assert.arrayEqual(array.slice(1, 3), [2, 3]);
     assert.arrayEqual(array.slice(1, undefined), [2, 3, 4, 5]);

@@ -6,7 +6,7 @@ function getCheck(assert) {
     assert.same(Number(a), b, `Number ${ typeof a } ${ a } -> ${ b }`);
     const x = new Number(a);
     assert.ok(x === Object(x), `new Number ${ typeof a } ${ a } is object`);
-    assert.strictEqual({}.toString.call(x).slice(8, -1), 'Number', `classof new Number ${ typeof a } ${ a } is Number`);
+    assert.same({}.toString.call(x).slice(8, -1), 'Number', `classof new Number ${ typeof a } ${ a } is Number`);
     assert.same(x.valueOf(), b, `new Number(${ typeof a } ${ a }).valueOf() -> ${ b }`);
   };
 }
@@ -122,33 +122,33 @@ QUnit.test('Number constructor: regression', assert => {
     },
   }, 2);
   let number = 1;
-  assert.strictEqual(Number({
+  assert.same(Number({
     valueOf() {
       return ++number;
     },
   }), 2, 'Number call valueOf only once #1');
-  assert.strictEqual(number, 2, 'Number call valueOf only once #2');
+  assert.same(number, 2, 'Number call valueOf only once #2');
   number = 1;
-  assert.strictEqual(Number({
+  assert.same(Number({
     toString() {
       return ++number;
     },
   }), 2, 'Number call toString only once #1');
-  assert.strictEqual(number, 2, 'Number call toString only once #2');
+  assert.same(number, 2, 'Number call toString only once #2');
   number = 1;
-  assert.strictEqual(new Number({
+  assert.same(new Number({
     valueOf() {
       return ++number;
     },
   }).valueOf(), 2, 'new Number call valueOf only once #1');
-  assert.strictEqual(number, 2, 'new Number call valueOf only once #2');
+  assert.same(number, 2, 'new Number call valueOf only once #2');
   number = 1;
-  assert.strictEqual(new Number({
+  assert.same(new Number({
     toString() {
       return ++number;
     },
   }).valueOf(), 2, 'new Number call toString only once #1');
-  assert.strictEqual(number, 2, 'new Number call toString only once #2');
+  assert.same(number, 2, 'new Number call toString only once #2');
   assert.throws(() => Number(Object.create(null)), TypeError, 'Number assert.throws on object w/o valueOf and toString');
   assert.throws(() => Number({
     valueOf: 1,
@@ -166,7 +166,7 @@ QUnit.test('Number constructor: regression', assert => {
   }
 
   number = new Number(42);
-  assert.strictEqual(typeof number.constructor(number), 'number');
+  assert.same(typeof number.constructor(number), 'number');
   check(`${ whitespaces }42`, 42);
   check(`42${ whitespaces }`, 42);
   check(`${ whitespaces }42${ whitespaces }`, 42);

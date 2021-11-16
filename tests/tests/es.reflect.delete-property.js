@@ -9,12 +9,12 @@ QUnit.test('Reflect.deleteProperty', assert => {
   assert.looksNative(deleteProperty);
   assert.nonEnumerable(Reflect, 'deleteProperty');
   const object = { bar: 456 };
-  assert.strictEqual(deleteProperty(object, 'bar'), true);
-  assert.ok(keys(object).length === 0);
+  assert.true(deleteProperty(object, 'bar'));
+  assert.same(keys(object).length, 0);
   if (DESCRIPTORS) {
-    assert.strictEqual(deleteProperty(defineProperty({}, 'foo', {
+    assert.false(deleteProperty(defineProperty({}, 'foo', {
       value: 42,
-    }), 'foo'), false);
+    }), 'foo'));
   }
   assert.throws(() => deleteProperty(42, 'foo'), TypeError, 'throws on primitive');
 });

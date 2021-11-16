@@ -9,7 +9,7 @@ QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
   assert.nonEnumerable(Reflect, 'getOwnPropertyDescriptor');
   const object = { baz: 789 };
   const descriptor = getOwnPropertyDescriptor(object, 'baz');
-  assert.strictEqual(descriptor.value, 789);
+  assert.same(descriptor.value, 789);
   assert.throws(() => getOwnPropertyDescriptor(42, 'constructor'), TypeError, 'throws on primitive');
 });
 

@@ -15,11 +15,11 @@ QUnit.test('Reflect.ownKeys', assert => {
   });
   object[symbol] = 3;
   let keys = ownKeys(object);
-  assert.strictEqual(keys.length, 3, 'ownKeys return all own keys');
+  assert.same(keys.length, 3, 'ownKeys return all own keys');
   assert.ok(includes(keys, 'a'), 'ownKeys return all own keys: simple');
   assert.ok(includes(keys, 'b'), 'ownKeys return all own keys: hidden');
-  assert.strictEqual(object[keys[2]], 3, 'ownKeys return all own keys: symbol');
+  assert.same(object[keys[2]], 3, 'ownKeys return all own keys: symbol');
   keys = ownKeys(create(object));
-  assert.strictEqual(keys.length, 0, 'ownKeys return only own keys');
+  assert.same(keys.length, 0, 'ownKeys return only own keys');
   assert.throws(() => ownKeys(42), TypeError, 'throws on primitive');
 });
