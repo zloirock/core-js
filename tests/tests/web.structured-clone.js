@@ -22,8 +22,8 @@ QUnit.module('structuredClone', () => {
   function cloneObjectTest(assert, value, verifyFunc) {
     cloneTest(value, (orig, clone) => {
       assert.notEqual(orig, clone, 'clone should have different reference');
-      assert.equal(typeof clone, 'object', 'clone should be an object');
-      assert.equal(getPrototypeOf(orig), getPrototypeOf(clone), 'clone should have same prototype');
+      assert.same(typeof clone, 'object', 'clone should be an object');
+      assert.same(getPrototypeOf(orig), getPrototypeOf(clone), 'clone should have same prototype');
       verifyFunc(orig, clone);
     });
   }
@@ -101,9 +101,9 @@ QUnit.module('structuredClone', () => {
 
     for (const date of dates) cloneTest(date, (orig, clone) => {
       assert.notEqual(orig, clone);
-      assert.equal(typeof clone, 'object');
-      assert.equal(getPrototypeOf(orig), getPrototypeOf(clone));
-      assert.equal(orig.valueOf(), clone.valueOf());
+      assert.same(typeof clone, 'object');
+      assert.same(getPrototypeOf(orig), getPrototypeOf(clone));
+      assert.same(orig.valueOf(), clone.valueOf());
     });
   });
 
@@ -125,7 +125,7 @@ QUnit.module('structuredClone', () => {
     if (giuy) regexes.push(giuy);
 
     for (const regex of regexes) cloneObjectTest(assert, regex, (orig, clone) => {
-      assert.equal(orig.toString(), clone.toString(), `regex ${ regex }`);
+      assert.same(orig.toString(), clone.toString(), `regex ${ regex }`);
     });
   });
 
@@ -204,11 +204,11 @@ QUnit.module('structuredClone', () => {
 
     for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
       const { name } = orig;
-      assert.equal(orig.constructor, clone.constructor, `${ name }#constructor`);
-      assert.equal(orig.name, clone.name, `${ name }#name`);
-      assert.equal(orig.message, clone.message, `${ name }#message`);
-      assert.equal(orig.stack, clone.stack, `${ name }#stack`);
-      assert.equal(orig.cause, clone.cause, `${ name }#cause`);
+      assert.same(orig.constructor, clone.constructor, `${ name }#constructor`);
+      assert.same(orig.name, clone.name, `${ name }#name`);
+      assert.same(orig.message, clone.message, `${ name }#message`);
+      assert.same(orig.stack, clone.stack, `${ name }#stack`);
+      assert.same(orig.cause, clone.cause, `${ name }#cause`);
       assert.deepEqual(orig.errors, clone.errors, `${ name }#errors`);
     });
   });
@@ -230,7 +230,7 @@ QUnit.module('structuredClone', () => {
       assert.deepEqual(orig, clone, `array content should be same: ${ array }`);
       assert.deepEqual(keys(orig), keys(clone), `array key should be same: ${ array }`);
       for (const key of keys(orig)) {
-        assert.equal(orig[key], clone[key], `Property ${ key }`);
+        assert.same(orig[key], clone[key], `Property ${ key }`);
       }
     });
   });
@@ -240,7 +240,7 @@ QUnit.module('structuredClone', () => {
     cloneObjectTest(assert, { foo: true, bar: false }, (orig, clone) => {
       assert.deepEqual(keys(orig), keys(clone));
       for (const key of keys(orig)) {
-        assert.equal(orig[key], clone[key], `Property ${ key }`);
+        assert.same(orig[key], clone[key], `Property ${ key }`);
       }
     });
   });
@@ -252,7 +252,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMMatrix', assert => {
       cloneObjectTest(assert, new DOMMatrix(), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -262,7 +262,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMMatrixReadOnly', assert => {
       cloneObjectTest(assert, new DOMMatrixReadOnly(), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -272,7 +272,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMPoint', assert => {
       cloneObjectTest(assert, new DOMPoint(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -282,7 +282,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMPointReadOnly', assert => {
       cloneObjectTest(assert, new DOMPointReadOnly(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -307,7 +307,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMRect', assert => {
       cloneObjectTest(assert, new DOMRect(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -317,7 +317,7 @@ QUnit.module('structuredClone', () => {
     QUnit.test('Geometry types, DOMRectReadOnly', assert => {
       cloneObjectTest(assert, new DOMRectReadOnly(1, 2, 3, 4), (orig, clone) => {
         for (const key of keys(getPrototypeOf(orig))) {
-          assert.equal(orig[key], clone[key], `Property ${ key }`);
+          assert.same(orig[key], clone[key], `Property ${ key }`);
         }
       });
     });
@@ -329,9 +329,9 @@ QUnit.module('structuredClone', () => {
       imageData.data[i] = i;
     }
     cloneObjectTest(assert, imageData, (orig, clone) => {
-      assert.equal(orig.width, clone.width);
-      assert.equal(orig.height, clone.height);
-      assert.equal(orig.colorSpace, clone.colorSpace);
+      assert.same(orig.width, clone.width);
+      assert.same(orig.height, clone.height);
+      assert.same(orig.colorSpace, clone.colorSpace);
       assert.arrayEqual(orig.data, clone.data);
     });
   });
@@ -341,10 +341,10 @@ QUnit.module('structuredClone', () => {
       assert,
       new Blob(['This is a test.'], { type: 'a/b' }),
       (orig, clone) => {
-        assert.equal(orig.size, clone.size);
-        assert.equal(orig.type, clone.type);
+        assert.same(orig.size, clone.size);
+        assert.same(orig.type, clone.type);
         // TODO: async
-        // assert.equal(await orig.text(), await clone.text());
+        // assert.same(await orig.text(), await clone.text());
       });
   });
 
@@ -356,10 +356,10 @@ QUnit.module('structuredClone', () => {
     ];
 
     for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
-      assert.equal(orig.name, clone.name);
-      assert.equal(orig.message, clone.message);
-      assert.equal(orig.code, clone.code);
-      assert.equal(orig.stack, clone.stack);
+      assert.same(orig.name, clone.name);
+      assert.same(orig.message, clone.message);
+      assert.same(orig.code, clone.code);
+      assert.same(orig.stack, clone.stack);
     });
   });
 
@@ -368,12 +368,12 @@ QUnit.module('structuredClone', () => {
       assert,
       new File(['This is a test.'], 'foo.txt', { type: 'c/d' }),
       (orig, clone) => {
-        assert.equal(orig.size, clone.size);
-        assert.equal(orig.type, clone.type);
-        assert.equal(orig.name, clone.name);
-        assert.equal(orig.lastModified, clone.lastModified);
+        assert.same(orig.size, clone.size);
+        assert.same(orig.type, clone.type);
+        assert.same(orig.name, clone.name);
+        assert.same(orig.lastModified, clone.lastModified);
         // TODO: async
-        // assert.equal(await orig.text(), await clone.text());
+        // assert.same(await orig.text(), await clone.text());
       });
   });
 
@@ -385,11 +385,11 @@ QUnit.module('structuredClone', () => {
       assert,
       transfer.files,
       (orig, clone) => {
-        assert.equal(1, clone.length);
-        assert.equal(orig[0].size, clone[0].size);
-        assert.equal(orig[0].type, clone[0].type);
-        assert.equal(orig[0].name, clone[0].name);
-        assert.equal(orig[0].lastModified, clone[0].lastModified);
+        assert.same(1, clone.length);
+        assert.same(orig[0].size, clone[0].size);
+        assert.same(orig[0].type, clone[0].type);
+        assert.same(orig[0].name, clone[0].name);
+        assert.same(orig[0].lastModified, clone[0].lastModified);
       },
     );
   });
