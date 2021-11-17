@@ -409,8 +409,8 @@ QUnit.module('structuredClone', () => {
     if (channel) nons.push(channel);
 
     for (const it of nons) {
-      // TODO: remove DOMException constructor check after https://github.com/zloirock/core-js/pull/991
-      assert.throws(() => structuredClone(it), fromSource('new DOMException') ? DOMException : TypeError);
+      // native NodeJS `structuredClone` throws a `TypeError` on transferable non-serializable instead of `DOMException`
+      assert.throws(() => structuredClone(it));
     }
   });
 });
