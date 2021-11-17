@@ -5,9 +5,9 @@ QUnit.test('String.cooked', assert => {
   assert.isFunction(cooked);
   assert.arity(cooked, 1);
   assert.name(cooked, 'cooked');
-  assert.strictEqual(cooked(['Hi\\n', '!'], 'Bob'), 'Hi\\nBob!', 'template is an array');
-  assert.strictEqual(cooked('test', 0, 1, 2), 't0e1s2t', 'template is a string');
-  assert.strictEqual(cooked('test', 0), 't0est', 'lacks substituting');
+  assert.same(cooked(['Hi\\n', '!'], 'Bob'), 'Hi\\nBob!', 'template is an array');
+  assert.same(cooked('test', 0, 1, 2), 't0e1s2t', 'template is a string');
+  assert.same(cooked('test', 0), 't0est', 'lacks substituting');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => cooked([Symbol()]), TypeError, 'throws on symbol #1');
