@@ -411,14 +411,15 @@ QUnit.module('structuredClone', () => {
     ];
 
     const event = fromSource('new Event("")');
-    const channel = fromSource('new MessageChannel');
+    const port = fromSource('new MessageChannel().port1');
 
     // NodeJS events are simple objects
     if (event && !NODE) nons.push(event);
-    if (channel) nons.push(channel);
+    if (port) nons.push(port);
 
     for (const it of nons) {
       // native NodeJS `structuredClone` throws a `TypeError` on transferable non-serializable instead of `DOMException`
+      // https://github.com/nodejs/node/issues/40841
       assert.throws(() => structuredClone(it));
     }
   });

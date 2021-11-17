@@ -85,8 +85,9 @@ var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClon
 // Chrome 82+, Safari 14.1+, Deno 1.11+
 // Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
 // Deno 1.2-1.10 implementations too naive
-// NodeJS 16.0+ haven't `PerformanceMark` constructor and structured cloning implementation
+// NodeJS 16.0+ haven't `PerformanceMark` constructor, structured cloning implementation
 //   from `performance.mark` is too naive and can't clone, for example, `RegExp` or some boxed primitives
+//   https://github.com/nodejs/node/issues/40840
 // current Safari implementation can't clone errors
 // no one of current implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
