@@ -1,7 +1,7 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 /* eslint-disable es/no-typed-arrays -- safe */
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL, NODE } from '../helpers/constants';
 import { fromSource } from '../helpers/helpers';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
@@ -412,7 +412,8 @@ QUnit.module('structuredClone', () => {
     const event = fromSource('new Event("")');
     const channel = fromSource('new MessageChannel');
 
-    if (event) nons.push(event);
+    // NodeJS events are simple objects
+    if (event && !NODE) nons.push(event);
     if (channel) nons.push(channel);
 
     for (const it of nons) {

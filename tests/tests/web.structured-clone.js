@@ -405,7 +405,8 @@ QUnit.module('structuredClone', () => {
     const event = fromSource('new Event("")');
     const channel = fromSource('new MessageChannel');
 
-    if (event) nons.push(event);
+    // NodeJS events are simple objects
+    if (event && !NODE) nons.push(event);
     if (channel) nons.push(channel);
 
     for (const it of nons) {
