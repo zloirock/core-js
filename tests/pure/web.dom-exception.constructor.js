@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, NODE } from '../helpers/constants';
 import DOMException from 'core-js-pure/stable/dom-exception';
 import Symbol from 'core-js-pure/es/symbol';
 
@@ -58,7 +58,8 @@ QUnit.test('DOMException', assert => {
     assert.same(error.message, '42', `new DOMException({}, "${ name }").message`);
     assert.same(error.name, name, `new DOMException({}, "${ name }").name`);
     if (errors[name].m) assert.same(error.code, errors[name].c, `new DOMException({}, "${ name }").code`);
-    else assert.same(error.code, 0, `new DOMException({}, "${ name }").code`);
+    // NodeJS and Deno set codes to deprecated errors
+    else if (!NODE) assert.same(error.code, 0, `new DOMException({}, "${ name }").code`);
     assert.same(String(error), `${ name }: 42`, `String(new DOMException({}, "${ name }"))`); // Safari 10.1 bug
     if (HAS_STACK) assert.ok('stack' in error, `'stack' in new DOMException({}, "${ name }")`);
 
