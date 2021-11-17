@@ -1,6 +1,6 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL, NODE } from '../helpers/constants';
 import { fromSource } from '../helpers/helpers';
 
 const { from } = Array;
@@ -11,7 +11,7 @@ QUnit.module('structuredClone', () => {
     assert.isFunction(structuredClone, 'structuredClone is a function');
     assert.name(structuredClone, 'structuredClone');
     assert.arity(structuredClone, 1);
-    assert.looksNative(structuredClone);
+    if (!NODE) assert.looksNative(structuredClone);
   });
 
   function cloneTest(value, verifyFunc) {
