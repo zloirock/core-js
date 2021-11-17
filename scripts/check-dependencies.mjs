@@ -6,6 +6,7 @@ const { eq, coerce, minVersion } = semver;
 const getDependencies = promisify(david.getDependencies);
 
 const ignoreEverywhere = new Set([
+  'cli-table',
   'moon-unit',
 ]);
 
