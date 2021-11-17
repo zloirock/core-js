@@ -2,7 +2,6 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var getBuiltin = require('../internals/get-built-in');
-var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -29,9 +28,6 @@ var SyntaxError = global.SyntaxError;
 var TypeError = global.TypeError;
 var URIError = global.URIError;
 var PerformanceMark = global.PerformanceMark;
-var performance = global.performance;
-var mark = performance && performance.mark;
-var clearMarks = performance && performance.clearMarks;
 var WebAssembly = global.WebAssembly;
 var CompileError = WebAssembly && WebAssembly.CompileError || Error;
 var LinkError = WebAssembly && WebAssembly.LinkError || Error;
@@ -67,7 +63,7 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation(Object(7));
     return set2 == set1 || !set2.has(7) || typeof number != 'object' || number != 7;
-  });
+  }) && structuredCloneImplementation;
 };
 
 // https://github.com/whatwg/html/pull/5749
@@ -75,7 +71,7 @@ var checkNewErrorsSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name != 'AggregateError' || test.errors[0] != 1 || test.message != PERFORMANCE_MARK || test.cause != 3;
-  });
+  }) && structuredCloneImplementation;
 };
 
 // FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.13+
@@ -86,23 +82,18 @@ var nativeStructuredClone = global.structuredClone;
 
 var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
 
-// Chrome 78+, Safari 14.1+, NodeJS 16.0+, Deno 1.11+ (old Deno implementations too naive)
-// Chrome 82- implementation swaps `.name` and `.message` of cloned `DOMException`
+// Chrome 82+, Safari 14.1+, Deno 1.11+
+// Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
+// Deno 1.2-1.10 implementations too naive
+// NodeJS 16.0+ haven't `PerformanceMark` constructor and structured cloning implementation
+//   from `performance.mark` is too naive and can't clone, for example, `RegExp` or some boxed primitives
 // current Safari implementation can't clone errors
 // no one of current implementations supports new (html/5749) error cloning semantic
-var structuredCloneFromMark = !nativeStructuredClone && (function (fromMarkConstructor, fromMark) {
-  return checkBasicSemantic(fromMarkConstructor) ? fromMarkConstructor
-    : checkBasicSemantic(fromMark) && fromMark;
-})(function (value) {
+var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
-}, function (value) {
-  // NodeJS haven't `PerformanceMark` constructor
-  var result = call(mark, performance, PERFORMANCE_MARK, { detail: value });
-  call(clearMarks, performance, PERFORMANCE_MARK);
-  return result.detail;
 });
 
-var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) ? nativeStructuredClone : structuredCloneFromMark;
+var nativeRestrictedStructuredClone = checkBasicSemantic(nativeStructuredClone) || structuredCloneFromMark;
 
 var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
