@@ -11,7 +11,11 @@ jobs:
       - name: use NodeJS
         uses: actions/setup-node@v2
         with:
-          node-version: '17'
+          node-version: 17
+          cache: npm
+          cache-dependency-path: |
+            package.json
+            packages/*/package.json
       - name: install dependencies
         run: npm install
       - name: lint
@@ -19,13 +23,18 @@ jobs:
 
   karma:
     name: karma
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: use NodeJS
         uses: actions/setup-node@v2
         with:
-          node-version: '17'
+          node-version: 17
+          cache: npm
+          cache-dependency-path: |
+            package.json
+            packages/*/package.json
       - name: install dependencies
         run: npm install
       - name: karma
@@ -33,16 +42,17 @@ jobs:
 
   tests:
     name: tests
+    needs: lint
     strategy:
       matrix:
         os:
-          - 'ubuntu-latest'
-          - 'windows-latest'
-          - 'macos-latest'
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
         node:
-          - '14.15'
-          - '16.11'
-          - '17'
+          - 14.15
+          - 16.11
+          - 17
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -50,6 +60,10 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            package.json
+            packages/*/package.json
       - name: install dependencies
         run: npm install
       - name: tests
