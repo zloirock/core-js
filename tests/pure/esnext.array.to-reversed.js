@@ -7,7 +7,7 @@ QUnit.test('Array#toReversed', assert => {
   assert.isFunction(toReversed);
 
   let array = [1, 2];
-  assert.ok(toReversed(array) !== array, 'immutable');
+  assert.notStrictEqual(toReversed(array), array, 'immutable');
   assert.deepEqual(toReversed([1, 2.2, 3.3]), [3.3, 2.2, 1], 'basic');
 
   const object = {};

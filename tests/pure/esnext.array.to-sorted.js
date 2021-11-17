@@ -7,7 +7,7 @@ QUnit.test('Array#toSorted', assert => {
   assert.isFunction(toSorted);
 
   let array = [1];
-  assert.ok(toSorted(array) !== array, 'immutable');
+  assert.notStrictEqual(toSorted(array), array, 'immutable');
   assert.deepEqual(toSorted([1, 3, 2]), [1, 2, 3], '#1');
   assert.deepEqual(toSorted([1, 3, 2, 11]), [1, 11, 2, 3], '#2');
   assert.deepEqual(toSorted([1, -1, 3, NaN, 2, 0, 11, -0]), [-1, 0, -0, 1, 11, 2, 3, NaN], '#1');

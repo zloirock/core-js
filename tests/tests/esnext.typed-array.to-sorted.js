@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
     assert.looksNative(toSorted, `${ name }::toSorted looks native`);
 
     let array = new TypedArray([1]);
-    assert.ok(array.toSorted() !== array, 'immutable');
+    assert.notStrictEqual(array.toSorted(), array, 'immutable');
 
     if (name.indexOf('Float') === 0) {
       assert.deepEqual(new TypedArray([1, -1, 3, NaN, 2, 0, 11, -0]).toSorted(), new TypedArray([-1, -0, 0, 1, 2, 3, 11, NaN]), '#1');

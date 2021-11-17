@@ -7,7 +7,7 @@ QUnit.test('Array#toSpliced', assert => {
   assert.isFunction(toSpliced);
 
   let array = [1, 2, 3, 4, 5];
-  assert.ok(toSpliced(array, 2) !== array);
+  assert.notStrictEqual(toSpliced(array, 2), array);
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2), [1, 2]);
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], -2), [1, 2, 3]);
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2, 2), [1, 2, 5]);

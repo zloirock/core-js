@@ -10,7 +10,7 @@ QUnit.test('Array#toReversed', assert => {
   assert.nonEnumerable(Array.prototype, 'toReversed');
 
   let array = [1, 2];
-  assert.ok(array.toReversed() !== array, 'immutable');
+  assert.notStrictEqual(array.toReversed(), array, 'immutable');
 
   assert.deepEqual([1, 2.2, 3.3].toReversed(), [3.3, 2.2, 1], 'basic');
 

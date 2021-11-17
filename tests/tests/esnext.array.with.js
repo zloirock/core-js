@@ -10,7 +10,7 @@ QUnit.test('Array#with', assert => {
   assert.nonEnumerable(Array.prototype, 'with');
 
   let array = [1, 2, 3, 4, 5];
-  assert.ok(array.with(2, 1) !== array, 'immutable');
+  assert.notStrictEqual(array.with(2, 1), array, 'immutable');
 
   assert.deepEqual([1, 2, 3, 4, 5].with(2, 6), [1, 2, 6, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].with(-2, 6), [1, 2, 3, 6, 5]);

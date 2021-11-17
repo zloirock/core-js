@@ -7,7 +7,7 @@ QUnit.test('Array#with', assert => {
   assert.isFunction(withAt);
 
   let array = [1, 2, 3, 4, 5];
-  assert.ok(withAt(array, 2, 1) !== array);
+  assert.notStrictEqual(withAt(array, 2, 1), array);
   assert.deepEqual(withAt([1, 2, 3, 4, 5], 2, 6), [1, 2, 6, 4, 5]);
   assert.deepEqual(withAt([1, 2, 3, 4, 5], -2, 6), [1, 2, 3, 6, 5]);
 

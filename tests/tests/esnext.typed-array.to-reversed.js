@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toReversed', assert => {
     assert.looksNative(toReversed, `${ name }::toReversed looks native`);
 
     const array = new TypedArray([1, 2]);
-    assert.ok(array.toReversed() !== array, 'immutable');
+    assert.notStrictEqual(array.toReversed(), array, 'immutable');
     assert.arrayEqual(new TypedArray([1, 2, 3, 4]).toReversed(), [4, 3, 2, 1], 'works #1');
     assert.arrayEqual(new TypedArray([1, 2, 3]).toReversed(), [3, 2, 1], 'works #2');
 

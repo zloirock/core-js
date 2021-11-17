@@ -10,7 +10,7 @@ QUnit.test('Array#toSorted', assert => {
   assert.nonEnumerable(Array.prototype, 'toSorted');
 
   let array = [1];
-  assert.ok(array.toSorted() !== array, 'immutable');
+  assert.notStrictEqual(array.toSorted(), array, 'immutable');
 
   assert.deepEqual([1, 3, 2].toSorted(), [1, 2, 3], '#1');
   assert.deepEqual([1, 3, 2, 11].toSorted(), [1, 11, 2, 3], '#2');
