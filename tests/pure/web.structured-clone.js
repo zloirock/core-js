@@ -30,7 +30,8 @@ QUnit.module('structuredClone', () => {
     cloneTest(value, (orig, clone) => {
       assert.notEqual(orig, clone, 'clone should have different reference');
       assert.same(typeof clone, 'object', 'clone should be an object');
-      assert.same(getPrototypeOf(orig), getPrototypeOf(clone), 'clone should have same prototype');
+      // https://github.com/qunitjs/node-qunit/issues/146
+      assert.ok(getPrototypeOf(orig) === getPrototypeOf(clone), 'clone should have same prototype');
       verifyFunc(orig, clone);
     });
   }
