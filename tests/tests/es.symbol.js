@@ -48,13 +48,13 @@ QUnit.test('Well-known Symbols', assert => {
     'unscopables',
   ];
   for (const name of wks) {
-    assert.ok(name in Symbol, `Symbol.${ name } available`);
-    assert.ok(Object(Symbol[name]) instanceof Symbol, `Symbol.${ name } is symbol`);
+    assert.true(name in Symbol, `Symbol.${ name } available`);
+    assert.true(Object(Symbol[name]) instanceof Symbol, `Symbol.${ name } is symbol`);
     if (DESCRIPTORS) {
       const descriptor = getOwnPropertyDescriptor(Symbol, name);
-      assert.ok(!descriptor.enumerble, 'non-enumerable');
-      assert.ok(!descriptor.writable, 'non-writable');
-      assert.ok(!descriptor.configurable, 'non-configurable');
+      assert.false(descriptor.enumerable, 'non-enumerable');
+      assert.false(descriptor.writable, 'non-writable');
+      assert.false(descriptor.configurable, 'non-configurable');
     }
   }
 });

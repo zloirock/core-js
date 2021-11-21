@@ -6,7 +6,7 @@ QUnit.test('WeakMap.from', assert => {
   const { from } = WeakMap;
   assert.isFunction(from);
   assert.arity(from, 1);
-  assert.ok(WeakMap.from() instanceof WeakMap);
+  assert.true(WeakMap.from() instanceof WeakMap);
   const array = [];
   assert.same(WeakMap.from([[array, 2]]).get(array), 2);
   assert.same(WeakMap.from(createIterable([[array, 2]])).get(array), 2);

@@ -10,7 +10,7 @@ QUnit.test('Map.groupBy', assert => {
   assert.looksNative(groupBy);
   assert.nonEnumerable(Map, 'groupBy');
 
-  assert.ok(Map.groupBy([], it => it) instanceof Map);
+  assert.true(Map.groupBy([], it => it) instanceof Map);
 
   assert.deepEqual(toArray(Map.groupBy([], it => it)), []);
   assert.deepEqual(toArray(Map.groupBy([1, 2], it => it ** 2)), [[1, [1]], [4, [2]]]);

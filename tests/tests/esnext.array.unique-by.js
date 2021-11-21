@@ -51,5 +51,5 @@ QUnit.test('Array#uniqueBy', assert => {
     assert.throws(() => uniqueBy.call(null), TypeError);
     assert.throws(() => uniqueBy.call(undefined), TypeError);
   }
-  assert.ok('uniqueBy' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('uniqueBy' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

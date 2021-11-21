@@ -7,10 +7,10 @@ QUnit.test('WeakSet.from', assert => {
   assert.name(from, 'from');
   assert.looksNative(from);
   assert.nonEnumerable(WeakSet, 'from');
-  assert.ok(WeakSet.from() instanceof WeakSet);
+  assert.true(WeakSet.from() instanceof WeakSet);
   const array = [];
-  assert.ok(WeakSet.from([array]).has(array));
-  assert.ok(WeakSet.from(createIterable([array])).has(array));
+  assert.true(WeakSet.from([array]).has(array));
+  assert.true(WeakSet.from(createIterable([array])).has(array));
   const object = {};
   const context = {};
   WeakSet.from([object], function (element, index) {

@@ -17,6 +17,6 @@ QUnit.test('forEach method on iterable DOM collections', assert => {
   }
 
   if (absent) {
-    assert.ok(true, 'DOM collections are absent');
+    assert.required('DOM collections are absent');
   }
 });

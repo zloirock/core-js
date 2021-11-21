@@ -10,8 +10,8 @@ QUnit.test('Iterator#some', assert => {
   assert.arity(some, 1);
   assert.nonEnumerable(Iterator.prototype, 'some');
 
-  assert.ok(some.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #1');
-  assert.ok(!some.call(createIterator([1, 2, 3]), it => typeof it == 'string'), 'basic functionality #2');
+  assert.true(some.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #1');
+  assert.false(some.call(createIterator([1, 2, 3]), it => typeof it == 'string'), 'basic functionality #2');
   some.call(createIterator([1]), function (arg) {
     assert.same(this, STRICT_THIS, 'this');
     assert.same(arguments.length, 1, 'arguments length');

@@ -13,6 +13,9 @@ assign(QUnit.assert, {
   arrayEqual(a, b, message) {
     this.deepEqual(arrayFromArrayLike(a), arrayFromArrayLike(b), message);
   },
+  avoid(message = 'It should never be called') {
+    this.ok(false, message);
+  },
   enumerable(O, key, message) {
     const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
     this.pushResult({
@@ -124,6 +127,9 @@ assign(QUnit.assert, {
       expected: 'It should not throw an error',
       message,
     });
+  },
+  required(message = 'It should be called') {
+    this.ok(true, message);
   },
   same(actual, expected, message) {
     this.pushResult({

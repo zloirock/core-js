@@ -5,7 +5,7 @@ QUnit.test('Set.of', assert => {
   const { of } = Set;
   assert.isFunction(of);
   assert.arity(of, 0);
-  assert.ok(Set.of() instanceof Set);
+  assert.true(Set.of() instanceof Set);
   assert.deepEqual(toArray(Set.of(1)), [1]);
   assert.deepEqual(toArray(Set.of(1, 2, 3, 2, 1)), [1, 2, 3]);
   assert.throws(() => of(1));

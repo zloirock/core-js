@@ -12,13 +12,13 @@ QUnit.test('Map', assert => {
   assert.arity(Map, 0);
   assert.name(Map, 'Map');
   assert.looksNative(Map);
-  assert.ok('clear' in Map.prototype, 'clear in Map.prototype');
-  assert.ok('delete' in Map.prototype, 'delete in Map.prototype');
-  assert.ok('forEach' in Map.prototype, 'forEach in Map.prototype');
-  assert.ok('get' in Map.prototype, 'get in Map.prototype');
-  assert.ok('has' in Map.prototype, 'has in Map.prototype');
-  assert.ok('set' in Map.prototype, 'set in Map.prototype');
-  assert.ok(new Map() instanceof Map, 'new Map instanceof Map');
+  assert.true('clear' in Map.prototype, 'clear in Map.prototype');
+  assert.true('delete' in Map.prototype, 'delete in Map.prototype');
+  assert.true('forEach' in Map.prototype, 'forEach in Map.prototype');
+  assert.true('get' in Map.prototype, 'get in Map.prototype');
+  assert.true('has' in Map.prototype, 'has in Map.prototype');
+  assert.true('set' in Map.prototype, 'set in Map.prototype');
+  assert.true(new Map() instanceof Map, 'new Map instanceof Map');
   assert.same(new Map(createIterable([[1, 1], [2, 2], [3, 3]])).size, 3, 'Init from iterable');
   assert.same(new Map([[freeze({}), 1], [2, 3]]).size, 2, 'Support frozen objects');
   let done = false;
@@ -29,7 +29,7 @@ QUnit.test('Map', assert => {
       },
     }));
   } catch { /* empty */ }
-  assert.ok(done, '.return #throw');
+  assert.true(done, '.return #throw');
   const array = [];
   done = false;
   array['@@iterator'] = undefined;
@@ -38,7 +38,7 @@ QUnit.test('Map', assert => {
     return [][Symbol.iterator].call(this);
   };
   new Map(array);
-  assert.ok(done);
+  assert.true(done);
   const object = {};
   new Map().set(object, 1);
   if (DESCRIPTORS) {
@@ -52,14 +52,14 @@ QUnit.test('Map', assert => {
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     const Subclass = nativeSubclass(Map);
-    assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
-    assert.ok(new Subclass() instanceof Map, 'correct subclassing with native classes #2');
+    assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
+    assert.true(new Subclass() instanceof Map, 'correct subclassing with native classes #2');
     assert.same(new Subclass().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
   }
 
   const buffer = new ArrayBuffer(8);
   const map = new Map([[buffer, 8]]);
-  assert.ok(map.has(buffer), 'works with ArrayBuffer keys');
+  assert.true(map.has(buffer), 'works with ArrayBuffer keys');
 });
 
 QUnit.test('Map#clear', assert => {
@@ -77,16 +77,16 @@ QUnit.test('Map#clear', assert => {
   map.set(1, 4);
   map.clear();
   assert.same(map.size, 0);
-  assert.ok(!map.has(1));
-  assert.ok(!map.has(2));
+  assert.false(map.has(1));
+  assert.false(map.has(2));
   const frozen = freeze({});
   map = new Map();
   map.set(1, 2);
   map.set(frozen, 3);
   map.clear();
   assert.same(map.size, 0, 'Support frozen objects');
-  assert.ok(!map.has(1));
-  assert.ok(!map.has(frozen));
+  assert.false(map.has(1));
+  assert.false(map.has(frozen));
 });
 
 QUnit.test('Map#delete', assert => {
@@ -104,9 +104,9 @@ QUnit.test('Map#delete', assert => {
   map.set(1, 4);
   map.set(object, 9);
   assert.same(map.size, 5);
-  assert.ok(map.delete(NaN));
+  assert.true(map.delete(NaN));
   assert.same(map.size, 4);
-  assert.ok(!map.delete(4));
+  assert.false(map.delete(4));
   assert.same(map.size, 4);
   map.delete([]);
   assert.same(map.size, 4);
@@ -216,12 +216,12 @@ QUnit.test('Map#has', assert => {
   map.set(1, 4);
   map.set(frozen, 42);
   map.set(object, object);
-  assert.ok(map.has(NaN));
-  assert.ok(map.has(object));
-  assert.ok(map.has(2));
-  assert.ok(map.has(frozen));
-  assert.ok(!map.has(4));
-  assert.ok(!map.has({}));
+  assert.true(map.has(NaN));
+  assert.true(map.has(object));
+  assert.true(map.has(2));
+  assert.true(map.has(frozen));
+  assert.false(map.has(4));
+  assert.false(map.has({}));
 });
 
 QUnit.test('Map#set', assert => {
@@ -283,18 +283,18 @@ QUnit.test('Map & -0', assert => {
   let map = new Map();
   map.set(-0, 1);
   assert.same(map.size, 1);
-  assert.ok(map.has(0));
-  assert.ok(map.has(-0));
+  assert.true(map.has(0));
+  assert.true(map.has(-0));
   assert.same(map.get(0), 1);
   assert.same(map.get(-0), 1);
   map.forEach((val, key) => {
-    assert.ok(!is(key, -0));
+    assert.false(is(key, -0));
   });
   map.delete(-0);
   assert.same(map.size, 0);
   map = new Map([[-0, 1]]);
   map.forEach((val, key) => {
-    assert.ok(!is(key, -0));
+    assert.false(is(key, -0));
   });
   map = new Map();
   map.set(4, 4);
@@ -302,7 +302,7 @@ QUnit.test('Map & -0', assert => {
   map.set(2, 2);
   map.set(1, 1);
   map.set(0, 0);
-  assert.ok(map.has(-0));
+  assert.true(map.has(-0));
 });
 
 QUnit.test('Map#@@toStringTag', assert => {
@@ -323,14 +323,14 @@ QUnit.test('Map Iterator', assert => {
   assert.nonEnumerable(iterator, 'next');
   assert.nonEnumerable(iterator, Symbol.iterator);
   results.push(iterator.next().value);
-  assert.ok(map.delete('a'));
-  assert.ok(map.delete('b'));
-  assert.ok(map.delete('c'));
+  assert.true(map.delete('a'));
+  assert.true(map.delete('b'));
+  assert.true(map.delete('c'));
   map.set('e');
   results.push(iterator.next().value, iterator.next().value);
-  assert.ok(iterator.next().done);
+  assert.true(iterator.next().done);
   map.set('f');
-  assert.ok(iterator.next().done);
+  assert.true(iterator.next().done);
   assert.deepEqual(results, ['a', 'd', 'e']);
 });
 

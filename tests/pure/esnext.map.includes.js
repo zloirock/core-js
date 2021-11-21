@@ -9,14 +9,14 @@ QUnit.test('Map#includes', assert => {
 
   const object = {};
   const map = new Map([[1, 1], [2, 2], [3, 3], [4, -0], [5, object], [6, NaN]]);
-  assert.ok(map.includes(1));
-  assert.ok(map.includes(-0));
-  assert.ok(map.includes(0));
-  assert.ok(map.includes(object));
-  assert.ok(!map.includes(4));
-  assert.ok(!map.includes(-0.5));
-  assert.ok(!map.includes({}));
-  assert.ok(map.includes(NaN));
+  assert.true(map.includes(1));
+  assert.true(map.includes(-0));
+  assert.true(map.includes(0));
+  assert.true(map.includes(object));
+  assert.false(map.includes(4));
+  assert.false(map.includes(-0.5));
+  assert.false(map.includes({}));
+  assert.true(map.includes(NaN));
 
   assert.throws(() => includes.call({}, 1), TypeError);
   assert.throws(() => includes.call(undefined, 1), TypeError);

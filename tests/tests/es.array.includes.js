@@ -9,18 +9,18 @@ QUnit.test('Array#includes', assert => {
   assert.nonEnumerable(Array.prototype, 'includes');
   const object = {};
   const array = [1, 2, 3, -0, object];
-  assert.ok(array.includes(1));
-  assert.ok(array.includes(-0));
-  assert.ok(array.includes(0));
-  assert.ok(array.includes(object));
-  assert.ok(!array.includes(4));
-  assert.ok(!array.includes(-0.5));
-  assert.ok(!array.includes({}));
-  assert.ok(Array(1).includes(undefined));
-  assert.ok([NaN].includes(NaN));
+  assert.true(array.includes(1));
+  assert.true(array.includes(-0));
+  assert.true(array.includes(0));
+  assert.true(array.includes(object));
+  assert.false(array.includes(4));
+  assert.false(array.includes(-0.5));
+  assert.false(array.includes({}));
+  assert.true(Array(1).includes(undefined));
+  assert.true([NaN].includes(NaN));
   if (STRICT) {
     assert.throws(() => includes.call(null, 0), TypeError);
     assert.throws(() => includes.call(undefined, 0), TypeError);
   }
-  assert.ok('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

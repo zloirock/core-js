@@ -13,7 +13,7 @@ QUnit.test('Object.seal', assert => {
     assert.notThrows(() => seal(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
     assert.same(seal(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
-  if (NATIVE) assert.ok(isSealed(seal({})));
+  if (NATIVE) assert.true(isSealed(seal({})));
   const results = [];
   for (const key in seal({})) results.push(key);
   assert.arrayEqual(results, []);

@@ -18,7 +18,7 @@ QUnit.test('Map#mapKeys', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
 
-  assert.ok(new Map().mapKeys(it => it) instanceof Map);
+  assert.true(new Map().mapKeys(it => it) instanceof Map);
 
   assert.deepEqual(from(new Map([
     ['a', 1],

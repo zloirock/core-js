@@ -69,6 +69,6 @@ QUnit.test('Iterable DOM collections', assert => {
   }
 
   if (absent) {
-    assert.ok(true, 'DOM collections are absent');
+    assert.required('DOM collections are absent');
   }
 });

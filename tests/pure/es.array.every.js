@@ -13,18 +13,18 @@ QUnit.test('Array#every', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok(every([1, 2, 3], it => typeof it == 'number'));
-  assert.ok(every([1, 2, 3], it => it < 4));
-  assert.ok(!every([1, 2, 3], it => it < 3));
-  assert.ok(!every([1, 2, 3], it => typeof it == 'string'));
-  assert.ok(every([1, 2, 3], function () {
+  assert.true(every([1, 2, 3], it => typeof it == 'number'));
+  assert.true(every([1, 2, 3], it => it < 4));
+  assert.false(every([1, 2, 3], it => it < 3));
+  assert.false(every([1, 2, 3], it => typeof it == 'string'));
+  assert.true(every([1, 2, 3], function () {
     return +this === 1;
   }, 1));
   let rez = '';
   every([1, 2, 3], (value, key) => rez += key);
   assert.same(rez, '012');
   const arr = [1, 2, 3];
-  assert.ok(every(arr, (value, key, that) => that === arr));
+  assert.true(every(arr, (value, key, that) => that === arr));
   if (STRICT) {
     assert.throws(() => every(null, () => { /* empty */ }), TypeError);
     assert.throws(() => every(undefined, () => { /* empty */ }), TypeError);

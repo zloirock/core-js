@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.subarray', assert => {
     const array1 = new TypedArray([1, 2, 3, 4, 5]);
     const array2 = array1.subarray(3);
     assert.notSame(array1, array2, 'creates new array');
-    assert.ok(array2 instanceof TypedArray, `instance ${ name }`);
+    assert.true(array2 instanceof TypedArray, `instance ${ name }`);
     assert.same(array1.buffer, array2.buffer, 'with the same buffer');
     assert.arrayEqual(array2, [4, 5]);
     assert.arrayEqual(array1.subarray(1, 3), [2, 3]);

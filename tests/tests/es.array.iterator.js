@@ -36,7 +36,7 @@ QUnit.test('Array#keys', assert => {
     value: undefined,
     done: true,
   }, 'uses ToLength');
-  assert.ok('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
 QUnit.test('Array#values', assert => {
@@ -72,7 +72,7 @@ QUnit.test('Array#values', assert => {
     value: undefined,
     done: true,
   }, 'uses ToLength');
-  assert.ok('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
 QUnit.test('Array#entries', assert => {
@@ -108,7 +108,7 @@ QUnit.test('Array#entries', assert => {
     value: undefined,
     done: true,
   }, 'uses ToLength');
-  assert.ok('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
 QUnit.test('Array#@@iterator', assert => {

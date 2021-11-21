@@ -3,7 +3,7 @@ import Promise from 'core-js-pure/features/promise';
 QUnit.test('Promise.try', assert => {
   assert.isFunction(Promise.try);
   assert.arity(Promise.try, 1);
-  assert.ok(Promise.try(() => 42) instanceof Promise, 'returns a promise');
+  assert.true(Promise.try(() => 42) instanceof Promise, 'returns a promise');
 });
 
 QUnit.test('Promise.try, resolved', assert => {
@@ -21,7 +21,7 @@ QUnit.test('Promise.try, rejected', assert => {
   Promise.try(() => {
     throw new Error();
   }).catch(() => {
-    assert.ok(true, 'rejected as expected');
+    assert.true(true, 'rejected as expected');
     async();
   });
 });

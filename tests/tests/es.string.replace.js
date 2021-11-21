@@ -43,7 +43,7 @@ const run = assert => {
           throw new Error('inreplaceValue');
         },
       });
-      assert.ok(false, 'S15.5.4.11_A1_T11 #1 lead to throwing exception');
+      assert.avoid('S15.5.4.11_A1_T11 #1 lead to throwing exception');
     } catch (error) {
       assert.same(error.message, 'insearchValue', 'S15.5.4.11_A1_T11 #2');
     }
@@ -60,7 +60,7 @@ const run = assert => {
           throw new Error('inreplaceValue');
         },
       });
-      assert.ok(false, 'S15.5.4.11_A1_T12 #1 lead to throwing exception');
+      assert.avoid('S15.5.4.11_A1_T12 #1 lead to throwing exception');
     } catch (error) {
       assert.same(error.message, 'insearchValue', 'S15.5.4.11_A1_T12 #2');
     }
@@ -78,7 +78,7 @@ const run = assert => {
         return 1;
       },
     });
-    assert.ok(false, 'S15.5.4.11_A1_T13 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.11_A1_T13 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'insearchValue', 'S15.5.4.11_A1_T13 #2');
   }
@@ -91,9 +91,9 @@ const run = assert => {
         return /77/;
       },
     }, 1);
-    assert.ok(false, 'S15.5.4.11_A1_T15 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.11_A1_T15 #1 lead to throwing exception');
   } catch (error) {
-    assert.ok(error instanceof TypeError, 'S15.5.4.11_A1_T15 #2');
+    assert.true(error instanceof TypeError, 'S15.5.4.11_A1_T15 #2');
   }
   instance = Object(1100.00777001);
   instance.replace = String.prototype.replace;
@@ -103,9 +103,9 @@ const run = assert => {
         return (a1, a2) => `${ a2 }z`;
       },
     });
-    assert.ok(false, 'S15.5.4.11_A1_T16 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.11_A1_T16 #1 lead to throwing exception');
   } catch (error) {
-    assert.ok(error instanceof TypeError, 'S15.5.4.11_A1_T16 #2');
+    assert.true(error instanceof TypeError, 'S15.5.4.11_A1_T16 #2');
   }
   assert.same('asdf'.replace(RegExp('', 'g'), '1'), '1a1s1d1f1', 'S15.5.4.11_A1_T17');
   assert.same('She sells seashells by the seashore.'.replace(/sh/g, 'sch'), 'She sells seaschells by the seaschore.', 'S15.5.4.11_A2_T1');
@@ -178,14 +178,14 @@ QUnit.test('RegExp#@@replace delegates to exec', assert => {
   let re = /[ac]/;
   re.exec = exec;
   assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbc');
-  assert.ok(execCalled);
+  assert.true(execCalled);
   assert.same(re.lastIndex, 0);
 
   execCalled = false;
   re = /[ac]/g;
   re.exec = exec;
   assert.deepEqual(re[Symbol.replace]('abc', 'f'), 'fbf');
-  assert.ok(execCalled);
+  assert.true(execCalled);
   assert.same(re.lastIndex, 0);
 
   re = /a/;

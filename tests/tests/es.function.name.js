@@ -2,7 +2,7 @@ import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
   QUnit.test('Function#name', assert => {
-    assert.ok('name' in Function.prototype);
+    assert.true('name' in Function.prototype);
     assert.nonEnumerable(Function.prototype, 'name');
     function foo() { /* empty */ }
     assert.same(foo.name, 'foo');

@@ -17,10 +17,10 @@ QUnit.test('Set#every', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
 
-  assert.same(new Set([1, 2, 3]).every(it => typeof it == 'number'), true);
-  assert.same(new Set(['1', '2', '3']).some(it => typeof it == 'number'), false);
-  assert.same(new Set([1, '2', 3]).every(it => typeof it == 'number'), false);
-  assert.same(new Set().every(it => typeof it == 'number'), true);
+  assert.true(new Set([1, 2, 3]).every(it => typeof it == 'number'));
+  assert.false(new Set(['1', '2', '3']).some(it => typeof it == 'number'));
+  assert.false(new Set([1, '2', 3]).every(it => typeof it == 'number'));
+  assert.true(new Set().every(it => typeof it == 'number'));
 
   assert.throws(() => every.call(new Map(), () => { /* empty */ }), TypeError);
   assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);

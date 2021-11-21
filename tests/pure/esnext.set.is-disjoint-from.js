@@ -10,13 +10,13 @@ QUnit.test('Set#isDisjointFrom', assert => {
   assert.name(isDisjointFrom, 'isDisjointFrom');
   assert.nonEnumerable(Set.prototype, 'isDisjointFrom');
 
-  assert.ok(new Set([1]).isDisjointFrom([2]));
-  assert.ok(!new Set([1]).isDisjointFrom([1]));
-  assert.ok(new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]));
-  assert.ok(!new Set([1, 2, 3]).isDisjointFrom([5, 4, 3]));
+  assert.true(new Set([1]).isDisjointFrom([2]));
+  assert.false(new Set([1]).isDisjointFrom([1]));
+  assert.true(new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]));
+  assert.false(new Set([1, 2, 3]).isDisjointFrom([5, 4, 3]));
 
-  assert.ok(new Set([1]).isDisjointFrom(createIterable([2])));
-  assert.ok(!new Set([1]).isDisjointFrom(createIterable([1])));
+  assert.true(new Set([1]).isDisjointFrom(createIterable([2])));
+  assert.false(new Set([1]).isDisjointFrom(createIterable([1])));
 
   assert.throws(() => new Set([1, 2, 3]).isDisjointFrom(), TypeError);
   assert.throws(() => isDisjointFrom.call({}, [1, 2, 3]), TypeError);

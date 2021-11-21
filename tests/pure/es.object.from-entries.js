@@ -8,7 +8,7 @@ QUnit.test('Object.fromEntries', assert => {
   assert.arity(fromEntries, 1);
   assert.name(fromEntries, 'fromEntries');
 
-  assert.ok(fromEntries([]) instanceof Object);
+  assert.true(fromEntries([]) instanceof Object);
   assert.same(fromEntries([['foo', 1]]).foo, 1);
   assert.same(fromEntries(createIterable([['bar', 2]])).bar, 2);
 

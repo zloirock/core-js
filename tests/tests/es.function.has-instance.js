@@ -1,6 +1,6 @@
 QUnit.test('Function#@@hasInstance', assert => {
-  assert.ok(Symbol.hasInstance in Function.prototype);
+  assert.true(Symbol.hasInstance in Function.prototype);
   assert.nonEnumerable(Function.prototype, Symbol.hasInstance);
-  assert.ok(Function[Symbol.hasInstance](() => { /* empty */ }));
-  assert.ok(!Function[Symbol.hasInstance]({}));
+  assert.true(Function[Symbol.hasInstance](() => { /* empty */ }));
+  assert.false(Function[Symbol.hasInstance]({}));
 });

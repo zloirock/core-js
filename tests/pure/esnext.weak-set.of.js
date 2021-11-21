@@ -5,8 +5,8 @@ QUnit.test('WeakSet.of', assert => {
   assert.isFunction(of);
   assert.arity(of, 0);
   const array = [];
-  assert.ok(WeakSet.of() instanceof WeakSet);
-  assert.ok(WeakSet.of(array).has(array));
+  assert.true(WeakSet.of() instanceof WeakSet);
+  assert.true(WeakSet.of(array).has(array));
   assert.throws(() => of(1));
   let arg = null;
   function F(it) {

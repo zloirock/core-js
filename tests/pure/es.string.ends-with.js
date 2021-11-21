@@ -5,19 +5,19 @@ import endsWith from 'core-js-pure/features/string/ends-with';
 
 QUnit.test('String#endsWith', assert => {
   assert.isFunction(endsWith);
-  assert.ok(endsWith('undefined'));
-  assert.ok(!endsWith('undefined', null));
-  assert.ok(endsWith('abc', ''));
-  assert.ok(endsWith('abc', 'c'));
-  assert.ok(endsWith('abc', 'bc'));
-  assert.ok(!endsWith('abc', 'ab'));
-  assert.ok(endsWith('abc', '', NaN));
-  assert.ok(!endsWith('abc', 'c', -1));
-  assert.ok(endsWith('abc', 'a', 1));
-  assert.ok(endsWith('abc', 'c', Infinity));
-  assert.ok(endsWith('abc', 'a', true));
-  assert.ok(!endsWith('abc', 'c', 'x'));
-  assert.ok(!endsWith('abc', 'a', 'x'));
+  assert.true(endsWith('undefined'));
+  assert.false(endsWith('undefined', null));
+  assert.true(endsWith('abc', ''));
+  assert.true(endsWith('abc', 'c'));
+  assert.true(endsWith('abc', 'bc'));
+  assert.false(endsWith('abc', 'ab'));
+  assert.true(endsWith('abc', '', NaN));
+  assert.false(endsWith('abc', 'c', -1));
+  assert.true(endsWith('abc', 'a', 1));
+  assert.true(endsWith('abc', 'c', Infinity));
+  assert.true(endsWith('abc', 'a', true));
+  assert.false(endsWith('abc', 'c', 'x'));
+  assert.false(endsWith('abc', 'a', 'x'));
 
   if (!Symbol.sham) {
     assert.throws(() => endsWith(Symbol(), 'b'), 'throws on symbol context');

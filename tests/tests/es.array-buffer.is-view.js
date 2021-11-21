@@ -9,13 +9,13 @@ QUnit.test('ArrayBuffer.isView', assert => {
   assert.nonEnumerable(ArrayBuffer, 'isView');
   for (const name in TYPED_ARRAYS) {
     if (GLOBAL[name]) {
-      assert.same(isView(new GLOBAL[name]([1])), true, `${ name } - true`);
+      assert.true(isView(new GLOBAL[name]([1])), `${ name } - true`);
     }
   }
-  assert.same(isView(new DataView(new ArrayBuffer(1))), true, 'DataView - true');
-  assert.same(isView(new ArrayBuffer(1)), false, 'ArrayBuffer - false');
+  assert.true(isView(new DataView(new ArrayBuffer(1))), 'DataView - true');
+  assert.false(isView(new ArrayBuffer(1)), 'ArrayBuffer - false');
   const examples = [undefined, null, false, true, 0, 1, '', 'qwe', {}, [], function () { /* empty */ }];
   for (const example of examples) {
-    assert.same(isView(example), false, `${ example } - false`);
+    assert.false(isView(example), `${ example } - false`);
   }
 });

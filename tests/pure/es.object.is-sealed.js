@@ -6,7 +6,7 @@ QUnit.test('Object.isSealed', assert => {
   const primitives = [42, 'string', false, null, undefined];
   for (const value of primitives) {
     assert.notThrows(() => isSealed(value) || true, `accept ${ value }`);
-    assert.same(isSealed(value), true, `returns true on ${ value }`);
+    assert.true(isSealed(value), `returns true on ${ value }`);
   }
-  assert.same(isSealed({}), false);
+  assert.false(isSealed({}));
 });

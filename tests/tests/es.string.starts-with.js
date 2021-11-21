@@ -9,18 +9,18 @@ QUnit.test('String#startsWith', assert => {
   assert.name(startsWith, 'startsWith');
   assert.looksNative(startsWith);
   assert.nonEnumerable(String.prototype, 'startsWith');
-  assert.ok('undefined'.startsWith());
-  assert.ok(!'undefined'.startsWith(null));
-  assert.ok('abc'.startsWith(''));
-  assert.ok('abc'.startsWith('a'));
-  assert.ok('abc'.startsWith('ab'));
-  assert.ok(!'abc'.startsWith('bc'));
-  assert.ok('abc'.startsWith('', NaN));
-  assert.ok('abc'.startsWith('a', -1));
-  assert.ok(!'abc'.startsWith('a', 1));
-  assert.ok(!'abc'.startsWith('a', Infinity));
-  assert.ok('abc'.startsWith('b', true));
-  assert.ok('abc'.startsWith('a', 'x'));
+  assert.true('undefined'.startsWith());
+  assert.false('undefined'.startsWith(null));
+  assert.true('abc'.startsWith(''));
+  assert.true('abc'.startsWith('a'));
+  assert.true('abc'.startsWith('ab'));
+  assert.false('abc'.startsWith('bc'));
+  assert.true('abc'.startsWith('', NaN));
+  assert.true('abc'.startsWith('a', -1));
+  assert.false('abc'.startsWith('a', 1));
+  assert.false('abc'.startsWith('a', Infinity));
+  assert.true('abc'.startsWith('b', true));
+  assert.true('abc'.startsWith('a', 'x'));
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => startsWith.call(Symbol(), 'b'), 'throws on symbol context');

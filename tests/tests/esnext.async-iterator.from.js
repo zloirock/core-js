@@ -9,9 +9,9 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.looksNative(from);
   assert.nonEnumerable(AsyncIterator, 'from');
 
-  assert.ok(AsyncIterator.from([].values()) instanceof AsyncIterator, 'proxy, iterator');
+  assert.true(AsyncIterator.from([].values()) instanceof AsyncIterator, 'proxy, iterator');
 
-  assert.ok(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
+  assert.true(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
 
   AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
     assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');

@@ -6,7 +6,7 @@ QUnit.test('WeakMap.of', assert => {
   assert.looksNative(of);
   assert.nonEnumerable(WeakMap, 'of');
   const array = [];
-  assert.ok(WeakMap.of() instanceof WeakMap);
+  assert.true(WeakMap.of() instanceof WeakMap);
   assert.same(WeakMap.of([array, 2]).get(array), 2);
   assert.throws(() => of(1));
   let arg = null;

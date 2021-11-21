@@ -11,7 +11,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.slice', assert => {
     assert.looksNative(slice, `${ name }::slice looks native`);
     const array = new TypedArray([1, 2, 3, 4, 5]);
     assert.notSame(array.slice(), array, 'returns new array');
-    assert.ok(array.slice() instanceof TypedArray, 'correct instance');
+    assert.true(array.slice() instanceof TypedArray, 'correct instance');
     assert.notSame(array.slice().buffer, array.buffer, 'with new buffer');
     assert.arrayEqual(array.slice(), array);
     assert.arrayEqual(array.slice(1, 3), [2, 3]);

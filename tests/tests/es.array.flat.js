@@ -29,5 +29,5 @@ QUnit.test('Array#flat', assert => {
       },
     })).length === 0, 'uses ToLength');
   }
-  assert.ok('flat' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('flat' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

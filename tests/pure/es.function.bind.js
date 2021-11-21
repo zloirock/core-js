@@ -12,15 +12,15 @@ QUnit.test('Function#bind', assert => {
     this.b = b;
   }
   const instance = new (bind(C, null, 1))(2);
-  assert.ok(instance instanceof C);
+  assert.true(instance instanceof C);
   assert.same(instance.a, 1);
   assert.same(instance.b, 2);
   assert.same(bind((it => it), null, 42)(), 42);
   const regExpTest = bind(RegExp.prototype.test, /a/);
-  assert.ok(regExpTest('a'));
+  assert.true(regExpTest('a'));
   const Date2017 = bind(Date, null, 2017);
   const date = new Date2017(11);
-  assert.ok(date instanceof Date);
+  assert.true(date instanceof Date);
   assert.same(date.getFullYear(), 2017);
   assert.same(date.getMonth(), 11);
 });

@@ -48,8 +48,8 @@ QUnit.test('Well-known Symbols', assert => {
     'unscopables',
   ];
   for (const name of wks) {
-    assert.ok(name in Symbol, `Symbol.${ name } available`);
-    assert.ok(Object(Symbol[name]) instanceof Symbol, `Symbol.${ name } is symbol`);
+    assert.true(name in Symbol, `Symbol.${ name } available`);
+    assert.true(Object(Symbol[name]) instanceof Symbol, `Symbol.${ name } is symbol`);
   }
 });
 

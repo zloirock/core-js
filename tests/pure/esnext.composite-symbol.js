@@ -6,7 +6,7 @@ QUnit.test('compositeSymbol', assert => {
   assert.isFunction(compositeSymbol);
   if (compositeSymbol.name) assert.name(compositeSymbol, 'compositeSymbol');
 
-  assert.ok(Object(compositeSymbol({})) instanceof Symbol);
+  assert.true(Object(compositeSymbol({})) instanceof Symbol);
 
   const a = ['a'];
   const b = ['b'];

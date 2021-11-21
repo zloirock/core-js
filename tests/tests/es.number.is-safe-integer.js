@@ -20,7 +20,7 @@ QUnit.test('Number.isSafeInteger', assert => {
     -9007199254740991,
   ];
   for (const value of safeIntegers) {
-    assert.ok(isSafeInteger(value), `isSafeInteger ${ typeof value } ${ value }`);
+    assert.true(isSafeInteger(value), `isSafeInteger ${ typeof value } ${ value }`);
   }
   const notSafeIntegers = [
     9007199254740992,
@@ -41,7 +41,7 @@ QUnit.test('Number.isSafeInteger', assert => {
     function () { /* empty */ },
   ];
   for (const value of notSafeIntegers) {
-    assert.ok(!isSafeInteger(value), `not isSafeInteger ${ typeof value } ${ value }`);
+    assert.false(isSafeInteger(value), `not isSafeInteger ${ typeof value } ${ value }`);
   }
-  assert.ok(!isSafeInteger(create(null)), 'Number.isSafeInteger(Object.create(null)) -> false');
+  assert.false(isSafeInteger(create(null)), 'Number.isSafeInteger(Object.create(null)) -> false');
 });

@@ -20,7 +20,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.filterOut', assert => {
       assert.same(this, context, 'correct callback context');
     }, context);
     const instance = new TypedArray([1, 2, 3, 4, 5, 6, 7, 8, 9]).filterOut(it => it % 2);
-    assert.ok(instance instanceof TypedArray, 'correct instance');
+    assert.true(instance instanceof TypedArray, 'correct instance');
     assert.arrayEqual(instance, [2, 4, 6, 8], 'works');
     let values = '';
     let keys = '';

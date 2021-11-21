@@ -3,7 +3,7 @@ QUnit.test('Promise#finally', assert => {
   assert.arity(Promise.prototype.finally, 1);
   assert.looksNative(Promise.prototype.finally);
   assert.nonEnumerable(Promise.prototype, 'finally');
-  assert.ok(Promise.resolve(42).finally(() => { /* empty */ }) instanceof Promise, 'returns a promise');
+  assert.true(Promise.resolve(42).finally(() => { /* empty */ }) instanceof Promise, 'returns a promise');
 });
 
 QUnit.test('Promise#finally, resolved', assert => {
@@ -49,7 +49,7 @@ if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patc
   assert.looksNative(promise.finally);
   assert.nonEnumerable(promise.constructor.prototype, 'finally');
   function empty() { /* empty */ }
-  assert.ok(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
-  assert.ok(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+  assert.true(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
+  assert.true(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
 });
 

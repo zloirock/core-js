@@ -50,7 +50,7 @@ QUnit.test('Array.fromAsync', assert => {
     assert.arrayEqual(it, ['1', '2', '3'], 'string');
     return fromAsync.call(C, [1]);
   }).then(it => {
-    assert.ok(it instanceof C, 'subclassable');
+    assert.true(it instanceof C, 'subclassable');
     return fromAsync({ length: 1, 0: 1 });
   }).then(it => {
     assert.arrayEqual(it, [1], 'non-iterable');
@@ -59,16 +59,16 @@ QUnit.test('Array.fromAsync', assert => {
     assert.same(error, 42, 'rejection on a callback error');
     return fromAsync(undefined, () => { /* empty */ });
   }).catch(error => {
-    assert.ok(error instanceof TypeError);
+    assert.true(error instanceof TypeError);
     return fromAsync(null, () => { /* empty */ });
   }).catch(error => {
-    assert.ok(error instanceof TypeError);
+    assert.true(error instanceof TypeError);
     return fromAsync([1], null);
   }).catch(error => {
-    assert.ok(error instanceof TypeError);
+    assert.true(error instanceof TypeError);
     return fromAsync([1], {});
   }).catch(error => {
-    assert.ok(error instanceof TypeError);
+    assert.true(error instanceof TypeError);
     async();
   });
 });

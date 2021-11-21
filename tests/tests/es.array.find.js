@@ -28,5 +28,5 @@ QUnit.test('Array#find', assert => {
   }, () => {
     throw new Error();
   }) === undefined, 'uses ToLength');
-  assert.ok('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

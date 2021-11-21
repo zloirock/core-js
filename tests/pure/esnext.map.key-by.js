@@ -10,7 +10,7 @@ QUnit.test('Map.keyBy', assert => {
   assert.arity(keyBy, 2);
   assert.name(keyBy, 'keyBy');
 
-  assert.ok(Map.keyBy([], it => it) instanceof Map);
+  assert.true(Map.keyBy([], it => it) instanceof Map);
 
   assert.deepEqual(toArray(Map.keyBy([], it => it)), []);
   assert.deepEqual(toArray(Map.keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);

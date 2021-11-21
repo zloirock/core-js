@@ -11,11 +11,11 @@ QUnit.test('Map#updateOrInsert', assert => {
     assert.same(value, 2, 'correct value in callback');
     return value ** 2;
   }, () => {
-    assert.ok(false, 'should not be called');
+    assert.avoid();
     return 3;
   }), 4, 'returns a correct value');
   assert.same(map.updateOrInsert('b', value => {
-    assert.ok(false, 'should not be called');
+    assert.avoid();
     return value ** 2;
   }, function () {
     assert.same(arguments.length, 0, 'correct number of callback arguments');

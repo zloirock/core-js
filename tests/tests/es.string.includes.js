@@ -9,10 +9,10 @@ QUnit.test('String#includes', assert => {
   assert.name(includes, 'includes');
   assert.looksNative(includes);
   assert.nonEnumerable(String.prototype, 'includes');
-  assert.ok(!'abc'.includes());
-  assert.ok('aundefinedb'.includes());
-  assert.ok('abcd'.includes('b', 1));
-  assert.ok(!'abcd'.includes('b', 2));
+  assert.false('abc'.includes());
+  assert.true('aundefinedb'.includes());
+  assert.true('abcd'.includes('b', 1));
+  assert.false('abcd'.includes('b', 2));
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => includes.call(Symbol(), 'b'), 'throws on symbol context');

@@ -17,7 +17,7 @@ QUnit.test('Reflect.construct', assert => {
     this.x = 42;
   }, [], Array);
   assert.same(instance.x, 42, 'constructor with newTarget');
-  assert.ok(instance instanceof Array, 'prototype with newTarget');
+  assert.true(instance instanceof Array, 'prototype with newTarget');
   assert.throws(() => construct(42, []), TypeError, 'throws on primitive');
   function B() { /* empty */ }
   B.prototype = 42;

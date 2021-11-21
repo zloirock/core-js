@@ -13,7 +13,7 @@ QUnit.test('Object.freeze', assert => {
     assert.notThrows(() => freeze(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
     assert.same(freeze(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
-  if (NATIVE) assert.ok(isFrozen(freeze({})));
+  if (NATIVE) assert.true(isFrozen(freeze({})));
   const results = [];
   for (const key in freeze({})) results.push(key);
   assert.arrayEqual(results, []);

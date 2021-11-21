@@ -6,8 +6,8 @@ QUnit.test('WeakSet.of', assert => {
   assert.looksNative(of);
   assert.nonEnumerable(WeakSet, 'of');
   const array = [];
-  assert.ok(WeakSet.of() instanceof WeakSet);
-  assert.ok(WeakSet.of(array).has(array));
+  assert.true(WeakSet.of() instanceof WeakSet);
+  assert.true(WeakSet.of(array).has(array));
   assert.throws(() => of(1));
   let arg = null;
   function F(it) {

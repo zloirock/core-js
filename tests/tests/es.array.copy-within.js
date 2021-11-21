@@ -25,5 +25,5 @@ QUnit.test('Array#copyWithin', assert => {
     assert.throws(() => copyWithin.call(null, 0), TypeError);
     assert.throws(() => copyWithin.call(undefined, 0), TypeError);
   }
-  assert.ok('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

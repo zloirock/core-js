@@ -18,7 +18,7 @@ QUnit.test('Number.isInteger', assert => {
     -0,
   ];
   for (const value of integers) {
-    assert.ok(isInteger(value), `isInteger ${ typeof value } ${ value }`);
+    assert.true(isInteger(value), `isInteger ${ typeof value } ${ value }`);
   }
   const notIntegers = [
     NaN,
@@ -37,7 +37,7 @@ QUnit.test('Number.isInteger', assert => {
     function () { /* empty */ },
   ];
   for (const value of notIntegers) {
-    assert.ok(!isInteger(value), `not isInteger ${ typeof value } ${ value }`);
+    assert.false(isInteger(value), `not isInteger ${ typeof value } ${ value }`);
   }
-  assert.ok(!isInteger(create(null)), 'Number.isInteger(Object.create(null)) -> false');
+  assert.false(isInteger(create(null)), 'Number.isInteger(Object.create(null)) -> false');
 });

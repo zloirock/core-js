@@ -18,7 +18,7 @@ QUnit.test('Set#filter', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
 
-  assert.ok(new Set().filter(it => it) instanceof Set);
+  assert.true(new Set().filter(it => it) instanceof Set);
 
   assert.deepEqual(from(new Set([1, 2, 3, 'q', {}, 4, true, 5]).filter(it => typeof it == 'number')), [1, 2, 3, 4, 5]);
 

@@ -148,7 +148,7 @@ const run = assert => {
         throw new Error('intointeger');
       },
     });
-    assert.ok(false, 'S15.5.4.14_A1_T11 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.14_A1_T11 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'intointeger', 'S15.5.4.14_A1_T11 #2');
   }
@@ -166,7 +166,7 @@ const run = assert => {
           throw new Error('intointeger');
         },
       });
-      assert.ok(false, 'S15.5.4.14_A1_T12 #1 lead to throwing exception');
+      assert.avoid('S15.5.4.14_A1_T12 #1 lead to throwing exception');
     } catch (error) {
       assert.same(error.message, 'intointeger', 'S15.5.4.14_A1_T12 #2');
     }
@@ -201,7 +201,7 @@ const run = assert => {
           throw new Error('intoint');
         },
       });
-      assert.ok(false, 'S15.5.4.14_A1_T14 #1 lead to throwing exception');
+      assert.avoid('S15.5.4.14_A1_T14 #1 lead to throwing exception');
     } catch (error) {
       assert.same(error.message, 'intoint', 'S15.5.4.14_A1_T14 #2');
     }
@@ -230,7 +230,7 @@ const run = assert => {
           throw new Error('intoint');
         },
       });
-      assert.ok(false, 'S15.5.4.14_A1_T15 #1 lead to throwing exception');
+      assert.avoid('S15.5.4.14_A1_T15 #1 lead to throwing exception');
     } catch (error) {
       assert.same(error.message, 'intoint', 'S15.5.4.14_A1_T15 #2');
     }
@@ -241,9 +241,9 @@ const run = assert => {
         return /77/g;
       },
     });
-    assert.ok(false, 'S15.5.4.14_A1_T16 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.14_A1_T16 #1 lead to throwing exception');
   } catch (error) {
-    assert.ok(error instanceof TypeError, 'S15.5.4.14_A1_T16 #2');
+    assert.true(error instanceof TypeError, 'S15.5.4.14_A1_T16 #2');
   }
   split = String.prototype.split.call(6776767677.006771122677555, /77/g);
   assert.same(typeof split, 'object', 'S15.5.4.14_A1_T17 #1');
@@ -752,9 +752,9 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
     },
   };
   assert.deepEqual(re[Symbol.split]('123451234'), ['1', '3', '51', '3', '']);
-  assert.ok(!execCalled);
-  assert.ok(speciesCalled);
-  assert.ok(execSpeciesCalled);
+  assert.false(execCalled);
+  assert.true(speciesCalled);
+  assert.true(execSpeciesCalled);
 
   re.constructor = {
     // eslint-disable-next-line object-shorthand -- constructor

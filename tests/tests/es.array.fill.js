@@ -28,5 +28,5 @@ QUnit.test('Array#fill', assert => {
       },
     })), 'uses ToLength');
   }
-  assert.ok('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('fill' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

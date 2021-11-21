@@ -41,7 +41,7 @@ const run = assert => {
   string = 'ABB\u0041BABAB';
   try {
     string.match(object);
-    assert.ok(false, 'S15.5.4.10_A1_T11 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.10_A1_T11 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'intostr', `S15.5.4.10_A1_T11 #1.1: Exception === "intostr". Actual: ${ error }`);
   }
@@ -56,7 +56,7 @@ const run = assert => {
   string = 'ABB\u0041BABAB';
   try {
     string.match(object);
-    assert.ok(false, 'S15.5.4.10_A1_T12 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.10_A1_T12 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'intostr', `S15.5.4.10_A1_T12 #1.1: Exception === "intostr". Actual: ${ error }`);
   }
@@ -237,7 +237,7 @@ QUnit.test('RegExp#@@match delegates to exec', assert => {
   let re = /[ac]/;
   re.exec = exec;
   assert.deepEqual(re[Symbol.match]('abc'), ['a']);
-  assert.ok(execCalled);
+  assert.true(execCalled);
 
   re = /a/;
   // Not a function, should be ignored

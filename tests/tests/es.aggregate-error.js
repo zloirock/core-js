@@ -3,10 +3,10 @@ QUnit.test('AggregateError', assert => {
   assert.arity(AggregateError, 2);
   assert.name(AggregateError, 'AggregateError');
   assert.looksNative(AggregateError);
-  assert.ok(new AggregateError([1]) instanceof AggregateError);
-  assert.ok(new AggregateError([1]) instanceof Error);
-  assert.ok(AggregateError([1]) instanceof AggregateError);
-  assert.ok(AggregateError([1]) instanceof Error);
+  assert.true(new AggregateError([1]) instanceof AggregateError);
+  assert.true(new AggregateError([1]) instanceof Error);
+  assert.true(AggregateError([1]) instanceof AggregateError);
+  assert.true(AggregateError([1]) instanceof Error);
   assert.same(AggregateError([1], 'foo').message, 'foo');
   assert.same(AggregateError([1], 123).message, '123');
   assert.same(AggregateError([1]).message, '');

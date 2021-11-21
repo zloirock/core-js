@@ -8,7 +8,7 @@ QUnit.test('Object.fromEntries', assert => {
   assert.looksNative(fromEntries);
   assert.nonEnumerable(Object, 'fromEntries');
 
-  assert.ok(fromEntries([]) instanceof Object);
+  assert.true(fromEntries([]) instanceof Object);
   assert.same(fromEntries([['foo', 1]]).foo, 1);
   assert.same(fromEntries(createIterable([['bar', 2]])).bar, 2);
 

@@ -5,7 +5,7 @@ function getCheck(assert) {
   return function (a, b) {
     assert.same(Number(a), b, `Number ${ typeof a } ${ a } -> ${ b }`);
     const x = new Number(a);
-    assert.ok(x === Object(x), `new Number ${ typeof a } ${ a } is object`);
+    assert.same(x, Object(x), `new Number ${ typeof a } ${ a } is object`);
     assert.same({}.toString.call(x).slice(8, -1), 'Number', `classof new Number ${ typeof a } ${ a } is Number`);
     assert.same(x.valueOf(), b, `new Number(${ typeof a } ${ a }).valueOf() -> ${ b }`);
   };
@@ -21,7 +21,7 @@ QUnit.test('Number constructor: regression', assert => {
   assert.same(1.0.constructor, Number);
   const constants = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY'];
   for (const constant of constants) {
-    assert.ok(constant in Number, `Number.${ constant }`);
+    assert.true(constant in Number, `Number.${ constant }`);
     assert.nonEnumerable(Number, constant);
   }
   assert.same(Number(), 0);
@@ -178,8 +178,8 @@ QUnit.test('Number constructor: regression', assert => {
   check(`${ whitespaces }0X42${ whitespaces }`, 66);
   if (nativeSubclass) {
     const Subclass = nativeSubclass(Number);
-    assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
-    assert.ok(new Subclass() instanceof Number, 'correct subclassing with native classes #2');
+    assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
+    assert.true(new Subclass() instanceof Number, 'correct subclassing with native classes #2');
     assert.same(new Subclass(1).toFixed(2), '1.00', 'correct subclassing with native classes #3');
   }
 });

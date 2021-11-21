@@ -40,13 +40,13 @@ if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   assert.deepEqual(iterator.start, BigInt(-1));
   assert.deepEqual(iterator.end, BigInt(-3));
   assert.same(iterator.step, BigInt(-1));
-  assert.same(iterator.inclusive, true);
+  assert.true(iterator.inclusive);
 
   iterator = range(BigInt(-1), BigInt(-3), { step: BigInt(4), inclusive() { /* empty */ } });
   assert.same(iterator.start, BigInt(-1));
   assert.same(iterator.end, BigInt(-3));
   assert.same(iterator.step, BigInt(4));
-  assert.same(iterator.inclusive, true);
+  assert.true(iterator.inclusive);
 
   iterator = range(BigInt(0), BigInt(5));
   assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').call({}), TypeError);

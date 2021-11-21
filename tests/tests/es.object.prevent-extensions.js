@@ -13,7 +13,7 @@ QUnit.test('Object.preventExtensions', assert => {
     assert.notThrows(() => preventExtensions(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);
     assert.same(preventExtensions(value), value, `returns target on ${ {}.toString.call(value).slice(8, -1) }`);
   }
-  if (NATIVE) assert.ok(!isExtensible(preventExtensions({})));
+  if (NATIVE) assert.false(isExtensible(preventExtensions({})));
   const results = [];
   for (const key in preventExtensions({})) results.push(key);
   assert.arrayEqual(results, []);

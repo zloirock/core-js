@@ -16,16 +16,16 @@ QUnit.test('WeakSet#addAll', assert => {
   assert.same(set.addAll(b), set);
 
   set = new WeakSet([a]).addAll(b, c);
-  assert.ok(set.has(a));
-  assert.ok(set.has(b));
-  assert.ok(set.has(c));
+  assert.true(set.has(a));
+  assert.true(set.has(b));
+  assert.true(set.has(c));
 
   set = new WeakSet([a]).addAll(a, b);
-  assert.ok(set.has(a));
-  assert.ok(set.has(b));
+  assert.true(set.has(a));
+  assert.true(set.has(b));
 
   set = new WeakSet([a]).addAll();
-  assert.ok(set.has(a));
+  assert.true(set.has(a));
 
   assert.notThrows(() => addAll.call({ add() { /* empty */ } }, a, b, c));
   assert.throws(() => addAll.call({}, a, b, c), TypeError);

@@ -4,7 +4,7 @@ QUnit.test('compositeSymbol', assert => {
   assert.name(compositeSymbol, 'compositeSymbol');
   assert.looksNative(compositeSymbol);
 
-  assert.ok(Object(compositeSymbol({})) instanceof Symbol);
+  assert.true(Object(compositeSymbol({})) instanceof Symbol);
 
   const a = ['a'];
   const b = ['b'];

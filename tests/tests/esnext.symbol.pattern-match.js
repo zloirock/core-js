@@ -1,13 +1,13 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
 QUnit.test('Symbol.patternMatch', assert => {
-  assert.ok('patternMatch' in Symbol, 'Symbol.patternMatch available');
+  assert.true('patternMatch' in Symbol, 'Symbol.patternMatch available');
   assert.nonEnumerable(Symbol, 'patternMatch');
-  assert.ok(Object(Symbol.patternMatch) instanceof Symbol, 'Symbol.patternMatch is symbol');
+  assert.true(Object(Symbol.patternMatch) instanceof Symbol, 'Symbol.patternMatch is symbol');
   if (DESCRIPTORS) {
     const descriptor = Object.getOwnPropertyDescriptor(Symbol, 'patternMatch');
-    assert.ok(!descriptor.enumerble, 'non-enumerable');
-    assert.ok(!descriptor.writable, 'non-writable');
-    assert.ok(!descriptor.configurable, 'non-configurable');
+    assert.false(descriptor.enumerable, 'non-enumerable');
+    assert.false(descriptor.writable, 'non-writable');
+    assert.false(descriptor.configurable, 'non-configurable');
   }
 });

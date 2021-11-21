@@ -82,14 +82,14 @@ QUnit.test('Promise#then', assert => {
   const FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(promise.then(() => { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
+  assert.true(promise.then(() => { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
   promise = new Promise(resolve => {
     resolve(42);
   });
   promise.constructor = FakePromise1 = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(promise.then(() => { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
+  assert.true(promise.then(() => { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
   promise = new Promise(resolve => {
     resolve(42);
   });
@@ -129,14 +129,14 @@ QUnit.test('Promise#catch', assert => {
   const FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(promise.catch(() => { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
+  assert.true(promise.catch(() => { /* empty */ }) instanceof FakePromise2, 'subclassing, @@species pattern');
   promise = new Promise(resolve => {
     resolve(42);
   });
   promise.constructor = FakePromise1 = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(promise.catch(() => { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
+  assert.true(promise.catch(() => { /* empty */ }) instanceof Promise, 'subclassing, incorrect `this` pattern');
   promise = new Promise(resolve => {
     resolve(42);
   });
@@ -181,8 +181,8 @@ QUnit.test('Promise.all', assert => {
   assert.nonEnumerable(Promise, 'all');
   const iterable = createIterable([1, 2, 3]);
   Promise.all(iterable).catch(() => { /* empty */ });
-  assert.ok(iterable.received, 'works with iterables: iterator received');
-  assert.ok(iterable.called, 'works with iterables: next called');
+  assert.true(iterable.received, 'works with iterables: iterator received');
+  assert.true(iterable.called, 'works with iterables: next called');
   const array = [];
   let done = false;
   array['@@iterator'] = undefined;
@@ -191,7 +191,7 @@ QUnit.test('Promise.all', assert => {
     return [][Symbol.iterator].call(this);
   };
   Promise.all(array);
-  assert.ok(done);
+  assert.true(done);
   assert.throws(() => {
     all.call(null, []).catch(() => { /* empty */ });
   }, TypeError, 'throws without context');
@@ -207,7 +207,7 @@ QUnit.test('Promise.all', assert => {
     })).catch(() => { /* empty */ });
   } catch (error) { /* empty */ }
   Promise.resolve = resolve;
-  assert.ok(done, 'iteration closing');
+  assert.true(done, 'iteration closing');
   FakePromise1 = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
@@ -215,7 +215,7 @@ QUnit.test('Promise.all', assert => {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
   FakePromise1.resolve = FakePromise2.resolve = resolve.bind(Promise);
-  assert.ok(all.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+  assert.true(all.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
     executor(null, () => { /* empty */ });
@@ -245,8 +245,8 @@ QUnit.test('Promise.race', assert => {
   assert.nonEnumerable(Promise, 'race');
   const iterable = createIterable([1, 2, 3]);
   Promise.race(iterable).catch(() => { /* empty */ });
-  assert.ok(iterable.received, 'works with iterables: iterator received');
-  assert.ok(iterable.called, 'works with iterables: next called');
+  assert.true(iterable.received, 'works with iterables: iterator received');
+  assert.true(iterable.called, 'works with iterables: next called');
   const array = [];
   let done = false;
   array['@@iterator'] = undefined;
@@ -255,7 +255,7 @@ QUnit.test('Promise.race', assert => {
     return [][Symbol.iterator].call(this);
   };
   Promise.race(array);
-  assert.ok(done);
+  assert.true(done);
   assert.throws(() => {
     race.call(null, []).catch(() => { /* empty */ });
   }, TypeError, 'throws without context');
@@ -271,7 +271,7 @@ QUnit.test('Promise.race', assert => {
     })).catch(() => { /* empty */ });
   } catch (error) { /* empty */ }
   Promise.resolve = resolve;
-  assert.ok(done, 'iteration closing');
+  assert.true(done, 'iteration closing');
   FakePromise1 = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
@@ -279,7 +279,7 @@ QUnit.test('Promise.race', assert => {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
   FakePromise1.resolve = FakePromise2.resolve = resolve.bind(Promise);
-  assert.ok(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
+  assert.true(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
     executor(null, () => { /* empty */ });
@@ -315,7 +315,7 @@ QUnit.test('Promise.resolve', assert => {
   FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
+  assert.true(resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
   assert.throws(() => {
     resolve.call(() => { /* empty */ }, 42);
   }, 'NewPromiseCapability validations, #1');
@@ -347,7 +347,7 @@ QUnit.test('Promise.reject', assert => {
   FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.ok(reject.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
+  assert.true(reject.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
   assert.throws(() => {
     reject.call(() => { /* empty */ }, 42);
   }, 'NewPromiseCapability validations, #1');
@@ -389,10 +389,10 @@ if (PROTO) QUnit.test('Promise subclassing', assert => {
   assert.same(promise2.mine, 'subclass');
   const promise3 = SubPromise.all([promise1, promise2]);
   assert.same(promise3.mine, 'subclass');
-  assert.ok(promise3 instanceof Promise);
-  assert.ok(promise3 instanceof SubPromise);
+  assert.true(promise3 instanceof Promise);
+  assert.true(promise3 instanceof SubPromise);
   promise3.then(assert.async(), error => {
-    assert.ok(false, error);
+    assert.avoid(error);
   });
 });
 
@@ -474,10 +474,10 @@ if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patc
   assert.looksNative(promise.then);
   assert.nonEnumerable(promise.constructor.prototype, 'then');
   function empty() { /* empty */ }
-  assert.ok(promise.then(empty) instanceof Promise, '`.then` returns `Promise` instance #1');
-  assert.ok(new promise.constructor(empty).then(empty) instanceof Promise, '`.then` returns `Promise` instance #2');
-  assert.ok(promise.catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #1');
-  assert.ok(new promise.constructor(empty).catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #2');
-  assert.ok(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
-  assert.ok(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
+  assert.true(promise.then(empty) instanceof Promise, '`.then` returns `Promise` instance #1');
+  assert.true(new promise.constructor(empty).then(empty) instanceof Promise, '`.then` returns `Promise` instance #2');
+  assert.true(promise.catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #1');
+  assert.true(new promise.constructor(empty).catch(empty) instanceof Promise, '`.catch` returns `Promise` instance #2');
+  assert.true(promise.finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #1');
+  assert.true(new promise.constructor(empty).finally(empty) instanceof Promise, '`.finally` returns `Promise` instance #2');
 });

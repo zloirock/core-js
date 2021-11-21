@@ -3,7 +3,7 @@ QUnit.test('Promise.try', assert => {
   assert.arity(Promise.try, 1);
   assert.looksNative(Promise.try);
   assert.nonEnumerable(Promise, 'try');
-  assert.ok(Promise.try(() => 42) instanceof Promise, 'returns a promise');
+  assert.true(Promise.try(() => 42) instanceof Promise, 'returns a promise');
 });
 
 QUnit.test('Promise.try, resolved', assert => {
@@ -21,7 +21,7 @@ QUnit.test('Promise.try, rejected', assert => {
   Promise.try(() => {
     throw new Error();
   }).catch(() => {
-    assert.ok(true, 'rejected as expected');
+    assert.required('rejected as expected');
     async();
   });
 });

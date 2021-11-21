@@ -10,11 +10,11 @@ QUnit.test('WeakMap', assert => {
   assert.name(WeakMap, 'WeakMap');
   assert.arity(WeakMap, 0);
   assert.looksNative(WeakMap);
-  assert.ok('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
-  assert.ok('get' in WeakMap.prototype, 'get in WeakMap.prototype');
-  assert.ok('has' in WeakMap.prototype, 'has in WeakMap.prototype');
-  assert.ok('set' in WeakMap.prototype, 'set in WeakMap.prototype');
-  assert.ok(new WeakMap() instanceof WeakMap, 'new WeakMap instanceof WeakMap');
+  assert.true('delete' in WeakMap.prototype, 'delete in WeakMap.prototype');
+  assert.true('get' in WeakMap.prototype, 'get in WeakMap.prototype');
+  assert.true('has' in WeakMap.prototype, 'has in WeakMap.prototype');
+  assert.true('set' in WeakMap.prototype, 'set in WeakMap.prototype');
+  assert.true(new WeakMap() instanceof WeakMap, 'new WeakMap instanceof WeakMap');
   let object = {};
   assert.same(new WeakMap(createIterable([[object, 42]])).get(object), 42, 'Init from iterable');
   let weakmap = new WeakMap();
@@ -36,8 +36,8 @@ QUnit.test('WeakMap', assert => {
       },
     }));
   } catch { /* empty */ }
-  assert.ok(done, '.return #throw');
-  assert.ok(!('clear' in WeakMap.prototype), 'should not contains `.clear` method');
+  assert.true(done, '.return #throw');
+  assert.false(('clear' in WeakMap.prototype), 'should not contains `.clear` method');
   const array = [];
   done = false;
   array['@@iterator'] = undefined;
@@ -46,7 +46,7 @@ QUnit.test('WeakMap', assert => {
     return [][Symbol.iterator].call(this);
   };
   new WeakMap(array);
-  assert.ok(done);
+  assert.true(done);
   object = {};
   new WeakMap().set(object, 1);
   if (DESCRIPTORS) {
@@ -60,15 +60,15 @@ QUnit.test('WeakMap', assert => {
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
   if (nativeSubclass) {
     const Subclass = nativeSubclass(WeakMap);
-    assert.ok(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
-    assert.ok(new Subclass() instanceof WeakMap, 'correct subclassing with native classes #2');
+    assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
+    assert.true(new Subclass() instanceof WeakMap, 'correct subclassing with native classes #2');
     object = {};
     assert.same(new Subclass().set(object, 2).get(object), 2, 'correct subclassing with native classes #3');
   }
 
   const buffer = new ArrayBuffer(8);
   const map = new WeakMap([[buffer, 8]]);
-  assert.ok(map.has(buffer), 'works with ArrayBuffer keys');
+  assert.true(map.has(buffer), 'works with ArrayBuffer keys');
 });
 
 QUnit.test('WeakMap#delete', assert => {
@@ -82,18 +82,18 @@ QUnit.test('WeakMap#delete', assert => {
   const weakmap = new WeakMap();
   weakmap.set(a, 42);
   weakmap.set(b, 21);
-  assert.ok(weakmap.has(a), 'WeakMap has values before .delete() #1');
-  assert.ok(weakmap.has(b), 'WeakMap has values before .delete() #2');
+  assert.true(weakmap.has(a), 'WeakMap has values before .delete() #1');
+  assert.true(weakmap.has(b), 'WeakMap has values before .delete() #2');
   weakmap.delete(a);
-  assert.ok(!weakmap.has(a), 'WeakMap hasn`t value after .delete() #1');
-  assert.ok(weakmap.has(b), 'WeakMap hasn`t value after .delete() #2');
+  assert.false(weakmap.has(a), 'WeakMap hasn`t value after .delete() #1');
+  assert.true(weakmap.has(b), 'WeakMap hasn`t value after .delete() #2');
   assert.notThrows(() => !weakmap.delete(1), 'return false on primitive');
   const object = {};
   weakmap.set(object, 42);
   freeze(object);
-  assert.ok(weakmap.has(object), 'works with frozen objects #1');
+  assert.true(weakmap.has(object), 'works with frozen objects #1');
   weakmap.delete(object);
-  assert.ok(!weakmap.has(object), 'works with frozen objects #2');
+  assert.false(weakmap.has(object), 'works with frozen objects #2');
 });
 
 QUnit.test('WeakMap#get', assert => {
@@ -125,19 +125,19 @@ QUnit.test('WeakMap#has', assert => {
   assert.looksNative(WeakMap.prototype.has);
   assert.nonEnumerable(WeakMap.prototype, 'has');
   const weakmap = new WeakMap();
-  assert.ok(!weakmap.has({}), 'WeakMap .has() before .set() return false');
+  assert.false(weakmap.has({}), 'WeakMap .has() before .set() return false');
   let object = {};
   weakmap.set(object, 42);
-  assert.ok(weakmap.has(object), 'WeakMap .has() return true');
+  assert.true(weakmap.has(object), 'WeakMap .has() return true');
   weakmap.delete(object);
-  assert.ok(!weakmap.has(object), 'WeakMap .has() after .delete() return false');
+  assert.false(weakmap.has(object), 'WeakMap .has() after .delete() return false');
   assert.notThrows(() => !weakmap.has(1), 'return false on primitive');
   object = {};
   weakmap.set(object, 42);
   freeze(object);
-  assert.ok(weakmap.has(object), 'works with frozen objects #1');
+  assert.true(weakmap.has(object), 'works with frozen objects #1');
   weakmap.delete(object);
-  assert.ok(!weakmap.has(object), 'works with frozen objects #2');
+  assert.false(weakmap.has(object), 'works with frozen objects #2');
 });
 
 QUnit.test('WeakMap#set', assert => {

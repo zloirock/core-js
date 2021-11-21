@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
 
     if (name.indexOf('Float') === 0) {
       assert.deepEqual(new TypedArray([1, -1, 3, NaN, 2, 0, 11, -0]).sort(), new TypedArray([-1, -0, 0, 1, 2, 3, 11, NaN]), '#1');
-      assert.ok(1 / new TypedArray([0, -0]).sort()[0] < 0, '-0');
+      assert.true(1 / new TypedArray([0, -0]).sort()[0] < 0, '-0');
       assert.deepEqual(new TypedArray([NaN, 1, NaN]).sort(), new TypedArray([1, NaN, NaN]), 'NaN');
     }
 

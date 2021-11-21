@@ -10,19 +10,19 @@ QUnit.test('Set#deleteAll', assert => {
   assert.nonEnumerable(Set.prototype, 'deleteAll');
 
   let set = new Set([1, 2, 3]);
-  assert.same(set.deleteAll(1, 2), true);
+  assert.true(set.deleteAll(1, 2));
   assert.deepEqual(from(set), [3]);
 
   set = new Set([1, 2, 3]);
-  assert.same(set.deleteAll(3, 4), false);
+  assert.false(set.deleteAll(3, 4));
   assert.deepEqual(from(set), [1, 2]);
 
   set = new Set([1, 2, 3]);
-  assert.same(set.deleteAll(4, 5), false);
+  assert.false(set.deleteAll(4, 5));
   assert.deepEqual(from(set), [1, 2, 3]);
 
   set = new Set([1, 2, 3]);
-  assert.same(set.deleteAll(), true);
+  assert.true(set.deleteAll());
   assert.deepEqual(from(set), [1, 2, 3]);
 
   assert.notThrows(() => !deleteAll.call({ delete() { /* empty */ } }, 1, 2, 3));

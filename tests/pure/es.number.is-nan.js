@@ -3,7 +3,7 @@ import create from 'core-js-pure/features/object/create';
 
 QUnit.test('Number.isNaN', assert => {
   assert.isFunction(isNaN);
-  assert.ok(isNaN(NaN), 'Number.isNaN NaN');
+  assert.true(isNaN(NaN), 'Number.isNaN NaN');
   const notNaNs = [
     1,
     0.1,
@@ -29,7 +29,7 @@ QUnit.test('Number.isNaN', assert => {
     function () { /* empty */ },
   ];
   for (const value of notNaNs) {
-    assert.ok(!isNaN(value), `not Number.isNaN ${ typeof value } ${ value }`);
+    assert.false(isNaN(value), `not Number.isNaN ${ typeof value } ${ value }`);
   }
-  assert.ok(!isNaN(create(null)), 'Number.isNaN(Object.create(null)) -> false');
+  assert.false(isNaN(create(null)), 'Number.isNaN(Object.create(null)) -> false');
 });

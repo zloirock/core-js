@@ -12,7 +12,7 @@ QUnit.test('compositeKey', assert => {
   assert.same(typeof key, 'object');
   assert.same({}.toString.call(key), '[object Object]');
   assert.same(getPrototypeOf(key), null);
-  if (FREEZING) assert.ok(isFrozen(key));
+  if (FREEZING) assert.true(isFrozen(key));
 
   const a = ['a'];
   const b = ['b'];

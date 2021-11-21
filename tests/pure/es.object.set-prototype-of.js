@@ -4,7 +4,7 @@ import setPrototypeOf from 'core-js-pure/features/object/set-prototype-of';
 
 if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   assert.isFunction(setPrototypeOf);
-  assert.ok('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
+  assert.true('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
   assert.same(setPrototypeOf({ a: 2 }, {
     b() {
       return this.a ** 2;
@@ -12,5 +12,5 @@ if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   }).b(), 4, 'Child and parent properties in target');
   const object = {};
   assert.same(setPrototypeOf(object, { a: 1 }), object, 'setPrototypeOf return target');
-  assert.ok(!('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
+  assert.false(('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
 });

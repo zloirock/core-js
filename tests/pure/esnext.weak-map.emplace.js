@@ -21,13 +21,13 @@ QUnit.test('WeakMap#emplace', assert => {
       return value ** 2;
     },
     insert() {
-      assert.ok(false, 'should not be called');
+      assert.avoid();
     },
   };
   assert.same(map.emplace(a, handler), 4, 'returns a correct value');
   handler = {
     update() {
-      assert.ok(false, 'should not be called');
+      assert.avoid();
     },
     insert(key, that) {
       assert.same(this, handler, 'correct handler in callback');

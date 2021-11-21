@@ -16,11 +16,11 @@ QUnit.test('Array#some', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok([1, '2', 3].some(value => typeof value == 'number'));
-  assert.ok([1, 2, 3].some(value => value < 3));
-  assert.ok(![1, 2, 3].some(value => value < 0));
-  assert.ok(![1, 2, 3].some(value => typeof value == 'string'));
-  assert.ok(![1, 2, 3].some(function () {
+  assert.true([1, '2', 3].some(value => typeof value == 'number'));
+  assert.true([1, 2, 3].some(value => value < 3));
+  assert.false([1, 2, 3].some(value => value < 0));
+  assert.false([1, 2, 3].some(value => typeof value == 'string'));
+  assert.false([1, 2, 3].some(function () {
     return +this !== 1;
   }, 1));
   let result = '';
@@ -30,7 +30,7 @@ QUnit.test('Array#some', assert => {
   });
   assert.same(result, '012');
   array = [1, 2, 3];
-  assert.ok(!array.some((value, key, that) => that !== array));
+  assert.false(array.some((value, key, that) => that !== array));
   if (STRICT) {
     assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
     assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);

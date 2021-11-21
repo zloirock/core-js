@@ -18,11 +18,11 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.some', assert => {
       assert.same(that, array, 'correct link to array in callback');
       assert.same(this, context, 'correct callback context');
     }, context);
-    assert.ok(new TypedArray([1, 2, 3]).some(it => typeof it == 'number'));
-    assert.ok(new TypedArray([1, 2, 3]).some(it => it < 3));
-    assert.ok(!new TypedArray([1, 2, 3]).some(it => it < 0));
-    assert.ok(!new TypedArray([1, 2, 3]).some(it => typeof it == 'string'));
-    assert.ok(new TypedArray([1, 2, 3]).some(function () {
+    assert.true(new TypedArray([1, 2, 3]).some(it => typeof it == 'number'));
+    assert.true(new TypedArray([1, 2, 3]).some(it => it < 3));
+    assert.false(new TypedArray([1, 2, 3]).some(it => it < 0));
+    assert.false(new TypedArray([1, 2, 3]).some(it => typeof it == 'string'));
+    assert.true(new TypedArray([1, 2, 3]).some(function () {
       return +this === 1;
     }, 1));
     let values = '';

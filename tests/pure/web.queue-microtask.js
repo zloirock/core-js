@@ -10,14 +10,14 @@ QUnit.test('queueMicrotask', assert => {
   queueMicrotask(() => {
     if (!done) {
       done = true;
-      assert.ok(after, 'works');
+      assert.true(after, 'works');
       async();
     }
   });
   setTimeout(() => {
     if (!done) {
       done = true;
-      assert.ok(false, 'fails');
+      assert.avoid();
       async();
     }
   }, 3e3);

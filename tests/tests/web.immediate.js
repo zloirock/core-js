@@ -13,9 +13,9 @@ QUnit.test('setImmediate / clearImmediate', assert => {
       resolve();
     });
   }).then(() => {
-    assert.ok(true, 'setImmediate works');
+    assert.required('setImmediate works');
   }).catch(() => {
-    assert.ok(false, 'setImmediate works');
+    assert.avoid('setImmediate works');
   }).then(assert.async());
   assert.false(called, 'setImmediate is async');
   timeLimitedPromise(1e3, resolve => {
@@ -25,13 +25,13 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   }).then(it => {
     assert.same(it, 'ab', 'setImmediate works with additional args');
   }).catch(() => {
-    assert.ok(false, 'setImmediate works with additional args');
+    assert.avoid('setImmediate works with additional args');
   }).then(assert.async());
   timeLimitedPromise(50, resolve => {
     clearImmediate(setImmediate(resolve));
   }).then(() => {
-    assert.ok(false, 'clearImmediate works');
+    assert.avoid('clearImmediate works');
   }).catch(() => {
-    assert.ok(true, 'clearImmediate works');
+    assert.required('clearImmediate works');
   }).then(assert.async());
 });

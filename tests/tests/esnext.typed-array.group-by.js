@@ -22,7 +22,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.groupBy', assert => {
     }, context);
 
     assert.same(getPrototypeOf(new TypedArray([1]).groupBy(it => it)), null, 'null proto');
-    assert.ok(new TypedArray([1]).groupBy(it => it)[1] instanceof TypedArray, 'instance');
+    assert.true(new TypedArray([1]).groupBy(it => it)[1] instanceof TypedArray, 'instance');
     assert.deepEqual(
       new TypedArray([1, 2, 3]).groupBy(it => it % 2),
       { 1: new TypedArray([1, 3]), 0: new TypedArray([2]) },

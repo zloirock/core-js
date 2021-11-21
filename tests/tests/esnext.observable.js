@@ -21,7 +21,7 @@ QUnit.test('Observable', assert => {
     }
   });
   observable.subscribe({});
-  assert.ok(observable instanceof Observable);
+  assert.true(observable instanceof Observable);
 });
 
 QUnit.test('Observable#subscribe', assert => {

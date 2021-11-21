@@ -6,10 +6,10 @@ QUnit.test('WeakSet.from', assert => {
   const { from } = WeakSet;
   assert.isFunction(from);
   assert.arity(from, 1);
-  assert.ok(WeakSet.from() instanceof WeakSet);
+  assert.true(WeakSet.from() instanceof WeakSet);
   const array = [];
-  assert.ok(WeakSet.from([array]).has(array));
-  assert.ok(WeakSet.from(createIterable([array])).has(array));
+  assert.true(WeakSet.from([array]).has(array));
+  assert.true(WeakSet.from(createIterable([array])).has(array));
   const object = {};
   const context = {};
   WeakSet.from([object], function (element, index) {

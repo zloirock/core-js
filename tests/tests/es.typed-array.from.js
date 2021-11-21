@@ -10,7 +10,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
     assert.name(TypedArray.from, 'from', `${ name }.from name is 'from'`);
     assert.looksNative(TypedArray.from, `${ name }.from looks native`);
     let instance = TypedArray.from([1, 2, 3]);
-    assert.ok(instance instanceof TypedArray, 'correct instance with array');
+    assert.true(instance instanceof TypedArray, 'correct instance with array');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with array');
     instance = TypedArray.from({
       0: 1,
@@ -18,10 +18,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
       2: 3,
       length: 3,
     });
-    assert.ok(instance instanceof TypedArray, 'correct instance with array-like');
+    assert.true(instance instanceof TypedArray, 'correct instance with array-like');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with array-like');
     instance = TypedArray.from(createIterable([1, 2, 3]));
-    assert.ok(instance instanceof TypedArray, 'correct instance with iterable');
+    assert.true(instance instanceof TypedArray, 'correct instance with iterable');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with iterable');
     assert.arrayEqual(TypedArray.from([1, 2, 3], it => it * it), [1, 4, 9], 'accept callback');
     const context = {};

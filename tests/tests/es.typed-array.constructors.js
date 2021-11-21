@@ -245,8 +245,8 @@ if (DESCRIPTORS) {
     });
 
     QUnit.test(`${ name }.sham`, assert => {
-      if (TypedArray.sham) assert.ok(true, `${ name }.sham flag exists`);
-      else assert.ok(true, `${ name }.sham flag missed`);
+      if (TypedArray.sham) assert.required(`${ name }.sham flag exists`);
+      else assert.required(`${ name }.sham flag missed`);
     });
   }
 }

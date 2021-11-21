@@ -15,14 +15,14 @@ QUnit.test('AsyncIterator', assert => {
   if (asyncGenerator && globalThis.USE_FUNCTION_CONSTRUCTOR) {
     const proto = getPrototypeOf(getPrototypeOf(getPrototypeOf(asyncGenerator)));
     if (proto !== Object.prototype && proto !== null) {
-      assert.ok(asyncGenerator instanceof AsyncIterator, 'AsyncGenerator');
+      assert.true(asyncGenerator instanceof AsyncIterator, 'AsyncGenerator');
     }
   }
 
-  assert.ok(AsyncIterator.from([1, 2, 3]) instanceof AsyncIterator, 'Async From Proxy');
-  assert.ok(AsyncIterator.from([1, 2, 3]).drop(1) instanceof AsyncIterator, 'Async Drop Proxy');
+  assert.true(AsyncIterator.from([1, 2, 3]) instanceof AsyncIterator, 'Async From Proxy');
+  assert.true(AsyncIterator.from([1, 2, 3]).drop(1) instanceof AsyncIterator, 'Async Drop Proxy');
 
-  assert.ok(new AsyncIterator() instanceof AsyncIterator, 'constructor');
+  assert.true(new AsyncIterator() instanceof AsyncIterator, 'constructor');
   assert.throws(() => AsyncIterator(), 'throws w/o `new`');
 });
 

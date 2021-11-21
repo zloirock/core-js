@@ -9,13 +9,13 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.of', assert => {
     assert.name(TypedArray.of, 'of', `${ name }.of name is 'of'`);
     assert.looksNative(TypedArray.of, `${ name }.of looks native`);
     let instance = TypedArray.of();
-    assert.ok(instance instanceof TypedArray, 'correct instance with 0 arguments');
+    assert.true(instance instanceof TypedArray, 'correct instance with 0 arguments');
     assert.arrayEqual(instance, [], 'correct elements with 0 arguments');
     instance = TypedArray.of(1);
-    assert.ok(instance instanceof TypedArray, 'correct instance with 1 argument');
+    assert.true(instance instanceof TypedArray, 'correct instance with 1 argument');
     assert.arrayEqual(instance, [1], 'correct elements with 1 argument');
     instance = TypedArray.of(1, 2, 3);
-    assert.ok(instance instanceof TypedArray, 'correct instance with several arguments');
+    assert.true(instance instanceof TypedArray, 'correct instance with several arguments');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with several arguments');
     assert.throws(() => TypedArray.of.call(undefined, 1), "isn't generic #1");
     if (NATIVE) assert.throws(() => TypedArray.of.call(Array, 1), "isn't generic #2");

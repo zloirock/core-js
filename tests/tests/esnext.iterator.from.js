@@ -9,9 +9,9 @@ QUnit.test('Iterator.from', assert => {
   assert.looksNative(from);
   assert.nonEnumerable(Iterator, 'from');
 
-  assert.ok(Iterator.from(createIterator([1, 2, 3])) instanceof Iterator, 'proxy, iterator');
+  assert.true(Iterator.from(createIterator([1, 2, 3])) instanceof Iterator, 'proxy, iterator');
 
-  assert.ok(Iterator.from(createIterable([1, 2, 3])) instanceof Iterator, 'proxy, iterable');
+  assert.true(Iterator.from(createIterable([1, 2, 3])) instanceof Iterator, 'proxy, iterable');
 
   assert.arrayEqual(Iterator.from(createIterable([1, 2, 3])).toArray(), [1, 2, 3], 'just a proxy');
 

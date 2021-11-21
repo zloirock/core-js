@@ -5,18 +5,18 @@ import startsWith from 'core-js-pure/features/string/starts-with';
 
 QUnit.test('String#startsWith', assert => {
   assert.isFunction(startsWith);
-  assert.ok(startsWith('undefined'));
-  assert.ok(!startsWith('undefined', null));
-  assert.ok(startsWith('abc', ''));
-  assert.ok(startsWith('abc', 'a'));
-  assert.ok(startsWith('abc', 'ab'));
-  assert.ok(!startsWith('abc', 'bc'));
-  assert.ok(startsWith('abc', '', NaN));
-  assert.ok(startsWith('abc', 'a', -1));
-  assert.ok(!startsWith('abc', 'a', 1));
-  assert.ok(!startsWith('abc', 'a', Infinity));
-  assert.ok(startsWith('abc', 'b', true));
-  assert.ok(startsWith('abc', 'a', 'x'));
+  assert.true(startsWith('undefined'));
+  assert.false(startsWith('undefined', null));
+  assert.true(startsWith('abc', ''));
+  assert.true(startsWith('abc', 'a'));
+  assert.true(startsWith('abc', 'ab'));
+  assert.false(startsWith('abc', 'bc'));
+  assert.true(startsWith('abc', '', NaN));
+  assert.true(startsWith('abc', 'a', -1));
+  assert.false(startsWith('abc', 'a', 1));
+  assert.false(startsWith('abc', 'a', Infinity));
+  assert.true(startsWith('abc', 'b', true));
+  assert.true(startsWith('abc', 'a', 'x'));
 
   if (!Symbol.sham) {
     assert.throws(() => startsWith(Symbol(), 'b'), 'throws on symbol context');

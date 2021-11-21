@@ -9,7 +9,7 @@ QUnit.test('RegExp#test delegates to exec', assert => {
   let re = /[ac]/;
   re.exec = exec;
   assert.true(re.test('abc'), '#1');
-  assert.ok(execCalled, '#2');
+  assert.true(execCalled, '#2');
 
   re = /a/;
   // Not a function, should be ignored

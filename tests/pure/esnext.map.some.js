@@ -17,11 +17,11 @@ QUnit.test('Map#some', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
   map = new Map([[0, 1], [1, '2'], [2, 3]]);
-  assert.ok(map.some(it => typeof it == 'number'));
-  assert.ok(map.some(it => it < 3));
-  assert.ok(!map.some(it => it < 0));
-  assert.ok(map.some(it => typeof it == 'string'));
-  assert.ok(!map.some(function () {
+  assert.true(map.some(it => typeof it == 'number'));
+  assert.true(map.some(it => it < 3));
+  assert.false(map.some(it => it < 0));
+  assert.true(map.some(it => typeof it == 'string'));
+  assert.false(map.some(function () {
     return +this !== 1;
   }, 1));
   let result = '';
@@ -30,7 +30,7 @@ QUnit.test('Map#some', assert => {
     return false;
   });
   assert.same(result, '012');
-  assert.ok(map.some((value, key, that) => that === map));
+  assert.true(map.some((value, key, that) => that === map));
 
   assert.throws(() => some.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);

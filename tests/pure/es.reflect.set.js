@@ -9,7 +9,7 @@ QUnit.test('Reflect.set', assert => {
     assert.name(set, 'set');
   }
   const object = {};
-  assert.ok(set(object, 'quux', 654), true);
+  assert.true(set(object, 'quux', 654));
   assert.same(object.quux, 654);
   let target = {};
   const receiver = {};

@@ -17,8 +17,8 @@ QUnit.test('Reflect.ownKeys', assert => {
   object[Symbol('c')] = 3;
   let keys = ownKeys(object);
   assert.same(keys.length, 3, 'ownKeys return all own keys');
-  assert.ok(includes(keys, 'a'), 'ownKeys return all own keys: simple');
-  assert.ok(includes(keys, 'b'), 'ownKeys return all own keys: hidden');
+  assert.true(includes(keys, 'a'), 'ownKeys return all own keys: simple');
+  assert.true(includes(keys, 'b'), 'ownKeys return all own keys: hidden');
   assert.same(object[keys[2]], 3, 'ownKeys return all own keys: symbol');
   keys = ownKeys(create(object));
   assert.same(keys.length, 0, 'ownKeys return only own keys');

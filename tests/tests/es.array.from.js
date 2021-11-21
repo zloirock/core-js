@@ -65,7 +65,7 @@ QUnit.test('Array.from', assert => {
       return done = false;
     },
   }), () => false);
-  assert.ok(done, '.return #default');
+  assert.true(done, '.return #default');
   done = false;
   try {
     from(createIterable([1, 2, 3], {
@@ -76,17 +76,17 @@ QUnit.test('Array.from', assert => {
       throw new Error();
     });
   } catch { /* empty */ }
-  assert.ok(done, '.return #throw');
+  assert.true(done, '.return #throw');
   class C { /* empty */ }
   let instance = from.call(C, createIterable([1, 2]));
-  assert.ok(instance instanceof C, 'generic, iterable case, instanceof');
+  assert.true(instance instanceof C, 'generic, iterable case, instanceof');
   assert.arrayEqual(instance, [1, 2], 'generic, iterable case, elements');
   instance = from.call(C, {
     0: 1,
     1: 2,
     length: 2,
   });
-  assert.ok(instance instanceof C, 'generic, array-like case, instanceof');
+  assert.true(instance instanceof C, 'generic, array-like case, instanceof');
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
   let array = [1, 2, 3];
   done = false;
@@ -96,7 +96,7 @@ QUnit.test('Array.from', assert => {
     return [][Symbol.iterator].call(this);
   };
   assert.arrayEqual(from(array), [1, 2, 3], 'Array with custom iterator, elements');
-  assert.ok(done, 'call @@iterator in Array with custom iterator');
+  assert.true(done, 'call @@iterator in Array with custom iterator');
   array = [1, 2, 3];
   delete array[1];
   assert.arrayEqual(from(array, String), ['1', 'undefined', '3'], 'Ignores holes');
@@ -120,6 +120,6 @@ QUnit.test('Array.from', assert => {
       },
     });
     from.call(C, [1, 2, 3]);
-    assert.ok(!called, 'Should not call prototype accessors');
+    assert.false(called, 'Should not call prototype accessors');
   }
 });

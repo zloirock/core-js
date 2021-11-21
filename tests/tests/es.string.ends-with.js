@@ -9,19 +9,19 @@ QUnit.test('String#endsWith', assert => {
   assert.name(endsWith, 'endsWith');
   assert.looksNative(endsWith);
   assert.nonEnumerable(String.prototype, 'endsWith');
-  assert.ok('undefined'.endsWith());
-  assert.ok(!'undefined'.endsWith(null));
-  assert.ok('abc'.endsWith(''));
-  assert.ok('abc'.endsWith('c'));
-  assert.ok('abc'.endsWith('bc'));
-  assert.ok(!'abc'.endsWith('ab'));
-  assert.ok('abc'.endsWith('', NaN));
-  assert.ok(!'abc'.endsWith('c', -1));
-  assert.ok('abc'.endsWith('a', 1));
-  assert.ok('abc'.endsWith('c', Infinity));
-  assert.ok('abc'.endsWith('a', true));
-  assert.ok(!'abc'.endsWith('c', 'x'));
-  assert.ok(!'abc'.endsWith('a', 'x'));
+  assert.true('undefined'.endsWith());
+  assert.false('undefined'.endsWith(null));
+  assert.true('abc'.endsWith(''));
+  assert.true('abc'.endsWith('c'));
+  assert.true('abc'.endsWith('bc'));
+  assert.false('abc'.endsWith('ab'));
+  assert.true('abc'.endsWith('', NaN));
+  assert.false('abc'.endsWith('c', -1));
+  assert.true('abc'.endsWith('a', 1));
+  assert.true('abc'.endsWith('c', Infinity));
+  assert.true('abc'.endsWith('a', true));
+  assert.false('abc'.endsWith('c', 'x'));
+  assert.false('abc'.endsWith('a', 'x'));
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => endsWith.call(Symbol(), 'b'), 'throws on symbol context');

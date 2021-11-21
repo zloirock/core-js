@@ -30,5 +30,5 @@ QUnit.test('Array#findIndex', assert => {
   }, () => {
     throw new Error();
   }) === -1, 'uses ToLength');
-  assert.ok('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('findIndex' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

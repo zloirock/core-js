@@ -34,7 +34,7 @@ const run = assert => {
         throw new Error('intostr');
       },
     });
-    assert.ok(false, 'S15.5.4.12_A1_T11 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.12_A1_T11 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'intostr', 'S15.5.4.12_A1_T11 #2');
   }
@@ -47,7 +47,7 @@ const run = assert => {
         throw new Error('intostr');
       },
     });
-    assert.ok(false, 'S15.5.4.12_A1_T12 #1 lead to throwing exception');
+    assert.avoid('S15.5.4.12_A1_T12 #1 lead to throwing exception');
   } catch (error) {
     assert.same(error.message, 'intostr', 'S15.5.4.12_A1_T12 #2');
   }
@@ -117,7 +117,7 @@ QUnit.test('RegExp#@@search delegates to exec', assert => {
     return /./.exec.apply(this, arguments);
   };
   assert.deepEqual(re[Symbol.search]('abc'), 1);
-  assert.ok(execCalled);
+  assert.true(execCalled);
   assert.same(re.lastIndex, 7);
 
   re = /b/;

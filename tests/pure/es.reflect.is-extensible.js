@@ -9,9 +9,9 @@ QUnit.test('Reflect.isExtensible', assert => {
   if ('name' in isExtensible) {
     assert.name(isExtensible, 'isExtensible');
   }
-  assert.ok(isExtensible({}));
+  assert.true(isExtensible({}));
   if (DESCRIPTORS) {
-    assert.ok(!isExtensible(preventExtensions({})));
+    assert.false(isExtensible(preventExtensions({})));
   }
   assert.throws(() => isExtensible(42), TypeError, 'throws on primitive');
 });

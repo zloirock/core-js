@@ -3,7 +3,7 @@ QUnit.test('Promise.allSettled', assert => {
   assert.arity(Promise.allSettled, 1);
   assert.looksNative(Promise.allSettled);
   assert.nonEnumerable(Promise, 'allSettled');
-  assert.ok(Promise.allSettled([1, 2, 3]) instanceof Promise, 'returns a promise');
+  assert.true(Promise.allSettled([1, 2, 3]) instanceof Promise, 'returns a promise');
 });
 
 QUnit.test('Promise.allSettled, resolved', assert => {
@@ -27,7 +27,7 @@ QUnit.test('Promise.allSettled, rejected', assert => {
   assert.expect(1);
   const async = assert.async();
   Promise.allSettled().catch(() => {
-    assert.ok(true, 'rejected as expected');
+    assert.required('rejected as expected');
     async();
   });
 });
