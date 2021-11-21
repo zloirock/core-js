@@ -2,6 +2,11 @@ import Promise from 'core-js-pure/es/promise';
 import ITERATOR from 'core-js-pure/features/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/features/symbol/async-iterator';
 
+export function is(a, b) {
+  // eslint-disable-next-line no-self-compare -- NaN check
+  return a === b ? a !== 0 || 1 / a === 1 / b : a != a && b != b;
+}
+
 export function createIterator(elements, methods) {
   let index = 0;
   const iterator = {
@@ -64,14 +69,17 @@ export function createAsyncIterable(elements, methods) {
   return iterable;
 }
 
+export function arrayFromArrayLike(source) {
+  const { length } = source;
+  const result = Array(length);
+  for (let index = 0; index < length; index++) {
+    result[index] = source[index];
+  } return result;
+}
+
 export function includes(target, wanted) {
   for (const element of target) if (wanted === element) return true;
   return false;
-}
-
-export function is(a, b) {
-  // eslint-disable-next-line no-self-compare -- NaN check
-  return a === b ? a !== 0 || 1 / a === 1 / b : a != a && b != b;
 }
 
 export const nativeSubclass = (() => {

@@ -1,169 +1,124 @@
 import { DESCRIPTORS } from './constants';
-import isIterable from 'core-js-pure/features/is-iterable';
+import assign from 'core-js-pure/es/object/assign';
+import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
-import { is } from './helpers';
+import { is, arrayFromArrayLike } from './helpers';
 
 const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
 
-QUnit.assert.arity = function (fn, length, message) {
-  this.pushResult({
-    result: fn.length === length,
-    actual: fn.length,
-    expected: length,
-    message: message || `arity is ${ length }`,
-  });
-};
-
-QUnit.assert.arrayEqual = function (a, b, message) {
-  let result = true;
-  if (a.length !== b.length) {
-    result = false;
-  } else {
-    for (let i = 0, { length } = a; i < length; ++i) {
-      if (!is(a[i], b[i])) {
-        result = false;
-        break;
-      }
+assign(QUnit.assert, {
+  arity(fn, length, message) {
+    this.same(fn.length, length, message ?? `The arity of the function is ${ length }`);
+  },
+  arrayEqual(a, b, message) {
+    this.deepEqual(arrayFromArrayLike(a), arrayFromArrayLike(b), message);
+  },
+  enumerable(O, key, message) {
+    const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
+    this.pushResult({
+      result,
+      actual: result,
+      expected: 'The property should be enumerable',
+      message: DESCRIPTORS
+        ? 'Enumerability is not applicable'
+        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`,
+    });
+  },
+  epsilon(a, b, EPSILON = 1e-11, message) {
+    const result = Math.abs(a - b) <= EPSILON;
+    this.pushResult({
+      result,
+      actual: result,
+      expected: `The value should be closer to the target by less than ${ EPSILON }`,
+      message: message ?? `The value should be closer to the target by less than ${ EPSILON }`,
+    });
+  },
+  isAsyncIterable(actual, message = 'The value is async iterable') {
+    this.pushResult({
+      result: typeof actual == 'object' && typeof actual[ASYNC_ITERATOR] == 'function',
+      actual,
+      expected: 'The value should be async iterable',
+      message,
+    });
+  },
+  isFunction(fn, message) {
+    this.pushResult({
+      result: typeof fn == 'function' || toString.call(fn).slice(8, -1) === 'Function',
+      actual: typeof fn,
+      expected: 'The value should be a function',
+      message: message ?? 'The value is a function',
+    });
+  },
+  isIterable(actual, message = 'The value is iterable') {
+    this.pushResult({
+      result: isIterable(actual),
+      actual,
+      expected: 'The value should be iterable',
+      message,
+    });
+  },
+  isIterator(actual, message = 'The object is an iterator') {
+    this.pushResult({
+      result: typeof actual == 'object' && typeof actual.next == 'function',
+      actual,
+      expected: 'The object should be an iterator',
+      message,
+    });
+  },
+  looksNative(fn, message = 'The function looks like a native') {
+    const source = Function.prototype.toString.call(fn);
+    this.pushResult({
+      result: /native code/.test(source),
+      actual: source,
+      expected: 'The function should looks like a native',
+      message,
+    });
+  },
+  name(fn, expected, message) {
+    const applicable = typeof fn == 'function' && 'name' in fn;
+    const result = applicable && fn.name === expected;
+    this.pushResult({
+      result,
+      actual: result,
+      expected,
+      message: applicable
+        ? message ?? `The function name is '${ result }'`
+        : 'Function#name property test makes no sense',
+    });
+  },
+  nonEnumerable(O, key, message) {
+    const result = !DESCRIPTORS || !propertyIsEnumerable.call(O, key);
+    this.pushResult({
+      result,
+      actual: result,
+      expected: 'The property should be non-enumerable',
+      message: DESCRIPTORS
+        ? 'Enumerability is not applicable'
+        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
+    });
+  },
+  notThrows(fn, message = 'Does not throw') {
+    let result = false;
+    let actual;
+    try {
+      actual = fn();
+      result = true;
+    } catch (error) {
+      actual = error;
     }
-  }
-  this.pushResult({
-    result,
-    actual: [].slice.call(a),
-    expected: [].slice.call(b),
-    message,
-  });
-};
-
-QUnit.assert.epsilon = function (a, b, E, message) {
-  this.pushResult({
-    result: Math.abs(a - b) <= (E != null ? E : 1e-11),
-    actual: a,
-    expected: b,
-    message,
-  });
-};
-
-QUnit.assert.isFunction = function (fn, message) {
-  this.pushResult({
-    result: typeof fn == 'function' || toString.call(fn).slice(8, -1) === 'Function',
-    actual: false,
-    expected: true,
-    message: message || 'is function',
-  });
-};
-
-QUnit.assert.isAsyncIterable = function (it, message) {
-  this.pushResult({
-    result: typeof it == 'object' && typeof it[ASYNC_ITERATOR] == 'function',
-    actual: false,
-    expected: true,
-    message: message || 'is async iterable',
-  });
-};
-
-QUnit.assert.isIterable = function (it, message) {
-  this.pushResult({
-    result: isIterable(it),
-    actual: false,
-    expected: true,
-    message: message || 'is iterable',
-  });
-};
-
-QUnit.assert.isIterator = function (it, message) {
-  this.pushResult({
-    result: typeof it == 'object' && typeof it.next == 'function',
-    actual: false,
-    expected: true,
-    message: message || 'is iterator',
-  });
-};
-
-QUnit.assert.looksNative = function (fn, message) {
-  this.pushResult({
-    result: /native code/.test(Function.prototype.toString.call(fn)),
-    actual: false,
-    expected: true,
-    message: message || 'looks native',
-  });
-};
-
-QUnit.assert.name = function (fn, name, message) {
-  if (typeof fn == 'function' && 'name' in fn) {
     this.pushResult({
-      result: fn.name === name,
-      actual: fn.name,
-      expected: name,
-      message: message || `name is '${ name }'`,
+      result,
+      actual,
+      expected: 'It should not throw an error',
+      message,
     });
-  } else {
+  },
+  same(actual, expected, message) {
     this.pushResult({
-      result: true,
-      actual: true,
-      expected: true,
-      message: 'Function#name property test makes no sense',
+      result: is(actual, expected),
+      actual,
+      expected,
+      message,
     });
-  }
-};
-
-QUnit.assert.enumerable = function (O, key, message) {
-  if (DESCRIPTORS) {
-    this.pushResult({
-      result: propertyIsEnumerable.call(O, key),
-      actual: false,
-      expected: true,
-      message: message || `${ typeof key == 'symbol' ? 'method' : `'${ key }'` } is enumerable`,
-    });
-  } else {
-    this.pushResult({
-      result: true,
-      actual: true,
-      expected: true,
-      message: 'Enumerability is not applicable',
-    });
-  }
-};
-
-QUnit.assert.nonEnumerable = function (O, key, message) {
-  if (DESCRIPTORS) {
-    this.pushResult({
-      result: !propertyIsEnumerable.call(O, key),
-      actual: false,
-      expected: true,
-      message: message || `${ typeof key == 'symbol' ? 'method' : `'${ key }'` } is non-enumerable`,
-    });
-  } else {
-    this.pushResult({
-      result: true,
-      actual: true,
-      expected: true,
-      message: 'Enumerability is not applicable',
-    });
-  }
-};
-
-QUnit.assert.notThrows = function (fn, message) {
-  let thrown, result, error;
-  try {
-    result = fn();
-    thrown = false;
-  } catch (err) {
-    thrown = true;
-    error = err;
-  }
-  this.pushResult({
-    result: !thrown && result,
-    actual: thrown ? error : result,
-    expected: thrown ? undefined : true,
-    message: message || 'does not throw',
-  });
-};
-
-QUnit.assert.same = function (a, b, message) {
-  this.pushResult({
-    result: is(a, b),
-    actual: a,
-    expected: b,
-    message,
-  });
-};
+  },
+});
