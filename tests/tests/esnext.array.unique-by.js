@@ -9,7 +9,7 @@ QUnit.test('Array#uniqueBy', assert => {
   assert.nonEnumerable(Array.prototype, 'uniqueBy');
 
   let array = [1, 2, 3, 2, 1];
-  assert.notStrictEqual(array.uniqueBy(), array);
+  assert.notSame(array.uniqueBy(), array);
   assert.deepEqual(array.uniqueBy(), [1, 2, 3]);
 
   array = [

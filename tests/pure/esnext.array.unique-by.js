@@ -5,7 +5,7 @@ QUnit.test('Array#uniqueBy', assert => {
   assert.isFunction(uniqueBy);
 
   let array = [1, 2, 3, 2, 1];
-  assert.notStrictEqual(uniqueBy(array), array);
+  assert.notSame(uniqueBy(array), array);
   assert.deepEqual(uniqueBy(array), [1, 2, 3]);
 
   array = [

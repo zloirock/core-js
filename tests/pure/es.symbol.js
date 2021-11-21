@@ -18,11 +18,11 @@ QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
   const symbol1 = Symbol('symbol');
   const symbol2 = Symbol('symbol');
-  assert.notStrictEqual(symbol1, symbol2, 'Symbol("symbol") !== Symbol("symbol")');
+  assert.notSame(symbol1, symbol2, 'Symbol("symbol") !== Symbol("symbol")');
   const object = {};
   object[symbol1] = 42;
   assert.same(object[symbol1], 42, 'Symbol() work as key');
-  assert.notStrictEqual(object[symbol2], 42, 'Various symbols from one description are various keys');
+  assert.notSame(object[symbol2], 42, 'Various symbols from one description are various keys');
   // assert.throws(() => Symbol(Symbol('foo')), 'throws on symbol argument');
   if (DESCRIPTORS) {
     let count = 0;

@@ -13,12 +13,12 @@ if (DESCRIPTORS) {
     assert.ok({}.toString.call(RegExp()).slice(8, -1), 'RegExp');
     assert.ok({}.toString.call(new RegExp()).slice(8, -1), 'RegExp');
     let regexp = /a/g;
-    assert.notStrictEqual(regexp, new RegExp(regexp), 'new RegExp(regexp) isnt regexp');
+    assert.notSame(regexp, new RegExp(regexp), 'new RegExp(regexp) isnt regexp');
     assert.same(regexp, RegExp(regexp), 'RegExp(regexp) is regexp');
     regexp[Symbol.match] = false;
-    assert.notStrictEqual(regexp, RegExp(regexp), 'RegExp(regexp) isnt regexp, changed Symbol.match');
+    assert.notSame(regexp, RegExp(regexp), 'RegExp(regexp) isnt regexp, changed Symbol.match');
     const object = {};
-    assert.notStrictEqual(object, RegExp(object), 'RegExp(O) isnt O');
+    assert.notSame(object, RegExp(object), 'RegExp(O) isnt O');
     object[Symbol.match] = true;
     object.constructor = RegExp;
     assert.same(object, RegExp(object), 'RegExp(O) is O, changed Symbol.match');
@@ -29,7 +29,7 @@ if (DESCRIPTORS) {
 
     const orig = /^https?:\/\//i;
     regexp = new RegExp(orig);
-    assert.notStrictEqual(regexp, orig, 'new + re + no flags #1');
+    assert.notSame(regexp, orig, 'new + re + no flags #1');
     assert.same(String(regexp), '/^https?:\\/\\//i', 'new + re + no flags #2');
     let result = regexp.exec('http://github.com');
     assert.deepEqual(result, ['http://'], 'new + re + no flags #3');

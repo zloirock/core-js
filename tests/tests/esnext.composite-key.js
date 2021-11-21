@@ -19,26 +19,26 @@ QUnit.test('compositeKey', assert => {
   const c = ['c'];
 
   assert.same(compositeKey(a), compositeKey(a));
-  assert.notStrictEqual(compositeKey(a), compositeKey(['a']));
-  assert.notStrictEqual(compositeKey(a), compositeKey(a, 1));
-  assert.notStrictEqual(compositeKey(a), compositeKey(a, b));
+  assert.notSame(compositeKey(a), compositeKey(['a']));
+  assert.notSame(compositeKey(a), compositeKey(a, 1));
+  assert.notSame(compositeKey(a), compositeKey(a, b));
   assert.same(compositeKey(a, 1), compositeKey(a, 1));
   assert.same(compositeKey(a, b), compositeKey(a, b));
-  assert.notStrictEqual(compositeKey(a, b), compositeKey(b, a));
+  assert.notSame(compositeKey(a, b), compositeKey(b, a));
   assert.same(compositeKey(a, b, c), compositeKey(a, b, c));
-  assert.notStrictEqual(compositeKey(a, b, c), compositeKey(c, b, a));
-  assert.notStrictEqual(compositeKey(a, b, c), compositeKey(a, c, b));
-  assert.notStrictEqual(compositeKey(a, b, c, 1), compositeKey(a, b, c));
+  assert.notSame(compositeKey(a, b, c), compositeKey(c, b, a));
+  assert.notSame(compositeKey(a, b, c), compositeKey(a, c, b));
+  assert.notSame(compositeKey(a, b, c, 1), compositeKey(a, b, c));
   assert.same(compositeKey(a, b, c, 1), compositeKey(a, b, c, 1));
   assert.same(compositeKey(1, a), compositeKey(1, a));
-  assert.notStrictEqual(compositeKey(1, a), compositeKey(a, 1));
+  assert.notSame(compositeKey(1, a), compositeKey(a, 1));
   assert.same(compositeKey(1, a, 2, b), compositeKey(1, a, 2, b));
-  assert.notStrictEqual(compositeKey(1, a, 2, b), compositeKey(1, a, b, 2));
+  assert.notSame(compositeKey(1, a, 2, b), compositeKey(1, a, b, 2));
   assert.same(compositeKey(1, 2, a, b), compositeKey(1, 2, a, b));
-  assert.notStrictEqual(compositeKey(1, 2, a, b), compositeKey(1, a, b, 2));
+  assert.notSame(compositeKey(1, 2, a, b), compositeKey(1, a, b, 2));
   assert.same(compositeKey(a, a), compositeKey(a, a));
-  assert.notStrictEqual(compositeKey(a, a), compositeKey(a, ['a']));
-  assert.notStrictEqual(compositeKey(a, a), compositeKey(a, b));
+  assert.notSame(compositeKey(a, a), compositeKey(a, ['a']));
+  assert.notSame(compositeKey(a, a), compositeKey(a, b));
 
   assert.throws(() => compositeKey(), TypeError);
   assert.throws(() => compositeKey(1, 2), TypeError);

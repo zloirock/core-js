@@ -11,7 +11,7 @@ QUnit.test('Set#symmetricDifference', assert => {
   assert.nonEnumerable(Set.prototype, 'symmetricDifference');
 
   const set = new Set([1]);
-  assert.notStrictEqual(set.symmetricDifference([2]), set);
+  assert.notSame(set.symmetricDifference([2]), set);
 
   assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference([4, 5])), [1, 2, 3, 4, 5]);
   assert.deepEqual(from(new Set([1, 2, 3]).symmetricDifference([3, 4])), [1, 2, 4]);

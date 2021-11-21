@@ -97,6 +97,14 @@ assign(QUnit.assert, {
         : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
     });
   },
+  notSame(actual, expected, message) {
+    this.pushResult({
+      result: !is(actual, expected),
+      actual,
+      expected: 'Something different',
+      message,
+    });
+  },
   notThrows(fn, message = 'Does not throw') {
     let result = false;
     let actual;

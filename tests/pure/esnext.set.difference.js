@@ -12,7 +12,7 @@ QUnit.test('Set#difference', assert => {
   assert.nonEnumerable(Set.prototype, 'difference');
 
   const set = new Set([1]);
-  assert.notStrictEqual(set.difference([2]), set);
+  assert.notSame(set.difference([2]), set);
 
   assert.deepEqual(from(new Set([1, 2, 3]).difference([4, 5])), [1, 2, 3]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference([3, 4])), [1, 2]);
