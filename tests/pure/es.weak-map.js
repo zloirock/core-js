@@ -21,10 +21,10 @@ QUnit.test('WeakMap', assert => {
   assert.same(weakmap.get(frozen), 42, 'Support frozen objects');
   weakmap = new WeakMap();
   weakmap.set(frozen, 42);
-  assert.same(true, weakmap.has(frozen), 'works with frozen objects, #1');
+  assert.true(weakmap.has(frozen), 'works with frozen objects, #1');
   assert.same(weakmap.get(frozen), 42, 'works with frozen objects, #2');
   weakmap.delete(frozen);
-  assert.same(false, weakmap.has(frozen), 'works with frozen objects, #3');
+  assert.false(weakmap.has(frozen), 'works with frozen objects, #3');
   assert.same(weakmap.get(frozen), undefined, 'works with frozen objects, #4');
   let done = false;
   try {

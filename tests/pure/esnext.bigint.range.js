@@ -33,7 +33,7 @@ if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
   assert.deepEqual(iterator.start, BigInt(1));
   assert.deepEqual(iterator.end, BigInt(3));
   assert.deepEqual(iterator.step, BigInt(1));
-  assert.same(false, iterator.inclusive);
+  assert.false(iterator.inclusive);
 
   iterator = range(BigInt(-1), BigInt(-3), { inclusive: true });
   assert.deepEqual(iterator.start, BigInt(-1));

@@ -17,9 +17,9 @@ QUnit.test('WeakSet', assert => {
   const weakset = new WeakSet();
   const frozen = freeze({});
   weakset.add(frozen);
-  assert.same(true, weakset.has(frozen), 'works with frozen objects, #1');
+  assert.true(weakset.has(frozen), 'works with frozen objects, #1');
   weakset.delete(frozen);
-  assert.same(false, weakset.has(frozen), 'works with frozen objects, #2');
+  assert.false(weakset.has(frozen), 'works with frozen objects, #2');
   let done = false;
   try {
     new WeakSet(createIterable([null, 1, 2], {

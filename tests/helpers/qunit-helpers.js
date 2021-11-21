@@ -33,6 +33,10 @@ assign(QUnit.assert, {
       message: message ?? `The value should be closer to the target by less than ${ EPSILON }`,
     });
   },
+  // unavailable in `qunit@1` that's required for testing in IE8-
+  false(value, message = 'The value is `false`') {
+    this.same(value, false, message);
+  },
   isAsyncIterable(actual, message = 'The value is async iterable') {
     this.pushResult({
       result: typeof actual == 'object' && typeof actual[ASYNC_ITERATOR] == 'function',
@@ -128,5 +132,9 @@ assign(QUnit.assert, {
       expected,
       message,
     });
+  },
+  // unavailable in `qunit@1` that's required for testing in IE8-
+  true(value, message = 'The value is `true`') {
+    this.same(value, true, message);
   },
 });
