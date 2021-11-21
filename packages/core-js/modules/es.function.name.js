@@ -5,7 +5,7 @@ var defineProperty = require('../internals/object-define-property').f;
 
 var FunctionPrototype = Function.prototype;
 var functionToString = uncurryThis(FunctionPrototype.toString);
-var nameRE = /^\s*function ([^ (]*)/;
+var nameRE = /function\b(?:\s|\/\*[\S\s]*?\*\/|\/\/[^\n\r]*[\n\r]+)*([^\s(/]*)/;
 var regExpExec = uncurryThis(nameRE.exec);
 var NAME = 'name';
 

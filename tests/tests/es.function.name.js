@@ -20,5 +20,23 @@ if (DESCRIPTORS) {
       return '';
     };
     assert.same(baz.name, '');
+
+    assert.same(function /*
+    multi-line comment */() { /* empty */ }.name, '');
+
+    function /*
+    multi-line comment */
+    foobar() { /* empty */ }
+    assert.same(foobar.name, 'foobar');
+
+    function // simple-line comment
+    foobaz() { /* empty */ }
+    assert.same(foobaz.name, 'foobaz');
+
+    function // simple-line comment
+    /* multi-line comment */quux/*
+    multi-line comment
+    */() { /* empty */ }
+    assert.same(quux.name, 'quux');
   });
 }
