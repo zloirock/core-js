@@ -406,6 +406,8 @@ const base = {
   'unicorn/number-literal-case': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
+  // prefer code points over char codes
+  'unicorn/prefer-code-point': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
@@ -654,6 +656,8 @@ const es3 = {
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: OFF,
+  // prefer code points over char codes
+  'unicorn/prefer-code-point': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
 };
@@ -813,6 +817,8 @@ const transpiledAndPolyfilled = {
   'es/no-bigint': ERROR,
   // unpolyfillable es2021 builtins
   'es/no-weakrefs': ERROR,
+  // prefer code points over char codes
+  'unicorn/prefer-code-point': OFF,
 };
 
 const nodePackages = {
