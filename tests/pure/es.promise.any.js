@@ -3,7 +3,7 @@ import { AggregateError, Promise } from 'core-js-pure/es';
 QUnit.test('Promise.any', assert => {
   assert.isFunction(Promise.any);
   assert.arity(Promise.any, 1);
-  assert.ok(Promise.any([1, 2, 3]) instanceof Promise, 'returns a promise');
+  assert.true(Promise.any([1, 2, 3]) instanceof Promise, 'returns a promise');
 });
 
 QUnit.test('Promise.any, resolved', assert => {

@@ -258,8 +258,10 @@ QUnit.test('Set#size', assert => {
   assert.same(size, 1, 'size is correct');
   if (DESCRIPTORS) {
     const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
-    assert.ok(sizeDescriptor && sizeDescriptor.get, 'size is getter');
-    assert.ok(sizeDescriptor && !sizeDescriptor.set, 'size isnt setter');
+    const getter = sizeDescriptor && sizeDescriptor.get;
+    const setter = sizeDescriptor && sizeDescriptor.set;
+    assert.same(typeof getter, 'function', 'size is getter');
+    assert.same(typeof setter, 'undefined', 'size isnt setter');
     assert.throws(() => Set.prototype.size, TypeError);
   }
 });

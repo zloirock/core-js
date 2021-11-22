@@ -877,8 +877,14 @@ const tests = {
 const qunit = {
   // ensure the correct number of assert arguments is used
   'qunit/assert-args': ERROR,
+  // enforce comparison assertions have arguments in the right order
+  'qunit/literal-compare-order': ERROR,
   // forbid the use of assert.equal
   'qunit/no-assert-equal': ERROR,
+  // require use of boolean assertions
+  'qunit/no-assert-equal-boolean': ERROR,
+  // disallow binary logical expressions in assert arguments
+  'qunit/no-assert-logical-expression': ERROR,
   // forbid async calls in loops
   'qunit/no-async-in-loops': ERROR,
   // disallow async module callbacks
@@ -907,6 +913,8 @@ const qunit = {
   'qunit/no-init': ERROR,
   // forbid use of QUnit.jsDump
   'qunit/no-jsdump': ERROR,
+  // disallow the use of `assert.equal` / `assert.ok` / `assert.notEqual` / `assert.notOk``
+  'qunit/no-loose-assertions': ERROR,
   // forbid QUnit.test() calls inside callback of another QUnit.test
   'qunit/no-nested-tests': ERROR,
   // forbid equality comparisons in assert.{ok, notOk}
