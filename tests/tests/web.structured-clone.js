@@ -21,10 +21,10 @@ QUnit.module('structuredClone', () => {
   // Specialization of cloneTest() for objects, with common asserts.
   function cloneObjectTest(assert, value, verifyFunc) {
     cloneTest(value, (orig, clone) => {
-      assert.notEqual(orig, clone, 'clone should have different reference');
+      assert.notSame(orig, clone, 'clone should have different reference');
       assert.same(typeof clone, 'object', 'clone should be an object');
       // https://github.com/qunitjs/node-qunit/issues/146
-      assert.ok(getPrototypeOf(orig) === getPrototypeOf(clone), 'clone should have same prototype');
+      assert.true(getPrototypeOf(orig) === getPrototypeOf(clone), 'clone should have same prototype');
       verifyFunc(orig, clone);
     });
   }
@@ -101,7 +101,7 @@ QUnit.module('structuredClone', () => {
     ];
 
     for (const date of dates) cloneTest(date, (orig, clone) => {
-      assert.notEqual(orig, clone);
+      assert.notSame(orig, clone);
       assert.same(typeof clone, 'object');
       assert.same(getPrototypeOf(orig), getPrototypeOf(clone));
       assert.same(orig.valueOf(), clone.valueOf());
