@@ -12,7 +12,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSpliced', assert => {
     assert.looksNative(toSpliced, `${ name }::toSpliced looks native`);
 
     const array = new TypedArray([1, 2, 3, 4, 5]);
-    assert.notStrictEqual(array.toSpliced(2), array, 'immutable');
+    assert.notSame(array.toSpliced(2), array, 'immutable');
 
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(2), new TypedArray([1, 2]));
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(-2), new TypedArray([1, 2, 3]));

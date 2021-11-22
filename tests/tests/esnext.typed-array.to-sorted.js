@@ -12,11 +12,11 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
     assert.looksNative(toSorted, `${ name }::toSorted looks native`);
 
     let array = new TypedArray([1]);
-    assert.notStrictEqual(array.toSorted(), array, 'immutable');
+    assert.notSame(array.toSorted(), array, 'immutable');
 
     if (name.indexOf('Float') === 0) {
       assert.deepEqual(new TypedArray([1, -1, 3, NaN, 2, 0, 11, -0]).toSorted(), new TypedArray([-1, -0, 0, 1, 2, 3, 11, NaN]), '#1');
-      assert.ok(1 / new TypedArray([0, -0]).toSorted()[0] < 0, '-0');
+      assert.true(1 / new TypedArray([0, -0]).toSorted()[0] < 0, '-0');
       assert.deepEqual(new TypedArray([NaN, 1, NaN]).toSorted(), new TypedArray([1, NaN, NaN]), 'NaN');
     }
 
@@ -33,7 +33,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
 
       array = array.toSorted((a, b) => (a / 4 | 0) - (b / 4 | 0));
 
-      assert.same(String(array), String(expected), 'stable #1');
+      assert.arrayEqual(array, expected, 'stable #1');
 
       let result = '';
       array = new TypedArray(520);

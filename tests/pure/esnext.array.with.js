@@ -7,7 +7,7 @@ QUnit.test('Array#with', assert => {
   assert.isFunction(withAt);
 
   let array = [1, 2, 3, 4, 5];
-  assert.notStrictEqual(withAt(array, 2, 1), array);
+  assert.notSame(withAt(array, 2, 1), array);
   assert.deepEqual(withAt([1, 2, 3, 4, 5], 2, 6), [1, 2, 6, 4, 5]);
   assert.deepEqual(withAt([1, 2, 3, 4, 5], -2, 6), [1, 2, 3, 6, 5]);
 
@@ -25,5 +25,5 @@ QUnit.test('Array#with', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(withAt(array, 1, 2) instanceof Array, 'non-generic');
+  assert.true(withAt(array, 1, 2) instanceof Array, 'non-generic');
 });

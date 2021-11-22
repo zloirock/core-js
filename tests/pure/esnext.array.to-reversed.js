@@ -7,7 +7,7 @@ QUnit.test('Array#toReversed', assert => {
   assert.isFunction(toReversed);
 
   let array = [1, 2];
-  assert.notStrictEqual(toReversed(array), array, 'immutable');
+  assert.notSame(toReversed(array), array, 'immutable');
   assert.deepEqual(toReversed([1, 2.2, 3.3]), [3.3, 2.2, 1], 'basic');
 
   const object = {};
@@ -47,7 +47,7 @@ QUnit.test('Array#toReversed', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(toReversed(array) instanceof Array, 'non-generic');
+  assert.true(toReversed(array) instanceof Array, 'non-generic');
 
   if (STRICT) {
     assert.throws(() => toReversed(null, () => { /* empty */ }, 1), TypeError);

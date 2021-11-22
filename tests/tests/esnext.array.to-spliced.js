@@ -10,7 +10,7 @@ QUnit.test('Array#toSpliced', assert => {
   assert.nonEnumerable(Array.prototype, 'toSpliced');
 
   let array = [1, 2, 3, 4, 5];
-  assert.notStrictEqual(array.toSpliced(2), array, 'immutable');
+  assert.notSame(array.toSpliced(2), array, 'immutable');
 
   assert.deepEqual([1, 2, 3, 4, 5].toSpliced(2), [1, 2]);
   assert.deepEqual([1, 2, 3, 4, 5].toSpliced(-2), [1, 2, 3]);
@@ -28,7 +28,7 @@ QUnit.test('Array#toSpliced', assert => {
     return { foo: 1 };
   } };
 
-  assert.ok(array.toSpliced() instanceof Array, 'non-generic');
+  assert.true(array.toSpliced() instanceof Array, 'non-generic');
 
-  assert.ok('toSpliced' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('toSpliced' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

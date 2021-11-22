@@ -10,7 +10,7 @@ QUnit.test('Array#toSorted', assert => {
   assert.nonEnumerable(Array.prototype, 'toSorted');
 
   let array = [1];
-  assert.notStrictEqual(array.toSorted(), array, 'immutable');
+  assert.notSame(array.toSorted(), array, 'immutable');
 
   assert.deepEqual([1, 3, 2].toSorted(), [1, 2, 3], '#1');
   assert.deepEqual([1, 3, 2, 11].toSorted(), [1, 11, 2, 3], '#2');
@@ -83,9 +83,9 @@ QUnit.test('Array#toSorted', assert => {
     expected[index] = index - 2 * mod + 3;
   }
 
-  assert.same(String(array.toSorted((a, b) => (a / 4 | 0) - (b / 4 | 0))), String(expected), 'stable #1');
+  assert.arrayEqual(array.toSorted((a, b) => (a / 4 | 0) - (b / 4 | 0)), expected, 'stable #1');
 
-  assert.ok(1 / [0, -0].toSorted()[0] > 0, '-0');
+  assert.true(1 / [0, -0].toSorted()[0] > 0, '-0');
 
   let result = '';
   array = [];
@@ -127,12 +127,12 @@ QUnit.test('Array#toSorted', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(array.toSorted() instanceof Array, 'non-generic');
+  assert.true(array.toSorted() instanceof Array, 'non-generic');
 
   if (STRICT) {
     assert.throws(() => toSorted.call(null), TypeError, 'ToObject(this)');
     assert.throws(() => toSorted.call(undefined), TypeError, 'ToObject(this)');
   }
 
-  assert.ok('toSorted' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('toSorted' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

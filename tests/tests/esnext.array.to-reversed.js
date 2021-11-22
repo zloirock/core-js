@@ -10,7 +10,7 @@ QUnit.test('Array#toReversed', assert => {
   assert.nonEnumerable(Array.prototype, 'toReversed');
 
   let array = [1, 2];
-  assert.notStrictEqual(array.toReversed(), array, 'immutable');
+  assert.notSame(array.toReversed(), array, 'immutable');
 
   assert.deepEqual([1, 2.2, 3.3].toReversed(), [3.3, 2.2, 1], 'basic');
 
@@ -51,12 +51,12 @@ QUnit.test('Array#toReversed', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(array.toReversed() instanceof Array, 'non-generic');
+  assert.true(array.toReversed() instanceof Array, 'non-generic');
 
   if (STRICT) {
     assert.throws(() => toReversed.call(null, () => { /* empty */ }, 1), TypeError);
     assert.throws(() => toReversed.call(undefined, () => { /* empty */ }, 1), TypeError);
   }
 
-  assert.ok('toReversed' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('toReversed' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

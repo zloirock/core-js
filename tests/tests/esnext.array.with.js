@@ -10,7 +10,7 @@ QUnit.test('Array#with', assert => {
   assert.nonEnumerable(Array.prototype, 'with');
 
   let array = [1, 2, 3, 4, 5];
-  assert.notStrictEqual(array.with(2, 1), array, 'immutable');
+  assert.notSame(array.with(2, 1), array, 'immutable');
 
   assert.deepEqual([1, 2, 3, 4, 5].with(2, 6), [1, 2, 6, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].with(-2, 6), [1, 2, 3, 6, 5]);
@@ -29,5 +29,5 @@ QUnit.test('Array#with', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(array.with(1, 2) instanceof Array, 'non-generic');
+  assert.true(array.with(1, 2) instanceof Array, 'non-generic');
 });

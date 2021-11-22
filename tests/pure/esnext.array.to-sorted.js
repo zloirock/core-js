@@ -7,7 +7,7 @@ QUnit.test('Array#toSorted', assert => {
   assert.isFunction(toSorted);
 
   let array = [1];
-  assert.notStrictEqual(toSorted(array), array, 'immutable');
+  assert.notSame(toSorted(array), array, 'immutable');
   assert.deepEqual(toSorted([1, 3, 2]), [1, 2, 3], '#1');
   assert.deepEqual(toSorted([1, 3, 2, 11]), [1, 11, 2, 3], '#2');
   assert.deepEqual(toSorted([1, -1, 3, NaN, 2, 0, 11, -0]), [-1, 0, -0, 1, 11, 2, 3, NaN], '#1');
@@ -79,9 +79,9 @@ QUnit.test('Array#toSorted', assert => {
     expected[index] = index - 2 * mod + 3;
   }
 
-  assert.same(String(toSorted(array, (a, b) => (a / 4 | 0) - (b / 4 | 0))), String(expected), 'stable #1');
+  assert.arrayEqual(toSorted(array, (a, b) => (a / 4 | 0) - (b / 4 | 0)), expected, 'stable #1');
 
-  assert.ok(1 / toSorted([0, -0])[0] > 0, '-0');
+  assert.true(1 / toSorted([0, -0])[0] > 0, '-0');
 
   let result = '';
   array = [];
@@ -123,7 +123,7 @@ QUnit.test('Array#toSorted', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.ok(toSorted(array) instanceof Array, 'non-generic');
+  assert.true(toSorted(array) instanceof Array, 'non-generic');
 
   if (STRICT) {
     assert.throws(() => toSorted(null), TypeError, 'ToObject(this)');
