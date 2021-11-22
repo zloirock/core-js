@@ -16,7 +16,7 @@ QUnit.test('Array#groupByMap', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.ok(groupByMap([], it => it) instanceof Map, 'returns Map');
+  assert.true(groupByMap([], it => it) instanceof Map, 'returns Map');
   assert.deepEqual(from(groupByMap([1, 2, 3], it => it % 2)), [[1, [1, 3]], [0, [2]]], '#1');
   assert.deepEqual(
     from(groupByMap([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], it => `i${ it % 5 }`)),
