@@ -2,14 +2,10 @@
 process.env.CHROME_BIN = require('puppeteer').executablePath();
 
 module.exports = function (config) {
-  const { argv } = process;
-  let files;
-
-  for (const arg of argv) {
-    if (arg.startsWith('-f=')) {
-      files = arg.slice(3).split(',');
-    }
-  }
+  const files = process.argv
+    .find(it => it.startsWith('-f='))
+    .slice(3)
+    .split(',');
 
   config.set({
     files,
