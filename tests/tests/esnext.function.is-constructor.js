@@ -7,31 +7,31 @@ QUnit.test('Function.isConstructor', assert => {
   assert.name(isConstructor, 'isConstructor');
   assert.looksNative(isConstructor);
   assert.nonEnumerable(Function, 'isConstructor');
-  assert.ok(!isConstructor({}), 'object');
-  assert.ok(!isConstructor(function () {
+  assert.false(isConstructor({}), 'object');
+  assert.false(isConstructor(function () {
     return arguments;
   }()), 'arguments');
-  assert.ok(!isConstructor([]), 'array');
-  assert.ok(!isConstructor(/./), 'regex');
-  assert.ok(!isConstructor(1), 'number');
-  assert.ok(!isConstructor(true), 'boolean');
-  assert.ok(!isConstructor('1'), 'string');
-  assert.ok(!isConstructor(null), 'null');
-  assert.ok(!isConstructor(), 'undefined');
-  // assert.ok(!isConstructor(Function.call), 'native function'); // fails in some old engines
+  assert.false(isConstructor([]), 'array');
+  assert.false(isConstructor(/./), 'regex');
+  assert.false(isConstructor(1), 'number');
+  assert.false(isConstructor(true), 'boolean');
+  assert.false(isConstructor('1'), 'string');
+  assert.false(isConstructor(null), 'null');
+  assert.false(isConstructor(), 'undefined');
+  // assert.false(isConstructor(Function.call), 'native function'); // fails in some old engines
   // eslint-disable-next-line prefer-arrow-callback -- required
-  assert.ok(isConstructor(function () { /* empty */ }), 'function');
+  assert.true(isConstructor(function () { /* empty */ }), 'function');
 
   const arrow = fromSource('it => it');
-  if (arrow) assert.ok(!isConstructor(arrow), 'arrow');
+  if (arrow) assert.false(isConstructor(arrow), 'arrow');
   const klass = fromSource('class {}');
-  if (klass) assert.ok(isConstructor(klass), 'class');
+  if (klass) assert.true(isConstructor(klass), 'class');
   const gen = fromSource('function * () {}');
-  if (gen) assert.ok(!isConstructor(gen), 'gen');
+  if (gen) assert.false(isConstructor(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
-  if (asyncFunc) assert.ok(!isConstructor(asyncFunc), 'asyncFunc');
+  if (asyncFunc) assert.false(isConstructor(asyncFunc), 'asyncFunc');
   const asyncGen = fromSource('async * function () {}');
-  if (asyncGen) assert.ok(!isConstructor(asyncGen), 'asyncGen');
+  if (asyncGen) assert.false(isConstructor(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
-  if (method) assert.ok(!isConstructor(method), 'method');
+  if (method) assert.false(isConstructor(method), 'method');
 });

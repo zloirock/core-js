@@ -7,31 +7,31 @@ QUnit.test('Function.isCallable', assert => {
   assert.name(isCallable, 'isCallable');
   assert.looksNative(isCallable);
   assert.nonEnumerable(Function, 'isCallable');
-  assert.ok(!isCallable({}), 'object');
-  assert.ok(!isCallable(function () {
+  assert.false(isCallable({}), 'object');
+  assert.false(isCallable(function () {
     return arguments;
   }()), 'arguments');
-  assert.ok(!isCallable([]), 'array');
-  assert.ok(!isCallable(/./), 'regex');
-  assert.ok(!isCallable(1), 'number');
-  assert.ok(!isCallable(true), 'boolean');
-  assert.ok(!isCallable('1'), 'string');
-  assert.ok(!isCallable(null), 'null');
-  assert.ok(!isCallable(), 'undefined');
-  assert.ok(isCallable(Function.call), 'native function');
+  assert.false(isCallable([]), 'array');
+  assert.false(isCallable(/./), 'regex');
+  assert.false(isCallable(1), 'number');
+  assert.false(isCallable(true), 'boolean');
+  assert.false(isCallable('1'), 'string');
+  assert.false(isCallable(null), 'null');
+  assert.false(isCallable(), 'undefined');
+  assert.true(isCallable(Function.call), 'native function');
   // eslint-disable-next-line prefer-arrow-callback -- required
-  assert.ok(isCallable(function () { /* empty */ }), 'function');
+  assert.true(isCallable(function () { /* empty */ }), 'function');
 
   const arrow = fromSource('it => it');
-  if (arrow) assert.ok(isCallable(arrow), 'arrow');
+  if (arrow) assert.true(isCallable(arrow), 'arrow');
   const klass = fromSource('class {}');
-  if (klass) assert.ok(!isCallable(klass), 'class');
+  if (klass) assert.false(isCallable(klass), 'class');
   const gen = fromSource('function * () {}');
-  if (gen) assert.ok(isCallable(gen), 'gen');
+  if (gen) assert.true(isCallable(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
-  if (asyncFunc) assert.ok(isCallable(asyncFunc), 'asyncFunc');
+  if (asyncFunc) assert.true(isCallable(asyncFunc), 'asyncFunc');
   const asyncGen = fromSource('async * function () {}');
-  if (asyncGen) assert.ok(isCallable(asyncGen), 'asyncGen');
+  if (asyncGen) assert.true(isCallable(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
-  if (method) assert.ok(isCallable(method), 'method');
+  if (method) assert.true(isCallable(method), 'method');
 });
