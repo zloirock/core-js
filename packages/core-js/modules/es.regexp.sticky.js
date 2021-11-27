@@ -1,6 +1,6 @@
 var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
-var UNSUPPORTED_Y = require('../internals/regexp-sticky-helpers').UNSUPPORTED_Y;
+var MISSED_STICKY = require('../internals/regexp-sticky-helpers').MISSED_STICKY;
 var classof = require('../internals/classof-raw');
 var defineProperty = require('../internals/object-define-property').f;
 var getInternalState = require('../internals/internal-state').get;
@@ -10,7 +10,7 @@ var TypeError = global.TypeError;
 
 // `RegExp.prototype.sticky` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.sticky
-if (DESCRIPTORS && UNSUPPORTED_Y) {
+if (DESCRIPTORS && MISSED_STICKY) {
   defineProperty(RegExpPrototype, 'sticky', {
     configurable: true,
     get: function () {
