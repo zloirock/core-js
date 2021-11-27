@@ -2,8 +2,9 @@
 ##### Unreleased
 - Added a workaround for a UC Browser specific version bug with unobservable `RegExp#sticky` flag, [#1008](https://github.com/zloirock/core-js/issues/1008), [#1015](https://github.com/zloirock/core-js/issues/1015)
 - Added handling of comments and specific spaces to `Function#name` polyfill, [#1010](https://github.com/zloirock/core-js/issues/1010), thanks [@ildar-shaimordanov](https://github.com/ildar-shaimordanov)
-- Updated Deno compat data mapping
 - Added iOS Safari 15.2 compat data mapping
+- Added Electron 17.0 compat data mapping
+- Updated Deno compat data mapping
 
 ##### 3.19.1 - 2021.11.03
 - Added a workaround for FF26- bug where `ArrayBuffer`s are non-extensible, but `Object.isExtensible` does not report it:
