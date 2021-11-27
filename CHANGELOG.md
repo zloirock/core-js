@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround for a UC Browser specific version bug with unobservable `RegExp#sticky` flag, [#1008](https://github.com/zloirock/core-js/issues/1008), [#1015](https://github.com/zloirock/core-js/issues/1015)
 - Added handling of comments and specific spaces to `Function#name` polyfill, [#1010](https://github.com/zloirock/core-js/issues/1010), thanks [@ildar-shaimordanov](https://github.com/ildar-shaimordanov)
 - Updated Deno compat data mapping
 - Added iOS Safari 15.2 compat data mapping
