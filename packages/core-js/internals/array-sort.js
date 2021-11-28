@@ -1,4 +1,4 @@
-var arraySlice = require('../internals/array-slice');
+var arraySlice = require('../internals/array-slice-simple');
 
 var floor = Math.floor;
 

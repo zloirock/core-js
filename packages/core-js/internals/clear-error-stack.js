@@ -1,5 +1,5 @@
 var uncurryThis = require('../internals/function-uncurry-this');
-var arraySlice = require('../internals/array-slice');
+var arraySlice = require('../internals/array-slice-simple');
 
 var replace = uncurryThis(''.replace);
 var split = uncurryThis(''.split);
