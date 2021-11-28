@@ -750,30 +750,39 @@ var parseURL = function (url, input, stateOverride, base) {
   }
 };
 
+var URLState = function () {
+  var searchParams = getInternalSearchParamsState(new URLSearchParams());
+  this.searchParams = searchParams;
+  searchParams.bindURL(this);
+};
+
+URLState.prototype = {
+  type: 'URL',
+  update: function () {
+    this.query = this.searchParams.toString() || null;
+  }
+};
+
 // `URL` constructor
 // https://url.spec.whatwg.org/#url-class
 var URLConstructor = function URL(url /* , base */) {
   var that = anInstance(this, URLPrototype);
   var base = arguments.length > 1 ? arguments[1] : undefined;
   var urlString = $toString(url);
-  var state = setInternalState(that, { type: 'URL' });
+  var state = setInternalState(that, new URLState());
   var baseState, failure;
   if (base !== undefined) {
     try {
       baseState = getInternalURLState(base);
     } catch (error) {
-      failure = parseURL(baseState = {}, $toString(base));
+      baseState = {};
+      failure = parseURL(baseState, $toString(base));
       if (failure) throw TypeError(failure);
     }
   }
   failure = parseURL(state, urlString, null, baseState);
   if (failure) throw TypeError(failure);
-  var searchParams = state.searchParams = new URLSearchParams();
-  var searchParamsState = getInternalSearchParamsState(searchParams);
-  searchParamsState.updateSearchParams(state.query);
-  searchParamsState.updateURL = function () {
-    state.query = $toString(searchParams) || null;
-  };
+  state.searchParams.update();
   if (!DESCRIPTORS) {
     that.href = call(serializeURL, that);
     that.origin = call(getOrigin, that);
@@ -873,7 +882,7 @@ var getSearch = function () {
 };
 
 var getSearchParams = function () {
-  return getInternalURLState(this).searchParams;
+  return getInternalURLState(this).searchParams.facade;
 };
 
 var getHash = function () {
@@ -894,7 +903,7 @@ if (DESCRIPTORS) {
       var urlString = $toString(href);
       var failure = parseURL(url, urlString);
       if (failure) throw TypeError(failure);
-      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
+      url.searchParams.update();
     }),
     // `URL.prototype.origin` getter
     // https://url.spec.whatwg.org/#dom-url-origin
@@ -970,7 +979,7 @@ if (DESCRIPTORS) {
         url.query = '';
         parseURL(url, search, QUERY);
       }
-      getInternalSearchParamsState(url.searchParams).updateSearchParams(url.query);
+      url.searchParams.update();
     }),
     // `URL.prototype.searchParams` getter
     // https://url.spec.whatwg.org/#dom-url-searchparams
