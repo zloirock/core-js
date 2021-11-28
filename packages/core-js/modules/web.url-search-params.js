@@ -133,6 +133,7 @@ URLSearchParamsState.prototype = {
   type: URL_SEARCH_PARAMS,
   bindURL: function (url) {
     this.url = url;
+    this.update();
   },
   parseObject: function (object) {
     var iteratorMethod = getIteratorMethod(object);
@@ -172,7 +173,7 @@ URLSearchParamsState.prototype = {
       }
     }
   },
-  toString: function () {
+  serialize: function () {
     var entries = this.entries;
     var result = [];
     var index = 0;
@@ -325,7 +326,7 @@ redefine(URLSearchParamsPrototype, ITERATOR, URLSearchParamsPrototype.entries, {
 // `URLSearchParams.prototype.toString` method
 // https://url.spec.whatwg.org/#urlsearchparams-stringification-behavior
 redefine(URLSearchParamsPrototype, 'toString', function toString() {
-  return getInternalParamsState(this).toString();
+  return getInternalParamsState(this).serialize();
 }, { enumerable: true });
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);

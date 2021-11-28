@@ -3,6 +3,7 @@
 - Added a workaround for a UC Browser specific version bug with unobservable `RegExp#sticky` flag, [#1008](https://github.com/zloirock/core-js/issues/1008), [#1015](https://github.com/zloirock/core-js/issues/1015)
 - Added handling of comments and specific spaces to `Function#name` polyfill, [#1010](https://github.com/zloirock/core-js/issues/1010), thanks [@ildar-shaimordanov](https://github.com/ildar-shaimordanov)
 - Prevented some theoretical cases of breaking / observing the internal state by patching `Array.prototype[@@species]`
+- Refactored `URL` and `URLSearchParams`
 - Added iOS Safari 15.2 compat data mapping
 - Added Electron 17.0 compat data mapping
 - Updated Deno compat data mapping
