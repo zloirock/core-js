@@ -1495,6 +1495,8 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
+  'esnext.function.un-this': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.global-this': null,
   'esnext.iterator.constructor': {

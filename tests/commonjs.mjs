@@ -595,6 +595,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'bigint');
     ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
     ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
+    ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
+    ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(typeof load(NS, 'iterator') == 'function');
     ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'iterator/drop') == 'function');
@@ -737,6 +739,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceUniqueBy({}) === undefined);
     ok(typeof instanceUniqueBy([]) == 'function');
     ok(instanceUniqueBy([]).call([1, 2, 3, 2, 1]).length === 3);
+
+    const instanceUnThis = load(NS, 'instance/un-this');
+    ok(typeof instanceUnThis == 'function');
+    ok(instanceUnThis({}) === undefined);
+    ok(typeof instanceUnThis([].slice) == 'function');
+    ok(instanceUnThis([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
   }
 
   load('proposals/accessible-object-hasownproperty');
@@ -751,6 +759,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-of-from');
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
+  load('proposals/function-un-this');
   load('proposals/global-this');
   load('proposals/iterator-helpers');
   load('proposals/keys-composition');
