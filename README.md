@@ -81,6 +81,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
   - [ECMAScript](#ecmascript)
     - [ECMAScript: Object](#ecmascript-object)
     - [ECMAScript: Function](#ecmascript-function)
+    - [ECMAScript: Error](#ecmascript-error)
     - [ECMAScript: Array](#ecmascript-array)
     - [ECMAScript: String and RegExp](#ecmascript-string-and-regexp)
     - [ECMAScript: Number](#ecmascript-number)
@@ -522,6 +523,7 @@ Object.hasOwn({ foo: 42 }, 'foo'); // => true
 Object.hasOwn({ foo: 42 }, 'bar'); // => false
 Object.hasOwn({}, 'toString');     // => false
 ```
+
 #### ECMAScript: Function[⬆](#index)
 Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
 ```js
@@ -544,6 +546,49 @@ core-js/es|stable|features/function/virtual/bind
 (function foo() {}).name // => 'foo'
 
 console.log.bind(console, 42)(43); // => 42 43
+```
+
+#### ECMAScript: Error[⬆](#index)
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js).
+```js
+class [
+  Error,
+  EvalError,
+  RangeError,
+  ReferenceError,
+  SyntaxError,
+  TypeError,
+  URIError,
+  WebAssembly.CompileError,
+  WebAssembly.LinkError,
+  WebAssembly.RuntimeError,
+] {
+  constructor(message: string, { cause: any }): %Error%;
+}
+
+class AggregateError {
+  constructor(errors: Iterable, message: string, { cause: any }): AggregateError;
+  errors: Array<any>;
+  message: string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/es|stable|features/aggregate-error
+core-js/es|stable|features/error
+core-js/es|stable|features/error/constructor
+```
+[*Example*](is.gd/79jmO5):
+```js
+const error1 = new TypeError('Error 1');
+const error2 = new TypeError('Error 2');
+const aggregate = new AggregateError([error1, error2], 'Collected errors');
+aggregate.errors[0] === error1; // => true
+aggregate.errors[1] === error2; // => true
+
+const cause = new TypeError('Something wrong');
+const error = new TypeError('Here explained what`s wrong', { cause });
+error.cause === cause; // => true
 ```
 
 #### ECMAScript: Array[⬆](#index)
@@ -1012,14 +1057,8 @@ core-js(-pure)/es|stable|features/date/to-primitive
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js).
 ```js
-class AggregateError {
-  constructor(errors: Iterable, message: string): AggregateError;
-  errors: Array<any>;
-  message: string;
-}
-
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled: Function, onRejected: Function): Promise;
@@ -1035,7 +1074,6 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/aggregate-error
 core-js(-pure)/es|stable|features/promise
 core-js(-pure)/es|stable|features/promise/all-settled
 core-js(-pure)/es|stable|features/promise/any

@@ -120,8 +120,6 @@ export default {
     'esnext.array.to-sorted',
     'esnext.array.to-spliced',
     'esnext.array.with',
-    'esnext.aggregate-error.cause',
-    'esnext.error.cause',
     'esnext.function.is-callable',
     'esnext.function.is-constructor',
     'esnext.function.un-this',
