@@ -2800,7 +2800,7 @@ core-js(-pure)/stable|features/url
 core-js/stable|features/url/to-json
 core-js(-pure)/stable|features/url-search-params
 ```
-[*Examples*](t.ly/ZiA6'):
+[*Examples*](t.ly/ZiA6):
 ```js
 const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
