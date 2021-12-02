@@ -1,6 +1,11 @@
 ## Changelog
 ##### Unreleased
+- Added `DOMException` polyfill, [the Web IDL spec](https://webidl.spec.whatwg.org/#idl-DOMException), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/DOMException)
+  - Includes `DOMException` and its attributes polyfills with fixes of many different engines bugs
+  - Includes `DOMException#stack` property polyfill in engines that should have it
+  - Reuses native `DOMException` implementations where it's possible (for example, in old NodeJS where it's not exposed as global)
 - Added [support of `cause` on all Error types](https://github.com/tc39/proposal-error-cause)
+- Added `Error.prototype.toString` polyfill with many different engines bugs fixes
 - Added `Number.prototype.toExponential` method polyfill with many different fixes for the most engines
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Moved to the stage 2
