@@ -1325,6 +1325,9 @@ GLOBAL.tests = {
   'esnext.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },
+  'esnext.iterator.to-async': function () {
+    return Iterator.prototype.toAsync;
+  },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },

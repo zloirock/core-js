@@ -26,3 +26,4 @@ require('../modules/esnext.iterator.reduce');
 require('../modules/esnext.iterator.some');
 require('../modules/esnext.iterator.take');
 require('../modules/esnext.iterator.to-array');
+require('../modules/esnext.iterator.to-async');
