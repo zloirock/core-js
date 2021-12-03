@@ -1,6 +1,9 @@
 import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
+import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+
 import { Symbol, URL, URLSearchParams } from 'core-js-pure';
 
 QUnit.test('URLSearchParams', assert => {
@@ -684,6 +687,8 @@ QUnit.test('URLSearchParams#entries', assert => {
     result += key + value;
   }
   assert.same(result, 'a1c3');
+
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#keys', assert => {
@@ -725,6 +730,8 @@ QUnit.test('URLSearchParams#keys', assert => {
     result += key;
   }
   assert.same(result, 'ac');
+
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#values', assert => {
@@ -766,6 +773,8 @@ QUnit.test('URLSearchParams#values', assert => {
     result += key;
   }
   assert.same(result, '13');
+
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#@@iterator', assert => {
@@ -813,4 +822,6 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
     result += key + value;
   }
   assert.same(result, 'a1c3');
+
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
