@@ -34,7 +34,7 @@ var V8_VERSION = require('../internals/engine-v8-version');
 var SPECIES = wellKnownSymbol('species');
 var PROMISE = 'Promise';
 
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(PROMISE);
 var setInternalState = InternalStateModule.set;
 var getInternalPromiseState = InternalStateModule.getterFor(PROMISE);
 var NativePromisePrototype = NativePromise && NativePromise.prototype;

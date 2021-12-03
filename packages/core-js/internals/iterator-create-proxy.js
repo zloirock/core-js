@@ -10,13 +10,15 @@ var InternalStateModule = require('../internals/internal-state');
 var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 
+var ITERATOR_PROXY = 'IteratorProxy';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(state) {
+    state.type = ITERATOR_PROXY;
     state.next = aCallable(state.iterator.next);
     state.done = false;
     state.ignoreArg = !IS_ITERATOR;

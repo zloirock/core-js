@@ -13,13 +13,15 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 
 var Promise = getBuiltIn('Promise');
 
+var ASYNC_ITERATOR_PROXY = 'AsyncIteratorProxy';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
+    state.type = ASYNC_ITERATOR_PROXY;
     state.next = aCallable(state.iterator.next);
     state.done = false;
     state.ignoreArgument = !IS_ITERATOR;

@@ -10,8 +10,9 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 
 var Promise = getBuiltIn('Promise');
 
+var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
   var done = result.done;
@@ -22,6 +23,7 @@ var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
 
 var AsyncFromSyncIterator = function AsyncIterator(iterator) {
   setInternalState(this, {
+    type: ASYNC_FROM_SYNC_ITERATOR,
     iterator: anObject(iterator),
     next: iterator.next
   });
