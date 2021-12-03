@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed requirements of internal slots in `Observable` / `Subscription` / `SubscriptionObserver`, [#1017](https://github.com/zloirock/core-js/issues/1017)
 - Added NodeJS 17.2 compat data mapping
 
 ##### 3.19.2 - 2021.11.29

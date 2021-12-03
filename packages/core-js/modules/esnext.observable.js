@@ -21,9 +21,15 @@ var hostReportErrors = require('../internals/host-report-errors');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 
-var OBSERVABLE = wellKnownSymbol('observable');
-var getInternalState = InternalStateModule.get;
+var $$OBSERVABLE = wellKnownSymbol('observable');
+var OBSERVABLE = 'Observable';
+var SUBSCRIPTION = 'Subscription';
+var SUBSCRIPTION_OBSERVER = 'SubscriptionObserver';
+var getterFor = InternalStateModule.getterFor;
 var setInternalState = InternalStateModule.set;
+var getObservableInternalState = getterFor(OBSERVABLE);
+var getSubscriptionInternalState = getterFor(SUBSCRIPTION);
+var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 var Array = global.Array;
 
 var cleanupSubscription = function (subscriptionState) {
@@ -53,6 +59,7 @@ var close = function (subscriptionState) {
 
 var Subscription = function (observer, subscriber) {
   var subscriptionState = setInternalState(this, {
+    type: SUBSCRIPTION,
     cleanup: undefined,
     observer: anObject(observer),
     subscriptionObserver: undefined
@@ -80,7 +87,7 @@ var Subscription = function (observer, subscriber) {
 
 Subscription.prototype = redefineAll({}, {
   unsubscribe: function unsubscribe() {
-    var subscriptionState = getInternalState(this);
+    var subscriptionState = getSubscriptionInternalState(this);
     if (!subscriptionClosed(subscriptionState)) {
       close(subscriptionState);
       cleanupSubscription(subscriptionState);
@@ -91,18 +98,21 @@ Subscription.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getInternalState(this));
+    return subscriptionClosed(getSubscriptionInternalState(this));
   }
 });
 
 var SubscriptionObserver = function (subscription) {
-  setInternalState(this, { subscription: subscription });
+  setInternalState(this, {
+    type: SUBSCRIPTION_OBSERVER,
+    subscription: subscription
+  });
   if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
   next: function next(value) {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
+    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
       try {
@@ -114,7 +124,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   error: function error(value) {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
+    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
       close(subscriptionState);
@@ -128,7 +138,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   complete: function complete() {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
+    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
     if (!subscriptionClosed(subscriptionState)) {
       var observer = subscriptionState.observer;
       close(subscriptionState);
@@ -145,13 +155,16 @@ SubscriptionObserver.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getInternalState(getInternalState(this).subscription));
+    return subscriptionClosed(getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription));
   }
 });
 
 var $Observable = function Observable(subscriber) {
   anInstance(this, ObservablePrototype);
-  setInternalState(this, { subscriber: aCallable(subscriber) });
+  setInternalState(this, {
+    type: OBSERVABLE,
+    subscriber: aCallable(subscriber)
+  });
 };
 
 var ObservablePrototype = $Observable.prototype;
@@ -163,14 +176,14 @@ redefineAll(ObservablePrototype, {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
       complete: length > 2 ? arguments[2] : undefined
-    } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
+    } : isObject(observer) ? observer : {}, getObservableInternalState(this).subscriber);
   }
 });
 
 redefineAll($Observable, {
   from: function from(x) {
     var C = isConstructor(this) ? this : $Observable;
-    var observableMethod = getMethod(anObject(x), OBSERVABLE);
+    var observableMethod = getMethod(anObject(x), $$OBSERVABLE);
     if (observableMethod) {
       var observable = anObject(call(observableMethod, x));
       return observable.constructor === C ? observable : new C(function (observer) {
@@ -201,10 +214,10 @@ redefineAll($Observable, {
   }
 });
 
-redefine(ObservablePrototype, OBSERVABLE, function () { return this; });
+redefine(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
   Observable: $Observable
 });
 
-setSpecies('Observable');
+setSpecies(OBSERVABLE);
