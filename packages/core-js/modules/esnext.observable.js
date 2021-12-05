@@ -32,38 +32,40 @@ var getSubscriptionInternalState = getterFor(SUBSCRIPTION);
 var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 var Array = global.Array;
 
-var cleanupSubscription = function (subscriptionState) {
-  var cleanup = subscriptionState.cleanup;
-  if (cleanup) {
-    subscriptionState.cleanup = undefined;
-    try {
-      cleanup();
-    } catch (error) {
-      hostReportErrors(error);
+var SubscriptionState = function (observer) {
+  this.observer = anObject(observer);
+  this.cleanup = undefined;
+  this.subscriptionObserver = undefined;
+};
+
+SubscriptionState.prototype = {
+  type: SUBSCRIPTION,
+  clean: function () {
+    var cleanup = this.cleanup;
+    if (cleanup) {
+      this.cleanup = undefined;
+      try {
+        cleanup();
+      } catch (error) {
+        hostReportErrors(error);
+      }
     }
+  },
+  close: function () {
+    if (!DESCRIPTORS) {
+      var subscription = this.facade;
+      var subscriptionObserver = this.subscriptionObserver;
+      subscription.closed = true;
+      if (subscriptionObserver) subscriptionObserver.closed = true;
+    } this.observer = undefined;
+  },
+  isClosed: function () {
+    return this.observer === undefined;
   }
 };
 
-var subscriptionClosed = function (subscriptionState) {
-  return subscriptionState.observer === undefined;
-};
-
-var close = function (subscriptionState) {
-  var subscription = subscriptionState.facade;
-  if (!DESCRIPTORS) {
-    subscription.closed = true;
-    var subscriptionObserver = subscriptionState.subscriptionObserver;
-    if (subscriptionObserver) subscriptionObserver.closed = true;
-  } subscriptionState.observer = undefined;
-};
-
 var Subscription = function (observer, subscriber) {
-  var subscriptionState = setInternalState(this, {
-    type: SUBSCRIPTION,
-    cleanup: undefined,
-    observer: anObject(observer),
-    subscriptionObserver: undefined
-  });
+  var subscriptionState = setInternalState(this, new SubscriptionState(observer));
   var start;
   if (!DESCRIPTORS) this.closed = false;
   try {
@@ -71,8 +73,8 @@ var Subscription = function (observer, subscriber) {
   } catch (error) {
     hostReportErrors(error);
   }
-  if (subscriptionClosed(subscriptionState)) return;
-  var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(this);
+  if (subscriptionState.isClosed()) return;
+  var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(subscriptionState);
   try {
     var cleanup = subscriber(subscriptionObserver);
     var subscription = cleanup;
@@ -82,15 +84,15 @@ var Subscription = function (observer, subscriber) {
   } catch (error) {
     subscriptionObserver.error(error);
     return;
-  } if (subscriptionClosed(subscriptionState)) cleanupSubscription(subscriptionState);
+  } if (subscriptionState.isClosed()) subscriptionState.clean();
 };
 
 Subscription.prototype = redefineAll({}, {
   unsubscribe: function unsubscribe() {
     var subscriptionState = getSubscriptionInternalState(this);
-    if (!subscriptionClosed(subscriptionState)) {
-      close(subscriptionState);
-      cleanupSubscription(subscriptionState);
+    if (!subscriptionState.isClosed()) {
+      subscriptionState.close();
+      subscriptionState.clean();
     }
   }
 });
@@ -98,22 +100,22 @@ Subscription.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getSubscriptionInternalState(this));
+    return getSubscriptionInternalState(this).isClosed();
   }
 });
 
-var SubscriptionObserver = function (subscription) {
+var SubscriptionObserver = function (subscriptionState) {
   setInternalState(this, {
     type: SUBSCRIPTION_OBSERVER,
-    subscription: subscription
+    subscriptionState: subscriptionState
   });
   if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
   next: function next(value) {
-    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
       try {
         var nextMethod = getMethod(observer, 'next');
@@ -124,30 +126,30 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   error: function error(value) {
-    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
-      close(subscriptionState);
+      subscriptionState.close();
       try {
         var errorMethod = getMethod(observer, 'error');
         if (errorMethod) call(errorMethod, observer, value);
         else hostReportErrors(value);
       } catch (err) {
         hostReportErrors(err);
-      } cleanupSubscription(subscriptionState);
+      } subscriptionState.clean();
     }
   },
   complete: function complete() {
-    var subscriptionState = getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
-      close(subscriptionState);
+      subscriptionState.close();
       try {
         var completeMethod = getMethod(observer, 'complete');
         if (completeMethod) call(completeMethod, observer);
       } catch (error) {
         hostReportErrors(error);
-      } cleanupSubscription(subscriptionState);
+      } subscriptionState.clean();
     }
   }
 });
@@ -155,7 +157,7 @@ SubscriptionObserver.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getSubscriptionInternalState(getSubscriptionObserverInternalState(this).subscription));
+    return getSubscriptionObserverInternalState(this).subscriptionState.isClosed();
   }
 });
 
