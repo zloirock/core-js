@@ -1,7 +1,6 @@
-// TODO: disabled by default because of the conflict with another proposal
 import { STRICT } from '../helpers/constants';
 
-QUnit.skip('String#at', assert => {
+QUnit.test('String#at', assert => {
   const { at } = String.prototype;
   assert.isFunction(at);
   assert.arity(at, 1);
@@ -22,7 +21,8 @@ QUnit.skip('String#at', assert => {
   assert.same('1', '1'.at(NaN));
   assert.same('1', '1'.at());
   assert.same('1', '123'.at(-0));
-  assert.same('\uD842', '𠮷'.at());
+  // TODO: disabled by default because of the conflict with old proposal
+  // assert.same('\uD842', '𠮷'.at());
   assert.same('1', at.call({ toString() { return '123'; } }, 0));
 
   assert.throws(() => at.call(Symbol(), 0), 'throws on symbol context');

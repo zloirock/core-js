@@ -1,10 +1,9 @@
-// TODO: disabled by default because of the conflict with another proposal
 import { STRICT } from '../helpers/constants';
 
 import at from 'core-js-pure/es/string/at';
 import Symbol from 'core-js-pure/es/symbol';
 
-QUnit.skip('String#at', assert => {
+QUnit.test('String#at', assert => {
   assert.isFunction(at);
   assert.same('1', at('123', 0));
   assert.same('2', at('123', 1));
@@ -20,7 +19,8 @@ QUnit.skip('String#at', assert => {
   assert.same('1', at('1', NaN));
   assert.same('1', at('1'));
   assert.same('1', at('123', -0));
-  assert.same('\uD842', at('𠮷'));
+  // TODO: disabled by default because of the conflict with old proposal
+  // assert.same('\uD842', at('𠮷'));
   assert.same('1', at({ toString() { return '123'; } }, 0));
 
   assert.throws(() => at(Symbol(), 0), 'throws on symbol context');

@@ -9,7 +9,7 @@ var fails = require('../internals/fails');
 var charAt = uncurryThis(''.charAt);
 
 var FORCED = fails(function () {
-  return '𠮷'.at(0) !== '\uD842';
+  return '𠮷'.at(-2) !== '\uD842';
 });
 
 // `String.prototype.at` method
