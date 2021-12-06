@@ -30,6 +30,7 @@ jobs:
             package.json
             packages/*/package.json
       - run: npm i
+      - run: npx playwright install-deps
       - run: npm run ci-karma
 
   tests:
