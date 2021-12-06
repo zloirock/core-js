@@ -2,6 +2,7 @@
 ##### Unreleased
 - Fixed internal slots check in methods of some built-in types, [#1017](https://github.com/zloirock/core-js/issues/1017)
 - Fixed `URLSearchParams` iterator `.next` that should be enumerable [by the spec](https://webidl.spec.whatwg.org/#es-iterator-prototype-object)
+- Refactored `Subscription`
 - Added NodeJS 17.2 compat data mapping
 
 ##### 3.19.2 - 2021.11.29
