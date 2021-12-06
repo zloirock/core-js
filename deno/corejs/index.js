@@ -1,5 +1,5 @@
 /**
- * core-js 3.19.2
+ * core-js 3.19.3
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -847,7 +847,7 @@ var store = __webpack_require__(33);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.19.2',
+  version: '3.19.3',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
@@ -2807,8 +2807,9 @@ var AsyncIteratorPrototype = __webpack_require__(109);
 
 var Promise = getBuiltIn('Promise');
 
+var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
   var done = result.done;
@@ -2819,6 +2820,7 @@ var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
 
 var AsyncFromSyncIterator = function AsyncIterator(iterator) {
   setInternalState(this, {
+    type: ASYNC_FROM_SYNC_ITERATOR,
     iterator: anObject(iterator),
     next: iterator.next
   });
@@ -3629,13 +3631,15 @@ var AsyncIteratorPrototype = __webpack_require__(109);
 
 var Promise = getBuiltIn('Promise');
 
+var ASYNC_ITERATOR_PROXY = 'AsyncIteratorProxy';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var AsyncIteratorProxy = function AsyncIterator(state) {
+    state.type = ASYNC_ITERATOR_PROXY;
     state.next = aCallable(state.iterator.next);
     state.done = false;
     state.ignoreArgument = !IS_ITERATOR;
@@ -4285,9 +4289,9 @@ var Iterators = __webpack_require__(77);
 
 var returnThis = function () { return this; };
 
-module.exports = function (IteratorConstructor, NAME, next) {
+module.exports = function (IteratorConstructor, NAME, next, ENUMERABLE_NEXT) {
   var TO_STRING_TAG = NAME + ' Iterator';
-  IteratorConstructor.prototype = create(IteratorPrototype, { next: createPropertyDescriptor(1, next) });
+  IteratorConstructor.prototype = create(IteratorPrototype, { next: createPropertyDescriptor(+!ENUMERABLE_NEXT, next) });
   setToStringTag(IteratorConstructor, TO_STRING_TAG, false, true);
   Iterators[TO_STRING_TAG] = returnThis;
   return IteratorConstructor;
@@ -5467,13 +5471,15 @@ var InternalStateModule = __webpack_require__(45);
 var getMethod = __webpack_require__(26);
 var IteratorPrototype = __webpack_require__(149).IteratorPrototype;
 
+var ITERATOR_PROXY = 'IteratorProxy';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.get;
+var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(state) {
+    state.type = ITERATOR_PROXY;
     state.next = aCallable(state.iterator.next);
     state.done = false;
     state.ignoreArg = !IS_ITERATOR;
@@ -6932,42 +6938,51 @@ var hostReportErrors = __webpack_require__(228);
 var wellKnownSymbol = __webpack_require__(30);
 var InternalStateModule = __webpack_require__(45);
 
-var OBSERVABLE = wellKnownSymbol('observable');
-var getInternalState = InternalStateModule.get;
+var $$OBSERVABLE = wellKnownSymbol('observable');
+var OBSERVABLE = 'Observable';
+var SUBSCRIPTION = 'Subscription';
+var SUBSCRIPTION_OBSERVER = 'SubscriptionObserver';
+var getterFor = InternalStateModule.getterFor;
 var setInternalState = InternalStateModule.set;
+var getObservableInternalState = getterFor(OBSERVABLE);
+var getSubscriptionInternalState = getterFor(SUBSCRIPTION);
+var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 var Array = global.Array;
 
-var cleanupSubscription = function (subscriptionState) {
-  var cleanup = subscriptionState.cleanup;
-  if (cleanup) {
-    subscriptionState.cleanup = undefined;
-    try {
-      cleanup();
-    } catch (error) {
-      hostReportErrors(error);
+var SubscriptionState = function (observer) {
+  this.observer = anObject(observer);
+  this.cleanup = undefined;
+  this.subscriptionObserver = undefined;
+};
+
+SubscriptionState.prototype = {
+  type: SUBSCRIPTION,
+  clean: function () {
+    var cleanup = this.cleanup;
+    if (cleanup) {
+      this.cleanup = undefined;
+      try {
+        cleanup();
+      } catch (error) {
+        hostReportErrors(error);
+      }
     }
+  },
+  close: function () {
+    if (!DESCRIPTORS) {
+      var subscription = this.facade;
+      var subscriptionObserver = this.subscriptionObserver;
+      subscription.closed = true;
+      if (subscriptionObserver) subscriptionObserver.closed = true;
+    } this.observer = undefined;
+  },
+  isClosed: function () {
+    return this.observer === undefined;
   }
 };
 
-var subscriptionClosed = function (subscriptionState) {
-  return subscriptionState.observer === undefined;
-};
-
-var close = function (subscriptionState) {
-  var subscription = subscriptionState.facade;
-  if (!DESCRIPTORS) {
-    subscription.closed = true;
-    var subscriptionObserver = subscriptionState.subscriptionObserver;
-    if (subscriptionObserver) subscriptionObserver.closed = true;
-  } subscriptionState.observer = undefined;
-};
-
 var Subscription = function (observer, subscriber) {
-  var subscriptionState = setInternalState(this, {
-    cleanup: undefined,
-    observer: anObject(observer),
-    subscriptionObserver: undefined
-  });
+  var subscriptionState = setInternalState(this, new SubscriptionState(observer));
   var start;
   if (!DESCRIPTORS) this.closed = false;
   try {
@@ -6975,8 +6990,8 @@ var Subscription = function (observer, subscriber) {
   } catch (error) {
     hostReportErrors(error);
   }
-  if (subscriptionClosed(subscriptionState)) return;
-  var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(this);
+  if (subscriptionState.isClosed()) return;
+  var subscriptionObserver = subscriptionState.subscriptionObserver = new SubscriptionObserver(subscriptionState);
   try {
     var cleanup = subscriber(subscriptionObserver);
     var subscription = cleanup;
@@ -6986,15 +7001,15 @@ var Subscription = function (observer, subscriber) {
   } catch (error) {
     subscriptionObserver.error(error);
     return;
-  } if (subscriptionClosed(subscriptionState)) cleanupSubscription(subscriptionState);
+  } if (subscriptionState.isClosed()) subscriptionState.clean();
 };
 
 Subscription.prototype = redefineAll({}, {
   unsubscribe: function unsubscribe() {
-    var subscriptionState = getInternalState(this);
-    if (!subscriptionClosed(subscriptionState)) {
-      close(subscriptionState);
-      cleanupSubscription(subscriptionState);
+    var subscriptionState = getSubscriptionInternalState(this);
+    if (!subscriptionState.isClosed()) {
+      subscriptionState.close();
+      subscriptionState.clean();
     }
   }
 });
@@ -7002,19 +7017,22 @@ Subscription.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getInternalState(this));
+    return getSubscriptionInternalState(this).isClosed();
   }
 });
 
-var SubscriptionObserver = function (subscription) {
-  setInternalState(this, { subscription: subscription });
+var SubscriptionObserver = function (subscriptionState) {
+  setInternalState(this, {
+    type: SUBSCRIPTION_OBSERVER,
+    subscriptionState: subscriptionState
+  });
   if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = redefineAll({}, {
   next: function next(value) {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
       try {
         var nextMethod = getMethod(observer, 'next');
@@ -7025,30 +7043,30 @@ SubscriptionObserver.prototype = redefineAll({}, {
     }
   },
   error: function error(value) {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
-      close(subscriptionState);
+      subscriptionState.close();
       try {
         var errorMethod = getMethod(observer, 'error');
         if (errorMethod) call(errorMethod, observer, value);
         else hostReportErrors(value);
       } catch (err) {
         hostReportErrors(err);
-      } cleanupSubscription(subscriptionState);
+      } subscriptionState.clean();
     }
   },
   complete: function complete() {
-    var subscriptionState = getInternalState(getInternalState(this).subscription);
-    if (!subscriptionClosed(subscriptionState)) {
+    var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
+    if (!subscriptionState.isClosed()) {
       var observer = subscriptionState.observer;
-      close(subscriptionState);
+      subscriptionState.close();
       try {
         var completeMethod = getMethod(observer, 'complete');
         if (completeMethod) call(completeMethod, observer);
       } catch (error) {
         hostReportErrors(error);
-      } cleanupSubscription(subscriptionState);
+      } subscriptionState.clean();
     }
   }
 });
@@ -7056,13 +7074,16 @@ SubscriptionObserver.prototype = redefineAll({}, {
 if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function () {
-    return subscriptionClosed(getInternalState(getInternalState(this).subscription));
+    return getSubscriptionObserverInternalState(this).subscriptionState.isClosed();
   }
 });
 
 var $Observable = function Observable(subscriber) {
   anInstance(this, ObservablePrototype);
-  setInternalState(this, { subscriber: aCallable(subscriber) });
+  setInternalState(this, {
+    type: OBSERVABLE,
+    subscriber: aCallable(subscriber)
+  });
 };
 
 var ObservablePrototype = $Observable.prototype;
@@ -7074,14 +7095,14 @@ redefineAll(ObservablePrototype, {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
       complete: length > 2 ? arguments[2] : undefined
-    } : isObject(observer) ? observer : {}, getInternalState(this).subscriber);
+    } : isObject(observer) ? observer : {}, getObservableInternalState(this).subscriber);
   }
 });
 
 redefineAll($Observable, {
   from: function from(x) {
     var C = isConstructor(this) ? this : $Observable;
-    var observableMethod = getMethod(anObject(x), OBSERVABLE);
+    var observableMethod = getMethod(anObject(x), $$OBSERVABLE);
     if (observableMethod) {
       var observable = anObject(call(observableMethod, x));
       return observable.constructor === C ? observable : new C(function (observer) {
@@ -7112,13 +7133,13 @@ redefineAll($Observable, {
   }
 });
 
-redefine(ObservablePrototype, OBSERVABLE, function () { return this; });
+redefine(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
 $({ global: true }, {
   Observable: $Observable
 });
 
-setSpecies('Observable');
+setSpecies(OBSERVABLE);
 
 
 /***/ }),
