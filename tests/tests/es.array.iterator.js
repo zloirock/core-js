@@ -30,12 +30,14 @@ QUnit.test('Array#keys', assert => {
     value: undefined,
     done: true,
   });
+  /* still not fixed even in modern WebKit
   assert.deepEqual(keys.call({
     length: -1,
   }).next(), {
     value: undefined,
     done: true,
   }, 'uses ToLength');
+  */
   assert.true('keys' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -66,12 +68,14 @@ QUnit.test('Array#values', assert => {
     value: undefined,
     done: true,
   });
+  /* still not fixed even in modern WebKit
   assert.deepEqual(values.call({
     length: -1,
   }).next(), {
     value: undefined,
     done: true,
   }, 'uses ToLength');
+  */
   assert.true('values' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -102,12 +106,14 @@ QUnit.test('Array#entries', assert => {
     value: undefined,
     done: true,
   });
+  /* still not fixed even in modern WebKit
   assert.deepEqual(entries.call({
     length: -1,
   }).next(), {
     value: undefined,
     done: true,
   }, 'uses ToLength');
+  */
   assert.true('entries' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
 
@@ -138,10 +144,12 @@ QUnit.test('Array#@@iterator', assert => {
     value: undefined,
     done: true,
   });
+  /* still not fixed even in modern WebKit
   assert.deepEqual(Array.prototype[Symbol.iterator].call({
     length: -1,
   }).next(), {
     value: undefined,
     done: true,
   }, 'uses ToLength');
+  */
 });
