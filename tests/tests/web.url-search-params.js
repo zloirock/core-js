@@ -706,7 +706,7 @@ QUnit.test('URLSearchParams#entries', assert => {
   }
   assert.same(result, 'a1c3');
 
-  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#keys', assert => {
@@ -751,7 +751,7 @@ QUnit.test('URLSearchParams#keys', assert => {
   }
   assert.same(result, 'ac');
 
-  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#values', assert => {
@@ -796,7 +796,7 @@ QUnit.test('URLSearchParams#values', assert => {
   }
   assert.same(result, '13');
 
-  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#@@iterator', assert => {
@@ -847,7 +847,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   }
   assert.same(result, 'a1c3');
 
-  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
+  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#@@toStringTag', assert => {

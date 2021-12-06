@@ -83,7 +83,7 @@ assign(QUnit.assert, {
   },
   name(fn, expected, message) {
     const applicable = typeof fn == 'function' && 'name' in fn;
-    const result = applicable && fn.name === expected;
+    const result = applicable ? fn.name === expected : true;
     this.pushResult({
       result,
       actual: result,
