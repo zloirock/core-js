@@ -101,6 +101,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`Iterator` helpers](#iterator-helpers)
       - [New `Set` methods](#new-set-methods)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
+      - [Change `Array` by copy](#change-array-by-copy)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
       - [`Symbol.metadata` for decorators proposal](#symbolmetadata-for-decorators-proposal)
@@ -2087,6 +2088,53 @@ map.emplace('b', { update: it => it ** 2, insert: () => 3}); // => 3
 
 console.log(map); // => Map { 'a': 4, 'b': 3 }
 ```
+##### [Change `Array` by copy](https://github.com/tc39/proposal-change-array-by-copy)[⬆](#index)
+Modules [`esnext.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-reversed.js), [`esnext.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-sorted.js), [`esnext.array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-spliced.js), [`esnext.array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.with.js), [`esnext.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-reversed.js), [`esnext.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-sorted.js), [`esnext.typed-array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-spliced.js), [`esnext.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.with.js).
+```js
+class Array {
+  toReversed(): Array<mixed>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
+  toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
+  with(index: includes, value: any): Array<mixed>;
+}
+
+class %TypedArray% {
+  toReversed(): %TypedArray%;
+  toSpliced(start?: number, deleteCount?: number, ...items: %TypedArray%): %TypedArray%;
+  toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
+  with(index: includes, value: any): %TypedArray%;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/change-array-by-copy
+core-js(-pure)/features/array(/virtual)/to-reversed
+core-js(-pure)/features/array(/virtual)/to-sorted
+core-js(-pure)/features/array(/virtual)/to-spliced
+core-js(-pure)/features/array(/virtual)/with
+core-js/features/typed-array/to-reversed
+core-js/features/typed-array/to-sorted
+core-js/features/typed-array/to-spliced
+core-js/features/typed-array/with
+```
+[*Examples*](t.ly/wcvY):
+```js
+const sequence = [1, 2, 3];
+sequence.toReversed(); // => [3, 2, 1]
+sequence; // => [1, 2, 3]
+
+const array = [1, 2, 3, 4];
+array.toSpliced(1, 2, 5, 6, 7); // => [1, 5, 6, 7, 4]
+array; // => [1, 2, 3, 4]
+
+const outOfOrder = [3, 1, 2];
+outOfOrder.toSorted(); // => [1, 2, 3]
+outOfOrder; // => [3, 1, 2]
+
+const correctionNeeded = [1, 1, 3];
+correctionNeeded.with(1, 2); // => [1, 2, 3]
+correctionNeeded; // => [1, 1, 3]
+````
 ##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
 Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
 ```js

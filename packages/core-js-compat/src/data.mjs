@@ -1459,7 +1459,15 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.last-item': {
   },
+  'esnext.array.to-reversed': {
+  },
+  'esnext.array.to-sorted': {
+  },
+  'esnext.array.to-spliced': {
+  },
   'esnext.array.unique-by': {
+  },
+  'esnext.array.with': {
   },
   'esnext.async-iterator.constructor': {
   },
@@ -1739,7 +1747,15 @@ export const data = {
   },
   'esnext.typed-array.group-by': {
   },
+  'esnext.typed-array.to-reversed': {
+  },
+  'esnext.typed-array.to-sorted': {
+  },
+  'esnext.typed-array.to-spliced': {
+  },
   'esnext.typed-array.unique-by': {
+  },
+  'esnext.typed-array.with': {
   },
   'esnext.weak-map.delete-all': {
   },

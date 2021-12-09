@@ -112,10 +112,18 @@ export default {
     'esnext.typed-array.from-async',
   ],
   '3.20': [
+    'esnext.array.to-reversed',
+    'esnext.array.to-sorted',
+    'esnext.array.to-spliced',
+    'esnext.array.with',
     'esnext.function.is-callable',
     'esnext.function.is-constructor',
     'esnext.function.un-this',
     'esnext.iterator.to-async',
     'esnext.string.cooked',
+    'esnext.typed-array.to-reversed',
+    'esnext.typed-array.to-sorted',
+    'esnext.typed-array.to-spliced',
+    'esnext.typed-array.with',
   ],
 };
