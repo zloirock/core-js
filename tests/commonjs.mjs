@@ -554,6 +554,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'set-timeout') == 'function');
     ok(typeof load(NS, 'set-interval') == 'function');
     ok(typeof load(NS, 'set-immediate') == 'function');
+    ok(load(NS, 'structured-clone')(42) === 42);
     ok(typeof load(NS, 'clear-immediate') == 'function');
     ok(typeof load(NS, 'queue-microtask') == 'function');
     ok(typeof load(NS, 'url') == 'function');
@@ -847,6 +848,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('web/dom-collections'));
   ok(load('web/immediate'));
   ok(load('web/queue-microtask'));
+  ok(load('web/structured-clone')(42) === 42);
   ok(load('web/timers'));
   ok(load('web/url'));
   ok(load('web/url-search-params'));

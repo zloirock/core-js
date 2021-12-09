@@ -1850,6 +1850,13 @@ export const data = {
     node: '12.0', // '11.0',
     safari: '12.1',
   },
+  'web.structured-clone': {
+    // https://github.com/whatwg/html/pull/5749
+    // deno: '1.14',
+    // current FF implementation can't clone errors
+    // firefox: '94',
+    // node: '17.0',
+  },
   'web.timers': {
     android: '1.5',
     chrome: '1',

@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Added `structuredClone` method [from the HTML spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)
+  - Includes all cases of cloning and transferring of required ECMAScript and platform types that can be polyfilled, for the details see [the caveats](https://github.com/zloirock/core-js#caveats-when-using-structuredclone-polyfill)
+  - Uses native structured cloning algorithm implementations where it's possible
+  - Includes the new semantic of errors cloning from [`html/5749`](https://github.com/whatwg/html/pull/5749)
 - Added `DOMException` polyfill, [the Web IDL spec](https://webidl.spec.whatwg.org/#idl-DOMException), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/DOMException)
   - Includes `DOMException` and its attributes polyfills with fixes of many different engines bugs
   - Includes `DOMException#stack` property polyfill in engines that should have it

@@ -133,5 +133,6 @@ export default {
     'web.dom-exception.constructor',
     'web.dom-exception.stack',
     'web.dom-exception.to-string-tag',
+    'web.structured-clone',
   ],
 };
