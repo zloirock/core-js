@@ -889,7 +889,7 @@ GLOBAL.tests = {
       && set[Symbol.toStringTag];
   }],
   'es.string.at-alternative': function () {
-    return 'a'.at(-1) === 'a';
+    return '𠮷'.at(-2) === '\uD842';
   },
   'es.string.code-point-at': function () {
     return String.prototype.codePointAt;
