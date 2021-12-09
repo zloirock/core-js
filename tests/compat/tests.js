@@ -501,6 +501,19 @@ GLOBAL.tests = {
   'es.date.to-string': function () {
     return new Date(NaN).toString() == 'Invalid Date';
   },
+  'es.error.to-string': function () {
+    if (DESCRIPTORS_SUPPORT) {
+      // Chrome 32- incorrectly call accessor
+      var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
+        return this === object;
+      } }));
+      if (Error.prototype.toString.call(object) !== 'true') return false;
+    }
+    // FF10- does not properly handle non-strings
+    return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
+      // IE8 does not properly handle defaults
+      && Error.prototype.toString.call({}) === 'Error';
+  },
   'es.escape': function () {
     return escape;
   },
@@ -1637,6 +1650,20 @@ GLOBAL.tests = {
       }
     }
     return true;
+  },
+  'web.dom-exception.constructor': function () {
+    return new DOMException() instanceof Error
+      && new DOMException(1, 'DataCloneError').code === 25
+      && String(new DOMException(1, 2)) === '2: 1'
+      && DOMException.DATA_CLONE_ERR === 25
+      && DOMException.prototype.DATA_CLONE_ERR === 25;
+  },
+  'web.dom-exception.stack': function () {
+    return !('stack' in Error('1')) || 'stack' in new DOMException();
+  },
+  'web.dom-exception.to-string-tag': function () {
+    return typeof DOMException == 'function'
+      && DOMException.prototype[Symbol.toStringTag] === 'DOMException';
   },
   'web.immediate': function () {
     return setImmediate && clearImmediate;

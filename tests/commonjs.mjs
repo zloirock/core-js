@@ -120,6 +120,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(load(NS, 'error/constructor').Error(1, { cause: 7 }).cause === 7);
+    ok(typeof load(NS, 'error/to-string') == 'function');
     ok(load(NS, 'error').Error(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));
@@ -258,7 +259,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
-
     ok(typeof load(NS, '/date/now')(new Date()) === 'number');
     const date = new Date();
     ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
@@ -545,6 +545,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['stable', 'features']) {
+    ok(typeof load(NS, 'dom-exception/constructor') == 'function');
+    ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
+    ok(typeof load(NS, 'dom-exception') == 'function');
     ok(typeof load(NS, 'dom-collections').iterator == 'function');
     ok(typeof load(NS, 'dom-collections/for-each') == 'function');
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
@@ -840,6 +843,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('stage/pre'));
   ok(load('stage'));
 
+  ok(load('web/dom-exception'));
   ok(load('web/dom-collections'));
   ok(load('web/immediate'));
   ok(load('web/queue-microtask'));

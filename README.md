@@ -134,6 +134,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [`setImmediate`](#setimmediate)
     - [`queueMicrotask`](#queuemicrotask)
     - [`URL` and `URLSearchParams`](#url-and-urlsearchparams)
+    - [`DOMException`](#domexception)
     - [iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
@@ -538,8 +539,8 @@ class Function {
 core-js/es|stable|features/function
 core-js/es|stable|features/function/name
 core-js/es|stable|features/function/has-instance
-core-js/es|stable|features/function/bind
-core-js/es|stable|features/function/virtual/bind
+core-js(-pure)/es|stable|features/function/bind
+core-js(-pure)/es|stable|features/function/virtual/bind
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
@@ -571,14 +572,19 @@ class AggregateError {
   errors: Array<any>;
   message: string;
 }
+
+class Error {
+  toString(): string; // different fixes
+}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|features/aggregate-error
 core-js/es|stable|features/error
 core-js/es|stable|features/error/constructor
+core-js/es|stable|features/error/to-string
 ```
-[*Example*](is.gd/79jmO5):
+[*Example*](https://is.gd/1SufcH):
 ```js
 const error1 = new TypeError('Error 1');
 const error2 = new TypeError('Error 2');
@@ -589,6 +595,8 @@ aggregate.errors[1] === error2; // => true
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here explained what`s wrong', { cause });
 error.cause === cause; // => true
+
+Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
 #### ECMAScript: Array[⬆](#index)
@@ -3007,6 +3015,37 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 - IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
 - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
 - `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+
+##### `DOMException`:[⬆](#index)
+[The specification.](https://webidl.spec.whatwg.org/#idl-DOMException) Modules [`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.to-string-tag.js).
+```js
+class DOMException {
+  constructor(message: string, name?: string);
+  readonly attribute name: string;
+  readonly attribute message: string;
+  readonly attribute code: string;
+  attribute stack: string; // in engines that should have it
+  @@toStringTag: 'DOMException';
+}
+````
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stable|features/dom-exception
+core-js(-pure)/stable|features/dom-exception/constructor
+core-js/stable|features/dom-exception/to-string-tag
+```
+[*Examples*](is.gd/pI6oTN):
+```js
+const exception = new DOMException('error', 'DataCloneError');
+console.log(exception.name);                            // => 'DataCloneError'
+console.log(exception.message);                         // => 'error'
+console.log(exception.code);                            // => 25
+console.log(typeof exception.stack);                    // => 'string'
+console.log(exception instanceof DOMException);         // => true
+console.log(exception instanceof Error);                // => true
+console.log(exception.toString());                      // => 'DataCloneError: error'
+console.log(Object.prototype.toString.call(exception)); // => '[object DOMException]'
+```
 
 #### Iterable DOM collections[⬆](#index)
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).

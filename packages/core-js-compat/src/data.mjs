@@ -98,6 +98,12 @@ export const data = {
     firefox: '91',
     safari: '15.0',
   },
+  'es.error.to-string': {
+    chrome: '33',
+    firefox: '11',
+    ie: '9',
+    safari: '8.0',
+  },
   'es.aggregate-error': {
     chrome: '85',
     firefox: '79',
@@ -1812,6 +1818,25 @@ export const data = {
     node: '0.0.1',
     safari: '13.1',
     rhino: '1.7.13',
+  },
+  'web.dom-exception.constructor': {
+    chrome: '46',
+    deno: '1.7',
+    firefox: '37',
+    node: '17.0',
+    safari: '11.1',
+  },
+  'web.dom-exception.stack': {
+    deno: '1.7',
+    firefox: '37',
+    node: '17.0',
+  },
+  'web.dom-exception.to-string-tag': {
+    chrome: '49',
+    deno: '1.7',
+    firefox: '51',
+    node: '17.0',
+    safari: '11.1',
   },
   'web.immediate': {
     ie: '10',
