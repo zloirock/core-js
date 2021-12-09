@@ -83,13 +83,13 @@ assign(QUnit.assert, {
   },
   name(fn, expected, message) {
     const applicable = typeof fn == 'function' && 'name' in fn;
-    const result = applicable ? fn.name === expected : true;
+    const actual = fn.name;
     this.pushResult({
-      result,
-      actual: result,
+      result: applicable ? fn.name === expected : true,
+      actual,
       expected,
       message: applicable
-        ? message ?? `The function name is '${ result }'`
+        ? message ?? `The function name is '${ expected }'`
         : 'Function#name property test makes no sense',
     });
   },
