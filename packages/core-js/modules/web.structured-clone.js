@@ -40,6 +40,7 @@ var mapHas = uncurryThis(MapPrototype.has);
 var mapGet = uncurryThis(MapPrototype.get);
 var mapSet = uncurryThis(MapPrototype.set);
 var setAdd = uncurryThis(Set.prototype.add);
+var objectKeys = getBuiltin('Object', 'keys');
 var push = uncurryThis([].push);
 var bolleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
@@ -106,7 +107,7 @@ var structuredCloneInternal = function (value, map) {
 
   var type = classof(value);
   var deep = false;
-  var C, name, cloned, dataTransfer, i, length, key;
+  var C, name, cloned, dataTransfer, i, length, keys, key;
 
   switch (type) {
     case 'Array':
@@ -328,7 +329,9 @@ var structuredCloneInternal = function (value, map) {
   if (deep) switch (type) {
     case 'Array':
     case 'Object':
-      for (key in value) if (hasOwn(value, key)) {
+      keys = objectKeys(value);
+      for (i = 0, length = lengthOfArrayLike(keys); i < length; i++) {
+        key = keys[i];
         createProperty(cloned, key, structuredCloneInternal(value[key], map));
       } break;
     case 'Map':
