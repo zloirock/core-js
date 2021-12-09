@@ -112,6 +112,8 @@ export default {
     'esnext.typed-array.from-async',
   ],
   '3.20': [
+    'es.error.cause',
+    'es.aggregate-error.cause',
     'es.number.to-exponential',
     'esnext.array.group-by-map',
     'esnext.array.to-reversed',

@@ -93,10 +93,20 @@ export const data = {
     safari: '9.0',
     rhino: '1.7.13',
   },
+  'es.error.cause': {
+    chrome: '94',
+    firefox: '91',
+    safari: '15.0',
+  },
   'es.aggregate-error': {
     chrome: '85',
     firefox: '79',
     safari: '14.0',
+  },
+  'es.aggregate-error.cause': {
+    chrome: '94',
+    firefox: '91',
+    safari: '15.0',
   },
   'es.array.at': {
     chrome: '92',

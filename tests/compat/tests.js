@@ -241,8 +241,16 @@ GLOBAL.tests = {
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
   }],
+  'es.error.cause': function () {
+    return Error('e', { cause: 7 }).cause === 7
+      && !('cause' in Error.prototype);
+  },
   'es.aggregate-error': function () {
     return typeof AggregateError == 'function';
+  },
+  'es.aggregate-error.cause': function () {
+    return AggregateError([1], 'e', { cause: 7 }).cause === 7
+      && !('cause' in AggregateError.prototype);
   },
   'es.array.at': function () {
     return [].at;

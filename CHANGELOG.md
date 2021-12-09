@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added [support of `cause` on all Error types](https://github.com/tc39/proposal-error-cause)
 - Added `Number.prototype.toExponential` method polyfill with many different fixes for the most engines
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Moved to the stage 2
