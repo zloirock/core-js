@@ -177,34 +177,33 @@ QUnit.module('structuredClone', () => {
   // Error
   QUnit.test('Error', assert => {
     const errors = [
-      new Error(),
-      new Error('abc', 'def', { cause: 42 }),
-      new EvalError(),
-      new EvalError('ghi', 'jkl', { cause: 42 }),
-      new RangeError(),
-      new RangeError('ghi', 'jkl', { cause: 42 }),
-      new ReferenceError(),
-      new ReferenceError('ghi', 'jkl', { cause: 42 }),
-      new SyntaxError(),
-      new SyntaxError('ghi', 'jkl', { cause: 42 }),
-      new TypeError(),
-      new TypeError('ghi', 'jkl', { cause: 42 }),
-      new URIError(),
-      new URIError('ghi', 'jkl', { cause: 42 }),
-      new AggregateError([1, 2]),
-      new AggregateError([1, 2], 42, { cause: 42 }),
+      ['Error', new Error()],
+      ['Error', new Error('abc', 'def', { cause: 42 })],
+      ['EvalError', new EvalError()],
+      ['EvalError', new EvalError('ghi', 'jkl', { cause: 42 })],
+      ['RangeError', new RangeError()],
+      ['RangeError', new RangeError('ghi', 'jkl', { cause: 42 })],
+      ['ReferenceError', new ReferenceError()],
+      ['ReferenceError', new ReferenceError('ghi', 'jkl', { cause: 42 })],
+      ['SyntaxError', new SyntaxError()],
+      ['SyntaxError', new SyntaxError('ghi', 'jkl', { cause: 42 })],
+      ['TypeError', new TypeError()],
+      ['TypeError', new TypeError('ghi', 'jkl', { cause: 42 })],
+      ['URIError', new URIError()],
+      ['URIError', new URIError('ghi', 'jkl', { cause: 42 })],
+      ['AggregateError', new AggregateError([1, 2])],
+      ['AggregateError', new AggregateError([1, 2], 42, { cause: 42 })],
     ];
 
     const compile = fromSource('WebAssembly.CompileError()');
     const link = fromSource('WebAssembly.LinkError()');
     const runtime = fromSource('WebAssembly.RuntimeError()');
 
-    if (compile) errors.push(compile);
-    if (link) errors.push(link);
-    if (runtime) errors.push(runtime);
+    if (compile) errors.push(['CompileError', compile]);
+    if (link) errors.push(['LinkError', link]);
+    if (runtime) errors.push(['RuntimeError', runtime]);
 
-    for (const error of errors) cloneObjectTest(assert, error, (orig, clone) => {
-      const { name } = orig;
+    for (const [name, error] of errors) cloneObjectTest(assert, error, (orig, clone) => {
       assert.same(orig.constructor, clone.constructor, `${ name }#constructor`);
       assert.same(orig.name, clone.name, `${ name }#name`);
       assert.same(orig.message, clone.message, `${ name }#message`);
