@@ -122,6 +122,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.unThis`](#functionprototypeunthis)
+      - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor)
       - [`URL`](#url)
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
@@ -2630,6 +2631,38 @@ const slice = Array.prototype.slice.unThis();
 
 slice([1, 2, 3], 1); // => [2, 3]
 ```
+##### [`Function.{ isCallable, isConstructor }`](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)[⬆](#index)
+
+Modules [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js), [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js)
+```js
+class Function {
+  static isCallable(value: any): boolean;
+  static isConstructor(value: any): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/function-is-callable-is-constructor
+core-js(-pure)/features/function/is-callable
+core-js(-pure)/features/function/is-constructor
+```
+[*Examples*](t.ly/ai3f):
+```js
+Function.isCallable(null);           // => false
+Function.isCallable({});             // => false
+Function.isCallable(function () {}); // => true
+Function.isCallable(() => {});       // => true
+Function.isCallable(class {});       // => false
+
+Function.isConstructor(null);           // => false
+Function.isConstructor({});             // => false
+Function.isConstructor(function () {}); // => true
+Function.isConstructor(() => {});       // => false
+Function.isConstructor(class {});       // => true
+```
+##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
+See more info [in web standards namespace](#url-and-urlsearchparams)
+
 ##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)[⬆](#index)
 **This proposal has been withdrawn and will be removed from the next major `core-js` version.**
 
@@ -2670,8 +2703,6 @@ core-js(-pure)/features/math/isubh
 core-js(-pure)/features/math/imulh
 core-js(-pure)/features/math/umulh
 ```
-##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
-See more info [in web standards namespace](#url-and-urlsearchparams)
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

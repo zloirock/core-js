@@ -2,6 +2,9 @@
 ##### Unreleased
 - Added `Iterator.prototype.toAsync` method from [the iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers)
 - Added [`Function.prototype.unThis` stage 0 proposal](https://github.com/js-choi/proposal-function-un-this)
+- Added [`Function.{ isCallable, isConstructor }` stage 0 proposal](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md):
+  - `Function.isCallable`
+  - `Function.isConstructor`
 - Added a workaround of most cases breakage modern `String#at` after loading obsolete `String#at` proposal module, [#1019](https://github.com/zloirock/core-js/issues/1019)
 
 ##### 3.19.3 - 2021.12.06
