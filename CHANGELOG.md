@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added `Number.prototype.toExponential` method polyfill with many different fixes for the most engines
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Moved to the stage 2
   - Added `Array.prototype.groupByMap` method

@@ -620,6 +620,12 @@ export const data = {
     firefox: '39',
     safari: '9.0',
   },
+  'es.number.to-exponential': {
+    chrome: '26',
+    edge: '18',
+    firefox: '50',
+    safari: '11',
+  },
   'es.number.to-fixed': {
     chrome: '26',
     firefox: '4',

@@ -112,6 +112,7 @@ export default {
     'esnext.typed-array.from-async',
   ],
   '3.20': [
+    'es.number.to-exponential',
     'esnext.array.group-by-map',
     'esnext.array.to-reversed',
     'esnext.array.to-sorted',
