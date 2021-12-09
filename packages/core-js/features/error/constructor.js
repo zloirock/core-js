@@ -1,3 +1,3 @@
-var parent = require('../../stable/error/constructor');
+var parent = require('../../actual/error/constructor');
 
 module.exports = parent;

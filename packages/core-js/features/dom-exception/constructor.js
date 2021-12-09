@@ -1,3 +1,3 @@
-var parent = require('../../stable/dom-exception/constructor');
+var parent = require('../../actual/dom-exception/constructor');
 
 module.exports = parent;

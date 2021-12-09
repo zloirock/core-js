@@ -1,3 +1,3 @@
-var parent = require('../../../stable/number/virtual/to-exponential');
+var parent = require('../../../actual/number/virtual/to-exponential');
 
 module.exports = parent;

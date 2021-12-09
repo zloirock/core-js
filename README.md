@@ -1012,9 +1012,9 @@ core-js(-pure)/es|stable|actual|features/number/parse-int
 core-js(-pure)/es|stable|actual|features/number/epsilon
 core-js(-pure)/es|stable|actual|features/number/max-safe-integer
 core-js(-pure)/es|stable|actual|features/number/min-safe-integer
-core-js(-pure)/es|stable|actual|features/number/to-exponential
-core-js(-pure)/es|stable|actual|features/number/to-fixed
-core-js(-pure)/es|stable|actual|features/number/to-precision
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-exponential
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-fixed
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-precision
 core-js(-pure)/es|stable|actual|features/parse-float
 core-js(-pure)/es|stable|actual|features/parse-int
 ```
