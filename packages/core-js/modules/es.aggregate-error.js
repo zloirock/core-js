@@ -39,7 +39,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
 };
 
 if (setPrototypeOf) setPrototypeOf($AggregateError, Error);
-else copyConstructorProperties($AggregateError, Error);
+else copyConstructorProperties($AggregateError, Error, { name: true });
 
 var AggregateErrorPrototype = $AggregateError.prototype = create(Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),

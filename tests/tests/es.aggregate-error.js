@@ -1,11 +1,9 @@
-import { DESCRIPTORS } from '../helpers/constants';
-
 const { create } = Object;
 
 QUnit.test('AggregateError', assert => {
   assert.isFunction(AggregateError);
   assert.arity(AggregateError, 2);
-  if (DESCRIPTORS) assert.name(AggregateError, 'AggregateError');
+  assert.name(AggregateError, 'AggregateError');
   assert.looksNative(AggregateError);
   assert.true(new AggregateError([1]) instanceof AggregateError);
   assert.true(new AggregateError([1]) instanceof Error);
