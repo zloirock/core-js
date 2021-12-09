@@ -1278,6 +1278,9 @@ GLOBAL.tests = {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
+  'esnext.function.un-this': function () {
+    return Function.prototype.unThis;
+  },
   'esnext.iterator.constructor': function () {
     try {
       Iterator({});

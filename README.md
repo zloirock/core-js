@@ -121,6 +121,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
+      - [`Function.prototype.unThis`](#functionprototypeunthis)
       - [`URL`](#url)
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
@@ -2610,8 +2611,25 @@ Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as $
 ```js
 core-js(-pure)/stage/0
 ```
-##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
-See more info [in web standards namespace](#url-and-urlsearchparams)
+##### [`Function.prototype.unThis`](https://github.com/js-choi/proposal-function-un-this)[⬆](#index)
+Module [`esnext.function.un-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.un-this.js)
+```js
+class Function {
+  unThis(): Function;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/function-un-this
+core-js(-pure)/features/function/un-this
+core-js(-pure)/features/virtual/function/un-this
+```
+[*Examples*](https://is.gd/t1Bvhn):
+```js
+const slice = Array.prototype.slice.unThis();
+
+slice([1, 2, 3], 1); // => [2, 3]
+```
 ##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)[⬆](#index)
 **This proposal has been withdrawn and will be removed from the next major `core-js` version.**
 
@@ -2622,7 +2640,7 @@ class String {
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
-```js
+```
 core-js/proposals/string-at
 core-js(-pure)/features/string/at
 core-js(-pure)/features/string/virtual/at
@@ -2652,6 +2670,8 @@ core-js(-pure)/features/math/isubh
 core-js(-pure)/features/math/imulh
 core-js(-pure)/features/math/umulh
 ```
+##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
+See more info [in web standards namespace](#url-and-urlsearchparams)
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
