@@ -111,4 +111,7 @@ export default {
     'esnext.array.from-async',
     'esnext.typed-array.from-async',
   ],
+  '3.20': [
+    'esnext.iterator.to-async',
+  ],
 };

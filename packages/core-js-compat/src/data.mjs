@@ -1525,6 +1525,8 @@ export const data = {
   },
   'esnext.iterator.to-array': {
   },
+  'esnext.iterator.to-async': {
+  },
   'esnext.map.delete-all': {
   },
   'esnext.map.emplace': {
