@@ -349,8 +349,7 @@ QUnit.module('structuredClone', () => {
       });
   });
 
-  // TODO: remove DOMException constructor check after https://github.com/zloirock/core-js/pull/991
-  if (fromSource('new DOMException')) QUnit.test('DOMException', assert => {
+  QUnit.test('DOMException', assert => {
     const errors = [
       new DOMException(),
       new DOMException('foo', 'DataCloneError'),

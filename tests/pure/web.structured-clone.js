@@ -13,6 +13,7 @@ import Symbol from 'core-js-pure/es/symbol';
 import Map from 'core-js-pure/es/map';
 import Set from 'core-js-pure/es/set';
 import AggregateError from 'core-js-pure/es/aggregate-error';
+import DOMException from 'core-js-pure/stable/dom-exception';
 
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {
@@ -356,8 +357,7 @@ QUnit.module('structuredClone', () => {
       });
   });
 
-  // TODO: remove check after https://github.com/zloirock/core-js/pull/991
-  if (fromSource('new DOMException')) QUnit.test('DOMException', assert => {
+  QUnit.test('DOMException', assert => {
     const errors = [
       new DOMException(),
       new DOMException('foo', 'DataCloneError'),

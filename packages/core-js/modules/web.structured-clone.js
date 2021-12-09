@@ -32,6 +32,7 @@ var WebAssembly = global.WebAssembly;
 var CompileError = WebAssembly && WebAssembly.CompileError || Error;
 var LinkError = WebAssembly && WebAssembly.LinkError || Error;
 var RuntimeError = WebAssembly && WebAssembly.RuntimeError || Error;
+var DOMException = getBuiltin('DOMException');
 var Set = getBuiltin('Set');
 var Map = getBuiltin('Map');
 var MapPrototype = Map.prototype;
@@ -47,15 +48,6 @@ var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
-
-// waiting for https://github.com/zloirock/core-js/pull/991
-var DOMException = function (message, name) {
-  try {
-    return new global.DOMException(message, name);
-  } catch (error) {
-    return TypeError(message);
-  }
-};
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
