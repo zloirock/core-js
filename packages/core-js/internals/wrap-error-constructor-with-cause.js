@@ -1,9 +1,9 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
-var global = require('../internals/global');
 var apply = require('../internals/function-apply');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -30,7 +30,7 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var WrappedError = wrapper(function () {
     var result = apply(OriginalError, this, arguments);
     if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(result, 'stack', clearErrorStack(result.stack, 2));
-    if (this && this !== global) inheritIfRequired(result, this, WrappedError);
+    if (this && isPrototypeOf(OriginalErrorPrototype, this)) inheritIfRequired(result, this, WrappedError);
     if (arguments.length > OPTIONS_POSITION) installErrorCause(result, arguments[OPTIONS_POSITION]);
     return result;
   });
