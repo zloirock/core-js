@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var getBuiltIn = require('../internals/get-built-in');
 var aConstructor = require('../internals/a-constructor');
 var arrayFromAsync = require('../internals/array-from-async');

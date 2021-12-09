@@ -32,5 +32,5 @@ QUnit.test('Array#groupBy', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
-  assert.same(groupBy(array, Boolean).true.foo, 1, '@@species');
+  assert.same(groupBy(array, Boolean).true.foo, undefined, 'no @@species');
 });

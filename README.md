@@ -101,6 +101,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`Iterator` helpers](#iterator-helpers)
       - [New `Set` methods](#new-set-methods)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
+      - [`Array` grouping](#array-grouping)
       - [Change `Array` by copy](#change-array-by-copy)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
@@ -112,7 +113,6 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array.fromAsync`](#arrayfromasync)
       - [`Array` filtering](#array-filtering)
-      - [`Array` grouping](#array-grouping)
       - [`Array` deduplication](#array-deduplication)
       - [Getting last item from `Array`](#getting-last-item-from-array)
       - [`Number.range`](#numberrange)
@@ -2353,21 +2353,16 @@ console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => 
 console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
 ```
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
-Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js) and [`esnext.typed-array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.from-async.js)
+Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
 ```js
 class Array {
   static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;
-}
-
-class %TypedArray% {
-  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: number, index: number, target) => number, thisArg?: any): %TypedArray%;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-from-async
 core-js(-pure)/features/array/from-async
-core-js/features/typed-array/from-async
 ```
 [*Example*](https://goo.gl/Jt7SsD):
 ```js
@@ -2395,26 +2390,25 @@ core-js/features/typed-array/filter-reject
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
 ##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js) and [`esnext.typed-array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.group-by.js).
+Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-map.js).
 ```js
 class Array {
   groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
   groupByMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
-}
-
-class %TypedArray% {
-  groupBy(callbackfn: (value: number, index: number, target: %TypedArray%) => key, thisArg?: any): { [key]: %TypedArray% };
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-grouping
 core-js(-pure)/features/array(/virtual)/group-by
-core-js/features/typed-array/group-by
+core-js(-pure)/features/array(/virtual)/group-by-map
 ```
-[*Examples*](t.ly/VggI):
+[*Examples*](t.ly/xEqc):
 ```js
 [1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+const map = [1, 2, 3, 4, 5].groupByMap(it => it % 2);
+map.get(1); // => [1, 3, 5]
+map.get(0); // => [2, 4]
 ````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)

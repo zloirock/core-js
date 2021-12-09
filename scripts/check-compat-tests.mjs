@@ -30,7 +30,9 @@ const ignore = new Set([
   'esnext.string.at',
   'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
+  'esnext.typed-array.from-async',
   'esnext.typed-array.filter-out',
+  'esnext.typed-array.group-by',
   'esnext.weak-map.upsert',
 ]);
 
