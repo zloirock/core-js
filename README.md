@@ -118,6 +118,7 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
       - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
       - [`Math.signbit`](#mathsignbit)
+      - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
@@ -2499,6 +2500,28 @@ Math.signbit(1);   // => false
 Math.signbit(-1);  // => true
 Math.signbit(0);   // => false
 Math.signbit(-0);  // => true
+```
+##### [`String.cooked`](https://github.com/tc39/proposal-string-cooked)[⬆](#index)
+Module [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
+```js
+class String {
+  static cooked(template: Array<string>, ...substitutions: Array<string>): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-cooked
+core-js(-pure)/features/string/cooked
+```
+[*Example*](https://t.ly/OikE):
+```js
+function safePath(strings, ...subs) {
+  return String.cooked(strings, ...subs.map(sub => encodeURIComponent(sub)));
+}
+
+let id = 'spottie?';
+
+safePath`/cats/${ id }`; // => /cats/spottie%3F
 ```
 ##### [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)[⬆](#index)
 Module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)

@@ -1696,6 +1696,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.string.at': {
   },
+  'esnext.string.cooked': {
+  },
   'esnext.string.code-points': {
   },
   // TODO: Remove from `core-js@4`

@@ -681,6 +681,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
     ok(load(NS, 'set/symmetric-difference')(new Set([1, 2, 3]), [3, 4, 5]).size === 4);
     ok(load(NS, 'set/union')(new Set([1, 2, 3]), [3, 4, 5]).size === 5);
+    ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/async-dispose'));
@@ -783,6 +784,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
+  load('proposals/string-cooked');
   load('proposals/string-code-points');
   load('proposals/string-match-all');
   load('proposals/string-replace-all');
