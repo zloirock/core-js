@@ -2399,6 +2399,7 @@ Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/maste
 ```js
 class Array {
   groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+  groupByMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
 }
 
 class %TypedArray% {
