@@ -223,18 +223,19 @@ var structuredCloneInternal = function (value, map) {
       } else throwUnpolyfillable(type);
       break;
     case 'ImageData':
-      C = global.ImageData;
-      if (isConstructor(C)) {
-        cloned = new C(
+      // Safari 9- ImageData is a constructor, but typeof ImageData is 'object'
+      try {
+        cloned = new ImageData(
           structuredCloneInternal(value.data, map),
           value.width,
           value.height,
           { colorSpace: value.colorSpace }
         );
-      } else if (nativeRestrictedStructuredClone) {
-        cloned = nativeRestrictedStructuredClone(value);
-      } else throwUnpolyfillable(type);
-      break;
+      } catch (error) {
+        if (nativeRestrictedStructuredClone) {
+          cloned = nativeRestrictedStructuredClone(value);
+        } else throwUnpolyfillable(type);
+      } break;
     default:
       if (nativeRestrictedStructuredClone) {
         cloned = nativeRestrictedStructuredClone(value);
