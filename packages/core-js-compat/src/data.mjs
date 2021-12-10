@@ -1342,7 +1342,7 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.iterator': {
-    chrome: '47',
+    chrome: '51',
     edge: '13',
     firefox: '37',
     safari: '10.0',

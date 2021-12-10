@@ -1125,10 +1125,14 @@ GLOBAL.tests = {
     return Int8Array.prototype.indexOf;
   }],
   'es.typed-array.iterator': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype[Symbol.iterator].name === 'values'
-      && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
-      && Int8Array.prototype.keys
-      && Int8Array.prototype.entries;
+    try {
+      Int8Array.prototype[Symbol.iterator].call([1]);
+    } catch (error) {
+      return Int8Array.prototype[Symbol.iterator].name === 'values'
+        && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
+        && Int8Array.prototype.keys
+        && Int8Array.prototype.entries;
+    }
   }],
   'es.typed-array.join': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.join;
