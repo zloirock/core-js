@@ -223,7 +223,7 @@ var structuredCloneInternal = function (value, map) {
       } else throwUnpolyfillable(type);
       break;
     case 'ImageData':
-      // Safari 9- ImageData is a constructor, but typeof ImageData is 'object'
+      // Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
       try {
         cloned = new ImageData(
           structuredCloneInternal(value.data, map),

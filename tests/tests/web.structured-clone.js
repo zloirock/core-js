@@ -323,18 +323,21 @@ QUnit.module('structuredClone', () => {
     });
   }
 
-  if (fromSource('new ImageData(8, 8)')) QUnit.test('ImageData', assert => {
-    const imageData = new ImageData(8, 8);
-    for (let i = 0; i < 256; ++i) {
-      imageData.data[i] = i;
-    }
-    cloneObjectTest(assert, imageData, (orig, clone) => {
-      assert.same(orig.width, clone.width);
-      assert.same(orig.height, clone.height);
-      assert.same(orig.colorSpace, clone.colorSpace);
-      assert.arrayEqual(orig.data, clone.data);
+  // Safari 8- does not support `{ colorSpace }` option
+  if (fromSource('new ImageData(new ImageData(8, 8).data, 8, 8, { colorSpace: new ImageData(8, 8).colorSpace })')) {
+    QUnit.test('ImageData', assert => {
+      const imageData = new ImageData(8, 8);
+      for (let i = 0; i < 256; ++i) {
+        imageData.data[i] = i;
+      }
+      cloneObjectTest(assert, imageData, (orig, clone) => {
+        assert.same(orig.width, clone.width);
+        assert.same(orig.height, clone.height);
+        assert.same(orig.colorSpace, clone.colorSpace);
+        assert.arrayEqual(orig.data, clone.data);
+      });
     });
-  });
+  }
 
   if (fromSource('new Blob(["test"])')) QUnit.test('Blob', assert => {
     cloneObjectTest(
