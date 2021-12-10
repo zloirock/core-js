@@ -16,6 +16,7 @@ var hasOwn = require('../internals/has-own-property');
 var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var regExpFlags = require('../internals/regexp-flags');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var Object = global.Object;
@@ -45,6 +46,7 @@ var push = uncurryThis([].push);
 var bolleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
+var getFlags = uncurryThis(regExpFlags);
 var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
@@ -77,11 +79,12 @@ var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClon
 
 // Chrome 82+, Safari 14.1+, Deno 1.11+
 // Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
+// Safari 14.1 implementation doesn't clone some `RegExp` flags, so requires a workaround
+// current Safari implementation can't clone errors
 // Deno 1.2-1.10 implementations too naive
-// NodeJS 16.0+ haven't `PerformanceMark` constructor, structured cloning implementation
+// NodeJS 16.0+ does not have `PerformanceMark` constructor, structured cloning implementation
 //   from `performance.mark` is too naive and can't clone, for example, `RegExp` or some boxed primitives
 //   https://github.com/nodejs/node/issues/40840
-// current Safari implementation can't clone errors
 // no one of current implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
@@ -125,6 +128,11 @@ var structuredCloneInternal = function (value, map) {
     case 'Set':
       cloned = new Set();
       deep = true;
+      break;
+    case 'RegExp':
+      // in this block because of a Safari 14.1 bug
+      // old FF does not clone regexes passed to the constructor, so get the source and flags directly
+      cloned = new RegExp(value.source, 'flags' in value ? value.flags : getFlags(value));
       break;
     case 'Error':
       name = value.name;
@@ -246,9 +254,6 @@ var structuredCloneInternal = function (value, map) {
           break;
         case 'Date':
           cloned = new Date(getTime(value));
-          break;
-        case 'RegExp':
-          cloned = new RegExp(value);
           break;
         case 'ArrayBuffer':
           // detached buffers throws on `.slice`
