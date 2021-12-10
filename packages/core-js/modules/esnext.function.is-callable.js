@@ -2,7 +2,7 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var $isCallable = require('../internals/is-callable');
 var inspectSource = require('../internals/inspect-source');
-
+// TODO: improve for the methods case
 var classRegExp = /^\s*class\b/;
 var exec = uncurryThis(classRegExp.exec);
 

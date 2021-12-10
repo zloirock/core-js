@@ -25,8 +25,8 @@ QUnit.test('Function.isCallable', assert => {
   const arrow = fromSource('it => it');
   if (arrow) assert.true(isCallable(arrow), 'arrow');
   const klass = fromSource('class {}');
-  // Safari 9 bug
-  if (klass && !/function/.test(klass)) assert.false(isCallable(klass), 'class');
+  // Safari 9 and Edge 13- bugs
+  if (klass && !/constructor|function/.test(klass)) assert.false(isCallable(klass), 'class');
   const gen = fromSource('function * () {}');
   if (gen) assert.true(isCallable(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
