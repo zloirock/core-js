@@ -3,7 +3,7 @@ import { PROTO } from '../helpers/constants';
 import path from 'core-js-pure/es/error';
 import create from 'core-js-pure/es/object/create';
 
-function runErrorTestCase($Error, ERROR_NAME) {
+function runErrorTestCase($Error, ERROR_NAME, WEB_ASSEMBLY) {
   QUnit.test(`${ ERROR_NAME } constructor with 'cause' param`, assert => {
     assert.isFunction($Error);
     assert.arity($Error, 1);
@@ -30,7 +30,7 @@ function runErrorTestCase($Error, ERROR_NAME) {
     assert.same(new $Error(1, create({ cause: 7 })).cause, 7, 'prototype cause, with new');
 
     let error = $Error(1, { cause: 7 });
-    assert.same(error.name, ERROR_NAME, 'instance name');
+    if (!WEB_ASSEMBLY) assert.same(error.name, ERROR_NAME, 'instance name');
     assert.same(error.message, '1', 'instance message');
     assert.same(error.cause, 7, 'instance cause');
     // eslint-disable-next-line no-prototype-builtins -- safe
@@ -49,5 +49,5 @@ for (const ERROR_NAME of ['Error', 'EvalError', 'RangeError', 'ReferenceError', 
 }
 
 if (path.WebAssembly) for (const ERROR_NAME of ['CompileError', 'LinkError', 'RuntimeError']) {
-  if (path.WebAssembly[ERROR_NAME]) runErrorTestCase(path.WebAssembly[ERROR_NAME], ERROR_NAME);
+  if (path.WebAssembly[ERROR_NAME]) runErrorTestCase(path.WebAssembly[ERROR_NAME], ERROR_NAME, true);
 }

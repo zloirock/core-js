@@ -12,9 +12,11 @@ var clearErrorStack = require('../internals/clear-error-stack');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var IS_PURE = require('../internals/is-pure');
 
-module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
+module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var OPTIONS_POSITION = IS_AGGREGATE_ERROR ? 2 : 1;
-  var OriginalError = getBuiltIn.apply(null, ERROR_NAME.split('.'));
+  var path = FULL_NAME.split('.');
+  var ERROR_NAME = path[path.length - 1];
+  var OriginalError = getBuiltIn.apply(null, path);
 
   if (!OriginalError) return;
 
@@ -47,6 +49,10 @@ module.exports = function (ERROR_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   copyConstructorProperties(WrappedError, OriginalError);
 
   if (!IS_PURE) try {
+    // Safari 13- bug: WebAssembly errors does not have a proper `.name`
+    if (OriginalErrorPrototype.name !== ERROR_NAME) {
+      createNonEnumerableProperty(OriginalErrorPrototype, 'name', ERROR_NAME);
+    }
     OriginalErrorPrototype.constructor = WrappedError;
   } catch (error) { /* empty */ }
 

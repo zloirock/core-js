@@ -199,9 +199,9 @@ QUnit.module('structuredClone', () => {
     const link = fromSource('WebAssembly.LinkError()');
     const runtime = fromSource('WebAssembly.RuntimeError()');
 
-    if (compile) errors.push(['CompileError', compile]);
-    if (link) errors.push(['LinkError', link]);
-    if (runtime) errors.push(['RuntimeError', runtime]);
+    if (compile && compile.name === 'CompileError') errors.push(['CompileError', compile]);
+    if (link && link.name === 'LinkError') errors.push(['LinkError', link]);
+    if (runtime && runtime.name === 'RuntimeError') errors.push(['RuntimeError', runtime]);
 
     for (const [name, error] of errors) cloneObjectTest(assert, error, (orig, clone) => {
       assert.same(orig.constructor, clone.constructor, `${ name }#constructor`);
