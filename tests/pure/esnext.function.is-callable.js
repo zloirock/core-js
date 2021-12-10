@@ -23,7 +23,8 @@ QUnit.test('Function.isCallable', assert => {
   const arrow = fromSource('it => it');
   if (arrow) assert.true(isCallable(arrow), 'arrow');
   const klass = fromSource('class {}');
-  if (klass) assert.false(isCallable(klass), 'class');
+  // Safari 9 bug
+  if (klass && !/function/.test(klass)) assert.false(isCallable(klass), 'class');
   const gen = fromSource('function * () {}');
   if (gen) assert.true(isCallable(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
@@ -31,5 +32,6 @@ QUnit.test('Function.isCallable', assert => {
   const asyncGen = fromSource('async * function () {}');
   if (asyncGen) assert.true(isCallable(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
-  if (method) assert.true(isCallable(method), 'method');
+  // Safari 9 bug
+  if (method && !/function/.test(method)) assert.true(isCallable(method), 'method');
 });

@@ -23,7 +23,8 @@ QUnit.test('Function.isConstructor', assert => {
   const arrow = fromSource('it => it');
   if (arrow) assert.false(isConstructor(arrow), 'arrow');
   const klass = fromSource('class {}');
-  if (klass) assert.true(isConstructor(klass), 'class');
+  // Safari 9 bug
+  if (klass && !/function/.test(klass)) assert.true(isConstructor(klass), 'class');
   const gen = fromSource('function * () {}');
   if (gen) assert.false(isConstructor(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
@@ -31,5 +32,6 @@ QUnit.test('Function.isConstructor', assert => {
   const asyncGen = fromSource('async * function () {}');
   if (asyncGen) assert.false(isConstructor(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
-  if (method) assert.false(isConstructor(method), 'method');
+  // Safari 9 bug
+  if (method && !/function/.test(method)) assert.false(isConstructor(method), 'method');
 });
