@@ -32,6 +32,7 @@
   - `Function.isCallable`
   - `Function.isConstructor`
 - Added a workaround of most cases breakage modern `String#at` after loading obsolete `String#at` proposal module, [#1019](https://github.com/zloirock/core-js/issues/1019)
+- Fixed `Array.prototype.{ values, @@iterator }.name` in V8 ~ Chrome 43-45
 
 ##### 3.19.3 - 2021.12.06
 - Fixed internal slots check in methods of some built-in types, [#1017](https://github.com/zloirock/core-js/issues/1017)
