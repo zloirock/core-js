@@ -22,9 +22,11 @@ var stringSlice = uncurryThis(''.slice);
 // Edge 17-
 var ROUNDS_PROPERLY = un$ToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // IE11- && Edge 14-
-  && un$ToExponential(1.255, 2) === '1.25e+0';
-  // FF86-, enable after increasing maximum number of fraction digits in the implementation to 100
-  // && nativeToExponential.call(25, 0) === '3e+1';
+  && un$ToExponential(1.255, 2) === '1.25e+0'
+  // FF86-, V8 ~ Chrome 49-50
+  && un$ToExponential(12345, 3) === '1.235e+4'
+  // FF86-, V8 ~ Chrome 49-50
+  && un$ToExponential(25, 0) === '3e+1';
 
 // IE8-
 var THROWS_ON_INFINITY_FRACTION = fails(function () {

@@ -108,8 +108,8 @@ QUnit.test('Number#toExponential', assert => {
   // assert.same(toExponential.call(0.9999, 19), '9.9990000000000001101e-1');
   // assert.same(toExponential.call(0.9999, 20), '9.99900000000000011013e-1');
 
-  assert.same(toExponential.call(25, 0), '3e+1'); // FF86- bug
-  assert.same(toExponential.call(12345, 3), '1.235e+4'); // FF86- bug
+  assert.same(toExponential.call(25, 0), '3e+1'); // FF86- and Chrome 49-50 bugs
+  assert.same(toExponential.call(12345, 3), '1.235e+4'); // FF86- and Chrome 49-50 bugs
 
   assert.same(toExponential.call(Number.prototype, 0), '0e+0', 'Number.prototype, 0');
   assert.same(toExponential.call(0, 0), '0e+0', '0, 0');
