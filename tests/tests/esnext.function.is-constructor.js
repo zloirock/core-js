@@ -28,7 +28,8 @@ QUnit.test('Function.isConstructor', assert => {
   // Safari 9 and Edge 13- bugs
   if (klass && !/constructor|function/.test(klass)) assert.true(isConstructor(klass), 'class');
   const gen = fromSource('function * () {}');
-  if (gen) assert.false(isConstructor(gen), 'gen');
+  // V8 ~ Chrome 48- bug
+  if (gen && Object.prototype.toString.call(gen) !== '[object Function]') assert.false(isConstructor(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
   if (asyncFunc) assert.false(isConstructor(asyncFunc), 'asyncFunc');
   const asyncGen = fromSource('async * function () {}');
