@@ -2,15 +2,24 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var $isCallable = require('../internals/is-callable');
 var inspectSource = require('../internals/inspect-source');
-// TODO: improve for the methods case
+var hasOwn = require('../internals/has-own-property');
+var DESCRIPTORS = require('../internals/descriptors');
+
+// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var classRegExp = /^\s*class\b/;
 var exec = uncurryThis(classRegExp.exec);
+
+var isClassConstructor = function (argument) {
+  if (!DESCRIPTORS || !exec(classRegExp, inspectSource(argument))) return false;
+  var prototype = getOwnPropertyDescriptor(argument, 'prototype');
+  return !!prototype && hasOwn(prototype, 'writable') && !prototype.writable;
+};
 
 // `Function.isCallable` method
 // https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md
 $({ target: 'Function', stat: true, sham: true }, {
   isCallable: function isCallable(argument) {
-    // we can't properly detect `[[IsClassConstructor]]` internal slot without `Function#toString` check
-    return $isCallable(argument) && !exec(classRegExp, inspectSource(argument));
+    return $isCallable(argument) && !isClassConstructor(argument);
   }
 });
