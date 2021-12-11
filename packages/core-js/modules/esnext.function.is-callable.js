@@ -11,7 +11,11 @@ var classRegExp = /^\s*class\b/;
 var exec = uncurryThis(classRegExp.exec);
 
 var isClassConstructor = function (argument) {
-  if (!DESCRIPTORS || !exec(classRegExp, inspectSource(argument))) return false;
+  try {
+    // `Function#toString` throws on some built-it function in some legacy engines
+    // (for example, `DOMQuad` and similar in FF41-)
+    if (!DESCRIPTORS || !exec(classRegExp, inspectSource(argument))) return false;
+  } catch (error) { /* empty */ }
   var prototype = getOwnPropertyDescriptor(argument, 'prototype');
   return !!prototype && hasOwn(prototype, 'writable') && !prototype.writable;
 };
