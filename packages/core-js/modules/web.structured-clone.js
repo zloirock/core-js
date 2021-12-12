@@ -200,17 +200,18 @@ var structuredCloneInternal = function (value, map) {
       );
       break;
     case 'DOMQuad':
-      C = global.DOMQuad;
-      if (isConstructor(C)) {
-        cloned = new C(
+      try {
+        cloned = new DOMQuad(
           structuredCloneInternal(value.p1, map),
           structuredCloneInternal(value.p2, map),
           structuredCloneInternal(value.p3, map),
           structuredCloneInternal(value.p4, map)
         );
-      } else if (nativeRestrictedStructuredClone) {
-        cloned = nativeRestrictedStructuredClone(value);
-      } else throwUnpolyfillable(type);
+      } catch (error) {
+        if (nativeRestrictedStructuredClone) {
+          cloned = nativeRestrictedStructuredClone(value);
+        } else throwUnpolyfillable(type);
+      }
       break;
     case 'FileList':
       C = global.DataTransfer;
