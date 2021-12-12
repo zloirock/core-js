@@ -110,7 +110,7 @@ var structuredCloneInternal = function (value, map) {
 
   var type = classof(value);
   var deep = false;
-  var C, name, cloned, dataTransfer, i, length, keys, key;
+  var C, name, cloned, dataTransfer, i, length, keys, key, source, target;
 
   switch (type) {
     case 'Array':
@@ -257,9 +257,22 @@ var structuredCloneInternal = function (value, map) {
           cloned = new Date(getTime(value));
           break;
         case 'ArrayBuffer':
-          // detached buffers throws on `.slice`
+          // detached buffers throws in `DataView` and `.slice`
           try {
-            cloned = value.slice(0);
+            // `ArrayBuffer#slice` is not available in IE10
+            if (typeof value.slice == 'function') {
+              cloned = value.slice(0);
+            } else {
+              length = value.byteLength;
+              cloned = new ArrayBuffer(length);
+              // eslint-disable-next-line es/no-typed-arrays -- ok
+              source = new DataView(value);
+              // eslint-disable-next-line es/no-typed-arrays -- ok
+              target = new DataView(cloned);
+              for (i = 0; i < length; i++) {
+                target.setUint8(i, source.getUint8(i));
+              }
+            }
           } catch (error) {
             throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
           } break;
@@ -368,7 +381,7 @@ var structuredCloneInternal = function (value, map) {
 };
 
 var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
-  var buffer = new global.ArrayBuffer(8);
+  var buffer = new ArrayBuffer(8);
   var clone = nativeStructuredClone(buffer, { transfer: [buffer] });
   return buffer.byteLength != 0 || clone.byteLength != 8;
 });
