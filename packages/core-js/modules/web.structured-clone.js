@@ -189,7 +189,9 @@ var structuredCloneInternal = function (value, map) {
     case 'BigInt64Array':
     case 'BigUint64Array':
       C = global[type];
-      if (!isConstructor(C)) throwUnpolyfillable(type);
+      // in some old engines like Safari 9, typeof C is 'object'
+      // on Uint8ClampedArray or some other constructors
+      if (!isObject(C)) throwUnpolyfillable(type);
       cloned = new C(
         // this is safe, since arraybuffer cannot have circular references
         structuredCloneInternal(value.buffer, map),
