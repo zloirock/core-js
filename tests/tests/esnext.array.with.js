@@ -14,10 +14,10 @@ QUnit.test('Array#with', assert => {
 
   assert.deepEqual([1, 2, 3, 4, 5].with(2, 6), [1, 2, 6, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].with(-2, 6), [1, 2, 3, 6, 5]);
+  assert.deepEqual([1, 2, 3, 4, 5].with('1', 6), [1, 6, 3, 4, 5]);
 
   assert.throws(() => [1, 2, 3, 4, 5].with(5, 6), RangeError);
   assert.throws(() => [1, 2, 3, 4, 5].with(-6, 6), RangeError);
-  assert.throws(() => [1, 2, 3, 4, 5].with('1', 6), RangeError);
 
   if (STRICT) {
     assert.throws(() => withAt.call(null, 1, 2), TypeError);
