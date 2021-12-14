@@ -1937,7 +1937,28 @@ core-js(-pure)/es|stable|features/typed-array/at
 ```js
 core-js(-pure)/stage/3
 ```
+##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-map.js).
+```js
+class Array {
+  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+  groupByMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping
+core-js(-pure)/features/array(/virtual)/group-by
+core-js(-pure)/features/array(/virtual)/group-by-map
+```
+[*Examples*](t.ly/xEqc):
+```js
+[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
+const map = [1, 2, 3, 4, 5].groupByMap(it => it % 2);
+map.get(1); // => [1, 3, 5]
+map.get(0); // => [2, 4]
+````
 ##### [Array find from last](https://github.com/tc39/proposal-array-find-from-last)[⬆](#index)
 Modules [`esnext.array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last.js), [`esnext.array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.find-last-index.js), [`esnext.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last.js) and [`esnext.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.find-last-index.js).
 ```js
@@ -2437,27 +2458,6 @@ core-js/features/typed-array/filter-reject
 [*Examples*](t.ly/OOO2):
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
-````
-##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-map.js).
-```js
-class Array {
-  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
-  groupByMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-grouping
-core-js(-pure)/features/array(/virtual)/group-by
-core-js(-pure)/features/array(/virtual)/group-by-map
-```
-[*Examples*](t.ly/xEqc):
-```js
-[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
-const map = [1, 2, 3, 4, 5].groupByMap(it => it % 2);
-map.get(1); // => [1, 3, 5]
-map.get(0); // => [2, 4]
 ````
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
