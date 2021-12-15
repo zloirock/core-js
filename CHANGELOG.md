@@ -9,8 +9,8 @@
   - Includes `DOMException#stack` property polyfill in engines that should have it
   - Reuses native `DOMException` implementations where it's possible (for example, in old NodeJS where it's not exposed as global)
 - Added [support of `cause` on all Error types](https://github.com/tc39/proposal-error-cause)
-- Added `Error.prototype.toString` polyfill with many different engines bugs fixes
-- Added `Number.prototype.toExponential` method polyfill with many different fixes for the most engines
+- Added `Error.prototype.toString` method polyfill with fixes of many different bugs of JS engines
+- Added `Number.prototype.toExponential` method polyfill with fixes of many different bugs of JS engines
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Moved to the stage 3
   - Added `Array.prototype.groupByToMap` method
@@ -27,7 +27,6 @@
 - Added `Iterator.prototype.toAsync` method from [the iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers)
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async) moved to stage 2
 - Added [`String.cooked` stage 1 proposal](https://github.com/tc39/proposal-string-cooked):
-  - `String.cooked`
 - Added [`Function.prototype.unThis` stage 0 proposal](https://github.com/js-choi/proposal-function-un-this)
 - Added [`Function.{ isCallable, isConstructor }` stage 0 proposal](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md):
   - `Function.isCallable`
