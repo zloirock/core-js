@@ -15,10 +15,10 @@ var mapHas = uncurryThis(MapPrototype.has);
 var mapSet = uncurryThis(MapPrototype.set);
 var push = uncurryThis([].push);
 
-// `Array.prototype.groupByMap` method
+// `Array.prototype.groupByToMap` method
 // https://github.com/tc39/proposal-array-grouping
 $({ target: 'Array', proto: true }, {
-  groupByMap: function groupByMap(callbackfn /* , thisArg */) {
+  groupByToMap: function groupByToMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
     var self = IndexedObject(O);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -35,4 +35,4 @@ $({ target: 'Array', proto: true }, {
   }
 });
 
-addToUnscopables('groupByMap');
+addToUnscopables('groupByToMap');

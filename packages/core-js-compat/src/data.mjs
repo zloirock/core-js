@@ -1473,7 +1473,7 @@ export const data = {
   },
   'esnext.array.group-by': {
   },
-  'esnext.array.group-by-map': {
+  'esnext.array.group-by-to-map': {
   },
   'esnext.array.is-template-object': {
   },

@@ -575,7 +575,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
     ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/group-by') == 'function');
-    ok(typeof load(NS, 'array/group-by-map') == 'function');
+    ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
@@ -589,7 +589,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
     ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-by-map') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
     ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
@@ -754,6 +754,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceGroupBy({}) === undefined);
     ok(typeof instanceGroupBy([]) == 'function');
     ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
+
+    const instanceGroupByToMap = load(NS, 'instance/group-by-to-map');
+    ok(typeof instanceGroupByToMap == 'function');
+    ok(instanceGroupByToMap({}) === undefined);
+    ok(typeof instanceGroupByToMap([]) == 'function');
+    ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
 
     const instanceToReversed = load(NS, 'instance/to-reversed');
     ok(typeof instanceToReversed == 'function');

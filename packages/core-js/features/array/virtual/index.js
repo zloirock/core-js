@@ -8,7 +8,7 @@ require('../../../modules/esnext.array.filter-reject');
 require('../../../modules/esnext.array.find-last');
 require('../../../modules/esnext.array.find-last-index');
 require('../../../modules/esnext.array.group-by');
-require('../../../modules/esnext.array.group-by-map');
+require('../../../modules/esnext.array.group-by-to-map');
 require('../../../modules/esnext.array.to-reversed');
 require('../../../modules/esnext.array.to-sorted');
 require('../../../modules/esnext.array.to-spliced');
