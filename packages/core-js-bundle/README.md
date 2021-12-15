@@ -22,12 +22,12 @@
 
 ---
 
-[*Example of usage*](https://is.gd/FdIG6n):
+[*Example of usage*](https://is.gd/XD4mRe):
 ```js
 import 'core-js'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4].findLast(it => it % 2);           // => 3
+[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -36,14 +36,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *You can load only required features*:
 ```js
 import 'core-js/actual/array/from';       // <- at the top of your entry point
-import 'core-js/actual/array/find-last';  // <- at the top of your entry point
+import 'core-js/actual/array/group-by';  // <- at the top of your entry point
 import 'core-js/actual/set';              // <- at the top of your entry point
 import 'core-js/actual/promise';          // <- at the top of your entry point
 import 'core-js/actual/structured-clone'; // <- at the top of your entry point
 import 'core-js/actual/queue-microtask';  // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4].findLast(it => it % 2);           // => 3
+[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -52,14 +52,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *Or use it without global namespace pollution*:
 ```js
 import from from 'core-js-pure/actual/array/from';
-import findLast from 'core-js-pure/actual/array/find-last';
+import groupBy from 'core-js-pure/actual/array/group-by';
 import Set from 'core-js-pure/actual/set';
 import Promise from 'core-js-pure/actual/promise';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 import queueMicrotask from 'core-js-pure/actual/queue-microtask';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-findLast([1, 2, 3, 4], it => it % 2);          // => 3
+groupBy([1, 2, 3, 4, 5], it => it % 2);        // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
