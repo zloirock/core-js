@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.20.0 - 2021.12.16
 - Added `structuredClone` method [from the HTML spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)
   - Includes all cases of cloning and transferring of required ECMAScript and platform types that can be polyfilled, for the details see [the caveats](https://github.com/zloirock/core-js#caveats-when-using-structuredclone-polyfill)
   - Uses native structured cloning algorithm implementations where it's possible
