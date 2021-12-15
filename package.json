@@ -27,7 +27,7 @@
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
-    "confusing-browser-globals": "^1.0.10",
+    "confusing-browser-globals": "^1.0.11",
     "core-js": "file:./packages/core-js",
     "core-js-builder": "file:./packages/core-js-builder",
     "core-js-compat": "file:./packages/core-js-compat",
