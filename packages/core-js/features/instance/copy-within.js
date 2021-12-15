@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/copy-within');
+var parent = require('../../actual/instance/copy-within');
 
 module.exports = parent;

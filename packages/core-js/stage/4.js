@@ -1,3 +1,4 @@
+// TODO: Remove this entry from `core-js@4`
 require('../proposals/accessible-object-hasownproperty');
 // require('../proposals/error-cause');
 require('../proposals/global-this');

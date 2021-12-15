@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
+import from from 'core-js-pure/es/array/from';
 import Map from 'core-js-pure/features/map';
-import toArray from 'core-js-pure/features/array/from';
 
 QUnit.test('Map.keyBy', assert => {
   const { keyBy } = Map;
@@ -12,10 +12,10 @@ QUnit.test('Map.keyBy', assert => {
 
   assert.true(Map.keyBy([], it => it) instanceof Map);
 
-  assert.deepEqual(toArray(Map.keyBy([], it => it)), []);
-  assert.deepEqual(toArray(Map.keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(Map.keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
-  assert.deepEqual(toArray(Map.keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(from(Map.keyBy([], it => it)), []);
+  assert.deepEqual(from(Map.keyBy([1, 2], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(from(Map.keyBy([1, 2, 1], it => it ** 2)), [[1, 1], [4, 2]]);
+  assert.deepEqual(from(Map.keyBy(createIterable([1, 2]), it => it ** 2)), [[1, 1], [4, 2]]);
 
   const element = {};
   Map.keyBy([element], it => assert.same(it, element));

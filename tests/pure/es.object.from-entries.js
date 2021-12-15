@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
-import fromEntries from 'core-js-pure/features/object/from-entries';
-import Set from 'core-js-pure/features/set';
+import Set from 'core-js-pure/es/set';
+import fromEntries from 'core-js-pure/es/object/from-entries';
 
 QUnit.test('Object.fromEntries', assert => {
   assert.isFunction(fromEntries);

@@ -1,3 +1,3 @@
-var parent = require('../../stable/symbol/replace');
+var parent = require('../../actual/symbol/replace');
 
 module.exports = parent;

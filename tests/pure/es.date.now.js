@@ -1,4 +1,4 @@
-import now from 'core-js-pure/features/date/now';
+import now from 'core-js-pure/es/date/now';
 
 QUnit.test('Date.now', assert => {
   assert.isFunction(now);

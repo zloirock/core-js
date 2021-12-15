@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/es/symbol';
 import codePoints from 'core-js-pure/features/string/code-points';
 
 QUnit.test('String#codePoints', assert => {

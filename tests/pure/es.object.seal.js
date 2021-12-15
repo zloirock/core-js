@@ -1,5 +1,8 @@
-import { seal, keys, getOwnPropertyNames, getOwnPropertySymbols } from 'core-js-pure/features/object';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
+import ownKeys from 'core-js-pure/es/reflect/own-keys';
+import keys from 'core-js-pure/es/object/keys';
+import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
+import seal from 'core-js-pure/es/object/seal';
 
 QUnit.test('Object.seal', assert => {
   assert.isFunction(seal);

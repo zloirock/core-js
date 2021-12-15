@@ -1,1 +1,3 @@
-require('../../modules/esnext.typed-array.find-last');
+var parent = require('../../actual/typed-array/find-last');
+
+module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../stable/math/cosh');
+var parent = require('../../actual/math/cosh');
 
 module.exports = parent;

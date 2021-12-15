@@ -1,4 +1,4 @@
-var parent = require('../../stable/map');
+var parent = require('../../actual/map');
 require('../../modules/esnext.map.from');
 require('../../modules/esnext.map.of');
 require('../../modules/esnext.map.delete-all');

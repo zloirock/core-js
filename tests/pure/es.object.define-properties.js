@@ -1,6 +1,6 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import defineProperties from 'core-js-pure/features/object/define-properties';
+import defineProperties from 'core-js-pure/es/object/define-properties';
 
 QUnit.test('Object.defineProperties', assert => {
   assert.isFunction(defineProperties);

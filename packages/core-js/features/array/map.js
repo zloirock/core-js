@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/map');
+var parent = require('../../actual/array/map');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../stable/math/log1p');
+var parent = require('../../actual/math/log1p');
 
 module.exports = parent;

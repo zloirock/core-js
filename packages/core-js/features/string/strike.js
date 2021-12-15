@@ -1,3 +1,3 @@
-var parent = require('../../stable/string/strike');
+var parent = require('../../actual/string/strike');
 
 module.exports = parent;

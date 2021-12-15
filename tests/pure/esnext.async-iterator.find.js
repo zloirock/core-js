@@ -1,7 +1,7 @@
-import AsyncIterator from 'core-js-pure/features/async-iterator';
-
 import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
+
+import AsyncIterator from 'core-js-pure/features/async-iterator';
 
 QUnit.test('AsyncIterator#find', assert => {
   assert.expect(16);

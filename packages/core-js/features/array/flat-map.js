@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/flat-map');
+var parent = require('../../actual/array/flat-map');
 
 module.exports = parent;

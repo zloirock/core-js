@@ -1,3 +1,3 @@
-var parent = require('../../stable/regexp/dot-all');
+var parent = require('../../actual/regexp/dot-all');
 
 module.exports = parent;

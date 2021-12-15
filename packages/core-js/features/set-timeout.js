@@ -1,3 +1,3 @@
-var parent = require('../stable/set-timeout');
+var parent = require('../actual/set-timeout');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../stable/clear-immediate');
+var parent = require('../actual/clear-immediate');
 
 module.exports = parent;

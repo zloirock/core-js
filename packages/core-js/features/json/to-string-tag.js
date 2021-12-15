@@ -1,3 +1,3 @@
-var parent = require('../../stable/json/to-string-tag');
+var parent = require('../../actual/json/to-string-tag');
 
 module.exports = parent;

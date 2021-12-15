@@ -1,3 +1,3 @@
-var parent = require('../../stable/typed-array/set');
+var parent = require('../../actual/typed-array/set');
 
 module.exports = parent;

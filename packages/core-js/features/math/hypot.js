@@ -1,3 +1,3 @@
-var parent = require('../../stable/math/hypot');
+var parent = require('../../actual/math/hypot');
 
 module.exports = parent;

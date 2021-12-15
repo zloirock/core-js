@@ -22,6 +22,7 @@ async function getModulesForEntryPoint(path, parent) {
 
 const entriesList = await globby([
   'packages/core-js/index.js',
+  'packages/core-js/actual/**/*.js',
   'packages/core-js/es/**/*.js',
   'packages/core-js/features/**/*.js',
   'packages/core-js/modules/*.js',

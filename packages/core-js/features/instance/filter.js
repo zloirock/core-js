@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/filter');
+var parent = require('../../actual/instance/filter');
 
 module.exports = parent;

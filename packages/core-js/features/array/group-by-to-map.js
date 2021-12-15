@@ -1,5 +1,3 @@
-require('../../modules/es.map');
-require('../../modules/esnext.array.group-by-to-map');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/array/group-by-to-map');
 
-module.exports = entryUnbind('Array', 'groupByToMap');
+module.exports = parent;

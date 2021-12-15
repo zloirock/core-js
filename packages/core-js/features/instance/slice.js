@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/slice');
+var parent = require('../../actual/instance/slice');
 
 module.exports = parent;

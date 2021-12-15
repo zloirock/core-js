@@ -1,3 +1,3 @@
-var parent = require('../../stable/regexp/test');
+var parent = require('../../actual/regexp/test');
 
 module.exports = parent;

@@ -4,7 +4,8 @@ import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';
 import toASCIITestData from '../wpt-url-resources/toascii';
 
-import { URL, URLSearchParams } from 'core-js-pure';
+import URL from 'core-js-pure/stable/url';
+import URLSearchParams from 'core-js-pure/stable/url-search-params';
 
 const { hasOwnProperty } = Object.prototype;
 

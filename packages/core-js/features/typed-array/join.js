@@ -1,3 +1,3 @@
-var parent = require('../../stable/typed-array/join');
+var parent = require('../../actual/typed-array/join');
 
 module.exports = parent;

@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/map');
+var parent = require('../../actual/instance/map');
 
 module.exports = parent;

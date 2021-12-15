@@ -1,3 +1,3 @@
-var parent = require('../stable/is-iterable');
+var parent = require('../actual/is-iterable');
 
 module.exports = parent;

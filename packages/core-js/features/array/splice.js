@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/splice');
+var parent = require('../../actual/array/splice');
 
 module.exports = parent;

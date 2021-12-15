@@ -1,4 +1,4 @@
-var parent = require('../../stable/array/at');
+var parent = require('../../actual/array/at');
 
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.array.at');

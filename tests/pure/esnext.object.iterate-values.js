@@ -1,5 +1,5 @@
+import Symbol from 'core-js-pure/es/symbol';
 import iterateValues from 'core-js-pure/features/object/iterate-values';
-import TO_STRING_TAG from 'core-js-pure/features/symbol/to-string-tag';
 
 QUnit.test('Object.iterateValues', assert => {
   assert.isFunction(iterateValues);
@@ -14,7 +14,7 @@ QUnit.test('Object.iterateValues', assert => {
   const iterator = iterateValues(object);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
-  assert.same(iterator[TO_STRING_TAG], 'Object Iterator');
+  assert.same(iterator[Symbol.toStringTag], 'Object Iterator');
   assert.deepEqual(iterator.next(), {
     value: 1,
     done: false,

@@ -1,5 +1,5 @@
-import isInteger from 'core-js-pure/features/number/is-integer';
-import create from 'core-js-pure/features/object/create';
+import create from 'core-js-pure/es/object/create';
+import isInteger from 'core-js-pure/es/number/is-integer';
 
 QUnit.test('Number.isInteger', assert => {
   assert.isFunction(isInteger);

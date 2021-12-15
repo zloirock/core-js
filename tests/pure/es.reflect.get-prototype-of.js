@@ -1,6 +1,6 @@
 import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
 
-import getPrototypeOf from 'core-js-pure/features/reflect/get-prototype-of';
+import getPrototypeOf from 'core-js-pure/es/reflect/get-prototype-of';
 
 QUnit.test('Reflect.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);

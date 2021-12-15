@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/includes');
+var parent = require('../../actual/instance/includes');
 
 module.exports = parent;

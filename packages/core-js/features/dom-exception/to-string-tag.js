@@ -1,3 +1,3 @@
-var parent = require('../../stable/dom-exception/to-string-tag');
+var parent = require('../../actual/dom-exception/to-string-tag');
 
 module.exports = parent;

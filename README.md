@@ -1,4 +1,4 @@
-# core-js
+![logo](https://user-images.githubusercontent.com/2213682/140570622-ea744c11-632e-4d9a-ba0a-70c390a1fdff.png)
 
 [![Open Collective](https://opencollective.com/core-js/all/badge.svg?label=open%20collective)](https://opencollective.com/core-js) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![tests](https://github.com/zloirock/core-js/workflows/tests/badge.svg)](https://github.com/zloirock/core-js/actions) [![eslint](https://github.com/zloirock/core-js/workflows/eslint/badge.svg)](https://github.com/zloirock/core-js/actions)
 
@@ -24,43 +24,51 @@
 
 ---
 
-Available as part of the Tidelift Subscription.
-
-The maintainers of `core-js` and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source dependencies you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact dependencies you use. [Learn more.](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=enterprise)
+Available as part of the Tidelift Subscription, [learn more](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=enterprise).
 
 ---
 
-[*Example of usage*](http://goo.gl/a2xexl):
+[*Example of usage*](https://is.gd/XD4mRe):
 ```js
 import 'core-js'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
-Promise.resolve(32).then(x => console.log(x)); // => 32
+[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+Promise.resolve(42).then(x => console.log(x)); // => 42
+structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
+queueMicrotask(() => console.log('called as microtask'));
 ```
 
 *You can load only required features*:
 ```js
-import 'core-js/features/array/from'; // <- at the top of your entry point
-import 'core-js/features/array/flat'; // <- at the top of your entry point
-import 'core-js/features/set';        // <- at the top of your entry point
-import 'core-js/features/promise';    // <- at the top of your entry point
+import 'core-js/actual/array/from';       // <- at the top of your entry point
+import 'core-js/actual/array/group-by';   // <- at the top of your entry point
+import 'core-js/actual/set';              // <- at the top of your entry point
+import 'core-js/actual/promise';          // <- at the top of your entry point
+import 'core-js/actual/structured-clone'; // <- at the top of your entry point
+import 'core-js/actual/queue-microtask';  // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, [2, 3], [4, [5]]].flat(2);                 // => [1, 2, 3, 4, 5]
-Promise.resolve(32).then(x => console.log(x)); // => 32
+[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+Promise.resolve(42).then(x => console.log(x)); // => 42
+structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
+queueMicrotask(() => console.log('called as microtask'));
 ```
 
 *Or use it without global namespace pollution*:
 ```js
-import from from 'core-js-pure/features/array/from';
-import flat from 'core-js-pure/features/array/flat';
-import Set from 'core-js-pure/features/set';
-import Promise from 'core-js-pure/features/promise';
+import from from 'core-js-pure/actual/array/from';
+import groupBy from 'core-js-pure/actual/array/group-by';
+import Set from 'core-js-pure/actual/set';
+import Promise from 'core-js-pure/actual/promise';
+import structuredClone from 'core-js-pure/actual/structured-clone';
+import queueMicrotask from 'core-js-pure/actual/queue-microtask';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-flat([1, [2, 3], [4, [5]]], 2);                // => [1, 2, 3, 4, 5]
-Promise.resolve(32).then(x => console.log(x)); // => 32
+groupBy([1, 2, 3, 4, 5], it => it % 2);        // => { 1: [1, 3, 5], 0: [2, 4] }
+Promise.resolve(42).then(x => console.log(x)); // => 42
+structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
+queueMicrotask(() => console.log('called as microtask'));
 ```
 
 ### Index
@@ -95,7 +103,27 @@ Promise.resolve(32).then(x => console.log(x)); // => 32
     - [ECMAScript: JSON](#ecmascript-json)
     - [ECMAScript: globalThis](#ecmascript-globalthis)
   - [ECMAScript proposals](#ecmascript-proposals)
-    - [Stage 4 proposals](#stage-4-proposals)
+    - [Finished proposals](#finished-proposals)
+      - [`globalThis`](#globalthis)
+      - [Relative indexing method](#relative-indexing-method)
+      - [`Array.prototype.includes`](#arrayprototypeincludes)
+      - [`Array.prototype.flat` / `Array.prototype.flatMap`](#arrayprototypeflat--arrayprototypeflatmap)
+      - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
+      - [`Object.fromEntries`](#objectfromentries)
+      - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
+      - [Accessible `Object.prototype.hasOwnProperty`](#accessible-objectprototypehasownproperty)
+      - [`String` padding](#string-padding)
+      - [`String.prototype.matchAll`](#stringmatchall)
+      - [`String.prototype.replaceAll`](#stringreplaceall)
+      - [`String.prototype.trimStart` / `String.prototype.trimEnd`](#stringprototypetrimstart-stringprototypetrimend)
+      - [`RegExp` `s` (`dotAll`) flag](#regexp-s-dotall-flag)
+      - [`RegExp` named capture groups](#regexp-named-capture-groups)
+      - [`Promise.allSettled`](#promiseallsettled)
+      - [`Promise.any`](#promiseany)
+      - [`Promise.prototype.finally`](#promiseprototypefinally)
+      - [`Symbol.asyncIterator` for asynchronous iteration](#symbolasynciterator-for-asynchronous-iteration)
+      - [`Symbol.prototype.description`](#symbolprototypedescription)
+      - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Array` grouping](#array-grouping)
       - [`Array` find from last](#array-find-from-last)
@@ -170,16 +198,22 @@ npm install --loglevel silent
 You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
-// polyfill all `core-js` features:
+// polyfill all `core-js` features, including early-stage proposals:
 import "core-js";
-// polyfill only stable `core-js` features - ES and web standards:
+// or:
+import "core-js/features";
+// polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
+import "core-js/actual";
+// polyfill only stable features - ES and web standards:
 import "core-js/stable";
 // polyfill only stable ES features:
 import "core-js/es";
 
 // if you want to polyfill `Set`:
-// all `Set`-related features, with ES proposals:
+// all `Set`-related features, with early-stage ES proposals:
 import "core-js/features/set";
+// stable required for `Set` ES features, features from web standards and stage 3 ES proposals:
+import "core-js/actual/set";
 // stable required for `Set` ES features and features from web standards
 // (DOM collections iterator in this case):
 import "core-js/stable/set";
@@ -187,11 +221,13 @@ import "core-js/stable/set";
 import "core-js/es/set";
 // the same without global namespace pollution:
 import Set from "core-js-pure/features/set";
+import Set from "core-js-pure/actual/set";
 import Set from "core-js-pure/stable/set";
 import Set from "core-js-pure/es/set";
 
 // if you want to polyfill just required methods:
 import "core-js/features/set/intersection";
+import "core-js/actual/array/find-last";
 import "core-js/stable/queue-microtask";
 import "core-js/es/array/from";
 
@@ -200,6 +236,8 @@ import "core-js/proposals/iterator-helpers";
 // polyfill all stage 2+ proposals:
 import "core-js/stage/2";
 ```
+
+**Note: The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.**
 
 ##### Caveats when using CommonJS API:[⬆](#index)
 
@@ -212,14 +250,8 @@ import "core-js/stage/2";
 #### CommonJS and prototype methods without global namespace pollution[⬆](#index)
 In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```js
-import fill from 'core-js-pure/features/array/virtual/fill';
-import findIndex from 'core-js-pure/features/array/virtual/find-index';
-
-Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
-
-// or
-
-import { fill, findIndex } from 'core-js-pure/features/array/virtual';
+import fill from 'core-js-pure/actual/array/virtual/fill';
+import findIndex from 'core-js-pure/actual/array/virtual/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
@@ -437,33 +469,33 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/object
-core-js(-pure)/es|stable|features/object/assign
-core-js(-pure)/es|stable|features/object/is
-core-js(-pure)/es|stable|features/object/set-prototype-of
-core-js(-pure)/es|stable|features/object/get-prototype-of
-core-js(-pure)/es|stable|features/object/create
-core-js(-pure)/es|stable|features/object/define-property
-core-js(-pure)/es|stable|features/object/define-properties
-core-js(-pure)/es|stable|features/object/get-own-property-descriptor
-core-js(-pure)/es|stable|features/object/get-own-property-descriptors
-core-js(-pure)/es|stable|features/object/has-own
-core-js(-pure)/es|stable|features/object/keys
-core-js(-pure)/es|stable|features/object/values
-core-js(-pure)/es|stable|features/object/entries
-core-js(-pure)/es|stable|features/object/get-own-property-names
-core-js(-pure)/es|stable|features/object/freeze
-core-js(-pure)/es|stable|features/object/from-entries
-core-js(-pure)/es|stable|features/object/seal
-core-js(-pure)/es|stable|features/object/prevent-extensions
-core-js(-pure)/es|stable|features/object/is-frozen
-core-js(-pure)/es|stable|features/object/is-sealed
-core-js(-pure)/es|stable|features/object/is-extensible
-core-js/es|stable|features/object/to-string
-core-js(-pure)/es|stable|features/object/define-getter
-core-js(-pure)/es|stable|features/object/define-setter
-core-js(-pure)/es|stable|features/object/lookup-getter
-core-js(-pure)/es|stable|features/object/lookup-setter
+core-js(-pure)/es|stable|actual|features/object
+core-js(-pure)/es|stable|actual|features/object/assign
+core-js(-pure)/es|stable|actual|features/object/is
+core-js(-pure)/es|stable|actual|features/object/set-prototype-of
+core-js(-pure)/es|stable|actual|features/object/get-prototype-of
+core-js(-pure)/es|stable|actual|features/object/create
+core-js(-pure)/es|stable|actual|features/object/define-property
+core-js(-pure)/es|stable|actual|features/object/define-properties
+core-js(-pure)/es|stable|actual|features/object/get-own-property-descriptor
+core-js(-pure)/es|stable|actual|features/object/get-own-property-descriptors
+core-js(-pure)/es|stable|actual|features/object/has-own
+core-js(-pure)/es|stable|actual|features/object/keys
+core-js(-pure)/es|stable|actual|features/object/values
+core-js(-pure)/es|stable|actual|features/object/entries
+core-js(-pure)/es|stable|actual|features/object/get-own-property-names
+core-js(-pure)/es|stable|actual|features/object/freeze
+core-js(-pure)/es|stable|actual|features/object/from-entries
+core-js(-pure)/es|stable|actual|features/object/seal
+core-js(-pure)/es|stable|actual|features/object/prevent-extensions
+core-js(-pure)/es|stable|actual|features/object/is-frozen
+core-js(-pure)/es|stable|actual|features/object/is-sealed
+core-js(-pure)/es|stable|actual|features/object/is-extensible
+core-js/es|stable|actual|features/object/to-string
+core-js(-pure)/es|stable|actual|features/object/define-getter
+core-js(-pure)/es|stable|actual|features/object/define-setter
+core-js(-pure)/es|stable|actual|features/object/lookup-getter
+core-js(-pure)/es|stable|actual|features/object/lookup-setter
 ```
 [*Examples*](t.ly/j1Uw):
 ```js
@@ -537,11 +569,11 @@ class Function {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/function
-core-js/es|stable|features/function/name
-core-js/es|stable|features/function/has-instance
-core-js(-pure)/es|stable|features/function/bind
-core-js(-pure)/es|stable|features/function/virtual/bind
+core-js/es|stable|actual|features/function
+core-js/es|stable|actual|features/function/name
+core-js/es|stable|actual|features/function/has-instance
+core-js(-pure)/es|stable|actual|features/function/bind
+core-js(-pure)/es|stable|actual|features/function/virtual/bind
 ```
 [*Example*](http://goo.gl/zqu3Wp):
 ```js
@@ -580,10 +612,10 @@ class Error {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/aggregate-error
-core-js/es|stable|features/error
-core-js/es|stable|features/error/constructor
-core-js/es|stable|features/error/to-string
+core-js(-pure)/es|stable|actual|features/aggregate-error
+core-js/es|stable|actual|features/error
+core-js/es|stable|actual|features/error/constructor
+core-js/es|stable|actual|features/error/to-string
 ```
 [*Example*](https://is.gd/1SufcH):
 ```js
@@ -643,64 +675,64 @@ class Arguments {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/array
-core-js(-pure)/es|stable|features/array/from
-core-js(-pure)/es|stable|features/array/of
-core-js(-pure)/es|stable|features/array/is-array
-core-js(-pure)/es|stable|features/array/at
-core-js(-pure)/es|stable|features/array/concat
-core-js(-pure)/es|stable|features/array/entries
-core-js(-pure)/es|stable|features/array/every
-core-js(-pure)/es|stable|features/array/copy-within
-core-js(-pure)/es|stable|features/array/fill
-core-js(-pure)/es|stable|features/array/filter
-core-js(-pure)/es|stable|features/array/find
-core-js(-pure)/es|stable|features/array/find-index
-core-js(-pure)/es|stable|features/array/flat
-core-js(-pure)/es|stable|features/array/flat-map
-core-js(-pure)/es|stable|features/array/for-each
-core-js(-pure)/es|stable|features/array/includes
-core-js(-pure)/es|stable|features/array/index-of
-core-js(-pure)/es|stable|features/array/iterator
-core-js(-pure)/es|stable|features/array/join
-core-js(-pure)/es|stable|features/array/keys
-core-js(-pure)/es|stable|features/array/last-index-of
-core-js(-pure)/es|stable|features/array/map
-core-js(-pure)/es|stable|features/array/reduce
-core-js(-pure)/es|stable|features/array/reduce-right
-core-js(-pure)/es|stable|features/array/reverse
-core-js(-pure)/es|stable|features/array/slice
-core-js(-pure)/es|stable|features/array/splice
-core-js(-pure)/es|stable|features/array/some
-core-js(-pure)/es|stable|features/array/sort
-core-js(-pure)/es|stable|features/array/values
-core-js(-pure)/es|stable|features/array/virtual/at
-core-js(-pure)/es|stable|features/array/virtual/concat
-core-js(-pure)/es|stable|features/array/virtual/copy-within
-core-js(-pure)/es|stable|features/array/virtual/entries
-core-js(-pure)/es|stable|features/array/virtual/every
-core-js(-pure)/es|stable|features/array/virtual/fill
-core-js(-pure)/es|stable|features/array/virtual/filter
-core-js(-pure)/es|stable|features/array/virtual/find
-core-js(-pure)/es|stable|features/array/virtual/find-index
-core-js(-pure)/es|stable|features/array/virtual/flat
-core-js(-pure)/es|stable|features/array/virtual/flat-map
-core-js(-pure)/es|stable|features/array/virtual/for-each
-core-js(-pure)/es|stable|features/array/virtual/includes
-core-js(-pure)/es|stable|features/array/virtual/index-of
-core-js(-pure)/es|stable|features/array/virtual/iterator
-core-js(-pure)/es|stable|features/array/virtual/join
-core-js(-pure)/es|stable|features/array/virtual/keys
-core-js(-pure)/es|stable|features/array/virtual/last-index-of
-core-js(-pure)/es|stable|features/array/virtual/map
-core-js(-pure)/es|stable|features/array/virtual/reduce
-core-js(-pure)/es|stable|features/array/virtual/reduce-right
-core-js(-pure)/es|stable|features/array/virtual/reverse
-core-js(-pure)/es|stable|features/array/virtual/slice
-core-js(-pure)/es|stable|features/array/virtual/some
-core-js(-pure)/es|stable|features/array/virtual/sort
-core-js(-pure)/es|stable|features/array/virtual/splice
-core-js(-pure)/es|stable|features/array/virtual/values
+core-js(-pure)/es|stable|actual|features/array
+core-js(-pure)/es|stable|actual|features/array/from
+core-js(-pure)/es|stable|actual|features/array/of
+core-js(-pure)/es|stable|actual|features/array/is-array
+core-js(-pure)/es|stable|actual|features/array/at
+core-js(-pure)/es|stable|actual|features/array/concat
+core-js(-pure)/es|stable|actual|features/array/entries
+core-js(-pure)/es|stable|actual|features/array/every
+core-js(-pure)/es|stable|actual|features/array/copy-within
+core-js(-pure)/es|stable|actual|features/array/fill
+core-js(-pure)/es|stable|actual|features/array/filter
+core-js(-pure)/es|stable|actual|features/array/find
+core-js(-pure)/es|stable|actual|features/array/find-index
+core-js(-pure)/es|stable|actual|features/array/flat
+core-js(-pure)/es|stable|actual|features/array/flat-map
+core-js(-pure)/es|stable|actual|features/array/for-each
+core-js(-pure)/es|stable|actual|features/array/includes
+core-js(-pure)/es|stable|actual|features/array/index-of
+core-js(-pure)/es|stable|actual|features/array/iterator
+core-js(-pure)/es|stable|actual|features/array/join
+core-js(-pure)/es|stable|actual|features/array/keys
+core-js(-pure)/es|stable|actual|features/array/last-index-of
+core-js(-pure)/es|stable|actual|features/array/map
+core-js(-pure)/es|stable|actual|features/array/reduce
+core-js(-pure)/es|stable|actual|features/array/reduce-right
+core-js(-pure)/es|stable|actual|features/array/reverse
+core-js(-pure)/es|stable|actual|features/array/slice
+core-js(-pure)/es|stable|actual|features/array/splice
+core-js(-pure)/es|stable|actual|features/array/some
+core-js(-pure)/es|stable|actual|features/array/sort
+core-js(-pure)/es|stable|actual|features/array/values
+core-js(-pure)/es|stable|actual|features/array/virtual/at
+core-js(-pure)/es|stable|actual|features/array/virtual/concat
+core-js(-pure)/es|stable|actual|features/array/virtual/copy-within
+core-js(-pure)/es|stable|actual|features/array/virtual/entries
+core-js(-pure)/es|stable|actual|features/array/virtual/every
+core-js(-pure)/es|stable|actual|features/array/virtual/fill
+core-js(-pure)/es|stable|actual|features/array/virtual/filter
+core-js(-pure)/es|stable|actual|features/array/virtual/find
+core-js(-pure)/es|stable|actual|features/array/virtual/find-index
+core-js(-pure)/es|stable|actual|features/array/virtual/flat
+core-js(-pure)/es|stable|actual|features/array/virtual/flat-map
+core-js(-pure)/es|stable|actual|features/array/virtual/for-each
+core-js(-pure)/es|stable|actual|features/array/virtual/includes
+core-js(-pure)/es|stable|actual|features/array/virtual/index-of
+core-js(-pure)/es|stable|actual|features/array/virtual/iterator
+core-js(-pure)/es|stable|actual|features/array/virtual/join
+core-js(-pure)/es|stable|actual|features/array/virtual/keys
+core-js(-pure)/es|stable|actual|features/array/virtual/last-index-of
+core-js(-pure)/es|stable|actual|features/array/virtual/map
+core-js(-pure)/es|stable|actual|features/array/virtual/reduce
+core-js(-pure)/es|stable|actual|features/array/virtual/reduce-right
+core-js(-pure)/es|stable|actual|features/array/virtual/reverse
+core-js(-pure)/es|stable|actual|features/array/virtual/slice
+core-js(-pure)/es|stable|actual|features/array/virtual/some
+core-js(-pure)/es|stable|actual|features/array/virtual/sort
+core-js(-pure)/es|stable|actual|features/array/virtual/splice
+core-js(-pure)/es|stable|actual|features/array/virtual/values
 ```
 [*Examples*](t.ly/0qoU):
 ```js
@@ -823,52 +855,52 @@ function unescape(string: string): string;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/string
-core-js(-pure)/es|stable|features/string/from-code-point
-core-js(-pure)/es|stable|features/string/raw
-core-js/es|stable|features/string/match
-core-js/es|stable|features/string/replace
-core-js/es|stable|features/string/search
-core-js/es|stable|features/string/split
-core-js(-pure)/es|stable/string(/virtual)/at
-core-js(-pure)/es|stable|features/string(/virtual)/code-point-at
-core-js(-pure)/es|stable|features/string(/virtual)/ends-with
-core-js(-pure)/es|stable|features/string(/virtual)/includes
-core-js(-pure)/es|stable|features/string(/virtual)/starts-with
-core-js(-pure)/es|stable|features/string(/virtual)/match-all
-core-js(-pure)/es|stable|features/string(/virtual)/pad-start
-core-js(-pure)/es|stable|features/string(/virtual)/pad-end
-core-js(-pure)/es|stable|features/string(/virtual)/repeat
-core-js(-pure)/es|stable|features/string(/virtual)/replace-all
-core-js(-pure)/es|stable|features/string(/virtual)/trim
-core-js(-pure)/es|stable|features/string(/virtual)/trim-start
-core-js(-pure)/es|stable|features/string(/virtual)/trim-end
-core-js(-pure)/es|stable|features/string(/virtual)/trim-left
-core-js(-pure)/es|stable|features/string(/virtual)/trim-right
-core-js(-pure)/es|stable|features/string(/virtual)/anchor
-core-js(-pure)/es|stable|features/string(/virtual)/big
-core-js(-pure)/es|stable|features/string(/virtual)/blink
-core-js(-pure)/es|stable|features/string(/virtual)/bold
-core-js(-pure)/es|stable|features/string(/virtual)/fixed
-core-js(-pure)/es|stable|features/string(/virtual)/fontcolor
-core-js(-pure)/es|stable|features/string(/virtual)/fontsize
-core-js(-pure)/es|stable|features/string(/virtual)(/virtual)/italics
-core-js(-pure)/es|stable|features/string(/virtual)/link
-core-js(-pure)/es|stable|features/string(/virtual)/small
-core-js(-pure)/es|stable|features/string(/virtual)/strike
-core-js(-pure)/es|stable|features/string(/virtual)/sub
-core-js(-pure)/es|stable|features/string(/virtual)/substr
-core-js(-pure)/es|stable|features/string(/virtual)/sup
-core-js(-pure)/es|stable|features/string(/virtual)/iterator
-core-js/es|stable|features/regexp
-core-js/es|stable|features/regexp/constructor
-core-js/es|stable|features/regexp/dot-all
-core-js(-pure)/es|stable|features/regexp/flags
-core-js/es|stable|features/regexp/sticky
-core-js/es|stable|features/regexp/test
-core-js/es|stable|features/regexp/to-string
-core-js/es|stable|features/escape
-core-js/es|stable|features/unescape
+core-js(-pure)/es|stable|actual|features/string
+core-js(-pure)/es|stable|actual|features/string/from-code-point
+core-js(-pure)/es|stable|actual|features/string/raw
+core-js/es|stable|actual|features/string/match
+core-js/es|stable|actual|features/string/replace
+core-js/es|stable|actual|features/string/search
+core-js/es|stable|actual|features/string/split
+core-js(-pure)/es|stable|actual/string(/virtual)/at
+core-js(-pure)/es|stable|actual|features/string(/virtual)/code-point-at
+core-js(-pure)/es|stable|actual|features/string(/virtual)/ends-with
+core-js(-pure)/es|stable|actual|features/string(/virtual)/includes
+core-js(-pure)/es|stable|actual|features/string(/virtual)/starts-with
+core-js(-pure)/es|stable|actual|features/string(/virtual)/match-all
+core-js(-pure)/es|stable|actual|features/string(/virtual)/pad-start
+core-js(-pure)/es|stable|actual|features/string(/virtual)/pad-end
+core-js(-pure)/es|stable|actual|features/string(/virtual)/repeat
+core-js(-pure)/es|stable|actual|features/string(/virtual)/replace-all
+core-js(-pure)/es|stable|actual|features/string(/virtual)/trim
+core-js(-pure)/es|stable|actual|features/string(/virtual)/trim-start
+core-js(-pure)/es|stable|actual|features/string(/virtual)/trim-end
+core-js(-pure)/es|stable|actual|features/string(/virtual)/trim-left
+core-js(-pure)/es|stable|actual|features/string(/virtual)/trim-right
+core-js(-pure)/es|stable|actual|features/string(/virtual)/anchor
+core-js(-pure)/es|stable|actual|features/string(/virtual)/big
+core-js(-pure)/es|stable|actual|features/string(/virtual)/blink
+core-js(-pure)/es|stable|actual|features/string(/virtual)/bold
+core-js(-pure)/es|stable|actual|features/string(/virtual)/fixed
+core-js(-pure)/es|stable|actual|features/string(/virtual)/fontcolor
+core-js(-pure)/es|stable|actual|features/string(/virtual)/fontsize
+core-js(-pure)/es|stable|actual|features/string(/virtual)/italics
+core-js(-pure)/es|stable|actual|features/string(/virtual)/link
+core-js(-pure)/es|stable|actual|features/string(/virtual)/small
+core-js(-pure)/es|stable|actual|features/string(/virtual)/strike
+core-js(-pure)/es|stable|actual|features/string(/virtual)/sub
+core-js(-pure)/es|stable|actual|features/string(/virtual)/substr
+core-js(-pure)/es|stable|actual|features/string(/virtual)/sup
+core-js(-pure)/es|stable|actual|features/string(/virtual)/iterator
+core-js/es|stable|actual|features/regexp
+core-js/es|stable|actual|features/regexp/constructor
+core-js/es|stable|actual|features/regexp/dot-all
+core-js(-pure)/es|stable|actual|features/regexp/flags
+core-js/es|stable|actual|features/regexp/sticky
+core-js/es|stable|actual|features/regexp/test
+core-js/es|stable|actual|features/regexp/to-string
+core-js/es|stable|actual|features/escape
+core-js/es|stable|actual|features/unescape
 ```
 [*Examples*](t.ly/ex9y):
 ```js
@@ -972,22 +1004,22 @@ function parseInt(string: string, radix?: number = 10): number;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/number
-core-js/es|stable|features/number/constructor
-core-js(-pure)/es|stable|features/number/is-finite
-core-js(-pure)/es|stable|features/number/is-nan
-core-js(-pure)/es|stable|features/number/is-integer
-core-js(-pure)/es|stable|features/number/is-safe-integer
-core-js(-pure)/es|stable|features/number/parse-float
-core-js(-pure)/es|stable|features/number/parse-int
-core-js(-pure)/es|stable|features/number/epsilon
-core-js(-pure)/es|stable|features/number/max-safe-integer
-core-js(-pure)/es|stable|features/number/min-safe-integer
-core-js(-pure)/es|stable|features/number/to-exponential
-core-js(-pure)/es|stable|features/number/to-fixed
-core-js(-pure)/es|stable|features/number/to-precision
-core-js(-pure)/es|stable|features/parse-float
-core-js(-pure)/es|stable|features/parse-int
+core-js(-pure)/es|stable|actual|features/number
+core-js/es|stable|actual|features/number/constructor
+core-js(-pure)/es|stable|actual|features/number/is-finite
+core-js(-pure)/es|stable|actual|features/number/is-nan
+core-js(-pure)/es|stable|actual|features/number/is-integer
+core-js(-pure)/es|stable|actual|features/number/is-safe-integer
+core-js(-pure)/es|stable|actual|features/number/parse-float
+core-js(-pure)/es|stable|actual|features/number/parse-int
+core-js(-pure)/es|stable|actual|features/number/epsilon
+core-js(-pure)/es|stable|actual|features/number/max-safe-integer
+core-js(-pure)/es|stable|actual|features/number/min-safe-integer
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-exponential
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-fixed
+core-js(-pure)/es|stable|actual|features/number(/virtual)/to-precision
+core-js(-pure)/es|stable|actual|features/parse-float
+core-js(-pure)/es|stable|actual|features/parse-int
 ```
 #### ECMAScript: Math[⬆](#index)
 Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.fround.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js).
@@ -1014,24 +1046,24 @@ namespace Math {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/math
-core-js(-pure)/es|stable|features/math/acosh
-core-js(-pure)/es|stable|features/math/asinh
-core-js(-pure)/es|stable|features/math/atanh
-core-js(-pure)/es|stable|features/math/cbrt
-core-js(-pure)/es|stable|features/math/clz32
-core-js(-pure)/es|stable|features/math/cosh
-core-js(-pure)/es|stable|features/math/expm1
-core-js(-pure)/es|stable|features/math/fround
-core-js(-pure)/es|stable|features/math/hypot
-core-js(-pure)/es|stable|features/math/imul
-core-js(-pure)/es|stable|features/math/log1p
-core-js(-pure)/es|stable|features/math/log10
-core-js(-pure)/es|stable|features/math/log2
-core-js(-pure)/es|stable|features/math/sign
-core-js(-pure)/es|stable|features/math/sinh
-core-js(-pure)/es|stable|features/math/tanh
-core-js(-pure)/es|stable|features/math/trunc
+core-js(-pure)/es|stable|actual|features/math
+core-js(-pure)/es|stable|actual|features/math/acosh
+core-js(-pure)/es|stable|actual|features/math/asinh
+core-js(-pure)/es|stable|actual|features/math/atanh
+core-js(-pure)/es|stable|actual|features/math/cbrt
+core-js(-pure)/es|stable|actual|features/math/clz32
+core-js(-pure)/es|stable|actual|features/math/cosh
+core-js(-pure)/es|stable|actual|features/math/expm1
+core-js(-pure)/es|stable|actual|features/math/fround
+core-js(-pure)/es|stable|actual|features/math/hypot
+core-js(-pure)/es|stable|actual|features/math/imul
+core-js(-pure)/es|stable|actual|features/math/log1p
+core-js(-pure)/es|stable|actual|features/math/log10
+core-js(-pure)/es|stable|actual|features/math/log2
+core-js(-pure)/es|stable|actual|features/math/sign
+core-js(-pure)/es|stable|actual|features/math/sinh
+core-js(-pure)/es|stable|actual|features/math/tanh
+core-js(-pure)/es|stable|actual|features/math/trunc
 ```
 #### ECMAScript: Date[⬆](#index)
 Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js).
@@ -1051,15 +1083,15 @@ class Date {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/date
-core-js/es|stable|features/date/to-string
-core-js(-pure)/es|stable|features/date/now
-core-js(-pure)/es|stable|features/date/get-year
-core-js(-pure)/es|stable|features/date/set-year
-core-js(-pure)/es|stable|features/date/to-gmt-string
-core-js(-pure)/es|stable|features/date/to-iso-string
-core-js(-pure)/es|stable|features/date/to-json
-core-js(-pure)/es|stable|features/date/to-primitive
+core-js/es|stable|actual|features/date
+core-js/es|stable|actual|features/date/to-string
+core-js(-pure)/es|stable|actual|features/date/now
+core-js(-pure)/es|stable|actual|features/date/get-year
+core-js(-pure)/es|stable|actual|features/date/set-year
+core-js(-pure)/es|stable|actual|features/date/to-gmt-string
+core-js(-pure)/es|stable|actual|features/date/to-iso-string
+core-js(-pure)/es|stable|actual|features/date/to-json
+core-js(-pure)/es|stable|actual|features/date/to-primitive
 ```
 [*Example*](http://goo.gl/haeHLR):
 ```js
@@ -1083,10 +1115,10 @@ class Promise {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/promise
-core-js(-pure)/es|stable|features/promise/all-settled
-core-js(-pure)/es|stable|features/promise/any
-core-js(-pure)/es|stable|features/promise/finally
+core-js(-pure)/es|stable|actual|features/promise
+core-js(-pure)/es|stable|actual|features/promise/all-settled
+core-js(-pure)/es|stable|actual|features/promise/any
+core-js(-pure)/es|stable|actual|features/promise/finally
 ```
 Basic [*example*](http://goo.gl/vGrtUC):
 ```js
@@ -1265,24 +1297,24 @@ class Object {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/symbol
-core-js(-pure)/es|stable|features/symbol/async-iterator
-core-js/es|stable|features/symbol/description
-core-js(-pure)/es|stable|features/symbol/has-instance
-core-js(-pure)/es|stable|features/symbol/is-concat-spreadable
-core-js(-pure)/es|stable|features/symbol/iterator
-core-js(-pure)/es|stable|features/symbol/match
-core-js(-pure)/es|stable|features/symbol/replace
-core-js(-pure)/es|stable|features/symbol/search
-core-js(-pure)/es|stable|features/symbol/species
-core-js(-pure)/es|stable|features/symbol/split
-core-js(-pure)/es|stable|features/symbol/to-primitive
-core-js(-pure)/es|stable|features/symbol/to-string-tag
-core-js(-pure)/es|stable|features/symbol/unscopables
-core-js(-pure)/es|stable|features/symbol/for
-core-js(-pure)/es|stable|features/symbol/key-for
-core-js(-pure)/es|stable|features/object/get-own-property-symbols
-core-js(-pure)/es|stable|features/math/to-string-tag
+core-js(-pure)/es|stable|actual|features/symbol
+core-js(-pure)/es|stable|actual|features/symbol/async-iterator
+core-js/es|stable|actual|features/symbol/description
+core-js(-pure)/es|stable|actual|features/symbol/has-instance
+core-js(-pure)/es|stable|actual|features/symbol/is-concat-spreadable
+core-js(-pure)/es|stable|actual|features/symbol/iterator
+core-js(-pure)/es|stable|actual|features/symbol/match
+core-js(-pure)/es|stable|actual|features/symbol/replace
+core-js(-pure)/es|stable|actual|features/symbol/search
+core-js(-pure)/es|stable|actual|features/symbol/species
+core-js(-pure)/es|stable|actual|features/symbol/split
+core-js(-pure)/es|stable|actual|features/symbol/to-primitive
+core-js(-pure)/es|stable|actual|features/symbol/to-string-tag
+core-js(-pure)/es|stable|actual|features/symbol/unscopables
+core-js(-pure)/es|stable|actual|features/symbol/for
+core-js(-pure)/es|stable|actual|features/symbol/key-for
+core-js(-pure)/es|stable|actual|features/object/get-own-property-symbols
+core-js(-pure)/es|stable|actual|features/math/to-string-tag
 ```
 [*Basic example*](http://goo.gl/BbvWFc):
 ```js
@@ -1371,7 +1403,7 @@ class Map {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/map
+core-js(-pure)/es|stable|actual|features/map
 ```
 [*Examples*](http://goo.gl/GWR7NI):
 ```js
@@ -1425,7 +1457,7 @@ class Set {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/set
+core-js(-pure)/es|stable|actual|features/set
 ```
 [*Examples*](http://goo.gl/bmhLwg):
 ```js
@@ -1464,7 +1496,7 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/weak-map
+core-js(-pure)/es|stable|actual|features/weak-map
 ```
 [*Examples*](http://goo.gl/SILXyw):
 ```js
@@ -1509,7 +1541,7 @@ class WeakSet {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/weak-set
+core-js(-pure)/es|stable|actual|features/weak-set
 ```
 [*Examples*](http://goo.gl/TdFbEx):
 ```js
@@ -1619,50 +1651,50 @@ class %TypedArray% {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/es|stable|features/array-buffer
-core-js/es|stable|features/array-buffer/constructor
-core-js/es|stable|features/array-buffer/is-view
-core-js/es|stable|features/array-buffer/slice
-core-js/es|stable|features/data-view
-core-js/es|stable|features/typed-array
-core-js/es|stable|features/typed-array/int8-array
-core-js/es|stable|features/typed-array/uint8-array
-core-js/es|stable|features/typed-array/uint8-clamped-array
-core-js/es|stable|features/typed-array/int16-array
-core-js/es|stable|features/typed-array/uint16-array
-core-js/es|stable|features/typed-array/int32-array
-core-js/es|stable|features/typed-array/uint32-array
-core-js/es|stable|features/typed-array/float32-array
-core-js/es|stable|features/typed-array/float64-array
-core-js/es|stable|features/typed-array/at
-core-js/es|stable|features/typed-array/copy-within
-core-js/es|stable|features/typed-array/entries
-core-js/es|stable|features/typed-array/every
-core-js/es|stable|features/typed-array/fill
-core-js/es|stable|features/typed-array/filter
-core-js/es|stable|features/typed-array/find
-core-js/es|stable|features/typed-array/find-index
-core-js/es|stable|features/typed-array/for-each
-core-js/es|stable|features/typed-array/from
-core-js/es|stable|features/typed-array/includes
-core-js/es|stable|features/typed-array/index-of
-core-js/es|stable|features/typed-array/iterator
-core-js/es|stable|features/typed-array/join
-core-js/es|stable|features/typed-array/keys
-core-js/es|stable|features/typed-array/last-index-of
-core-js/es|stable|features/typed-array/map
-core-js/es|stable|features/typed-array/of
-core-js/es|stable|features/typed-array/reduce
-core-js/es|stable|features/typed-array/reduce-right
-core-js/es|stable|features/typed-array/reverse
-core-js/es|stable|features/typed-array/set
-core-js/es|stable|features/typed-array/slice
-core-js/es|stable|features/typed-array/some
-core-js/es|stable|features/typed-array/sort
-core-js/es|stable|features/typed-array/subarray
-core-js/es|stable|features/typed-array/to-locale-string
-core-js/es|stable|features/typed-array/to-string
-core-js/es|stable|features/typed-array/values
+core-js/es|stable|actual|features/array-buffer
+core-js/es|stable|actual|features/array-buffer/constructor
+core-js/es|stable|actual|features/array-buffer/is-view
+core-js/es|stable|actual|features/array-buffer/slice
+core-js/es|stable|actual|features/data-view
+core-js/es|stable|actual|features/typed-array
+core-js/es|stable|actual|features/typed-array/int8-array
+core-js/es|stable|actual|features/typed-array/uint8-array
+core-js/es|stable|actual|features/typed-array/uint8-clamped-array
+core-js/es|stable|actual|features/typed-array/int16-array
+core-js/es|stable|actual|features/typed-array/uint16-array
+core-js/es|stable|actual|features/typed-array/int32-array
+core-js/es|stable|actual|features/typed-array/uint32-array
+core-js/es|stable|actual|features/typed-array/float32-array
+core-js/es|stable|actual|features/typed-array/float64-array
+core-js/es|stable|actual|features/typed-array/at
+core-js/es|stable|actual|features/typed-array/copy-within
+core-js/es|stable|actual|features/typed-array/entries
+core-js/es|stable|actual|features/typed-array/every
+core-js/es|stable|actual|features/typed-array/fill
+core-js/es|stable|actual|features/typed-array/filter
+core-js/es|stable|actual|features/typed-array/find
+core-js/es|stable|actual|features/typed-array/find-index
+core-js/es|stable|actual|features/typed-array/for-each
+core-js/es|stable|actual|features/typed-array/from
+core-js/es|stable|actual|features/typed-array/includes
+core-js/es|stable|actual|features/typed-array/index-of
+core-js/es|stable|actual|features/typed-array/iterator
+core-js/es|stable|actual|features/typed-array/join
+core-js/es|stable|actual|features/typed-array/keys
+core-js/es|stable|actual|features/typed-array/last-index-of
+core-js/es|stable|actual|features/typed-array/map
+core-js/es|stable|actual|features/typed-array/of
+core-js/es|stable|actual|features/typed-array/reduce
+core-js/es|stable|actual|features/typed-array/reduce-right
+core-js/es|stable|actual|features/typed-array/reverse
+core-js/es|stable|actual|features/typed-array/set
+core-js/es|stable|actual|features/typed-array/slice
+core-js/es|stable|actual|features/typed-array/some
+core-js/es|stable|actual|features/typed-array/sort
+core-js/es|stable|actual|features/typed-array/subarray
+core-js/es|stable|actual|features/typed-array/to-locale-string
+core-js/es|stable|actual|features/typed-array/to-string
+core-js/es|stable|actual|features/typed-array/values
 ```
 [*Examples*](t.ly/w98j):
 ```js
@@ -1724,20 +1756,20 @@ namespace Reflect {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|features/reflect
-core-js(-pure)/es|stable|features/reflect/apply
-core-js(-pure)/es|stable|features/reflect/construct
-core-js(-pure)/es|stable|features/reflect/define-property
-core-js(-pure)/es|stable|features/reflect/delete-property
-core-js(-pure)/es|stable|features/reflect/get
-core-js(-pure)/es|stable|features/reflect/get-own-property-descriptor
-core-js(-pure)/es|stable|features/reflect/get-prototype-of
-core-js(-pure)/es|stable|features/reflect/has
-core-js(-pure)/es|stable|features/reflect/is-extensible
-core-js(-pure)/es|stable|features/reflect/own-keys
-core-js(-pure)/es|stable|features/reflect/prevent-extensions
-core-js(-pure)/es|stable|features/reflect/set
-core-js(-pure)/es|stable|features/reflect/set-prototype-of
+core-js(-pure)/es|stable|actual|features/reflect
+core-js(-pure)/es|stable|actual|features/reflect/apply
+core-js(-pure)/es|stable|actual|features/reflect/construct
+core-js(-pure)/es|stable|actual|features/reflect/define-property
+core-js(-pure)/es|stable|actual|features/reflect/delete-property
+core-js(-pure)/es|stable|actual|features/reflect/get
+core-js(-pure)/es|stable|actual|features/reflect/get-own-property-descriptor
+core-js(-pure)/es|stable|actual|features/reflect/get-prototype-of
+core-js(-pure)/es|stable|actual|features/reflect/has
+core-js(-pure)/es|stable|actual|features/reflect/is-extensible
+core-js(-pure)/es|stable|actual|features/reflect/own-keys
+core-js(-pure)/es|stable|actual|features/reflect/prevent-extensions
+core-js(-pure)/es|stable|actual|features/reflect/set
+core-js(-pure)/es|stable|actual|features/reflect/set-prototype-of
 ```
 [*Examples*](http://goo.gl/gVT0cH):
 ```js
@@ -1766,8 +1798,8 @@ namespace JSON {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/es|stable|features/json/stringify
-core-js(-pure)/es|stable|features/json/to-string-tag
+core-js(-pure)/es|stable|actual|features/json/stringify
+core-js(-pure)/es|stable|actual|features/json/to-string-tag
 ```
 [*Examples*](t.ly/YJeG):
 ```js
@@ -1781,7 +1813,7 @@ let globalThis: Object;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/es|stable|features/global-this
+core-js(-pure)/es|stable|actual|features/global-this
 ```
 [*Examples*](https://goo.gl/LAifsc):
 ```js
@@ -1790,122 +1822,20 @@ globalThis.Array === Array; // => true
 
 ### ECMAScript proposals[⬆](#index)
 [The TC39 process.](https://tc39.github.io/process-document/)
-`core-js/stage/4` entry point contains only stage 4 proposals, `core-js/stage/3` - stage 3 and stage 4, etc.
-#### Stage 4 proposals[⬆](#index)
 
-Stage 4 proposals already marked in `core-js` as stable ECMAScript, they will be removed from proposals namespace in the next major `core-js` version.
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/stage/4
-```
+#### Finished proposals[⬆](#index)
+
+Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only featues for a specific proposal like `core-js/proposals/proposal-name`.
+
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
-Module [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
 ```js
 let globalThis: Object;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/global-this
-core-js(-pure)/es|stable|features/global-this
 ```
-[*Examples*](https://goo.gl/LAifsc):
-```js
-globalThis.Array === Array; // => true
-```
-##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index).
-Module [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js).
-
-```js
-class String {
-  matchAll(regexp: RegExp): Iterator;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-match-all
-core-js/es|stable|features/string/match-all
-```
-##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
-Module [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
-```js
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-replace-all
-core-js/es|stable|features/string/replace-all
-```
-[*Examples*](https://goo.gl/wUXNXN):
-```js
-'Test abc test test abc test.'.replaceAll('abc', 'foo'); // -> 'Test foo test test foo test.'
-```
-##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
-Module [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js)
-```js
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-all-settled
-core-js(-pure)/es|stable|features/promise/all-settled
-```
-##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
-Modules [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js)
-```js
-class AggregateError {
-  constructor(errors: Iterable, message: string): AggregateError;
-  errors: Array<any>;
-  message: string;
-}
-
-class Promise {
-  static any(promises: Iterable): Promise<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-any
-core-js(-pure)/es|stable|features/promise/any
-core-js(-pure)/es|stable|features/aggregate-error
-```
-[*Examples*](https://goo.gl/iErvmp):
-```js
-Promise.any([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log); // => 1
-
-Promise.any([
-  Promise.reject(1),
-  Promise.reject(2),
-  Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
-```
-##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
-Module [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js).
-```js
-class Object {
-  static hasOwn(object: object, key: PropertyKey): boolean;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/accessible-object-hasownproperty
-core-js(-pure)/es|stable|features/object/has-own
-```
-[*Examples*](t.ly/KY37):
-```js
-Object.hasOwn({ foo: 42 }, 'foo'); // => true
-Object.hasOwn({ foo: 42 }, 'bar'); // => false
-Object.hasOwn({}, 'toString');     // => false
-````
 ##### [Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)[⬆](#index)
-Modules [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js) and [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js)
 ```js
 class Array {
   at(index: int): any;
@@ -1922,17 +1852,216 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/relative-indexing-method
-core-js(-pure)/es|stable|features/array/at
-core-js(-pure)/es|stable|features/string/at
-core-js(-pure)/es|stable|features/typed-array/at
 ```
-[*Examples*](t.ly/L6E8):
+##### [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)[⬆](#index)
 ```js
-[1, 2, 3].at(1);  // => 2
-[1, 2, 3].at(-1); // => 3
+class Array {
+  includes(searchElement: any, from?: number): boolean;
+}
+
+class %TypedArray% {
+  includes(searchElement: any, from?: number): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-includes
+```
+##### [`Array.prototype.flat` / `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)[⬆](#index)
+```js
+class Array {
+  flat(depthArg?: number = 1): Array<mixed>;
+  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-flat-map
+```
+##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
+```js
+class Object {
+  static entries(object: Object): Array<[string, mixed]>;
+  static values(object: any): Array<mixed>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-values-entries
+```
+##### [`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)[⬆](#index)
+```js
+class Object {
+  static fromEntries(iterable: Iterable<[key, value]>): Object;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-from-entries
+```
+##### [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors)[⬆](#index)
+```js
+class Object {
+  static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-getownpropertydescriptors
+```
+##### [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)[⬆](#index)
+```js
+class Object {
+  static hasOwn(object: object, key: PropertyKey): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/accessible-object-hasownproperty
+```
+##### [`String` padding](https://github.com/tc39/proposal-string-pad-start-end)[⬆](#index)
+```js
+class String {
+  padStart(length: number, fillStr?: string = ' '): string;
+  padEnd(length: number, fillStr?: string = ' '): string;
+}
+
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/string-padding
+```
+##### [`String#matchAll`](https://github.com/tc39/proposal-string-matchall)[⬆](#index).
+```js
+class String {
+  matchAll(regexp: RegExp): Iterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-match-all
+```
+##### [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)[⬆](#index)
+```js
+class String {
+  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-replace-all
+```
+##### [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)[⬆](#index)
+```js
+class String {
+  trimLeft(): string;
+  trimRight(): string;
+  trimStart(): string;
+  trimEnd(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-left-right-trim
+```
+##### [`RegExp` `s` (`dotAll`) flag](https://github.com/tc39/proposal-regexp-dotall-flag)[⬆](#index)
+```js
+// patched for support `RegExp` dotAll (`s`) flag:
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp;
+  exec(): Array<string | undefined> | null;
+  readonly attribute dotAll: boolean;
+  readonly attribute flags: string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-dotall-flag
+```
+##### [`RegExp` named capture groups](https://github.com/tc39/proposal-regexp-named-groups)[⬆](#index)
+```js
+// patched for support `RegExp` named capture groups:
+class RegExp {
+  constructor(pattern: RegExp | string, flags?: string): RegExp;
+  exec(): Array<string | undefined> | null;
+  @@replace(string: string, replaceValue: Function | string): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-named-groups
+```
+##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
+```js
+class Promise {
+  static allSettled(iterable: Iterable): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-all-settled
+```
+##### [`Promise.any`](https://github.com/tc39/proposal-promise-any)[⬆](#index)
+```js
+class AggregateError {
+  constructor(errors: Iterable, message: string): AggregateError;
+  errors: Array<any>;
+  message: string;
+}
+
+class Promise {
+  static any(promises: Iterable): Promise<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-any
+```
+##### [`Promise.prototype.finally`](https://github.com/tc39/proposal-promise-finally)[⬆](#index)
+```js
+class Promise {
+  finally(onFinally: Function): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-finally
+```
+##### [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)[⬆](#index)
+```js
+class Symbol {
+  static asyncIterator: @@asyncIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/async-iteration
+```
+##### [`Symbol.prototype.description`](https://github.com/tc39/proposal-Symbol-description)[⬆](#index)
+```js
+class Symbol {
+  readonly attribute description: string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/symbol-description
+```
+##### [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)[⬆](#index)
+```js
+namespace JSON {
+  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/well-formed-stringify
 ```
 
 #### Stage 3 proposals[⬆](#index)
+
+`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
+
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js(-pure)/stage/3
@@ -1948,8 +2077,8 @@ class Array {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-grouping
-core-js(-pure)/features/array(/virtual)/group-by
-core-js(-pure)/features/array(/virtual)/group-by-to-map
+core-js(-pure)/actual|features/array(/virtual)/group-by
+core-js(-pure)/actual|features/array(/virtual)/group-by-to-map
 ```
 [*Examples*](t.ly/xEqc):
 ```js
@@ -1975,10 +2104,10 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-find-from-last
-core-js(-pure)/features(/virtual)/array/find-last
-core-js(-pure)/features(/virtual)/array/find-last-index
-core-js/features/typed-array/find-last
-core-js/features/typed-array/find-last-index
+core-js(-pure)/actual|features(/virtual)/array/find-last
+core-js(-pure)/actual|features(/virtual)/array/find-last-index
+core-js/actual|features/typed-array/find-last
+core-js/actual|features/typed-array/find-last-index
 ```
 [*Examples*](t.ly/TwKr):
 ```js
@@ -2862,10 +2991,6 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
 ### Web standards[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js(-pure)/web
-```
 #### `structuredClone`[⬆](#index)
 [Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
 ```js
@@ -2874,7 +2999,7 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/web/structured-clone
-core-js(-pure)/stable|features/structured-clone
+core-js(-pure)/stable|actual|features/structured-clone
 ```
 [*Examples*](t.ly/dBEC):
 ```js
@@ -2919,9 +3044,8 @@ function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/timers
-core-js(-pure)/stable|features/set-timeout
-core-js(-pure)/stable|features/set-interval
+core-js(-pure)/stable|actual|features/set-timeout
+core-js(-pure)/stable|actual|features/set-interval
 ```
 ```js
 // Before:
@@ -2937,9 +3061,8 @@ function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/immediate
-core-js(-pure)/stable|features/set-immediate
-core-js(-pure)/stable|features/clear-immediate
+core-js(-pure)/stable|actual|features/set-immediate
+core-js(-pure)/stable|actual|features/clear-immediate
 ```
 [*Examples*](http://goo.gl/6nXGrx):
 ```js
@@ -2959,8 +3082,7 @@ function queueMicrotask(fn: Function): void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/web/queue-microtask
-core-js(-pure)/stable|features/queue-microtask
+core-js(-pure)/stable|actual|features/queue-microtask
 ```
 [*Examples*](https://goo.gl/nsW8P9):
 ```js
@@ -3008,11 +3130,9 @@ class URLSearchParams {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/url
-core-js(-pure)/web/url
-core-js(-pure)/web/url-search-params
-core-js(-pure)/stable|features/url
-core-js/stable|features/url/to-json
-core-js(-pure)/stable|features/url-search-params
+core-js(-pure)/stable|actual|features/url
+core-js/stable|actual|features/url/to-json
+core-js(-pure)/stable|actual|features/url-search-params
 ```
 [*Examples*](t.ly/ZiA6):
 ```js
@@ -3076,9 +3196,9 @@ class DOMException {
 ````
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/stable|features/dom-exception
-core-js(-pure)/stable|features/dom-exception/constructor
-core-js/stable|features/dom-exception/to-string-tag
+core-js(-pure)/stable|actual|features/dom-exception
+core-js(-pure)/stable|actual|features/dom-exception/constructor
+core-js/stable|actual|features/dom-exception/to-string-tag
 ```
 [*Examples*](is.gd/pI6oTN):
 ```js
@@ -3140,9 +3260,8 @@ class [DOMTokenList, NodeList] {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js(-pure)/web/dom-collections
-core-js(-pure)/stable|features/dom-collections/iterator
-core-js/stable|features/dom-collections/for-each
+core-js(-pure)/stable|actual|features/dom-collections/iterator
+core-js/stable|actual|features/dom-collections/for-each
 ```
 [*Examples*](http://goo.gl/lfXVFl):
 ```js
@@ -3165,15 +3284,15 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js-pure/es|stable|features/is-iterable
-core-js-pure/es|stable|features/get-iterator
-core-js-pure/es|stable|features/get-iterator-method
+core-js-pure/es|stable|actual|features/is-iterable
+core-js-pure/es|stable|actual|features/get-iterator
+core-js-pure/es|stable|actual|features/get-iterator-method
 ```
 [*Examples*](http://goo.gl/SXsM6D):
 ```js
-import isIterable from 'core-js-pure/features/is-iterable';
-import getIterator from 'core-js-pure/features/get-iterator';
-import getIteratorMethod from 'core-js-pure/features/get-iterator-method';
+import isIterable from 'core-js-pure/actual/is-iterable';
+import getIterator from 'core-js-pure/actual/get-iterator';
+import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
 
 let list = (function () {
   return arguments;

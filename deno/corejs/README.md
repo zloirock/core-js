@@ -1,4 +1,4 @@
-# core-js
+![logo](https://user-images.githubusercontent.com/2213682/140570622-ea744c11-632e-4d9a-ba0a-70c390a1fdff.png)
 
 [![Open Collective](https://opencollective.com/core-js/all/badge.svg?label=open%20collective)](https://opencollective.com/core-js) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![tests](https://github.com/zloirock/core-js/workflows/tests/badge.svg)](https://github.com/zloirock/core-js/actions) [![eslint](https://github.com/zloirock/core-js/workflows/eslint/badge.svg)](https://github.com/zloirock/core-js/actions)
 
@@ -26,22 +26,24 @@
 ```js
 import 'https://deno.land/x/corejs@v3.19.3/index.js'; // <- at the top of your entry point
 
-Object.hasOwn({ foo: 42 }, 'foo'); // => true
+Object.hasOwn({ foo: 42 }, 'foo');     // => true
 
-[1, 2, 3, 4, 5, 6, 7].at(-3);      // => 5
+[1, 2, 3, 4, 5, 6, 7].at(-3);          // => 5
+
+[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
 Promise.any([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log);              // => 1
+]).then(console.log);                  // => 1
 
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
   .take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
-  .toArray();                     // => [9, 25]
+  .toArray();                          // => [9, 25]
 ```
 
 **It's a bundled global version for Deno 1.0+, for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/master/README.md).**

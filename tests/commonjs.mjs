@@ -16,7 +16,7 @@ function load(...components) {
 }
 
 for (PATH of ['core-js-pure', 'core-js']) {
-  for (const NS of ['es', 'stable', 'features']) {
+  for (const NS of ['es', 'stable', 'actual', 'features']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
@@ -544,7 +544,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
   }
 
-  for (const NS of ['stable', 'features']) {
+  for (const NS of ['stable', 'actual', 'features']) {
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
@@ -562,6 +562,41 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
 
+  for (const NS of ['actual', 'features']) {
+    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
+    ok(typeof load(NS, 'array/group-by') == 'function');
+    ok(typeof load(NS, 'array/group-by-to-map') == 'function');
+    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
+    ok(typeof load(NS, 'array/virtual/group-by') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
+
+    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
+    ok(typeof instanceFindLastIndex == 'function');
+    ok(instanceFindLastIndex({}) === undefined);
+    ok(typeof instanceFindLastIndex([]) == 'function');
+    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
+
+    const instanceFindLast = load(NS, 'instance/find-last');
+    ok(typeof instanceFindLast == 'function');
+    ok(instanceFindLast({}) === undefined);
+    ok(typeof instanceFindLast([]) == 'function');
+    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
+
+    const instanceGroupBy = load(NS, 'instance/group-by');
+    ok(typeof instanceGroupBy == 'function');
+    ok(instanceGroupBy({}) === undefined);
+    ok(typeof instanceGroupBy([]) == 'function');
+    ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
+
+    const instanceGroupByToMap = load(NS, 'instance/group-by-to-map');
+    ok(typeof instanceGroupByToMap == 'function');
+    ok(instanceGroupByToMap({}) === undefined);
+    ok(typeof instanceGroupByToMap([]) == 'function');
+    ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
+  }
+
   {
     const NS = 'features';
 
@@ -572,10 +607,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/filter-out') == 'function');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
-    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
-    ok(typeof load(NS, 'array/group-by') == 'function');
-    ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
@@ -586,10 +617,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'array/virtual/filter-out') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
-    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
-    ok(typeof load(NS, 'array/virtual/group-by') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
     ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
@@ -725,18 +752,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceCodePoints('') == 'function');
     ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
 
-    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
-    ok(typeof instanceFindLastIndex == 'function');
-    ok(instanceFindLastIndex({}) === undefined);
-    ok(typeof instanceFindLastIndex([]) == 'function');
-    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
-
-    const instanceFindLast = load(NS, 'instance/find-last');
-    ok(typeof instanceFindLast == 'function');
-    ok(instanceFindLast({}) === undefined);
-    ok(typeof instanceFindLast([]) == 'function');
-    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
-
     const instanceFilterOut = load(NS, 'instance/filter-out');
     ok(typeof instanceFilterOut == 'function');
     ok(instanceFilterOut({}) === undefined);
@@ -748,18 +763,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceFilterReject({}) === undefined);
     ok(typeof instanceFilterReject([]) == 'function');
     ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
-
-    const instanceGroupBy = load(NS, 'instance/group-by');
-    ok(typeof instanceGroupBy == 'function');
-    ok(instanceGroupBy({}) === undefined);
-    ok(typeof instanceGroupBy([]) == 'function');
-    ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
-
-    const instanceGroupByToMap = load(NS, 'instance/group-by-to-map');
-    ok(typeof instanceGroupByToMap == 'function');
-    ok(instanceGroupByToMap({}) === undefined);
-    ok(typeof instanceGroupByToMap([]) == 'function');
-    ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
 
     const instanceToReversed = load(NS, 'instance/to-reversed');
     ok(typeof instanceToReversed == 'function');
@@ -799,13 +802,16 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   load('proposals/accessible-object-hasownproperty');
-  load('proposals/array-last');
   load('proposals/array-filtering');
   load('proposals/array-find-from-last');
+  load('proposals/array-flat-map');
   load('proposals/array-from-async');
   load('proposals/array-grouping');
+  load('proposals/array-includes');
   load('proposals/array-is-template-object');
+  load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/async-iteration');
   load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
@@ -823,23 +829,33 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/math-signbit');
   load('proposals/number-from-string');
   load('proposals/number-range');
+  load('proposals/object-from-entries');
   load('proposals/object-iteration');
+  load('proposals/object-getownpropertydescriptors');
+  load('proposals/object-values-entries');
   load('proposals/observable');
   load('proposals/pattern-matching');
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
+  load('proposals/promise-finally');
   load('proposals/promise-try');
   load('proposals/reflect-metadata');
+  load('proposals/regexp-dotall-flag');
+  load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
   load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/string-at');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
+  load('proposals/string-left-right-trim');
   load('proposals/string-match-all');
+  load('proposals/string-padding');
   load('proposals/string-replace-all');
-  load('proposals/using-statement');
+  load('proposals/symbol-description');
   load('proposals/url');
+  load('proposals/using-statement');
+  load('proposals/well-formed-stringify');
   load('proposals');
 
   ok(load('stage/4'));
@@ -865,7 +881,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load(''));
 }
 
-for (const NS of ['es', 'stable', 'features']) {
+for (const NS of ['es', 'stable', 'actual', 'features']) {
   ok(typeof load(NS, 'string/match') == 'function');
   ok('next' in load(NS, 'string/match-all')('a', /./g));
   ok(typeof load(NS, 'string/replace') == 'function');
@@ -918,14 +934,17 @@ for (const NS of ['es', 'stable', 'features']) {
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
+for (const NS of ['actual', 'features']) {
+  load(NS, 'typed-array/find-last');
+  load(NS, 'typed-array/find-last-index');
+}
+
 {
   const NS = 'features';
 
   load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
-  load(NS, 'typed-array/find-last');
-  load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
   load(NS, 'typed-array/with');

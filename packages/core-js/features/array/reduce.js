@@ -1,3 +1,3 @@
-var parent = require('../../stable/array/reduce');
+var parent = require('../../actual/array/reduce');
 
 module.exports = parent;

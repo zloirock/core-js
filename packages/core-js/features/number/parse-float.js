@@ -1,3 +1,3 @@
-var parent = require('../../stable/number/parse-float');
+var parent = require('../../actual/number/parse-float');
 
 module.exports = parent;

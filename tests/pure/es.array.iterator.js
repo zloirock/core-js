@@ -1,6 +1,6 @@
-import { keys, values, entries } from 'core-js-pure/features/array';
-import Symbol from 'core-js-pure/features/symbol';
-import getIterator from 'core-js-pure/features/get-iterator';
+import Symbol from 'core-js-pure/es/symbol';
+import getIterator from 'core-js-pure/es/get-iterator';
+import { keys, values, entries } from 'core-js-pure/es/array';
 
 QUnit.test('Array#@@iterator', assert => {
   assert.isFunction(values);

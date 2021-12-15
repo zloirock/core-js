@@ -1,1 +1,3 @@
-require('../../modules/es.symbol.description');
+var parent = require('../../es/symbol/description');
+
+module.exports = parent;

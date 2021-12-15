@@ -1,3 +1,3 @@
-var parent = require('../../stable/dom-exception');
+var parent = require('../../actual/dom-exception');
 
 module.exports = parent;

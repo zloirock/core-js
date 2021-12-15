@@ -1,7 +1,8 @@
 import { STRICT, WHITESPACES } from '../helpers/constants';
 
-import { trimRight, trimEnd } from 'core-js-pure/features/string';
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/es/symbol';
+import trimRight from 'core-js-pure/es/string/trim-right';
+import trimEnd from 'core-js-pure/es/string/trim-end';
 
 QUnit.test('String#trimRight', assert => {
   assert.isFunction(trimRight);

@@ -1,5 +1,6 @@
-import uniqueBy from 'core-js-pure/features/array/unique-by';
 import { STRICT } from '../helpers/constants';
+
+import uniqueBy from 'core-js-pure/features/array/unique-by';
 
 QUnit.test('Array#uniqueBy', assert => {
   assert.isFunction(uniqueBy);

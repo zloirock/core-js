@@ -1,3 +1,3 @@
-var parent = require('../stable/structured-clone');
+var parent = require('../actual/structured-clone');
 
 module.exports = parent;

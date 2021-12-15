@@ -1,4 +1,3 @@
-require('../../modules/esnext.array.group-by');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/array/group-by');
 
-module.exports = entryUnbind('Array', 'groupBy');
+module.exports = parent;

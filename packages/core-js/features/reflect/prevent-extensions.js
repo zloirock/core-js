@@ -1,3 +1,3 @@
-var parent = require('../../stable/reflect/prevent-extensions');
+var parent = require('../../actual/reflect/prevent-extensions');
 
 module.exports = parent;

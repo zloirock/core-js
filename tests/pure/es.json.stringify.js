@@ -1,4 +1,5 @@
 import { GLOBAL } from '../helpers/constants';
+
 import stringify from 'core-js/es/json/stringify';
 
 if (GLOBAL.JSON) {

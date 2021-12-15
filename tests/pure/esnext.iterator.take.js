@@ -1,6 +1,6 @@
-import Iterator from 'core-js-pure/features/iterator';
-
 import { createIterator } from '../helpers/helpers';
+
+import Iterator from 'core-js-pure/features/iterator';
 
 QUnit.test('Iterator#take', assert => {
   const { take } = Iterator.prototype;

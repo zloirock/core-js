@@ -1,3 +1,3 @@
-var parent = require('../../stable/error/to-string');
+var parent = require('../../actual/error/to-string');
 
 module.exports = parent;

@@ -1,4 +1,3 @@
-require('../../../modules/esnext.array.find-last');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../actual/array/virtual/find-last');
 
-module.exports = entryVirtual('Array').findLast;
+module.exports = parent;

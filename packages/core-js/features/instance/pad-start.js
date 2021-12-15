@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/pad-start');
+var parent = require('../../actual/instance/pad-start');
 
 module.exports = parent;
