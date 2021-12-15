@@ -25,6 +25,7 @@
   - `%TypedArray%.prototype.toSpliced`
   - `%TypedArray%.prototype.with`
 - Added `Iterator.prototype.toAsync` method from [the iterator helpers stage 2 proposal](https://github.com/tc39/proposal-iterator-helpers)
+- [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async) moved to stage 2
 - Added [`String.cooked` stage 1 proposal](https://github.com/tc39/proposal-string-cooked):
   - `String.cooked`
 - Added [`Function.prototype.unThis` stage 0 proposal](https://github.com/js-choi/proposal-function-un-this)

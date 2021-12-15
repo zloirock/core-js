@@ -1,5 +1,4 @@
 require('../proposals/array-filtering');
-require('../proposals/array-from-async');
 require('../proposals/array-last');
 require('../proposals/array-unique');
 require('../proposals/collection-methods');
