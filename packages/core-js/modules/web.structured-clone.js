@@ -260,18 +260,19 @@ var structuredCloneInternal = function (value, map) {
           cloned = new Date(getTime(value));
           break;
         case 'ArrayBuffer':
+          C = global.DataView;
+          // `ArrayBuffer#slice` is not available in IE10
+          // `ArrayBuffer#slice` and `DataView` are not available in old FF
+          if (!C && typeof value.slice != 'function') throwUnpolyfillable(type);
           // detached buffers throws in `DataView` and `.slice`
           try {
-            // `ArrayBuffer#slice` is not available in IE10
             if (typeof value.slice == 'function') {
               cloned = value.slice(0);
             } else {
               length = value.byteLength;
               cloned = new ArrayBuffer(length);
-              // eslint-disable-next-line es/no-typed-arrays -- ok
-              source = new DataView(value);
-              // eslint-disable-next-line es/no-typed-arrays -- ok
-              target = new DataView(cloned);
+              source = new C(value);
+              target = new C(cloned);
               for (i = 0; i < length; i++) {
                 target.setUint8(i, source.getUint8(i));
               }
