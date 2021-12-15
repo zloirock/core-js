@@ -36,7 +36,7 @@ queueMicrotask(() => console.log('called as microtask'));
 *You can load only required features*:
 ```js
 import 'core-js/actual/array/from';       // <- at the top of your entry point
-import 'core-js/actual/array/group-by';  // <- at the top of your entry point
+import 'core-js/actual/array/group-by';   // <- at the top of your entry point
 import 'core-js/actual/set';              // <- at the top of your entry point
 import 'core-js/actual/promise';          // <- at the top of your entry point
 import 'core-js/actual/structured-clone'; // <- at the top of your entry point

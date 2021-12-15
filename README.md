@@ -24,9 +24,7 @@
 
 ---
 
-Available as part of the Tidelift Subscription.
-
-The maintainers of `core-js` and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source dependencies you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact dependencies you use. [Learn more.](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=enterprise)
+Available as part of the Tidelift Subscription, [learn more](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=enterprise).
 
 ---
 
@@ -44,7 +42,7 @@ queueMicrotask(() => console.log('called as microtask'));
 *You can load only required features*:
 ```js
 import 'core-js/actual/array/from';       // <- at the top of your entry point
-import 'core-js/actual/array/group-by';  // <- at the top of your entry point
+import 'core-js/actual/array/group-by';   // <- at the top of your entry point
 import 'core-js/actual/set';              // <- at the top of your entry point
 import 'core-js/actual/promise';          // <- at the top of your entry point
 import 'core-js/actual/structured-clone'; // <- at the top of your entry point
