@@ -118,16 +118,14 @@ $({ global: true, forced: FORCED_CONSTRUCTOR }, {
 var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
-if (NativeDOMException === PolyfilledDOMException) {
-  if (INCORRECT_TO_STRING) {
-    redefine(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
-  }
+if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {
+  redefine(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+}
 
-  if (INCORRECT_CODE && DESCRIPTORS) {
-    defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
-      return codeFor(anObject(this).name);
-    }));
-  }
+if (INCORRECT_CODE && DESCRIPTORS && NativeDOMException === PolyfilledDOMException) {
+  defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
+    return codeFor(anObject(this).name);
+  }));
 }
 
 for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
