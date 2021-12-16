@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Deno 1.18 compat data mapping
 
 ##### 3.20.0 - 2021.12.16
 - Added `structuredClone` method [from the HTML spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), [see MDN](https://developer.mozilla.org/en-US/docs/Web/API/structuredClone)
