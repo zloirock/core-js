@@ -1,4 +1,4 @@
-![logo](https://user-images.githubusercontent.com/2213682/140570622-ea744c11-632e-4d9a-ba0a-70c390a1fdff.png)
+![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 
 [`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
 

@@ -1,4 +1,4 @@
-![logo](https://user-images.githubusercontent.com/2213682/140570622-ea744c11-632e-4d9a-ba0a-70c390a1fdff.png)
+![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 
 For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. This API helps conditionally include or exclude certain parts of [`core-js`](https://github.com/zloirock/core-js), build for targets [specified in `core-js-compat` format](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat#targets-option).
 
