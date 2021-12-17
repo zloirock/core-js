@@ -2066,7 +2066,7 @@ core-js/proposals/well-formed-stringify
 ```js
 core-js(-pure)/stage/3
 ```
-##### [`Array` grouping](#https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
 Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-to-map.js).
 ```js
 class Array {
