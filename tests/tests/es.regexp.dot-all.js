@@ -26,7 +26,7 @@ if (DESCRIPTORS) {
         assert.avoid('.dotAll getter works on instances');
       }
 
-      assert.true(Object.hasOwnProperty.call(RegExp.prototype, 'dotAll'), 'prototype has .dotAll property');
+      assert.true(Object.hasOwn(RegExp.prototype, 'dotAll'), 'prototype has .dotAll property');
     }
   });
 }

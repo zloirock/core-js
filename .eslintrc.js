@@ -355,6 +355,8 @@ const base = {
   'prefer-destructuring': ERROR,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': ERROR,
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': ERROR,
   // require template literals instead of string concatenation
   'prefer-template': ERROR,
   // disallow generator functions that do not have `yield`
@@ -650,6 +652,8 @@ const es3 = {
   'prefer-destructuring': OFF,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': OFF,
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names

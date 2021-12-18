@@ -29,7 +29,7 @@ if (DESCRIPTORS) {
         assert.avoid('.sticky getter works on instances');
       }
 
-      assert.true(Object.hasOwnProperty.call(RegExp.prototype, 'sticky'), 'prototype has .sticky property');
+      assert.true(Object.hasOwn(RegExp.prototype, 'sticky'), 'prototype has .sticky property');
       // relaxed for early implementations
       // assert.same(RegExp.prototype.sticky, undefined, '.sticky is undefined on prototype');
     }
