@@ -30,7 +30,7 @@ Available as part of the Tidelift Subscription, [learn more](https://tidelift.co
 
 [*Example of usage*](https://is.gd/XD4mRe):
 ```js
-import 'core-js'; // <- at the top of your entry point
+import 'core-js/actual'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
 [1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
@@ -391,7 +391,7 @@ configurator({
   useFeatureDetection: ['Map', 'Set'],                    // default behaviour
 });
 
-require('core-js');
+require('core-js/actual');
 ```
 
 It does not work with some features. Also, if you change the default behaviour, even `core-js` internals may not work correctly.
@@ -2221,7 +2221,7 @@ const configurator = require('core-js/configurator');
 
 configurator({ USE_FUNCTION_CONSTRUCTOR: true });
 
-require('core-js');
+require('core-js/features/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
