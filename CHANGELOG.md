@@ -551,7 +551,7 @@
 - Refactoring. Many minor internal improvements and fixes like:
   - Improved `Symbol.keyFor` complexity to `O(1)`
   - Fixed the order of arguments validation in `String.prototype.{ endsWith, includes, startsWith }`
-  - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly ralated to the `pure` version)
+  - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly related to the `pure` version)
   - Performance optimizations related old V8
   - Etc.
 
