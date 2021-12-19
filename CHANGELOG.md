@@ -552,7 +552,7 @@
   - Improved `Symbol.keyFor` complexity to `O(1)`
   - Fixed the order of arguments validation in `String.prototype.{ endsWith, includes, startsWith }`
   - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly ralated to the `pure` version)
-  - Performace optimizations related old V8
+  - Performance optimizations related old V8
   - Etc.
 
 ##### 3.1.3 - 2019.05.27
