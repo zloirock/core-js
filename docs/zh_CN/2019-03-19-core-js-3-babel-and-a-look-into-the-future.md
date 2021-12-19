@@ -123,7 +123,7 @@
 
 #### 移除过时的功能：
 
-- `Reflect.enumrate` 因为他已经从标准中移除了
+- `Reflect.enumerate` 因为他已经从标准中移除了
 - `System.global` 和 `global` 现在他们已经被 `globalThis` 代替
 - `Array.prototype.flatten` 现在被 `Array.prototype.flat` 代替
 - `asap` 被 `queueMicrotask` 代替
