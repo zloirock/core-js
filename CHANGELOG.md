@@ -315,7 +315,7 @@
 - Added the missed `(es|stable)/instance/replace-all` entries
 - Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
 - Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
-- Depracate `core-js-builder` `blacklist` option in favor of `exclude`
+- Deprecate `core-js-builder` `blacklist` option in favor of `exclude`
 
 ##### 2.6.12 [LEGACY] - 2020.11.26
 - Added code points / code units explicit feature detection in `String#at` for preventing breakage code which use obsolete `String#at` proposal polyfill
