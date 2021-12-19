@@ -394,7 +394,7 @@ We should drop IE8- and other engines without basic ES5 support in `core-js@4`.
 
 `core-js` is currently focused on ECMAScript support, but it also supports a few web standards features which are available cross-platform and closely related to ECMAScript. Adding polyfills for web standards like `fetch` is a very popular feature request.
 
-The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features which might not have been needed. Now `core-js` is maximally modular, user can include only some choosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
+The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features which might not have been needed. Now `core-js` is maximally modular, user can include only some chosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
 
 Maybe it's time to revisit this old decision?
 
