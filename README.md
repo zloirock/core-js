@@ -1825,7 +1825,7 @@ globalThis.Array === Array; // => true
 
 #### Finished proposals[⬆](#index)
 
-Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only featues for a specific proposal like `core-js/proposals/proposal-name`.
+Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
 
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
 ```js

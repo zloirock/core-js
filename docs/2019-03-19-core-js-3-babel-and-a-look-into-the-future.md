@@ -114,7 +114,7 @@ The most important one is support for [`URL`](https://developer.mozilla.org/en-U
 
 Another popular feature request was support for the [`.forEach` method on DOM collection](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach). Since `core-js` already polyfilled iterators of DOM collections, why not add also `.forEach` to `NodeList` and `DOMTokenList`?
 
-#### Removed obsolete featues:
+#### Removed obsolete features:
 
 - `Reflect.enumerate` because it's removed from the spec
 - `System.global` and `global` since now they are replaced by `globalThis`
