@@ -43,7 +43,7 @@ var mapSet = uncurryThis(MapPrototype.set);
 var setAdd = uncurryThis(Set.prototype.add);
 var objectKeys = getBuiltin('Object', 'keys');
 var push = uncurryThis([].push);
-var bolleanValueOf = uncurryThis(true.valueOf);
+var booleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
 var getFlags = uncurryThis(regExpFlags);
@@ -248,7 +248,7 @@ var structuredCloneInternal = function (value, map) {
           cloned = Object(value.valueOf());
           break;
         case 'Boolean':
-          cloned = Object(bolleanValueOf(value));
+          cloned = Object(booleanValueOf(value));
           break;
         case 'Number':
           cloned = Object(numberValueOf(value));
@@ -278,7 +278,7 @@ var structuredCloneInternal = function (value, map) {
               }
             }
           } catch (error) {
-            throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
+            throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
           } break;
         case 'SharedArrayBuffer':
           // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original

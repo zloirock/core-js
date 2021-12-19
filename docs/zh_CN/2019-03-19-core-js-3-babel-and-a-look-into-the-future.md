@@ -123,7 +123,7 @@
 
 #### 移除过时的功能：
 
-- `Reflect.enumrate` 因为他已经从标准中移除了
+- `Reflect.enumerate` 因为他已经从标准中移除了
 - `System.global` 和 `global` 现在他们已经被 `globalThis` 代替
 - `Array.prototype.flatten` 现在被 `Array.prototype.flat` 代替
 - `asap` 被 `queueMicrotask` 代替
@@ -264,7 +264,7 @@ import "regenerator-runtime/runtime";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopaables.flat-map";
 import "core-js/modules/es.object.from-entries";
-import "core-js/modlues/web.immediate";
+import "core-js/modules/web.immediate";
 ```
 
 当目标浏览器是 `chrome 73`（它完全支持 ES2019 标准库），他将变为很少的引入：
@@ -385,7 +385,7 @@ _matchAllInstanceProperty(string).call(string, /something/g);
 有些老的问题已经被修复了。例如，下面这种流行的模式在 `@babel/runtime-corejs2` 不工作，但是在 `@babel/runtime-corejs3` 被支持。
 
 ```js
-myArrayLikeObject[Symbol.tierator] = Array.prototype[Symbol.iterator];
+myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 ```
 
 尽管 `@babel/runtime` 早期版本不支持实例方法，但是使用一些自定义的帮助函数能够支持迭代（`[Symbol.iterator]()` 和他的presence）。之前不支持提取 `[Symbol.iterator]` 方法，但是现在支持了。
@@ -424,7 +424,7 @@ myArrayLikeObject[Symbol.tierator] = Array.prototype[Symbol.iterator];
 
 ### 针对目标环境的 `@babel/runtime`
 
-目前，我们不能像对 `@babel/preset-env` 那样为 `@babel/runtimne` 设置目标加环境。这意味即使目标是现代浏览器， `@babel/runtime` 也将注所有可能的 polyfills：这不必要的增加了最终构建包的大小。
+目前，我们不能像对 `@babel/preset-env` 那样为 `@babel/runtime` 设置目标加环境。这意味即使目标是现代浏览器， `@babel/runtime` 也将注所有可能的 polyfills：这不必要的增加了最终构建包的大小。
 
 现在 `core-js-compat` 包函全部必要数据，将来，可以在 `@babel/runtime` 中添加对目标环境的编译支持，并且在 `@babel/preset-env` 中添加 `useBuiltIns: runtime` 选项。
 

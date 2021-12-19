@@ -114,7 +114,7 @@ The most important one is support for [`URL`](https://developer.mozilla.org/en-U
 
 Another popular feature request was support for the [`.forEach` method on DOM collection](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach). Since `core-js` already polyfilled iterators of DOM collections, why not add also `.forEach` to `NodeList` and `DOMTokenList`?
 
-#### Removed obsolete featues:
+#### Removed obsolete features:
 
 - `Reflect.enumerate` because it's removed from the spec
 - `System.global` and `global` since now they are replaced by `globalThis`
@@ -394,7 +394,7 @@ We should drop IE8- and other engines without basic ES5 support in `core-js@4`.
 
 `core-js` is currently focused on ECMAScript support, but it also supports a few web standards features which are available cross-platform and closely related to ECMAScript. Adding polyfills for web standards like `fetch` is a very popular feature request.
 
-The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features which might not have been needed. Now `core-js` is maximally modular, user can include only some choosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
+The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features which might not have been needed. Now `core-js` is maximally modular, user can include only some chosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
 
 Maybe it's time to revisit this old decision?
 
@@ -432,7 +432,7 @@ More other, it will work asynchronously. It's a critical problem for feature det
 
 [The first implementation of built-in modules without a proper way of transpiling / polyfilling already available](https://developers.google.com/web/updates/2019/03/kv-storage). If it will not be revised, built-in modules will not be able to be polyfilled in the current `core-js` format. The proposed way of polyfilling will seriously complicate the lives of developers.
 
-The issue with the standard library can be solved by adding a new global (maybe it will be the last one?): a registry of built-in modules which will allow getting and seting them synchronously, like
+The issue with the standard library can be solved by adding a new global (maybe it will be the last one?): a registry of built-in modules which will allow getting and setting them synchronously, like
 ```js
 StandardLibraryRegistry.get(moduleName);
 StandardLibraryRegistry.set(moduleName, value);

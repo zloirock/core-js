@@ -65,7 +65,7 @@ const run = assert => {
   assert.same(Object('test string').search(/string/i), 5, 'S15.5.4.12_A2_T3');
   assert.same(Object('test string').search(/Four/), -1, 'S15.5.4.12_A2_T4');
   assert.same(Object('one two three four five').search(/four/), 14, 'S15.5.4.12_A2_T5');
-  assert.same(Object('test string').search('notexist'), -1, 'S15.5.4.12_A2_T6');
+  assert.same(Object('test string').search('nonexistent'), -1, 'S15.5.4.12_A2_T6');
   assert.same(Object('test string probe').search('string pro'), 5, 'S15.5.4.12_A2_T7');
   let string = Object('power of the power of the power of the power of the power of the power of the great sword');
   assert.same(string.search(/the/), string.search(/the/g), 'S15.5.4.12_A3_T1');

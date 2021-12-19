@@ -338,7 +338,7 @@ QUnit.test('URL#hostname', assert => {
     // url = new URL('http://zloirock.ru:81/');
     // url.hostname = 'example.com:82';
     // assert.same(url.hostname, 'example.com'); // '' in Chrome
-    // assert.same(String(url), 'http://example.com:81/'); // 'ttp://example.com:82:81/' in Chrome
+    // assert.same(String(url), 'http://example.com:81/'); // 'http://example.com:82:81/' in Chrome
 
     url = new URL('http://zloirock.ru/foo');
     url.hostname = '測試';
@@ -601,7 +601,7 @@ QUnit.test('URL.sham', assert => {
   assert.same(URL.sham, DESCRIPTORS ? undefined : true);
 });
 
-// `core-js` URL implementation pass all (exclude some encoding-ralated) tests
+// `core-js` URL implementation pass all (exclude some encoding-related) tests
 // from the next 3 test cases, but URLs from all of popular browsers fail a serious part of tests.
 // Replacing all of them does not looks like a good idea, so next test cases disabled by default.
 

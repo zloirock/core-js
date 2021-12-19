@@ -315,7 +315,7 @@
 - Added the missed `(es|stable)/instance/replace-all` entries
 - Updated compat data mapping for Opera - from Opera 69, the difference with Chrome versions increased to 14
 - Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
-- Depracate `core-js-builder` `blacklist` option in favor of `exclude`
+- Deprecate `core-js-builder` `blacklist` option in favor of `exclude`
 
 ##### 2.6.12 [LEGACY] - 2020.11.26
 - Added code points / code units explicit feature detection in `String#at` for preventing breakage code which use obsolete `String#at` proposal polyfill
@@ -350,7 +350,7 @@
 - Updated all required dependencies
 
 ##### 3.6.5 - 2020.04.09
-- Updated Browserlist [#755](https://github.com/zloirock/core-js/issues/755)
+- Updated Browserslist [#755](https://github.com/zloirock/core-js/issues/755)
 - Fixed `setImmediate` in Safari [#770](https://github.com/zloirock/core-js/issues/770), thanks [@dtinth](https://github.com/dtinth)
 - Fixed some regexp, thanks [@scottarc](https://github.com/scottarc)
 - Added OPEN_SOURCE_CONTRIBUTOR detection in `postinstall`, thanks [@scottarc](https://github.com/scottarc)
@@ -551,8 +551,8 @@
 - Refactoring. Many minor internal improvements and fixes like:
   - Improved `Symbol.keyFor` complexity to `O(1)`
   - Fixed the order of arguments validation in `String.prototype.{ endsWith, includes, startsWith }`
-  - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly ralated to the `pure` version)
-  - Performace optimizations related old V8
+  - Internal implementation of `RegExp#flags` helper now respect `dotAll` flag (mainly related to the `pure` version)
+  - Performance optimizations related old V8
   - Etc.
 
 ##### 3.1.3 - 2019.05.27
@@ -728,7 +728,7 @@
     - `delay`
   - Add `.sham` flag to features which can't be properly polyfilled and / or not recommended for usage:
     - `Symbol` constructor - we can't add new primitives. `Object.prototype` accessors too expensive.
-    - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptos}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
+    - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
     - `Object.{freeze, seal, preventExtensions}`, `Reflect.preventExtensions` can't be properly polyfilled in ES3 environment.
     - `Object.getPrototypeOf` can be deceived in ES3 environment.
     - `Reflect.construct` can't be polyfilled for a correct work with `newTarget` argument on built-ins.

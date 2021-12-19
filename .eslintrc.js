@@ -434,7 +434,7 @@ const base = {
   'sonarjs/no-empty-collection': ERROR,
   // function calls should not pass extra arguments
   'sonarjs/no-extra-arguments': ERROR,
-  // goolean expressions should not be gratuitous
+  // boolean expressions should not be gratuitous
   'sonarjs/no-gratuitous-expressions': ERROR,
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': ERROR,
@@ -1007,7 +1007,7 @@ module.exports = {
     sourceType: 'script',
   },
   env: {
-    // unnececery global builtins disabled by related rules
+    // unnecessary global builtins disabled by related rules
     es2021: true,
     browser: true,
     node: true,

@@ -24,7 +24,7 @@ QUnit.test('AsyncIterator.from', assert => {
     next: () => { /* empty */ },
   });
 
-  assert.same(AsyncIterator.from(asyncIterator), asyncIterator, 'does not wrap AsyncIterator instanses');
+  assert.same(AsyncIterator.from(asyncIterator), asyncIterator, 'does not wrap AsyncIterator instances');
 
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
