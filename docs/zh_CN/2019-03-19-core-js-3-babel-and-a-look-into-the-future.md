@@ -424,7 +424,7 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 ### 针对目标环境的 `@babel/runtime`
 
-目前，我们不能像对 `@babel/preset-env` 那样为 `@babel/runtimne` 设置目标加环境。这意味即使目标是现代浏览器， `@babel/runtime` 也将注所有可能的 polyfills：这不必要的增加了最终构建包的大小。
+目前，我们不能像对 `@babel/preset-env` 那样为 `@babel/runtime` 设置目标加环境。这意味即使目标是现代浏览器， `@babel/runtime` 也将注所有可能的 polyfills：这不必要的增加了最终构建包的大小。
 
 现在 `core-js-compat` 包函全部必要数据，将来，可以在 `@babel/runtime` 中添加对目标环境的编译支持，并且在 `@babel/preset-env` 中添加 `useBuiltIns: runtime` 选项。
 
