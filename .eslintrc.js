@@ -1007,7 +1007,7 @@ module.exports = {
     sourceType: 'script',
   },
   env: {
-    // unnececery global builtins disabled by related rules
+    // unnecessary global builtins disabled by related rules
     es2021: true,
     browser: true,
     node: true,
