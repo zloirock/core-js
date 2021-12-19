@@ -728,7 +728,7 @@
     - `delay`
   - Add `.sham` flag to features which can't be properly polyfilled and / or not recommended for usage:
     - `Symbol` constructor - we can't add new primitives. `Object.prototype` accessors too expensive.
-    - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptos}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
+    - `Object.{create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}`, `Reflect.{defineProperty, getOwnPropertyDescriptor}` can't be properly polyfilled without descriptors support.
     - `Object.{freeze, seal, preventExtensions}`, `Reflect.preventExtensions` can't be properly polyfilled in ES3 environment.
     - `Object.getPrototypeOf` can be deceived in ES3 environment.
     - `Reflect.construct` can't be polyfilled for a correct work with `newTarget` argument on built-ins.
