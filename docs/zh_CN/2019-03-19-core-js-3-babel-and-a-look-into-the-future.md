@@ -264,7 +264,7 @@ import "regenerator-runtime/runtime";
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopaables.flat-map";
 import "core-js/modules/es.object.from-entries";
-import "core-js/modlues/web.immediate";
+import "core-js/modules/web.immediate";
 ```
 
 当目标浏览器是 `chrome 73`（它完全支持 ES2019 标准库），他将变为很少的引入：
