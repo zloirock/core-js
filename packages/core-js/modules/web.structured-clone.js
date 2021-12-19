@@ -278,7 +278,7 @@ var structuredCloneInternal = function (value, map) {
               }
             }
           } catch (error) {
-            throw new DOMException('ArrayBuffer is deatched', DATA_CLONE_ERROR);
+            throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
           } break;
         case 'SharedArrayBuffer':
           // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
