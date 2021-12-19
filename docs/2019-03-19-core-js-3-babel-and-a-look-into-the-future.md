@@ -432,7 +432,7 @@ More other, it will work asynchronously. It's a critical problem for feature det
 
 [The first implementation of built-in modules without a proper way of transpiling / polyfilling already available](https://developers.google.com/web/updates/2019/03/kv-storage). If it will not be revised, built-in modules will not be able to be polyfilled in the current `core-js` format. The proposed way of polyfilling will seriously complicate the lives of developers.
 
-The issue with the standard library can be solved by adding a new global (maybe it will be the last one?): a registry of built-in modules which will allow getting and seting them synchronously, like
+The issue with the standard library can be solved by adding a new global (maybe it will be the last one?): a registry of built-in modules which will allow getting and setting them synchronously, like
 ```js
 StandardLibraryRegistry.get(moduleName);
 StandardLibraryRegistry.set(moduleName, value);
