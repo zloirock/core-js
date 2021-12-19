@@ -338,7 +338,7 @@ QUnit.test('URL#hostname', assert => {
     // url = new URL('http://zloirock.ru:81/');
     // url.hostname = 'example.com:82';
     // assert.same(url.hostname, 'example.com'); // '' in Chrome
-    // assert.same(String(url), 'http://example.com:81/'); // 'ttp://example.com:82:81/' in Chrome
+    // assert.same(String(url), 'http://example.com:81/'); // 'http://example.com:82:81/' in Chrome
 
     url = new URL('http://zloirock.ru/foo');
     url.hostname = '測試';
