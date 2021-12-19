@@ -207,7 +207,7 @@ const run = assert => {
     }
     try {
       class F {
-        costructor(value) {
+        constructor(value) {
           this.value = value;
         }
         valueOf() {
