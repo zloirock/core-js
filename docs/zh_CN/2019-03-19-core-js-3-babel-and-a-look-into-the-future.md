@@ -385,7 +385,7 @@ _matchAllInstanceProperty(string).call(string, /something/g);
 有些老的问题已经被修复了。例如，下面这种流行的模式在 `@babel/runtime-corejs2` 不工作，但是在 `@babel/runtime-corejs3` 被支持。
 
 ```js
-myArrayLikeObject[Symbol.tierator] = Array.prototype[Symbol.iterator];
+myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 ```
 
 尽管 `@babel/runtime` 早期版本不支持实例方法，但是使用一些自定义的帮助函数能够支持迭代（`[Symbol.iterator]()` 和他的presence）。之前不支持提取 `[Symbol.iterator]` 方法，但是现在支持了。
