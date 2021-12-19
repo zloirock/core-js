@@ -6930,7 +6930,7 @@ var iterate = __webpack_require__(81);
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
-  merge: function merge(iterable /* ...iterbles */) {
+  merge: function merge(iterable /* ...iterables */) {
     var map = anObject(this);
     var setter = aCallable(map.set);
     var argumentsLength = arguments.length;
