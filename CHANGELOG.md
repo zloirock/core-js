@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed some missed dependencies of entries
 - Added Deno 1.18 compat data mapping
 
 ##### 3.20.0 - 2021.12.16
