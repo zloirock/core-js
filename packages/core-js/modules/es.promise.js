@@ -4,7 +4,6 @@ var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
-var uncurryThis = require('../internals/function-uncurry-this');
 var NativePromise = require('../internals/native-promise-constructor');
 var redefine = require('../internals/redefine');
 var redefineAll = require('../internals/redefine-all');
@@ -25,6 +24,7 @@ var promiseResolve = require('../internals/promise-resolve');
 var hostReportErrors = require('../internals/host-report-errors');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
+var Queue = require('../internals/queue');
 var InternalStateModule = require('../internals/internal-state');
 var isForced = require('../internals/is-forced');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -44,7 +44,6 @@ var PromisePrototype = NativePromisePrototype;
 var TypeError = global.TypeError;
 var document = global.document;
 var process = global.process;
-var push = uncurryThis([].push);
 var newPromiseCapability = newPromiseCapabilityModule.f;
 var newGenericPromiseCapability = newPromiseCapability;
 
@@ -136,13 +135,11 @@ var notify = function (state, isReject) {
   if (state.notified) return;
   state.notified = true;
   microtask(function () {
-    var chain = state.reactions;
-    var index = 0;
-    // variable length - can't use forEach
-    while (chain.length > index) {
-      callReaction(chain[index++], state);
+    var reactions = state.reactions;
+    var reaction;
+    while (reaction = reactions.get()) {
+      callReaction(reaction, state);
     }
-    state.reactions = [];
     state.notified = false;
     if (isReject && !state.rejection) onUnhandled(state);
   });
@@ -259,7 +256,7 @@ if (FORCED) {
       done: false,
       notified: false,
       parent: false,
-      reactions: [],
+      reactions: new Queue(),
       rejection: false,
       state: PENDING,
       value: undefined
@@ -275,7 +272,7 @@ if (FORCED) {
       reaction.ok = isCallable(onFulfilled) ? onFulfilled : true;
       reaction.fail = isCallable(onRejected) && onRejected;
       reaction.domain = IS_NODE ? process.domain : undefined;
-      if (state.state == PENDING) push(state.reactions, reaction);
+      if (state.state == PENDING) state.reactions.add(reaction);
       else microtask(function () {
         callReaction(reaction, state);
       });
