@@ -58,7 +58,7 @@
     "phantomjs-prebuilt": "~2.1.16",
     "playwright": "^1.17.1",
     "promises-aplus-tests": "^2.1.2",
-    "puppeteer": "~13.0.0",
+    "puppeteer": "~13.0.1",
     "qunit": "^2.17.2",
     "semver": "^7.3.5",
     "terser": "^5.10.0",
