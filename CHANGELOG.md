@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed the order of calling reactions of fulfilled / rejected promises in `Promise.prototype.then`, [#1026](https://github.com/zloirock/core-js/issues/1026)
 - Fixed some missed dependencies of entries
 - Added Deno 1.18 compat data mapping
 
