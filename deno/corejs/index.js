@@ -1,5 +1,5 @@
 /**
- * core-js 3.20.0
+ * core-js 3.20.1
  * https://github.com/zloirock/core-js
  * License: http://rock.mit-license.org
  * © 2021 Denis Pushkarev (zloirock.ru)
@@ -868,7 +868,7 @@ var store = __webpack_require__(33);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.20.0',
+  version: '3.20.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2021 Denis Pushkarev (zloirock.ru)'
 });
