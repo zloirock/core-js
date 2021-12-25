@@ -4,7 +4,7 @@
 
 ##### 3.20.1 - 2021.12.23
 - Fixed the order of calling reactions of already fulfilled / rejected promises in `Promise.prototype.then`, [#1026](https://github.com/zloirock/core-js/issues/1026)
-- Fixed possible memory leaking in specific promise chains
+- Fixed possible memory leak in specific promise chains
 - Fixed some missed dependencies of entries
 - Added Deno 1.18 compat data mapping
 
@@ -21,7 +21,7 @@
 - Added `Error.prototype.toString` method polyfill with fixes of many different bugs of JS engines
 - Added `Number.prototype.toExponential` method polyfill with fixes of many different bugs of JS engines
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
-  - Moved to the stage 3
+  - Moved to stage 3
   - Added `Array.prototype.groupByToMap` method
   - Removed `@@species` support
 - Added [change `Array` by copy stage 2 proposal](https://github.com/tc39/proposal-change-array-by-copy):
