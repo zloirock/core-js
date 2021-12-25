@@ -678,7 +678,7 @@ export const data = {
     rhino: '1.7.13',
   },
   'es.object.define-properties': {
-    chrome: '5',
+    chrome: '37',
     firefox: '4',
     ie: '9',
     opera: '12',
@@ -686,7 +686,7 @@ export const data = {
     rhino: '1.7.13',
   },
   'es.object.define-property': {
-    chrome: '5',
+    chrome: '37',
     firefox: '4',
     ie: '9',
     opera: '12',

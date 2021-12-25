@@ -10,6 +10,14 @@ QUnit.test('Object.defineProperties', assert => {
   assert.same(result, source);
   assert.same(result.q, 42);
   assert.same(result.w, 33);
+
+  if (DESCRIPTORS) {
+    // eslint-disable-next-line prefer-arrow-callback -- required for testing
+    assert.same(defineProperties(function () { /* empty */ }, { prototype: {
+      value: 42,
+      writable: false,
+    } }).prototype, 42, 'function prototype with non-writable descriptor');
+  }
 });
 
 QUnit.test('Object.defineProperties.sham flag', assert => {

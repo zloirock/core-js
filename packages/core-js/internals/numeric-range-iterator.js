@@ -3,7 +3,7 @@ var global = require('../internals/global');
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var isObject = require('../internals/is-object');
-var defineProperties = require('../internals/object-define-properties');
+var defineProperties = require('../internals/object-define-properties').f;
 var DESCRIPTORS = require('../internals/descriptors');
 
 var INCORRECT_RANGE = 'Incorrect Number.range arguments';

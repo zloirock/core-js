@@ -36,7 +36,16 @@ var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
 var DESCRIPTORS_SUPPORT = function () {
-  return Object.defineProperty({}, 'a', { get: function () { return 7; } }).a == 7;
+  return Object.defineProperty({}, 'a', {
+    get: function () { return 7; }
+  }).a == 7;
+};
+
+var V8_PROTOTYPE_DEFINE_BUG = function () {
+  return Object.defineProperty(function () { /* empty */ }, 'prototype', {
+    value: 42,
+    writable: false
+  }).prototype == 42;
 };
 
 var PROMISES_SUPPORT = function () {
@@ -710,10 +719,10 @@ GLOBAL.tests = {
     return Object.create;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
+  'es.object.define-properties': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG, function () {
     return Object.defineProperties;
   }],
-  'es.object.define-property': DESCRIPTORS_SUPPORT,
+  'es.object.define-property': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG],
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;

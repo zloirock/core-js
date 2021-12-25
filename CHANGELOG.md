@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added a fix of [a V8 ~ Chrome 36- `Object.defineProperty` bug](https://bugs.chromium.org/p/v8/issues/detail?id=3334), [Babel issue](https://github.com/babel/babel/issues/14056)
 
 ##### 3.20.1 - 2021.12.23
 - Fixed the order of calling reactions of already fulfilled / rejected promises in `Promise.prototype.then`, [#1026](https://github.com/zloirock/core-js/issues/1026)
