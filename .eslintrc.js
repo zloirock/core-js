@@ -611,33 +611,6 @@ const es3 = {
   'comma-dangle': [ERROR, NEVER],
   // encourages use of dot notation whenever possible
   'dot-notation': [ERROR, { allowKeywords: false }],
-  // disallow ES3 reserved words as identifiers
-  // wait for resolving https://github.com/eslint/eslint/issues/15017
-  'id-denylist': [ERROR,
-    'abstract',
-    'int',
-    'short',
-    'boolean',
-    'interface',
-    'static',
-    'byte',
-    'long',
-    'char',
-    'final',
-    'native',
-    'synchronized',
-    'float',
-    'package',
-    'throws',
-    'goto',
-    'private',
-    'transient',
-    'implements',
-    'protected',
-    'volatile',
-    'double',
-    'public',
-  ],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
   // require let or const instead of var
