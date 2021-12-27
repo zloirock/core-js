@@ -40,7 +40,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
     site = sites.pop();
     name = site.replace(/^https?:\/\//, '');
     // restart browser each some pages for prevent possible `puppeteer` crash and memory leaks
-    if (!(i++ % 64) || !browser) {
+    if (!(i++ % 16) || !browser) {
       if (browser) await browser.close();
       browser = await puppeteer.launch();
     }
