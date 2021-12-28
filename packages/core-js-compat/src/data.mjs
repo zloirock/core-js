@@ -1390,10 +1390,10 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.set': {
-    chrome: '26',
-    edge: '13',
-    firefox: '15',
-    safari: '7.1',
+    chrome: '95',   // '26',
+    // edge: '13',  // proper in Chakra Edge 13, but buggy in Chromium < 95
+    firefox: '54',  // '15',
+    safari: '14.1', // '7.1',
   },
   'es.typed-array.slice': {
     chrome: '45',

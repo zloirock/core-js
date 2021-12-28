@@ -1169,8 +1169,11 @@ GLOBAL.tests = {
     return Int8Array.prototype.reverse;
   }],
   'es.typed-array.set': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    new Int8Array(1).set({});
-    return true;
+    var array = new Uint8ClampedArray(3);
+    array.set(1);
+    array.set('2', 1);
+    Int8Array.prototype.set.call(array, { length: 1, 0: 3 }, 2);
+    return array[0] === 0 && array[1] === 2 && array[2] === 3;
   }],
   'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return new Int8Array(1).slice();

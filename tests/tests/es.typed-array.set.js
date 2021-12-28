@@ -23,8 +23,12 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.set', assert => {
     assert.throws(() => array2.set(new TypedArray([99, 98, 97, 96]), 2));
     assert.throws(() => array2.set([101, 102, 103, 104], 4));
     const array3 = new TypedArray(2);
-    array3.set({ length: 2, 0: 1, 1: 2 });
-    assert.arrayEqual(array3, [1, 2]);
+    assert.notThrows(() => array3.set({ length: 2, 0: 1, 1: 2 }), 'set array-like #1');
+    assert.arrayEqual(array3, [1, 2], 'set array-like #2');
+    assert.notThrows(() => array3.set('34'), 'set string #1');
+    assert.arrayEqual(array3, [3, 4], 'set string #2');
+    assert.notThrows(() => array3.set(1), 'set number #1');
+    assert.arrayEqual(array3, [3, 4], 'set number #2');
     assert.throws(() => set.call([1, 2, 3], [1]), "isn't generic");
   }
 });
