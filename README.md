@@ -2867,7 +2867,7 @@ class Function {
 ```
 core-js/proposals/function-un-this
 core-js(-pure)/features/function/un-this
-core-js(-pure)/features/virtual/function/un-this
+core-js(-pure)/features/function/virtual/un-this
 ```
 [*Examples*](https://is.gd/t1Bvhn):
 ```js
