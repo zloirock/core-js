@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-thenable -- required for testing */
 import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 

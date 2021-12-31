@@ -38,7 +38,7 @@ function isBannerRequired() {
   try {
     var DELTA = Date.now() - fs.statSync(file).mtime;
     if (DELTA >= 0 && DELTA < MINUTE * 3) {
-      banners = JSON.parse(fs.readFileSync(file, 'utf8'));
+      banners = JSON.parse(fs.readFileSync(file));
       if (banners.indexOf(BANNER) !== -1) return false;
     }
   } catch (error) {

@@ -65,6 +65,7 @@ var SYMBOLS_SUPPORT = function () {
 };
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
+  // eslint-disable-next-line unicorn/relative-url-style -- required for testing
   var url = new URL('b?a=1&b=2&c=3', 'http://a');
   var searchParams = url.searchParams;
   var result = '';
@@ -805,6 +806,7 @@ GLOBAL.tests = {
     return Promise.any;
   },
   'es.promise.finally': [PROMISES_SUPPORT, function () {
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
     return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
   }],
   'es.reflect.apply': function () {

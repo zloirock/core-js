@@ -394,6 +394,8 @@ const base = {
   'unicorn/no-lonely-if': ERROR,
   // forbid classes that only have static members
   'unicorn/no-static-only-class': ERROR,
+  // disallow `then` property
+  'unicorn/no-thenable': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unused object properties
@@ -402,6 +404,8 @@ const base = {
   'unicorn/no-useless-fallback-in-spread': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
+  // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
+  'unicorn/no-useless-promise-resolve-reject': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
@@ -412,10 +416,14 @@ const base = {
   'unicorn/prefer-code-point': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
+  // prefer reading a `JSON` file as a buffer
+  'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
+  // enforce consistent relative `URL` style
+  'unicorn/relative-url-style': [ERROR, ALWAYS],
   // enforce using the separator argument with `Array#join()`
   'unicorn/require-array-join-separator': ERROR,
   // enforce using the digits argument with `Number#toFixed()`
