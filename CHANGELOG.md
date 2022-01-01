@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.20.2 - 2022.01.02
 - Added a fix of [a V8 ~ Chrome 36- `Object.{ defineProperty, defineProperties }` bug](https://bugs.chromium.org/p/v8/issues/detail?id=3334), [Babel issue](https://github.com/babel/babel/issues/14056)
 - Added fixes of some different `%TypedArray%.prototype.set` bugs, affects modern engines (like Chrome < 95 or Safari < 14.1)
 
