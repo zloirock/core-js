@@ -21,7 +21,7 @@ If you are interested in the `core-js` project or use it in your day-to-day work
 
 You can propose [me](http://zloirock.ru/) a good job where I will be able to work on something related.
 
-Or you can contribute in another way: you can help improve code, tests or, documentation (currently, `core-js` documentation is terrible!).
+Or you can contribute in another way: you can help improve code, tests or documentation (currently, `core-js` documentation is terrible!).
 
 ## What changed in `core-js@3`?
 
@@ -128,16 +128,16 @@ Another popular feature request was support for the [`.forEach` method on DOM co
 
 #### No more non-standard non-proposed features
 
-Many years ago, I started writing a library that I needed as the core of my JavaScript applications: this library contained polyfills and some utilities for common needs. After some time, it was published as `core-js`. I think that at this moment most `core-js` users do not use non-standard `core-js` features. Almost all of them were removed in previous releases, and it's time to remove all the remaining ones from `core-js`. Starting from this release, `core-js` can be finally called a polyfill.
+Many years ago, I started writing a library which I needed as the core of my JavaScript applications: this library contained polyfills and some utilities for common needs. After some time, it was published as `core-js`. I think that at this moment most `core-js` users do not use non-standard `core-js` features. Almost all of them were removed in previous releases, and it's time to remove all the remaining ones from `core-js`. Starting from this release, `core-js` can be finally called a polyfill.
 
-### Packages, entry points, and modules names
+### Packages, entry points and modules names
 
 A popular issue was a big size (~2MB) of the `core-js` package and duplication of many of its files. For this reason, `core-js` was split into three packages:
 - [`core-js`](https://www.npmjs.com/package/core-js), which defines global polyfills. (~500KB, [40KB minified and gzipped](https://bundlephobia.com/result?p=core-js@3.0.0-beta.20))
-- [`core-js-pure`](https://www.npmjs.com/package/core-js-pure), which provides polyfills without polluting the global environment. It's the equivalent of `core-js/library` from `core-js@2`. (~440KB)
+- [`core-js-pure`](https://www.npmjs.com/package/core-js-pure), which provides polyfills without pollution the global environment. It's the equivalent of `core-js/library` from `core-js@2`. (~440KB)
 - [`core-js-bundle`](https://www.npmjs.com/package/core-js-bundle): a bundled version of `core-js` which defines global polyfills.
 
-In previous versions of `core-js`, modules with polyfills for stable ECMAScript features and ECMAScript proposals were prefixed with `es6.` and `es7.` respectively. It was a decision taken in 2014 when all the features that could be after ES6 were considered as ES7. In `core-js@3` all stable ECMAScript features are prefixed with `es.`, while ECMAScript proposals with `esnext.`.
+In previous versions of `core-js`, modules with polyfills for stable ECMAScript features and ECMAScript proposals were prefixed with `es6.` and `es7.` respectively. It was a decision taken in 2014 when all the features which could be after ES6 were considered as ES7. In `core-js@3` all stable ECMAScript features are prefixed with `es.`, while ECMAScript proposals with `esnext.`.
 
 Almost all CommonJS entry points were changed. In `core-js@3` there are many more entry points than there were in `core-js@2`: they bring maximum flexibility, making it possible to include only the polyfills needed by your application.
 
@@ -182,7 +182,7 @@ If a feature can't be implemented following the specification in every detail, `
 
 No more LiveScript! When I started the `core-js` project, I mainly used [LiveScript](http://livescript.net/); after some time, I rewrote all the polyfills in JavaScript. Tests and helper tools in `core-js@2` still used LiveScript: it is a very interesting CoffeeScript-like language with powerful syntax sugar which allows writing very compact code, but now it's almost dead. Other than that, it was an additional barrier for contributing to `core-js` because most `core-js` users do not know this language. `core-js@3` tests and tools use modern ES syntax: it could be a good moment to start contributing to `core-js` 🙂
 
-For almost all users, for optimization of `core-js` import, I recommend using [`babel`](#Babel). However, for some cases still a useful [`core-js-builder`](http://npmjs.com/package/core-js-builder). Now it supports the `targets` argument which takes a [`browserslist`](https://github.com/browserslist/browserslist) query with target engines - you can create a bundle that contains only required for target engines polyfills. For cases like this, I made the [`core-js-compat`](http://npmjs.com/package/core-js-compat) package, more info about it you could find in [`@babel/preset-env` part of this article](#babelpreset-env).
+For almost all users, for optimization of `core-js` import, I recommend using [`babel`](#Babel). However, [`core-js-builder`](http://npmjs.com/package/core-js-builder) is still useful in some cases. Now it supports the `targets` argument which takes a [`browserslist`](https://github.com/browserslist/browserslist) query with target engines - you can create a bundle which contains only required for target engines polyfills. For cases like this, I made the [`core-js-compat`](http://npmjs.com/package/core-js-compat) package, more info about it you could find in [`@babel/preset-env` part of this article](#babelpreset-env).
 
 ---
 
@@ -194,7 +194,7 @@ As mentioned above, `babel` and `core-js` are tightly integrated: `babel` gives 
 
 ### `@babel/polyfill`
 
-[`@babel/polyfill`](https://babeljs.io/docs/en/next/babel-polyfill.html) is a wrapper package that only includes imports of stable `core-js` features (in Babel 6 it also included proposals) and `regenerator-runtime/runtime`, needed by transpiled generators and async functions. This package doesn't make it possible to provide a smooth migration path from `core-js@2` to `core-js@3`: for this reason, it was decided to deprecate `@babel/polyfill` in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime`.
+[`@babel/polyfill`](https://babeljs.io/docs/en/next/babel-polyfill.html) is a wrapper package which only includes imports of stable `core-js` features (in Babel 6 it also included proposals) and `regenerator-runtime/runtime`, needed by transpiled generators and async functions. This package doesn't make it possible to provide a smooth migration path from `core-js@2` to `core-js@3`: for this reason, it was decided to deprecate `@babel/polyfill` in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime`.
 
 Instead of
 ```js
@@ -315,7 +315,7 @@ Until Babel 7.3, `useBuiltIns: usage` was unstable and not fully reliable: many 
 
 I improved the techniques used to determine which polyfills should be added on property accesses, object destructuring, `in` operator, global object property accesses.
 
-`@babel/preset-env` now injections polyfills required for syntax features: iterators when using `for-of`, destructuring, spread and `yield` delegation; promises when using dynamic `import`, async functions, and generators, etc.
+`@babel/preset-env` now injections polyfills required for syntax features: iterators when using `for-of`, destructuring, spread and `yield` delegation; promises when using dynamic `import`, async functions and generators, etc.
 
 Babel 7.4 supports injecting proposals polyfills. By default, `@babel/preset-env` does not inject them, but you can opt-in using the `proposals` flag: `corejs: { version: 3, proposals: true }`.
 
@@ -336,7 +336,7 @@ import _includesInstanceProperty from "@babel/runtime-corejs3/core-js-stable/ins
 _includesInstanceProperty(array).call(array, something);
 ```
 
-Another notable change is the support of ECMAScript proposals. By default, `@babel/plugin-transform-runtime` does not inject polyfills for proposals and use entry points that do not include them but, exactly as you can do in `@babel/preset-env`, you can set the `proposals` flag to enable them: `corejs: { version: 3, proposals: true }`.
+Another notable change is the support of ECMAScript proposals. By default, `@babel/plugin-transform-runtime` does not inject polyfills for proposals and use entry points which do not include them but, exactly as you can do in `@babel/preset-env`, you can set the `proposals` flag to enable them: `corejs: { version: 3, proposals: true }`.
 
 Without `proposals` flag,
 ```js
@@ -378,7 +378,7 @@ At this moment, `core-js` tries to support all possible engines and platforms wh
 
 The main problem comes from supporting ES3 engines (above all, IE8-): most modern ES features are based on ES5 features, which aren't available in those very old browsers.
 
-The biggest missing important feature is property descriptors: when they aren't available, some features can't be polyfilled because they either are accessors (like `RegExp.prototype.flags` or `URL` properties setters) or are accessors-based (like typed arrays polyfill). In order to work around this lack, we need to use different workarounds (for example, to keep `Set.prototype.size` updated). Maintenance of those workarounds sometimes is too painful, and removing them would highly simplify many polyfills.
+The biggest missing important feature is property descriptors: when they aren't available, some features can't be polyfilled because they either are accessors (like `RegExp.prototype.flags` or `URL` properties setters) or are accessors-based (like typed arrays polyfill). In order to workaround this lack, we need to use different workarounds (for example, to keep `Set.prototype.size` updated). Maintenance of those workarounds sometimes is too painful, and removing them would highly simplify many polyfills.
 
 However, descriptors are just a part of this problem. The ES5 standard library contains many other features that can be considered as the basis of modern JavaScript: `Object.keys`, `Object.create`, `Object.getPrototypeOf`, `Array.prototype.forEach`, `Function.prototype.bind`, etc. Unlike the most modern features, `core-js` internally relies on them and [in order to implement even a simple modern function, `core-js` needs to load implementations of some of those "building blocks"](https://github.com/babel/babel/pull/7646#discussion_r179333093). It is a problem for users who want to create [a maximally minimalistic bundle](https://github.com/zloirock/core-js/issues/388) and only import just a few `core-js` polyfills.
 
@@ -394,7 +394,7 @@ We should drop IE8- and other engines without basic ES5 support in `core-js@4`.
 
 `core-js` is currently focused on ECMAScript support, but it also supports a few web standards features which are available cross-platform and closely related to ECMAScript. Adding polyfills for web standards like `fetch` is a very popular feature request.
 
-The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features that might not have been needed. Now `core-js` is maximally modular, user can include only some chosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
+The main reason why `core-js` doesn’t include them was that it would have seriously increased bundles size and it would have forced `core-js` users to load features which might not have been needed. Now `core-js` is maximally modular, user can include only some chosen features, there are tools like `@babel/preset-env` and `@babel/runtime` which helps to get rid of unused or unnecessary polyfills.
 
 Maybe it's time to revisit this old decision?
 
@@ -426,7 +426,7 @@ At this moment, TC39 is considering adding to ECMAScript [built-in modules](http
 
 Polyfilling of built-in modules, [as stated by the authors of the proposal](https://github.com/tc39/proposal-javascript-standard-library/issues/2), only means falling back to layered APIs or import maps. This means that if a native module will be missing, it will be possible to load a polyfill from a provided URL. That's absolutely not what polyfills need, and it is incompatible with the architecture of `core-js` and every other popular polyfill project. Import maps shouldn't be the only way to polyfill built-in modules.
 
-We will be able to get a built-in module just by using ES modules syntax with a special prefix. This syntax haven't equal based on the previous version of the language - transpiled modules will not be able to interact with not transpiled in modern engines - it will cause problems for package distribution.
+We will be able to get a built-in module just by using ES modules syntax with a special prefix. This syntax haven't any equal based on the previous version of the language - transpiled modules will not be able to interact with not transpiled in modern engines - it will cause problems for package distribution.
 
 More other, it will work asynchronously. It's a critical problem for feature detection - scripts will not wait when you'll detect a feature and load a polyfill - feature detection should be done synchronously.
 
