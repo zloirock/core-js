@@ -6,5 +6,5 @@ var store = require('../internals/shared-store');
 })('versions', []).push({
   version: '3.20.2',
   mode: IS_PURE ? 'pure' : 'global',
-  copyright: '© 2022 Denis Pushkarev (zloirock.ru)'
+  copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)'
 });

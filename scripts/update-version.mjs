@@ -12,6 +12,7 @@ const README_COMPAT = 'packages/core-js-compat/README.md';
 const README_DENO = 'deno/corejs/README.md';
 const LERNA = 'lerna.json';
 const SHARED = 'packages/core-js/internals/shared.js';
+const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const CURRENT_YEAR = now.getFullYear();
 
 const license = await readFile(LICENSE, 'utf8');
@@ -32,6 +33,9 @@ await writeFile(README_DENO, readmeDeno.replaceAll(PREV_VERSION, NEW_VERSION));
 
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
+
+const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
+await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const packages = await readdir('packages');
 for (const PATH of await globby('packages/*/package.json')) {
