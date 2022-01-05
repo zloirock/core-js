@@ -528,7 +528,8 @@ GLOBAL.tests = {
     return escape;
   },
   'es.function.bind': function () {
-    return Function.prototype.bind;
+    var Test = function () { /* empty */ };
+    return (new (Test.bind())() instanceof Test) && (function (a, b) { return this + a + b; }).bind(1, 2)(3) === 6;
   },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
