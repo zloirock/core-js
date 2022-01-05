@@ -5,14 +5,15 @@ Contributions are always welcome. If you don't know how you can help, you can ch
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
-- Any shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory.
-- If the implementation for the `pure` version should significantly differ from the global version, add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
-- For export the polyfill, in all common cases use `internals/export` helper. Use something else only if this helper is not applicable - for example, if you wanna polyfill accessors.
+- Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
+- For export the polyfill, in all common cases use `internals/export` helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
+- If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases `internals/is-pure` is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
 - Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs) and the name of the polyfill module to [`packages/core-js-compat/src/modules-by-versions.mjs`](./packages/core-js-compat/src/modules-by-versions.mjs) (this data also used for getting the default list of polyfills at bundling).
 - Add it to entry points where it's required: directories [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/stable`](./packages/core-js/stable), [`packages/core-js/actual`](./packages/core-js/actual), [`packages/core-js/features`](./packages/core-js/features), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
 - Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
 - Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs.js).
-- Add documentation to [README.md](./README.md).
+- Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
+- Documentat it in [README.md](./README.md) and [CHANGELOG.md](./CHANGELOG.md).
 
 ## How to update `core-js-compat` data
 
@@ -26,11 +27,11 @@ For updating `core-js-compat` data:
 ## Style and standards
 
 The coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
-- Polyfill implementations should use only ES3 syntax and standard library. Polyfills should not use another polyfill from the global namespace.
-- Unit tests should use modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the `pure` version should not use any modern standard library features.
-- Building tools and tests, performed in NodeJS, should use only syntax and standard library available in NodeJS 8.
+- Polyfill implementations should use only ES3 syntax and standard library, they should not use other polyfills from the global scope.
+- Unit tests should use the modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the pure version should not use any modern standard library features.
+- Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS 8.
 
-File names should be in the kebab-case. Name of polyfill modules should follow the naming convention `namespace.subnamespace-where-required.feature-name`, for example, `esnext.promise.try`. The top-level namespace should be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals and `web` for other web standards.
+File names should be in the kebab-case. Name of polyfill modules should follow the naming convention `namespace.subnamespace-where-required.feature-name`, for example, `esnext.set.intersection`. The top-level namespace should be `es` for stable ECMAScript features, `esnext` for ECMAScript proposals and `web` for other web standards.
 
 ## Testing
 
