@@ -1,11 +1,11 @@
 'use strict';
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
-var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
 var arraySlice = require('../internals/array-slice');
+var NATIVE_BIND = require('../internals/function-bind-native');
 
 var Function = global.Function;
 var concat = uncurryThis([].concat);
@@ -21,11 +21,7 @@ var construct = function (C, argsLength, args) {
 
 // `Function.prototype.bind` method implementation
 // https://tc39.es/ecma262/#sec-function.prototype.bind
-module.exports = fails(function () {
-  // detect broken third-party polyfills
-  var Test = function () { /* empty */ };
-  return !(new (Test.bind())() instanceof Test) || (function (a, b) { return this + a + b; }).bind(1, 2)(3) !== 6;
-}) ? function bind(that /* , ...args */) {
+module.exports = NATIVE_BIND ? Function.bind : function bind(that /* , ...args */) {
   var F = aCallable(this);
   var Prototype = F.prototype;
   var partArgs = arraySlice(arguments, 1);
@@ -35,4 +31,4 @@ module.exports = fails(function () {
   };
   if (isObject(Prototype)) boundFunction.prototype = Prototype;
   return boundFunction;
-} : Function.bind;
+};

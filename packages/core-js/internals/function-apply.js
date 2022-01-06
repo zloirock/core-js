@@ -1,9 +1,10 @@
+var NATIVE_BIND = require('../internals/function-bind-native');
+
 var FunctionPrototype = Function.prototype;
 var apply = FunctionPrototype.apply;
-var bind = FunctionPrototype.bind;
 var call = FunctionPrototype.call;
 
 // eslint-disable-next-line es/no-reflect -- safe
-module.exports = typeof Reflect == 'object' && Reflect.apply || (bind ? call.bind(apply) : function () {
+module.exports = typeof Reflect == 'object' && Reflect.apply || (NATIVE_BIND ? call.bind(apply) : function () {
   return call.apply(apply, arguments);
 });

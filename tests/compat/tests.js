@@ -528,8 +528,9 @@ GLOBAL.tests = {
     return escape;
   },
   'es.function.bind': function () {
-    var Test = function () { /* empty */ };
-    return (new (Test.bind())() instanceof Test) && (function (a, b) { return this + a + b; }).bind(1, 2)(3) === 6;
+    var test = (function () { /* empty */ }).bind();
+    // eslint-disable-next-line no-prototype-builtins -- safe
+    return typeof test == 'function' && !test.hasOwnProperty('prototype');
   },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
