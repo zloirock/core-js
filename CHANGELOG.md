@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Detects and replaces broken third-party `Function#bind` polyfills
+- Detects and replaces broken third-party `Function#bind` polyfills, uses only native `Function#bind` in the internals
 
 ##### 3.20.2 - 2022.01.02
 - Added a fix of [a V8 ~ Chrome 36- `Object.{ defineProperty, defineProperties }` bug](https://bugs.chromium.org/p/v8/issues/detail?id=3334), [Babel issue](https://github.com/babel/babel/issues/14056)
