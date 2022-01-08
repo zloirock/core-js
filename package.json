@@ -45,7 +45,7 @@
     "eslint-plugin-sonarjs": "~0.11.0",
     "eslint-plugin-unicorn": "^40.0.0",
     "jsonc-eslint-parser": "^2.0.4",
-    "karma": "^6.3.9",
+    "karma": "^6.3.10",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "konan": "^2.1.1",
