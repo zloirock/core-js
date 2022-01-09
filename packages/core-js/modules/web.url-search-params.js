@@ -24,6 +24,7 @@ var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
+var validateArgumentsLength = require('../internals/validate-arguments-length');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arraySort = require('../internals/array-sort');
 
@@ -97,10 +98,6 @@ var replacer = function (match) {
 
 var serialize = function (it) {
   return replace(encodeURIComponent(it), find, replacer);
-};
-
-var validateArgumentsLength = function (passed, required) {
-  if (passed < required) throw TypeError('Not enough arguments');
 };
 
 var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params, kind) {

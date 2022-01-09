@@ -16,6 +16,7 @@ var hasOwn = require('../internals/has-own-property');
 var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var validateArgumentsLength = require('../internals/validate-arguments-length');
 var regExpFlags = require('../internals/regexp-flags');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
@@ -447,7 +448,7 @@ var tryToTransfer = function (rawTransfer, map) {
 
 $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
-    var options = arguments.length > 1 ? anObject(arguments[1]) : undefined;
+    var options = validateArgumentsLength(arguments.length, 1) > 1 ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
     var map;
 
