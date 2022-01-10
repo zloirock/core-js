@@ -1619,10 +1619,18 @@ GLOBAL.tests = {
     return WeakSet.of;
   },
   'web.atob': function () {
-    return atob(' ') === '';
+    try {
+      atob();
+    } catch (error) {
+      return atob(' ') === '';
+    }
   },
   'web.btoa': function () {
-    return btoa;
+    try {
+      btoa();
+    } catch (error) {
+      return typeof btoa == 'function';
+    }
   },
   'web.dom-collections.for-each': function () {
     return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
