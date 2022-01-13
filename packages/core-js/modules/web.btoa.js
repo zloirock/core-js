@@ -25,7 +25,7 @@ $({ global: true, enumerable: true, forced: NO_ARG_RECEIVING_CHECK }, {
     var position = 0;
     var map = itoc;
     var block, charCode;
-    while (charAt(string, position | 0) || (map = '=', position % 1)) {
+    while (charAt(string, position) || (map = '=', position % 1)) {
       charCode = charCodeAt(string, position += 3 / 4);
       if (charCode > 0xFF) {
         throw new (getBuiltIn('DOMException'))('The string contains characters outside of the Latin1 range', 'InvalidCharacterError');
