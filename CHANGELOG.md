@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.20.3 - 2022.01.15
 - Detects and replaces broken third-party `Function#bind` polyfills, uses only native `Function#bind` in the internals
 - `structuredClone` should throw an error if no arguments passed
 - Changed the structure of notes in `__core-js_shared__`
