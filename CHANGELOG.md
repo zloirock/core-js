@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Deno 1.19 compat data mapping
 
 ##### 3.20.3 - 2022.01.15
 - Detects and replaces broken third-party `Function#bind` polyfills, uses only native `Function#bind` in the internals
