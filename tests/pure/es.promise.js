@@ -22,15 +22,15 @@ QUnit.test('Promise', assert => {
 });
 
 if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
-  let resolve, resolve2;
+  let $resolve, $resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';
   const async = assert.async();
   let result = '';
-  const promise1 = new Promise(r => {
-    resolve = r;
+  const promise1 = new Promise(resolve => {
+    $resolve = resolve;
   });
-  resolve({
+  $resolve({
     then() {
       result += 'A';
       throw Error();
@@ -44,11 +44,11 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
     assert.same(result, EXPECTED_ORDER);
     async();
   });
-  const promise2 = new Promise(r => {
-    resolve2 = r;
+  const promise2 = new Promise(resolve => {
+    $resolve2 = resolve;
   });
   // eslint-disable-next-line es/no-object-defineproperty -- safe
-  resolve2(Object.defineProperty({}, 'then', {
+  $resolve2(Object.defineProperty({}, 'then', {
     get() {
       result += 'D';
       throw Error();

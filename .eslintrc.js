@@ -369,6 +369,24 @@ const base = {
   // require strict mode directives
   strict: [ERROR, 'global'],
 
+  // promise:
+  // avoid calling `cb()` inside of a `then()` or `catch()`
+  'promise/no-callback-in-promise': ERROR,
+  // avoid nested `then()` or `catch()` statements
+  'promise/no-nesting': ERROR,
+  // avoid calling new on a `Promise` static method
+  'promise/no-new-statics': ERROR,
+  // avoid using promises inside of callbacks
+  'promise/no-promise-in-callback': ERROR,
+  // disallow return statements in `finally()`
+  'promise/no-return-in-finally': ERROR,
+  // avoid wrapping values in `Promise.resolve` or `Promise.reject` when not needed
+  'promise/no-return-wrap': ERROR,
+  // enforce consistent param names when creating new promises
+  'promise/param-names': ERROR,
+  // ensures the proper number of arguments are passed to `Promise` functions
+  'promise/valid-params': ERROR,
+
   // unicorn
   // enforce a specific parameter name in catch clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
@@ -783,6 +801,18 @@ const forbidModernESBuiltIns = {
   ...forbidES2021BuiltIns,
 };
 
+const asyncAwait = {
+  // prefer `async` / `await` to the callback pattern
+  'promise/prefer-await-to-callbacks': ERROR,
+  // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
+  'promise/prefer-await-to-then': ERROR,
+};
+
+const polyfills = {
+  // avoid nested `then()` or `catch()` statements
+  'promise/no-nesting': OFF,
+};
+
 const transpiledAndPolyfilled = {
   // disallow accessor properties
   'es/no-accessor-properties': ERROR,
@@ -807,6 +837,9 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
+  ...asyncAwait,
+  // enforces the use of `catch()` on un-returned promises
+  'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
@@ -822,6 +855,7 @@ const nodePackages = {
 };
 
 const nodeDev = {
+  ...asyncAwait,
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
@@ -1000,6 +1034,7 @@ module.exports = {
     'import',
     'jsonc',
     'node',
+    'promise',
     'qunit',
     'regexp',
     'sonarjs',
@@ -1028,6 +1063,13 @@ module.exports = {
         'tests/worker/**',
       ],
       rules: forbidModernESBuiltIns,
+    },
+    {
+      files: [
+        'packages/core-js/**',
+        'packages/core-js-pure/**',
+      ],
+      rules: polyfills,
     },
     {
       files: [

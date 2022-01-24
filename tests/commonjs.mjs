@@ -299,7 +299,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('then' in Promise.prototype);
     ok(load(NS, 'promise/all-settled')([1, 2, 3]) instanceof Promise);
     ok(load(NS, 'promise/any')([1, 2, 3]) instanceof Promise);
-    ok(load(NS, 'promise/finally')(new Promise(it => it), it => it) instanceof Promise);
+    ok(load(NS, 'promise/finally')(new Promise(resolve => resolve), it => it) instanceof Promise);
     ok(load(NS, 'is-iterable')([]));
     ok(typeof load(NS, 'get-iterator-method')([]) == 'function');
     ok('next' in load(NS, 'get-iterator')([]));
