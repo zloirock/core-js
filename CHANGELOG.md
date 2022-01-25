@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping
 
 ##### 3.20.3 - 2022.01.15
