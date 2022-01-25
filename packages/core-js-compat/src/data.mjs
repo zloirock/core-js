@@ -103,6 +103,7 @@ export const data = {
     firefox: '11',
     ie: '9',
     safari: '8.0',
+    rhino: '1.7.14',
   },
   'es.aggregate-error': {
     chrome: '85',
@@ -316,6 +317,7 @@ export const data = {
     firefox: '29',
     ie: '11',
     safari: '7.1',
+    rhino: '1.7.14',
   },
   'es.array-buffer.slice': {
     chrome: '31',
@@ -425,6 +427,7 @@ export const data = {
     chrome: '71',
     firefox: '65',
     safari: '12.1',
+    rhino: '1.7.14',
   },
   'es.json.stringify': {
     chrome: '72',
@@ -581,6 +584,7 @@ export const data = {
     edge: '12',
     firefox: '25',
     safari: '9.0',
+    rhino: '1.7.14',
   },
   'es.number.is-finite': {
     android: '4.1',
@@ -630,17 +634,20 @@ export const data = {
     chrome: '35',
     firefox: '39',
     safari: '11.0',
+    rhino: '1.7.14',
   },
   'es.number.parse-int': {
     chrome: '35',
     firefox: '39',
     safari: '9.0',
+    rhino: '1.7.14',
   },
   'es.number.to-exponential': {
     chrome: '51',
     edge: '18',
     firefox: '87',
     safari: '11',
+    rhino: '1.7.14',
   },
   'es.number.to-fixed': {
     chrome: '26',
@@ -705,6 +712,7 @@ export const data = {
     edge: '14',
     firefox: '47',
     safari: '10.1',
+    rhino: '1.7.14',
   },
   'es.object.freeze': {
     chrome: '44',
@@ -717,6 +725,7 @@ export const data = {
     chrome: '73',
     firefox: '63',
     safari: '12.1',
+    rhino: '1.7.14',
   },
   'es.object.get-own-property-descriptor': {
     chrome: '44',
@@ -832,6 +841,7 @@ export const data = {
     edge: '14',
     firefox: '47',
     safari: '10.1',
+    rhino: '1.7.14',
   },
   'es.parse-float': {
     chrome: '35',
@@ -1068,6 +1078,7 @@ export const data = {
     edge: '13',
     firefox: '34',
     safari: '9.0',
+    rhino: '1.7.14',
   },
   'es.string.repeat': {
     chrome: '41',
@@ -1131,6 +1142,7 @@ export const data = {
     edge: '12',
     firefox: '17',
     safari: '6.0',
+    rhino: '1.7.14',
   },
   'es.string.big': {
     chrome: '5',
@@ -1169,12 +1181,14 @@ export const data = {
     edge: '12',
     firefox: '17',
     safari: '6.0',
+    rhino: '1.7.14',
   },
   'es.string.fontsize': {
     chrome: '5',
     edge: '12',
     firefox: '17',
     safari: '6.0',
+    rhino: '1.7.14',
   },
   'es.string.italics': {
     chrome: '5',
@@ -1189,6 +1203,7 @@ export const data = {
     edge: '12',
     firefox: '17',
     safari: '6.0',
+    rhino: '1.7.14',
   },
   'es.string.small': {
     chrome: '5',
@@ -1418,6 +1433,7 @@ export const data = {
     edge: '13',
     firefox: '15',
     safari: '7.1',
+    rhino: '1.7.14',
   },
   'es.typed-array.to-locale-string': {
     chrome: '45',
