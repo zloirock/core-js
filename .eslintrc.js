@@ -369,6 +369,14 @@ const base = {
   // require strict mode directives
   strict: [ERROR, 'global'],
 
+  // array-func:
+  // avoid reversing the array and running a method on it if there is an equivalent of the method operating on the array from the other end
+  'array-func/avoid-reverse': ERROR,
+  // prefer using the `mapFn` callback of `Array.from` over an immediate `.map()` call on the `Array.from` result
+  'array-func/from-map': ERROR,
+  // avoid the `this` parameter when providing arrow function as callback in array functions
+  'array-func/no-unnecessary-this-arg': ERROR,
+
   // promise:
   // avoid calling `cb()` inside of a `then()` or `catch()`
   'promise/no-callback-in-promise': ERROR,
@@ -428,8 +436,16 @@ const base = {
   'unicorn/no-useless-spread': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': ERROR,
+  // prefer `.find(…)` over the first element from `.filter(…)`
+  'unicorn/prefer-array-find': ERROR,
+  // use `.flat()` to flatten an array of arrays
+  'unicorn/prefer-array-flat': ERROR,
+  // use `.flatMap()` to map and then flatten an array instead of using `.map().flat()`
+  'unicorn/prefer-array-flat-map': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
+  // prefer `.some(…)` over `.filter(…).length` check and `.find(…)`
+  'unicorn/prefer-array-some': ERROR,
   // prefer code points over char codes
   'unicorn/prefer-code-point': ERROR,
   // prefer default parameters over reassignment
@@ -771,6 +787,7 @@ const forbidES2018BuiltIns = {
 };
 
 const forbidES2019BuiltIns = {
+  'unicorn/prefer-array-flat': OFF,
   'es/no-array-prototype-flat': ERROR,
   'es/no-object-fromentries': ERROR,
   'es/no-string-prototype-trimstart-trimend': ERROR,
@@ -1029,6 +1046,7 @@ module.exports = {
     worker: true,
   },
   plugins: [
+    'array-func',
     'es',
     'eslint-comments',
     'import',

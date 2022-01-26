@@ -1,4 +1,4 @@
-/* eslint-disable no-sparse-arrays -- required for testing */
+/* eslint-disable no-sparse-arrays, unicorn/prefer-array-flat -- required for testing */
 QUnit.test('Array#concat', assert => {
   const { concat } = Array.prototype;
   assert.isFunction(concat);
