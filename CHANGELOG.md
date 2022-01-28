@@ -2,7 +2,7 @@
 ##### Unreleased
 - Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping
-- Added iOS Safari 15.3 compat data mapping
+- Added iOS Safari 15.3 and 15.4 compat data mapping
 
 ##### 3.20.3 - 2022.01.15
 - Detects and replaces broken third-party `Function#bind` polyfills, uses only native `Function#bind` in the internals
