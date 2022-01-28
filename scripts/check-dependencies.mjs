@@ -7,6 +7,7 @@ const getDependencies = promisify(david.getDependencies);
 
 const ignoreEverywhere = new Set([
   'moon-unit',
+  'npm',
 ]);
 
 const ignoreInPackages = new Set([
