@@ -2,6 +2,7 @@
 ##### Unreleased
 - Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping
+- Added Opera Android 66 and 67 compat data mapping
 - Added iOS Safari 15.3 and 15.4 compat data mapping
 
 ##### 3.20.3 - 2022.01.15
