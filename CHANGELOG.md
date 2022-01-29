@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added the proper validation of arguments to some methods from web standards
 - Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping
 - Added Opera Android 66 and 67 compat data mapping
