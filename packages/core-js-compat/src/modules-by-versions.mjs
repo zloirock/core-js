@@ -135,4 +135,8 @@ export default {
     'web.dom-exception.to-string-tag',
     'web.structured-clone',
   ],
+  3.21: [
+    'web.atob',
+    'web.btoa',
+  ],
 };

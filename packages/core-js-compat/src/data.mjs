@@ -1818,6 +1818,26 @@ export const data = {
   },
   'esnext.weak-set.of': {
   },
+  'web.atob': {
+    chrome: '34',
+    deno: '1.0',
+    edge: '13',
+    firefox: '27',
+    // https://github.com/nodejs/node/issues/41450
+    // node: '16.0',
+    opera: '10.5',
+    safari: '10.1',
+  },
+  'web.btoa': {
+    chrome: '4',
+    deno: '1.0',
+    firefox: '1',
+    ie: '10',
+    // https://github.com/nodejs/node/issues/41450
+    // node: '16.0',
+    opera: '10.5',
+    safari: '3.0',
+  },
   'web.dom-collections.for-each': {
     chrome: '58',
     deno: '1.0',

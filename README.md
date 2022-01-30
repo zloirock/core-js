@@ -159,6 +159,7 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Reflect` metadata](#reflect-metadata)
   - [Web standards](#web-standards)
     - [`structuredClone`](#structuredclone)
+    - [Base64 utility methods](#base64-utility-methods)
     - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
     - [`setImmediate`](#setimmediate)
     - [`queueMicrotask`](#queuemicrotask)
@@ -2998,10 +2999,9 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/web/structured-clone
 core-js(-pure)/stable|actual|features/structured-clone
 ```
-[*Examples*](t.ly/dBEC):
+[*Examples*](is.gd/RhK7TW):
 ```js
 const structured = [{ a: 42 }];
 const sclone = structuredClone(structured);
@@ -3035,6 +3035,23 @@ structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 
 * `ArrayBuffer` instances and many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
 * Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
+
+#### Base64 utility methods[⬆](#index)
+[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64). Modules [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
+```js
+function atob(data: string): string;
+function btoa(data: string): string;
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stable|actual|features/atob
+core-js(-pure)/stable|actual|features/btoa
+```
+[*Examples*](is.gd/4Nxmzn):
+```js
+btoa('hi, core-js');      // => 'aGksIGNvcmUtanM='
+atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
+```
 
 #### `setTimeout` and `setInterval`[⬆](#index)
 Module [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
@@ -3306,7 +3323,7 @@ console.log(iterator.next().value); // 2
 console.log(iterator.next().value); // 3
 console.log(iterator.next().value); // undefined
 
-getIterator({});   // TypeError: [object Object] is not iterable!
+getIterator({}); // TypeError: [object Object] is not iterable!
 
 let method = getIteratorMethod(list);
 console.log(typeof method);         // 'function'

@@ -545,6 +545,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['stable', 'actual', 'features']) {
+    ok(load(NS, 'atob')('Zg==') === 'f');
+    ok(load(NS, 'btoa')('f') === 'Zg==');
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');

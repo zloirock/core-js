@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Added [Base64 utility methods](https://developer.mozilla.org/en-US/docs/Glossary/Base64):
+  - `atob`
+  - `btoa`
 - Added the proper validation of arguments to some methods from web standards
 - Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping

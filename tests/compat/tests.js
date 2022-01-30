@@ -1618,6 +1618,20 @@ GLOBAL.tests = {
   'esnext.weak-set.of': function () {
     return WeakSet.of;
   },
+  'web.atob': function () {
+    try {
+      atob();
+    } catch (error) {
+      return atob(' ') === '';
+    }
+  },
+  'web.btoa': function () {
+    try {
+      btoa();
+    } catch (error) {
+      return typeof btoa == 'function';
+    }
+  },
   'web.dom-collections.for-each': function () {
     return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
       && (!GLOBAL.DOMTokenList || (DOMTokenList.prototype.forEach && DOMTokenList.prototype.forEach === [].forEach));
