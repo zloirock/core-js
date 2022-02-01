@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var call = require('../internals/function-call');
@@ -10,7 +9,7 @@ var TypeError = global.TypeError;
 
 // `Set.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   update: function update(key, callback /* , thunk */) {
     var map = anObject(this);
     var get = aCallable(map.get);

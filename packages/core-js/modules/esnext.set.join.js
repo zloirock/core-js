@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObject = require('../internals/an-object');
@@ -12,7 +11,7 @@ var push = [].push;
 
 // `Set.prototype.join` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   join: function join(separator) {
     var set = anObject(this);
     var iterator = getSetIterator(set);

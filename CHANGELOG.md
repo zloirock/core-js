@@ -4,6 +4,7 @@
   - `atob`
   - `btoa`
 - Added the proper validation of arguments to some methods from web standards
+- Forced replacement of all methods from early stage proposals for avoiding possible web compatibility issues in the future
 - Added Rhino 1.7.14 compat data
 - Added Deno 1.19 compat data mapping
 - Added Opera Android 66 and 67 compat data mapping

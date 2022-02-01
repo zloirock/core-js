@@ -11,4 +11,4 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 exportTypedArrayMethod('filterReject', function filterReject(callbackfn /* , thisArg */) {
   var list = $filterReject(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   return fromSpeciesAndList(this, list);
-});
+}, true);

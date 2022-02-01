@@ -43,7 +43,7 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),

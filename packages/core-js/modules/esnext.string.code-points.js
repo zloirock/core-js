@@ -32,7 +32,7 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
 
 // `String.prototype.codePoints` method
 // https://github.com/tc39/proposal-string-prototype-codepoints
-$({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true, forced: true }, {
   codePoints: function codePoints() {
     return new $StringIterator(toString(requireObjectCoercible(this)));
   }

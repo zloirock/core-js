@@ -10,7 +10,7 @@ var push = uncurryThis([].push);
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   groupBy: function groupBy(iterable, keyDerivative) {
     aCallable(keyDerivative);
     var iterator = getIterator(iterable);

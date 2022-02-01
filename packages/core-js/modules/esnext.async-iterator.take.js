@@ -23,7 +23,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   } return apply(this.next, iterator, args);
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),

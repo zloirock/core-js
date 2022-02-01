@@ -8,7 +8,7 @@ var Array = global.Array;
 
 // `Array.prototype.with` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.with
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   'with': function (index, value) {
     return arrayWith(toIndexedObject(this), Array, index, value);
   }

@@ -33,7 +33,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   filter: function filter(filterer) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),

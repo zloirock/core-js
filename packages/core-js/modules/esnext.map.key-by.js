@@ -6,7 +6,7 @@ var aCallable = require('../internals/a-callable');
 
 // `Map.keyBy` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   keyBy: function keyBy(iterable, keyDerivative) {
     var newMap = new this();
     aCallable(keyDerivative);

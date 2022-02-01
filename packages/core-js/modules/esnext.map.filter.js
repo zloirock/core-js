@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var bind = require('../internals/function-bind-context');
@@ -12,7 +11,7 @@ var iterate = require('../internals/iterate');
 
 // `Map.prototype.filter` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);

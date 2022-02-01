@@ -4,7 +4,7 @@ var ObjectIterator = require('../internals/object-iterator');
 
 // `Object.iterateValues` method
 // https://github.com/tc39/proposal-object-iteration
-$({ target: 'Object', stat: true }, {
+$({ target: 'Object', stat: true, forced: true }, {
   iterateValues: function iterateValues(object) {
     return new ObjectIterator(object, 'values');
   }

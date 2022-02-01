@@ -6,7 +6,7 @@ var anObject = require('../internals/an-object');
 
 var push = [].push;
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toArray: function toArray() {
     var result = [];
     iterate(anObject(this), push, { that: result, IS_ITERATOR: true });

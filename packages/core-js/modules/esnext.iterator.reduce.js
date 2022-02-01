@@ -8,7 +8,7 @@ var anObject = require('../internals/an-object');
 
 var TypeError = global.TypeError;
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     aCallable(reducer);

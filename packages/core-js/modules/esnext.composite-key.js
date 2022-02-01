@@ -13,7 +13,7 @@ var initializer = function () {
 };
 
 // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
-$({ global: true }, {
+$({ global: true, forced: true }, {
   compositeKey: function compositeKey() {
     return apply(getCompositeKeyNode, Object, arguments).get('object', initializer);
   }

@@ -7,7 +7,7 @@ var defineProperty = require('../internals/object-define-property').f;
 
 // `Array.prototype.lastIndex` getter
 // https://github.com/keithamus/proposal-array-last
-if (DESCRIPTORS && !('lastIndex' in [])) {
+if (DESCRIPTORS) {
   defineProperty(Array.prototype, 'lastIndex', {
     configurable: true,
     get: function lastIndex() {

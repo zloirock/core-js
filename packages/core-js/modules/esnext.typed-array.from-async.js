@@ -3,7 +3,6 @@
 var getBuiltIn = require('../internals/get-built-in');
 var aConstructor = require('../internals/a-constructor');
 var arrayFromAsync = require('../internals/array-from-async');
-var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
@@ -23,4 +22,4 @@ exportTypedArrayStaticMethod('fromAsync', function fromAsync(asyncItems /* , map
   }).then(function (list) {
     return arrayFromConstructorAndList(aTypedArrayConstructor(C), list);
   });
-}, TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS);
+}, true);

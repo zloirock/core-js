@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
@@ -8,7 +7,7 @@ var iterate = require('../internals/iterate');
 
 // `Set.prototype.isDisjointFrom` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isDisjointFrom
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   isDisjointFrom: function isDisjointFrom(iterable) {
     var set = anObject(this);
     var hasCheck = aCallable(set.has);

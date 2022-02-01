@@ -12,4 +12,4 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 exportTypedArrayMethod('groupBy', function groupBy(callbackfn /* , thisArg */) {
   var thisArg = arguments.length > 1 ? arguments[1] : undefined;
   return $groupBy(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
-});
+}, true);

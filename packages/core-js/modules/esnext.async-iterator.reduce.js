@@ -10,7 +10,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var Promise = getBuiltIn('Promise');
 var TypeError = global.TypeError;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var iterator = anObject(this);
     var next = aCallable(iterator.next);

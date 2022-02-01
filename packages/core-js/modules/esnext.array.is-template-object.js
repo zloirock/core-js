@@ -19,7 +19,7 @@ var isFrozenStringArray = function (array, allowUndefined) {
 
 // `Array.isTemplateObject` method
 // https://github.com/tc39/proposal-array-is-template-object
-$({ target: 'Array', stat: true }, {
+$({ target: 'Array', stat: true, sham: true, forced: true }, {
   isTemplateObject: function isTemplateObject(value) {
     if (!isFrozenStringArray(value, true)) return false;
     var raw = value.raw;

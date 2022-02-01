@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var IS_PURE = require('../internals/is-pure');
 var anObject = require('../internals/an-object');
 var bind = require('../internals/function-bind-context');
 var getMapIterator = require('../internals/get-map-iterator');
@@ -8,7 +7,7 @@ var iterate = require('../internals/iterate');
 
 // `Map.prototype.findKey` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   findKey: function findKey(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);

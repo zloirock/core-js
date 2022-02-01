@@ -5,7 +5,7 @@ var perform = require('../internals/perform');
 
 // `Promise.try` method
 // https://github.com/tc39/proposal-promise-try
-$({ target: 'Promise', stat: true }, {
+$({ target: 'Promise', stat: true, forced: true }, {
   'try': function (callbackfn) {
     var promiseCapability = newPromiseCapabilityModule.f(this);
     var result = perform(callbackfn);

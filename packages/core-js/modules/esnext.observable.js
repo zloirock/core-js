@@ -31,6 +31,14 @@ var getObservableInternalState = getterFor(OBSERVABLE);
 var getSubscriptionInternalState = getterFor(SUBSCRIPTION);
 var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 var Array = global.Array;
+var NativeObservable = global.Observable;
+var NativeObservablePrototype = NativeObservable && NativeObservable.prototype;
+
+var FORCED = !isCallable(NativeObservable)
+  || !isCallable(NativeObservable.from)
+  || !isCallable(NativeObservable.of)
+  || !isCallable(NativeObservablePrototype.subscribe)
+  || !isCallable(NativeObservablePrototype[$$OBSERVABLE]);
 
 var SubscriptionState = function (observer) {
   this.observer = anObject(observer);
@@ -218,7 +226,7 @@ redefineAll($Observable, {
 
 redefine(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
-$({ global: true }, {
+$({ global: true, forced: FORCED }, {
   Observable: $Observable
 });
 

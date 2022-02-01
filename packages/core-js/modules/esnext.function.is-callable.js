@@ -22,7 +22,7 @@ var isClassConstructor = function (argument) {
 
 // `Function.isCallable` method
 // https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md
-$({ target: 'Function', stat: true, sham: true }, {
+$({ target: 'Function', stat: true, sham: true, forced: true }, {
   isCallable: function isCallable(argument) {
     return $isCallable(argument) && !isClassConstructor(argument);
   }

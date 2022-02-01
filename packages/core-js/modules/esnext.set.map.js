@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var bind = require('../internals/function-bind-context');
@@ -12,7 +11,7 @@ var iterate = require('../internals/iterate');
 
 // `Set.prototype.map` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   map: function map(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);

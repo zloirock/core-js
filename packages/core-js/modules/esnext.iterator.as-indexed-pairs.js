@@ -11,7 +11,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return [this.index++, result.value];
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   asIndexedPairs: function asIndexedPairs() {
     return new IteratorProxy({
       iterator: anObject(this),

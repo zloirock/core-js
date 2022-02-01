@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
@@ -10,7 +9,7 @@ var iterate = require('../internals/iterate');
 
 // `Set.prototype.symmetricDifference` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   symmetricDifference: function symmetricDifference(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);

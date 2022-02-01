@@ -12,4 +12,4 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 exportTypedArrayMethod('filterOut', function filterOut(callbackfn /* , thisArg */) {
   var list = $filterReject(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   return fromSpeciesAndList(this, list);
-});
+}, true);

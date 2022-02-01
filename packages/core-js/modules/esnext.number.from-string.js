@@ -18,7 +18,7 @@ var stringSlice = uncurryThis(''.slice);
 
 // `Number.fromString` method
 // https://github.com/tc39/proposal-number-fromstring
-$({ target: 'Number', stat: true }, {
+$({ target: 'Number', stat: true, forced: true }, {
   fromString: function fromString(string, radix) {
     var sign = 1;
     var R, mathNum;

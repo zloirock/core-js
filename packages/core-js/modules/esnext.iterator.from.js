@@ -15,7 +15,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return result.value;
 }, true);
 
-$({ target: 'Iterator', stat: true }, {
+$({ target: 'Iterator', stat: true, forced: true }, {
   from: function from(O) {
     var object = toObject(O);
     var usingIterator = getIteratorMethod(object);

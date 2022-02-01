@@ -3,7 +3,7 @@
 var $ = require('../internals/export');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toAsync: function toAsync() {
     return new AsyncFromSyncIterator(this);
   }

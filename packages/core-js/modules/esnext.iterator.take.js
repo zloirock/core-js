@@ -18,7 +18,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return result.value;
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     return new IteratorProxy({
       iterator: anObject(this),

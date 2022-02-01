@@ -12,4 +12,4 @@ var arrayUniqueBy = uncurryThis($arrayUniqueBy);
 // https://github.com/tc39/proposal-array-unique
 exportTypedArrayMethod('uniqueBy', function uniqueBy(resolver) {
   return fromSpeciesAndList(this, arrayUniqueBy(aTypedArray(this), resolver));
-});
+}, true);

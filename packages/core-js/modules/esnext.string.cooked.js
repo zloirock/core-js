@@ -12,7 +12,7 @@ var join = uncurryThis(ArrayPrototype.join);
 
 // `String.cooked` method
 // https://github.com/tc39/proposal-string-cooked
-$({ target: 'String', stat: true }, {
+$({ target: 'String', stat: true, forced: true }, {
   cooked: function cooked(template /* , ...substitutions */) {
     var cookedTemplate = toIndexedObject(template);
     var literalSegments = lengthOfArrayLike(cookedTemplate);

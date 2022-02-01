@@ -1,5 +1,4 @@
 'use strict';
-var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
@@ -11,7 +10,7 @@ var iterate = require('../internals/iterate');
 
 // `Set.prototype.isSubsetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSubsetOf
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   isSubsetOf: function isSubsetOf(iterable) {
     var iterator = getIterator(this);
     var otherSet = anObject(iterable);
