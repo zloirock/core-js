@@ -9,7 +9,7 @@ const {
 } = require('core-js-compat')({
   targets: '> 2.5%',     // browserslist query or object of minimum environment versions to support
   filter: /^(es|web)\./, // optional filter - string-prefix, regexp or list of modules
-  version: '3.20',       // used `core-js` version, by default - the latest
+  version: '3.21',       // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
@@ -94,9 +94,9 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 require('core-js-compat').modules; // => Array<ModuleName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.20'); // => Array<ModuleName>
+require('core-js-compat/get-modules-list-for-target-version')('3.21'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.20'); // => Array<ModuleName>
+require('core-js-compat').getModulesListForTargetVersion('3.21'); // => Array<ModuleName>
 ```
 
 If you want to add new / update data about modules required for target engines, [follow this instruction](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data).

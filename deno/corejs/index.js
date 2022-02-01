@@ -1,7 +1,7 @@
 /**
- * core-js 3.20.3
+ * core-js 3.21.0
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.20.3/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.21.0/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -221,8 +221,9 @@ __webpack_require__(287);
 __webpack_require__(288);
 __webpack_require__(289);
 __webpack_require__(290);
+__webpack_require__(291);
 __webpack_require__(292);
-__webpack_require__(293);
+__webpack_require__(295);
 __webpack_require__(296);
 __webpack_require__(297);
 __webpack_require__(298);
@@ -239,10 +240,9 @@ __webpack_require__(308);
 __webpack_require__(309);
 __webpack_require__(310);
 __webpack_require__(311);
-__webpack_require__(312);
+__webpack_require__(316);
 __webpack_require__(317);
 __webpack_require__(318);
-__webpack_require__(319);
 module.exports = __webpack_require__(322);
 
 
@@ -886,10 +886,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.20.3',
+  version: '3.21.0',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.20.3/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.21.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -2995,7 +2995,7 @@ var fromAsync = __webpack_require__(111);
 
 // `Array.fromAsync` method
 // https://github.com/tc39/proposal-array-from-async
-$({ target: 'Array', stat: true }, {
+$({ target: 'Array', stat: true, forced: true }, {
   fromAsync: fromAsync
 });
 
@@ -3378,7 +3378,7 @@ var addToUnscopables = __webpack_require__(92);
 
 // `Array.prototype.filterReject` method
 // https://github.com/tc39/proposal-array-filtering
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   filterReject: function filterReject(callbackfn /* , thisArg */) {
     return $filterReject(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   }
@@ -3754,7 +3754,7 @@ var isFrozenStringArray = function (array, allowUndefined) {
 
 // `Array.isTemplateObject` method
 // https://github.com/tc39/proposal-array-is-template-object
-$({ target: 'Array', stat: true }, {
+$({ target: 'Array', stat: true, sham: true, forced: true }, {
   isTemplateObject: function isTemplateObject(value) {
     if (!isFrozenStringArray(value, true)) return false;
     var raw = value.raw;
@@ -3778,7 +3778,7 @@ var defineProperty = __webpack_require__(42).f;
 
 // `Array.prototype.lastIndex` getter
 // https://github.com/keithamus/proposal-array-last
-if (DESCRIPTORS && !('lastIndex' in [])) {
+if (DESCRIPTORS) {
   defineProperty(Array.prototype, 'lastIndex', {
     configurable: true,
     get: function lastIndex() {
@@ -3806,7 +3806,7 @@ var defineProperty = __webpack_require__(42).f;
 
 // `Array.prototype.lastIndex` accessor
 // https://github.com/keithamus/proposal-array-last
-if (DESCRIPTORS && !('lastItem' in [])) {
+if (DESCRIPTORS) {
   defineProperty(Array.prototype, 'lastItem', {
     configurable: true,
     get: function lastItem() {
@@ -3841,7 +3841,7 @@ var Array = global.Array;
 
 // `Array.prototype.toReversed` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   toReversed: function toReversed() {
     return arrayToReversed(toIndexedObject(this), Array);
   }
@@ -3887,7 +3887,7 @@ var sort = uncurryThis(getVirtual('Array').sort);
 
 // `Array.prototype.toSorted` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   toSorted: function toSorted(compareFn) {
     if (compareFn !== undefined) aCallable(compareFn);
     var O = toIndexedObject(this);
@@ -3916,7 +3916,7 @@ var Array = global.Array;
 
 // `Array.prototype.toSpliced` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   // eslint-disable-next-line no-unused-vars -- required for .length
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
     return arrayToSpliced(toIndexedObject(this), Array, arraySlice(arguments));
@@ -3988,7 +3988,7 @@ var uniqueBy = __webpack_require__(142);
 
 // `Array.prototype.uniqueBy` method
 // https://github.com/tc39/proposal-array-unique
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   uniqueBy: uniqueBy
 });
 
@@ -4053,7 +4053,7 @@ var Array = global.Array;
 
 // `Array.prototype.with` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.with
-$({ target: 'Array', proto: true }, {
+$({ target: 'Array', proto: true, forced: true }, {
   'with': function (index, value) {
     return arrayWith(toIndexedObject(this), Array, index, value);
   }
@@ -4160,7 +4160,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   asIndexedPairs: function asIndexedPairs() {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4290,7 +4290,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   drop: function drop(limit) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4310,7 +4310,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var $every = __webpack_require__(118).every;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   every: function every(fn) {
     return $every(this, fn);
   }
@@ -4357,7 +4357,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   filter: function filter(filterer) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4377,7 +4377,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var $find = __webpack_require__(118).find;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   find: function find(fn) {
     return $find(this, fn);
   }
@@ -4444,7 +4444,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4466,7 +4466,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var $forEach = __webpack_require__(118).forEach;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   forEach: function forEach(fn) {
     return $forEach(this, fn);
   }
@@ -4498,7 +4498,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   return anObject(apply(this.next, this.iterator, args));
 }, true);
 
-$({ target: 'AsyncIterator', stat: true }, {
+$({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
     var object = toObject(O);
     var usingIterator = getMethod(object, ASYNC_ITERATOR);
@@ -4544,7 +4544,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   map: function map(mapper) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4571,7 +4571,7 @@ var getBuiltIn = __webpack_require__(21);
 var Promise = getBuiltIn('Promise');
 var TypeError = global.TypeError;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var iterator = anObject(this);
     var next = aCallable(iterator.next);
@@ -4620,7 +4620,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var $some = __webpack_require__(118).some;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   some: function some(fn) {
     return $some(this, fn);
   }
@@ -4657,7 +4657,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
   } return apply(this.next, iterator, args);
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     return new AsyncIteratorProxy({
       iterator: anObject(this),
@@ -4677,7 +4677,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var $toArray = __webpack_require__(118).toArray;
 
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   toArray: function toArray() {
     return $toArray(this, undefined, []);
   }
@@ -4697,7 +4697,7 @@ var NumericRangeIterator = __webpack_require__(162);
 // `BigInt.range` method
 // https://github.com/tc39/proposal-Number.range
 if (typeof BigInt == 'function') {
-  $({ target: 'BigInt', stat: true }, {
+  $({ target: 'BigInt', stat: true, forced: true }, {
     range: function range(start, end, option) {
       return new NumericRangeIterator(start, end, option, 'bigint', BigInt(0), BigInt(1));
     }
@@ -4915,7 +4915,7 @@ var initializer = function () {
 };
 
 // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
-$({ global: true }, {
+$({ global: true, forced: true }, {
   compositeKey: function compositeKey() {
     return apply(getCompositeKeyNode, Object, arguments).get('object', initializer);
   }
@@ -5929,7 +5929,7 @@ var getBuiltIn = __webpack_require__(21);
 var apply = __webpack_require__(64);
 
 // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
-$({ global: true }, {
+$({ global: true, forced: true }, {
   compositeSymbol: function compositeSymbol() {
     if (arguments.length == 1 && typeof arguments[0] == 'string') return getBuiltIn('Symbol')['for'](arguments[0]);
     return apply(getCompositeKeyNode, null, arguments).get('symbol', getBuiltIn('Symbol'));
@@ -5965,7 +5965,7 @@ var isClassConstructor = function (argument) {
 
 // `Function.isCallable` method
 // https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md
-$({ target: 'Function', stat: true, sham: true }, {
+$({ target: 'Function', stat: true, sham: true, forced: true }, {
   isCallable: function isCallable(argument) {
     return $isCallable(argument) && !isClassConstructor(argument);
   }
@@ -5981,7 +5981,7 @@ var isConstructor = __webpack_require__(112);
 
 // `Function.isConstructor` method
 // https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md
-$({ target: 'Function', stat: true }, {
+$({ target: 'Function', stat: true, forced: true }, {
   isConstructor: isConstructor
 });
 
@@ -5996,7 +5996,7 @@ var aCallable = __webpack_require__(28);
 
 // `Function.prototype.unThis` method
 // https://github.com/js-choi/proposal-function-un-this
-$({ target: 'Function', proto: true }, {
+$({ target: 'Function', proto: true, forced: true }, {
   unThis: function unThis() {
     return uncurryThis(aCallable(this));
   }
@@ -6069,7 +6069,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return [this.index++, result.value];
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   asIndexedPairs: function asIndexedPairs() {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6173,7 +6173,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return result.value;
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   drop: function drop(limit) {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6195,7 +6195,7 @@ var iterate = __webpack_require__(83);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   every: function every(fn) {
     anObject(this);
     aCallable(fn);
@@ -6234,7 +6234,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   }
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   filter: function filter(filterer) {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6273,7 +6273,7 @@ var iterate = __webpack_require__(83);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   find: function find(fn) {
     anObject(this);
     aCallable(fn);
@@ -6334,7 +6334,7 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6357,7 +6357,7 @@ var $ = __webpack_require__(2);
 var iterate = __webpack_require__(83);
 var anObject = __webpack_require__(44);
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   forEach: function forEach(fn) {
     iterate(anObject(this), fn, { IS_ITERATOR: true });
   }
@@ -6385,7 +6385,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return result.value;
 }, true);
 
-$({ target: 'Iterator', stat: true }, {
+$({ target: 'Iterator', stat: true, forced: true }, {
   from: function from(O) {
     var object = toObject(O);
     var usingIterator = getIteratorMethod(object);
@@ -6421,7 +6421,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return callWithSafeIterationClosing(iterator, this.mapper, result.value);
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   map: function map(mapper) {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6446,7 +6446,7 @@ var anObject = __webpack_require__(44);
 
 var TypeError = global.TypeError;
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     aCallable(reducer);
@@ -6478,7 +6478,7 @@ var iterate = __webpack_require__(83);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   some: function some(fn) {
     anObject(this);
     aCallable(fn);
@@ -6514,7 +6514,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
   if (!done) return result.value;
 });
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     return new IteratorProxy({
       iterator: anObject(this),
@@ -6537,7 +6537,7 @@ var anObject = __webpack_require__(44);
 
 var push = [].push;
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toArray: function toArray() {
     var result = [];
     iterate(anObject(this), push, { that: result, IS_ITERATOR: true });
@@ -6556,7 +6556,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var AsyncFromSyncIterator = __webpack_require__(114);
 
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toAsync: function toAsync() {
     return new AsyncFromSyncIterator(this);
   }
@@ -6570,12 +6570,11 @@ $({ target: 'Iterator', proto: true, real: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var deleteAll = __webpack_require__(204);
 
 // `Map.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   deleteAll: deleteAll
 });
 
@@ -6611,12 +6610,11 @@ module.exports = function deleteAll(/* ...elements */) {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var emplace = __webpack_require__(206);
 
 // `Map.prototype.emplace` method
 // https://github.com/thumbsupep/proposal-upsert
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   emplace: emplace
 });
 
@@ -6653,7 +6651,6 @@ module.exports = function emplace(key, handler) {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getMapIterator = __webpack_require__(208);
@@ -6661,7 +6658,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.every` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   every: function every(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -6691,7 +6688,6 @@ module.exports = function (it) {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var bind = __webpack_require__(84);
@@ -6704,7 +6700,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.filter` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -6762,7 +6758,6 @@ module.exports = function (argument) {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getMapIterator = __webpack_require__(208);
@@ -6770,7 +6765,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.find` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   find: function find(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -6789,7 +6784,6 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getMapIterator = __webpack_require__(208);
@@ -6797,7 +6791,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.findKey` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   findKey: function findKey(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -6818,7 +6812,7 @@ var from = __webpack_require__(215);
 
 // `Map.from` method
 // https://tc39.github.io/proposal-setmap-offrom/#sec-map.from
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   from: from
 });
 
@@ -6877,7 +6871,7 @@ var push = uncurryThis([].push);
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   groupBy: function groupBy(iterable, keyDerivative) {
     aCallable(keyDerivative);
     var iterator = getIterator(iterable);
@@ -6901,7 +6895,6 @@ $({ target: 'Map', stat: true }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var anObject = __webpack_require__(44);
 var getMapIterator = __webpack_require__(208);
@@ -6910,7 +6903,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.includes` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   includes: function includes(searchElement) {
     return iterate(getMapIterator(anObject(this)), function (key, value, stop) {
       if (sameValueZero(value, searchElement)) return stop();
@@ -6944,7 +6937,7 @@ var aCallable = __webpack_require__(28);
 
 // `Map.keyBy` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   keyBy: function keyBy(iterable, keyDerivative) {
     var newMap = new this();
     aCallable(keyDerivative);
@@ -6964,14 +6957,13 @@ $({ target: 'Map', stat: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var getMapIterator = __webpack_require__(208);
 var iterate = __webpack_require__(83);
 
 // `Map.prototype.keyOf` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   keyOf: function keyOf(searchElement) {
     return iterate(getMapIterator(anObject(this)), function (key, value, stop) {
       if (value === searchElement) return stop(key);
@@ -6986,7 +6978,6 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var bind = __webpack_require__(84);
@@ -6999,7 +6990,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.mapKeys` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   mapKeys: function mapKeys(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -7020,7 +7011,6 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var bind = __webpack_require__(84);
@@ -7033,7 +7023,7 @@ var iterate = __webpack_require__(83);
 
 // `Map.prototype.mapValues` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   mapValues: function mapValues(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -7055,14 +7045,13 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
 var iterate = __webpack_require__(83);
 
 // `Map.prototype.merge` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
   merge: function merge(iterable /* ...iterables */) {
     var map = anObject(this);
@@ -7086,7 +7075,7 @@ var of = __webpack_require__(225);
 
 // `Map.of` method
 // https://tc39.github.io/proposal-setmap-offrom/#sec-map.of
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: true }, {
   of: of
 });
 
@@ -7113,7 +7102,6 @@ module.exports = function of() {
 
 var $ = __webpack_require__(2);
 var global = __webpack_require__(3);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var aCallable = __webpack_require__(28);
 var getMapIterator = __webpack_require__(208);
@@ -7123,7 +7111,7 @@ var TypeError = global.TypeError;
 
 // `Map.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -7151,7 +7139,6 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getMapIterator = __webpack_require__(208);
@@ -7159,7 +7146,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.some` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   some: function some(callbackfn /* , thisArg */) {
     var map = anObject(this);
     var iterator = getMapIterator(map);
@@ -7177,7 +7164,6 @@ $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var global = __webpack_require__(3);
 var call = __webpack_require__(7);
@@ -7188,7 +7174,7 @@ var TypeError = global.TypeError;
 
 // `Set.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Map', proto: true, real: true, forced: true }, {
   update: function update(key, callback /* , thunk */) {
     var map = anObject(this);
     var get = aCallable(map.get);
@@ -7218,7 +7204,7 @@ var max = Math.max;
 
 // `Math.clamp` method
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   clamp: function clamp(x, lower, upper) {
     return min(upper, max(lower, x));
   }
@@ -7233,7 +7219,7 @@ var $ = __webpack_require__(2);
 
 // `Math.DEG_PER_RAD` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   DEG_PER_RAD: Math.PI / 180
 });
 
@@ -7248,7 +7234,7 @@ var RAD_PER_DEG = 180 / Math.PI;
 
 // `Math.degrees` method
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   degrees: function degrees(radians) {
     return radians * RAD_PER_DEG;
   }
@@ -7266,7 +7252,7 @@ var fround = __webpack_require__(234);
 
 // `Math.fscale` method
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {
     return fround(scale(x, inLow, inHigh, outLow, outHigh));
   }
@@ -7346,7 +7332,7 @@ var $ = __webpack_require__(2);
 
 // `Math.RAD_PER_DEG` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   RAD_PER_DEG: 180 / Math.PI
 });
 
@@ -7361,7 +7347,7 @@ var DEG_PER_RAD = Math.PI / 180;
 
 // `Math.radians` method
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   radians: function radians(degrees) {
     return degrees * DEG_PER_RAD;
   }
@@ -7377,7 +7363,7 @@ var scale = __webpack_require__(233);
 
 // `Math.scale` method
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   scale: scale
 });
 
@@ -7390,7 +7376,7 @@ var $ = __webpack_require__(2);
 
 // `Math.signbit` method
 // https://github.com/tc39/proposal-Math.signbit
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   signbit: function signbit(x) {
     return (x = +x) == x && x == 0 ? 1 / x == -Infinity : x < 0;
   }
@@ -7422,7 +7408,7 @@ var stringSlice = uncurryThis(''.slice);
 
 // `Number.fromString` method
 // https://github.com/tc39/proposal-number-fromstring
-$({ target: 'Number', stat: true }, {
+$({ target: 'Number', stat: true, forced: true }, {
   fromString: function fromString(string, radix) {
     var sign = 1;
     var R, mathNum;
@@ -7528,7 +7514,7 @@ var NumericRangeIterator = __webpack_require__(162);
 
 // `Number.range` method
 // https://github.com/tc39/proposal-Number.range
-$({ target: 'Number', stat: true }, {
+$({ target: 'Number', stat: true, forced: true }, {
   range: function range(start, end, option) {
     return new NumericRangeIterator(start, end, option, 'number', 0, 1);
   }
@@ -7581,6 +7567,14 @@ var getObservableInternalState = getterFor(OBSERVABLE);
 var getSubscriptionInternalState = getterFor(SUBSCRIPTION);
 var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 var Array = global.Array;
+var NativeObservable = global.Observable;
+var NativeObservablePrototype = NativeObservable && NativeObservable.prototype;
+
+var FORCED = !isCallable(NativeObservable)
+  || !isCallable(NativeObservable.from)
+  || !isCallable(NativeObservable.of)
+  || !isCallable(NativeObservablePrototype.subscribe)
+  || !isCallable(NativeObservablePrototype[$$OBSERVABLE]);
 
 var SubscriptionState = function (observer) {
   this.observer = anObject(observer);
@@ -7768,7 +7762,7 @@ redefineAll($Observable, {
 
 redefine(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
-$({ global: true }, {
+$({ global: true, forced: FORCED }, {
   Observable: $Observable
 });
 
@@ -7801,7 +7795,7 @@ var perform = __webpack_require__(96);
 
 // `Promise.try` method
 // https://github.com/tc39/proposal-promise-try
-$({ target: 'Promise', stat: true }, {
+$({ target: 'Promise', stat: true, forced: true }, {
   'try': function (callbackfn) {
     var promiseCapability = newPromiseCapabilityModule.f(this);
     var result = perform(callbackfn);
@@ -8111,12 +8105,11 @@ $({ target: 'Reflect', stat: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var addAll = __webpack_require__(260);
 
 // `Set.prototype.addAll` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   addAll: addAll
 });
 
@@ -8149,12 +8142,11 @@ module.exports = function addAll(/* ...elements */) {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var deleteAll = __webpack_require__(204);
 
 // `Set.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   deleteAll: deleteAll
 });
 
@@ -8165,7 +8157,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var call = __webpack_require__(7);
@@ -8176,7 +8167,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.difference` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   difference: function difference(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
@@ -8196,7 +8187,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getSetIterator = __webpack_require__(264);
@@ -8204,7 +8194,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.every` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   every: function every(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8234,7 +8224,6 @@ module.exports = function (it) {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var call = __webpack_require__(7);
@@ -8247,7 +8236,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.filter` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   filter: function filter(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8269,7 +8258,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getSetIterator = __webpack_require__(264);
@@ -8277,7 +8265,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.find` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   find: function find(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8298,7 +8286,7 @@ var from = __webpack_require__(215);
 
 // `Set.from` method
 // https://tc39.github.io/proposal-setmap-offrom/#sec-set.from
-$({ target: 'Set', stat: true }, {
+$({ target: 'Set', stat: true, forced: true }, {
   from: from
 });
 
@@ -8309,7 +8297,6 @@ $({ target: 'Set', stat: true }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var call = __webpack_require__(7);
@@ -8320,7 +8307,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.intersection` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   intersection: function intersection(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();
@@ -8340,7 +8327,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var call = __webpack_require__(7);
 var aCallable = __webpack_require__(28);
@@ -8349,7 +8335,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.isDisjointFrom` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isDisjointFrom
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   isDisjointFrom: function isDisjointFrom(iterable) {
     var set = anObject(this);
     var hasCheck = aCallable(set.has);
@@ -8366,7 +8352,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var call = __webpack_require__(7);
@@ -8378,7 +8363,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.isSubsetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSubsetOf
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   isSubsetOf: function isSubsetOf(iterable) {
     var iterator = getIterator(this);
     var otherSet = anObject(iterable);
@@ -8400,7 +8385,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var call = __webpack_require__(7);
 var aCallable = __webpack_require__(28);
@@ -8409,7 +8393,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.isSupersetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSupersetOf
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   isSupersetOf: function isSupersetOf(iterable) {
     var set = anObject(this);
     var hasCheck = aCallable(set.has);
@@ -8426,7 +8410,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var uncurryThis = __webpack_require__(13);
 var anObject = __webpack_require__(44);
@@ -8439,7 +8422,7 @@ var push = [].push;
 
 // `Set.prototype.join` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   join: function join(separator) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8457,7 +8440,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var bind = __webpack_require__(84);
@@ -8470,7 +8452,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.map` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   map: function map(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8494,7 +8476,7 @@ var of = __webpack_require__(225);
 
 // `Set.of` method
 // https://tc39.github.io/proposal-setmap-offrom/#sec-set.of
-$({ target: 'Set', stat: true }, {
+$({ target: 'Set', stat: true, forced: true }, {
   of: of
 });
 
@@ -8507,7 +8489,6 @@ $({ target: 'Set', stat: true }, {
 
 var $ = __webpack_require__(2);
 var global = __webpack_require__(3);
-var IS_PURE = __webpack_require__(33);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
 var getSetIterator = __webpack_require__(264);
@@ -8517,7 +8498,7 @@ var TypeError = global.TypeError;
 
 // `Set.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   reduce: function reduce(callbackfn /* , initialValue */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8545,7 +8526,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var anObject = __webpack_require__(44);
 var bind = __webpack_require__(84);
 var getSetIterator = __webpack_require__(264);
@@ -8553,7 +8533,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.some` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   some: function some(callbackfn /* , thisArg */) {
     var set = anObject(this);
     var iterator = getSetIterator(set);
@@ -8571,7 +8551,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 
 "use strict";
 
-var IS_PURE = __webpack_require__(33);
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(21);
 var call = __webpack_require__(7);
@@ -8582,7 +8561,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.symmetricDifference` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   symmetricDifference: function symmetricDifference(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
@@ -8603,7 +8582,6 @@ $({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
 var getBuiltIn = __webpack_require__(21);
 var aCallable = __webpack_require__(28);
 var anObject = __webpack_require__(44);
@@ -8612,7 +8590,7 @@ var iterate = __webpack_require__(83);
 
 // `Set.prototype.union` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Set', proto: true, real: true, forced: true }, {
   union: function union(iterable) {
     var set = anObject(this);
     var newSet = new (speciesConstructor(set, getBuiltIn('Set')))(set);
@@ -8640,7 +8618,7 @@ var join = uncurryThis(ArrayPrototype.join);
 
 // `String.cooked` method
 // https://github.com/tc39/proposal-string-cooked
-$({ target: 'String', stat: true }, {
+$({ target: 'String', stat: true, forced: true }, {
   cooked: function cooked(template /* , ...substitutions */) {
     var cookedTemplate = toIndexedObject(template);
     var literalSegments = lengthOfArrayLike(cookedTemplate);
@@ -8697,7 +8675,7 @@ var $StringIterator = createIteratorConstructor(function StringIterator(string) 
 
 // `String.prototype.codePoints` method
 // https://github.com/tc39/proposal-string-prototype-codepoints
-$({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true, forced: true }, {
   codePoints: function codePoints() {
     return new $StringIterator(toString(requireObjectCoercible(this)));
   }
@@ -8846,7 +8824,6 @@ defineWellKnownSymbol('observable');
 var getBuiltIn = __webpack_require__(21);
 var aConstructor = __webpack_require__(211);
 var arrayFromAsync = __webpack_require__(111);
-var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = __webpack_require__(291);
 var ArrayBufferViewCore = __webpack_require__(105);
 var arrayFromConstructorAndList = __webpack_require__(130);
 
@@ -8866,39 +8843,11 @@ exportTypedArrayStaticMethod('fromAsync', function fromAsync(asyncItems /* , map
   }).then(function (list) {
     return arrayFromConstructorAndList(aTypedArrayConstructor(C), list);
   });
-}, TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS);
+}, true);
 
 
 /***/ }),
 /* 291 */
-/***/ (function(module, exports, __webpack_require__) {
-
-/* eslint-disable no-new -- required for testing */
-var global = __webpack_require__(3);
-var fails = __webpack_require__(6);
-var checkCorrectnessOfIteration = __webpack_require__(176);
-var NATIVE_ARRAY_BUFFER_VIEWS = __webpack_require__(105).NATIVE_ARRAY_BUFFER_VIEWS;
-
-var ArrayBuffer = global.ArrayBuffer;
-var Int8Array = global.Int8Array;
-
-module.exports = !NATIVE_ARRAY_BUFFER_VIEWS || !fails(function () {
-  Int8Array(1);
-}) || !fails(function () {
-  new Int8Array(-1);
-}) || !checkCorrectnessOfIteration(function (iterable) {
-  new Int8Array();
-  new Int8Array(null);
-  new Int8Array(1.5);
-  new Int8Array(iterable);
-}, true) || fails(function () {
-  // Safari (11+) bug - a reason why even Safari 13 should load a typed array polyfill
-  return new Int8Array(new ArrayBuffer(2), 1, undefined).length !== 1;
-});
-
-
-/***/ }),
-/* 292 */
 /***/ (function(module, exports, __webpack_require__) {
 
 // TODO: Remove from `core-js@4`
@@ -8906,14 +8855,14 @@ __webpack_require__(104);
 
 
 /***/ }),
-/* 293 */
+/* 292 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var ArrayBufferViewCore = __webpack_require__(105);
 var $filterReject = __webpack_require__(121).filterReject;
-var fromSpeciesAndList = __webpack_require__(294);
+var fromSpeciesAndList = __webpack_require__(293);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
@@ -8923,15 +8872,15 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 exportTypedArrayMethod('filterReject', function filterReject(callbackfn /* , thisArg */) {
   var list = $filterReject(aTypedArray(this), callbackfn, arguments.length > 1 ? arguments[1] : undefined);
   return fromSpeciesAndList(this, list);
-});
+}, true);
 
 
 /***/ }),
-/* 294 */
+/* 293 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var arrayFromConstructorAndList = __webpack_require__(130);
-var typedArraySpeciesConstructor = __webpack_require__(295);
+var typedArraySpeciesConstructor = __webpack_require__(294);
 
 module.exports = function (instance, list) {
   return arrayFromConstructorAndList(typedArraySpeciesConstructor(instance), list);
@@ -8939,7 +8888,7 @@ module.exports = function (instance, list) {
 
 
 /***/ }),
-/* 295 */
+/* 294 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var ArrayBufferViewCore = __webpack_require__(105);
@@ -8956,7 +8905,7 @@ module.exports = function (originalArray) {
 
 
 /***/ }),
-/* 296 */
+/* 295 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8975,7 +8924,7 @@ exportTypedArrayMethod('findLast', function findLast(predicate /* , thisArg */) 
 
 
 /***/ }),
-/* 297 */
+/* 296 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8994,7 +8943,7 @@ exportTypedArrayMethod('findLastIndex', function findLastIndex(predicate /* , th
 
 
 /***/ }),
-/* 298 */
+/* 297 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9002,7 +8951,7 @@ exportTypedArrayMethod('findLastIndex', function findLastIndex(predicate /* , th
 // TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = __webpack_require__(105);
 var $groupBy = __webpack_require__(129);
-var typedArraySpeciesConstructor = __webpack_require__(295);
+var typedArraySpeciesConstructor = __webpack_require__(294);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
@@ -9012,11 +8961,11 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 exportTypedArrayMethod('groupBy', function groupBy(callbackfn /* , thisArg */) {
   var thisArg = arguments.length > 1 ? arguments[1] : undefined;
   return $groupBy(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
-});
+}, true);
 
 
 /***/ }),
-/* 299 */
+/* 298 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9032,11 +8981,11 @@ var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toReversed
 exportTypedArrayMethod('toReversed', function toReversed() {
   return arrayToReversed(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR]);
-});
+}, true);
 
 
 /***/ }),
-/* 300 */
+/* 299 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9058,11 +9007,11 @@ exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   var O = aTypedArray(this);
   var A = arrayFromConstructorAndList(O[TYPED_ARRAY_CONSTRUCTOR], O);
   return sort(A, compareFn);
-});
+}, true);
 
 
 /***/ }),
-/* 301 */
+/* 300 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9080,11 +9029,11 @@ var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 // eslint-disable-next-line no-unused-vars -- required for .length
 exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , ...items */) {
   return arrayToSpliced(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR], arraySlice(arguments));
-});
+}, true);
 
 
 /***/ }),
-/* 302 */
+/* 301 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9092,7 +9041,7 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
 var uncurryThis = __webpack_require__(13);
 var ArrayBufferViewCore = __webpack_require__(105);
 var $arrayUniqueBy = __webpack_require__(142);
-var fromSpeciesAndList = __webpack_require__(294);
+var fromSpeciesAndList = __webpack_require__(293);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
@@ -9102,11 +9051,11 @@ var arrayUniqueBy = uncurryThis($arrayUniqueBy);
 // https://github.com/tc39/proposal-array-unique
 exportTypedArrayMethod('uniqueBy', function uniqueBy(resolver) {
   return fromSpeciesAndList(this, arrayUniqueBy(aTypedArray(this), resolver));
-});
+}, true);
 
 
 /***/ }),
-/* 303 */
+/* 302 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9122,23 +9071,36 @@ var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.with
 exportTypedArrayMethod('with', { 'with': function (index, value) {
   return arrayWith(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR], index, value);
-} }['with']);
+} }['with'], true);
+
+
+/***/ }),
+/* 303 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var $ = __webpack_require__(2);
+var deleteAll = __webpack_require__(204);
+
+// `WeakMap.prototype.deleteAll` method
+// https://github.com/tc39/proposal-collection-methods
+$({ target: 'WeakMap', proto: true, real: true, forced: true }, {
+  deleteAll: deleteAll
+});
 
 
 /***/ }),
 /* 304 */
 /***/ (function(module, exports, __webpack_require__) {
 
-"use strict";
-
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
-var deleteAll = __webpack_require__(204);
+var from = __webpack_require__(215);
 
-// `WeakMap.prototype.deleteAll` method
-// https://github.com/tc39/proposal-collection-methods
-$({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
-  deleteAll: deleteAll
+// `WeakMap.from` method
+// https://tc39.github.io/proposal-setmap-offrom/#sec-weakmap.from
+$({ target: 'WeakMap', stat: true, forced: true }, {
+  from: from
 });
 
 
@@ -9147,12 +9109,12 @@ $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
 /***/ (function(module, exports, __webpack_require__) {
 
 var $ = __webpack_require__(2);
-var from = __webpack_require__(215);
+var of = __webpack_require__(225);
 
-// `WeakMap.from` method
-// https://tc39.github.io/proposal-setmap-offrom/#sec-weakmap.from
-$({ target: 'WeakMap', stat: true }, {
-  from: from
+// `WeakMap.of` method
+// https://tc39.github.io/proposal-setmap-offrom/#sec-weakmap.of
+$({ target: 'WeakMap', stat: true, forced: true }, {
+  of: of
 });
 
 
@@ -9160,13 +9122,15 @@ $({ target: 'WeakMap', stat: true }, {
 /* 306 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var $ = __webpack_require__(2);
-var of = __webpack_require__(225);
+"use strict";
 
-// `WeakMap.of` method
-// https://tc39.github.io/proposal-setmap-offrom/#sec-weakmap.of
-$({ target: 'WeakMap', stat: true }, {
-  of: of
+var $ = __webpack_require__(2);
+var emplace = __webpack_require__(206);
+
+// `WeakMap.prototype.emplace` method
+// https://github.com/tc39/proposal-upsert
+$({ target: 'WeakMap', proto: true, real: true, forced: true }, {
+  emplace: emplace
 });
 
 
@@ -9177,13 +9141,12 @@ $({ target: 'WeakMap', stat: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
-var emplace = __webpack_require__(206);
+var addAll = __webpack_require__(260);
 
-// `WeakMap.prototype.emplace` method
-// https://github.com/tc39/proposal-upsert
-$({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
-  emplace: emplace
+// `WeakSet.prototype.addAll` method
+// https://github.com/tc39/proposal-collection-methods
+$({ target: 'WeakSet', proto: true, real: true, forced: true }, {
+  addAll: addAll
 });
 
 
@@ -9194,13 +9157,12 @@ $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
 "use strict";
 
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
-var addAll = __webpack_require__(260);
+var deleteAll = __webpack_require__(204);
 
-// `WeakSet.prototype.addAll` method
+// `WeakSet.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'WeakSet', proto: true, real: true, forced: IS_PURE }, {
-  addAll: addAll
+$({ target: 'WeakSet', proto: true, real: true, forced: true }, {
+  deleteAll: deleteAll
 });
 
 
@@ -9208,16 +9170,13 @@ $({ target: 'WeakSet', proto: true, real: true, forced: IS_PURE }, {
 /* 309 */
 /***/ (function(module, exports, __webpack_require__) {
 
-"use strict";
-
 var $ = __webpack_require__(2);
-var IS_PURE = __webpack_require__(33);
-var deleteAll = __webpack_require__(204);
+var from = __webpack_require__(215);
 
-// `WeakSet.prototype.deleteAll` method
-// https://github.com/tc39/proposal-collection-methods
-$({ target: 'WeakSet', proto: true, real: true, forced: IS_PURE }, {
-  deleteAll: deleteAll
+// `WeakSet.from` method
+// https://tc39.github.io/proposal-setmap-offrom/#sec-weakset.from
+$({ target: 'WeakSet', stat: true, forced: true }, {
+  from: from
 });
 
 
@@ -9226,12 +9185,12 @@ $({ target: 'WeakSet', proto: true, real: true, forced: IS_PURE }, {
 /***/ (function(module, exports, __webpack_require__) {
 
 var $ = __webpack_require__(2);
-var from = __webpack_require__(215);
+var of = __webpack_require__(225);
 
-// `WeakSet.from` method
-// https://tc39.github.io/proposal-setmap-offrom/#sec-weakset.from
-$({ target: 'WeakSet', stat: true }, {
-  from: from
+// `WeakSet.of` method
+// https://tc39.github.io/proposal-setmap-offrom/#sec-weakset.of
+$({ target: 'WeakSet', stat: true, forced: true }, {
+  of: of
 });
 
 
@@ -9239,24 +9198,10 @@ $({ target: 'WeakSet', stat: true }, {
 /* 311 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var $ = __webpack_require__(2);
-var of = __webpack_require__(225);
-
-// `WeakSet.of` method
-// https://tc39.github.io/proposal-setmap-offrom/#sec-weakset.of
-$({ target: 'WeakSet', stat: true }, {
-  of: of
-});
-
-
-/***/ }),
-/* 312 */
-/***/ (function(module, exports, __webpack_require__) {
-
 "use strict";
 
 var $ = __webpack_require__(2);
-var tryNodeRequire = __webpack_require__(313);
+var tryNodeRequire = __webpack_require__(312);
 var getBuiltIn = __webpack_require__(21);
 var fails = __webpack_require__(6);
 var create = __webpack_require__(79);
@@ -9267,9 +9212,9 @@ var redefine = __webpack_require__(45);
 var hasOwn = __webpack_require__(36);
 var anInstance = __webpack_require__(146);
 var anObject = __webpack_require__(44);
-var errorToString = __webpack_require__(315);
+var errorToString = __webpack_require__(314);
 var normalizeStringArgument = __webpack_require__(69);
-var DOMExceptionConstants = __webpack_require__(316);
+var DOMExceptionConstants = __webpack_require__(315);
 var clearErrorStack = __webpack_require__(74);
 var InternalStateModule = __webpack_require__(47);
 var DESCRIPTORS = __webpack_require__(5);
@@ -9398,10 +9343,10 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
 
 
 /***/ }),
-/* 313 */
+/* 312 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var IS_NODE = __webpack_require__(314);
+var IS_NODE = __webpack_require__(313);
 
 module.exports = function (name) {
   try {
@@ -9412,7 +9357,7 @@ module.exports = function (name) {
 
 
 /***/ }),
-/* 314 */
+/* 313 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var classof = __webpack_require__(14);
@@ -9422,7 +9367,7 @@ module.exports = classof(global.process) == 'process';
 
 
 /***/ }),
-/* 315 */
+/* 314 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9459,7 +9404,7 @@ module.exports = INCORRECT_TO_STRING ? function toString() {
 
 
 /***/ }),
-/* 316 */
+/* 315 */
 /***/ (function(module, exports) {
 
 module.exports = {
@@ -9492,7 +9437,7 @@ module.exports = {
 
 
 /***/ }),
-/* 317 */
+/* 316 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9505,7 +9450,7 @@ var hasOwn = __webpack_require__(36);
 var anInstance = __webpack_require__(146);
 var inheritIfRequired = __webpack_require__(68);
 var normalizeStringArgument = __webpack_require__(69);
-var DOMExceptionConstants = __webpack_require__(316);
+var DOMExceptionConstants = __webpack_require__(315);
 var clearErrorStack = __webpack_require__(74);
 var IS_PURE = __webpack_require__(33);
 
@@ -9557,7 +9502,7 @@ if (PolyfilledDOMExceptionPrototype.constructor !== PolyfilledDOMException) {
 
 
 /***/ }),
-/* 318 */
+/* 317 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var getBuiltIn = __webpack_require__(21);
@@ -9569,12 +9514,12 @@ setToStringTag(getBuiltIn(DOM_EXCEPTION), DOM_EXCEPTION);
 
 
 /***/ }),
-/* 319 */
+/* 318 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var $ = __webpack_require__(2);
 var global = __webpack_require__(3);
-var task = __webpack_require__(320);
+var task = __webpack_require__(319);
 
 var FORCED = !global.setImmediate || !global.clearImmediate;
 
@@ -9590,7 +9535,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
 
 
 /***/ }),
-/* 320 */
+/* 319 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var global = __webpack_require__(3);
@@ -9602,8 +9547,9 @@ var fails = __webpack_require__(6);
 var html = __webpack_require__(82);
 var arraySlice = __webpack_require__(139);
 var createElement = __webpack_require__(40);
+var validateArgumentsLength = __webpack_require__(320);
 var IS_IOS = __webpack_require__(321);
-var IS_NODE = __webpack_require__(314);
+var IS_NODE = __webpack_require__(313);
 
 var set = global.setImmediate;
 var clear = global.clearImmediate;
@@ -9647,10 +9593,12 @@ var post = function (id) {
 
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
 if (!set || !clear) {
-  set = function setImmediate(fn) {
+  set = function setImmediate(handler) {
+    validateArgumentsLength(arguments.length, 1);
+    var fn = isCallable(handler) ? handler : Function(handler);
     var args = arraySlice(arguments, 1);
     queue[++counter] = function () {
-      apply(isCallable(fn) ? fn : Function(fn), undefined, args);
+      apply(fn, undefined, args);
     };
     defer(counter);
     return counter;
@@ -9709,6 +9657,20 @@ module.exports = {
 
 
 /***/ }),
+/* 320 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var global = __webpack_require__(3);
+
+var TypeError = global.TypeError;
+
+module.exports = function (passed, required) {
+  if (passed < required) throw TypeError('Not enough arguments');
+  return passed;
+};
+
+
+/***/ }),
 /* 321 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -9739,7 +9701,7 @@ var hasOwn = __webpack_require__(36);
 var createProperty = __webpack_require__(172);
 var createNonEnumerableProperty = __webpack_require__(41);
 var lengthOfArrayLike = __webpack_require__(59);
-var validateArgumentsLength = __webpack_require__(323);
+var validateArgumentsLength = __webpack_require__(320);
 var regExpFlags = __webpack_require__(102);
 var ERROR_STACK_INSTALLABLE = __webpack_require__(75);
 
@@ -10183,20 +10145,6 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
     return structuredCloneInternal(value, map);
   }
 });
-
-
-/***/ }),
-/* 323 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var global = __webpack_require__(3);
-
-var TypeError = global.TypeError;
-
-module.exports = function (passed, required) {
-  if (passed < required) throw TypeError('Not enough arguments');
-  return passed;
-};
 
 
 /***/ })
