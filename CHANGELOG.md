@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Electron 18.0 compat data mapping
 
 ##### 3.21.0 - 2022.02.02
 - Added [Base64 utility methods](https://developer.mozilla.org/en-US/docs/Glossary/Base64):
