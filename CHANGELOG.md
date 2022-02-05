@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- `atob` / `btoa` marked as [fixed](https://github.com/nodejs/node/pull/41478) in NodeJS 17.5
 - Added Electron 18.0 compat data mapping
 
 ##### 3.21.0 - 2022.02.02

@@ -1824,7 +1824,7 @@ export const data = {
     edge: '13',
     firefox: '27',
     // https://github.com/nodejs/node/issues/41450
-    // node: '16.0',
+    node: '17.5', // '16.0',
     opera: '10.5',
     safari: '10.1',
   },
@@ -1834,7 +1834,7 @@ export const data = {
     firefox: '1',
     ie: '10',
     // https://github.com/nodejs/node/issues/41450
-    // node: '16.0',
+    node: '17.5', // '16.0',
     opera: '10.5',
     safari: '3.0',
   },
