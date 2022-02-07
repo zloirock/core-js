@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added a [bug](https://bugs.webkit.org/show_bug.cgi?id=236541)fix for the WebKit `Array.prototype.{ groupBy, groupByToMap }` implementation
+- `core-js-compat` targets parser transforms engine names to lower case
 - `atob` / `btoa` marked as [fixed](https://github.com/nodejs/node/pull/41478) in NodeJS 17.5
 - Added Electron 18.0 compat data mapping
 - Added Deno 1.20 compat data mapping

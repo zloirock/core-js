@@ -29,12 +29,17 @@ const validTargets = new Set([
   'samsung',
 ]);
 
-module.exports = function (targets) {
-  if (typeof targets != 'object' || Array.isArray(targets)) {
-    targets = { browsers: targets };
-  }
+const toLowerKeys = function (object) {
+  return Object.entries(object).reduce((accumulator, [key, value]) => {
+    accumulator[key.toLowerCase()] = value;
+    return accumulator;
+  }, {});
+};
 
-  const { browsers, esmodules, node, ...rest } = targets;
+module.exports = function (targets) {
+  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))
+    ? { browsers: targets } : toLowerKeys(targets);
+
   const list = Object.entries(rest);
 
   if (browsers) {
