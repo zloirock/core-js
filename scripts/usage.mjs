@@ -1,62 +1,65 @@
 import puppeteer from 'puppeteer';
 import pTimeout from 'p-timeout';
+import jszip from 'jszip';
 
 const { cyan, green, gray, red } = chalk;
-const msie = 'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko';
+const agents = [
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.80 Safari/537.36',
+  'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko',
+];
+const protocols = ['http', 'https'];
 const limit = argv.l || 100;
 const attempts = new Map();
-let sites = [];
 let tested = 0;
 let withCoreJS = 0;
 
-// parse Alexa rank
-for (let i = 1, top = Math.ceil(limit / 1e3); i <= top; i++) {
-  const response = await fetch(`https://stuffgate.com/stuff/website/top-${ i }000-sites`);
-  const html = await response.text();
-  const [, table] = html.match(/Analyze<\/th><\/tr><\/thead><tbody><tr>(.+)<\/tr><\/tbody><\/table><\/div>/s);
-  sites.push(...Array.from(table.matchAll(/<a href=["']([^"']+)["'] target='_blank'>/g), match => match[1]));
-}
-
-sites = sites.slice(0, Math.min(limit, sites.length)).reverse();
+// get Alexa rank
+const response = await fetch('http://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
+const archive = await jszip.loadAsync(await response.arrayBuffer());
+const file = await archive.file('top-1m.csv').async('string');
+const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
 
 // run in parallel
 await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => {
-  let browser, page, site, name;
+  let browser, site;
 
-  async function check(ua) {
-    await page.setUserAgent(ua);
-    await page.goto(site);
-    // seems js hangs on some sites, so added a time limit
-    const { core, vm, vl } = await pTimeout(page.evaluate(`({
-      core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
-      vm: window['__core-js_shared__']?.versions,
-      vl: window.core?.version,
-    })`), 1e4);
-    const versions = vm ? vm.map(({ version, mode }) => `${ version } (${ mode } mode)`) : vl ? [vl] : [];
-    return { core, versions };
+  async function check() {
+    let errors = 0;
+    for (const protocol of protocols) for (const agent of agents) try {
+      const page = await browser.newPage();
+      page.setDefaultNavigationTimeout(12e4);
+      await page.setUserAgent(agent);
+      await page.goto(`${ protocol }://${ site }`);
+
+      // seems js hangs on some sites, so added a time limit
+      const { core, modern, legacy } = await pTimeout(page.evaluate(`({
+        core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
+        modern: window['__core-js_shared__']?.versions,
+        legacy: window.core?.version,
+      })`), 1e4);
+      const versions = modern ? modern.map(({ version, mode }) => `${ version } (${ mode } mode)`) : legacy ? [legacy] : [];
+
+      await page.close();
+
+      if (core) return { core, versions };
+    } catch (error) {
+      if (++errors === 4) throw error;
+    } return {};
   }
 
-  while (sites.length) try {
-    site = sites.pop();
-    name = site.replace(/^https?:\/\//, '');
+  while (site = sites.pop()) try {
     // restart browser each some pages for prevent possible `puppeteer` crash and memory leaks
-    if (!(i++ % 16) || !browser) {
+    if (!(i++ % 8) || !browser) {
       if (browser) await browser.close();
       browser = await puppeteer.launch();
     }
-    page = await browser.newPage();
-    page.setDefaultNavigationTimeout(12e4);
 
-    let { core, versions } = await check((await browser.userAgent()).replaceAll('Headless', ''));
-    // double check, try with another UA
-    if (!core) ({ core, versions } = await check(msie));
-
-    await page.close();
+    const { core, versions } = await check();
 
     tested++;
     if (core) withCoreJS++;
 
-    console.log(`${ cyan(`${ name }:`) } ${ core
+    console.log(`${ cyan(`${ site }:`) } ${ core
       ? green(`\`core-js\` is detected, ${ versions.length > 1
         ? `${ cyan(versions.length) } versions: ${ cyan(versions.join(', ')) }`
         : `version ${ cyan(versions[0]) }` }`)
@@ -65,7 +68,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
     const attempting = (attempts.get(site) | 0) + 1;
     attempts.set(site, attempting);
     if (attempting < 4) sites.push(site);
-    else console.log(red(`${ cyan(`${ name }:`) } problems with access`));
+    else console.log(red(`${ cyan(`${ site }:`) } problems with access`));
     await sleep(3e3);
   }
 
