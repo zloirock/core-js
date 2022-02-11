@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 import pTimeout from 'p-timeout';
 import jszip from 'jszip';
 
@@ -20,15 +20,14 @@ const file = await archive.file('top-1m.csv').async('string');
 const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
 
 // run in parallel
-await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => {
+await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async () => {
   let browser, site;
 
   async function check() {
     let errors = 0;
-    for (const protocol of protocols) for (const agent of agents) try {
-      const page = await browser.newPage();
-      page.setDefaultNavigationTimeout(12e4);
-      await page.setUserAgent(agent);
+    for (const protocol of protocols) for (const userAgent of agents) try {
+      const page = await browser.newPage({ userAgent });
+      page.setDefaultNavigationTimeout(6e4);
       await page.goto(`${ protocol }://${ site }`);
 
       // seems js hangs on some sites, so added a time limit
@@ -48,11 +47,8 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
   }
 
   while (site = sites.pop()) try {
-    // restart browser each some pages for prevent possible `puppeteer` crash and memory leaks
-    if (!(i++ % 8) || !browser) {
-      if (browser) await browser.close();
-      browser = await puppeteer.launch();
-    }
+    if (browser) await browser.close();
+    browser = await chromium.launch();
 
     const { core, versions } = await check();
 
@@ -67,7 +63,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
   } catch {
     const attempting = (attempts.get(site) | 0) + 1;
     attempts.set(site, attempting);
-    if (attempting < 4) sites.push(site);
+    if (attempting < 3) sites.push(site);
     else console.log(red(`${ cyan(`${ site }:`) } problems with access`));
     await sleep(3e3);
   }
