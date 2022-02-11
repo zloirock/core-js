@@ -8,23 +8,24 @@ async function getStat(pkg) {
 }
 
 const { cyan, green } = chalk;
-const PURE = !argv['main-only'];
+const ALL = !argv['main-only'];
 const core = await getStat('core-js');
-const pure = PURE && await getStat('core-js-pure');
+const pure = ALL && await getStat('core-js-pure');
+const bundle = ALL && await getStat('core-js-bundle');
 const downloadsByPatch = {};
 const downloadsByMinor = {};
 const downloadsByMajor = {};
 let total = 0;
 
-for (const [patch, downloadsMain] of Object.entries(core)) {
-  const downloadsPure = PURE && pure[patch] || 0;
+for (let [patch, downloads] of Object.entries(core)) {
   const semver = coerce(patch);
   const { major } = semver;
   const minor = `${ major }.${ semver.minor }`;
-  downloadsByPatch[patch] = downloadsMain + downloadsPure;
-  downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloadsMain + downloadsPure;
-  downloadsByMajor[major] = (downloadsByMajor[major] || 0) + downloadsMain + downloadsPure;
-  total += downloadsMain + downloadsPure;
+  if (ALL) downloads += (pure[patch] || 0) + (bundle[patch] || 0);
+  downloadsByPatch[patch] = downloads;
+  downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloads;
+  downloadsByMajor[major] = (downloadsByMajor[major] || 0) + downloads;
+  total += downloads;
 }
 
 function log(kind, map) {
