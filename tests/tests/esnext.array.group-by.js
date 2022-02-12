@@ -27,8 +27,8 @@ QUnit.test('Array#groupBy', assert => {
   );
   assert.deepEqual(Array(3).groupBy(it => it), { undefined: [undefined, undefined, undefined] }, '#3');
   if (STRICT) {
-    assert.throws(() => groupBy.call(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => groupBy.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => groupBy.call(null, () => { /* empty */ }), TypeError, 'null this -> TypeError');
+    assert.throws(() => groupBy.call(undefined, () => { /* empty */ }), TypeError, 'undefined this -> TypeError');
   }
   array = [1];
   // eslint-disable-next-line object-shorthand -- constructor

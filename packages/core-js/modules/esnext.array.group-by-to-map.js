@@ -6,6 +6,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var arrayMethodIsStrict = require('../internals/array-method-is-strict');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
 var Map = getBuiltIn('Map');
@@ -17,7 +18,8 @@ var push = uncurryThis([].push);
 
 // `Array.prototype.groupByToMap` method
 // https://github.com/tc39/proposal-array-grouping
-$({ target: 'Array', proto: true }, {
+// https://bugs.webkit.org/show_bug.cgi?id=236541
+$({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupByToMap') }, {
   groupByToMap: function groupByToMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
     var self = IndexedObject(O);

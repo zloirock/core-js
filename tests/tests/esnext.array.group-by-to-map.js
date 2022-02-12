@@ -27,8 +27,8 @@ QUnit.test('Array#groupByToMap', assert => {
   );
   assert.deepEqual(from(Array(3).groupByToMap(it => it)), [[undefined, [undefined, undefined, undefined]]], '#3');
   if (STRICT) {
-    assert.throws(() => groupByToMap.call(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => groupByToMap.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => groupByToMap.call(null, () => { /* empty */ }), TypeError, 'null this -> TypeError');
+    assert.throws(() => groupByToMap.call(undefined, () => { /* empty */ }), TypeError, 'undefined this -> TypeError');
   }
   array = [1];
   // eslint-disable-next-line object-shorthand -- constructor

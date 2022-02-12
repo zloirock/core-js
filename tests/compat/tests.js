@@ -1275,10 +1275,20 @@ GLOBAL.tests = {
     return [].findLastIndex;
   },
   'esnext.array.group-by': function () {
-    return [].groupBy;
+    try {
+      // https://bugs.webkit.org/show_bug.cgi?id=236541
+      Array.prototype.groupBy.call(null, function () { /* empty */ });
+      return false;
+    } catch (error) { /* empty */ }
+    return Array.prototype.groupBy;
   },
   'esnext.array.group-by-to-map': function () {
-    return [].groupByToMap;
+    try {
+      // https://bugs.webkit.org/show_bug.cgi?id=236541
+      Array.prototype.groupByToMap.call(null, function () { /* empty */ });
+      return false;
+    } catch (error) { /* empty */ }
+    return Array.prototype.groupByToMap;
   },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
