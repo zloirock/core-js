@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.21.1 - 2022.02.17
 - Added a [bug](https://bugs.webkit.org/show_bug.cgi?id=236541)fix for the WebKit `Array.prototype.{ groupBy, groupByToMap }` implementation
 - `core-js-compat` targets parser transforms engine names to lower case
 - `atob` / `btoa` marked as [fixed](https://github.com/nodejs/node/pull/41478) in NodeJS 17.5
