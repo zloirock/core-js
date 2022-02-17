@@ -63,7 +63,7 @@ if (!queueMicrotask) {
   // for other environments - macrotask based on:
   // - setImmediate
   // - MessageChannel
-  // - window.postMessag
+  // - window.postMessage
   // - onreadystatechange
   // - setTimeout
   } else {
