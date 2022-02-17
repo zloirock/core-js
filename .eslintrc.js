@@ -464,6 +464,8 @@ const base = {
   'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
   'unicorn/require-post-message-target-origin': ERROR,
+  // enforce consistent case for text encoding identifiers
+  'unicorn/text-encoding-identifier-case': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense
