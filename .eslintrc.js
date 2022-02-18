@@ -482,10 +482,6 @@ const base = {
   'sonarjs/no-gratuitous-expressions': ERROR,
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': ERROR,
-  // boolean checks should not be inverted
-  'sonarjs/no-inverted-boolean-check': ERROR,
-  // loops with at most one iteration should be refactored
-  'sonarjs/no-one-iteration-loop': ERROR,
   // boolean literals should not be redundant
   'sonarjs/no-redundant-boolean': ERROR,
   // jump statements should not be redundant
