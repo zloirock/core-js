@@ -64,7 +64,7 @@
     "promises-es6-tests": "~0.5.0",
     "qunit": "^2.18.0",
     "semver": "^7.3.5",
-    "terser": "^5.10.0",
+    "terser": "^5.11.0",
     "webpack": "^5.69.1",
     "webpack-cli": "^4.9.2",
     "zx": "^5.1.0"
