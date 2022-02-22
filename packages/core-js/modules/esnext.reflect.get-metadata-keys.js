@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var ReflectMetadataModule = require('../internals/reflect-metadata');

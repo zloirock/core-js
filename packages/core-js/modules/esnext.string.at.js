@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var charAt = require('../internals/string-multibyte').charAt;
 var requireObjectCoercible = require('../internals/require-object-coercible');

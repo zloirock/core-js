@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 var uncurryThis = require('../internals/function-uncurry-this');
 var redefine = require('../internals/redefine');
 

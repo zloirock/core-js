@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');

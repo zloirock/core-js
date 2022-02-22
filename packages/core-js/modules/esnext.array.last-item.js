@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var DESCRIPTORS = require('../internals/descriptors');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var toObject = require('../internals/to-object');

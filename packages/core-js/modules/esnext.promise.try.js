@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');

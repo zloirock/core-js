@@ -341,6 +341,7 @@ export const data = {
     safari: '1',
     rhino: '1.7.13',
   },
+  // TODO: Remove from `core-js@4`
   'es.date.now': {
     chrome: '5',
     firefox: '2',
@@ -385,6 +386,7 @@ export const data = {
     firefox: '44',
     safari: '10.0',
   },
+  // TODO: Remove from `core-js@4`
   'es.date.to-string': {
     chrome: '5',
     firefox: '2',
@@ -669,6 +671,7 @@ export const data = {
     firefox: '36',
     safari: '9.0',
   },
+  // TODO: Remove from `core-js@4`
   'es.object.create': {
     chrome: '5',
     firefox: '4',
