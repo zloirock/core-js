@@ -1,7 +1,7 @@
 {
   "version": "3.21.1",
   "devDependencies": {
-    "@babel/cli": "^7.17.3",
+    "@babel/cli": "^7.17.6",
     "@babel/core": "^7.17.5",
     "@babel/plugin-proposal-class-properties": "^7.16.7",
     "@babel/plugin-proposal-logical-assignment-operators": "^7.16.7",
