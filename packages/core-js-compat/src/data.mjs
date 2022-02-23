@@ -862,7 +862,7 @@ export const data = {
     safari: '7.1',
     rhino: '1.7.13',
   },
-  // TODO: remove this module from `core-js@4` since it's split to below modules
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.promise': {
     // V8 6.6 has a serious bug
     chrome: '67', // '51',
@@ -1704,7 +1704,14 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': {
   },
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
+  },
+  'esnext.observable.constructor': {
+  },
+  'esnext.observable.from': {
+  },
+  'esnext.observable.of': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
@@ -1978,5 +1985,8 @@ delete data['es.promise.catch'];
 delete data['es.promise.race'];
 delete data['es.promise.reject'];
 delete data['es.promise.resolve'];
+delete data['esnext.observable.constructor'];
+delete data['esnext.observable.from'];
+delete data['esnext.observable.of'];
 
 export const modules = Object.keys(data);

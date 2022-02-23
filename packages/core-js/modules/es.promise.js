@@ -1,4 +1,4 @@
-// TODO: remove this module from `core-js@4` since it's split to below modules
+// TODO: Remove this module from `core-js@4` since it's split to modules listed below
 require('../modules/es.promise.constructor');
 require('../modules/es.promise.all');
 require('../modules/es.promise.catch');

@@ -10,6 +10,9 @@ const modulesSet = new Set([
   'es.promise.race',
   'es.promise.reject',
   'es.promise.resolve',
+  'esnext.observable.constructor',
+  'esnext.observable.from',
+  'esnext.observable.of',
 ]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([

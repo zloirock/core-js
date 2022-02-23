@@ -819,7 +819,7 @@ GLOBAL.tests = {
         && parseInt(WHITESPACES + '0x16') === 22;
     }
   },
-  // TODO: remove this module from `core-js@4` since it's split to below modules
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.promise': PROMISES_SUPPORT,
   'es.promise.constructor': PROMISES_SUPPORT,
   'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
@@ -1532,8 +1532,18 @@ GLOBAL.tests = {
   'esnext.number.range': function () {
     return Number.range;
   },
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': function () {
     return Observable;
+  },
+  'esnext.observable.constructor': function () {
+    return Observable;
+  },
+  'esnext.observable.from': function () {
+    return Observable.from;
+  },
+  'esnext.observable.of': function () {
+    return Observable.of;
   },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;

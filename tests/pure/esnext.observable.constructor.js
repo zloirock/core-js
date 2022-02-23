@@ -1,10 +1,11 @@
 import { STRICT } from '../helpers/constants';
 
+import Symbol from 'core-js-pure/features/symbol';
+import Observable from 'core-js-pure/features/observable';
+
 QUnit.test('Observable', assert => {
   assert.isFunction(Observable);
   assert.arity(Observable, 1);
-  assert.name(Observable, 'Observable');
-  assert.looksNative(Observable);
   assert.throws(() => Observable(() => { /* empty */ }), 'throws w/o `new`');
   const observable = new Observable(function (subscriptionObserver) {
     assert.same(typeof subscriptionObserver, 'object', 'Subscription observer is object');
@@ -27,8 +28,6 @@ QUnit.test('Observable', assert => {
 QUnit.test('Observable#subscribe', assert => {
   assert.isFunction(Observable.prototype.subscribe);
   assert.arity(Observable.prototype.subscribe, 1);
-  assert.name(Observable.prototype.subscribe, 'subscribe');
-  assert.looksNative(Observable.prototype.subscribe);
   const subscription = new Observable(() => { /* empty */ }).subscribe({});
   assert.same(typeof subscription, 'object', 'Subscription is object');
   assert.same(subscription.constructor, Object);
@@ -44,18 +43,4 @@ QUnit.test('Observable#@@observable', assert => {
   assert.isFunction(Observable.prototype[Symbol.observable]);
   const observable = new Observable(() => { /* empty*/ });
   assert.same(observable[Symbol.observable](), observable);
-});
-
-QUnit.test('Observable.of', assert => {
-  assert.isFunction(Observable.of);
-  assert.arity(Observable.of, 0);
-  assert.name(Observable.of, 'of');
-  assert.looksNative(Observable.of);
-});
-
-QUnit.test('Observable.from', assert => {
-  assert.isFunction(Observable.from);
-  assert.arity(Observable.from, 1);
-  assert.name(Observable.from, 'from');
-  assert.looksNative(Observable.from);
 });

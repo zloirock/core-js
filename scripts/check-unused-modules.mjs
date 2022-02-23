@@ -23,6 +23,9 @@ const definedModules = new Set([
   'es.promise.reject',
   'es.promise.resolve',
   'esnext.string.at-alternative',
+  'esnext.observable.constructor',
+  'esnext.observable.from',
+  'esnext.observable.of',
 ]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
