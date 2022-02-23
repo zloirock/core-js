@@ -1,7 +1,16 @@
 import { modules } from 'core-js-compat/src/data.mjs';
 import '../tests/compat/tests.js';
 
-const modulesSet = new Set(modules);
+const modulesSet = new Set([
+  ...modules,
+  // TODO: drop this special cases from core-js@4
+  'es.promise.constructor',
+  'es.promise.all',
+  'es.promise.catch',
+  'es.promise.race',
+  'es.promise.reject',
+  'es.promise.resolve',
+]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([
   'esnext.array.filter-out',

@@ -1,7 +1,6 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { ok } from 'assert';
 import { join } from 'path';
-const compat = require('core-js-compat/data');
 const entries = require('core-js-compat/entries');
 
 const expected = new Set(Object.keys(entries));
@@ -878,7 +877,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('web/url-search-params'));
   ok(load('web'));
 
-  for (const key in compat) load('modules', key);
+  for (const key in entries) {
+    if (key.startsWith('core-js/modules/')) {
+      load('modules', key.slice(16));
+    }
+  }
 
   ok(load(''));
 }

@@ -60,6 +60,22 @@ var PROMISES_SUPPORT = function () {
     && (IS_NODE || typeof PromiseRejectionEvent == 'function');
 };
 
+var PROMISE_STATICS_ITERATION = function () {
+  var ITERATION_SUPPORT = false;
+  try {
+    var object = {};
+    object[Symbol.iterator] = function () {
+      return {
+        next: function () {
+          return { done: ITERATION_SUPPORT = true };
+        }
+      };
+    };
+    Promise.all(object).then(undefined, function () { /* empty */ });
+  } catch (error) { /* empty */ }
+  return ITERATION_SUPPORT;
+};
+
 var SYMBOLS_SUPPORT = function () {
   return String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
 };
@@ -803,17 +819,28 @@ GLOBAL.tests = {
         && parseInt(WHITESPACES + '0x16') === 22;
     }
   },
+  // TODO: remove this module from `core-js@4` since it's split to below modules
   'es.promise': PROMISES_SUPPORT,
+  'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.all;
+  }],
   'es.promise.all-settled': function () {
     return Promise.allSettled;
   },
   'es.promise.any': function () {
     return Promise.any;
   },
+  'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     // eslint-disable-next-line unicorn/no-thenable -- required for testing
     return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
   }],
+  'es.promise.race': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.race;
+  }],
+  'es.promise.reject': PROMISES_SUPPORT,
+  'es.promise.resolve': PROMISES_SUPPORT,
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {

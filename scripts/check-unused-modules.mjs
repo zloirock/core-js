@@ -13,8 +13,17 @@ function log(set, kind) {
 }
 
 const globalModules = await jsModulesFrom('packages/core-js/modules');
-// TODO: drop this special case from core-js@4
-const definedModules = new Set(modules).add('esnext.string.at-alternative');
+const definedModules = new Set([
+  ...modules,
+  // TODO: drop this special cases from core-js@4
+  'es.promise.constructor',
+  'es.promise.all',
+  'es.promise.catch',
+  'es.promise.race',
+  'es.promise.reject',
+  'es.promise.resolve',
+  'esnext.string.at-alternative',
+]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
 
