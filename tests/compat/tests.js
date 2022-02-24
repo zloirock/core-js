@@ -77,8 +77,12 @@ var PROMISE_STATICS_ITERATION = function () {
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
+  return Object.getOwnPropertySymbols && String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
 };
+
+var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
+  return Symbol['for'] && Symbol.keyFor;
+}];
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
@@ -214,9 +218,9 @@ function createStringTrimMethodTest(METHOD_NAME) {
 }
 
 GLOBAL.tests = {
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
-    return Object.getOwnPropertySymbols
-      && Object.getOwnPropertySymbols('qwe')
+    return Object.getOwnPropertySymbols('qwe')
       && Symbol['for']
       && Symbol.keyFor
       && JSON.stringify([Symbol()]) == '[null]'
@@ -225,12 +229,14 @@ GLOBAL.tests = {
       && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
+  'es.symbol.constructor': SYMBOLS_SUPPORT,
   'es.symbol.description': function () {
     return Symbol('foo').description == 'foo' && Symbol().description === undefined;
   },
   'es.symbol.async-iterator': function () {
     return Symbol.asyncIterator;
   },
+  'es.symbol.for': SYMBOL_REGISTRY,
   'es.symbol.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance;
   }],
@@ -240,6 +246,7 @@ GLOBAL.tests = {
   'es.symbol.iterator': [SYMBOLS_SUPPORT, function () {
     return Symbol.iterator;
   }],
+  'es.symbol.key-for': SYMBOL_REGISTRY,
   'es.symbol.match': [SYMBOLS_SUPPORT, function () {
     return Symbol.match;
   }],
@@ -259,10 +266,10 @@ GLOBAL.tests = {
     return Symbol.split;
   }],
   'es.symbol.to-primitive': [SYMBOLS_SUPPORT, function () {
-    return Symbol.toPrimitive;
+    return Symbol.toPrimitive && Symbol.prototype[Symbol.toPrimitive];
   }],
   'es.symbol.to-string-tag': [SYMBOLS_SUPPORT, function () {
-    return Symbol.toStringTag;
+    return Symbol.toStringTag && Symbol.prototype[Symbol.toStringTag];
   }],
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
@@ -559,10 +566,13 @@ GLOBAL.tests = {
   'es.global-this': function () {
     return globalThis;
   },
-  'es.json.stringify': function () {
-    return JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
+  'es.json.stringify': [SYMBOLS_SUPPORT, function () {
+    return JSON.stringify([Symbol()]) == '[null]'
+      && JSON.stringify({ a: Symbol() }) == '{}'
+      && JSON.stringify(Object(Symbol())) == '{}'
+      && JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
       && JSON.stringify('\uDEAD') === '"\\udead"';
-  },
+  }],
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
@@ -764,6 +774,9 @@ GLOBAL.tests = {
   'es.object.get-own-property-names': function () {
     return Object.getOwnPropertyNames('qwe');
   },
+  'es.object.get-own-property-symbols': [SYMBOLS_SUPPORT, function () {
+    return Object.getOwnPropertySymbols('qwe');
+  }],
   'es.object.get-prototype-of': function () {
     return Object.getPrototypeOf('qwe');
   },

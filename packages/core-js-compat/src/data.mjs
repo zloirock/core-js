@@ -1,9 +1,16 @@
 export const data = {
+  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': {
     chrome: '49',
     edge: '15',
     firefox: '51',
     safari: '10.0',
+  },
+  'es.symbol.constructor': {
+    chrome: '41',
+    edge: '13',
+    firefox: '36',
+    safari: '9.0',
   },
   'es.symbol.description': {
     chrome: '70',
@@ -14,6 +21,12 @@ export const data = {
     chrome: '63',
     firefox: '55',
     safari: '12.0',
+  },
+  'es.symbol.for': {
+    chrome: '41',
+    edge: '13',
+    firefox: '36',
+    safari: '9.0',
   },
   'es.symbol.has-instance': {
     chrome: '50',
@@ -35,6 +48,12 @@ export const data = {
     firefox: '36',
     safari: '9.0',
     rhino: '1.7.13',
+  },
+  'es.symbol.key-for': {
+    chrome: '41',
+    edge: '13',
+    firefox: '36',
+    safari: '9.0',
   },
   'es.symbol.match': {
     chrome: '50',
@@ -749,6 +768,12 @@ export const data = {
     firefox: '34',
     safari: '9.0',
     rhino: '1.7.13',
+  },
+  'es.object.get-own-property-symbols': {
+    chrome: '41',
+    edge: '13',
+    firefox: '36',
+    safari: '9.0',
   },
   'es.object.get-prototype-of': {
     chrome: '44',
@@ -1979,6 +2004,10 @@ data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
 data['esnext.typed-array.at'] = data['es.typed-array.at'];
+delete data['es.symbol.constructor'];
+delete data['es.symbol.for'];
+delete data['es.symbol.key-for'];
+delete data['es.object.get-own-property-symbols'];
 delete data['es.promise.constructor'];
 delete data['es.promise.all'];
 delete data['es.promise.catch'];

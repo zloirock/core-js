@@ -1,8 +1,32 @@
-import { GLOBAL } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 
-import stringify from 'core-js/es/json/stringify';
+import Symbol from 'core-js-pure/es/symbol';
+import stringify from 'core-js-pure/es/json/stringify';
 
 if (GLOBAL.JSON) {
+  QUnit.test('Symbols & JSON.stringify', assert => {
+    assert.same(stringify([
+      1,
+      Symbol('foo'),
+      false,
+      Symbol('bar'),
+      {},
+    ]), '[1,null,false,null,{}]', 'array value');
+    assert.same(stringify({
+      symbol: Symbol('symbol'),
+    }), '{}', 'object value');
+    if (DESCRIPTORS) {
+      const object = { bar: 2 };
+      object[Symbol('symbol')] = 1;
+      assert.same(stringify(object), '{"bar":2}', 'object key');
+    }
+    assert.same(stringify(Symbol('symbol')), undefined, 'symbol value');
+    if (typeof Symbol() == 'symbol') {
+      assert.same(stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+    }
+    assert.same(stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
+  });
+
   QUnit.test('Well‑formed JSON.stringify', assert => {
     assert.isFunction(stringify);
     assert.arity(stringify, 3);

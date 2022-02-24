@@ -15,7 +15,11 @@ function log(set, kind) {
 const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
-  // TODO: drop this special cases from core-js@4
+  // TODO: drop those special cases from core-js@4
+  'es.symbol.constructor',
+  'es.symbol.for',
+  'es.symbol.key-for',
+  'es.object.get-own-property-symbols',
   'es.promise.constructor',
   'es.promise.all',
   'es.promise.catch',

@@ -1,18 +1,17 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-import create from 'core-js-pure/features/object/create';
-import defineProperty from 'core-js-pure/features/object/define-property';
-import defineProperties from 'core-js-pure/features/object/define-properties';
-import getOwnPropertyDescriptor from 'core-js-pure/features/object/get-own-property-descriptor';
-import getOwnPropertyNames from 'core-js-pure/features/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/features/object/get-own-property-symbols';
-import keys from 'core-js-pure/features/object/keys';
-import ownKeys from 'core-js-pure/features/reflect/own-keys';
-import JSON from 'core-js-pure/features/json';
-import Map from 'core-js-pure/features/map';
-import Set from 'core-js-pure/features/set';
-import Promise from 'core-js-pure/features/promise';
-import Symbol from 'core-js-pure/features/symbol';
+import create from 'core-js-pure/es/object/create';
+import defineProperty from 'core-js-pure/es/object/define-property';
+import defineProperties from 'core-js-pure/es/object/define-properties';
+import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
+import keys from 'core-js-pure/es/object/keys';
+import ownKeys from 'core-js-pure/es/reflect/own-keys';
+import Map from 'core-js-pure/es/map';
+import Set from 'core-js-pure/es/set';
+import Promise from 'core-js-pure/es/promise';
+import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);
@@ -53,16 +52,6 @@ QUnit.test('Well-known Symbols', assert => {
   }
 });
 
-QUnit.test('Global symbol registry', assert => {
-  assert.isFunction(Symbol.for, 'Symbol.for is function');
-  assert.isFunction(Symbol.keyFor, 'Symbol.keyFor is function');
-  const symbol = Symbol.for('foo');
-  assert.same(Symbol.for('foo'), symbol);
-  assert.same(Symbol.keyFor(symbol), 'foo');
-  assert.throws(() => Symbol.for(Symbol('foo')), 'throws on symbol argument');
-  assert.throws(() => Symbol.keyFor('foo'), 'throws on non-symbol');
-});
-
 QUnit.test('Symbol#@@toPrimitive', assert => {
   const symbol = Symbol();
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
@@ -72,52 +61,6 @@ QUnit.test('Symbol#@@toPrimitive', assert => {
 QUnit.test('Symbol#@@toStringTag', assert => {
   assert.same(Symbol.prototype[Symbol.toStringTag], 'Symbol', 'Symbol::@@toStringTag is `Symbol`');
 });
-
-QUnit.test('Object.getOwnPropertySymbols', assert => {
-  assert.isFunction(getOwnPropertySymbols);
-  const prototype = { q: 1, w: 2, e: 3 };
-  prototype[Symbol()] = 42;
-  prototype[Symbol()] = 43;
-  assert.deepEqual(getOwnPropertyNames(prototype).sort(), ['e', 'q', 'w']);
-  assert.same(getOwnPropertySymbols(prototype).length, 2);
-  const object = create(prototype);
-  object.a = 1;
-  object.s = 2;
-  object.d = 3;
-  object[Symbol()] = 44;
-  assert.deepEqual(getOwnPropertyNames(object).sort(), ['a', 'd', 's']);
-  assert.same(getOwnPropertySymbols(object).length, 1);
-  assert.same(getOwnPropertySymbols(Object.prototype).length, 0);
-  const primitives = [42, 'foo', false];
-  for (const value of primitives) {
-    assert.notThrows(() => getOwnPropertySymbols(value), `accept ${ typeof value }`);
-  }
-});
-
-if (JSON) {
-  QUnit.test('Symbols & JSON.stringify', assert => {
-    assert.same(JSON.stringify([
-      1,
-      Symbol('foo'),
-      false,
-      Symbol('bar'),
-      {},
-    ]), '[1,null,false,null,{}]', 'array value');
-    assert.same(JSON.stringify({
-      symbol: Symbol('symbol'),
-    }), '{}', 'object value');
-    if (DESCRIPTORS) {
-      const object = { bar: 2 };
-      object[Symbol('symbol')] = 1;
-      assert.same(JSON.stringify(object), '{"bar":2}', 'object key');
-    }
-    assert.same(JSON.stringify(Symbol('symbol')), undefined, 'symbol value');
-    if (typeof Symbol() == 'symbol') {
-      assert.same(JSON.stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
-    }
-    assert.same(JSON.stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
-  });
-}
 
 if (DESCRIPTORS) {
   QUnit.test('Symbols & descriptors', assert => {
