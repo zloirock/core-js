@@ -930,8 +930,8 @@ let name = 'Bob';
 String.raw`Hi\n${name}!`;             // => 'Hi\\nBob!' (ES2015 template string syntax)
 String.raw({ raw: 'test' }, 0, 1, 2); // => 't0e1s2t'
 
-'foo'.bold();                     // => '<b>foo</b>'
-'bar'.anchor('a"b');              // => '<a name="a&quot;b">bar</a>'
+'foo'.bold();                      // => '<b>foo</b>'
+'bar'.anchor('a"b');               // => '<a name="a&quot;b">bar</a>'
 'baz'.link('https://example.com'); // => '<a href="https://example.com">baz</a>'
 
 RegExp('.', 's').test('\n'); // => true
