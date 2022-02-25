@@ -265,7 +265,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 #### `@babel/polyfill`[⬆](#index)
 
-[`@babel/polyfill`](http://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
+[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
 Now it's deprecated in favour of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
 
@@ -338,7 +338,7 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 
 #### `@babel/runtime`[⬆](#index)
 
-[`@babel/runtime`](http://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with `core-js-pure`. It automatically replaces usage of modern features from JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with `core-js-pure`. It automatically replaces usage of modern features from JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```js
 import from from 'core-js-pure/stable/array/from';
 import flat from 'core-js-pure/stable/array/flat';
@@ -576,7 +576,7 @@ core-js/es|stable|actual|features/function/has-instance
 core-js(-pure)/es|stable|actual|features/function/bind
 core-js(-pure)/es|stable|actual|features/function/virtual/bind
 ```
-[*Example*](http://goo.gl/zqu3Wp):
+[*Example*](https://goo.gl/zqu3Wp):
 ```js
 (function foo() {}).name // => 'foo'
 
@@ -930,9 +930,9 @@ let name = 'Bob';
 String.raw`Hi\n${name}!`;             // => 'Hi\\nBob!' (ES2015 template string syntax)
 String.raw({ raw: 'test' }, 0, 1, 2); // => 't0e1s2t'
 
-'foo'.bold();                     // => '<b>foo</b>'
-'bar'.anchor('a"b');              // => '<a name="a&quot;b">bar</a>'
-'baz'.link('http://example.com'); // => '<a href="http://example.com">baz</a>'
+'foo'.bold();                      // => '<b>foo</b>'
+'bar'.anchor('a"b');               // => '<a name="a&quot;b">bar</a>'
+'baz'.link('https://example.com'); // => '<a href="https://example.com">baz</a>'
 
 RegExp('.', 's').test('\n'); // => true
 RegExp('.', 's').dotAll;     // => true
@@ -977,7 +977,7 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
 'abc'.at(-1); // => 'c'
 ```
 #### ECMAScript: Number[⬆](#index)
-Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](http://goo.gl/jRd6b3):
+Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](https://goo.gl/jRd6b3):
 ```js
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
@@ -1094,7 +1094,7 @@ core-js(-pure)/es|stable|actual|features/date/to-iso-string
 core-js(-pure)/es|stable|actual|features/date/to-json
 core-js(-pure)/es|stable|actual|features/date/to-primitive
 ```
-[*Example*](http://goo.gl/haeHLR):
+[*Example*](https://goo.gl/haeHLR):
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
@@ -1121,7 +1121,7 @@ core-js(-pure)/es|stable|actual|features/promise/all-settled
 core-js(-pure)/es|stable|actual|features/promise/any
 core-js(-pure)/es|stable|actual|features/promise/finally
 ```
-Basic [*example*](http://goo.gl/vGrtUC):
+Basic [*example*](https://goo.gl/vGrtUC):
 ```js
 function sleepRandom(time) {
   return new Promise((resolve, reject) => {
@@ -1142,7 +1142,7 @@ sleepRandom(5).then(result => {
   console.log('will not be displayed');
 }).catch(x => console.log(x));         // => => Error: Irror!
 ```
-`Promise.resolve` and `Promise.reject` [*example*](http://goo.gl/vr8TN3):
+`Promise.resolve` and `Promise.reject` [*example*](https://goo.gl/vr8TN3):
 ```js
 Promise.resolve(42).then(x => console.log(x)); // => 42
 Promise.reject(42).catch(x => console.log(x)); // => 42
@@ -1155,7 +1155,7 @@ Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-`Promise.all` [*example*](http://goo.gl/RdoDBZ):
+`Promise.all` [*example*](https://goo.gl/RdoDBZ):
 ```js
 Promise.all([
   'foo',
@@ -1164,7 +1164,7 @@ Promise.all([
   sleepRandom(10)             // after 15 sec:
 ]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
-`Promise.race` [*example*](http://goo.gl/L8ovkJ):
+`Promise.race` [*example*](https://goo.gl/L8ovkJ):
 ```js
 function timeLimit(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => {
@@ -1197,7 +1197,7 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
 ```
-[Example](http://goo.gl/wnQS4j) with async functions:
+[Example](https://goo.gl/wnQS4j) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time))
 
@@ -1242,7 +1242,7 @@ let promise = Promise.reject(42);
 setTimeout(() => promise.catch(() => {}), 1e3);
 // handled [object Promise]
 ```
-In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](http://goo.gl/Wozskl):
+In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](https://goo.gl/Wozskl):
 ```js
 window.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 window.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
@@ -1317,7 +1317,7 @@ core-js(-pure)/es|stable|actual|features/symbol/key-for
 core-js(-pure)/es|stable|actual|features/object/get-own-property-symbols
 core-js(-pure)/es|stable|actual|features/math/to-string-tag
 ```
-[*Basic example*](http://goo.gl/BbvWFc):
+[*Basic example*](https://goo.gl/BbvWFc):
 ```js
 let Person = (() => {
   let NAME = Symbol('name');
@@ -1337,13 +1337,13 @@ console.log(person['name']);              // => undefined
 console.log(person[Symbol('name')]);      // => undefined, symbols are uniq
 for (let key in person) console.log(key); // => nothing, symbols are not enumerable
 ```
-`Symbol.for` & `Symbol.keyFor` [*example*](http://goo.gl/0pdJjX):
+`Symbol.for` & `Symbol.keyFor` [*example*](https://goo.gl/0pdJjX):
 ```js
 let symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
-[*Example*](http://goo.gl/mKVOQJ) with methods for getting own object keys:
+[*Example*](https://goo.gl/mKVOQJ) with methods for getting own object keys:
 ```js
 let object = { a: 1 };
 Object.defineProperty(object, 'b', { value: 2 });
@@ -1365,7 +1365,7 @@ Symbol().description;      // => undefined
 * `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 * By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setters in `Object.prototype`. [Example](http://goo.gl/N5UD7J):
+You can disable defining setters in `Object.prototype`. [Example](https://goo.gl/N5UD7J):
 ```js
 Symbol.useSimple();
 let symbol1 = Symbol('symbol1');
@@ -1406,7 +1406,7 @@ class Map {
 ```
 core-js(-pure)/es|stable|actual|features/map
 ```
-[*Examples*](http://goo.gl/GWR7NI):
+[*Examples*](https://goo.gl/GWR7NI):
 ```js
 let array = [1];
 
@@ -1460,7 +1460,7 @@ class Set {
 ```
 core-js(-pure)/es|stable|actual|features/set
 ```
-[*Examples*](http://goo.gl/bmhLwg):
+[*Examples*](https://goo.gl/bmhLwg):
 ```js
 let set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
@@ -1499,7 +1499,7 @@ class WeakMap {
 ```
 core-js(-pure)/es|stable|actual|features/weak-map
 ```
-[*Examples*](http://goo.gl/SILXyw):
+[*Examples*](https://goo.gl/SILXyw):
 ```js
 let a = [1];
 let b = [2];
@@ -1544,7 +1544,7 @@ class WeakSet {
 ```
 core-js(-pure)/es|stable|actual|features/weak-set
 ```
-[*Examples*](http://goo.gl/TdFbEx):
+[*Examples*](https://goo.gl/TdFbEx):
 ```js
 let a = [1];
 let b = [2];
@@ -1772,7 +1772,7 @@ core-js(-pure)/es|stable|actual|features/reflect/prevent-extensions
 core-js(-pure)/es|stable|actual|features/reflect/set
 core-js(-pure)/es|stable|actual|features/reflect/set-prototype-of
 ```
-[*Examples*](http://goo.gl/gVT0cH):
+[*Examples*](https://goo.gl/gVT0cH):
 ```js
 let object = { a: 1 };
 Object.defineProperty(object, 'b', { value: 2 });
@@ -2421,7 +2421,7 @@ core-js/proposals/observable
 core-js(-pure)/features/observable
 core-js(-pure)/features/symbol/observable
 ```
-[*Examples*](http://goo.gl/1LDywi):
+[*Examples*](https://goo.gl/1LDywi):
 ```js
 new Observable(observer => {
   observer.next('hello');
@@ -2923,7 +2923,7 @@ core-js/proposals/string-at
 core-js(-pure)/features/string/at
 core-js(-pure)/features/string/virtual/at
 ```
-[*Examples*](http://goo.gl/XluXI8):
+[*Examples*](https://goo.gl/XluXI8):
 ```js
 'a𠮷b'.at(1);        // => '𠮷'
 'a𠮷b'.at(1).length; // => 2
@@ -2982,7 +2982,7 @@ core-js(-pure)/features/reflect/has-metadata
 core-js(-pure)/features/reflect/has-own-metadata
 core-js(-pure)/features/reflect/metadata
 ```
-[*Examples*](http://goo.gl/KCo3PS):
+[*Examples*](https://goo.gl/KCo3PS):
 ```js
 let object = {};
 Reflect.defineMetadata('foo', 'bar', object);
@@ -3071,7 +3071,7 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 #### `setImmediate`[⬆](#index)
-Module [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js). [`setImmediate`](http://w3c.github.io/setImmediate/) polyfill.
+Module [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
@@ -3081,7 +3081,7 @@ function clearImmediate(id: number): void;
 core-js(-pure)/stable|actual|features/set-immediate
 core-js(-pure)/stable|actual|features/clear-immediate
 ```
-[*Examples*](http://goo.gl/6nXGrx):
+[*Examples*](https://goo.gl/6nXGrx):
 ```js
 setImmediate((arg1, arg2) => {
   console.log(arg1, arg2); // => Message will be displayed with minimum delay
@@ -3153,11 +3153,11 @@ core-js(-pure)/stable|actual|features/url-search-params
 ```
 [*Examples*](t.ly/ZiA6):
 ```js
-const url = new URL('http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
+const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
-console.log(url.href);       // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.origin);     // => 'http://example.com:8080'
-console.log(url.protocol);   // => 'http:'
+console.log(url.href);       // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+console.log(url.origin);     // => 'https://example.com:8080'
+console.log(url.protocol);   // => 'https:'
 console.log(url.username);   // => 'login'
 console.log(url.password);   // => 'password'
 console.log(url.host);       // => 'example.com:8080'
@@ -3166,8 +3166,8 @@ console.log(url.port);       // => '8080'
 console.log(url.pathname);   // => '/foo/bar'
 console.log(url.search);     // => '?a=1&b=2&a=3'
 console.log(url.hash);       // => '#fragment'
-console.log(url.toJSON());   // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
-console.log(url.toString()); // => 'http://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+console.log(url.toJSON());   // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
+console.log(url.toString()); // => 'https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment'
 
 for (let [key, value] of url.searchParams) {
   console.log(key);   // => 'a', 'b', 'a'
@@ -3178,7 +3178,7 @@ url.pathname = '';
 url.searchParams.append('c', 4);
 
 console.log(url.search); // => '?a=1&b=2&a=3&c=4'
-console.log(url.href);   // => 'http://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
+console.log(url.href);   // => 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'
 
 const params = new URLSearchParams('?a=1&b=2&a=3');
 
@@ -3280,7 +3280,7 @@ class [DOMTokenList, NodeList] {
 core-js(-pure)/stable|actual|features/dom-collections/iterator
 core-js/stable|actual|features/dom-collections/for-each
 ```
-[*Examples*](http://goo.gl/lfXVFl):
+[*Examples*](https://goo.gl/lfXVFl):
 ```js
 for (let { id } of document.querySelectorAll('*')) {
   if (id) console.log(id);
@@ -3305,7 +3305,7 @@ core-js-pure/es|stable|actual|features/is-iterable
 core-js-pure/es|stable|actual|features/get-iterator
 core-js-pure/es|stable|actual|features/get-iterator-method
 ```
-[*Examples*](http://goo.gl/SXsM6D):
+[*Examples*](https://goo.gl/SXsM6D):
 ```js
 import isIterable from 'core-js-pure/actual/is-iterable';
 import getIterator from 'core-js-pure/actual/get-iterator';
