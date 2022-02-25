@@ -5,7 +5,7 @@ import { DESCRIPTORS } from '../helpers/constants';
 
 import getIterator from 'core-js-pure/es/get-iterator';
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/features/array/from';
+import from from 'core-js-pure/es/array/from';
 import freeze from 'core-js-pure/es/object/freeze';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';

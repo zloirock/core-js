@@ -3,7 +3,7 @@ import { STRICT } from '../helpers/constants';
 import Map from 'core-js-pure/es/map';
 import Symbol from 'core-js-pure/es/symbol';
 import from from 'core-js-pure/es/array/from';
-import groupByToMap from 'core-js-pure/features/array/group-by-to-map';
+import groupByToMap from 'core-js-pure/actual/array/group-by-to-map';
 
 QUnit.test('Array#groupByToMap', assert => {
   assert.isFunction(groupByToMap);
