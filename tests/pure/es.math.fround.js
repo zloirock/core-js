@@ -26,4 +26,13 @@ QUnit.test('Math.fround', assert => {
   assert.same(fround(-minFloat32 / 2), -0);
   assert.same(fround(minFloat32 / 2 + 2 ** -202), minFloat32);
   assert.same(fround(-minFloat32 / 2 - 2 ** -202), -minFloat32);
+
+  const maxSubnormal32 = 1.1754942106924411e-38;
+  const minNormal32 = 1.1754943508222875e-38;
+  assert.same(fround(1.1754942807573642e-38), maxSubnormal32, 'fround(1.1754942807573642e-38)');
+  assert.same(fround(1.1754942807573643e-38), minNormal32, 'fround(1.1754942807573643e-38)');
+  assert.same(fround(1.1754942807573644e-38), minNormal32, 'fround(1.1754942807573644e-38)');
+  assert.same(fround(-1.1754942807573642e-38), -maxSubnormal32, 'fround(-1.1754942807573642e-38)');
+  assert.same(fround(-1.1754942807573643e-38), -minNormal32, 'fround(-1.1754942807573643e-38)');
+  assert.same(fround(-1.1754942807573644e-38), -minNormal32, 'fround(-1.1754942807573644e-38)');
 });
