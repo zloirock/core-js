@@ -23,7 +23,6 @@ var InternalStateModule = require('../internals/internal-state');
 var NativePromiseConstructor = require('../internals/promise-native-constructor');
 var PromiseConstructorDetection = require('../internals/promise-constructor-detection');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
-var promiseCatchImplementation = require('../internals/promise-catch-implementation');
 
 var PROMISE = 'Promise';
 var FORCED_PROMISE_CONSTRUCTOR = PromiseConstructorDetection.CONSTRUCTOR;
@@ -271,9 +270,6 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
         }).then(onFulfilled, onRejected);
       // https://github.com/zloirock/core-js/issues/640
       }, { unsafe: true });
-
-      // makes sure that native promise-based APIs `Promise#catch` properly works with patched `Promise#then`
-      redefine(NativePromisePrototype, 'catch', promiseCatchImplementation, { unsafe: true });
     }
 
     // make `.constructor === Promise` work for native promise-based APIs
