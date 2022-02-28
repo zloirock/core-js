@@ -1,3 +1,5 @@
+![hetBonhe](https://user-images.githubusercontent.com/100541950/155905227-0656559c-daaf-4b1e-8f90-c6483ef77211.png)
+
 ![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 
 [`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.

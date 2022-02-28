@@ -25,7 +25,9 @@ var BANNER = '\u001B[96mThank you for using core-js (\u001B[94m https://github.c
              '\u001B[96m>\u001B[94m https://patreon.com/zloirock \u001B[0m\n' +
              '\u001B[96m>\u001B[94m https://paypal.me/zloirock \u001B[0m\n' +
              '\u001B[96m>\u001B[94m bitcoin: bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz \u001B[0m\n\n' +
-             '\u001B[96mAlso, the author of core-js (\u001B[94m https://github.com/zloirock \u001B[96m) is looking for a good job -)\u001B[0m\n';
+             '\u001B[96mAlso, the author of core-js (\u001B[94m https://github.com/zloirock \u001B[96m) is looking for a good job -)\u001B[0m\n\n' +
+             '\u001B[96mFinally, Putin lies. Russian media lies.\u001B[0m\n' +
+             '\u001B[96mStart protesting. Stop the war. #hetbonhe\u001B[0m\n';
 
 function is(it) {
   return !!it && it !== '0' && it !== 'false';
