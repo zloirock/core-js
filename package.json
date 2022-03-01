@@ -48,7 +48,7 @@
     "eslint-plugin-unicorn": "^41.0.0",
     "jsonc-eslint-parser": "^2.1.0",
     "jszip": "^3.7.1",
-    "karma": "^6.3.16",
+    "karma": "^6.3.17",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "konan": "^2.1.1",
@@ -64,7 +64,7 @@
     "promises-es6-tests": "~0.5.0",
     "qunit": "^2.18.0",
     "semver": "^7.3.5",
-    "terser": "^5.11.0",
+    "terser": "^5.12.0",
     "webpack": "^5.69.1",
     "webpack-cli": "^4.9.2",
     "zx": "^5.2.0"
