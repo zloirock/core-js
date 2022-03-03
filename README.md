@@ -24,10 +24,6 @@
 
 ---
 
-Available as part of the Tidelift Subscription, [learn more](https://tidelift.com/subscription/pkg/npm-core-js?utm_source=npm-core-js&utm_medium=referral&utm_campaign=enterprise).
-
----
-
 [*Example of usage*](https://is.gd/XD4mRe):
 ```js
 import 'core-js/actual'; // <- at the top of your entry point
