@@ -3,8 +3,8 @@ const NEW_VERSION = require('../package').version;
 
 const { readdir, readJson, readFile, writeJson, writeFile } = fs;
 const now = new Date();
-const NEW_VERSION_MINOR = `'${ NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
-const PREV_VERSION_MINOR = `'${ PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1') }'`;
+const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
+const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
 const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
 const README = 'README.md';

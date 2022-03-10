@@ -368,7 +368,7 @@ Fast JavaScript transpiler `swc` contains integration with `core-js` in [`preset
   "env": {
     "targets": "> 0.25%, not dead",
     "mode": "entry",
-    "coreJs": "3.13"
+    "coreJs": "3.21"
   }
 }
 ```
