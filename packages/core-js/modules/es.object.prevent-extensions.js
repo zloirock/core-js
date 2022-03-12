@@ -4,7 +4,7 @@ var onFreeze = require('../internals/internal-metadata').onFreeze;
 var FREEZING = require('../internals/freezing');
 var fails = require('../internals/fails');
 
-// eslint-disable-next-line es/no-object-preventextensions -- safe
+// eslint-disable-next-line es-x/no-object-preventextensions -- safe
 var $preventExtensions = Object.preventExtensions;
 var FAILS_ON_PRIMITIVES = fails(function () { $preventExtensions(1); });
 

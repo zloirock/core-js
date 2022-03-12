@@ -7,7 +7,7 @@ setImmediate(function () {
   postMessage('setImmediate');
 });
 
-// eslint-disable-next-line es/no-promise -- safe
+// eslint-disable-next-line es-x/no-promise -- safe
 Promise.resolve().then(function () {
   postMessage('Promise.resolve');
 });

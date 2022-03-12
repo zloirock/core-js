@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var isArray = require('../internals/is-array');
 
-// eslint-disable-next-line es/no-object-isfrozen -- safe
+// eslint-disable-next-line es-x/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 
 var isFrozenStringArray = function (array, allowUndefined) {

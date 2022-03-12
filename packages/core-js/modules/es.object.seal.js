@@ -4,7 +4,7 @@ var onFreeze = require('../internals/internal-metadata').onFreeze;
 var FREEZING = require('../internals/freezing');
 var fails = require('../internals/fails');
 
-// eslint-disable-next-line es/no-object-seal -- safe
+// eslint-disable-next-line es-x/no-object-seal -- safe
 var $seal = Object.seal;
 var FAILS_ON_PRIMITIVES = fails(function () { $seal(1); });
 

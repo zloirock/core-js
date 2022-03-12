@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable es/no-bigint -- safe */
+/* eslint-disable es-x/no-bigint -- safe */
 var $ = require('../internals/export');
 var NumericRangeIterator = require('../internals/numeric-range-iterator');
 

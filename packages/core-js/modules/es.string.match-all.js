@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable es/no-string-prototype-matchall -- safe */
+/* eslint-disable es-x/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var call = require('../internals/function-call');

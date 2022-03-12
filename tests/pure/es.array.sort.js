@@ -112,7 +112,7 @@ QUnit.test('Array#sort', assert => {
 
   assert.same(result, 'DGBEFHACIJK', 'stable #2');
 
-  /* eslint-disable es/no-symbol -- safe */
+  /* eslint-disable es-x/no-symbol -- safe */
   if (typeof Symbol == 'function') {
     assert.throws(() => sort([Symbol(1), Symbol(2)]), 'w/o cmp throws on symbols');
   }
