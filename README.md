@@ -362,7 +362,7 @@ By default, `@babel/runtime` only polyfills stable features, but like in `@babel
 
 ### swc[⬆](#index)
 
-Fast JavaScript transpiler `swc` contains integration with `core-js` in [`preset-env`](https://swc.rs/docs/preset-env), which optimizes working with global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so good like in `babel`. Example of configuration in `.swcrc`:
+Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so good like in `babel`. Example of configuration in `.swcrc`:
 ```json
 {
   "env": {
