@@ -16,6 +16,8 @@ const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   // TODO: drop those special cases from core-js@4
+  'es.string.trim-left',
+  'es.string.trim-right',
   'es.symbol.constructor',
   'es.symbol.for',
   'es.symbol.key-for',

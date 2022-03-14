@@ -1192,6 +1192,16 @@ export const data = {
     firefox: '61',
     safari: '12.1',
   },
+  'es.string.trim-left': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.0',
+  },
+  'es.string.trim-right': {
+    chrome: '66',
+    firefox: '61',
+    safari: '12.1',
+  },
   'es.string.trim-start': {
     chrome: '66',
     firefox: '61',
@@ -2004,6 +2014,8 @@ data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
 data['esnext.typed-array.at'] = data['es.typed-array.at'];
+delete data['es.string.trim-left'];
+delete data['es.string.trim-right'];
 delete data['es.symbol.constructor'];
 delete data['es.symbol.for'];
 delete data['es.symbol.key-for'];

@@ -147,6 +147,8 @@ export default {
     'es.promise.race',
     'es.promise.reject',
     'es.promise.resolve',
+    'es.string.trim-left',
+    'es.string.trim-right',
     'es.symbol.constructor',
     'es.symbol.for',
     'es.symbol.key-for',

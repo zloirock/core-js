@@ -1091,6 +1091,12 @@ GLOBAL.tests = {
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
     return String.prototype.trimRight === String.prototype.trimEnd;
   }],
+  'es.string.trim-left': [createStringTrimMethodTest('trimStart'), function () {
+    return String.prototype.trimLeft === String.prototype.trimStart;
+  }],
+  'es.string.trim-right': [createStringTrimMethodTest('trimEnd'), function () {
+    return String.prototype.trimRight === String.prototype.trimEnd;
+  }],
   'es.string.trim-start': [createStringTrimMethodTest('trimStart'), function () {
     return String.prototype.trimLeft === String.prototype.trimStart;
   }],
