@@ -13,6 +13,8 @@ QUnit.module('structuredClone', () => {
     assert.arity(structuredClone, 1);
     if (!NODE) assert.looksNative(structuredClone);
     assert.throws(() => structuredClone(), 'throws without arguments');
+    assert.same(structuredClone(1, null), 1, 'null as options');
+    assert.same(structuredClone(1, undefined), 1, 'undefined as options');
   });
 
   function cloneTest(value, verifyFunc) {

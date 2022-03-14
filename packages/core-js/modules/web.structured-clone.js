@@ -448,7 +448,7 @@ var tryToTransfer = function (rawTransfer, map) {
 
 $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
-    var options = validateArgumentsLength(arguments.length, 1) > 1 ? anObject(arguments[1]) : undefined;
+    var options = validateArgumentsLength(arguments.length, 1) > 1 && arguments[1] != null ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
     var map;
 

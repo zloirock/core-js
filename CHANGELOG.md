@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
 - Updated Electron 18.0 compat data mapping
 
 ##### 3.21.1 - 2022.02.17
