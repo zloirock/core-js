@@ -1156,7 +1156,7 @@
 ##### 1.1.2 - 2015.08.28
 - Added `toJSON` method to [`Symbol`](https://github.com/zloirock/core-js/#ecmascript-6-symbol) polyfill and to MS Edge implementation for expected `JSON.stringify` result w/o patching this method
 - Replaced [`Reflect.construct`](https://github.com/zloirock/core-js/#ecmascript-6-reflect) implementations w/o correct support third argument
-- Fixed `global` detection with changed `document.domain` in ~IE8, [#100](https://github.com/zloirock/core-js/issues/100)
+- Fixed `global` detection with changed `document.domain` in \~IE8, [#100](https://github.com/zloirock/core-js/issues/100)
 
 ##### 1.1.1 - 2015.08.20
 - Added more correct microtask implementation for [`Promise`](#ecmascript-6-promise)
