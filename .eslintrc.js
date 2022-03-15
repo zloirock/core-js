@@ -638,8 +638,18 @@ const base = {
   // use the `i` flag if it simplifies the pattern
   'regexp/use-ignore-case': ERROR,
 
+  // disallow function declarations in if statement clauses without using blocks
+  'es-x/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
+  // disallow initializers in for-in heads
+  'es-x/no-initializers-in-for-in': ERROR,
   // disallow \u2028 and \u2029 in string literals
   'es-x/no-json-superset': ERROR,
+  // disallow labelled function declarations
+  'es-x/no-labelled-function-declarations': ERROR,
+  // disallow the `RegExp.prototype.compile` method
+  'es-x/no-regexp-prototype-compile': ERROR,
+  // disallow identifiers from shadowing catch parameter names
+  'es-x/no-shadow-catch-param': ERROR,
 
   // eslint-comments
   // require include descriptions in eslint directive-comments
@@ -677,6 +687,15 @@ const es3 = {
   'unicorn/prefer-code-point': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
+};
+
+const forbidESAnnexBBuiltIns = {
+  'es-x/no-date-prototype-getyear-setyear': ERROR,
+  'es-x/no-date-prototype-togmtstring': ERROR,
+  'es-x/no-escape-unescape': ERROR,
+  'es-x/no-string-create-html-methods': ERROR,
+  'es-x/no-string-prototype-substr': ERROR,
+  'es-x/no-string-prototype-trimleft-trimright': ERROR,
 };
 
 const forbidES5BuiltIns = {
@@ -814,6 +833,7 @@ const forbidES2022BuiltIns = {
 };
 
 const forbidModernESBuiltIns = {
+  ...forbidESAnnexBBuiltIns,
   ...forbidES5BuiltIns,
   ...forbidES2015BuiltIns,
   ...forbidES2016BuiltIns,
@@ -919,6 +939,8 @@ const tests = {
   'unicorn/error-message': OFF,
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': OFF,
+  // allow Annex B methods for testing
+  ...disable(forbidESAnnexBBuiltIns),
 };
 
 const qunit = {
@@ -1070,7 +1092,10 @@ module.exports = {
     'unicorn',
   ],
   reportUnusedDisableDirectives: true,
-  rules: base,
+  rules: {
+    ...base,
+    ...forbidESAnnexBBuiltIns,
+  },
   overrides: [
     {
       files: [
