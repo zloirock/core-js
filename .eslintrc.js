@@ -693,6 +693,7 @@ const forbidESAnnexBBuiltIns = {
   'es-x/no-date-prototype-getyear-setyear': ERROR,
   'es-x/no-date-prototype-togmtstring': ERROR,
   'es-x/no-escape-unescape': ERROR,
+  'es-x/no-legacy-object-prototype-accessor-methods': ERROR,
   'es-x/no-string-create-html-methods': ERROR,
   'es-x/no-string-prototype-substr': ERROR,
   'es-x/no-string-prototype-trimleft-trimright': ERROR,
