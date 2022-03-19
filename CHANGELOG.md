@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
 - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
 - Updated Electron 18.0 compat data mapping
 
