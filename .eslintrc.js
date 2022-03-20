@@ -316,19 +316,27 @@ const base = {
 
   // node:
   // disallow deprecated APIs
-  'node/no-deprecated-api': ERROR,
+  'n/no-deprecated-api': ERROR,
   // require require() calls to be placed at top-level module scope
-  'node/global-require': ERROR,
+  'n/global-require': ERROR,
   // disallow the assignment to `exports`
-  'node/no-exports-assign': ERROR,
+  'n/no-exports-assign': ERROR,
   // disallow require calls to be mixed with regular variable declarations
-  'node/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
+  'n/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
-  'node/no-new-require': ERROR,
+  'n/no-new-require': ERROR,
   // disallow string concatenation with `__dirname` and `__filename`
-  'node/no-path-concat': ERROR,
+  'n/no-path-concat': ERROR,
   // disallow the use of `process.exit()`
-  'node/no-process-exit': ERROR,
+  'n/no-process-exit': ERROR,
+  // prefer global
+  'n/prefer-global/buffer': [ERROR, ALWAYS],
+  'n/prefer-global/console': [ERROR, ALWAYS],
+  'n/prefer-global/process': [ERROR, ALWAYS],
+  'n/prefer-global/text-decoder': [ERROR, ALWAYS],
+  'n/prefer-global/text-encoder': [ERROR, ALWAYS],
+  'n/prefer-global/url-search-params': [ERROR, ALWAYS],
+  'n/prefer-global/url': [ERROR, ALWAYS],
 
   // es6+:
   // require parentheses around arrow function arguments
@@ -888,7 +896,7 @@ const nodePackages = {
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
+  'n/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
@@ -907,7 +915,7 @@ const nodeDev = {
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
+  'n/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
@@ -1085,7 +1093,7 @@ module.exports = {
     'eslint-comments',
     'import',
     'jsonc',
-    'node',
+    'n',
     'promise',
     'qunit',
     'regexp',
