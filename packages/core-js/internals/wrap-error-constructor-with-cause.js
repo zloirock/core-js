@@ -47,7 +47,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   if (ERROR_NAME !== 'Error') {
     if (setPrototypeOf) setPrototypeOf(WrappedError, BaseError);
     else copyConstructorProperties(WrappedError, BaseError, { name: true });
-  } else if (DESCRIPTORS && STACK_TRACE_LIMIT in BaseError) {
+  } else if (DESCRIPTORS && STACK_TRACE_LIMIT in OriginalError) {
     proxyAccessor(WrappedError, OriginalError, STACK_TRACE_LIMIT);
     proxyAccessor(WrappedError, OriginalError, 'prepareStackTrace');
   }
