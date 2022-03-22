@@ -24,7 +24,7 @@
     "@babel/plugin-transform-spread": "^7.16.7",
     "@babel/plugin-transform-template-literals": "^7.16.7",
     "@onslip/karma-playwright-launcher": "^0.2.1",
-    "babel-loader": "^8.2.3",
+    "babel-loader": "^8.2.4",
     "babel-plugin-transform-es2015-modules-simple-commonjs": "~0.3.0",
     "babel-plugin-transform-for-of-as-array": "^1.1.1",
     "confusing-browser-globals": "^1.0.11",
@@ -67,7 +67,7 @@
     "terser": "^5.12.1",
     "webpack": "^5.70.0",
     "webpack-cli": "^4.9.2",
-    "zx": "^6.0.6"
+    "zx": "^6.0.7"
   },
   "license": "MIT",
   "repository": {
