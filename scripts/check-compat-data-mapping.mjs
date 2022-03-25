@@ -36,25 +36,30 @@ function assert(condition, engine) {
   }
 }
 
-const [{ v8 }] = await getJSON('https://nodejs.org/dist/index.json');
+const [
+  [{ v8 }],
+  electron,
+  deno,
+  opera,
+  operaMobile,
+  ios,
+  samsung,
+] = await Promise.all([
+  getJSON('https://nodejs.org/dist/index.json'),
+  getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/chromium-versions.js', 17, -1),
+  latestMDN('deno'),
+  latestMDN('opera'),
+  latestMDN('opera_android'),
+  latestMDN('safari_ios'),
+  latestMDN('samsunginternet_android'),
+]);
+
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
-
-const deno = await latestMDN('deno');
-assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
-
-const electron = await getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/chromium-versions.js', 17, -1);
 assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
-
-const samsung = await latestMDN('samsunginternet_android');
-assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
-
-const operaMobile = await latestMDN('opera_android');
-assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobile');
-
-const opera = await latestMDN('opera');
+assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 assert(opera.engine - opera.version === 14, 'Opera');
-
-const ios = await latestMDN('safari_ios');
+assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobile');
 assert(cmp(coerce(ios.version), '<=', coerce(latest(mapping.SafariToIOS)[1])), 'iOS Safari');
+assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
 
 if (updated) console.log(chalk.green('updates of compat data mapping not required'));
