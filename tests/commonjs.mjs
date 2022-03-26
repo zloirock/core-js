@@ -1,6 +1,5 @@
 /* eslint-disable import/no-dynamic-require, n/global-require -- required */
 import { ok } from 'assert';
-import { join } from 'path';
 const entries = require('core-js-compat/entries');
 
 const expected = new Set(Object.keys(entries));
@@ -8,7 +7,7 @@ const tested = new Set();
 let PATH;
 
 function load(...components) {
-  const path = join(PATH, ...components);
+  const path = [PATH, ...components].join('/');
   tested.add(path);
   expected.delete(path);
   return require(path);
@@ -258,7 +257,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
-    ok(typeof load(NS, '/date/now')(new Date()) === 'number');
+    ok(typeof load(NS, 'date/now')(new Date()) === 'number');
     const date = new Date();
     ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
     load(NS, 'date/set-year')(date, 1);
@@ -883,7 +882,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     }
   }
 
-  ok(load(''));
+  ok(load());
 }
 
 for (const NS of ['es', 'stable', 'actual', 'features']) {
