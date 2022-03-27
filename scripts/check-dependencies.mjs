@@ -10,6 +10,7 @@ const ignoreEverywhere = new Set([
 ]);
 
 const ignoreInPackages = new Set([
+  ...ignoreEverywhere,
   'mkdirp',
   'semver',
   'webpack',
@@ -19,9 +20,10 @@ await Promise.all((await globby(['package.json', 'packages/*/package.json'])).ma
   const pkg = JSON.parse(await fs.readFile(path));
   const dependencies = await getDependencies(pkg);
   const devDependencies = await getDependencies(pkg, { dev: true });
+  const ignore = path === 'package.json' ? ignoreEverywhere : ignoreInPackages;
   Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
-    if (ignoreEverywhere.has(name) || (path !== 'package.json' && ignoreInPackages.has(name))) {
+    if (ignore.has(name)) {
       delete dependencies[name];
       continue;
     }
