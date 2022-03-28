@@ -1915,6 +1915,10 @@ export const data = {
     opera: '10.5',
     safari: '3.0',
   },
+  'web.clear-immediate': {
+    ie: '10',
+    node: '0.9.1',
+  },
   'web.dom-collections.for-each': {
     chrome: '58',
     deno: '1.0',
@@ -1951,6 +1955,7 @@ export const data = {
     node: '17.0',
     safari: '11.1',
   },
+  // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.immediate': {
     ie: '10',
     node: '0.9.1',
@@ -1962,6 +1967,10 @@ export const data = {
     // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
     node: '12.0', // '11.0',
     safari: '12.1',
+  },
+  'web.set-immediate': {
+    ie: '10',
+    node: '0.9.1',
   },
   'web.structured-clone': {
     // https://github.com/whatwg/html/pull/5749
@@ -2029,5 +2038,7 @@ delete data['es.promise.resolve'];
 delete data['esnext.observable.constructor'];
 delete data['esnext.observable.from'];
 delete data['esnext.observable.of'];
+delete data['web.clear-immediate'];
+delete data['web.set-immediate'];
 
 export const modules = Object.keys(data);

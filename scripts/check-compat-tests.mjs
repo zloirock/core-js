@@ -19,6 +19,8 @@ const modulesSet = new Set([
   'esnext.observable.constructor',
   'esnext.observable.from',
   'esnext.observable.of',
+  'web.clear-immediate',
+  'web.set-immediate',
 ]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([

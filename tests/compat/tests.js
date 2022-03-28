@@ -217,6 +217,10 @@ function createStringTrimMethodTest(METHOD_NAME) {
   };
 }
 
+function IMMEDIATE() {
+  return setImmediate && clearImmediate;
+}
+
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
@@ -1701,6 +1705,7 @@ GLOBAL.tests = {
       return typeof btoa == 'function';
     }
   },
+  'web.clear-immediate': IMMEDIATE,
   'web.dom-collections.for-each': function () {
     return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
       && (!GLOBAL.DOMTokenList || (DOMTokenList.prototype.forEach && DOMTokenList.prototype.forEach === [].forEach));
@@ -1768,12 +1773,12 @@ GLOBAL.tests = {
     return typeof DOMException == 'function'
       && DOMException.prototype[Symbol.toStringTag] === 'DOMException';
   },
-  'web.immediate': function () {
-    return setImmediate && clearImmediate;
-  },
+  // TODO: Remove this module from `core-js@4` since it's split to submodules
+  'web.immediate': IMMEDIATE,
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
+  'web.set-immediate': IMMEDIATE,
   'web.structured-clone': function () {
     var test = structuredClone(new AggregateError([1], 'a', { cause: 3 }));
     return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'a' && test.cause == 3;

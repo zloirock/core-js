@@ -1,15 +1,3 @@
-var $ = require('../internals/export');
-var global = require('../internals/global');
-var task = require('../internals/task');
-
-var FORCED = !global.setImmediate || !global.clearImmediate;
-
-// http://w3c.github.io/setImmediate/
-$({ global: true, bind: true, enumerable: true, forced: FORCED }, {
-  // `setImmediate` method
-  // http://w3c.github.io/setImmediate/#si-setImmediate
-  setImmediate: task.set,
-  // `clearImmediate` method
-  // http://w3c.github.io/setImmediate/#si-clearImmediate
-  clearImmediate: task.clear
-});
+// TODO: Remove this module from `core-js@4` since it's split to modules listed below
+require('../modules/web.clear-immediate');
+require('../modules/web.set-immediate');

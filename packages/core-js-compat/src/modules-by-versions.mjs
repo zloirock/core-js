@@ -155,5 +155,7 @@ export default {
     'esnext.observable.constructor',
     'esnext.observable.from',
     'esnext.observable.of',
+    'web.clear-immediate',
+    'web.set-immediate',
   ],
 };
