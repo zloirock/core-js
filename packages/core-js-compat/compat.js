@@ -1,5 +1,5 @@
 'use strict';
-const { compare, has, intersection } = require('./helpers');
+const { compare, filterOutStabilizedProposals, has, intersection } = require('./helpers');
 const data = require('./data');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const modules = require('./modules');
@@ -39,6 +39,8 @@ module.exports = function ({ targets, filter, version }) {
   } else if (typeof filter == 'string') {
     $modules = $modules.filter(it => it.startsWith(filter));
   }
+
+  $modules = filterOutStabilizedProposals($modules);
 
   if (version) {
     $modules = intersection($modules, getModulesListForTargetVersion(version));

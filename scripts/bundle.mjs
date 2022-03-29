@@ -51,8 +51,6 @@ bundle(DENO ? {
     targets: { deno: '1.0' },
     exclude: [
       'esnext.array.filter-out',       // obsolete
-      'esnext.aggregate-error',        // moved to stable ES
-      'esnext.global-this',            // moved to stable ES
       'esnext.map.update-or-insert',   // obsolete
       'esnext.map.upsert',             // obsolete
       'esnext.math.iaddh',             // withdrawn
@@ -63,11 +61,7 @@ bundle(DENO ? {
       'esnext.object.iterate-entries', // withdrawn
       'esnext.object.iterate-keys',    // withdrawn
       'esnext.object.iterate-values',  // withdrawn
-      'esnext.promise.all-settled',    // moved to stable ES
-      'esnext.promise.any',            // moved to stable ES
       'esnext.string.at',              // withdrawn
-      'esnext.string.match-all',       // moved to stable ES
-      'esnext.string.replace-all',     // moved to stable ES
       'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
       'esnext.symbol.replace-all',     // obsolete
       'esnext.typed-array.filter-out', // obsolete

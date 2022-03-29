@@ -12,6 +12,7 @@ const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat/compat');
 const modulesList = require('core-js-compat/modules');
+const { filterOutStabilizedProposals } = require('core-js-compat/helpers');
 const { banner } = require('./config');
 
 function normalizeSummary(unit = {}) {
@@ -55,7 +56,7 @@ module.exports = async function ({
   filter('delete', blacklist || exclude);
 
   // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
-  modules = modulesList.filter(it => set.has(it));
+  modules = filterOutStabilizedProposals(modulesList.filter(it => set.has(it)));
 
   if (targets) {
     const compatResult = compat({ targets, filter: modules });
