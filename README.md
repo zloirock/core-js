@@ -153,7 +153,7 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.unThis`](#functionprototypeunthis)
-      - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor)
+      - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
       - [`URL`](#url)
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
