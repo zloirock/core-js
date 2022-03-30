@@ -95,6 +95,7 @@
     "check-modules-by-versions": "zx scripts/check-compat-data-modules-by-versions.mjs",
     "check-unused-modules": "zx scripts/check-unused-modules.mjs",
     "check": "run-s check-unused-modules check-compat-tests check-modules-by-versions check-mapping check-dependencies",
+    "compat": "node tests/compat/node-runner",
     "generate-indexes": "zx scripts/generate-indexes.mjs",
     "lint": "run-s init test-lint",
     "test-lint": "eslint --ext .js,.mjs,.json ./",
