@@ -1,4 +1,3 @@
-require('../../../modules/esnext.array.with');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../actual/array/virtual/with');
 
-module.exports = entryVirtual('Array')['with'];
+module.exports = parent;

@@ -1,6 +1,5 @@
 require('../proposals/array-from-async');
 require('../proposals/array-is-template-object');
-require('../proposals/change-array-by-copy');
 require('../proposals/decorators');
 require('../proposals/iterator-helpers');
 require('../proposals/map-upsert');

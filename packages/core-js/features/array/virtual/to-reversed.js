@@ -1,4 +1,3 @@
-require('../../../modules/esnext.array.to-reversed');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../actual/array/virtual/to-reversed');
 
-module.exports = entryVirtual('Array').toReversed;
+module.exports = parent;

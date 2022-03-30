@@ -1,4 +1,3 @@
-require('../../../modules/esnext.array.to-spliced');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../actual/array/virtual/to-spliced');
 
-module.exports = entryVirtual('Array').toSpliced;
+module.exports = parent;

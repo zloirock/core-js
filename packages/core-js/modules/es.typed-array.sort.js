@@ -10,7 +10,6 @@ var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
 var V8 = require('../internals/engine-v8-version');
 var WEBKIT = require('../internals/engine-webkit-version');
 
-var Array = global.Array;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var Uint16Array = global.Uint16Array;

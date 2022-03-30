@@ -1,1 +1,3 @@
-require('../../modules/esnext.typed-array.to-reversed');
+var parent = require('../../actual/typed-array/to-reversed');
+
+module.exports = parent;

@@ -1,1 +1,3 @@
-require('../../modules/esnext.typed-array.to-spliced');
+var parent = require('../../actual/typed-array/to-spliced');
+
+module.exports = parent;

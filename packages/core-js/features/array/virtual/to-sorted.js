@@ -1,5 +1,3 @@
-require('../../../modules/es.array.sort');
-require('../../../modules/esnext.array.to-sorted');
-var entryVirtual = require('../../../internals/entry-virtual');
+var parent = require('../../../actual/array/virtual/to-sorted');
 
-module.exports = entryVirtual('Array').toSorted;
+module.exports = parent;
