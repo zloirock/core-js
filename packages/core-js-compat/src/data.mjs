@@ -1901,7 +1901,8 @@ export const data = {
     edge: '13',
     firefox: '27',
     // https://github.com/nodejs/node/issues/41450
-    node: '17.5', // '16.0',
+    // https://github.com/nodejs/node/issues/42530
+    // node: '17.5', '16.0',
     opera: '10.5',
     safari: '10.1',
   },

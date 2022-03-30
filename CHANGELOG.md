@@ -3,6 +3,7 @@
 - Stabilized proposals are filtered out from the `core-js-compat` / `core-js-builder` / `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy shortcut to it, `esnext.object.has-own`, will not be added.
 - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
 - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
+- `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
 - Added Electron 19.0 and updated 18.0 compat data mapping
 
 ##### 3.21.1 - 2022.02.17
