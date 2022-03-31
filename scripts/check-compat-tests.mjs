@@ -21,6 +21,8 @@ const modulesSet = new Set([
   'esnext.observable.of',
   'web.clear-immediate',
   'web.set-immediate',
+  'web.set-interval',
+  'web.set-timeout',
 ]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([

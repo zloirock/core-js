@@ -1973,6 +1973,28 @@ export const data = {
     ie: '10',
     node: '0.9.1',
   },
+  'web.set-interval': {
+    android: '1.5',
+    chrome: '1',
+    deno: '1.0',
+    firefox: '1',
+    ie: '10',
+    node: '0.0.1',
+    opera: '7',
+    safari: '1.0',
+    rhino: '1.7.13',
+  },
+  'web.set-timeout': {
+    android: '1.5',
+    chrome: '1',
+    deno: '1.0',
+    firefox: '1',
+    ie: '10',
+    node: '0.0.1',
+    opera: '7',
+    safari: '1.0',
+    rhino: '1.7.13',
+  },
   'web.structured-clone': {
     // https://github.com/whatwg/html/pull/5749
     // deno: '1.14',
@@ -1980,6 +2002,7 @@ export const data = {
     // firefox: '94',
     // node: '17.0',
   },
+  // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.timers': {
     android: '1.5',
     chrome: '1',
@@ -2041,5 +2064,7 @@ delete data['esnext.observable.from'];
 delete data['esnext.observable.of'];
 delete data['web.clear-immediate'];
 delete data['web.set-immediate'];
+delete data['web.set-interval'];
+delete data['web.set-timeout'];
 
 export const modules = Object.keys(data);

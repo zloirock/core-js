@@ -157,5 +157,7 @@ export default {
     'esnext.observable.of',
     'web.clear-immediate',
     'web.set-immediate',
+    'web.set-interval',
+    'web.set-timeout',
   ],
 };

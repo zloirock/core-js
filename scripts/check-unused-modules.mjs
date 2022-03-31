@@ -34,6 +34,8 @@ const definedModules = new Set([
   'esnext.observable.of',
   'web.clear-immediate',
   'web.set-immediate',
+  'web.set-interval',
+  'web.set-timeout',
 ]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
