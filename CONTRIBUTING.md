@@ -20,7 +20,7 @@ Contributions are always welcome. If you don't know how you can help, you can ch
 For updating `core-js-compat` data:
 
 - If you want to add new data for a browser, run in this browser `tests/compat/index.html` and you will see what `core-js` modules are required for this browser.
-- If you want to add new data for NodeJS, run `tests/compat/node-runner.js` in the required NodeJS version and you will see the results in the console.
+- If you want to add new data for NodeJS, run `npm run compat` in the required NodeJS version and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
