@@ -432,6 +432,8 @@ const base = {
   'unicorn/no-thenable': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
+  // disallow unreadable IIFEs
+  'unicorn/no-unreadable-iife': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
   // forbid useless fallback when spreading in object literals
@@ -442,6 +444,8 @@ const base = {
   'unicorn/no-useless-promise-resolve-reject': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
+  // disallow useless case in switch statements
+  'unicorn/no-useless-switch-case': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': ERROR,
   // prefer `.find(…)` over the first element from `.filter(…)`
@@ -460,6 +464,8 @@ const base = {
   'unicorn/prefer-default-parameters': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
+  // prefer modern `Math`` APIs over legacy patterns
+  'unicorn/prefer-modern-math-apis': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': ERROR,
   // prefer `switch` over multiple `else-if`
