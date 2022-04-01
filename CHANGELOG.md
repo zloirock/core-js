@@ -6,6 +6,7 @@
 - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
 - `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
 - Added Electron 19.0 and updated 18.0 compat data mapping
+- Added Opera Android 68 compat data mapping
 
 ##### 3.21.1 - 2022.02.17
 - Added a [bug](https://bugs.webkit.org/show_bug.cgi?id=236541)fix for the WebKit `Array.prototype.{ groupBy, groupByToMap }` implementation

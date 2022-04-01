@@ -170,6 +170,7 @@ export default {
     [92, 65],
     [94, 66],
     [96, 67],
+    [99, 68],
   ],
   ChromeToAndroid: [
     [9, '3.0'],
