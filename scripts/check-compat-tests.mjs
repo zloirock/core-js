@@ -4,6 +4,9 @@ import '../tests/compat/tests.js';
 const modulesSet = new Set([
   ...modules,
   // TODO: drop those special cases from core-js@4
+  'es.aggregate-error.constructor',
+  'es.data-view.constructor',
+  'es.map.constructor',
   'es.string.trim-left',
   'es.string.trim-right',
   'es.symbol.constructor',
@@ -16,6 +19,9 @@ const modulesSet = new Set([
   'es.promise.race',
   'es.promise.reject',
   'es.promise.resolve',
+  'es.set.constructor',
+  'es.weak-map.constructor',
+  'es.weak-set.constructor',
   'esnext.observable.constructor',
   'esnext.observable.from',
   'esnext.observable.of',
@@ -23,9 +29,18 @@ const modulesSet = new Set([
   'web.set-immediate',
   'web.set-interval',
   'web.set-timeout',
+  'web.url-search-params.constructor',
+  'web.url.constructor',
 ]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([
+  'es.aggregate-error',
+  'es.data-view',
+  'es.map',
+  'es.set',
+  'es.weak-map',
+  'es.weak-set',
+  'esnext.aggregate-error',
   'esnext.array.filter-out',
   'esnext.array.last-index',
   'esnext.array.last-item',
@@ -56,6 +71,8 @@ const ignore = new Set([
   'esnext.typed-array.filter-out',
   'esnext.typed-array.group-by',
   'esnext.weak-map.upsert',
+  'web.url-search-params',
+  'web.url',
 ]);
 
 const missed = modules.filter(it => !(tested.has(it) || tested.has(it.replace(/^esnext\./, 'es.')) || ignore.has(it)));

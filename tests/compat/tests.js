@@ -282,7 +282,7 @@ GLOBAL.tests = {
     return Error('e', { cause: 7 }).cause === 7
       && !('cause' in Error.prototype);
   },
-  'es.aggregate-error': function () {
+  'es.aggregate-error.constructor': function () {
     return typeof AggregateError == 'function';
   },
   'es.aggregate-error.cause': function () {
@@ -508,7 +508,7 @@ GLOBAL.tests = {
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
-  'es.data-view': ARRAY_BUFFER_SUPPORT,
+  'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
   },
@@ -580,7 +580,7 @@ GLOBAL.tests = {
   'es.json.to-string-tag': [SYMBOLS_SUPPORT, function () {
     return JSON[Symbol.toStringTag];
   }],
-  'es.map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var called = 0;
     var iterable = {
       next: function () {
@@ -965,7 +965,7 @@ GLOBAL.tests = {
     return RegExp.prototype.toString.call({ source: 'a', flags: 'b' }) === '/a/b'
       && RegExp.prototype.toString.name === 'toString';
   },
-  'es.set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var called = 0;
     var iterable = {
       next: function () {
@@ -1279,7 +1279,7 @@ GLOBAL.tests = {
   'es.unescape': function () {
     return unescape;
   },
-  'es.weak-map': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.weak-map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = Object.freeze({});
     var called = 0;
     var iterable = {
@@ -1297,7 +1297,7 @@ GLOBAL.tests = {
       && map.set({}, 2) == map
       && map[Symbol.toStringTag];
   }],
-  'es.weak-set': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
+  'es.weak-set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = {};
     var called = 0;
     var iterable = {
@@ -1786,9 +1786,9 @@ GLOBAL.tests = {
   'web.timers': function () {
     return !/MSIE .\./.test(USERAGENT);
   },
-  'web.url': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params': URL_AND_URL_SEARCH_PARAMS_SUPPORT
+  'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT
 };

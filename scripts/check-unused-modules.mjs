@@ -16,11 +16,9 @@ const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   // TODO: drop those special cases from core-js@4
-  'es.string.trim-left',
-  'es.string.trim-right',
-  'es.symbol.constructor',
-  'es.symbol.for',
-  'es.symbol.key-for',
+  'es.aggregate-error.constructor',
+  'es.data-view.constructor',
+  'es.map.constructor',
   'es.object.get-own-property-symbols',
   'es.promise.constructor',
   'es.promise.all',
@@ -28,6 +26,14 @@ const definedModules = new Set([
   'es.promise.race',
   'es.promise.reject',
   'es.promise.resolve',
+  'es.set.constructor',
+  'es.string.trim-left',
+  'es.string.trim-right',
+  'es.symbol.constructor',
+  'es.symbol.for',
+  'es.symbol.key-for',
+  'es.weak-map.constructor',
+  'es.weak-set.constructor',
   'esnext.string.at-alternative',
   'esnext.observable.constructor',
   'esnext.observable.from',
@@ -36,6 +42,8 @@ const definedModules = new Set([
   'web.set-immediate',
   'web.set-interval',
   'web.set-timeout',
+  'web.url-search-params.constructor',
+  'web.url.constructor',
 ]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));

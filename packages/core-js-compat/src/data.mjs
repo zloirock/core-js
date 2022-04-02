@@ -124,7 +124,9 @@ export const data = {
     safari: '8.0',
     rhino: '1.7.14',
   },
-  'es.aggregate-error': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.aggregate-error': null,
+  'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
     safari: '14.0',
@@ -345,7 +347,9 @@ export const data = {
     safari: '12.1',
     rhino: '1.7.13',
   },
-  'es.data-view': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.data-view': null,
+  'es.data-view.constructor': {
     chrome: '26',
     firefox: '15',
     ie: '10',
@@ -461,7 +465,9 @@ export const data = {
     firefox: '51',
     safari: '10.0',
   },
-  'es.map': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.map': null,
+  'es.map.constructor': {
     chrome: '51',
     edge: '15',
     firefox: '53',
@@ -1065,7 +1071,9 @@ export const data = {
     firefox: '46',
     safari: '10.0',
   },
-  'es.set': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.set': null,
+  'es.set.constructor': {
     chrome: '51',
     edge: '15',
     firefox: '53',
@@ -1524,14 +1532,18 @@ export const data = {
     safari: '1',
     rhino: '1.7.13',
   },
-  'es.weak-map': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.weak-map': null,
+  'es.weak-map.constructor': {
     chrome: '51',
     edge: '15',
     firefox: '53',
     safari: '10.0',
     rhino: '1.7.13',
   },
-  'es.weak-set': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.weak-set': null,
+  'es.weak-set.constructor': {
     chrome: '51',
     edge: '15',
     firefox: '53',
@@ -2014,7 +2026,9 @@ export const data = {
     safari: '1.0',
     rhino: '1.7.13',
   },
-  'web.url': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'web.url': null,
+  'web.url.constructor': {
     chrome: '67',
     deno: '1.0',
     firefox: '57',
@@ -2028,7 +2042,9 @@ export const data = {
     node: '10.0',
     safari: '14.0',
   },
-  'web.url-search-params': {
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'web.url-search-params': null,
+  'web.url-search-params.constructor': {
     chrome: '67',
     deno: '1.0',
     firefox: '57',
@@ -2038,6 +2054,12 @@ export const data = {
 };
 
 // TODO: Remove from `core-js@4`
+data['es.aggregate-error'] = data['es.aggregate-error.constructor'];
+data['es.data-view'] = data['es.data-view.constructor'];
+data['es.map'] = data['es.map.constructor'];
+data['es.set'] = data['es.set.constructor'];
+data['es.weak-map'] = data['es.weak-map.constructor'];
+data['es.weak-set'] = data['es.weak-set.constructor'];
 data['esnext.array.at'] = data['es.array.at'];
 data['esnext.aggregate-error'] = data['es.aggregate-error'];
 data['esnext.global-this'] = data['es.global-this'];
@@ -2047,6 +2069,12 @@ data['esnext.promise.any'] = data['es.promise.any'];
 data['esnext.string.match-all'] = data['es.string.match-all'];
 data['esnext.string.replace-all'] = data['es.string.replace-all'];
 data['esnext.typed-array.at'] = data['es.typed-array.at'];
+data['web.url'] = data['web.url.constructor'];
+data['web.url-search-params'] = data['web.url-search-params.constructor'];
+delete data['es.aggregate-error.constructor'];
+delete data['es.data-view.constructor'];
+delete data['es.map.constructor'];
+delete data['es.set.constructor'];
 delete data['es.string.trim-left'];
 delete data['es.string.trim-right'];
 delete data['es.symbol.constructor'];
@@ -2059,6 +2087,8 @@ delete data['es.promise.catch'];
 delete data['es.promise.race'];
 delete data['es.promise.reject'];
 delete data['es.promise.resolve'];
+delete data['es.weak-map.constructor'];
+delete data['es.weak-set.constructor'];
 delete data['esnext.observable.constructor'];
 delete data['esnext.observable.from'];
 delete data['esnext.observable.of'];
@@ -2066,5 +2096,7 @@ delete data['web.clear-immediate'];
 delete data['web.set-immediate'];
 delete data['web.set-interval'];
 delete data['web.set-timeout'];
+delete data['web.url.constructor'];
+delete data['web.url-search-params.constructor'];
 
 export const modules = Object.keys(data);
