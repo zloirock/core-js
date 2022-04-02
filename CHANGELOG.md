@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) moved to stage 3
+- `Array.prototype.toSpliced` throws a `TypeError` instead of `RangeError` in the result length is more than `MAX_SAFE_INTEGER`, [proposal-change-array-by-copy/70](https://github.com/tc39/proposal-change-array-by-copy/pull/70)
 - Stabilized proposals are filtered out from the `core-js-compat` / `core-js-builder` / `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy shortcut to it, `esnext.object.has-own`, will not be added.
 - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
 - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
