@@ -3,15 +3,17 @@
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - Moved to Stage 3, [March TC39 meeting](https://github.com/babel/proposals/issues/81#issuecomment-1083449843)
   - `Array.prototype.toSpliced` throws a `TypeError` instead of `RangeError` if the result length is more than `MAX_SAFE_INTEGER`, [proposal-change-array-by-copy/70](https://github.com/tc39/proposal-change-array-by-copy/pull/70)
-- Stabilized proposals are filtered out from the `core-js-compat` / `core-js-builder` / `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, will not be added.
-- Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
-- `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
-- `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
-- `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)
-- Added Deno 1.21 compat data mapping
-- Added Electron 19.0 and updated 18.0 compat data mapping
-- Added Opera Android 68 compat data mapping
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
+- Stabilized proposals are filtered out from the `core-js-compat` / `core-js-builder` / `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, will not be added.
+- Bug fixes:
+  - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
+  - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
+- Compat data:
+  - `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
+  - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)
+  - Added Deno 1.21 compat data mapping
+  - Added Electron 19.0 and updated 18.0 compat data mapping
+  - Added Opera Android 68 compat data mapping
 
 ##### 3.21.1 - 2022.02.17
 - Added a [bug](https://bugs.webkit.org/show_bug.cgi?id=236541)fix for the WebKit `Array.prototype.{ groupBy, groupByToMap }` implementation
