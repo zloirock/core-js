@@ -13,6 +13,7 @@
   - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)
   - Added Deno 1.21 compat data mapping
   - Added Electron 19.0 and updated 18.0 compat data mapping
+  - Added Samsung Internet 17.0 compat data mapping
   - Added Opera Android 68 compat data mapping
 
 ##### 3.21.1 - 2022.02.17
