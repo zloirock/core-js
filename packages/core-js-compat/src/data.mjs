@@ -1957,7 +1957,7 @@ export const data = {
     safari: '11.1',
   },
   'web.dom-exception.stack': {
-    deno: '1.7',
+    deno: '1.15',
     firefox: '37',
     node: '17.0',
   },
