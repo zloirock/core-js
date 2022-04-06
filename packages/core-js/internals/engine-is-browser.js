@@ -1,1 +1,1 @@
-module.exports = typeof window == 'object';
+module.exports = typeof window == 'object' && typeof Deno != 'object';
