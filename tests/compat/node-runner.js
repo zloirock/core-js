@@ -1,16 +1,15 @@
 /* eslint-disable no-console -- output */
 require('./tests');
+
 var tests = global.tests;
-var result = {};
+var result = Object.create(null);
 var name;
 
 for (name in tests) {
   var test = tests[name];
   try {
-    if (typeof test == 'function') {
-      result[name] = !!test();
-    } else result[name] = test.reduce(function (accumulator, $test) {
-      return accumulator && !!$test();
+    result[name] = typeof test == 'function' ? !!test() : test.reduce(function (accumulator, subTest) {
+      return accumulator && !!subTest();
     }, true);
   } catch (error) {
     result[name] = false;

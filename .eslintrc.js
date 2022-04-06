@@ -1197,6 +1197,7 @@ module.exports = {
       files: [
         'packages/core-js-compat/src/**',
         'scripts/**',
+        'tests/compat/deno-runner.mjs',
         'tests/observables/**',
         'tests/promises-aplus/**',
         'tests/commonjs.js',
@@ -1226,6 +1227,7 @@ module.exports = {
     {
       files: ['*.mjs'],
       parserOptions: {
+        ecmaVersion: 'latest',
         sourceType: 'module',
       },
     },

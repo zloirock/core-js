@@ -31,7 +31,9 @@ if (!V8_VERSION && USERAGENT) {
   }
 }
 
-var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
+var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
+
+// var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
@@ -57,7 +59,7 @@ var PROMISES_SUPPORT = function () {
 
   return promise.then(empty) instanceof FakePromise
     && V8_VERSION !== 66
-    && (IS_NODE || typeof PromiseRejectionEvent == 'function');
+    && (!IS_BROWSER || typeof PromiseRejectionEvent == 'function');
 };
 
 var PROMISE_STATICS_ITERATION = function () {
