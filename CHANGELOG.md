@@ -3,11 +3,15 @@
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - Moved to Stage 3, [March TC39 meeting](https://github.com/babel/proposals/issues/81#issuecomment-1083449843)
   - `Array.prototype.toSpliced` throws a `TypeError` instead of `RangeError` if the result length is more than `MAX_SAFE_INTEGER`, [proposal-change-array-by-copy/70](https://github.com/tc39/proposal-change-array-by-copy/pull/70)
+- Added some more `atob` / `btoa` fixes:
+  - FF26- implementation does not properly convert argument to string
+  - IE / Edge <16 implementation have wrong arity
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
-- Stabilized proposals are filtered out from the `core-js-compat` / `core-js-builder` / `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, will not be added.
 - Bug fixes:
   - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
   - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
+- Tooling:
+  - Stabilized proposals are filtered out from the `core-js-compat` -> `core-js-builder` -> `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, will not be added.
 - Compat data:
   - `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
   - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)

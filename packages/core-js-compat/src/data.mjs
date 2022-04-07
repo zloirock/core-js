@@ -1910,7 +1910,8 @@ export const data = {
   'web.atob': {
     chrome: '34',
     deno: '1.0',
-    edge: '13',
+    // older have wrong arity
+    edge: '16', // 13
     firefox: '27',
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
@@ -1921,8 +1922,10 @@ export const data = {
   'web.btoa': {
     chrome: '4',
     deno: '1.0',
-    firefox: '1',
-    ie: '10',
+    // older have wrong arity
+    edge: '16', // ie: '10',
+    // FF26- does not properly convert argument to string
+    firefox: '27',
     // https://github.com/nodejs/node/issues/41450
     node: '17.5', // '16.0',
     opera: '10.5',

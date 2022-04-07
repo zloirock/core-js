@@ -25,12 +25,14 @@ var NO_ARG_RECEIVING_CHECK = !NO_SPACES_IGNORE && !fails(function () {
   $atob();
 });
 
+var WRONG_ARITY = !NO_SPACES_IGNORE && $atob.length !== 1;
+
 // `atob` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-atob
-$({ global: true, enumerable: true, forced: NO_SPACES_IGNORE || NO_ARG_RECEIVING_CHECK }, {
+$({ global: true, enumerable: true, forced: NO_SPACES_IGNORE || NO_ARG_RECEIVING_CHECK || WRONG_ARITY }, {
   atob: function atob(data) {
     validateArgumentsLength(arguments.length, 1);
-    if (NO_ARG_RECEIVING_CHECK) return $atob(data);
+    if (NO_ARG_RECEIVING_CHECK || WRONG_ARITY) return $atob(data);
     var string = replace(toString(data), whitespaces, '');
     var output = '';
     var position = 0;
