@@ -61,7 +61,8 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(new Number(1e21), NaN), '1e+21');
   assert.same(toExponential.call(new Number(1e21), 'some string'), '1e+21');
 
-  assert.same(toExponential.call(5, 19), '5.0000000000000000000e+0');
+  // somehow that randomly fails in FF16- on Linux
+  assert.same(toExponential.call(5, 19), '5.0000000000000000000e+0', '5, 19');
 
   // ported from tests262, the license: https://github.com/tc39/test262/blob/main/LICENSE
   assert.same(toExponential.call(123.456, 0), '1e+2');
