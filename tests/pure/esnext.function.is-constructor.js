@@ -1,4 +1,4 @@
-import isConstructor from 'core-js-pure/features/function/is-constructor';
+import isConstructor from 'core-js-pure/full/function/is-constructor';
 import { fromSource } from '../helpers/helpers';
 
 QUnit.test('Function.isConstructor', assert => {

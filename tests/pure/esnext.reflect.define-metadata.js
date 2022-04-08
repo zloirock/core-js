@@ -1,4 +1,4 @@
-import defineMetadata from 'core-js-pure/features/reflect/define-metadata';
+import defineMetadata from 'core-js-pure/full/reflect/define-metadata';
 
 QUnit.test('Reflect.defineMetadata', assert => {
   assert.isFunction(defineMetadata);

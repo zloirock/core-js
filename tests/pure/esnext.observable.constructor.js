@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
-import Symbol from 'core-js-pure/features/symbol';
-import Observable from 'core-js-pure/features/observable';
+import Symbol from 'core-js-pure/full/symbol';
+import Observable from 'core-js-pure/full/observable';
 
 QUnit.test('Observable', assert => {
   assert.isFunction(Observable);

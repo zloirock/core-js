@@ -1,4 +1,4 @@
-const { copy, lstat, pathExists, rm } = fs;
+const { copy, ensureFile, lstat, pathExists, rm, writeFile } = fs;
 let copied = 0;
 
 function options(overwrite) {
@@ -13,10 +13,24 @@ function options(overwrite) {
 
 await Promise.all((await globby([
   'tests/bundles/*',
+  // TODO: drop it from `core-js@4`
+  'packages/core-js/features',
   'packages/core-js-pure/!(override|.npmignore|package.json|README.md)',
 ], { onlyFiles: false })).map(path => rm(path, { force: true, recursive: true })));
 
 console.log(chalk.green('old copies removed'));
+
+// TODO: drop it from `core-js@4`
+const files = await globby('packages/core-js/full/**/*.js');
+
+for (const filename of files) {
+  const newFilename = filename.replace('full', 'features');
+  const href = '../'.repeat(filename.split('').filter(it => it === '/').length - 2) + filename.slice(17, -3).replace(/\/index$/, '');
+  await ensureFile(newFilename);
+  await writeFile(newFilename, `module.exports = require('${ href }');\n`);
+}
+
+console.log(chalk.green('created /features/ entries'));
 
 await copy('packages/core-js', 'packages/core-js-pure', options(false));
 

@@ -14,7 +14,7 @@ function load(...components) {
 }
 
 for (PATH of ['core-js-pure', 'core-js']) {
-  for (const NS of ['es', 'stable', 'actual', 'features']) {
+  for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
@@ -542,7 +542,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
   }
 
-  for (const NS of ['stable', 'actual', 'features']) {
+  for (const NS of ['stable', 'actual', 'full', 'features']) {
     ok(load(NS, 'atob')('Zg==') === 'f');
     ok(load(NS, 'btoa')('f') === 'Zg==');
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
@@ -562,7 +562,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
 
-  for (const NS of ['actual', 'features']) {
+  for (const NS of ['actual', 'full', 'features']) {
     ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
     ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/group-by') == 'function');
@@ -629,9 +629,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
   }
 
-  {
-    const NS = 'features';
-
+  for (const NS of ['full', 'features']) {
     const Map = load(NS, 'map');
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
@@ -885,7 +883,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load());
 }
 
-for (const NS of ['es', 'stable', 'actual', 'features']) {
+for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   ok(typeof load(NS, 'string/match') == 'function');
   ok('next' in load(NS, 'string/match-all')('a', /./g));
   ok(typeof load(NS, 'string/replace') == 'function');
@@ -938,7 +936,7 @@ for (const NS of ['es', 'stable', 'actual', 'features']) {
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
-for (const NS of ['actual', 'features']) {
+for (const NS of ['actual', 'full', 'features']) {
   load(NS, 'typed-array/find-last');
   load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/to-reversed');
@@ -947,9 +945,7 @@ for (const NS of ['actual', 'features']) {
   load(NS, 'typed-array/with');
 }
 
-{
-  const NS = 'features';
-
+for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');

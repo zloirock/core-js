@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
-import AsyncIterator from 'core-js-pure/features/async-iterator';
+import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator#reduce', assert => {
   assert.expect(18);

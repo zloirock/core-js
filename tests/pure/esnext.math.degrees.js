@@ -1,4 +1,4 @@
-import degrees from 'core-js-pure/features/math/degrees';
+import degrees from 'core-js-pure/full/math/degrees';
 
 QUnit.test('Math.degrees', assert => {
   assert.isFunction(degrees);

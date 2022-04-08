@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/features/symbol';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('Symbol.replaceAll', assert => {
   assert.true('replaceAll' in Symbol, 'Symbol.replaceAll is available');

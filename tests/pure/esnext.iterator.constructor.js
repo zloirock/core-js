@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers';
 
 import Symbol from 'core-js-pure/es/symbol';
-import Iterator from 'core-js-pure/features/iterator';
+import Iterator from 'core-js-pure/full/iterator';
 
 QUnit.test('Iterator', assert => {
   assert.isFunction(Iterator);

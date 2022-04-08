@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers';
 
 import from from 'core-js-pure/es/array/from';
-import Map from 'core-js-pure/features/map';
+import Map from 'core-js-pure/full/map';
 
 QUnit.test('Map.keyBy', assert => {
   const { keyBy } = Map;

@@ -1,4 +1,4 @@
-import iaddh from 'core-js-pure/features/math/iaddh';
+import iaddh from 'core-js-pure/full/math/iaddh';
 
 QUnit.test('Math.iaddh', assert => {
   assert.isFunction(iaddh);

@@ -8,6 +8,7 @@
   - Actual NodeJS `atob` does not validate encoding, [node/42646](https://github.com/nodejs/node/issues/42646)
   - FF26- implementation does not properly convert argument to string
   - IE / Edge <16 implementation have wrong arity
+- Added `/full/` namespace as the replacement for `/features/` since it's more descriptive in context of the rest namespaces (`/es/` ⊆ `/stable/` ⊆ `/actual/` ⊆ `/full/`)
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
 - Bug fixes:
   - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)

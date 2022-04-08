@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
-import Iterator from 'core-js-pure/features/iterator';
+import Iterator from 'core-js-pure/full/iterator';
 
 QUnit.test('Iterator#find', assert => {
   const { find } = Iterator.prototype;

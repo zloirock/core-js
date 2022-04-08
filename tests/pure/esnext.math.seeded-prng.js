@@ -1,4 +1,4 @@
-import seededPRNG from 'core-js-pure/features/math/seeded-prng';
+import seededPRNG from 'core-js-pure/full/math/seeded-prng';
 
 QUnit.test('Math.seededPRNG', assert => {
   assert.isFunction(seededPRNG);

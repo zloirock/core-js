@@ -75,7 +75,7 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "init": "run-p generate-indexes bootstrap && run-p clean-and-copy build-compat",
+    "init": "run-p generate-indexes bootstrap && run-s clean-and-copy build-compat",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
     "bootstrap": "lerna bootstrap --no-ci",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",

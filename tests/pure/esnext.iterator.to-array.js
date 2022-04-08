@@ -1,6 +1,6 @@
 import { createIterable, createIterator } from '../helpers/helpers';
 
-import Iterator from 'core-js-pure/features/iterator';
+import Iterator from 'core-js-pure/full/iterator';
 
 QUnit.test('Iterator#toArray', assert => {
   const { toArray } = Iterator.prototype;

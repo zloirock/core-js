@@ -1,4 +1,4 @@
-import unThis from 'core-js-pure/features/function/un-this';
+import unThis from 'core-js-pure/full/function/un-this';
 
 QUnit.test('Function#unThis', assert => {
   assert.isFunction(unThis);

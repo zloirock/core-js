@@ -2,8 +2,8 @@ import { STRICT } from '../helpers/constants';
 
 import Promise from 'core-js-pure/es/promise';
 import Set from 'core-js-pure/es/set';
-import Iterator from 'core-js-pure/features/iterator';
-import 'core-js-pure/features/async-iterator';
+import Iterator from 'core-js-pure/full/iterator';
+import 'core-js-pure/full/async-iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
   assert.expect(STRICT ? 6 : 4);

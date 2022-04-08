@@ -1,5 +1,5 @@
 import Symbol from 'core-js-pure/es/symbol';
-import iterateEntries from 'core-js-pure/features/object/iterate-entries';
+import iterateEntries from 'core-js-pure/full/object/iterate-entries';
 
 QUnit.test('Object.iterateEntries', assert => {
   assert.isFunction(iterateEntries);

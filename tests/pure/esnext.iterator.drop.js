@@ -1,6 +1,6 @@
 import { createIterator } from '../helpers/helpers';
 
-import Iterator from 'core-js-pure/features/iterator';
+import Iterator from 'core-js-pure/full/iterator';
 
 QUnit.test('Iterator#drop', assert => {
   const { drop } = Iterator.prototype;

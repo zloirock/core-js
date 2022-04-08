@@ -1,4 +1,4 @@
-import isCallable from 'core-js-pure/features/function/is-callable';
+import isCallable from 'core-js-pure/full/function/is-callable';
 import { fromSource } from '../helpers/helpers';
 
 QUnit.test('Function.isCallable', assert => {

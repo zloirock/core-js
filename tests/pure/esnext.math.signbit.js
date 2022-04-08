@@ -1,4 +1,4 @@
-import signbit from 'core-js-pure/features/math/signbit';
+import signbit from 'core-js-pure/full/math/signbit';
 
 QUnit.test('Math.signbit', assert => {
   assert.isFunction(signbit);
