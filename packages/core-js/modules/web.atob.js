@@ -18,18 +18,22 @@ var replace = uncurryThis(''.replace);
 var exec = uncurryThis(disallowed.exec);
 
 var NO_SPACES_IGNORE = fails(function () {
-  return atob(' ') !== '';
+  return $atob(' ') !== '';
 });
 
-var NO_ARG_RECEIVING_CHECK = !NO_SPACES_IGNORE && !fails(function () {
+var NO_ENCODING_CHECK = !fails(function () {
+  $atob('a');
+});
+
+var NO_ARG_RECEIVING_CHECK = !NO_SPACES_IGNORE && !NO_ENCODING_CHECK && !fails(function () {
   $atob();
 });
 
-var WRONG_ARITY = !NO_SPACES_IGNORE && $atob.length !== 1;
+var WRONG_ARITY = !NO_SPACES_IGNORE && !NO_ENCODING_CHECK && $atob.length !== 1;
 
 // `atob` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-atob
-$({ global: true, enumerable: true, forced: NO_SPACES_IGNORE || NO_ARG_RECEIVING_CHECK || WRONG_ARITY }, {
+$({ global: true, enumerable: true, forced: NO_SPACES_IGNORE || NO_ENCODING_CHECK || NO_ARG_RECEIVING_CHECK || WRONG_ARITY }, {
   atob: function atob(data) {
     validateArgumentsLength(arguments.length, 1);
     if (NO_ARG_RECEIVING_CHECK || WRONG_ARITY) return $atob(data);

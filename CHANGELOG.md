@@ -4,6 +4,8 @@
   - Moved to Stage 3, [March TC39 meeting](https://github.com/babel/proposals/issues/81#issuecomment-1083449843)
   - `Array.prototype.toSpliced` throws a `TypeError` instead of `RangeError` if the result length is more than `MAX_SAFE_INTEGER`, [proposal-change-array-by-copy/70](https://github.com/tc39/proposal-change-array-by-copy/pull/70)
 - Added some more `atob` / `btoa` fixes:
+  - NodeJS <17.9 `atob` does not ignore spaces, [node/42530](https://github.com/nodejs/node/issues/42530)
+  - Actual NodeJS `atob` does not validate encoding, [node/42646](https://github.com/nodejs/node/issues/42646)
   - FF26- implementation does not properly convert argument to string
   - IE / Edge <16 implementation have wrong arity
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
@@ -13,7 +15,6 @@
 - Tooling:
   - Stabilized proposals are filtered out from the `core-js-compat` -> `core-js-builder` -> `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, will not be added.
 - Compat data:
-  - `atob` marked as not supported in the actual NodeJS (again) because of [the bug](https://github.com/nodejs/node/issues/42530)
   - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)
   - Added Deno 1.21 compat data mapping
   - Added Electron 19.0 and updated 18.0 compat data mapping

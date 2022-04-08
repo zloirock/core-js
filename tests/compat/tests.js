@@ -1696,8 +1696,12 @@ GLOBAL.tests = {
   'web.atob': function () {
     try {
       atob();
-    } catch (error) {
-      return atob(' ') === '';
+    } catch (error1) {
+      try {
+        atob('a');
+      } catch (error2) {
+        return atob(' ') === '';
+      }
     }
   },
   'web.btoa': function () {
