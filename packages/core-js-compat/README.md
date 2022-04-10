@@ -4,41 +4,48 @@
 
 ```js
 const {
-  list,                  // array of required modules
-  targets,               // object with targets for each module
+  list,                         // array of required modules
+  targets,                      // object with targets for each module
 } = require('core-js-compat')({
-  targets: '> 2.5%',     // browserslist query or object of minimum environment versions to support
-  filter: /^(es|web)\./, // optional filter - string-prefix, regexp or list of modules
-  version: '3.21',       // used `core-js` version, by default - the latest
+  targets: '> 1%',              // browserslist query or object of minimum environment versions to support, see below
+  modules: [                    // optional modules list / filter - regex, sting or an array of them:
+    'core-js/actual',           // - an entry point
+    'esnext.array.unique-by',   // - a module name (or just a start of a module name)
+    /^web\./,                   // - regex that a module name must satisfy
+  ],
+  version: '3.21',              // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
 /* =>
 {
-  'es.symbol.match-all': { ios: '12.2-12.4' },
-  'es.array.unscopables.flat': { ios: '12.2-12.4' },
-  'es.array.unscopables.flat-map': { ios: '12.2-12.4' },
-  'es.math.hypot': { chrome: '77' },
-  'es.promise.all-settled': { firefox: '69', ios: '12.2-12.4' },
-  'es.promise.finally': { ios: '12.2-12.4' },
-  'es.string.match-all': { chrome: '77', firefox: '69', ios: '12.2-12.4' },
-  'es.string.replace': { firefox: '69', ios: '12.2-12.4' },
-  'es.typed-array.float32-array': { ios: '12.2-12.4' },
-  'es.typed-array.float64-array': { ios: '12.2-12.4' },
-  'es.typed-array.int8-array': { ios: '12.2-12.4' },
-  'es.typed-array.int16-array': { ios: '12.2-12.4' },
-  'es.typed-array.int32-array': { ios: '12.2-12.4' },
-  'es.typed-array.uint8-array': { ios: '12.2-12.4' },
-  'es.typed-array.uint8-clamped-array': { ios: '12.2-12.4' },
-  'es.typed-array.uint16-array': { ios: '12.2-12.4' },
-  'es.typed-array.uint32-array': { ios: '12.2-12.4' },
-  'es.typed-array.from': { ios: '12.2-12.4' },
-  'es.typed-array.of': { ios: '12.2-12.4' },
-  'web.dom-collections.iterator': { ios: '12.2-12.4' },
-  'web.immediate': { chrome: '77', firefox: '69', ios: '12.2-12.4' },
-  'web.url': { ios: '12.2-12.4' },
-  'web.url.to-json': { ios: '12.2-12.4' },
-  'web.url-search-params': { ios: '12.2-12.4' }
+  'es.error.cause': { ios: '14.5-14.8', samsung: '16.0' },
+  'es.aggregate-error.cause': { ios: '14.5-14.8', samsung: '16.0' },
+  'es.array.at': { ios: '14.5-14.8' },
+  'es.object.has-own': { ios: '14.5-14.8', samsung: '16.0' },
+  'es.string.at-alternative': { ios: '14.5-14.8' },
+  'es.typed-array.at': { ios: '14.5-14.8' },
+  'es.typed-array.set': { samsung: '16.0' },
+  'esnext.array.find-last': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.find-last-index': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.group-by': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.group-by-to-map': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.to-reversed': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.to-sorted': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.to-spliced': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.unique-by': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.array.with': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.symbol.replace-all': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.find-last': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.find-last-index': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.group-by': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.to-reversed': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.to-sorted': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.to-spliced': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'esnext.typed-array.with': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'web.dom-exception.stack': { chrome: '98', edge: '99', ios: '14.5-14.8', samsung: '16.0' },
+  'web.immediate': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
+  'web.structured-clone': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' }
 }
 */
 ```
@@ -74,9 +81,9 @@ console.log(targets);
 
 ```js
 // equals of of the method from the example above
-require('core-js-compat/compat')({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('core-js-compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 // or
-require('core-js-compat').compat({ targets, filter, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('core-js-compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 
 // full compat data:
 require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }

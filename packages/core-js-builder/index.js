@@ -26,11 +26,11 @@ function normalizeSummary(unit = {}) {
 }
 
 module.exports = async function ({
-  blacklist, // TODO: Remove from `core-js@4`
-  exclude = [],
   modules = modulesList.slice(),
-  targets,
-  filename,
+  blacklist = null, // TODO: Obsolete, remove from `core-js@4`
+  exclude = [],
+  targets = null,
+  filename = null,
   summary = {},
 } = {}) {
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
@@ -53,13 +53,13 @@ module.exports = async function ({
   }
 
   filter('add', modules);
-  filter('delete', blacklist || exclude);
+  filter('delete', exclude == null ? blacklist : exclude);
 
   // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
   modules = filterOutStabilizedProposals(modulesList.filter(it => set.has(it)));
 
   if (targets) {
-    const compatResult = compat({ targets, filter: modules });
+    const compatResult = compat({ targets, modules });
     modules = compatResult.list;
     modulesWithTargets = compatResult.targets;
   }
@@ -111,7 +111,7 @@ module.exports = async function ({
     console.log(JSON.stringify(modulesWithTargets || modules, null, '  '));
   }
 
-  if (typeof filename != 'undefined') {
+  if (filename != null) {
     await mkdirp(dirname(filename));
     await writeFile(filename, script);
   }
