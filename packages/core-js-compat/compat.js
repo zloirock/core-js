@@ -14,14 +14,20 @@ function getModules(filter) {
   throw TypeError('Wrong filter!');
 }
 
-function checkModule(name, targets) {
-  if (!has(data, name)) throw new TypeError(`Incorrect module: ${ name }`);
+function normalizeModules(option) {
+  // TODO: use `.flatMap` in core-js@4
+  return new Set(Array.isArray(option) ? [].concat.apply([], option.map(getModules)) : getModules(option));
+}
 
-  const requirements = data[name];
+function checkModule(name, targets) {
   const result = {
-    required: false,
+    required: !targets,
     targets: {},
   };
+
+  if (!targets) return result;
+
+  const requirements = data[name];
 
   for (const [engine, version] of targets) {
     if (!has(requirements, engine) || compare(version, '<', requirements[engine])) {
@@ -36,6 +42,7 @@ function checkModule(name, targets) {
 module.exports = function ({
   filter = null, // TODO: Obsolete, remove from `core-js@4`
   modules = null,
+  exclude = [],
   targets = null,
   version = null,
 } = {}) {
@@ -48,23 +55,18 @@ module.exports = function ({
     targets: {},
   };
 
-  let $modules;
-  if (modules) {
-    const list = Array.isArray(modules) ? modules : [modules];
-    $modules = [...new Set([].concat.apply([], list.map(getModules)))];
-  } else $modules = allModules;
+  exclude = normalizeModules(exclude);
 
-  if (version) {
-    $modules = intersection($modules, getModulesListForTargetVersion(version));
-  }
+  modules = modules ? [...normalizeModules(modules)] : allModules;
 
-  $modules = filterOutStabilizedProposals($modules);
+  if (exclude.size) modules = modules.filter(it => !exclude.has(it));
 
-  for (const key of $modules) {
-    const check = parsedTargets ? checkModule(key, parsedTargets) : {
-      required: true,
-      targets: {},
-    };
+  modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
+
+  modules = filterOutStabilizedProposals(modules);
+
+  for (const key of modules) {
+    const check = checkModule(key, parsedTargets);
 
     if (check.required) {
       result.list.push(key);

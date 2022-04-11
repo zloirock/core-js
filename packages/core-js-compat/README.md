@@ -8,10 +8,13 @@ const {
   targets,                      // object with targets for each module
 } = require('core-js-compat')({
   targets: '> 1%',              // browserslist query or object of minimum environment versions to support, see below
-  modules: [                    // optional modules list / filter - regex, sting or an array of them:
+  modules: [                    // optional list / filter of modules - regex, sting or an array of them:
     'core-js/actual',           // - an entry point
     'esnext.array.unique-by',   // - a module name (or just a start of a module name)
     /^web\./,                   // - regex that a module name must satisfy
+  ],
+  exclude: [                    // optional list / filter of modules to exclude, the signature is similar to `modules` option
+    'web.atob',
   ],
   version: '3.21',              // used `core-js` version, by default - the latest
 });
@@ -35,10 +38,8 @@ console.log(targets);
   'esnext.array.to-spliced': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.array.unique-by': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.array.with': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
-  'esnext.symbol.replace-all': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.typed-array.find-last': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.typed-array.find-last-index': { firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
-  'esnext.typed-array.group-by': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.typed-array.to-reversed': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.typed-array.to-sorted': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },
   'esnext.typed-array.to-spliced': { chrome: '98', edge: '99', firefox: '98', ios: '14.5-14.8', samsung: '16.0' },

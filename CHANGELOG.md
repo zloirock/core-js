@@ -15,9 +15,9 @@
   - `null` and `undefined` allowed as the second argument of `structuredClone`, [#1056](https://github.com/zloirock/core-js/issues/1056)
 - Tooling:
   - Stabilized proposals are filtered out from the `core-js-compat` -> `core-js-builder` -> `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, no longer added.
-  - `modules` option of `core-js-compat` replaces `filter` for consistency with `core-js-builder`
-  - Added support of entry points, arrays of them and arrays of regex to modules filter of `core-js-compat`, [see the docs](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder)
-  - Missed `targets` option in `core-js-compat` means that the `targets` filter just will not be applied, so the result will contain modules required for all possible engines
+  - Aligned modules filters of [`core-js-builder`](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder) and [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat), now it's `modules` and `exclude` options
+  - Added support of entry points, modules, regexes and arrays of them to those filters
+  - Missed `targets` option of `core-js-compat` means that the `targets` filter just will not be applied, so the result will contain modules required for all possible engines
 - Compat data:
   - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)
   - Added Deno 1.21 compat data mapping

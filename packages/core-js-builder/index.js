@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable no-console -- output */
 const { promisify } = require('util');
 const fs = require('fs');
 // TODO: replace by `fs.promises` after dropping NodeJS < 10 support
@@ -11,8 +12,6 @@ const tmpdir = require('os').tmpdir();
 const mkdirp = promisify(require('mkdirp'));
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat/compat');
-const modulesList = require('core-js-compat/modules');
-const { filterOutStabilizedProposals } = require('core-js-compat/helpers');
 const { banner } = require('./config');
 
 function normalizeSummary(unit = {}) {
@@ -26,7 +25,7 @@ function normalizeSummary(unit = {}) {
 }
 
 module.exports = async function ({
-  modules = modulesList.slice(),
+  modules = null,
   blacklist = null, // TODO: Obsolete, remove from `core-js@4`
   exclude = [],
   targets = null,
@@ -36,35 +35,12 @@ module.exports = async function ({
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
   const TITLE = filename != null ? filename : '`core-js`';
-  const set = new Set();
   let script = banner;
   let code = '';
-  let modulesWithTargets;
 
-  function filter(method, list) {
-    for (const ns of list) {
-      for (const name of modulesList) {
-        if (name === ns || name.startsWith(`${ ns }.`)) {
-          // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
-          set[method](name);
-        }
-      }
-    }
-  }
+  const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
 
-  filter('add', modules);
-  filter('delete', exclude == null ? blacklist : exclude);
-
-  // eslint-disable-next-line sonarjs/no-empty-collection -- false positive
-  modules = filterOutStabilizedProposals(modulesList.filter(it => set.has(it)));
-
-  if (targets) {
-    const compatResult = compat({ targets, modules });
-    modules = compatResult.list;
-    modulesWithTargets = compatResult.targets;
-  }
-
-  if (modules.length) {
+  if (list.length) {
     const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
     const tempFile = join(tmpdir, tempFileName);
 
@@ -75,7 +51,7 @@ module.exports = async function ({
         process: false,
         setImmediate: false,
       },
-      entry: modules.map(it => require.resolve(`core-js/modules/${ it }`)),
+      entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
       output: {
         filename: tempFileName,
         hashFunction: 'md5',
@@ -94,21 +70,20 @@ module.exports = async function ({
   }
 
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
-  if (summary.comment.modules) script += `/*\n * modules:\n${ modules.map(it => ` * ${ it }\n`).join('') } */`;
+  if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
 
   if (summary.console.size) {
-    // eslint-disable-next-line no-console -- output
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
       (script.length / 1024).toFixed(2)
     }KB\u001B[0m`);
   }
 
   if (summary.console.modules) {
-    // eslint-disable-next-line no-console -- output
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, modules:\u001B[0m`);
-    // eslint-disable-next-line no-console -- output
-    console.log(JSON.stringify(modulesWithTargets || modules, null, '  '));
+    for (const it of list) {
+      console.log(`\u001B[36m${ it + (targets ? ` \u001B[32mfor \u001B[36m${ JSON.stringify(compatTargets[it]) }` : '') }\u001B[0m`);
+    }
   }
 
   if (filename != null) {
