@@ -1,5 +1,5 @@
 import { deepStrictEqual } from 'assert';
-const targetsParser = require('core-js-compat/targets-parser');
+import targetsParser from 'core-js-compat/targets-parser.js';
 
 deepStrictEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
   ['chrome', '56'],
