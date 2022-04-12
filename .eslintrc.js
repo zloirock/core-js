@@ -1234,7 +1234,7 @@ module.exports = {
     {
       files: [
         'scripts/**',
-        'tests/*.mjs',
+        'tests/**/*.mjs',
       ],
       // zx
       globals: {

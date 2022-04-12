@@ -1,4 +1,3 @@
-/* eslint-disable no-console -- output */
 import './tests.js';
 
 var tests = globalThis.tests;
