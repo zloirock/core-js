@@ -12,4 +12,4 @@ var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 // eslint-disable-next-line no-unused-vars -- required for .length
 exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , ...items */) {
   return arrayToSpliced(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR], arraySlice(arguments));
-}, true);
+});

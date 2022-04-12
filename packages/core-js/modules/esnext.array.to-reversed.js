@@ -9,7 +9,7 @@ var Array = global.Array;
 
 // `Array.prototype.toReversed` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed
-$({ target: 'Array', proto: true, forced: true }, {
+$({ target: 'Array', proto: true }, {
   toReversed: function toReversed() {
     return arrayToReversed(toIndexedObject(this), Array);
   }

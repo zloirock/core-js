@@ -16,4 +16,4 @@ exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   var O = aTypedArray(this);
   var A = arrayFromConstructorAndList(O[TYPED_ARRAY_CONSTRUCTOR], O);
   return sort(A, compareFn);
-}, true);
+});

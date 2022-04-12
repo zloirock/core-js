@@ -13,7 +13,7 @@ var sort = uncurryThis(getVirtual('Array').sort);
 
 // `Array.prototype.toSorted` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted
-$({ target: 'Array', proto: true, forced: true }, {
+$({ target: 'Array', proto: true }, {
   toSorted: function toSorted(compareFn) {
     if (compareFn !== undefined) aCallable(compareFn);
     var O = toIndexedObject(this);

@@ -10,7 +10,7 @@ var Array = global.Array;
 
 // `Array.prototype.toSpliced` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
-$({ target: 'Array', proto: true, forced: true }, {
+$({ target: 'Array', proto: true }, {
   // eslint-disable-next-line no-unused-vars -- required for .length
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
     return arrayToSpliced(toIndexedObject(this), Array, arraySlice(arguments));

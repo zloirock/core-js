@@ -2,6 +2,7 @@
 ##### Unreleased
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - Moved to Stage 3, [March TC39 meeting](https://github.com/babel/proposals/issues/81#issuecomment-1083449843)
+  - Disabled forced replacement and added `/actual/` entry points for methods from this proposal
   - `Array.prototype.toSpliced` throws a `TypeError` instead of `RangeError` if the result length is more than `MAX_SAFE_INTEGER`, [proposal-change-array-by-copy/70](https://github.com/tc39/proposal-change-array-by-copy/pull/70)
 - Added some more `atob` / `btoa` fixes:
   - NodeJS <17.9 `atob` does not ignore spaces, [node/42530](https://github.com/nodejs/node/issues/42530)
