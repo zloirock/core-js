@@ -10,6 +10,7 @@
   - FF26- implementation does not properly convert argument to string
   - IE / Edge <16 implementation have wrong arity
 - Added `/full/` namespace as the replacement for `/features/` since it's more descriptive in context of the rest namespaces (`/es/` ⊆ `/stable/` ⊆ `/actual/` ⊆ `/full/`)
+- Avoided propagation of removed parts of proposals to upper stages. For example, `%TypedArray%.prototype.groupBy` was removed from the `Array` grouping proposal a long time ago. We can't completely remove this method since it's a breaking change. But this proposal has been promoted to stage 3 - so the proposal should be promoted without this method, this method should not be available in `/actual/` entries - but it should be available in early-stage entries to avoid breakage. 
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
 - Bug fixes:
   - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
@@ -17,7 +18,7 @@
 - Tooling:
   - Stabilized proposals are filtered out from the `core-js-compat` -> `core-js-builder` -> `core-js-bundle` output. That mean that if the output contains, for example, `es.object.has-own`, the legacy reference to it, `esnext.object.has-own`, no longer added.
   - Aligned modules filters of [`core-js-builder`](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder) and [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat), now it's `modules` and `exclude` options
-  - Added support of entry points, modules, regexes and arrays of them to those filters
+  - Added support of entry points, modules, regexes, and arrays of them to those filters
   - Missed `targets` option of `core-js-compat` means that the `targets` filter just will not be applied, so the result will contain modules required for all possible engines
 - Compat data:
   - `.stack` property on `DOMException` marked as supported from Deno [1.15](https://github.com/denoland/deno/releases/tag/v1.15.0)

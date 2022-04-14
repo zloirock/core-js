@@ -1950,7 +1950,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/string-replace-all
+core-js/proposals/string-replace-all-stage-4
 ```
 ##### [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)[⬆](#index)
 ```js
@@ -2077,7 +2077,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/array-grouping
+core-js/proposals/array-grouping-stage-3
 core-js(-pure)/actual|features/array(/virtual)/group-by
 core-js(-pure)/actual|features/array(/virtual)/group-by-to-map
 ```
@@ -2321,7 +2321,7 @@ class WeakMap {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/map-upsert
+core-js/proposals/map-upsert-stage-2
 core-js(-pure)/features/map/emplace
 core-js(-pure)/features/weak-map/emplace
 ```
@@ -2344,7 +2344,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/array-from-async
+core-js/proposals/array-from-async-stage-2
 core-js(-pure)/features/array/from-async
 ```
 [*Example*](https://goo.gl/Jt7SsD):
@@ -2581,7 +2581,7 @@ class %TypedArray% {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/array-filtering
+core-js/proposals/array-filtering-stage-1
 core-js(-pure)/features/array(/virtual)/filter-reject
 core-js/features/typed-array/filter-reject
 ```

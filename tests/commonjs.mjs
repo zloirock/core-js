@@ -801,10 +801,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
 
   load('proposals/accessible-object-hasownproperty');
   load('proposals/array-filtering');
+  load('proposals/array-filtering-stage-1');
   load('proposals/array-find-from-last');
   load('proposals/array-flat-map');
   load('proposals/array-from-async');
+  load('proposals/array-from-async-stage-2');
   load('proposals/array-grouping');
+  load('proposals/array-grouping-stage-3');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
   load('proposals/array-last');
@@ -823,6 +826,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');
   load('proposals/map-upsert');
+  load('proposals/map-upsert-stage-2');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');
@@ -850,6 +854,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-match-all');
   load('proposals/string-padding');
   load('proposals/string-replace-all');
+  load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
   load('proposals/url');
   load('proposals/using-statement');
