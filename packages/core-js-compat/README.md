@@ -3,10 +3,12 @@
 [`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
+import compat from 'core-js-compat';
+
 const {
   list,                         // array of required modules
   targets,                      // object with targets for each module
-} = require('core-js-compat')({
+} = compat({
   targets: '> 1%',              // browserslist query or object of minimum environment versions to support, see below
   modules: [                    // optional list / filter of modules - regex, sting or an array of them:
     'core-js/actual',           // - an entry point
