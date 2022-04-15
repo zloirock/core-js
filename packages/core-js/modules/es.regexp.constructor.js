@@ -8,7 +8,7 @@ var getOwnPropertyNames = require('../internals/object-get-own-property-names').
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
-var regExpFlags = require('../internals/regexp-flags');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var proxyAccessor = require('../internals/proxy-accessor');
 var redefine = require('../internals/redefine');
@@ -24,7 +24,6 @@ var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 var SyntaxError = global.SyntaxError;
-var getFlags = uncurryThis(regExpFlags);
 var exec = uncurryThis(RegExpPrototype.exec);
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
@@ -133,7 +132,7 @@ if (isForced('RegExp', BASE_FORCED)) {
 
     if (patternIsRegExp || isPrototypeOf(RegExpPrototype, pattern)) {
       pattern = pattern.source;
-      if (flagsAreUndefined) flags = 'flags' in rawPattern ? rawPattern.flags : getFlags(rawPattern);
+      if (flagsAreUndefined) flags = getRegExpFlags(rawPattern);
     }
 
     pattern = pattern === undefined ? '' : toString(pattern);

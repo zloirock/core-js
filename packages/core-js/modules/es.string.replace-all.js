@@ -8,15 +8,13 @@ var isCallable = require('../internals/is-callable');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
 var getMethod = require('../internals/get-method');
-var regExpFlags = require('../internals/regexp-flags');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var getSubstitution = require('../internals/get-substitution');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
 var REPLACE = wellKnownSymbol('replace');
-var RegExpPrototype = RegExp.prototype;
 var TypeError = global.TypeError;
-var getFlags = uncurryThis(regExpFlags);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
@@ -40,10 +38,7 @@ $({ target: 'String', proto: true }, {
     if (searchValue != null) {
       IS_REG_EXP = isRegExp(searchValue);
       if (IS_REG_EXP) {
-        flags = toString(requireObjectCoercible('flags' in RegExpPrototype
-          ? searchValue.flags
-          : getFlags(searchValue)
-        ));
+        flags = toString(requireObjectCoercible(getRegExpFlags(searchValue)));
         if (!~indexOf(flags, 'g')) throw TypeError('`.replaceAll` does not allow non-global regexes');
       }
       replacer = getMethod(searchValue, REPLACE);

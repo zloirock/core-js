@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Improved some cases of `RegExp` flags handling
 
 ##### 3.22.0 - 2022.04.15
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):

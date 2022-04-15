@@ -17,7 +17,7 @@ var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
-var regExpFlags = require('../internals/regexp-flags');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var Object = global.Object;
@@ -47,7 +47,6 @@ var push = uncurryThis([].push);
 var booleanValueOf = uncurryThis(true.valueOf);
 var numberValueOf = uncurryThis(1.0.valueOf);
 var stringValueOf = uncurryThis(''.valueOf);
-var getFlags = uncurryThis(regExpFlags);
 var getTime = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
@@ -133,7 +132,7 @@ var structuredCloneInternal = function (value, map) {
     case 'RegExp':
       // in this block because of a Safari 14.1 bug
       // old FF does not clone regexes passed to the constructor, so get the source and flags directly
-      cloned = new RegExp(value.source, 'flags' in value ? value.flags : getFlags(value));
+      cloned = new RegExp(value.source, getRegExpFlags(value));
       break;
     case 'Error':
       name = value.name;

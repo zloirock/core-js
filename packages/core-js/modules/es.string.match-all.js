@@ -10,9 +10,8 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
 var classof = require('../internals/classof-raw');
-var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isRegExp = require('../internals/is-regexp');
-var regExpFlags = require('../internals/regexp-flags');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var getMethod = require('../internals/get-method');
 var redefine = require('../internals/redefine');
 var fails = require('../internals/fails');
@@ -30,7 +29,6 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(REGEXP_STRING_ITERATOR);
 var RegExpPrototype = RegExp.prototype;
 var TypeError = global.TypeError;
-var getFlags = uncurryThis(regExpFlags);
 var stringIndexOf = uncurryThis(''.indexOf);
 var un$MatchAll = uncurryThis(''.matchAll);
 
@@ -65,13 +63,9 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
 var $matchAll = function (string) {
   var R = anObject(this);
   var S = toString(string);
-  var C, flagsValue, flags, matcher, $global, fullUnicode;
-  C = speciesConstructor(R, RegExp);
-  flagsValue = R.flags;
-  if (flagsValue === undefined && isPrototypeOf(RegExpPrototype, R) && !('flags' in RegExpPrototype)) {
-    flagsValue = getFlags(R);
-  }
-  flags = flagsValue === undefined ? '' : toString(flagsValue);
+  var C = speciesConstructor(R, RegExp);
+  var flags = toString(getRegExpFlags(R));
+  var matcher, $global, fullUnicode;
   matcher = new C(C === RegExp ? R.source : R, flags);
   $global = !!~stringIndexOf(flags, 'g');
   fullUnicode = !!~stringIndexOf(flags, 'u');
@@ -87,10 +81,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
     var flags, S, matcher, rx;
     if (regexp != null) {
       if (isRegExp(regexp)) {
-        flags = toString(requireObjectCoercible('flags' in RegExpPrototype
-          ? regexp.flags
-          : getFlags(regexp)
-        ));
+        flags = toString(requireObjectCoercible(getRegExpFlags(regexp)));
         if (!~stringIndexOf(flags, 'g')) throw TypeError('`.matchAll` does not allow non-global regexes');
       }
       if (WORKS_WITH_NON_GLOBAL_REGEX) return un$MatchAll(O, regexp);
