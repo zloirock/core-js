@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.22.0 - 2022.04.15
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - Moved to Stage 3, [March TC39 meeting](https://github.com/babel/proposals/issues/81#issuecomment-1083449843)
   - Disabled forced replacement and added `/actual/` entry points for methods from this proposal

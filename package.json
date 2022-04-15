@@ -1,5 +1,5 @@
 {
-  "version": "3.21.1",
+  "version": "3.22.0",
   "devDependencies": {
     "@babel/cli": "^7.17.6",
     "@babel/core": "^7.17.9",
