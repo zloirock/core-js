@@ -48,7 +48,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
 
   while (site = sites.pop()) try {
     if (!browser || !(i++ % 8)) {
-      if (browser) await browser.close();
+      await browser?.close();
       browser = await chromium.launch();
     }
 
@@ -70,7 +70,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
     await sleep(3e3);
   }
 
-  return browser.close();
+  return browser?.close();
 }));
 
 console.log(green(`\n\`core-js\` is detected on ${ cyan(withCoreJS) } from ${ cyan(tested) } tested websites, ${
