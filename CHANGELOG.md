@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Improved some cases of `RegExp` flags handling
+- Prevented experimental warning in NodeJS ~ 18.0 on detection `fetch` API
 - Added NodeJS 18.0 compat data
 
 ##### 3.22.0 - 2022.04.15
