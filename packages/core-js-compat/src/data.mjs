@@ -1916,7 +1916,7 @@ export const data = {
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
     // https://github.com/nodejs/node/issues/42646
-    // node: '17.9', 17.5', '16.0',
+    node: '18.0', // '17.9', '17.5', '16.0',
     opera: '10.5',
     safari: '10.1',
   },
