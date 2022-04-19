@@ -857,7 +857,7 @@ QUnit.test('URLSearchParams#@@toStringTag', assert => {
 
 if (typeof Request == 'function') {
   QUnit.test('URLSearchParams with Request', assert => {
-    new Request('#', { body: new URLSearchParams({ foo: 'baz' }), method: 'POST' }).text().then(text => {
+    new Request('http://zloirock.ru', { body: new URLSearchParams({ foo: 'baz' }), method: 'POST' }).text().then(text => {
       assert.same(text, 'foo=baz');
     }).then(assert.async());
   });
