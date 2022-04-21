@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed `__lookupGetter__` entries
 
 ##### 3.22.1 - 2022.04.20
 - Improved some cases of `RegExp` flags handling
