@@ -39,7 +39,7 @@ var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 // Avoid NodeJS experimental warning
 var safeGetBuiltIn = function (name) {
-  if (!DESCRIPTORS) return global(name);
+  if (!DESCRIPTORS) return global[name];
   var descriptor = getOwnPropertyDescriptor(global, name);
   return descriptor && descriptor.value;
 };
