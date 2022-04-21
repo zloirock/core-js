@@ -1,7 +1,7 @@
 /**
- * core-js 3.22.1
+ * core-js 3.22.2
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.22.1/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.22.2/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -884,10 +884,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.22.1',
+  version: '3.22.2',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.22.1/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.22.2/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 

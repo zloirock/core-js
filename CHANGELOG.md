@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.22.2 - 2022.04.21
 - Fixed `URLSearchParams` in IE8- that was broken in the previous release
 - Fixed `__lookupGetter__` entries
 
