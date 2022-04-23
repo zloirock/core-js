@@ -33,6 +33,8 @@ QUnit.test('Array#reduce', assert => {
     1: 2,
     length: 2,
   }, (a, b) => a + b), 3, 'generic');
+  assert.throws(() => reduce([], () => { /* empty */ }), TypeError);
+  assert.throws(() => reduce(Array(5), () => { /* empty */ }), TypeError);
   if (STRICT) {
     assert.throws(() => reduce(null, () => { /* empty */ }, 1), TypeError);
     assert.throws(() => reduce(undefined, () => { /* empty */ }, 1), TypeError);
