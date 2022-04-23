@@ -919,6 +919,7 @@ GLOBAL.tests = {
     var re1 = /a/g;
     var re2 = /a/g;
     re2[Symbol.match] = false;
+    // eslint-disable-next-line no-constant-binary-expression -- required for testing
     return new RegExp(re1) !== re1
       && RegExp(re1) === re1
       && RegExp(re2) !== re2

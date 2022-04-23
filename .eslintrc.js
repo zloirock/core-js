@@ -25,6 +25,8 @@ const base = {
   'no-compare-neg-zero': ERROR,
   // disallow use of console
   'no-console': ERROR,
+  // disallows expressions where the operation doesn't affect the value
+  'no-constant-binary-expression': ERROR,
   // disallow constant expressions in conditions
   'no-constant-condition': [ERROR, { checkLoops: false }],
   // disallow use of debugger
