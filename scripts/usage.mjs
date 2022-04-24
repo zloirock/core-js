@@ -20,7 +20,7 @@ const file = await archive.file('top-1m.csv').async('string');
 const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
 
 // run in parallel
-await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => {
+await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => {
   let browser, site;
 
   async function check() {
@@ -47,10 +47,8 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill(0).map(async i => 
   }
 
   while (site = sites.pop()) try {
-    if (!browser || !(i++ % 8)) {
-      await browser?.close();
-      browser = await chromium.launch();
-    }
+    await browser?.close();
+    browser = await chromium.launch();
 
     const { core, versions } = await check();
 
