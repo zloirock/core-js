@@ -17,6 +17,7 @@ require('../../../modules/es.array.iterator');
 require('../../../modules/es.array.join');
 require('../../../modules/es.array.last-index-of');
 require('../../../modules/es.array.map');
+require('../../../modules/es.array.push');
 require('../../../modules/es.array.reduce');
 require('../../../modules/es.array.reduce-right');
 require('../../../modules/es.array.reverse');

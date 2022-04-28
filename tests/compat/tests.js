@@ -424,6 +424,14 @@ GLOBAL.tests = {
     function F() { /* empty */ }
     return Array.of.call(F) instanceof F;
   },
+  'es.array.push': function () {
+    if ([].push.call({ length: 0x100000000 }, 1) !== 4294967297) return false;
+    try {
+      Object.defineProperty([], 'length', { writable: false }).push();
+      return false;
+    } catch (error) { /* empty */ }
+    return true;
+  },
   'es.array.reduce': function () {
     try {
       Array.prototype.reduce.call(null, function () { /* empty */ }, 1);

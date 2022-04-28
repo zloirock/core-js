@@ -274,6 +274,13 @@ export const data = {
     safari: '9.0',
     rhino: '1.7.13',
   },
+  'es.array.push': {
+    // bug with setting length
+    // chrome: '103',
+    // edge: '15',
+    firefox: '55',
+    safari: '15.4',
+  },
   'es.array.reduce': {
     chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
     firefox: '4',

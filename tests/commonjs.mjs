@@ -72,6 +72,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/flat-map') == 'function');
     ok(typeof load(NS, 'array/some') == 'function');
     ok(typeof load(NS, 'array/every') == 'function');
+    ok(typeof load(NS, 'array/push') == 'function');
     ok(typeof load(NS, 'array/reduce') == 'function');
     ok(typeof load(NS, 'array/reduce-right') == 'function');
     ok(typeof load(NS, 'array/reverse') == 'function');
@@ -101,6 +102,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/flat-map') == 'function');
     ok(typeof load(NS, 'array/virtual/some') == 'function');
     ok(typeof load(NS, 'array/virtual/every') == 'function');
+    ok(typeof load(NS, 'array/virtual/push') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce-right') == 'function');
     ok(typeof load(NS, 'array/virtual/reverse') == 'function');
