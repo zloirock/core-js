@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.22.3 - 2022.04.28
 - Added a fix for FF99+ `Array.prototype.includes` broken on sparse arrays
 
 ##### 3.22.2 - 2022.04.21
