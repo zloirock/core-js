@@ -352,7 +352,8 @@ GLOBAL.tests = {
   },
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
-    return Array.prototype[Symbol.unscopables].includes;
+    return Array(1).includes()
+      && Array.prototype[Symbol.unscopables].includes;
   },
   'es.array.index-of': function () {
     try {

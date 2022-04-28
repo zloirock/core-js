@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added a fix for FF99+ `Array.prototype.includes` broken on sparse arrays
 
 ##### 3.22.2 - 2022.04.21
 - Fixed `URLSearchParams` in IE8- that was broken in the previous release

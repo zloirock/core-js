@@ -211,7 +211,8 @@ export const data = {
   'es.array.includes': {
     chrome: '53',
     edge: '14',
-    firefox: '48',
+    // FF99+ broken on sparse arrays
+    // firefox: '48',
     safari: '10.0',
   },
   'es.array.index-of': {
