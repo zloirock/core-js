@@ -144,5 +144,6 @@ export default {
     'es.array.find-last-index',
     'es.typed-array.find-last',
     'es.typed-array.find-last-index',
+    'esnext.symbol.metadata-key',
   ],
 };

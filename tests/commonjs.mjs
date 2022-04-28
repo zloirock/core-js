@@ -755,6 +755,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/metadata'));
+    ok(load(NS, 'symbol/metadata-key'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'symbol/pattern-match'));
     ok(load(NS, 'symbol/replace-all'));
@@ -816,6 +817,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
+  load('proposals/decorator-metadata');
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');

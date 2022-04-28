@@ -38,6 +38,7 @@ const ignore = new Set([
   'esnext.reflect.has-own-metadata',
   'esnext.reflect.metadata',
   'esnext.string.at',
+  'esnext.symbol.metadata',
   'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
   'esnext.typed-array.from-async',
