@@ -10,9 +10,9 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
 var getMethod = require('../internals/get-method');
-var defineProperty = require('../internals/object-define-property').f;
-var redefine = require('../internals/redefine');
-var redefineAll = require('../internals/redefine-all');
+var defineBuiltIn = require('../internals/define-built-in');
+var defineBuiltIns = require('../internals/define-built-ins');
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var hostReportErrors = require('../internals/host-report-errors');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
@@ -83,7 +83,7 @@ var Subscription = function (observer, subscriber) {
   } if (subscriptionState.isClosed()) subscriptionState.clean();
 };
 
-Subscription.prototype = redefineAll({}, {
+Subscription.prototype = defineBuiltIns({}, {
   unsubscribe: function unsubscribe() {
     var subscriptionState = getSubscriptionInternalState(this);
     if (!subscriptionState.isClosed()) {
@@ -93,9 +93,9 @@ Subscription.prototype = redefineAll({}, {
   }
 });
 
-if (DESCRIPTORS) defineProperty(Subscription.prototype, 'closed', {
+if (DESCRIPTORS) defineBuiltInAccessor(Subscription.prototype, 'closed', {
   configurable: true,
-  get: function () {
+  get: function closed() {
     return getSubscriptionInternalState(this).isClosed();
   }
 });
@@ -108,7 +108,7 @@ var SubscriptionObserver = function (subscriptionState) {
   if (!DESCRIPTORS) this.closed = false;
 };
 
-SubscriptionObserver.prototype = redefineAll({}, {
+SubscriptionObserver.prototype = defineBuiltIns({}, {
   next: function next(value) {
     var subscriptionState = getSubscriptionObserverInternalState(this).subscriptionState;
     if (!subscriptionState.isClosed()) {
@@ -150,9 +150,9 @@ SubscriptionObserver.prototype = redefineAll({}, {
   }
 });
 
-if (DESCRIPTORS) defineProperty(SubscriptionObserver.prototype, 'closed', {
+if (DESCRIPTORS) defineBuiltInAccessor(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
-  get: function () {
+  get: function closed() {
     return getSubscriptionObserverInternalState(this).subscriptionState.isClosed();
   }
 });
@@ -167,7 +167,7 @@ var $Observable = function Observable(subscriber) {
 
 var ObservablePrototype = $Observable.prototype;
 
-redefineAll(ObservablePrototype, {
+defineBuiltIns(ObservablePrototype, {
   subscribe: function subscribe(observer) {
     var length = arguments.length;
     return new Subscription(isCallable(observer) ? {
@@ -178,7 +178,7 @@ redefineAll(ObservablePrototype, {
   }
 });
 
-redefine(ObservablePrototype, $$OBSERVABLE, function () { return this; });
+defineBuiltIn(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
 $({ global: true, forced: OBSERVABLE_FORCED }, {
   Observable: $Observable

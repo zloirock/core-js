@@ -4,7 +4,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var redefineAll = require('../internals/redefine-all');
+var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 var getMethod = require('../internals/get-method');
@@ -25,7 +25,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  IteratorProxy.prototype = redefineAll(create(IteratorPrototype), {
+  IteratorProxy.prototype = defineBuiltIns(create(IteratorPrototype), {
     next: function next(arg) {
       var state = getInternalState(this);
       var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];

@@ -3,7 +3,7 @@ var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isForced = require('../internals/is-forced');
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 var hasOwn = require('../internals/has-own-property');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -84,5 +84,5 @@ if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumb
   }
   NumberWrapper.prototype = NumberPrototype;
   NumberPrototype.constructor = NumberWrapper;
-  redefine(global, NUMBER, NumberWrapper);
+  defineBuiltIn(global, NUMBER, NumberWrapper);
 }

@@ -1,5 +1,5 @@
 var DESCRIPTORS = require('../internals/descriptors');
-var objectDefinePropertyModule = require('../internals/object-define-property');
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var regExpFlags = require('../internals/regexp-flags');
 var fails = require('../internals/fails');
 
@@ -12,7 +12,7 @@ var FORCED = DESCRIPTORS && fails(function () {
 
 // `RegExp.prototype.flags` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.flags
-if (FORCED) objectDefinePropertyModule.f(RegExpPrototype, 'flags', {
+if (FORCED) defineBuiltInAccessor(RegExpPrototype, 'flags', {
   configurable: true,
   get: regExpFlags
 });

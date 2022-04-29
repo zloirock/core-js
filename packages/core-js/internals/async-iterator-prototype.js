@@ -3,7 +3,7 @@ var shared = require('../internals/shared-store');
 var isCallable = require('../internals/is-callable');
 var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
@@ -29,7 +29,7 @@ if (!AsyncIteratorPrototype) AsyncIteratorPrototype = {};
 else if (IS_PURE) AsyncIteratorPrototype = create(AsyncIteratorPrototype);
 
 if (!isCallable(AsyncIteratorPrototype[ASYNC_ITERATOR])) {
-  redefine(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {
+  defineBuiltIn(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {
     return this;
   });
 }

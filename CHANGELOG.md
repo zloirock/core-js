@@ -1,6 +1,9 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Ensured proper `.length` of polyfilled functions even in compressed code
+- Ensured proper `.name` of polyfilled accessors
+- Ensured proper source / `ToString` conversion of polyfilled accessors
+- Refactoring
 
 ##### 3.22.3 - 2022.04.28
 - Added a fix for FF99+ `Array.prototype.includes` broken on sparse arrays

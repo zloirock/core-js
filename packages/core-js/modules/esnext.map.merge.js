@@ -6,7 +6,7 @@ var iterate = require('../internals/iterate');
 
 // `Map.prototype.merge` method
 // https://github.com/tc39/proposal-collection-methods
-$({ target: 'Map', proto: true, real: true, forced: true }, {
+$({ target: 'Map', proto: true, real: true, arity: 1, forced: true }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
   merge: function merge(iterable /* ...iterables */) {
     var map = anObject(this);

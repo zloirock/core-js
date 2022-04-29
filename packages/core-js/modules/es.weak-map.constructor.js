@@ -1,7 +1,7 @@
 'use strict';
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
-var redefineAll = require('../internals/redefine-all');
+var defineBuiltIns = require('../internals/define-built-ins');
 var InternalMetadataModule = require('../internals/internal-metadata');
 var collection = require('../internals/collection');
 var collectionWeak = require('../internals/collection-weak');
@@ -34,7 +34,7 @@ if (NATIVE_WEAK_MAP && IS_IE11) {
   var nativeHas = uncurryThis(WeakMapPrototype.has);
   var nativeGet = uncurryThis(WeakMapPrototype.get);
   var nativeSet = uncurryThis(WeakMapPrototype.set);
-  redefineAll(WeakMapPrototype, {
+  defineBuiltIns(WeakMapPrototype, {
     'delete': function (key) {
       if (isObject(key) && !isExtensible(key)) {
         var state = enforceInternalState(this);

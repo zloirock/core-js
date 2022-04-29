@@ -3,7 +3,7 @@ var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var getMethod = require('../internals/get-method');
-var redefineAll = require('../internals/redefine-all');
+var defineBuiltIns = require('../internals/define-built-ins');
 var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
@@ -29,7 +29,7 @@ var AsyncFromSyncIterator = function AsyncIterator(iterator) {
   });
 };
 
-AsyncFromSyncIterator.prototype = redefineAll(create(AsyncIteratorPrototype), {
+AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
   next: function next(arg) {
     var state = getInternalState(this);
     var hasArg = !!arguments.length;

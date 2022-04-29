@@ -1,6 +1,6 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
-var redefineAll = require('../internals/redefine-all');
+var defineBuiltIns = require('../internals/define-built-ins');
 var getWeakData = require('../internals/internal-metadata').getWeakData;
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -78,7 +78,7 @@ module.exports = {
       return that;
     };
 
-    redefineAll(Prototype, {
+    defineBuiltIns(Prototype, {
       // `{ WeakMap, WeakSet }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-weakmap.prototype.delete
       // https://tc39.es/ecma262/#sec-weakset.prototype.delete
@@ -101,7 +101,7 @@ module.exports = {
       }
     });
 
-    redefineAll(Prototype, IS_MAP ? {
+    defineBuiltIns(Prototype, IS_MAP ? {
       // `WeakMap.prototype.get(key)` method
       // https://tc39.es/ecma262/#sec-weakmap.prototype.get
       get: function get(key) {

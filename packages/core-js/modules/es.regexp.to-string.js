@@ -1,6 +1,6 @@
 'use strict';
 var PROPER_FUNCTION_NAME = require('../internals/function-name').PROPER;
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 var anObject = require('../internals/an-object');
 var $toString = require('../internals/to-string');
 var fails = require('../internals/fails');
@@ -17,7 +17,7 @@ var INCORRECT_NAME = PROPER_FUNCTION_NAME && n$ToString.name != TO_STRING;
 // `RegExp.prototype.toString` method
 // https://tc39.es/ecma262/#sec-regexp.prototype.tostring
 if (NOT_GENERIC || INCORRECT_NAME) {
-  redefine(RegExp.prototype, TO_STRING, function toString() {
+  defineBuiltIn(RegExp.prototype, TO_STRING, function toString() {
     var R = anObject(this);
     var pattern = $toString(R.source);
     var flags = $toString(getRegExpFlags(R));

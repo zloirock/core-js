@@ -6,8 +6,8 @@ var fails = require('../internals/fails');
 var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var defineProperty = require('../internals/object-define-property').f;
-var defineProperties = require('../internals/object-define-properties').f;
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
@@ -79,11 +79,11 @@ var getterFor = function (key) {
   });
 };
 
-if (DESCRIPTORS) defineProperties(DOMExceptionPrototype, {
-  name: getterFor('name'),
-  message: getterFor('message'),
-  code: getterFor('code')
-});
+if (DESCRIPTORS) {
+  defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
+  defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
+  defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
+}
 
 defineProperty(DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
 
@@ -119,11 +119,11 @@ var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {
-  redefine(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
 }
 
 if (INCORRECT_CODE && DESCRIPTORS && NativeDOMException === PolyfilledDOMException) {
-  defineProperty(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
+  defineBuiltInAccessor(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
     return codeFor(anObject(this).name);
   }));
 }

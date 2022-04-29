@@ -1,7 +1,7 @@
 var call = require('../internals/function-call');
 var getBuiltIn = require('../internals/get-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 
 module.exports = function () {
   var Symbol = getBuiltIn('Symbol');
@@ -13,8 +13,8 @@ module.exports = function () {
     // `Symbol.prototype[@@toPrimitive]` method
     // https://tc39.es/ecma262/#sec-symbol.prototype-@@toprimitive
     // eslint-disable-next-line no-unused-vars -- required for .length
-    redefine(SymbolPrototype, TO_PRIMITIVE, function (hint) {
+    defineBuiltIn(SymbolPrototype, TO_PRIMITIVE, function (hint) {
       return call(valueOf, this);
-    });
+    }, { arity: 1 });
   }
 };

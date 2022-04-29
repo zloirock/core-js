@@ -11,7 +11,7 @@ var toString = require('../internals/to-string');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var proxyAccessor = require('../internals/proxy-accessor');
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
 var enforceInternalState = require('../internals/internal-state').enforce;
@@ -183,7 +183,7 @@ if (isForced('RegExp', BASE_FORCED)) {
 
   RegExpPrototype.constructor = RegExpWrapper;
   RegExpWrapper.prototype = RegExpPrototype;
-  redefine(global, 'RegExp', RegExpWrapper);
+  defineBuiltIn(global, 'RegExp', RegExpWrapper);
 }
 
 // https://tc39.es/ecma262/#sec-get-regexp-@@species

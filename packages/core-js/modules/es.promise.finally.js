@@ -7,7 +7,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var isCallable = require('../internals/is-callable');
 var speciesConstructor = require('../internals/species-constructor');
 var promiseResolve = require('../internals/promise-resolve');
-var redefine = require('../internals/redefine');
+var defineBuiltIn = require('../internals/define-built-in');
 
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 
@@ -38,6 +38,6 @@ $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
 if (!IS_PURE && isCallable(NativePromiseConstructor)) {
   var method = getBuiltIn('Promise').prototype['finally'];
   if (NativePromisePrototype['finally'] !== method) {
-    redefine(NativePromisePrototype, 'finally', method, { unsafe: true });
+    defineBuiltIn(NativePromisePrototype, 'finally', method, { unsafe: true });
   }
 }
