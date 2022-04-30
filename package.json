@@ -1,8 +1,8 @@
 {
   "version": "3.22.3",
   "devDependencies": {
-    "@babel/cli": "^7.17.6",
-    "@babel/core": "^7.17.9",
+    "@babel/cli": "^7.17.10",
+    "@babel/core": "^7.17.10",
     "@babel/plugin-proposal-class-properties": "^7.16.7",
     "@babel/plugin-proposal-class-static-block": "^7.17.6",
     "@babel/plugin-proposal-decorators": "^7.17.9",
@@ -71,9 +71,9 @@
     "playwright": "^1.21.1",
     "promises-aplus-tests": "^2.1.2",
     "promises-es6-tests": "~0.5.0",
-    "qunit": "^2.18.2",
+    "qunit": "^2.19.0",
     "semver": "^7.3.7",
-    "terser": "^5.13.0",
+    "terser": "^5.13.1",
     "webpack": "^5.72.0",
     "webpack-cli": "^4.9.2",
     "zx": "^6.1.0"
