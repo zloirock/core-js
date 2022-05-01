@@ -14,7 +14,7 @@ let tested = 0;
 let withCoreJS = 0;
 
 // get Alexa rank
-const response = await fetch('http://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
+const response = await fetch('https://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
 const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv').async('string');
 const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
