@@ -1205,7 +1205,6 @@ export const data = {
     edge: '15',
     firefox: '52',
     safari: '12.1',
-    rhino: '1.7.13',
   },
   'es.string.trim-end': {
     chrome: '66',
@@ -1523,7 +1522,6 @@ export const data = {
     edge: '13',
     firefox: '15',
     safari: '7.1',
-    rhino: '1.7.14',
   },
   'es.typed-array.to-locale-string': {
     chrome: '45',
