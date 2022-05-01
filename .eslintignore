@@ -4,3 +4,4 @@ node_modules/
 /packages/core-js-compat/*.json
 /packages/core-js-pure/override/
 /tests/bundles/
+/tests/compat/compat-data.js
