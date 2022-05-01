@@ -1,5 +1,5 @@
 /* eslint-disable radix, regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
-var GLOBAL = Function('return this')();
+var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
   '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
 
@@ -284,6 +284,19 @@ GLOBAL.tests = {
     return Error('e', { cause: 7 }).cause === 7
       && !('cause' in Error.prototype);
   },
+  'es.error.to-string': function () {
+    if (DESCRIPTORS_SUPPORT) {
+      // Chrome 32- incorrectly call accessor
+      var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
+        return this === object;
+      } }));
+      if (Error.prototype.toString.call(object) !== 'true') return false;
+    }
+    // FF10- does not properly handle non-strings
+    return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
+      // IE8 does not properly handle defaults
+      && Error.prototype.toString.call({}) === 'Error';
+  },
   'es.aggregate-error.constructor': function () {
     return typeof AggregateError == 'function';
   },
@@ -542,19 +555,6 @@ GLOBAL.tests = {
   // TODO: Remove from `core-js@4`
   'es.date.to-string': function () {
     return new Date(NaN).toString() == 'Invalid Date';
-  },
-  'es.error.to-string': function () {
-    if (DESCRIPTORS_SUPPORT) {
-      // Chrome 32- incorrectly call accessor
-      var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
-        return this === object;
-      } }));
-      if (Error.prototype.toString.call(object) !== 'true') return false;
-    }
-    // FF10- does not properly handle non-strings
-    return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
-      // IE8 does not properly handle defaults
-      && Error.prototype.toString.call({}) === 'Error';
   },
   'es.escape': function () {
     return escape;

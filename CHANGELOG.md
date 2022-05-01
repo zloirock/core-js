@@ -3,6 +3,7 @@
 - Ensured proper `.length` of polyfilled functions even in compressed code
 - Ensured proper `.name` of polyfilled accessors
 - Ensured proper source / `ToString` conversion of polyfilled accessors
+- Actualized Rhino compat data
 - Refactoring
 
 ##### 3.22.3 - 2022.04.28
