@@ -1,5 +1,6 @@
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var results = GLOBAL.results = Object.create(null);
+var data = GLOBAL.data;
 var tests = GLOBAL.tests;
 
 for (var testName in tests) {
@@ -13,7 +14,7 @@ for (var testName in tests) {
   }
 }
 
-GLOBAL.showResults = function (data, engine, logger) {
+GLOBAL.showResults = function (engine, logger) {
   var difference = false;
 
   function logResults(showDifference) {

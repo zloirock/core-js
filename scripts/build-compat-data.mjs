@@ -1,5 +1,5 @@
 /* https://github.com/import-js/eslint-plugin-import/issues/2181 */
-import { data, modules } from 'core-js-compat/src/data.mjs';
+import { dataWithIgnored as data, ignored, modules } from 'core-js-compat/src/data.mjs';
 import external from 'core-js-compat/src/external.mjs';
 import mappings from 'core-js-compat/src/mapping.mjs';
 import helpers from 'core-js-compat/helpers.js';
@@ -63,10 +63,18 @@ function write(filename, content) {
   return fs.writeJson(`packages/core-js-compat/${ filename }.json`, content, { spaces: '  ' });
 }
 
+const dataWithoutIgnored = { ...data };
+
+for (const ignore of ignored) delete dataWithoutIgnored[ignore];
+
 await Promise.all([
-  write('data', data),
+  write('data', dataWithoutIgnored),
   write('modules', modules),
   write('external', external),
+  // version for compat data tests
+  fs.writeFile('tests/compat/compat-data.js', `;(typeof global != 'undefined' ? global : Function('return this')()).data = ${
+    JSON.stringify(data, null, '  ')
+  }`),
 ]);
 
 console.log(chalk.green('compat data rebuilt'));

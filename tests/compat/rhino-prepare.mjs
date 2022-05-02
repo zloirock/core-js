@@ -5,5 +5,3 @@ const rhino = await fetch(
 );
 
 await fs.writeFile('tests/compat/rhino.jar', Buffer.from(await rhino.arrayBuffer()));
-
-await fs.writeFile('tests/compat/compat-data.js', `module.exports = ${ await fs.readFile('packages/core-js-compat/data.json') }`);
