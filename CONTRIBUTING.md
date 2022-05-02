@@ -8,7 +8,7 @@ Contributions are always welcome. If you don't know how you can help, you can ch
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
 - For export the polyfill, in all common cases use `internals/export` helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
 - If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases `internals/is-pure` is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `core-js-pure` will be copied from `core-js` package.
-- Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs) and the name of the polyfill module to [`packages/core-js-compat/src/modules-by-versions.mjs`](./packages/core-js-compat/src/modules-by-versions.mjs) (this data is also used for getting the default list of polyfills at bundling and generation indexes).
+- Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs), how to do it [see below](#how-to-update-core-js-compat-data), and the name of the polyfill module to [`packages/core-js-compat/src/modules-by-versions.mjs`](./packages/core-js-compat/src/modules-by-versions.mjs) (this data is also used for getting the default list of polyfills at bundling and generation indexes).
 - Add it to entry points where it's required: directories [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/stable`](./packages/core-js/stable), [`packages/core-js/actual`](./packages/core-js/actual), [`packages/core-js/full`](./packages/core-js/full), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
 - Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
 - Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs.js).
@@ -25,6 +25,24 @@ For updating `core-js-compat` data:
 - If you want to add new data for Rhino, set the required Rhino version in `compat-rhino-prepare` NPM script in [`package.json`](./package.json), run `npm run compat-rhino` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
+
+| engine          | how to run tests | base data inherits from      |
+| ---             | ---              | ---                          |
+| `android`       | browser runner   | `chrome`                     |
+| `chrome`        | browser runner   |                              |
+| `deno`          | deno runner      | `chrome` (only ES)           |
+| `edge`          | browser runner   | `ie` (<=18), `chrome` (>=74) |
+| `electron`      | browser runner   | `chrome`                     |
+| `firefox`       | browser runner   |                              |
+| `ie`            | browser runner   |                              |
+| `ios`           | browser runner   | `safari`                     |
+| `node`          | node runner      | `chrome` (only ES)           |
+| `opera`         | browser runner   | `chrome` (>12)               |
+| `opera_mobile`  | browser runner   | `opera`, `chrome`            |
+| `phantom`       | browser runner   | `safari`                     |
+| `rhino`         | rhino runner     |                              |
+| `safari`        | browser runner   |                              |
+| `samsung`       | browser runner   | `chrome`                     |
 
 ## Style and standards
 
