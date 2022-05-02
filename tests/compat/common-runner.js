@@ -18,10 +18,11 @@ GLOBAL.showResults = function (data, engine, logger) {
 
   function logResults(showDifference) {
     for (var name in results) {
-      if (!data[name]) continue;
-      if (!!data[name][engine] === results[name]) {
-        if (showDifference) continue;
-      } else difference = true;
+      if (data[name]) {
+        if (!!data[name][engine] === results[name]) {
+          if (showDifference) continue;
+        } else difference = true;
+      } else if (showDifference) continue;
       var filled = name + '                                             | '.slice(name.length);
       if (results[name]) logger('\u001B[32m' + filled + 'not required\u001B[0m');
       else logger('\u001B[31m' + filled + 'required\u001B[0m');
