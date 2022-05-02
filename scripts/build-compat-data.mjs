@@ -36,7 +36,7 @@ for (const scope of [data, external]) {
       map('ChromeToElectron');
     }
     if (!module.edge) {
-      if (ie && key !== 'web.immediate') {
+      if (ie && !key.includes('immediate')) {
         module.edge = '12';
       } else if (chrome) {
         module.edge = String(Math.max(chrome, 74));
