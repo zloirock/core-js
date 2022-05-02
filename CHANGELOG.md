@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Ensured proper `.length` of polyfilled functions even in compressed code
-- Ensured proper `.name` of polyfilled accessors
+- Ensured proper `.length` of polyfilled functions even in compressed code (excepting some ancient engines)
+- Ensured proper `.name` of polyfilled accessors (excepting some ancient engines)
 - Ensured proper source / `ToString` conversion of polyfilled accessors
 - Actualized Rhino compat data
 - Refactoring
