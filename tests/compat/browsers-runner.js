@@ -57,7 +57,7 @@ for (var key in tests) {
     var td = document.createElement('td');
     var dataExists = !!data[key];
     var mod = dataExists && data[key][engines[i]];
-    td.innerHTML = dataExists ? mod || 'no' : 'no data';
+    td.innerHTML = dataExists ? mod || 'no' : 'no&nbsp;data';
     td.className = (dataExists ? !!mod : 'nodata') + ' data';
     tr.appendChild(td);
   }
