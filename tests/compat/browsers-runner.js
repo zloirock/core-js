@@ -1,25 +1,65 @@
 var table = document.getElementById('table');
+var tests = window.tests;
+var data = window.data;
+var i;
 
-for (var key in window.tests) {
-  var test = window.tests[key];
+var engines = [
+  'android',
+  'chrome',
+  'deno',
+  'edge',
+  'electron',
+  'firefox',
+  'ie',
+  'ios',
+  'node',
+  'opera',
+  'opera_mobile',
+  'phantom',
+  'rhino',
+  'safari',
+  'samsung'
+];
+
+var trh = document.createElement('tr');
+trh.appendChild(document.createElement('th'));
+trh.appendChild(document.createElement('th'));
+for (i = 0; i < engines.length; i++) {
+  var th = document.createElement('th');
+  th.innerHTML = engines[i];
+  trh.appendChild(th);
+}
+table.appendChild(trh);
+
+for (var key in tests) {
+  var test = tests[key];
   var result = true;
   try {
     if (typeof test == 'function') {
       result = !!test();
     } else {
-      for (var i = 0; i < test.length; i++) result = result && !!test[i].call(undefined);
+      for (i = 0; i < test.length; i++) result = result && !!test[i].call(undefined);
     }
   } catch (error) {
     result = false;
   }
 
   var tr = document.createElement('tr');
-  tr.className = result;
   var td1 = document.createElement('td');
   td1.innerHTML = key;
+  td1.className = result;
   tr.appendChild(td1);
   var td2 = document.createElement('td');
-  td2.innerHTML = result ? 'not required' : 'required';
+  td2.innerHTML = result ? 'not&nbsp;required' : 'required';
+  td2.className = result;
   tr.appendChild(td2);
+  for (i = 0; i < engines.length; i++) {
+    var td = document.createElement('td');
+    var dataExists = !!data[key];
+    var mod = dataExists && data[key][engines[i]];
+    td.innerHTML = dataExists ? mod || 'no' : 'no data';
+    td.className = (dataExists ? !!mod : 'nodata') + ' data';
+    tr.appendChild(td);
+  }
   table.appendChild(tr);
 }
