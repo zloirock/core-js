@@ -26,23 +26,23 @@ For updating `core-js-compat` data:
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
-| engine          | how to run tests | base data inherits from      |
-| ---             | ---              | ---                          |
-| `android`       | browser runner   | `chrome`                     |
-| `chrome`        | browser runner   |                              |
-| `deno`          | deno runner      | `chrome` (only ES)           |
-| `edge`          | browser runner   | `ie` (<=18), `chrome` (>=74) |
-| `electron`      | browser runner   | `chrome`                     |
-| `firefox`       | browser runner   |                              |
-| `ie`            | browser runner   |                              |
-| `ios`           | browser runner   | `safari`                     |
-| `node`          | node runner      | `chrome` (only ES)           |
-| `opera`         | browser runner   | `chrome` (>12)               |
-| `opera_mobile`  | browser runner   | `opera`, `chrome`            |
-| `phantom`       | browser runner   | `safari`                     |
-| `rhino`         | rhino runner     |                              |
-| `safari`        | browser runner   |                              |
-| `samsung`       | browser runner   | `chrome`                     |
+engine         | mandatory check | how to run tests | base data inherits from      | mapping for a new version
+---            | ---             | ---              | ---                          | ---
+`android`      |                 | browser runner   | `chrome`                     |
+`chrome`       | features        | browser runner   |                              |
+`deno`         | non-ES features | deno runner      | `chrome` (only ES)           | required
+`edge`         | features        | browser runner   | `ie` (<=18), `chrome` (>=74) |
+`electron`     |                 | browser runner   | `chrome`                     | required
+`firefox`      | features        | browser runner   |                              |
+`ie`           | features        | browser runner   |                              |
+`ios`          |                 | browser runner   | `safari`                     | required
+`node`         | non-ES features | node runner      | `chrome` (only ES)           | required
+`opera`        |                 | browser runner   | `chrome` (>12)               | in case of inconsistency
+`opera_mobile` |                 | browser runner   | `opera`, `chrome`            | required
+`phantom`      |                 | browser runner   | `safari`                     |
+`rhino`        | features        | rhino runner     |                              |
+`safari`       | features        | browser runner   |                              |
+`samsung`      |                 | browser runner   | `chrome`                     | required
 
 ## Style and standards
 
