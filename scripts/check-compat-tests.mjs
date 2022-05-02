@@ -1,36 +1,9 @@
-import { modules } from 'core-js-compat/src/data.mjs';
+import { modules, ignored } from 'core-js-compat/src/data.mjs';
 import '../tests/compat/tests.js';
 
 const modulesSet = new Set([
   ...modules,
-  // TODO: drop those special cases from core-js@4
-  'es.aggregate-error.constructor',
-  'es.data-view.constructor',
-  'es.map.constructor',
-  'es.string.trim-left',
-  'es.string.trim-right',
-  'es.symbol.constructor',
-  'es.symbol.for',
-  'es.symbol.key-for',
-  'es.object.get-own-property-symbols',
-  'es.promise.constructor',
-  'es.promise.all',
-  'es.promise.catch',
-  'es.promise.race',
-  'es.promise.reject',
-  'es.promise.resolve',
-  'es.set.constructor',
-  'es.weak-map.constructor',
-  'es.weak-set.constructor',
-  'esnext.observable.constructor',
-  'esnext.observable.from',
-  'esnext.observable.of',
-  'web.clear-immediate',
-  'web.set-immediate',
-  'web.set-interval',
-  'web.set-timeout',
-  'web.url-search-params.constructor',
-  'web.url.constructor',
+  ...ignored,
 ]);
 const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([

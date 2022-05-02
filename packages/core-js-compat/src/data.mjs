@@ -2067,50 +2067,62 @@ export const data = {
   },
 };
 
-// TODO: Remove from `core-js@4`
-data['es.aggregate-error'] = data['es.aggregate-error.constructor'];
-data['es.data-view'] = data['es.data-view.constructor'];
-data['es.map'] = data['es.map.constructor'];
-data['es.set'] = data['es.set.constructor'];
-data['es.weak-map'] = data['es.weak-map.constructor'];
-data['es.weak-set'] = data['es.weak-set.constructor'];
-data['esnext.array.at'] = data['es.array.at'];
-data['esnext.aggregate-error'] = data['es.aggregate-error'];
-data['esnext.global-this'] = data['es.global-this'];
-data['esnext.object.has-own'] = data['es.object.has-own'];
-data['esnext.promise.all-settled'] = data['es.promise.all-settled'];
-data['esnext.promise.any'] = data['es.promise.any'];
-data['esnext.string.match-all'] = data['es.string.match-all'];
-data['esnext.string.replace-all'] = data['es.string.replace-all'];
-data['esnext.typed-array.at'] = data['es.typed-array.at'];
-data['web.url'] = data['web.url.constructor'];
-data['web.url-search-params'] = data['web.url-search-params.constructor'];
-delete data['es.aggregate-error.constructor'];
-delete data['es.data-view.constructor'];
-delete data['es.map.constructor'];
-delete data['es.set.constructor'];
-delete data['es.string.trim-left'];
-delete data['es.string.trim-right'];
-delete data['es.symbol.constructor'];
-delete data['es.symbol.for'];
-delete data['es.symbol.key-for'];
-delete data['es.object.get-own-property-symbols'];
-delete data['es.promise.constructor'];
-delete data['es.promise.all'];
-delete data['es.promise.catch'];
-delete data['es.promise.race'];
-delete data['es.promise.reject'];
-delete data['es.promise.resolve'];
-delete data['es.weak-map.constructor'];
-delete data['es.weak-set.constructor'];
-delete data['esnext.observable.constructor'];
-delete data['esnext.observable.from'];
-delete data['esnext.observable.of'];
-delete data['web.clear-immediate'];
-delete data['web.set-immediate'];
-delete data['web.set-interval'];
-delete data['web.set-timeout'];
-delete data['web.url.constructor'];
-delete data['web.url-search-params.constructor'];
+export const renamed = new Map([
+  // TODO: Clean in `core-js@4`
+  ['es.aggregate-error', 'es.aggregate-error.constructor'],
+  ['es.data-view', 'es.data-view.constructor'],
+  ['es.map', 'es.map.constructor'],
+  ['es.set', 'es.set.constructor'],
+  ['es.weak-map', 'es.weak-map.constructor'],
+  ['es.weak-set', 'es.weak-set.constructor'],
+  ['esnext.array.at', 'es.array.at'],
+  ['esnext.aggregate-error', 'es.aggregate-error'],
+  ['esnext.global-this', 'es.global-this'],
+  ['esnext.object.has-own', 'es.object.has-own'],
+  ['esnext.promise.all-settled', 'es.promise.all-settled'],
+  ['esnext.promise.any', 'es.promise.any'],
+  ['esnext.string.match-all', 'es.string.match-all'],
+  ['esnext.string.replace-all', 'es.string.replace-all'],
+  ['esnext.typed-array.at', 'es.typed-array.at'],
+  ['web.url', 'web.url.constructor'],
+  ['web.url-search-params', 'web.url-search-params.constructor'],
+]);
+
+for (const [old, nw] of renamed) data[old] = data[nw];
+
+export const dataWithIgnored = { ...data };
+
+export const ignored = [
+  // TODO: Clean in `core-js@4`
+  'es.aggregate-error.constructor',
+  'es.data-view.constructor',
+  'es.map.constructor',
+  'es.set.constructor',
+  'es.string.trim-left',
+  'es.string.trim-right',
+  'es.symbol.constructor',
+  'es.symbol.for',
+  'es.symbol.key-for',
+  'es.object.get-own-property-symbols',
+  'es.promise.constructor',
+  'es.promise.all',
+  'es.promise.catch',
+  'es.promise.race',
+  'es.promise.reject',
+  'es.promise.resolve',
+  'es.weak-map.constructor',
+  'es.weak-set.constructor',
+  'esnext.observable.constructor',
+  'esnext.observable.from',
+  'esnext.observable.of',
+  'web.clear-immediate',
+  'web.set-immediate',
+  'web.set-interval',
+  'web.set-timeout',
+  'web.url.constructor',
+  'web.url-search-params.constructor',
+];
+
+for (const ignore of ignored) delete data[ignore];
 
 export const modules = Object.keys(data);
