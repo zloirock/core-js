@@ -29,7 +29,9 @@ for (const scope of [data, external]) {
     if (!module.android && chrome) {
       module.android = String(Math.max(chrome, 37));
     }
-    map('ChromeToDeno');
+    if (key.startsWith('es')) {
+      map('ChromeToDeno');
+    }
     if (/^(?:es|esnext|web)\./.test(key)) {
       map('ChromeToElectron');
     }
