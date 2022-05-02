@@ -5,9 +5,9 @@ var tests = GLOBAL.tests;
 for (var testName in tests) {
   var test = tests[testName];
   try {
-    results[testName] = typeof test == 'function' ? !!test() : test.reduce(function (accumulator, subTest) {
-      return accumulator && !!subTest();
-    }, true);
+    results[testName] = typeof test == 'function' ? !!test() : test.every(function (subTest) {
+      return subTest();
+    });
   } catch (error) {
     results[testName] = false;
   }
@@ -18,11 +18,11 @@ GLOBAL.showResults = function (data, engine, logger) {
 
   function logResults(showDifference) {
     for (var name in results) {
-      var filled = name + '                                             | '.slice(name.length);
       if (!data[name]) continue;
       if (!!data[name][engine] === results[name]) {
         if (showDifference) continue;
       } else difference = true;
+      var filled = name + '                                             | '.slice(name.length);
       if (results[name]) logger('\u001B[32m' + filled + 'not required\u001B[0m');
       else logger('\u001B[31m' + filled + 'required\u001B[0m');
     }
