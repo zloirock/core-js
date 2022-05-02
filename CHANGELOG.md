@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### 3.22.4 - 2022.05.03
 - Ensured proper `.length` of polyfilled functions even in compressed code (excepting some ancient engines)
 - Ensured proper `.name` of polyfilled accessors (excepting some ancient engines)
 - Ensured proper source / `ToString` conversion of polyfilled accessors
