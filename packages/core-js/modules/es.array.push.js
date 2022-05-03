@@ -11,6 +11,8 @@ var INCORRECT_TO_LENGTH = fails(function () {
   return [].push.call({ length: 0x100000000 }, 1) !== 4294967297;
 });
 
+// V8 and Safari < 15.4
+// https://bugs.chromium.org/p/v8/issues/detail?id=12681
 var SILENT_ON_NON_WRITABLE_LENGTH = !fails(function () {
   // eslint-disable-next-line es-x/no-object-defineproperty -- safe
   Object.defineProperty([], 'length', { writable: false }).push();
