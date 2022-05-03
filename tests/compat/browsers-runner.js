@@ -22,11 +22,10 @@ var engines = [
 ];
 
 var trh = document.createElement('tr');
-trh.appendChild(document.createElement('th'));
-trh.appendChild(document.createElement('th'));
-for (i = 0; i < engines.length; i++) {
+var head = ['module', 'current'].concat(engines);
+for (i = 0; i < head.length; i++) {
   var th = document.createElement('th');
-  th.innerHTML = engines[i];
+  th.innerHTML = head[i];
   trh.appendChild(th);
 }
 table.appendChild(trh);
