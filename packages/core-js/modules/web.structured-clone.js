@@ -61,30 +61,42 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
   }) && structuredCloneImplementation;
 };
 
+var checkErrorsCloning = function (structuredCloneImplementation) {
+  return !fails(function () {
+    var error = new Error();
+    var test = structuredCloneImplementation({ a: error, b: error });
+    return !(test && test.a === test.b && test.a instanceof Error);
+  });
+};
+
 // https://github.com/whatwg/html/pull/5749
-var checkNewErrorsSemantic = function (structuredCloneImplementation) {
+var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name != 'AggregateError' || test.errors[0] != 1 || test.message != PERFORMANCE_MARK || test.cause != 3;
-  }) && structuredCloneImplementation;
+  });
 };
 
-// FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.13+
-// current FF and Safari implementations can't clone errors
+// FF94+, Safari 15.4+, Chrome 98+, NodeJS 17.0+, Deno 1.13+
+// FF and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
+// Chrome <103 returns `null` if cloned object contains multiple references to one error
+// https://bugs.chromium.org/p/v8/issues/detail?id=12542
 // no one of current implementations supports new (html/5749) error cloning semantic
 var nativeStructuredClone = global.structuredClone;
 
-var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
+var FORCED_REPLACEMENT = IS_PURE || !checkErrorsCloning(nativeStructuredClone) || !checkNewErrorsCloningSemantic(nativeStructuredClone);
 
 // Chrome 82+, Safari 14.1+, Deno 1.11+
 // Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
+// Chrome returns `null` if cloned object contains multiple references to one error
 // Safari 14.1 implementation doesn't clone some `RegExp` flags, so requires a workaround
-// current Safari implementation can't clone errors
+// Safari implementation can't clone errors
 // Deno 1.2-1.10 implementations too naive
-// NodeJS 16.0+ does not have `PerformanceMark` constructor, structured cloning implementation
-//   from `performance.mark` is too naive and can't clone, for example, `RegExp` or some boxed primitives
-//   https://github.com/nodejs/node/issues/40840
+// NodeJS 16.0+ does not have `PerformanceMark` constructor
+// NodeJS <17.2 structured cloning implementation from `performance.mark` is too naive
+// and can't clone, for example, `RegExp` or some boxed primitives
+// https://github.com/nodejs/node/issues/40840
 // no one of current implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;

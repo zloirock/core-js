@@ -1788,7 +1788,10 @@ GLOBAL.tests = {
   },
   'web.set-immediate': IMMEDIATE,
   'web.structured-clone': function () {
-    var test = structuredClone(new AggregateError([1], 'a', { cause: 3 }));
+    var error = new Error();
+    var test = structuredClone({ a: error, b: error });
+    if (!(test && test.a === test.b && test.a instanceof Error)) return false;
+    test = structuredClone(new AggregateError([1], 'a', { cause: 3 }));
     return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'a' && test.cause == 3;
   },
   'web.timers': function () {
