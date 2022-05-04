@@ -71,7 +71,7 @@
     "playwright": "^1.21.1",
     "promises-aplus-tests": "^2.1.2",
     "promises-es6-tests": "~0.5.0",
-    "qunit": "^2.19.0",
+    "qunit": "^2.19.1",
     "semver": "^7.3.7",
     "terser": "^5.13.1",
     "webpack": "^5.72.0",
