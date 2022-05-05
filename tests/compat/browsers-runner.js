@@ -50,7 +50,7 @@ for (var key in tests) {
   tr.appendChild(td1);
   var td2 = document.createElement('td');
   td2.innerHTML = result ? 'not&nbsp;required' : 'required';
-  td2.className = result;
+  td2.className = result + ' data';
   tr.appendChild(td2);
   for (i = 0; i < engines.length; i++) {
     var td = document.createElement('td');
