@@ -1,5 +1,8 @@
 {
   "version": "3.22.4",
+  "workspaces": [
+    "./packages/*"
+  ],
   "devDependencies": {
     "@babel/cli": "^7.17.10",
     "@babel/core": "^7.17.10",
@@ -37,10 +40,6 @@
     "@onslip/karma-playwright-launcher": "^0.2.1",
     "babel-loader": "^8.2.5",
     "confusing-browser-globals": "^1.0.11",
-    "core-js": "file:./packages/core-js",
-    "core-js-builder": "file:./packages/core-js-builder",
-    "core-js-compat": "file:./packages/core-js-compat",
-    "core-js-pure": "file:./packages/core-js-pure",
     "david": "^12.0.0",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
     "eslint": "^8.14.0",
@@ -61,7 +60,6 @@
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "konan": "^2.1.1",
-    "lerna": "^4.0.0",
     "moon-unit": "0.2.2",
     "node-qunit": "^2.0.0",
     "npm": "8.8.0",
@@ -84,9 +82,8 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "scripts": {
-    "init": "run-p generate-indexes bootstrap && run-s clean-and-copy build-compat",
+    "init": "run-s generate-indexes clean-and-copy build-compat",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
-    "bootstrap": "lerna bootstrap --no-ci",
     "build-compat": "run-s build-compat-data build-compat-entries build-compat-modules-by-versions",
     "build-compat-data": "zx scripts/build-compat-data.mjs",
     "build-compat-entries": "zx scripts/build-compat-entries.mjs",
@@ -148,7 +145,7 @@
     "usage-1000": "zx scripts/usage.mjs -l=1000",
     "usage-10000": "zx scripts/usage.mjs -l=10000",
     "update-version": "zx scripts/update-version.mjs && zx scripts/bundle.mjs --deno",
-    "publish": "lerna publish from-package --yes",
+    "publish": "npm publish --workspaces",
     "c": "npm run check",
     "d": "npm run check-dependencies",
     "l": "npm run lint",

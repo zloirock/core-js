@@ -10,7 +10,6 @@ const LICENSE = 'LICENSE';
 const README = 'README.md';
 const README_COMPAT = 'packages/core-js-compat/README.md';
 const README_DENO = 'deno/corejs/README.md';
-const LERNA = 'lerna.json';
 const SHARED = 'packages/core-js/internals/shared.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const CURRENT_YEAR = now.getFullYear();
@@ -18,9 +17,6 @@ const CURRENT_YEAR = now.getFullYear();
 const license = await readFile(LICENSE, 'utf8');
 const OLD_YEAR = +license.match(/2014-(\d{4}) D/)[1];
 await writeFile(LICENSE, license.replaceAll(OLD_YEAR, CURRENT_YEAR));
-
-const lerna = await readFile(LERNA, 'utf8');
-await writeFile(LERNA, lerna.replaceAll(PREV_VERSION, NEW_VERSION));
 
 const readme = await readFile(README, 'utf8');
 await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
