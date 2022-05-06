@@ -1,7 +1,7 @@
 'use strict';
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
 const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
-const DEV_NODE_VERSIONS = '^14.15';
+const DEV_NODE_VERSIONS = '^16.13';
 const ERROR = 'error';
 const OFF = 'off';
 const ALWAYS = 'always';
@@ -920,14 +920,9 @@ const nodePackages = {
 
 const nodeDev = {
   ...asyncAwait,
-  // prefer lookarounds over capturing group that do not replace
-  'regexp/prefer-lookaround': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
   'n/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
-  ...forbidES2021BuiltIns,
-  ...forbidES2022BuiltIns,
-  'es-x/no-weakrefs': OFF,
 };
 
 const tests = {
