@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Ensured that polyfilled constructors `.prototype` is non-writable
+- Ensured that polyfilled methods `.prototype` is not defined
 - Added detection and fix of a V8 ~ Chrome <103 [bug](https://bugs.chromium.org/p/v8/issues/detail?id=12542) of `struturedClone` that returns `null` if cloned object contains multiple references to one error
 
 ##### 3.22.4 - 2022.05.03

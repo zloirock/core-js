@@ -36,6 +36,6 @@ if (FORCED || !hasOwn(IteratorPrototype, 'constructor') || IteratorPrototype.con
 
 IteratorConstructor.prototype = IteratorPrototype;
 
-$({ global: true, forced: FORCED }, {
+$({ global: true, constructor: true, forced: FORCED }, {
   Iterator: IteratorConstructor
 });

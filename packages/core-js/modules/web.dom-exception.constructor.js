@@ -111,7 +111,7 @@ var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISS
 
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
-$({ global: true, forced: FORCED_CONSTRUCTOR }, {
+$({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
   DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
 });
 

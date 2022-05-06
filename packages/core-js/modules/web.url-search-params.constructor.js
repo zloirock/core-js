@@ -337,7 +337,7 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 
-$({ global: true, forced: !USE_NATIVE_URL }, {
+$({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
   URLSearchParams: URLSearchParamsConstructor
 });
 
@@ -380,7 +380,7 @@ if (!USE_NATIVE_URL && isCallable(Headers)) {
     RequestPrototype.constructor = RequestConstructor;
     RequestConstructor.prototype = RequestPrototype;
 
-    $({ global: true, forced: true, noTargetGet: true }, {
+    $({ global: true, constructor: true, noTargetGet: true, forced: true }, {
       Request: RequestConstructor
     });
   }

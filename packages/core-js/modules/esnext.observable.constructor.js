@@ -180,7 +180,7 @@ defineBuiltIns(ObservablePrototype, {
 
 defineBuiltIn(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
-$({ global: true, forced: OBSERVABLE_FORCED }, {
+$({ global: true, constructor: true, forced: OBSERVABLE_FORCED }, {
   Observable: $Observable
 });
 
