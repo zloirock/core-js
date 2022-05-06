@@ -42,7 +42,6 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - 14.15
           - 16.11
           - 17.9
           - 18
