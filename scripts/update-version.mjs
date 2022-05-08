@@ -47,11 +47,13 @@ for (const PATH of await globby('packages/*/package.json')) {
 
 if (NEW_VERSION !== PREV_VERSION) {
   const changelog = await readFile(CHANGELOG, 'utf8');
-  await writeFile(CHANGELOG, changelog.replaceAll('##### Unreleased', `##### Unreleased\n- Nothing\n\n##### ${
+  await writeFile(CHANGELOG, changelog.replaceAll('##### Unreleased', `##### Unreleased\n- Nothing\n\n##### [${
     NEW_VERSION
   } - ${
     CURRENT_YEAR }.${ String(now.getMonth() + 1).padStart(2, '0') }.${ String(now.getDate()).padStart(2, '0')
-  }`));
+  }](https://github.com/zloirock/core-js/releases/tag/v${
+    NEW_VERSION
+  })`));
 }
 
 if (CURRENT_YEAR !== OLD_YEAR) console.log(chalk.green('the year updated'));
