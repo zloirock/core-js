@@ -1,7 +1,7 @@
 /**
- * core-js 3.22.4
+ * core-js 3.22.5
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.22.4/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.22.5/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -261,14 +261,14 @@ var FORCED = Error('e', { cause: 7 }).cause !== 7;
 var exportGlobalErrorCauseWrapper = function (ERROR_NAME, wrapper) {
   var O = {};
   O[ERROR_NAME] = wrapErrorConstructorWithCause(ERROR_NAME, wrapper, FORCED);
-  $({ global: true, arity: 1, forced: FORCED }, O);
+  $({ global: true, constructor: true, arity: 1, forced: FORCED }, O);
 };
 
 var exportWebAssemblyErrorCauseWrapper = function (ERROR_NAME, wrapper) {
   if (WebAssembly && WebAssembly[ERROR_NAME]) {
     var O = {};
     O[ERROR_NAME] = wrapErrorConstructorWithCause(WEB_ASSEMBLY + '.' + ERROR_NAME, wrapper, FORCED);
-    $({ target: WEB_ASSEMBLY, stat: true, arity: 1, forced: FORCED }, O);
+    $({ target: WEB_ASSEMBLY, stat: true, constructor: true, arity: 1, forced: FORCED }, O);
   }
 };
 
@@ -883,10 +883,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.22.4',
+  version: '3.22.5',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.22.4/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.22.5/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -1149,15 +1149,17 @@ module.exports = function (O, key, value, options) {
 var fails = __webpack_require__(6);
 var isCallable = __webpack_require__(19);
 var hasOwn = __webpack_require__(36);
-var defineProperty = __webpack_require__(42).f;
+var DESCRIPTORS = __webpack_require__(5);
 var CONFIGURABLE_FUNCTION_NAME = __webpack_require__(47).CONFIGURABLE;
 var inspectSource = __webpack_require__(48);
 var InternalStateModule = __webpack_require__(49);
 
 var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
+// eslint-disable-next-line es-x/no-object-defineproperty -- safe
+var defineProperty = Object.defineProperty;
 
-var CONFIGURABLE_LENGTH = !fails(function () {
+var CONFIGURABLE_LENGTH = DESCRIPTORS && !fails(function () {
   return defineProperty(function () { /* empty */ }, 'length', { value: 8 }).length !== 8;
 });
 
@@ -1175,6 +1177,11 @@ var makeBuiltIn = module.exports = function (value, name, options) {
   if (CONFIGURABLE_LENGTH && options && hasOwn(options, 'arity') && value.length !== options.arity) {
     defineProperty(value, 'length', { value: options.arity });
   }
+  if (options && hasOwn(options, 'constructor') && options.constructor) {
+    if (DESCRIPTORS) try {
+      defineProperty(value, 'prototype', { writable: false });
+    } catch (error) { /* empty */ }
+  } else value.prototype = undefined;
   var state = enforceInternalState(value);
   if (!hasOwn(state, 'source')) {
     state.source = TEMPLATE.join(typeof name == 'string' ? name : '');
@@ -1946,7 +1953,7 @@ var AggregateErrorPrototype = $AggregateError.prototype = create(Error.prototype
 
 // `AggregateError` constructor
 // https://tc39.es/ecma262/#sec-aggregate-error-constructor
-$({ global: true }, {
+$({ global: true, constructor: true, arity: 2 }, {
   AggregateError: $AggregateError
 });
 
@@ -2331,7 +2338,7 @@ var FORCED = !fails(function () {
 });
 
 // https://github.com/tc39/proposal-error-cause
-$({ global: true, arity: 2, forced: FORCED }, {
+$({ global: true, constructor: true, arity: 2, forced: FORCED }, {
   AggregateError: wrapErrorConstructorWithCause(AGGREGATE_ERROR, function (init) {
     // eslint-disable-next-line no-unused-vars -- required for functions `.length`
     return function AggregateError(errors, message) { return apply(init, this, arguments); };
@@ -4215,7 +4222,7 @@ if (IS_PURE || !hasOwn(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPr
   createNonEnumerableProperty(AsyncIteratorPrototype, 'constructor', AsyncIteratorConstructor);
 }
 
-$({ global: true, forced: IS_PURE }, {
+$({ global: true, constructor: true, forced: IS_PURE }, {
   AsyncIterator: AsyncIteratorConstructor
 });
 
@@ -5204,7 +5211,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   }
 
   exported[CONSTRUCTOR_NAME] = Constructor;
-  $({ global: true, forced: Constructor != NativeConstructor }, exported);
+  $({ global: true, constructor: true, forced: Constructor != NativeConstructor }, exported);
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME);
 
@@ -6162,7 +6169,7 @@ if (FORCED || !hasOwn(IteratorPrototype, 'constructor') || IteratorPrototype.con
 
 IteratorConstructor.prototype = IteratorPrototype;
 
-$({ global: true, forced: FORCED }, {
+$({ global: true, constructor: true, forced: FORCED }, {
   Iterator: IteratorConstructor
 });
 
@@ -7834,7 +7841,7 @@ defineBuiltIns(ObservablePrototype, {
 
 defineBuiltIn(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
-$({ global: true, forced: OBSERVABLE_FORCED }, {
+$({ global: true, constructor: true, forced: OBSERVABLE_FORCED }, {
   Observable: $Observable
 });
 
@@ -9478,7 +9485,7 @@ var FORCED_CONSTRUCTOR = IS_PURE ? INCORRECT_TO_STRING || INCORRECT_CODE || MISS
 
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
-$({ global: true, forced: FORCED_CONSTRUCTOR }, {
+$({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
   DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
 });
 
@@ -9645,7 +9652,7 @@ var FORCED_CONSTRUCTOR = ERROR_HAS_STACK && !DOM_EXCEPTION_HAS_STACK;
 
 // `DOMException` constructor patch for `.stack` where it's required
 // https://webidl.spec.whatwg.org/#es-DOMException-specialness
-$({ global: true, forced: IS_PURE || FORCED_CONSTRUCTOR }, { // TODO: fix export logic
+$({ global: true, constructor: true, forced: IS_PURE || FORCED_CONSTRUCTOR }, { // TODO: fix export logic
   DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
 });
 
@@ -9930,30 +9937,42 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
   }) && structuredCloneImplementation;
 };
 
+var checkErrorsCloning = function (structuredCloneImplementation) {
+  return !fails(function () {
+    var error = new Error();
+    var test = structuredCloneImplementation({ a: error, b: error });
+    return !(test && test.a === test.b && test.a instanceof Error);
+  });
+};
+
 // https://github.com/whatwg/html/pull/5749
-var checkNewErrorsSemantic = function (structuredCloneImplementation) {
+var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name != 'AggregateError' || test.errors[0] != 1 || test.message != PERFORMANCE_MARK || test.cause != 3;
-  }) && structuredCloneImplementation;
+  });
 };
 
-// FF94+, Safari TP134+, Chrome Canary 98+, NodeJS 17.0+, Deno 1.13+
-// current FF and Safari implementations can't clone errors
+// FF94+, Safari 15.4+, Chrome 98+, NodeJS 17.0+, Deno 1.13+
+// FF and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
+// Chrome <103 returns `null` if cloned object contains multiple references to one error
+// https://bugs.chromium.org/p/v8/issues/detail?id=12542
 // no one of current implementations supports new (html/5749) error cloning semantic
 var nativeStructuredClone = global.structuredClone;
 
-var FORCED_REPLACEMENT = IS_PURE || !checkNewErrorsSemantic(nativeStructuredClone);
+var FORCED_REPLACEMENT = IS_PURE || !checkErrorsCloning(nativeStructuredClone) || !checkNewErrorsCloningSemantic(nativeStructuredClone);
 
 // Chrome 82+, Safari 14.1+, Deno 1.11+
 // Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
+// Chrome returns `null` if cloned object contains multiple references to one error
 // Safari 14.1 implementation doesn't clone some `RegExp` flags, so requires a workaround
-// current Safari implementation can't clone errors
+// Safari implementation can't clone errors
 // Deno 1.2-1.10 implementations too naive
-// NodeJS 16.0+ does not have `PerformanceMark` constructor, structured cloning implementation
-//   from `performance.mark` is too naive and can't clone, for example, `RegExp` or some boxed primitives
-//   https://github.com/nodejs/node/issues/40840
+// NodeJS 16.0+ does not have `PerformanceMark` constructor
+// NodeJS <17.2 structured cloning implementation from `performance.mark` is too naive
+// and can't clone, for example, `RegExp` or some boxed primitives
+// https://github.com/nodejs/node/issues/40840
 // no one of current implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;

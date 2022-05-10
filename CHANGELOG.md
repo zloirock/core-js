@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.22.5 - 2022.05.10](https://github.com/zloirock/core-js/releases/tag/v3.22.5)
 - Ensured that polyfilled constructors `.prototype` is non-writable
 - Ensured that polyfilled methods `.prototype` is not defined
 - Added detection and fix of a V8 ~ Chrome <103 [bug](https://bugs.chromium.org/p/v8/issues/detail?id=12542) of `struturedClone` that returns `null` if cloned object contains multiple references to one error
