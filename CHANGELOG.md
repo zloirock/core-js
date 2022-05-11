@@ -402,7 +402,7 @@
 - Compat data mapping for modern Android WebView to Chrome moved from targets parser directly to compat data
 - Deprecate `core-js-builder` `blacklist` option in favor of `exclude`
 
-##### [2.6.12 [LEGACY] - 2020.11.26](https://github.com/zloirock/core-js/releases/tag/v2.6.12 [LEGACY])
+##### [2.6.12 [LEGACY] - 2020.11.26](https://github.com/zloirock/core-js/releases/tag/v2.6.12)
 - Added code points / code units explicit feature detection in `String#at` for preventing breakage code which use obsolete `String#at` proposal polyfill
 - Added `OPEN_SOURCE_CONTRIBUTOR` detection in `postinstall`
 - Added Drone CI detection in `postinstall`
@@ -481,7 +481,7 @@
 - `es.string.match-all` marked as completely supported in FF73
 - Generate `core-js-compat/modules` since often we need just the list of `core-js` modules
 
-##### [2.6.11 [LEGACY] - 2019.12.09](https://github.com/zloirock/core-js/releases/tag/v2.6.11 [LEGACY])
+##### [2.6.11 [LEGACY] - 2019.12.09](https://github.com/zloirock/core-js/releases/tag/v2.6.11)
 - Returned usage of `node -e` in the `postinstall` scripts for better cross-platform compatibility, [#582](https://github.com/zloirock/core-js/issues/582)
 - Improved CI detection in the `postinstall` script, [#707](https://github.com/zloirock/core-js/issues/707)
 
@@ -610,7 +610,7 @@
 - Fixed missed cases [access the `.next` method once, at the beginning, of the iteration protocol](https://github.com/tc39/ecma262/issues/976)
 - Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597), thanks [@remy](https://github.com/remy)
 
-##### [2.6.10 [LEGACY] - 2019.10.13](https://github.com/zloirock/core-js/releases/tag/v2.6.10 [LEGACY])
+##### [2.6.10 [LEGACY] - 2019.10.13](https://github.com/zloirock/core-js/releases/tag/v2.6.10)
 - Show similar `postinstall` messages only once per `npm i`, [#597](https://github.com/zloirock/core-js/issues/597)
 
 ##### [3.2.1 - 2019.08.12](https://github.com/zloirock/core-js/releases/tag/v3.2.1)
@@ -645,20 +645,20 @@
 - Some fixes and improvements of the `postinstall` script like support `npm` color config ([#556](https://github.com/zloirock/core-js/issues/556)) or adding support of `ADBLOCK` env variable
 - Refactoring and some minor fixes
 
-##### [2.6.9 [LEGACY] - 2019.05.27](https://github.com/zloirock/core-js/releases/tag/v2.6.9 [LEGACY])
+##### [2.6.9 [LEGACY] - 2019.05.27](https://github.com/zloirock/core-js/releases/tag/v2.6.9)
 - Some fixes and improvements of the `postinstall` script like support `npm` color config ([#556](https://github.com/zloirock/core-js/issues/556)) or adding support of `ADBLOCK` env variable
 
 ##### [3.1.2 - 2019.05.22](https://github.com/zloirock/core-js/releases/tag/v3.1.2)
 - Added a workaround of a strange `npx` bug on `postinstall`, [#551](https://github.com/zloirock/core-js/issues/551)
 
-##### [2.6.8 [LEGACY] - 2019.05.22](https://github.com/zloirock/core-js/releases/tag/v2.6.8 [LEGACY])
+##### [2.6.8 [LEGACY] - 2019.05.22](https://github.com/zloirock/core-js/releases/tag/v2.6.8)
 - Added a workaround of a strange `npx` bug on `postinstall`, [#551](https://github.com/zloirock/core-js/issues/551)
 
 ##### [3.1.1 - 2019.05.21](https://github.com/zloirock/core-js/releases/tag/v3.1.1)
 - Added one more workaround of alternative not completely correct `Symbol` polyfills, [#550](https://github.com/zloirock/core-js/issues/550), [#554](https://github.com/zloirock/core-js/issues/554)
 - Reverted `esnext.string.match-all` in some entry points for fix autogeneration of `core-js-compat/entries` and backward `@babel/preset-env` compatibility
 
-##### [2.6.7 [LEGACY] - 2019.05.21](https://github.com/zloirock/core-js/releases/tag/v2.6.7 [LEGACY])
+##### [2.6.7 [LEGACY] - 2019.05.21](https://github.com/zloirock/core-js/releases/tag/v2.6.7)
 - Added one more workaround of alternative not completely correct `Symbol` polyfills, [#550](https://github.com/zloirock/core-js/issues/550), [#554](https://github.com/zloirock/core-js/issues/554)
 
 ##### [3.1.0 - 2019.05.20](https://github.com/zloirock/core-js/releases/tag/v3.1.0)
@@ -675,7 +675,7 @@
 - Show a message on `postinstall`
 - Added compat data for Chrome 76, FF 67, Node 12
 
-##### [2.6.6 [LEGACY] - 2019.05.20](https://github.com/zloirock/core-js/releases/tag/v2.6.6 [LEGACY])
+##### [2.6.6 [LEGACY] - 2019.05.20](https://github.com/zloirock/core-js/releases/tag/v2.6.6)
 - Fixed IE8- non-enumerable properties support in `Object.{ assign, entries, values }`, [#541](https://github.com/zloirock/core-js/issues/541)
 - Fixed support of primitives in `Object.getOwnPropertySymbols` in Chrome 38 / 39, [#539](https://github.com/zloirock/core-js/issues/539)
 - Show a message on `postinstall`
@@ -1004,7 +1004,7 @@
 - Removed some unused variables, [#217](https://github.com/zloirock/core-js/issues/217), [#218](https://github.com/zloirock/core-js/issues/218)
 - Fixed MS Edge `Reflect.construct` and `Reflect.apply` - they should not allow primitive as `argumentsList` argument
 
-##### [1.2.7 [LEGACY] - 2016.07.18](https://github.com/zloirock/core-js/releases/tag/v1.2.7 [LEGACY])
+##### [1.2.7 [LEGACY] - 2016.07.18](https://github.com/zloirock/core-js/releases/tag/v1.2.7)
 - Some fixes for issues like [#159](https://github.com/zloirock/core-js/issues/159), [#186](https://github.com/zloirock/core-js/issues/186), [#194](https://github.com/zloirock/core-js/issues/194), [#207](https://github.com/zloirock/core-js/issues/207)
 
 ##### [2.4.0 - 2016.05.08](https://github.com/zloirock/core-js/releases/tag/v2.4.0)
