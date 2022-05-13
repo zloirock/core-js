@@ -1,12 +1,8 @@
 var $ = require('../internals/export');
-
-var ceil = Math.ceil;
-var floor = Math.floor;
+var trunc = require('../internals/math-trunc');
 
 // `Math.trunc` method
 // https://tc39.es/ecma262/#sec-math.trunc
 $({ target: 'Math', stat: true }, {
-  trunc: function trunc(it) {
-    return (it > 0 ? floor : ceil)(it);
-  }
+  trunc: trunc
 });
