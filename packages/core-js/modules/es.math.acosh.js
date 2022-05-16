@@ -17,8 +17,9 @@ var FORCED = !$acosh
 // https://tc39.es/ecma262/#sec-math.acosh
 $({ target: 'Math', stat: true, forced: FORCED }, {
   acosh: function acosh(x) {
-    return (x = +x) < 1 ? NaN : x > 94906265.62425156
-      ? log(x) + LN2
-      : log1p(x - 1 + sqrt(x - 1) * sqrt(x + 1));
+    var n = +x;
+    return n < 1 ? NaN : n > 94906265.62425156
+      ? log(n) + LN2
+      : log1p(n - 1 + sqrt(n - 1) * sqrt(n + 1));
   }
 });

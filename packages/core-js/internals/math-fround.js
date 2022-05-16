@@ -15,8 +15,9 @@ var roundTiesToEven = function (n) {
 // https://tc39.es/ecma262/#sec-math.fround
 // eslint-disable-next-line es-x/no-math-fround -- safe
 module.exports = Math.fround || function fround(x) {
-  var $abs = abs(x);
-  var $sign = sign(x);
+  var n = +x;
+  var $abs = abs(n);
+  var $sign = sign(n);
   var a, result;
   if ($abs < MIN32) return $sign * roundTiesToEven($abs / MIN32 / EPSILON32) * MIN32 * EPSILON32;
   a = (1 + EPSILON32 / EPSILON) * $abs;

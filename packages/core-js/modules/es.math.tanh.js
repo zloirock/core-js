@@ -7,8 +7,9 @@ var exp = Math.exp;
 // https://tc39.es/ecma262/#sec-math.tanh
 $({ target: 'Math', stat: true }, {
   tanh: function tanh(x) {
-    var a = expm1(x = +x);
-    var b = expm1(-x);
-    return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(x) + exp(-x));
+    var n = +x;
+    var a = expm1(n);
+    var b = expm1(-n);
+    return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(n) + exp(-n));
   }
 });

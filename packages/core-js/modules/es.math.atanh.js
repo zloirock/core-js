@@ -9,6 +9,7 @@ var log = Math.log;
 // Tor Browser bug: Math.atanh(-0) -> 0
 $({ target: 'Math', stat: true, forced: !($atanh && 1 / $atanh(-0) < 0) }, {
   atanh: function atanh(x) {
-    return (x = +x) == 0 ? x : log((1 + x) / (1 - x)) / 2;
+    var n = +x;
+    return n == 0 ? n : log((1 + n) / (1 - n)) / 2;
   }
 });

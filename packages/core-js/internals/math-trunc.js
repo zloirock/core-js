@@ -5,6 +5,6 @@ var floor = Math.floor;
 // https://tc39.es/ecma262/#sec-math.trunc
 // eslint-disable-next-line es-x/no-math-trunc -- safe
 module.exports = Math.trunc || function trunc(x) {
-  var number = +x;
-  return (number > 0 ? floor : ceil)(number);
+  var n = +x;
+  return (n > 0 ? floor : ceil)(n);
 };

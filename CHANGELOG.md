@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed possible double call of `ToNumber` conversion on arguments of `Math.{ fround, trunc }` polyfills
 
 ##### [3.22.5 - 2022.05.10](https://github.com/zloirock/core-js/releases/tag/v3.22.5)
 - Ensured that polyfilled constructors `.prototype` is non-writable

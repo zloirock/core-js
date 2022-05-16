@@ -8,6 +8,7 @@ var LOG2E = Math.LOG2E;
 // https://tc39.es/ecma262/#sec-math.clz32
 $({ target: 'Math', stat: true }, {
   clz32: function clz32(x) {
-    return (x >>>= 0) ? 31 - floor(log(x + 0.5) * LOG2E) : 32;
+    var n = x >>> 0;
+    return n ? 31 - floor(log(n + 0.5) * LOG2E) : 32;
   }
 });
