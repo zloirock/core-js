@@ -1,7 +1,7 @@
 var isCallable = require('../internals/is-callable');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var makeBuiltIn = require('../internals/make-built-in');
-var setGlobal = require('../internals/set-global');
+var defineGlobalProperty = require('../internals/define-global-property');
 
 module.exports = function (O, key, value, options) {
   if (!options) options = {};
@@ -10,7 +10,7 @@ module.exports = function (O, key, value, options) {
   if (isCallable(value)) makeBuiltIn(value, name, options);
   if (options.global) {
     if (simple) O[key] = value;
-    else setGlobal(key, value);
+    else defineGlobalProperty(key, value);
   } else {
     if (!options.unsafe) delete O[key];
     else if (O[key]) simple = true;
