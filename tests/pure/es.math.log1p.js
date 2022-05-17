@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 import log1p from 'core-js-pure/es/math/log1p';
 
 QUnit.test('Math.log1p', assert => {
@@ -11,4 +13,9 @@ QUnit.test('Math.log1p', assert => {
   assert.same(log1p(Infinity), Infinity);
   assert.epsilon(log1p(5), 1.791759469228055);
   assert.epsilon(log1p(50), 3.9318256327243257);
+
+  const checker = createConversionChecker(5);
+  assert.epsilon(log1p(checker), 1.791759469228055);
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

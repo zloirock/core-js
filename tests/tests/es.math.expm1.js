@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 QUnit.test('Math.expm1', assert => {
   const { expm1 } = Math;
   assert.isFunction(expm1);
@@ -12,4 +14,9 @@ QUnit.test('Math.expm1', assert => {
   assert.same(expm1(-Infinity), -1);
   assert.epsilon(expm1(10), 22025.465794806718);
   assert.epsilon(expm1(-10), -0.9999546000702375);
+
+  const checker = createConversionChecker(10);
+  assert.epsilon(expm1(checker), 22025.465794806718);
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

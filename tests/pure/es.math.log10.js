@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 import log10 from 'core-js-pure/es/math/log10';
 
 QUnit.test('Math.log10', assert => {
@@ -15,4 +17,9 @@ QUnit.test('Math.log10', assert => {
   assert.epsilon(log10(5), 0.6989700043360189);
   assert.epsilon(log10(50), 1.6989700043360187);
   assert.epsilon(log10(1000), 3);
+
+  const checker = createConversionChecker(0.5);
+  assert.epsilon(log10(checker), -0.3010299956639812);
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

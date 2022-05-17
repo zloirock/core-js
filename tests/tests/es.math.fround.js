@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 QUnit.test('Math.fround', assert => {
   const { fround } = Math;
   assert.isFunction(fround);
@@ -38,4 +40,9 @@ QUnit.test('Math.fround', assert => {
   assert.same(fround(-1.1754942807573642e-38), -maxSubnormal32, 'fround(-1.1754942807573642e-38)');
   assert.same(fround(-1.1754942807573643e-38), -minNormal32, 'fround(-1.1754942807573643e-38)');
   assert.same(fround(-1.1754942807573644e-38), -minNormal32, 'fround(-1.1754942807573644e-38)');
+
+  const checker = createConversionChecker(1.1754942807573642e-38);
+  assert.same(fround(checker), maxSubnormal32, 'object wrapper');
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

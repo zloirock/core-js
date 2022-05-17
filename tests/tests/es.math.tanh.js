@@ -1,4 +1,5 @@
 import { NATIVE } from '../helpers/constants';
+import { createConversionChecker } from '../helpers/helpers';
 
 QUnit.test('Math.tanh', assert => {
   const { tanh } = Math;
@@ -14,4 +15,9 @@ QUnit.test('Math.tanh', assert => {
   assert.same(tanh(90), 1);
   assert.epsilon(tanh(10), 0.9999999958776927);
   if (NATIVE) assert.same(tanh(710), 1);
+
+  const checker = createConversionChecker(10);
+  assert.epsilon(tanh(checker), 0.9999999958776927);
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

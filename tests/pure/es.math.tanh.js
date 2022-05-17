@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 import tanh from 'core-js-pure/es/math/tanh';
 
 QUnit.test('Math.tanh', assert => {
@@ -8,4 +10,9 @@ QUnit.test('Math.tanh', assert => {
   assert.same(tanh(Infinity), 1);
   assert.same(tanh(90), 1);
   assert.epsilon(tanh(10), 0.9999999958776927);
+
+  const checker = createConversionChecker(10);
+  assert.epsilon(tanh(checker), 0.9999999958776927);
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

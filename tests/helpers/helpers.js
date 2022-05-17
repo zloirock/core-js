@@ -69,6 +69,23 @@ export function createAsyncIterable(elements, methods) {
   return iterable;
 }
 
+export function createConversionChecker(value, string) {
+  const checker = {
+    $valueOf: 0,
+    $toString: 0,
+    valueOf() {
+      checker.$valueOf++;
+      return value;
+    },
+    toString() {
+      checker.$toString++;
+      return arguments.length > 1 ? string : String(value);
+    },
+  };
+
+  return checker;
+}
+
 export function arrayFromArrayLike(source) {
   const { length } = source;
   const result = Array(length);

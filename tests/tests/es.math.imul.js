@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 QUnit.test('Math.imul', assert => {
   const { imul } = Math;
   assert.isFunction(imul);
@@ -40,4 +42,12 @@ QUnit.test('Math.imul', assert => {
   assert.same(imul(7, 1.1), 7);
   assert.same(imul(1.9, 7), 7);
   assert.same(imul(7, 1.9), 7);
+
+  const checker1 = createConversionChecker(-123);
+  const checker2 = createConversionChecker(456);
+  assert.same(imul(checker1, checker2), -56088, 'object wrapper');
+  assert.same(checker1.$valueOf, 1, 'checker1 valueOf calls');
+  assert.same(checker1.$toString, 0, 'checker1 toString calls');
+  assert.same(checker2.$valueOf, 1, 'checker2 valueOf calls');
+  assert.same(checker2.$toString, 0, 'checker2 toString calls');
 });

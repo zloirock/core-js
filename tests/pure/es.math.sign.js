@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 import sign from 'core-js-pure/es/math/sign';
 
 QUnit.test('Math.sign', assert => {
@@ -12,4 +14,9 @@ QUnit.test('Math.sign', assert => {
   assert.same(sign(-13510798882111488), -1);
   assert.same(sign(42.5), 1);
   assert.same(sign(-42.5), -1);
+
+  const checker = createConversionChecker(-42.5);
+  assert.same(sign(checker), -1, 'object wrapper');
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });

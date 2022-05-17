@@ -1,3 +1,5 @@
+import { createConversionChecker } from '../helpers/helpers';
+
 QUnit.test('Math.trunc', assert => {
   const { trunc } = Math;
   assert.isFunction(trunc);
@@ -20,4 +22,9 @@ QUnit.test('Math.trunc', assert => {
   assert.same(trunc(-555.555), -555, '-555.555 -> -555');
   assert.same(trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
   assert.same(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
+
+  const checker = createConversionChecker(-1.99);
+  assert.same(trunc(checker), -1, 'object wrapper');
+  assert.same(checker.$valueOf, 1, 'valueOf calls');
+  assert.same(checker.$toString, 0, 'toString calls');
 });
