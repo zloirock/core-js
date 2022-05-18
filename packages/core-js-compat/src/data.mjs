@@ -279,7 +279,8 @@ export const data = {
     // chrome: '103',
     // edge: '15',
     firefox: '55',
-    safari: '15.4',
+    // the same to Chrome bug fixed only in Safari TP
+    // safari: '15.4',
   },
   'es.array.reduce': {
     chrome: '83', // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
