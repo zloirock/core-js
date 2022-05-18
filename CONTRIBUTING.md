@@ -44,6 +44,8 @@ engine         | mandatory check | how to run tests | base data inherits from   
 `safari`       | features        | browser runner   |                              |
 `samsung`      |                 | browser runner   | `chrome`                     | required
 
+If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
+
 ## Style and standards
 
 The coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
