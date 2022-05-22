@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed possible double call of `ToNumber` conversion on arguments of `Math.{ fround, trunc }` polyfills
+- `Array.prototype.includes` marked as [fixed](https://bugzilla.mozilla.org/show_bug.cgi?id=1767541) in FF102
 
 ##### [3.22.5 - 2022.05.10](https://github.com/zloirock/core-js/releases/tag/v3.22.5)
 - Ensured that polyfilled constructors `.prototype` is non-writable
