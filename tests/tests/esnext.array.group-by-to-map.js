@@ -6,7 +6,6 @@ QUnit.test('Array#groupByToMap', assert => {
   const { groupByToMap } = Array.prototype;
   assert.isFunction(groupByToMap);
   assert.arity(groupByToMap, 1);
-  assert.name(groupByToMap, 'groupByToMap');
   assert.looksNative(groupByToMap);
   assert.nonEnumerable(Array.prototype, 'groupByToMap');
   let array = [1];

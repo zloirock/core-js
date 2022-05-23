@@ -1,7 +1,7 @@
 'use strict';
 // TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var $groupBy = require('../internals/array-group-by');
+var $group = require('../internals/array-group');
 var typedArraySpeciesConstructor = require('../internals/typed-array-species-constructor');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
@@ -11,5 +11,5 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 // https://github.com/tc39/proposal-array-grouping
 exportTypedArrayMethod('groupBy', function groupBy(callbackfn /* , thisArg */) {
   var thisArg = arguments.length > 1 ? arguments[1] : undefined;
-  return $groupBy(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
+  return $group(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
 }, true);

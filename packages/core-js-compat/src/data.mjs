@@ -1606,9 +1606,15 @@ export const data = {
   'esnext.array.find-last': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.find-last-index': null,
+  'esnext.array.group': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.array.group-by-to-map': {
+  },
+  'esnext.array.group-to-map': {
   },
   'esnext.array.is-template-object': {
   },

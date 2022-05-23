@@ -595,18 +595,34 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
+    ok(typeof load(NS, 'array/group') == 'function');
+    ok(typeof load(NS, 'array/group-to-map') == 'function');
     ok(typeof load(NS, 'array/group-by') == 'function');
     ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(load(NS, 'array/with')([1, 2, 3], 1, 4));
     ok(load(NS, 'array/to-reversed')([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/to-sorted')([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
+    ok(typeof load(NS, 'array/virtual/group') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
+
+    const instanceGroup = load(NS, 'instance/group');
+    ok(typeof instanceGroup == 'function');
+    ok(instanceGroup({}) === undefined);
+    ok(typeof instanceGroup([]) == 'function');
+    ok(instanceGroup([]).call([1, 2, 3], it => it % 2)[1].length === 2);
+
+    const instanceGroupToMap = load(NS, 'instance/group-to-map');
+    ok(typeof instanceGroupToMap == 'function');
+    ok(instanceGroupToMap({}) === undefined);
+    ok(typeof instanceGroupToMap([]) == 'function');
+    ok(instanceGroupToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
 
     const instanceGroupBy = load(NS, 'instance/group-by');
     ok(typeof instanceGroupBy == 'function');
@@ -825,6 +841,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-from-async-stage-2');
   load('proposals/array-grouping');
   load('proposals/array-grouping-stage-3');
+  load('proposals/array-grouping-stage-3-2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
   load('proposals/array-last');
