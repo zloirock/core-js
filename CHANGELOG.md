@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added a workaround for V8 ~ Chrome 53 bug with non-writable prototype of some methods, [#1083](https://github.com/zloirock/core-js/issues/1083)
 
 ##### [3.22.6 - 2022.05.23](https://github.com/zloirock/core-js/releases/tag/v3.22.6)
 - Fixed possible double call of `ToNumber` conversion on arguments of `Math.{ fround, trunc }` polyfills
