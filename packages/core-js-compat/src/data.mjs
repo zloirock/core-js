@@ -187,6 +187,14 @@ export const data = {
     firefox: '48',
     safari: '9.0',
   },
+  'es.array.find-last': {
+    chrome: '97',
+    safari: '15.4',
+  },
+  'es.array.find-last-index': {
+    chrome: '97',
+    safari: '15.4',
+  },
   'es.array.flat': {
     chrome: '69',
     firefox: '62',
@@ -1421,6 +1429,14 @@ export const data = {
     firefox: '37',
     safari: '10.0',
   },
+  'es.typed-array.find-last': {
+    chrome: '97',
+    safari: '15.4',
+  },
+  'es.typed-array.find-last-index': {
+    chrome: '97',
+    safari: '15.4',
+  },
   'es.typed-array.for-each': {
     chrome: '45',
     edge: '13',
@@ -1571,14 +1587,10 @@ export const data = {
   },
   'esnext.array.filter-reject': {
   },
-  'esnext.array.find-last': {
-    chrome: '97',
-    safari: '15.4',
-  },
-  'esnext.array.find-last-index': {
-    chrome: '97',
-    safari: '15.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array.find-last': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.array.find-last-index': null,
   'esnext.array.group-by': {
   },
   'esnext.array.group-by-to-map': {
@@ -1877,14 +1889,10 @@ export const data = {
   },
   'esnext.typed-array.filter-reject': {
   },
-  'esnext.typed-array.find-last': {
-    chrome: '97',
-    safari: '15.4',
-  },
-  'esnext.typed-array.find-last-index': {
-    chrome: '97',
-    safari: '15.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.find-last': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.find-last-index': null,
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.group-by': {
   },
@@ -2076,6 +2084,8 @@ export const renamed = new Map([
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
   ['esnext.array.at', 'es.array.at'],
+  ['esnext.array.find-last', 'es.array.find-last'],
+  ['esnext.array.find-last-index', 'es.array.find-last-index'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.object.has-own', 'es.object.has-own'],
@@ -2084,6 +2094,8 @@ export const renamed = new Map([
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.typed-array.at', 'es.typed-array.at'],
+  ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
+  ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);

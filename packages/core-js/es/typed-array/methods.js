@@ -9,6 +9,8 @@ require('../../modules/es.typed-array.fill');
 require('../../modules/es.typed-array.filter');
 require('../../modules/es.typed-array.find');
 require('../../modules/es.typed-array.find-index');
+require('../../modules/es.typed-array.find-last');
+require('../../modules/es.typed-array.find-last-index');
 require('../../modules/es.typed-array.for-each');
 require('../../modules/es.typed-array.includes');
 require('../../modules/es.typed-array.index-of');

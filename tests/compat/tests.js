@@ -350,6 +350,12 @@ GLOBAL.tests = {
     Array(1).findIndex(function () { return SKIPS_HOLES = false; });
     return !SKIPS_HOLES && Array.prototype[Symbol.unscopables].findIndex;
   },
+  'es.array.find-last': function () {
+    return [].findLast;
+  },
+  'es.array.find-last-index': function () {
+    return [].findLastIndex;
+  },
   'es.array.flat': function () {
     return Array.prototype.flat;
   },
@@ -1213,6 +1219,12 @@ GLOBAL.tests = {
   'es.typed-array.find-index': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.findIndex;
   }],
+  'es.typed-array.find-last': function () {
+    return Int8Array.prototype.findLast;
+  },
+  'es.typed-array.find-last-index': function () {
+    return Int8Array.prototype.findLastIndex;
+  },
   'es.typed-array.for-each': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.forEach;
   }],
@@ -1359,12 +1371,6 @@ GLOBAL.tests = {
   },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
-  },
-  'esnext.array.find-last': function () {
-    return [].findLast;
-  },
-  'esnext.array.find-last-index': function () {
-    return [].findLastIndex;
   },
   'esnext.array.group-by': function () {
     try {
@@ -1684,12 +1690,6 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
-  },
-  'esnext.typed-array.find-last': function () {
-    return Int8Array.prototype.findLast;
-  },
-  'esnext.typed-array.find-last-index': function () {
-    return Int8Array.prototype.findLastIndex;
   },
   'esnext.typed-array.to-reversed': function () {
     return Int8Array.prototype.toReversed;
