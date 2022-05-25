@@ -501,7 +501,7 @@ core-js(-pure)/es|stable|actual|full/object/define-setter
 core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
-[*Examples*](is.gd/udzZq0):
+[*Examples*](https://is.gd/udzZq0):
 ```js
 let foo = { q: 1, w: 2 };
 let bar = { e: 3, r: 4 };
@@ -738,7 +738,7 @@ core-js(-pure)/es|stable|actual|full/array/virtual/sort
 core-js(-pure)/es|stable|actual|full/array/virtual/splice
 core-js(-pure)/es|stable|actual|full/array/virtual/values
 ```
-[*Examples*](is.gd/i8mOSe):
+[*Examples*](https://is.gd/i8mOSe):
 ```js
 Array.from(new Set([1, 2, 3, 2, 1]));        // => [1, 2, 3]
 Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
@@ -906,7 +906,7 @@ core-js/es|stable|actual|full/regexp/to-string
 core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
-[*Examples*](is.gd/Q8eRhG):
+[*Examples*](https://is.gd/Q8eRhG):
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // => 'a', '𠮷', 'b'
@@ -1700,7 +1700,7 @@ core-js/es|stable|actual|full/typed-array/to-locale-string
 core-js/es|stable|actual|full/typed-array/to-string
 core-js/es|stable|actual|full/typed-array/values
 ```
-[*Examples*](is.gd/Eo7ltU):
+[*Examples*](https://is.gd/Eo7ltU):
 ```js
 new Int32Array(4);                          // => [0, 0, 0, 0]
 new Uint8ClampedArray([1, 2, 3, 666]);      // => [1, 2, 3, 255]
@@ -1805,7 +1805,7 @@ namespace JSON {
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
-[*Examples*](is.gd/izZqKn):
+[*Examples*](https://is.gd/izZqKn):
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 ```
@@ -2084,7 +2084,7 @@ core-js/proposals/array-grouping-stage-3
 core-js(-pure)/actual|full/array(/virtual)/group-by
 core-js(-pure)/actual|full/array(/virtual)/group-by-to-map
 ```
-[*Examples*](t.ly/xEqc):
+[*Examples*](https://t.ly/xEqc):
 ```js
 [1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
@@ -2113,7 +2113,7 @@ core-js(-pure)/actual|full(/virtual)/array/find-last-index
 core-js/actual|full/typed-array/find-last
 core-js/actual|full/typed-array/find-last-index
 ```
-[*Examples*](is.gd/GVqNFY):
+[*Examples*](https://is.gd/GVqNFY):
 ```js
 [1, 2, 3, 4].findLast(it => it % 2);      // => 3
 [1, 2, 3, 4].findLastIndex(it => it % 2); // => 2
@@ -2147,7 +2147,7 @@ core-js/actual|full/typed-array/to-sorted
 core-js/actual|full/typed-array/to-spliced
 core-js/actual|full/typed-array/with
 ```
-[*Examples*](is.gd/tVkbY3):
+[*Examples*](https://is.gd/tVkbY3):
 ```js
 const sequence = [1, 2, 3];
 sequence.toReversed(); // => [3, 2, 1]
@@ -2242,7 +2242,7 @@ core-js(-pure)/full/iterator/take
 core-js(-pure)/full/iterator/to-array
 core-js(-pure)/full/iterator/to-async
 ```
-[Examples](is.gd/P7YLCq):
+[Examples](https://is.gd/P7YLCq):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -2328,7 +2328,7 @@ core-js/proposals/map-upsert-stage-2
 core-js(-pure)/full/map/emplace
 core-js(-pure)/full/weak-map/emplace
 ```
-[*Examples*](is.gd/ty5I2v):
+[*Examples*](https://is.gd/ty5I2v):
 ```js
 const map = new Map([['a', 2]]);
 
@@ -2588,7 +2588,7 @@ core-js/proposals/array-filtering-stage-1
 core-js(-pure)/full/array(/virtual)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
-[*Examples*](is.gd/jJcoWw):
+[*Examples*](https://is.gd/jJcoWw):
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
 ````
@@ -2609,7 +2609,7 @@ core-js/proposals/array-unique
 core-js(-pure)/full/array(/virtual)/unique-by
 core-js/full/typed-array/unique-by
 ```
-[*Examples*](is.gd/lilNPu):
+[*Examples*](https://is.gd/lilNPu):
 ```js
 [1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
 
@@ -2660,7 +2660,7 @@ core-js/proposals/number-range
 core-js(-pure)/full/bigint/range
 core-js(-pure)/full/number/range
 ```
-[*Example*](is.gd/caCKSb):
+[*Example*](https://is.gd/caCKSb):
 ```js
 for (const i of Number.range(1, 10)) {
   console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
@@ -2738,7 +2738,7 @@ class String {
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
-[*Example*](is.gd/7QPnss):
+[*Example*](https://is.gd/7QPnss):
 ```js
 function safePath(strings, ...subs) {
   return String.cooked(strings, ...subs.map(sub => encodeURIComponent(sub)));
@@ -2818,7 +2818,7 @@ core-js(-pure)/full/object/iterate-keys
 core-js(-pure)/full/object/iterate-values
 core-js(-pure)/full/object/iterate-entries
 ```
-[*Example*](is.gd/Wnm2tD):
+[*Example*](https://is.gd/Wnm2tD):
 ```js
 const obj = { foo: 'bar', baz: 'blah' };
 
@@ -2894,7 +2894,7 @@ core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable
 core-js(-pure)/full/function/is-constructor
 ```
-[*Examples*](is.gd/Kof1he):
+[*Examples*](https://is.gd/Kof1he):
 ```js
 Function.isCallable(null);           // => false
 Function.isCallable({});             // => false
@@ -3004,7 +3004,7 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 ```js
 core-js(-pure)/stable|actual|full/structured-clone
 ```
-[*Examples*](is.gd/RhK7TW):
+[*Examples*](https://is.gd/RhK7TW):
 ```js
 const structured = [{ a: 42 }];
 const sclone = structuredClone(structured);
@@ -3050,7 +3050,7 @@ function btoa(data: string): string;
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa
 ```
-[*Examples*](is.gd/4Nxmzn):
+[*Examples*](https://is.gd/4Nxmzn):
 ```js
 btoa('hi, core-js');      // => 'aGksIGNvcmUtanM='
 atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
@@ -3154,7 +3154,7 @@ core-js(-pure)/stable|actual|full/url
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
-[*Examples*](is.gd/AfIwve):
+[*Examples*](https://is.gd/AfIwve):
 ```js
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
@@ -3220,7 +3220,7 @@ core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag
 ```
-[*Examples*](is.gd/pI6oTN):
+[*Examples*](https://is.gd/pI6oTN):
 ```js
 const exception = new DOMException('error', 'DataCloneError');
 console.log(exception.name);                            // => 'DataCloneError'
