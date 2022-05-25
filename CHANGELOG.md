@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed dependencies of `{ actual, full, features }/typed-array/at` entries
 
 ##### [3.22.7 - 2022.05.24](https://github.com/zloirock/core-js/releases/tag/v3.22.7)
 - Added a workaround for V8 ~ Chrome 53 bug with non-writable prototype of some methods, [#1083](https://github.com/zloirock/core-js/issues/1083)
