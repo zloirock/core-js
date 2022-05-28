@@ -1,11 +1,10 @@
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
-var $TypeError = TypeError;
 var max = Math.max;
 var min = Math.min;
-var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSpliced
@@ -26,8 +25,7 @@ module.exports = function (O, C, args) {
     insertCount = argumentsLength - 2;
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
   }
-  newLen = len + insertCount - actualDeleteCount;
-  if (newLen > MAX_SAFE_INTEGER) throw $TypeError('Maximum allowed length exceeded');
+  newLen = doesNonExceededSafeInteger(len + insertCount - actualDeleteCount);
   A = new C(newLen);
 
   for (; k < actualStart; k++) A[k] = O[k];

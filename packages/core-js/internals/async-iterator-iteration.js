@@ -1,15 +1,12 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 // https://github.com/tc39/proposal-array-from-async
-var global = require('../internals/global');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
+var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
-
-var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
-var TypeError = global.TypeError;
 
 var createMethod = function (TYPE) {
   var IS_TO_ARRAY = TYPE == 0;
@@ -46,9 +43,7 @@ var createMethod = function (TYPE) {
 
       var loop = function () {
         try {
-          if (IS_TO_ARRAY && (index > MAX_SAFE_INTEGER) && MAPPING) {
-            throw TypeError('The allowed number of iterations has been exceeded');
-          }
+          if (IS_TO_ARRAY && MAPPING) doesNonExceededSafeInteger(index);
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
