@@ -1,11 +1,10 @@
 'use strict';
-var global = require('../internals/global');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var isCallable = require('../internals/is-callable');
 var anObject = require('../internals/an-object');
 
-var TypeError = global.TypeError;
+var $TypeError = TypeError;
 
 // `Map.prototype.upsert` method
 // https://github.com/thumbsupep/proposal-upsert
@@ -17,7 +16,7 @@ module.exports = function upsert(key, updateFn /* , insertFn */) {
   var insertFn = arguments.length > 2 ? arguments[2] : undefined;
   var value;
   if (!isCallable(updateFn) && !isCallable(insertFn)) {
-    throw TypeError('At least one callback required');
+    throw $TypeError('At least one callback required');
   }
   if (call(has, map, key)) {
     value = call(get, map, key);

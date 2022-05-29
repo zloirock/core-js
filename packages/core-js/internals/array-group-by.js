@@ -1,4 +1,3 @@
-var global = require('../internals/global');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IndexedObject = require('../internals/indexed-object');
@@ -8,7 +7,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var objectCreate = require('../internals/object-create');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
-var Array = global.Array;
+var $Array = Array;
 var push = uncurryThis([].push);
 
 module.exports = function ($this, callbackfn, that, specificConstructor) {
@@ -30,7 +29,7 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
   // TODO: Remove this block from `core-js@4`
   if (specificConstructor) {
     Constructor = specificConstructor(O);
-    if (Constructor !== Array) {
+    if (Constructor !== $Array) {
       for (key in target) target[key] = arrayFromConstructorAndList(Constructor, target[key]);
     }
   } return target;

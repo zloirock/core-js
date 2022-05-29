@@ -1,12 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
 var getMapIterator = require('../internals/get-map-iterator');
 var iterate = require('../internals/iterate');
 
-var TypeError = global.TypeError;
+var $TypeError = TypeError;
 
 // `Map.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
@@ -25,7 +24,7 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
         accumulator = callbackfn(accumulator, value, key, map);
       }
     }, { AS_ENTRIES: true, IS_ITERATOR: true });
-    if (noInitial) throw TypeError('Reduce of empty map with no initial value');
+    if (noInitial) throw $TypeError('Reduce of empty map with no initial value');
     return accumulator;
   }
 });

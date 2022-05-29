@@ -1,5 +1,4 @@
 'use strict';
-var global = require('../internals/global');
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
 var isObject = require('../internals/is-object');
@@ -12,15 +11,15 @@ var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(NUMERIC_RANGE_ITERATOR);
 
-var RangeError = global.RangeError;
-var TypeError = global.TypeError;
+var $RangeError = RangeError;
+var $TypeError = TypeError;
 
 var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(start, end, option, type, zero, one) {
   if (typeof start != type || (end !== Infinity && end !== -Infinity && typeof end != type)) {
-    throw new TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (start === Infinity || start === -Infinity) {
-    throw new RangeError(INCORRECT_RANGE);
+    throw new $RangeError(INCORRECT_RANGE);
   }
   var ifIncrease = end > start;
   var inclusiveEnd = false;
@@ -33,16 +32,16 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   } else if (typeof option == type) {
     step = option;
   } else {
-    throw new TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (step == null) {
     step = ifIncrease ? one : -one;
   }
   if (typeof step != type) {
-    throw new TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (step === Infinity || step === -Infinity || (step === zero && start !== end)) {
-    throw new RangeError(INCORRECT_RANGE);
+    throw new $RangeError(INCORRECT_RANGE);
   }
   // eslint-disable-next-line no-self-compare -- NaN check
   var hitsEnd = start != start || end != end || step != step || (end > start) !== (step > zero);

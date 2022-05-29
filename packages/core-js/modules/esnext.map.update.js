@@ -1,11 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var aCallable = require('../internals/a-callable');
 
-var TypeError = global.TypeError;
+var $TypeError = TypeError;
 
 // `Set.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods
@@ -19,7 +18,7 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     aCallable(callback);
     var isPresentInMap = call(has, map, key);
     if (!isPresentInMap && length < 3) {
-      throw TypeError('Updating absent value');
+      throw $TypeError('Updating absent value');
     }
     var value = isPresentInMap ? call(get, map, key) : aCallable(length > 2 ? arguments[2] : undefined)(key, map);
     call(set, map, key, callback(value, key, map));

@@ -1,10 +1,8 @@
 'use strict';
-var global = require('../internals/global');
 var isArray = require('../internals/is-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
 var bind = require('../internals/function-bind-context');
-
-var TypeError = global.TypeError;
 
 // `FlattenIntoArray` abstract operation
 // https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
@@ -22,7 +20,7 @@ var flattenIntoArray = function (target, original, source, sourceLen, start, dep
         elementLen = lengthOfArrayLike(element);
         targetIndex = flattenIntoArray(target, original, element, elementLen, targetIndex, depth - 1) - 1;
       } else {
-        if (targetIndex >= 0x1FFFFFFFFFFFFF) throw TypeError('Exceed the acceptable array length');
+        doesNonExceededSafeInteger(targetIndex + 1);
         target[targetIndex] = element;
       }
 

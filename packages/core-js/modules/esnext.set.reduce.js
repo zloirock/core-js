@@ -1,12 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getSetIterator = require('../internals/get-set-iterator');
 var iterate = require('../internals/iterate');
 
-var TypeError = global.TypeError;
+var $TypeError = TypeError;
 
 // `Set.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods
@@ -25,7 +24,7 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
         accumulator = callbackfn(accumulator, value, value, set);
       }
     }, { IS_ITERATOR: true });
-    if (noInitial) throw TypeError('Reduce of empty set with no initial value');
+    if (noInitial) throw $TypeError('Reduce of empty set with no initial value');
     return accumulator;
   }
 });

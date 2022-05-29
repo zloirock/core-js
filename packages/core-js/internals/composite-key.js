@@ -1,13 +1,12 @@
 // TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.map');
 require('../modules/es.weak-map');
-var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
 var create = require('../internals/object-create');
 var isObject = require('../internals/is-object');
 
-var Object = global.Object;
-var TypeError = global.TypeError;
+var $Object = Object;
+var $TypeError = TypeError;
 var Map = getBuiltIn('Map');
 var WeakMap = getBuiltIn('WeakMap');
 
@@ -43,7 +42,7 @@ module.exports = function () {
   for (i = 0; i < length; i++) {
     if (isObject(it = arguments[i])) active = active.next(i, it, true);
   }
-  if (this === Object && active === root) throw TypeError('Composite keys must contain a non-primitive component');
+  if (this === $Object && active === root) throw $TypeError('Composite keys must contain a non-primitive component');
   for (i = 0; i < length; i++) {
     if (!isObject(it = arguments[i])) active = active.next(i, it, false);
   } return active;

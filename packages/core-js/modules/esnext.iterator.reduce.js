@@ -1,12 +1,11 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 
-var TypeError = global.TypeError;
+var $TypeError = TypeError;
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
@@ -22,7 +21,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
         accumulator = reducer(accumulator, value);
       }
     }, { IS_ITERATOR: true });
-    if (noInitial) throw TypeError('Reduce of empty iterator with no initial value');
+    if (noInitial) throw $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
   }
 });
