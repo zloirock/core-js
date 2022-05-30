@@ -1,3 +1,4 @@
+import { createConversionChecker } from '../helpers/helpers';
 import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
@@ -17,5 +18,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
     assert.arrayEqual(new TypedArray(5).fill(5, 6, 1), [0, 0, 0, 0, 0], 'start > end');
     assert.arrayEqual(new TypedArray(5).fill(5, -3, 4), [0, 0, 5, 5, 0], 'negative start index');
     assert.throws(() => fill.call([0], 1), "isn't generic");
+
+    const checker = createConversionChecker(10);
+    assert.same(new TypedArray(5).fill(checker)[2], 10);
+    assert.same(checker.$valueOf, 1, 'valueOf calls');
+    assert.same(checker.$toString, 0, 'toString calls');
   }
 });

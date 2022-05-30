@@ -1,3 +1,4 @@
+import { createConversionChecker } from '../helpers/helpers';
 import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
@@ -24,5 +25,10 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
     assert.throws(() => withAt.call(null, 1, 2), TypeError, "isn't generic #1");
     assert.throws(() => withAt.call(undefined, 1, 2), TypeError, "isn't generic #2");
     assert.throws(() => withAt.call([1, 2], 1, 3), TypeError, "isn't generic #3");
+
+    const checker = createConversionChecker(10);
+    assert.same(new TypedArray(5).with(2, checker)[2], 10);
+    assert.same(checker.$valueOf, 1, 'valueOf calls');
+    assert.same(checker.$toString, 0, 'toString calls');
   }
 });

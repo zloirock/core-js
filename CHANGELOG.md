@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Changed the order of operations in `%TypedArray%.prototype.with` following [proposal-change-array-by-copy/86](https://github.com/tc39/proposal-change-array-by-copy/issues/86)
+- Fixed possible multiple call of `ToBigInt` / `ToNumber` conversion of the argument passed to `%TypedArray%.prototype.fill` polyfill
 - Fixed the kind of error (`TypeError` instead of `Error`) on incorrect `exec` result in `RegExp.prototype.test` polyfill
 - Fixed dependencies of `{ actual, full, features }/typed-array/at` entries
 - Added Electron 20.0 compat data mapping
