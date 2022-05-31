@@ -4,6 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var toString = require('../internals/to-string');
 var fails = require('../internals/fails');
 var internalSort = require('../internals/array-sort');
@@ -98,7 +99,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     index = 0;
 
     while (index < itemsLength) array[index] = items[index++];
-    while (index < arrayLength) delete array[index++];
+    while (index < arrayLength) deletePropertyOrThrow(array, index++);
 
     return array;
   }
