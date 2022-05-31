@@ -5,6 +5,7 @@
 - Fixed the kind of error (`TypeError` instead of `Error`) on incorrect `exec` result in `RegExp.prototype.test` polyfill
 - Fixed dependencies of `{ actual, full, features }/typed-array/at` entries
 - Added Electron 20.0 compat data mapping
+- Added iOS Safari 15.5 compat data mapping
 - Refactoring
 
 ##### [3.22.7 - 2022.05.24](https://github.com/zloirock/core-js/releases/tag/v3.22.7)
