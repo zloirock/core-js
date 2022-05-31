@@ -1167,7 +1167,9 @@ GLOBAL.tests = {
     return Int8Array.prototype.every;
   }],
   'es.typed-array.fill': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.fill;
+    var count = 0;
+    new Int8Array(2).fill({ valueOf: function () { return count++; } });
+    return count === 1;
   }],
   'es.typed-array.filter': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.filter;

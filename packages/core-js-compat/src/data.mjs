@@ -1398,10 +1398,9 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.fill': {
-    chrome: '45',
-    edge: '13',
-    firefox: '37',
-    safari: '10.0',
+    chrome: '58',
+    firefox: '55',
+    safari: '14.1',
   },
   'es.typed-array.filter': {
     chrome: '45',
