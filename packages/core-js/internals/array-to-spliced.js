@@ -1,5 +1,5 @@
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
@@ -25,7 +25,7 @@ module.exports = function (O, C, args) {
     insertCount = argumentsLength - 2;
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
   }
-  newLen = doesNonExceededSafeInteger(len + insertCount - actualDeleteCount);
+  newLen = doesNotExceedSafeInteger(len + insertCount - actualDeleteCount);
   A = new C(newLen);
 
   for (; k < actualStart; k++) A[k] = O[k];

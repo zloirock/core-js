@@ -4,7 +4,7 @@
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 
@@ -43,7 +43,7 @@ var createMethod = function (TYPE) {
 
       var loop = function () {
         try {
-          if (IS_TO_ARRAY && MAPPING) doesNonExceededSafeInteger(index);
+          if (IS_TO_ARRAY && MAPPING) doesNotExceedSafeInteger(index);
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {

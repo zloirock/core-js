@@ -5,7 +5,7 @@ var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var createProperty = require('../internals/create-property');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
@@ -47,10 +47,10 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
       E = i === -1 ? O : arguments[i];
       if (isConcatSpreadable(E)) {
         len = lengthOfArrayLike(E);
-        doesNonExceededSafeInteger(n + len);
+        doesNotExceedSafeInteger(n + len);
         for (k = 0; k < len; k++, n++) if (k in E) createProperty(A, n, E[k]);
       } else {
-        doesNonExceededSafeInteger(n + 1);
+        doesNotExceedSafeInteger(n + 1);
         createProperty(A, n++, E);
       }
     }

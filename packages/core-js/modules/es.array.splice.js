@@ -4,7 +4,7 @@ var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
@@ -33,7 +33,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
       insertCount = argumentsLength - 2;
       actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
     }
-    doesNonExceededSafeInteger(len + insertCount - actualDeleteCount);
+    doesNotExceedSafeInteger(len + insertCount - actualDeleteCount);
     A = arraySpeciesCreate(O, actualDeleteCount);
     for (k = 0; k < actualDeleteCount; k++) {
       from = actualStart + k;

@@ -1,7 +1,7 @@
 'use strict';
 var isArray = require('../internals/is-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var doesNonExceededSafeInteger = require('../internals/does-non-exceeded-safe-integer');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var bind = require('../internals/function-bind-context');
 
 // `FlattenIntoArray` abstract operation
@@ -20,7 +20,7 @@ var flattenIntoArray = function (target, original, source, sourceLen, start, dep
         elementLen = lengthOfArrayLike(element);
         targetIndex = flattenIntoArray(target, original, element, elementLen, targetIndex, depth - 1) - 1;
       } else {
-        doesNonExceededSafeInteger(targetIndex + 1);
+        doesNotExceedSafeInteger(targetIndex + 1);
         target[targetIndex] = element;
       }
 
