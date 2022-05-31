@@ -2,16 +2,14 @@
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var fails = require('../internals/fails');
-
-var $TypeError = TypeError;
-var MAX_SAFE_INTEGER = 0x1FFFFFFFFFFFFF;
 
 var INCORRECT_TO_LENGTH = fails(function () {
   return [].push.call({ length: 0x100000000 }, 1) !== 4294967297;
 });
 
-// V8 and Safari < 15.4
+// V8 and Safari <= 15.4
 // https://bugs.chromium.org/p/v8/issues/detail?id=12681
 var SILENT_ON_NON_WRITABLE_LENGTH = !fails(function () {
   // eslint-disable-next-line es-x/no-object-defineproperty -- safe
@@ -26,7 +24,7 @@ $({ target: 'Array', proto: true, arity: 1, forced: INCORRECT_TO_LENGTH || SILEN
     var O = toObject(this);
     var len = lengthOfArrayLike(O);
     var argCount = arguments.length;
-    if (len + argCount > MAX_SAFE_INTEGER) throw $TypeError('Maximum allowed length exceeded');
+    doesNotExceedSafeInteger(len + argCount);
     for (var i = 0; i < argCount; i++) {
       O[len] = arguments[i];
       len++;
