@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var fails = require('../internals/fails');
 
@@ -28,7 +29,7 @@ $({ target: 'Array', proto: true, arity: 1, forced: INCORRECT_RESULT || SILENT_O
       while (k--) {
         var to = k + argCount;
         if (k in O) O[to] = O[k];
-        else delete O[to];
+        else deletePropertyOrThrow(O, to);
       }
       for (var j = 0; j < argCount; j++) {
         O[j] = arguments[j];
