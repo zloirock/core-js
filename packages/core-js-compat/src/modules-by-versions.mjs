@@ -143,6 +143,7 @@ export default {
     'es.array.find-last',
     'es.array.find-last-index',
     'es.array.push',
+    'es.array.unshift',
     'es.typed-array.find-last',
     'es.typed-array.find-last-index',
     'esnext.symbol.metadata-key',

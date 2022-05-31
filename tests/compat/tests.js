@@ -520,6 +520,14 @@ GLOBAL.tests = {
   'es.array.unscopables.flat-map': function () {
     return Array.prototype[Symbol.unscopables].flatMap;
   },
+  'es.array.unshift': function () {
+    if ([].unshift(0) !== 1) return false;
+    try {
+      Object.defineProperty([], 'length', { writable: false }).unshift();
+      return false;
+    } catch (error) { /* empty */ }
+    return true;
+  },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
       return !ArrayBuffer(1);
