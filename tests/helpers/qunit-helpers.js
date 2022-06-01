@@ -4,7 +4,8 @@ import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers';
 
-const { toString, propertyIsEnumerable } = Object.prototype.propertyIsEnumerable;
+const { getOwnPropertyDescriptor } = Object;
+const { toString, propertyIsEnumerable } = Object.prototype;
 
 assign(QUnit.assert, {
   arity(fn, length, message) {
@@ -94,6 +95,17 @@ assign(QUnit.assert, {
         : 'Function#name property test makes no sense',
     });
   },
+  nonConfigurable(O, key, message) {
+    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.configurable;
+    this.pushResult({
+      result,
+      actual: result,
+      expected: 'The property should be non-configurable',
+      message: DESCRIPTORS
+        ? 'Configurability is not applicable'
+        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`,
+    });
+  },
   nonEnumerable(O, key, message) {
     const result = !DESCRIPTORS || !propertyIsEnumerable.call(O, key);
     this.pushResult({
@@ -103,6 +115,17 @@ assign(QUnit.assert, {
       message: DESCRIPTORS
         ? 'Enumerability is not applicable'
         : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
+    });
+  },
+  nonWritable(O, key, message) {
+    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.writable;
+    this.pushResult({
+      result,
+      actual: result,
+      expected: 'The property should be non-writable',
+      message: DESCRIPTORS
+        ? 'Writability is not applicable'
+        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`,
     });
   },
   notSame(actual, expected, message) {
