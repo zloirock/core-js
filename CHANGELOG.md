@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed property descriptors of some `Math` and `Number` constants
+- Added NodeJS 18.3 compat data mapping
 
 ##### [3.22.8 - 2022.06.02](https://github.com/zloirock/core-js/releases/tag/v3.22.8)
 - Fixed possible multiple call of `ToBigInt` / `ToNumber` conversion of the argument passed to `%TypedArray%.prototype.fill` in V8 ~ Chrome < 59, Safari < 14.1, FF < 55, Edge <=18
