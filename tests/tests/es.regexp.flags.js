@@ -12,5 +12,41 @@ if (DESCRIPTORS) {
     assert.same(/./gmi.flags, 'gim', '/./gmi.flags is "gim"');
     assert.same(/./mig.flags, 'gim', '/./mig.flags is "gim"');
     assert.same(/./mgi.flags, 'gim', '/./mgi.flags is "gim"');
+
+    let INDICES_SUPPORT = true;
+    try {
+      RegExp('.', 'd');
+    } catch (error) {
+      INDICES_SUPPORT = false;
+    }
+
+    const O = {};
+    // modern V8 bug
+    let calls = '';
+    const expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
+
+    function addGetter(key, chr) {
+      Object.defineProperty(O, key, { get() {
+        calls += chr;
+        return true;
+      } });
+    }
+
+    const pairs = {
+      dotAll: 's',
+      global: 'g',
+      ignoreCase: 'i',
+      multiline: 'm',
+      sticky: 'y',
+    };
+
+    if (INDICES_SUPPORT) pairs.hasIndices = 'd';
+
+    for (const key in pairs) addGetter(key, pairs[key]);
+
+    const result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
+
+    assert.same(result, expected, 'proper order, result');
+    assert.same(calls, expected, 'proper order, calls');
   });
 }

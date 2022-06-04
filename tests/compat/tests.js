@@ -951,7 +951,40 @@ GLOBAL.tests = {
       && RegExp('.', 's').exec('\n');
   }],
   'es.regexp.flags': function () {
-    return Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call({ dotAll: true, sticky: true }) === 'sy';
+    var INDICES_SUPPORT = true;
+    try {
+      RegExp('.', 'd');
+    } catch (error) {
+      INDICES_SUPPORT = false;
+    }
+
+    var O = {};
+    // modern V8 bug
+    var calls = '';
+    var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
+
+    var addGetter = function (key, chr) {
+      Object.defineProperty(O, key, { get: function () {
+        calls += chr;
+        return true;
+      } });
+    };
+
+    var pairs = {
+      dotAll: 's',
+      global: 'g',
+      ignoreCase: 'i',
+      multiline: 'm',
+      sticky: 'y'
+    };
+
+    if (INDICES_SUPPORT) pairs.hasIndices = 'd';
+
+    for (var key in pairs) addGetter(key, pairs[key]);
+
+    var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
+
+    return result === expected && calls === expected;
   },
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;

@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed a bug in the order of getting flags in `RegExp.prototype.flags` in the actual version of V8
 - Fixed property descriptors of some `Math` and `Number` constants
 - Added NodeJS 18.3 compat data mapping
 - Updated Electron 20.0 compat data mapping

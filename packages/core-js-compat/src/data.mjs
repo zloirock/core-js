@@ -1063,7 +1063,8 @@ export const data = {
     safari: '11.1',
   },
   'es.regexp.flags': {
-    chrome: '62',
+    // modern V8 has a bug with the order getting of flags
+    // chrome: '62',
     firefox: '78',
     safari: '11.1',
   },
