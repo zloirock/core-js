@@ -61,11 +61,11 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
   }) && structuredCloneImplementation;
 };
 
-var checkErrorsCloning = function (structuredCloneImplementation) {
+var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
   return !fails(function () {
-    var error = new Error();
+    var error = new $Error();
     var test = structuredCloneImplementation({ a: error, b: error });
-    return !(test && test.a === test.b && test.a instanceof Error);
+    return !(test && test.a === test.b && test.a instanceof $Error);
   });
 };
 
@@ -80,12 +80,17 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // FF94+, Safari 15.4+, Chrome 98+, NodeJS 17.0+, Deno 1.13+
 // FF and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
-// Chrome <103 returns `null` if cloned object contains multiple references to one error
+// Chrome <102 returns `null` if cloned object contains multiple references to one error
 // https://bugs.chromium.org/p/v8/issues/detail?id=12542
+// NodeJS implementation can't clone DOMExceptions
+// https://github.com/nodejs/node/issues/41038
 // no one of current implementations supports new (html/5749) error cloning semantic
 var nativeStructuredClone = global.structuredClone;
 
-var FORCED_REPLACEMENT = IS_PURE || !checkErrorsCloning(nativeStructuredClone) || !checkNewErrorsCloningSemantic(nativeStructuredClone);
+var FORCED_REPLACEMENT = IS_PURE
+  || !checkErrorsCloning(nativeStructuredClone, Error)
+  || !checkErrorsCloning(nativeStructuredClone, DOMException)
+  || !checkNewErrorsCloningSemantic(nativeStructuredClone);
 
 // Chrome 82+, Safari 14.1+, Deno 1.11+
 // Chrome 78-81 implementation swaps `.name` and `.message` of cloned `DOMException`
