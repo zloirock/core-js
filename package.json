@@ -70,6 +70,8 @@
     "qunit": "^2.19.1",
     "semver": "^7.3.7",
     "terser": "^5.14.0",
+    "test262": "github:tc39/test262",
+    "test262-harness": "^9.2.0",
     "webpack": "^5.73.0",
     "webpack-cli": "^4.9.2",
     "zx": "^6.2.2"
@@ -134,6 +136,7 @@
     "test-compat-tool": "zx tests/compat-tools/compat.mjs",
     "test-compat-targets-parser": "zx tests/compat-tools/targets-parser.mjs",
     "test-compat-get-modules-list-for-target-version": "zx tests/compat-tools/get-modules-list-for-target-version.mjs",
+    "test262": "test262-harness -t \"$(node -pe 'os.cpus().length')\" --host-args='--unhandled-rejections=none' --preprocessor=./tests/test262.js --prelude=./packages/core-js-bundle/index.js --test262-dir=node_modules/test262 'node_modules/test262/test/built-ins/**/*.js'",
     "test": "run-s init test-lint bundle test-unit test-promises test-observables test-entries test-compat-tools check",
     "ci-karma": "run-s init bundle test-unit-karma",
     "ci-tests": "run-s init bundle test-unit-node test-promises test-observables test-entries test-compat-tools",
