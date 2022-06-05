@@ -1072,7 +1072,7 @@ const json = {
   // disallow invalid number for JSON
   'jsonc/valid-json-number': ERROR,
   // specify the maximum length of a line in your program
-  'max-len': [ERROR, { ...base['max-len'][1], code: 180 }],
+  'max-len': OFF,
   // require strict mode directives
   strict: OFF,
 };
