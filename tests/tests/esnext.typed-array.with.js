@@ -30,5 +30,15 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
     assert.same(new TypedArray(5).with(2, checker)[2], 10);
     assert.same(checker.$valueOf, 1, 'valueOf calls');
     assert.same(checker.$toString, 0, 'toString calls');
+
+    assert.true(!!function () {
+      try {
+        new Int8Array(1).with(2, { valueOf() { throw 8; } });
+      } catch (error) {
+        // some early implementations, like WebKit, does not follow the final semantic
+        // https://github.com/tc39/proposal-change-array-by-copy/pull/86
+        return error === 8;
+      }
+    }(), 'proper order of operations');
   }
 });
