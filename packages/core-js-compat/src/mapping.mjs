@@ -81,7 +81,8 @@ export default {
     [98, '1.18'],
     [99, '1.19'],
     [100, '1.20'],
-    [101, '1.21'],
+    [100, '1.21'],
+    [100, '1.22'],
   ],
   // https://github.com/Kilian/electron-to-chromium/blob/master/chromium-versions.js
   // Maybe also required to handle used Node versions?
@@ -146,7 +147,10 @@ export default {
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {
-    return chrome <= 23 ? 15 : chrome <= 29 ? 16 : chrome <= 82 ? chrome - 13 : chrome - 14;
+    return chrome <= 23 ? 15
+         : chrome <= 29 ? 16
+         : chrome <= 82 ? chrome - 13
+         : chrome - 14;
   },
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   ChromeToOperaMobile: [
