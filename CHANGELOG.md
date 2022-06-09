@@ -5,6 +5,7 @@
 - Added detection of NodeJS [bug](https://github.com/nodejs/node/issues/41038) in `structuredClone` that can not clone `DOMException` (just in case for future versions that will fix other issues)
 - Added NodeJS 18.3 compat data mapping
 - Added and fixed Deno 1.22 and 1.21 compat data mapping
+- Added Opera Android 69 compat data mapping
 - Updated Electron 20.0 compat data mapping
 
 ##### [3.22.8 - 2022.06.02](https://github.com/zloirock/core-js/releases/tag/v3.22.8)
