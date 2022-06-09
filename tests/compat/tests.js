@@ -1704,7 +1704,11 @@ GLOBAL.tests = {
     return Int8Array.prototype.uniqueBy;
   },
   'esnext.typed-array.with': function () {
-    return Int8Array.prototype['with'];
+    try {
+      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
+    } catch (error) {
+      return error === 8;
+    }
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
