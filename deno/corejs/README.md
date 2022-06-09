@@ -30,7 +30,7 @@ Object.hasOwn({ foo: 42 }, 'foo');     // => true
 
 [1, 2, 3, 4, 5, 6, 7].at(-3);          // => 5
 
-[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].group(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
 Promise.any([
   Promise.resolve(1),

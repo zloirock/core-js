@@ -97,7 +97,7 @@ export default {
   ],
   3.16: [
     'esnext.array.filter-reject',
-    'esnext.array.group-by',
+    'esnext.array.group',
     'esnext.typed-array.filter-reject',
     'esnext.typed-array.group-by',
   ],
@@ -116,7 +116,7 @@ export default {
     'es.error.to-string',
     'es.aggregate-error.cause',
     'es.number.to-exponential',
-    'esnext.array.group-by-to-map',
+    'esnext.array.group-to-map',
     'esnext.array.to-reversed',
     'esnext.array.to-sorted',
     'esnext.array.to-spliced',

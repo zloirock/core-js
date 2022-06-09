@@ -1579,9 +1579,9 @@ export const data = {
     chrome: '97',
     safari: '15.4',
   },
-  'esnext.array.group-by': {
+  'esnext.array.group': {
   },
-  'esnext.array.group-by-to-map': {
+  'esnext.array.group-to-map': {
   },
   'esnext.array.is-template-object': {
   },
@@ -1886,7 +1886,7 @@ export const data = {
     safari: '15.4',
   },
   // TODO: Remove from `core-js@4`
-  'esnext.typed-array.group-by': {
+  'esnext.typed-array.group': {
   },
   'esnext.typed-array.to-reversed': {
   },

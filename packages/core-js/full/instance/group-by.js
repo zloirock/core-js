@@ -1,3 +1,3 @@
-var parent = require('../../actual/instance/group-by');
+var parent = require('../../actual/instance/group');
 
 module.exports = parent;

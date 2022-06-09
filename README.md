@@ -33,7 +33,7 @@
 import 'core-js/actual'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -42,14 +42,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *You can load only required features*:
 ```js
 import 'core-js/actual/array/from';       // <- at the top of your entry point
-import 'core-js/actual/array/group-by';   // <- at the top of your entry point
+import 'core-js/actual/array/group';   // <- at the top of your entry point
 import 'core-js/actual/set';              // <- at the top of your entry point
 import 'core-js/actual/promise';          // <- at the top of your entry point
 import 'core-js/actual/structured-clone'; // <- at the top of your entry point
 import 'core-js/actual/queue-microtask';  // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -58,14 +58,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *Or use it without global namespace pollution*:
 ```js
 import from from 'core-js-pure/actual/array/from';
-import groupBy from 'core-js-pure/actual/array/group-by';
+import  from 'core-js-pure/actual/array/group';
 import Set from 'core-js-pure/actual/set';
 import Promise from 'core-js-pure/actual/promise';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 import queueMicrotask from 'core-js-pure/actual/queue-microtask';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-groupBy([1, 2, 3, 4, 5], it => it % 2);        // => { 1: [1, 3, 5], 0: [2, 4] }
+([1, 2, 3, 4, 5], it => it % 2);        // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -2071,24 +2071,24 @@ core-js/proposals/well-formed-stringify
 core-js(-pure)/stage/3
 ```
 ##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-to-map.js).
+Modules [`esnext.array.group`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group.js), [`esnext.array.group-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-to-map.js).
 ```js
 class Array {
-  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
-  groupByToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
+  (callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+  ToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-grouping-stage-3
-core-js(-pure)/actual|full/array(/virtual)/group-by
-core-js(-pure)/actual|full/array(/virtual)/group-by-to-map
+core-js(-pure)/actual|full/array(/virtual)/group
+core-js(-pure)/actual|full/array(/virtual)/group-to-map
 ```
 [*Examples*](https://t.ly/xEqc):
 ```js
-[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
-const map = [1, 2, 3, 4, 5].groupByToMap(it => it % 2);
+const map = [1, 2, 3, 4, 5].ToMap(it => it % 2);
 map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ````
@@ -2436,7 +2436,7 @@ new Observable(observer => {
 });
 ```
 ##### [New collections methods](https://github.com/tc39/proposal-collection-methods)[⬆](#index)
-Modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
+Modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
 ##### [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)[⬆](#index)
 Modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
@@ -2455,7 +2455,7 @@ class Set {
 }
 
 class Map {
-  static groupBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
+  static (iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
   static of(...args: Array<[key, value]>): Map;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
   static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
@@ -2508,7 +2508,7 @@ core-js(-pure)/full/map/filter
 core-js(-pure)/full/map/find
 core-js(-pure)/full/map/find-key
 core-js(-pure)/full/map/from
-core-js(-pure)/full/map/group-by
+core-js(-pure)/full/map/group
 core-js(-pure)/full/map/includes
 core-js(-pure)/full/map/key-by
 core-js(-pure)/full/map/key-of

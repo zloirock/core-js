@@ -3676,21 +3676,21 @@ addToUnscopables('findLastIndex');
 "use strict";
 
 var $ = __webpack_require__(2);
-var $groupBy = __webpack_require__(134);
+var $group = __webpack_require__(134);
 var arrayMethodIsStrict = __webpack_require__(136);
 var addToUnscopables = __webpack_require__(96);
 
-// `Array.prototype.groupBy` method
+// `Array.prototype.group` method
 // https://github.com/tc39/proposal-array-grouping
 // https://bugs.webkit.org/show_bug.cgi?id=236541
-$({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupBy') }, {
-  groupBy: function groupBy(callbackfn /* , thisArg */) {
+$({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('group') }, {
+  group: function group(callbackfn /* , thisArg */) {
     var thisArg = arguments.length > 1 ? arguments[1] : undefined;
-    return $groupBy(this, callbackfn, thisArg);
+    return $group(this, callbackfn, thisArg);
   }
 });
 
-addToUnscopables('groupBy');
+addToUnscopables('group');
 
 
 /***/ }),
@@ -3790,11 +3790,11 @@ var mapHas = uncurryThis(MapPrototype.has);
 var mapSet = uncurryThis(MapPrototype.set);
 var push = uncurryThis([].push);
 
-// `Array.prototype.groupByToMap` method
+// `Array.prototype.groupToMap` method
 // https://github.com/tc39/proposal-array-grouping
 // https://bugs.webkit.org/show_bug.cgi?id=236541
-$({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupByToMap') }, {
-  groupByToMap: function groupByToMap(callbackfn /* , thisArg */) {
+$({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupToMap') }, {
+  groupToMap: function groupToMap(callbackfn /* , thisArg */) {
     var O = toObject(this);
     var self = IndexedObject(O);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -3811,7 +3811,7 @@ $({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupByToMap') }
   }
 });
 
-addToUnscopables('groupByToMap');
+addToUnscopables('groupToMap');
 
 
 /***/ }),
@@ -6972,10 +6972,10 @@ var iterate = __webpack_require__(87);
 
 var push = uncurryThis([].push);
 
-// `Map.groupBy` method
+// `Map.group` method
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', stat: true, forced: true }, {
-  groupBy: function groupBy(iterable, keyDerivative) {
+  group: function group(iterable, keyDerivative) {
     aCallable(keyDerivative);
     var iterator = getIterator(iterable);
     var newMap = new this();
@@ -9102,17 +9102,17 @@ exportTypedArrayMethod('findLastIndex', function findLastIndex(predicate /* , th
 
 // TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = __webpack_require__(110);
-var $groupBy = __webpack_require__(134);
+var $group = __webpack_require__(134);
 var typedArraySpeciesConstructor = __webpack_require__(305);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
-// `%TypedArray%.prototype.groupBy` method
+// `%TypedArray%.prototype.group` method
 // https://github.com/tc39/proposal-array-grouping
-exportTypedArrayMethod('groupBy', function groupBy(callbackfn /* , thisArg */) {
+exportTypedArrayMethod('group', function group(callbackfn /* , thisArg */) {
   var thisArg = arguments.length > 1 ? arguments[1] : undefined;
-  return $groupBy(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
+  return $group(aTypedArray(this), callbackfn, thisArg, typedArraySpeciesConstructor);
 }, true);
 
 

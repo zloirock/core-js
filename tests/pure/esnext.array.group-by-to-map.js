@@ -3,13 +3,13 @@ import { STRICT } from '../helpers/constants';
 import Map from 'core-js-pure/es/map';
 import Symbol from 'core-js-pure/es/symbol';
 import from from 'core-js-pure/es/array/from';
-import groupByToMap from 'core-js-pure/actual/array/group-by-to-map';
+import groupToMap from 'core-js-pure/actual/array/group-to-map';
 
-QUnit.test('Array#groupByToMap', assert => {
-  assert.isFunction(groupByToMap);
+QUnit.test('Array#groupToMap', assert => {
+  assert.isFunction(groupToMap);
   let array = [1];
   const context = {};
-  groupByToMap(array, function (value, key, that) {
+  groupToMap(array, function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
     assert.same(key, 0, 'correct index in callback');
