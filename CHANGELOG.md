@@ -2,9 +2,9 @@
 ##### Unreleased
 - [`Array` find from last](https://github.com/tc39/proposal-array-find-from-last) moved to the stable ES, per June 2022 TC39 meeting
   - `Array.prototype.findLast`
-  - `Array.prototype.findIndex`
+  - `Array.prototype.findLastIndex`
   - `%TypedArray%.prototype.findLast`
-  - `%TypedArray%.prototype.findIndex`
+  - `%TypedArray%.prototype.findLastIndex`
 - Changed the order of operations in `%TypedArray%.prototype.with` following [proposal-change-array-by-copy/86](https://github.com/tc39/proposal-change-array-by-copy/issues/86), per June 2022 TC39 meeting
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata) extracted from [Decorators proposal](https://github.com/tc39/proposal-decorators) as a separate stage 2 proposal, `Symbol.metadataKey` replaces `Symbol.metadata`
 - Fixed a bug in the order of getting flags in `RegExp.prototype.flags` in the actual version of V8
