@@ -34,8 +34,6 @@ $({ target: 'Array', proto: true, arity: 1, forced: INCORRECT_RESULT || SILENT_O
       for (var j = 0; j < argCount; j++) {
         O[j] = arguments[j];
       }
-    }
-    O.length = len + argCount;
-    return len;
+    } return O.length = len + argCount;
   }
 });
