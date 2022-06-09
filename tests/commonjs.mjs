@@ -83,6 +83,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/fill')(Array(5), 2)[0] === 2);
     ok(load(NS, 'array/find')([2, 3, 4], it => it % 2) === 3);
     ok(load(NS, 'array/find-index')([2, 3, 4], it => it % 2) === 1);
+    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
     ok('next' in load(NS, 'array/keys')([]));
     ok('next' in load(NS, 'array/values')([]));
     ok(load(NS, 'array/includes')([1, 2, 3], 2));
@@ -110,6 +112,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/fill').call(Array(5), 2)[0] === 2);
     ok(load(NS, 'array/virtual/find').call([2, 3, 4], it => it % 2) === 3);
     ok(load(NS, 'array/virtual/find-index').call([2, 3, 4], it => it % 2) === 1);
+    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
+    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok('next' in load(NS, 'array/virtual/keys').call([]));
     ok('next' in load(NS, 'array/virtual/values').call([]));
     ok(load(NS, 'array/virtual/includes').call([1, 2, 3], 2));
@@ -365,17 +369,29 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceFilter([]) == 'function');
     ok(instanceFilter([]).call([1, 2, 3], it => it % 2).length === 2);
 
+    const instanceFind = load(NS, 'instance/find');
+    ok(typeof instanceFind == 'function');
+    ok(instanceFind({}) === undefined);
+    ok(typeof instanceFind([]) == 'function');
+    ok(instanceFind([]).call([1, 2, 3], it => it % 2) === 1);
+
     const instanceFindIndex = load(NS, 'instance/find-index');
     ok(typeof instanceFindIndex == 'function');
     ok(instanceFindIndex({}) === undefined);
     ok(typeof instanceFindIndex([]) == 'function');
     ok(instanceFindIndex([]).call([1, 2, 3], it => it % 2) === 0);
 
-    const instanceFind = load(NS, 'instance/find');
-    ok(typeof instanceFind == 'function');
-    ok(instanceFind({}) === undefined);
-    ok(typeof instanceFind([]) == 'function');
-    ok(instanceFind([]).call([1, 2, 3], it => it % 2) === 1);
+    const instanceFindLast = load(NS, 'instance/find-last');
+    ok(typeof instanceFindLast == 'function');
+    ok(instanceFindLast({}) === undefined);
+    ok(typeof instanceFindLast([]) == 'function');
+    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
+
+    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
+    ok(typeof instanceFindLastIndex == 'function');
+    ok(instanceFindLastIndex({}) === undefined);
+    ok(typeof instanceFindLastIndex([]) == 'function');
+    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
 
     const instanceFlags = load(NS, 'instance/flags');
     ok(typeof instanceFlags == 'function');
@@ -563,34 +579,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
-    ok(load(NS, 'array/find-last')([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/find-last-index')([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/group-by') == 'function');
     ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(load(NS, 'array/with')([1, 2, 3], 1, 4));
     ok(load(NS, 'array/to-reversed')([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/to-sorted')([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
-    ok(load(NS, 'array/virtual/find-last').call([1, 2, 3], it => it % 2) === 3);
-    ok(load(NS, 'array/virtual/find-last-index').call([1, 2, 3], it => it % 2) === 2);
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
-
-    const instanceFindLastIndex = load(NS, 'instance/find-last-index');
-    ok(typeof instanceFindLastIndex == 'function');
-    ok(instanceFindLastIndex({}) === undefined);
-    ok(typeof instanceFindLastIndex([]) == 'function');
-    ok(instanceFindLastIndex([]).call([1, 2, 3], it => it % 2) === 2);
-
-    const instanceFindLast = load(NS, 'instance/find-last');
-    ok(typeof instanceFindLast == 'function');
-    ok(instanceFindLast({}) === undefined);
-    ok(typeof instanceFindLast([]) == 'function');
-    ok(instanceFindLast([]).call([1, 2, 3], it => it % 2) === 3);
 
     const instanceGroupBy = load(NS, 'instance/group-by');
     ok(typeof instanceGroupBy == 'function');
@@ -916,6 +916,8 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/filter');
   load(NS, 'typed-array/find');
   load(NS, 'typed-array/find-index');
+  load(NS, 'typed-array/find-last');
+  load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/for-each');
   load(NS, 'typed-array/from');
   load(NS, 'typed-array/includes');
@@ -942,8 +944,6 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
 }
 
 for (const NS of ['actual', 'full', 'features']) {
-  load(NS, 'typed-array/find-last');
-  load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/to-reversed');
   load(NS, 'typed-array/to-sorted');
   load(NS, 'typed-array/to-spliced');

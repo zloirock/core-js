@@ -6,6 +6,8 @@ require('../../../modules/es.array.fill');
 require('../../../modules/es.array.filter');
 require('../../../modules/es.array.find');
 require('../../../modules/es.array.find-index');
+require('../../../modules/es.array.find-last');
+require('../../../modules/es.array.find-last-index');
 require('../../../modules/es.array.flat');
 require('../../../modules/es.array.flat-map');
 require('../../../modules/es.array.for-each');

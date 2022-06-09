@@ -139,4 +139,10 @@ export default {
     'web.atob',
     'web.btoa',
   ],
+  3.23: [
+    'es.array.find-last',
+    'es.array.find-last-index',
+    'es.typed-array.find-last',
+    'es.typed-array.find-last-index',
+  ],
 };
