@@ -135,7 +135,7 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Array.fromAsync`](#arrayfromasync)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
-      - [`Symbol.metadata` for decorators proposal](#symbolmetadata-for-decorators-proposal)
+      - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -2384,17 +2384,17 @@ core-js/proposals/using-statement
 core-js(-pure)/full/symbol/async-dispose
 core-js(-pure)/full/symbol/dispose
 ```
-##### [`Symbol.metadata` for decorators proposal](https://github.com/tc39/proposal-decorators)[⬆](#index)
-Module [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js).
+##### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
+Module [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js).
 ```js
 class Symbol {
-  static metadata: @@metadata;
+  static metadataKey: @@metadataKey;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/decorators
-core-js(-pure)/full/symbol/metadata
+core-js/proposals/decorator-metadata
+core-js(-pure)/full/symbol/metadata-key
 ```
 
 #### Stage 1 proposals[⬆](#index)
