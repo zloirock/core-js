@@ -4,16 +4,19 @@ var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
-var fails = require('../internals/fails');
 
 // IE8-
 var INCORRECT_RESULT = [].unshift(0) !== 1;
 
-// V8 ~ Chrome < 71 and Safari <= 15.4
-var SILENT_ON_NON_WRITABLE_LENGTH = !fails(function () {
-  // eslint-disable-next-line es-x/no-object-defineproperty -- safe
-  Object.defineProperty([], 'length', { writable: false }).unshift();
-});
+// V8 ~ Chrome < 71 and Safari <= 15.4, FF < 23 throws InternalError
+var SILENT_ON_NON_WRITABLE_LENGTH = !function () {
+  try {
+    // eslint-disable-next-line es-x/no-object-defineproperty -- safe
+    Object.defineProperty([], 'length', { writable: false }).unshift();
+  } catch (error) {
+    return error instanceof TypeError;
+  }
+}();
 
 // `Array.prototype.unshift` method
 // https://tc39.es/ecma262/#sec-array.prototype.unshift

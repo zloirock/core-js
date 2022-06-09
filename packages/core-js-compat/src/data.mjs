@@ -349,7 +349,7 @@ export const data = {
   },
   'es.array.unshift': {
     chrome: '71',
-    firefox: '4',
+    firefox: '23',
     ie: '9',
     // bug with setting length fixed only in Safari TP
     // safari: '15.4',

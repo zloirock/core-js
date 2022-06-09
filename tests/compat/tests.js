@@ -428,9 +428,9 @@ GLOBAL.tests = {
     if ([].push.call({ length: 0x100000000 }, 1) !== 4294967297) return false;
     try {
       Object.defineProperty([], 'length', { writable: false }).push();
-      return false;
-    } catch (error) { /* empty */ }
-    return true;
+    } catch (error) {
+      return error instanceof TypeError;
+    }
   },
   'es.array.reduce': function () {
     try {
@@ -524,9 +524,9 @@ GLOBAL.tests = {
     if ([].unshift(0) !== 1) return false;
     try {
       Object.defineProperty([], 'length', { writable: false }).unshift();
-      return false;
-    } catch (error) { /* empty */ }
-    return true;
+    } catch (error) {
+      return error instanceof TypeError;
+    }
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
