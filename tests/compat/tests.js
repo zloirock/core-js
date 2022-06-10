@@ -424,6 +424,14 @@ GLOBAL.tests = {
     function F() { /* empty */ }
     return Array.of.call(F) instanceof F;
   },
+  'es.array.push': function () {
+    if ([].push.call({ length: 0x100000000 }, 1) !== 4294967297) return false;
+    try {
+      Object.defineProperty([], 'length', { writable: false }).push();
+    } catch (error) {
+      return error instanceof TypeError;
+    }
+  },
   'es.array.reduce': function () {
     try {
       Array.prototype.reduce.call(null, function () { /* empty */ }, 1);
@@ -511,6 +519,14 @@ GLOBAL.tests = {
   },
   'es.array.unscopables.flat-map': function () {
     return Array.prototype[Symbol.unscopables].flatMap;
+  },
+  'es.array.unshift': function () {
+    if ([].unshift(0) !== 1) return false;
+    try {
+      Object.defineProperty([], 'length', { writable: false }).unshift();
+    } catch (error) {
+      return error instanceof TypeError;
+    }
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {

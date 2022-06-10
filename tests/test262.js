@@ -46,12 +46,16 @@ const exclude = [
   '/ArrayBuffer/prototype/transfer/',
   '/Function/prototype/toString/',
   '/Object/internals/DefineOwnProperty/',
-  '/Object/prototype/toString/symbol-tag-non-str-builtin', // conflict with iterators helpers proposal
+  // conflict with iterators helpers proposal
+  '/Object/prototype/toString/symbol-tag-non-str-builtin',
   '/RegExp/property-escapes/',
   'resizable-buffer',
   'resize-arraybuffer',
   'detached-buffer',
   'detach-typedarray',
+  // we can't implement this behavior on methods 100% proper and compatible with ES3
+  // in case of application some hacks this line will be removed
+  'not-a-constructor',
 ];
 
 module.exports = test => {

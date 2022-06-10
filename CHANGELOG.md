@@ -7,6 +7,8 @@
   - `%TypedArray%.prototype.findLastIndex`
 - Changed the order of operations in `%TypedArray%.prototype.with` following [proposal-change-array-by-copy/86](https://github.com/tc39/proposal-change-array-by-copy/issues/86), per June 2022 TC39 meeting
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata) extracted from [Decorators proposal](https://github.com/tc39/proposal-decorators) as a separate stage 2 proposal, `Symbol.metadataKey` replaces `Symbol.metadata`
+- Added `Array.prototype.push` polyfill with some fixes for modern engines
+- Added `Array.prototype.unshift` polyfill with some fixes for modern engines
 - Fixed a bug in the order of getting flags in `RegExp.prototype.flags` in the actual version of V8
 - Fixed property descriptors of some `Math` and `Number` constants
 - Added detection of NodeJS [bug](https://github.com/nodejs/node/issues/41038) in `structuredClone` that can not clone `DOMException` (just in case for future versions that will fix other issues)

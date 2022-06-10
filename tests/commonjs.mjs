@@ -72,11 +72,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/flat-map') == 'function');
     ok(typeof load(NS, 'array/some') == 'function');
     ok(typeof load(NS, 'array/every') == 'function');
+    ok(typeof load(NS, 'array/push') == 'function');
     ok(typeof load(NS, 'array/reduce') == 'function');
     ok(typeof load(NS, 'array/reduce-right') == 'function');
     ok(typeof load(NS, 'array/reverse') == 'function');
     ok(typeof load(NS, 'array/index-of') == 'function');
     ok(typeof load(NS, 'array/last-index-of') == 'function');
+    ok(typeof load(NS, 'array/unshift') == 'function');
     ok(load(NS, 'array/concat')([1, 2, 3], [4, 5, 6]).length === 6);
     ok(load(NS, 'array/copy-within')([1, 2, 3, 4, 5], 0, 3)[0] === 4);
     ok('next' in load(NS, 'array/entries')([]));
@@ -101,11 +103,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/flat-map') == 'function');
     ok(typeof load(NS, 'array/virtual/some') == 'function');
     ok(typeof load(NS, 'array/virtual/every') == 'function');
+    ok(typeof load(NS, 'array/virtual/push') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce-right') == 'function');
     ok(typeof load(NS, 'array/virtual/reverse') == 'function');
     ok(typeof load(NS, 'array/virtual/index-of') == 'function');
     ok(typeof load(NS, 'array/virtual/last-index-of') == 'function');
+    ok(typeof load(NS, 'array/virtual/unshift') == 'function');
     ok(load(NS, 'array/virtual/concat').call([1, 2, 3], [4, 5, 6]).length === 6);
     ok(load(NS, 'array/virtual/copy-within').call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
     ok('next' in load(NS, 'array/virtual/entries').call([]));
@@ -465,6 +469,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instancePadStart('') == 'function');
     ok(instancePadStart('').call('a', 3, 'b') === 'bba');
 
+    const instancePush = load(NS, 'instance/push');
+    ok(typeof instancePush == 'function');
+    ok(instancePush({}) === undefined);
+    ok(typeof instancePush([]) == 'function');
+    ok(instancePush([]).call([1], 8) === 2);
+
     const instanceReduceRight = load(NS, 'instance/reduce-right');
     ok(typeof instanceReduceRight == 'function');
     ok(instanceReduceRight({}) === undefined);
@@ -550,6 +560,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceTrim({}) === undefined);
     ok(typeof instanceTrim('') == 'function');
     ok(instanceTrim('').call(' 1 ') === '1');
+
+    const instanceUnshift = load(NS, 'instance/unshift');
+    ok(typeof instanceUnshift == 'function');
+    ok(instanceUnshift({}) === undefined);
+    ok(typeof instanceUnshift([]) == 'function');
+    ok(instanceUnshift([]).call([1], 8) === 2);
 
     const instanceValues = load(NS, 'instance/values');
     ok(typeof instanceValues == 'function');
