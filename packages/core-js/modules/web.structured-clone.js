@@ -19,6 +19,10 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
+var V8 = require('../internals/engine-v8-version');
+var IS_BROWSER = require('../internals/engine-is-browser');
+var IS_DENO = require('../internals/engine-is-deno');
+var IS_NODE = require('../internals/engine-is-node');
 
 var Object = global.Object;
 var Date = global.Date;
@@ -402,6 +406,9 @@ var structuredCloneInternal = function (value, map) {
 };
 
 var PROPER_TRANSFER = nativeStructuredClone && !fails(function () {
+  // prevent V8 ArrayBufferDetaching protector cell invalidation and performance degradation
+  // https://github.com/zloirock/core-js/issues/679
+  if ((IS_DENO && V8 > 92) || (IS_NODE && V8 > 94) || (IS_BROWSER && V8 > 97)) return false;
   var buffer = new ArrayBuffer(8);
   var clone = nativeStructuredClone(buffer, { transfer: [buffer] });
   return buffer.byteLength != 0 || clone.byteLength != 8;
