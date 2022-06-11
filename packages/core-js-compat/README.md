@@ -109,4 +109,6 @@ require('core-js-compat/get-modules-list-for-target-version')('3.22'); // => Arr
 require('core-js-compat').getModulesListForTargetVersion('3.22'); // => Array<ModuleName>
 ```
 
-If you want to add new / update data about modules required for target engines, [follow this instruction](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data).
+If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://es6.zloirock.ru/compat/), the example:
+
+![compat-table](https://user-images.githubusercontent.com/2213682/173199354-1f3aeb83-7231-46b2-8a14-a9d47ce3ae45.png)

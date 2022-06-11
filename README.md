@@ -83,7 +83,7 @@ queueMicrotask(() => console.log('called as microtask'));
   - [swc](#swc)
   - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
-  - [Compatibility data](#compatibility-data)
+- [Compatibility data](#compatibility-data)
 - [Supported engines](#supported-engines)
 - [Features](#features)
   - [ECMAScript](#ecmascript)
@@ -403,9 +403,11 @@ It does not work with some features. Also, if you change the default behaviour, 
 
 For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
 
-### Compatibility data[⬆](#index)
+## Compatibility data[⬆](#index)
 
-[`core-js-compat`](/packages/core-js-compat) package contains data about the necessity of `core-js` modules and API for getting a list of required `core-js` modules by `browserslist` query.
+`core-js` project provides (as [`core-js-compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools for work with it - it's useful for integration with tools like `babel` or `swc`. If you wanna help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://es6.zloirock.ru/compat/), the example:
+
+![compat-table](https://user-images.githubusercontent.com/2213682/173199354-1f3aeb83-7231-46b2-8a14-a9d47ce3ae45.png)
 
 ## Supported engines[⬆](#index)
 **Tested in:**
