@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.23.0 - 2022.06.14](https://github.com/zloirock/core-js/releases/tag/v3.23.0)
 - [`Array` find from last](https://github.com/tc39/proposal-array-find-from-last) moved to the stable ES, according to June 2022 TC39 meeting:
   - `Array.prototype.findLast`
   - `Array.prototype.findLastIndex`
