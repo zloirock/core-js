@@ -1,15 +1,15 @@
 ## Changelog
 ##### Unreleased
-- [`Array` find from last](https://github.com/tc39/proposal-array-find-from-last) moved to the stable ES, per June 2022 TC39 meeting:
+- [`Array` find from last](https://github.com/tc39/proposal-array-find-from-last) moved to the stable ES, according to June 2022 TC39 meeting:
   - `Array.prototype.findLast`
   - `Array.prototype.findLastIndex`
   - `%TypedArray%.prototype.findLast`
   - `%TypedArray%.prototype.findLastIndex`
-- Methods from [the `Array` grouping proposal](https://github.com/tc39/proposal-array-grouping) [renamed](https://github.com/tc39/proposal-array-grouping/pull/39), per June 2022 TC39 meeting:
+- Methods from [the `Array` grouping proposal](https://github.com/tc39/proposal-array-grouping) [renamed](https://github.com/tc39/proposal-array-grouping/pull/39), according to June 2022 TC39 meeting:
   - `Array.prototype.groupBy` -> `Array.prototype.group`
   - `Array.prototype.groupByToMap` -> `Array.prototype.groupToMap`
-- Changed the order of operations in `%TypedArray%.prototype.with` following [proposal-change-array-by-copy/86](https://github.com/tc39/proposal-change-array-by-copy/issues/86), per June 2022 TC39 meeting
-- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata) extracted from [Decorators proposal](https://github.com/tc39/proposal-decorators) as a separate stage 2 proposal, `Symbol.metadataKey` replaces `Symbol.metadata`
+- Changed the order of operations in `%TypedArray%.prototype.with` following [proposal-change-array-by-copy/86](https://github.com/tc39/proposal-change-array-by-copy/issues/86), according to June 2022 TC39 meeting
+- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata) extracted from [Decorators proposal](https://github.com/tc39/proposal-decorators) as a separate stage 2 proposal, according to March 2022 TC39 meeting, `Symbol.metadataKey` replaces `Symbol.metadata`
 - Added `Array.prototype.push` polyfill with some fixes for modern engines
 - Added `Array.prototype.unshift` polyfill with some fixes for modern engines
 - Fixed a bug in the order of getting flags in `RegExp.prototype.flags` in the actual version of V8
