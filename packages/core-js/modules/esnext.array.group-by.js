@@ -1,6 +1,7 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
-var $groupBy = require('../internals/array-group-by');
+var $group = require('../internals/array-group');
 var arrayMethodIsStrict = require('../internals/array-method-is-strict');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
@@ -10,7 +11,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 $({ target: 'Array', proto: true, forced: !arrayMethodIsStrict('groupBy') }, {
   groupBy: function groupBy(callbackfn /* , thisArg */) {
     var thisArg = arguments.length > 1 ? arguments[1] : undefined;
-    return $groupBy(this, callbackfn, thisArg);
+    return $group(this, callbackfn, thisArg);
   }
 });
 

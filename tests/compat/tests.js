@@ -1388,21 +1388,21 @@ GLOBAL.tests = {
   'esnext.array.filter-reject': function () {
     return [].filterReject;
   },
-  'esnext.array.group-by': function () {
+  'esnext.array.group': function () {
     try {
       // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.groupBy.call(null, function () { /* empty */ });
+      Array.prototype.group.call(null, function () { /* empty */ });
       return false;
     } catch (error) { /* empty */ }
-    return Array.prototype.groupBy;
+    return Array.prototype.group;
   },
-  'esnext.array.group-by-to-map': function () {
+  'esnext.array.group-to-map': function () {
     try {
       // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.groupByToMap.call(null, function () { /* empty */ });
+      Array.prototype.groupToMap.call(null, function () { /* empty */ });
       return false;
     } catch (error) { /* empty */ }
-    return Array.prototype.groupByToMap;
+    return Array.prototype.groupToMap;
   },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;

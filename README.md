@@ -28,12 +28,12 @@
 
 ---
 
-[*Example of usage*](https://is.gd/XD4mRe):
+[*Example of usage*](https://tinyurl.com/2aj9lkwf):
 ```js
 import 'core-js/actual'; // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].group(it => it % 2);           // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -42,14 +42,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *You can load only required features*:
 ```js
 import 'core-js/actual/array/from';       // <- at the top of your entry point
-import 'core-js/actual/array/group-by';   // <- at the top of your entry point
+import 'core-js/actual/array/group';      // <- at the top of your entry point
 import 'core-js/actual/set';              // <- at the top of your entry point
 import 'core-js/actual/promise';          // <- at the top of your entry point
 import 'core-js/actual/structured-clone'; // <- at the top of your entry point
 import 'core-js/actual/queue-microtask';  // <- at the top of your entry point
 
 Array.from(new Set([1, 2, 3, 2, 1]));          // => [1, 2, 3]
-[1, 2, 3, 4, 5].groupBy(it => it % 2);         // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].group(it => it % 2);           // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -58,14 +58,14 @@ queueMicrotask(() => console.log('called as microtask'));
 *Or use it without global namespace pollution*:
 ```js
 import from from 'core-js-pure/actual/array/from';
-import groupBy from 'core-js-pure/actual/array/group-by';
+import group from 'core-js-pure/actual/array/group';
 import Set from 'core-js-pure/actual/set';
 import Promise from 'core-js-pure/actual/promise';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 import queueMicrotask from 'core-js-pure/actual/queue-microtask';
 
 from(new Set([1, 2, 3, 2, 1]));                // => [1, 2, 3]
-groupBy([1, 2, 3, 4, 5], it => it % 2);        // => { 1: [1, 3, 5], 0: [2, 4] }
+group([1, 2, 3, 4, 5], it => it % 2);          // => { 1: [1, 3, 5], 0: [2, 4] }
 Promise.resolve(42).then(x => console.log(x)); // => 42
 structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
@@ -2105,24 +2105,24 @@ core-js/proposals/well-formed-stringify
 core-js(-pure)/stage/3
 ```
 ##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by.js), [`esnext.array.group-by-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-by-to-map.js).
+Modules [`esnext.array.group`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group.js), [`esnext.array.group-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-to-map.js).
 ```js
 class Array {
-  groupBy(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
-  groupByToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
+  group(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
+  groupToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/array-grouping-stage-3
-core-js(-pure)/actual|full/array(/virtual)/group-by
-core-js(-pure)/actual|full/array(/virtual)/group-by-to-map
+core-js/proposals/array-grouping-stage-3-2
+core-js(-pure)/actual|full/array(/virtual)/group
+core-js(-pure)/actual|full/array(/virtual)/group-to-map
 ```
-[*Examples*](https://t.ly/xEqc):
+[*Examples*](https://is.gd/3a0PbH):
 ```js
-[1, 2, 3, 4, 5].groupBy(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].group(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
-const map = [1, 2, 3, 4, 5].groupByToMap(it => it % 2);
+const map = [1, 2, 3, 4, 5].groupToMap(it => it % 2);
 map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ````
