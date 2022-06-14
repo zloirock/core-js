@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.23.1 - 2022.06.14](https://github.com/zloirock/core-js/releases/tag/v3.23.1)
 - Fixed possible error on multiple `core-js` copies, [#1091](https://github.com/zloirock/core-js/issues/1091)
 - Added `v` flag to `RegExp.prototype.flags` implementation in case if current V8 bugs will not be fixed before this flag implementation
 

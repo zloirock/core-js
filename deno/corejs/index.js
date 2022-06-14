@@ -1,7 +1,7 @@
 /**
- * core-js 3.23.0
+ * core-js 3.23.1
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.23.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.23.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -879,10 +879,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.23.0',
+  version: '3.23.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.23.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.23.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -2777,6 +2777,7 @@ module.exports = function () {
   if (that.multiline) result += 'm';
   if (that.dotAll) result += 's';
   if (that.unicode) result += 'u';
+  if (that.unicodeSets) result += 'v';
   if (that.sticky) result += 'y';
   return result;
 };
@@ -7525,10 +7526,12 @@ $({ target: 'Math', stat: true, forced: true }, {
 
 var $ = __webpack_require__(2);
 
+var DEG_PER_RAD = Math.PI / 180;
+
 // `Math.DEG_PER_RAD` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: true }, {
-  DEG_PER_RAD: Math.PI / 180
+$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: Math.DEG_PER_RAD !== DEG_PER_RAD }, {
+  DEG_PER_RAD: DEG_PER_RAD
 });
 
 
@@ -7640,10 +7643,12 @@ module.exports = Math.sign || function sign(x) {
 
 var $ = __webpack_require__(2);
 
+var RAD_PER_DEG = 180 / Math.PI;
+
 // `Math.RAD_PER_DEG` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: true }, {
-  RAD_PER_DEG: 180 / Math.PI
+$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: Math.RAD_PER_DEG !== RAD_PER_DEG }, {
+  RAD_PER_DEG: RAD_PER_DEG
 });
 
 
