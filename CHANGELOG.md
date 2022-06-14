@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed possible error on multiple `core-js` copies, [#1091](https://github.com/zloirock/core-js/issues/1091)
+- Added `v` flag to `RegExp.prototype.flags` implementation in case if current V8 bugs will not be fixed before this flag implementation
 
 ##### [3.23.0 - 2022.06.14](https://github.com/zloirock/core-js/releases/tag/v3.23.0)
 - [`Array` find from last](https://github.com/tc39/proposal-array-find-from-last) moved to the stable ES, according to June 2022 TC39 meeting:
