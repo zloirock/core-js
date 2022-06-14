@@ -1,4 +1,10 @@
 import coerce from 'semver/functions/coerce.js';
+const { cyan, green } = chalk;
+const ALL = !argv['main-only'];
+const downloadsByPatch = {};
+const downloadsByMinor = {};
+const downloadsByMajor = {};
+let total = 0;
 
 async function getStat(pkg) {
   const res = await fetch(`https://www.npmjs.com/package/${ pkg }`);
@@ -7,15 +13,11 @@ async function getStat(pkg) {
   return JSON.parse(json).context.versionsDownloads;
 }
 
-const { cyan, green } = chalk;
-const ALL = !argv['main-only'];
-const core = await getStat('core-js');
-const pure = ALL && await getStat('core-js-pure');
-const bundle = ALL && await getStat('core-js-bundle');
-const downloadsByPatch = {};
-const downloadsByMinor = {};
-const downloadsByMajor = {};
-let total = 0;
+const [core, pure, bundle] = await Promise.all([
+  getStat('core-js'),
+  ALL && getStat('core-js-pure'),
+  ALL && getStat('core-js-bundle'),
+]);
 
 for (let [patch, downloads] of Object.entries(core)) {
   const semver = coerce(patch);
