@@ -16,7 +16,7 @@ const ignoreInPackages = new Set([
   'webpack',
 ]);
 
-await Promise.all((await globby(['package.json', 'packages/*/package.json'])).map(async path => {
+await Promise.all((await glob(['package.json', 'packages/*/package.json'])).map(async path => {
   const pkg = JSON.parse(await fs.readFile(path));
   const dependencies = await getDependencies(pkg);
   const devDependencies = await getDependencies(pkg, { dev: true });
@@ -33,9 +33,9 @@ await Promise.all((await globby(['package.json', 'packages/*/package.json'])).ma
     }
   }
   if (Object.keys(dependencies).length) {
-    console.log(chalk.cyan(`${ pkg.name ?? 'root' }:`));
+    echo(chalk.cyan(`${ pkg.name ?? 'root' }:`));
     console.table(dependencies);
   }
 }));
 
-console.log(chalk.green('dependencies checked'));
+echo(chalk.green('dependencies checked'));

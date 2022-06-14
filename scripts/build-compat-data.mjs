@@ -77,4 +77,4 @@ await Promise.all([
   }`),
 ]);
 
-console.log(chalk.green('compat data rebuilt'));
+echo(chalk.green('compat data rebuilt'));

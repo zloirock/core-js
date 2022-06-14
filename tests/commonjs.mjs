@@ -995,9 +995,9 @@ for (const NS of ['full', 'features']) {
 
 load('modules/esnext.string.at-alternative');
 
-console.log(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
+echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
 
 if (expected.size) {
-  console.log(chalk.red('not tested entries:'));
-  expected.forEach(it => console.log(chalk.cyan(it)));
+  echo(chalk.red('not tested entries:'));
+  expected.forEach(it => echo(chalk.cyan(it)));
 }

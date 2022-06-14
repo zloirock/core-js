@@ -91,4 +91,4 @@ deepStrictEqual(targetsParser({
   ['samsung', '4'],
 ]), 'mixed');
 
-console.log(chalk.green('targets parser tested'));
+echo(chalk.green('targets parser tested'));

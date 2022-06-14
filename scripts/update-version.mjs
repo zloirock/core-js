@@ -34,7 +34,7 @@ const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const packages = await readdir('packages');
-for (const PATH of await globby('packages/*/package.json')) {
+for (const PATH of await glob('packages/*/package.json')) {
   const pkg = await readJson(PATH, 'utf8');
   pkg.version = NEW_VERSION;
   for (const field of ['dependencies', 'devDependencies']) {
@@ -56,6 +56,6 @@ if (NEW_VERSION !== PREV_VERSION) {
   })`));
 }
 
-if (CURRENT_YEAR !== OLD_YEAR) console.log(chalk.green('the year updated'));
-if (NEW_VERSION !== PREV_VERSION) console.log(chalk.green('the version updated'));
-else if (CURRENT_YEAR === OLD_YEAR) console.log(chalk.red('bump is not required'));
+if (CURRENT_YEAR !== OLD_YEAR) echo(chalk.green('the year updated'));
+if (NEW_VERSION !== PREV_VERSION) echo(chalk.green('the version updated'));
+else if (CURRENT_YEAR === OLD_YEAR) echo(chalk.red('bump is not required'));

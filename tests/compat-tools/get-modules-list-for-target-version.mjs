@@ -24,4 +24,4 @@ throws(() => getModulesListForTargetVersion('x'), TypeError, 'x');
 throws(() => getModulesListForTargetVersion('*'), TypeError, '*');
 throws(() => getModulesListForTargetVersion(), TypeError, 'no arg');
 
-console.log(chalk.green('get-modules-list-for-target-version tested'));
+echo(chalk.green('get-modules-list-for-target-version tested'));

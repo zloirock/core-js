@@ -29,7 +29,7 @@ for (let [patch, downloads] of Object.entries(core)) {
 }
 
 function log(kind, map) {
-  console.log(green(`downloads for 7 days by ${ cyan(kind) } releases:`));
+  echo(green(`downloads for 7 days by ${ cyan(kind) } releases:`));
   console.table(Object.keys(map).sort().reduce((memo, version) => {
     const downloads = map[version];
     memo[version] = { downloads, '%': `${ (downloads / total * 100).toFixed(2).padStart(5) } %` };

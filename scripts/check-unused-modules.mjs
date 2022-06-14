@@ -7,9 +7,9 @@ async function jsModulesFrom(path) {
 
 function log(set, kind) {
   if (set.size) {
-    console.log(chalk.red(`found some unused ${ kind }:`));
-    set.forEach(it => console.log(chalk.cyan(it)));
-  } else console.log(chalk.green(`unused ${ kind } not found`));
+    echo(chalk.red(`found some unused ${ kind }:`));
+    set.forEach(it => echo(chalk.cyan(it)));
+  } else echo(chalk.green(`unused ${ kind } not found`));
 }
 
 const globalModules = await jsModulesFrom('packages/core-js/modules');
@@ -25,7 +25,7 @@ globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
 log(globalModules, 'modules');
 
 const internalModules = await jsModulesFrom('packages/core-js/internals');
-const allModules = await globby('packages/core-js?(-pure)/**/*.js');
+const allModules = await glob('packages/core-js?(-pure)/**/*.js');
 
 await Promise.all(allModules.map(async path => {
   for (const dependency of konan(String(await fs.readFile(path))).strings) {
@@ -35,7 +35,7 @@ await Promise.all(allModules.map(async path => {
 
 log(internalModules, 'internal modules');
 
-const pureModules = new Set(await globby('packages/core-js-pure/override/**/*.js'));
+const pureModules = new Set(await glob('packages/core-js-pure/override/**/*.js'));
 
 await Promise.all([...pureModules].map(async path => {
   if (await fs.pathExists(path.replace('-pure/override', ''))) pureModules.delete(path);

@@ -160,7 +160,11 @@ const base = {
   // restrict what can be thrown as an exception
   'no-throw-literal': ERROR,
   // disallow usage of expressions in statement position
-  'no-unused-expressions': [ERROR, { allowShortCircuit: true, allowTernary: true }],
+  'no-unused-expressions': [ERROR, {
+    allowShortCircuit: true,
+    allowTernary: true,
+    allowTaggedTemplates: true,
+  }],
   // disallow unused labels
   'no-unused-labels': ERROR,
   // disallow unnecessary catch clauses
@@ -1241,17 +1245,23 @@ module.exports = {
         argv: READONLY,
         cd: READONLY,
         chalk: READONLY,
+        echo: READONLY,
         fetch: READONLY,
         fs: READONLY,
-        globby: READONLY,
+        glob: READONLY,
         nothrow: READONLY,
         os: READONLY,
+        path: READONLY,
         question: READONLY,
         require: READONLY,
         sleep: READONLY,
+        stdin: READONLY,
+        which: READONLY,
+        within: READONLY,
+        YAML: READONLY,
       },
       rules: {
-        // disallow use of console
+        // allow use of console
         'no-console': OFF,
       },
     },

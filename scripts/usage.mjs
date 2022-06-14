@@ -55,21 +55,21 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => 
     tested++;
     if (core) withCoreJS++;
 
-    console.log(`${ cyan(`${ site }:`) } ${ core
+    echo`${ cyan(`${ site }:`) } ${ core
       ? green(`\`core-js\` is detected, ${ versions.length > 1
         ? `${ cyan(versions.length) } versions: ${ cyan(versions.join(', ')) }`
         : `version ${ cyan(versions[0]) }` }`)
-      : gray('`core-js` is not detected') }`);
+      : gray('`core-js` is not detected') }`;
   } catch {
     const attempting = (attempts.get(site) | 0) + 1;
     attempts.set(site, attempting);
     if (attempting < 3) sites.push(site);
-    else console.log(red(`${ cyan(`${ site }:`) } problems with access`));
+    else echo(red(`${ cyan(`${ site }:`) } problems with access`));
     await sleep(3e3);
   }
 
   return browser?.close();
 }));
 
-console.log(green(`\n\`core-js\` is detected on ${ cyan(withCoreJS) } from ${ cyan(tested) } tested websites, ${
+echo(green(`\n\`core-js\` is detected on ${ cyan(withCoreJS) } from ${ cyan(tested) } tested websites, ${
   cyan(`${ (withCoreJS / tested * 100).toFixed(2) }%`) }, problems with access to ${ cyan(limit - tested) } websites`));

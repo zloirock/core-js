@@ -11,17 +11,17 @@ function options(overwrite) {
   };
 }
 
-await Promise.all((await globby([
+await Promise.all((await glob([
   'tests/bundles/*',
   // TODO: drop it from `core-js@4`
   'packages/core-js/features',
   'packages/core-js-pure/!(override|.npmignore|package.json|README.md)',
 ], { onlyFiles: false })).map(path => rm(path, { force: true, recursive: true })));
 
-console.log(chalk.green('old copies removed'));
+echo(chalk.green('old copies removed'));
 
 // TODO: drop it from `core-js@4`
-const files = await globby('packages/core-js/full/**/*.js');
+const files = await glob('packages/core-js/full/**/*.js');
 
 for (const filename of files) {
   const newFilename = filename.replace('full', 'features');
@@ -30,13 +30,13 @@ for (const filename of files) {
   await writeFile(newFilename, `module.exports = require('${ href }');\n`);
 }
 
-console.log(chalk.green('created /features/ entries'));
+echo(chalk.green('created /features/ entries'));
 
 await copy('packages/core-js', 'packages/core-js-pure', options(false));
 
 const license = [
   'deno/corejs/LICENSE',
-  ...(await globby('packages/*/package.json')).map(path => path.replace(/package\.json$/, 'LICENSE')),
+  ...(await glob('packages/*/package.json')).map(path => path.replace(/package\.json$/, 'LICENSE')),
 ];
 
 await Promise.all([
@@ -45,4 +45,4 @@ await Promise.all([
   ...license.map(path => copy('LICENSE', path, options(true))),
 ]);
 
-console.log(chalk.green(`copied ${ chalk.cyan(copied) } files`));
+echo(chalk.green(`copied ${ chalk.cyan(copied) } files`));

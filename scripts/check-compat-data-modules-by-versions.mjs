@@ -13,10 +13,10 @@ if (minor || patch) { // ignore for pre-releases
   for (const mod of modulesByVersions[zero]) {
     if (!set.has(mod)) {
       ok = false;
-      console.log(chalk.red(`${ chalk.cyan(mod) } should be added to modules-by-versions`));
+      echo(chalk.red(`${ chalk.cyan(mod) } should be added to modules-by-versions`));
     }
   }
 }
 
-if (!ok) throw console.log(chalk.red('\nmodules-by-versions should be updated'));
-console.log(chalk.green('modules-by-versions checked'));
+if (!ok) throw echo(chalk.red('\nmodules-by-versions should be updated'));
+echo(chalk.green('modules-by-versions checked'));

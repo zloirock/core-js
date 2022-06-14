@@ -20,7 +20,7 @@ async function getModulesForEntryPoint(path, parent) {
   return helpers.intersection(result.flat(1), modules);
 }
 
-const entriesList = await globby([
+const entriesList = await glob([
   'packages/core-js/index.js',
   'packages/core-js/actual/**/*.js',
   'packages/core-js/es/**/*.js',
@@ -41,4 +41,4 @@ const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(
 
 await fs.writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
 
-console.log(chalk.green('entries data rebuilt'));
+echo(chalk.green('entries data rebuilt'));

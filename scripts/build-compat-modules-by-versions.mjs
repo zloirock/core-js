@@ -12,4 +12,4 @@ fs.writeJson('packages/core-js-compat/modules-by-versions.json', {
   ...modulesByVersions,
 }, { spaces: '  ' });
 
-console.log(chalk.green('modules-by-versions data rebuilt'));
+echo(chalk.green('modules-by-versions data rebuilt'));

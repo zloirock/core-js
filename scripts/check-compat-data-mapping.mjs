@@ -32,7 +32,7 @@ function latest(array) {
 function assert(condition, engine) {
   if (!condition) {
     updated = false;
-    console.log(chalk.red(`${ chalk.cyan(engine) } mapping should be updated`));
+    echo(chalk.red(`${ chalk.cyan(engine) } mapping should be updated`));
   }
 }
 
@@ -62,4 +62,4 @@ assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobi
 assert(cmp(coerce(ios.version), '<=', coerce(latest(mapping.SafariToIOS)[1])), 'iOS Safari');
 assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
 
-if (updated) console.log(chalk.green('updates of compat data mapping not required'));
+if (updated) echo(chalk.green('updates of compat data mapping not required'));

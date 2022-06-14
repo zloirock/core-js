@@ -138,11 +138,11 @@ subset('core-js/stage/3', /^es\.string\.at|esnext\./);
 subset('core-js/stage/4', /^es\.string\.at|esnext\./);
 
 async function unexpectedInnerNamespace(namespace, unexpected) {
-  const paths = await globby(`packages/core-js/${ namespace }/**/*.js`);
+  const paths = await glob(`packages/core-js/${ namespace }/**/*.js`);
   await Promise.all(paths.map(async path => {
     for (const dependency of konan(String(await fs.readFile(path))).strings) {
       if (unexpected.test(dependency)) {
-        console.log(chalk.red(`${ chalk.cyan(path) }: found unexpected dependency: ${ chalk.cyan(dependency) }`));
+        echo(chalk.red(`${ chalk.cyan(path) }: found unexpected dependency: ${ chalk.cyan(dependency) }`));
       }
     }
   }));
@@ -155,4 +155,4 @@ await Promise.all([
   unexpectedInnerNamespace('full', /\/(?:es|stable)\//),
 ]);
 
-console.log(chalk.green('entry points content tested'));
+echo(chalk.green('entry points content tested'));

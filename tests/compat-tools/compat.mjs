@@ -119,4 +119,4 @@ deepStrictEqual(compat({
   },
 }, 'some targets');
 
-console.log(chalk.green('compat tool tested'));
+echo(chalk.green('compat tool tested'));

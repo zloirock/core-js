@@ -54,10 +54,10 @@ const ignore = new Set([
 const missed = modules.filter(it => !(tested.has(it) || tested.has(it.replace(/^esnext\./, 'es.')) || ignore.has(it)));
 
 for (const it of tested) {
-  if (!modulesSet.has(it)) console.log(chalk.red(`added extra compat data test: ${ chalk.cyan(it) }`));
+  if (!modulesSet.has(it)) echo(chalk.red(`added extra compat data test: ${ chalk.cyan(it) }`));
 }
 
 if (missed.length) {
-  console.log(chalk.red('some of compat data tests missed:'));
-  for (const it of missed) console.log(chalk.cyan(it));
-} else console.log(chalk.green('adding of compat data tests not required'));
+  echo(chalk.red('some of compat data tests missed:'));
+  for (const it of missed) echo(chalk.cyan(it));
+} else echo(chalk.green('adding of compat data tests not required'));
