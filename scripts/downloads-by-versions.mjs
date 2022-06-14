@@ -1,4 +1,6 @@
-import coerce from 'semver/functions/coerce.js';
+import semver from 'semver';
+
+const { coerce, cmp } = semver;
 const { cyan, green } = chalk;
 const ALL = !argv['main-only'];
 const downloadsByPatch = {};
@@ -20,9 +22,9 @@ const [core, pure, bundle] = await Promise.all([
 ]);
 
 for (let [patch, downloads] of Object.entries(core)) {
-  const semver = coerce(patch);
-  const { major } = semver;
-  const minor = `${ major }.${ semver.minor }`;
+  const version = coerce(patch);
+  const { major } = version;
+  const minor = `${ major }.${ version.minor }`;
   if (ALL) downloads += (pure[patch] || 0) + (bundle[patch] || 0);
   downloadsByPatch[patch] = downloads;
   downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloads;
@@ -32,7 +34,7 @@ for (let [patch, downloads] of Object.entries(core)) {
 
 function log(kind, map) {
   echo(green(`downloads for 7 days by ${ cyan(kind) } releases:`));
-  console.table(Object.keys(map).sort().reduce((memo, version) => {
+  console.table(Object.keys(map).sort((a, b) => cmp(coerce(a), '>', coerce(b)) ? 1 : -1).reduce((memo, version) => {
     const downloads = map[version];
     memo[version] = { downloads, '%': `${ (downloads / total * 100).toFixed(2).padStart(5) } %` };
     return memo;
