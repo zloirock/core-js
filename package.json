@@ -152,9 +152,7 @@
     "update-version": "zx scripts/update-version.mjs && zx scripts/bundle.mjs --deno",
     "publish": "npm publish --workspaces",
     "c": "npm run check",
-    "d": "npm run check-dependencies",
     "l": "npm run lint",
-    "m": "npm run check-mapping",
     "r": "npm run refresh",
     "u": "npm run update-version"
   }
