@@ -7,8 +7,8 @@ var classof = require('../internals/classof');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 var slice = uncurryThis(''.slice);
 
 var PROPER_ORDER = !!function () {
@@ -28,5 +28,5 @@ exportTypedArrayMethod('with', { 'with': function (index, value) {
   aTypedArray(this);
   var relativeIndex = toIntegerOrInfinity(index);
   var actualValue = slice(classof(this), 0, 3) === 'Big' ? toBigInt(value) : +value;
-  return arrayWith(this, this[TYPED_ARRAY_CONSTRUCTOR], relativeIndex, actualValue);
+  return arrayWith(this, getTypedArrayConstructor(this), relativeIndex, actualValue);
 } }['with'], !PROPER_ORDER);

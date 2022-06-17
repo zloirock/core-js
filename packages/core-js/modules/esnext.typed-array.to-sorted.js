@@ -5,8 +5,8 @@ var aCallable = require('../internals/a-callable');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 
 // `%TypedArray%.prototype.toSorted` method
@@ -14,6 +14,6 @@ var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   if (compareFn !== undefined) aCallable(compareFn);
   var O = aTypedArray(this);
-  var A = arrayFromConstructorAndList(O[TYPED_ARRAY_CONSTRUCTOR], O);
+  var A = arrayFromConstructorAndList(getTypedArrayConstructor(O), O);
   return sort(A, compareFn);
 });
