@@ -65,8 +65,7 @@ var getTypedArrayConstructor = function (it) {
   var proto = getPrototypeOf(it);
   if (!isObject(proto)) return;
   var state = getInternalState(proto);
-  if (state && hasOwn(state, TYPED_ARRAY_CONSTRUCTOR)) return state[TYPED_ARRAY_CONSTRUCTOR];
-  return getTypedArrayConstructor(proto);
+  return (state && hasOwn(state, TYPED_ARRAY_CONSTRUCTOR)) ? state[TYPED_ARRAY_CONSTRUCTOR] : getTypedArrayConstructor(proto);
 };
 
 var isTypedArray = function (it) {
