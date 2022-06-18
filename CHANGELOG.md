@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Avoided creation of extra properties for the handling of `%TypedArray%` constructors in new methods, [#1092 (comment)](https://github.com/zloirock/core-js/issues/1092#issuecomment-1158760512)
+- Added Deno 1.23 compat data mapping
 
 ##### [3.23.1 - 2022.06.14](https://github.com/zloirock/core-js/releases/tag/v3.23.1)
 - Fixed possible error on multiple `core-js` copies, [#1091](https://github.com/zloirock/core-js/issues/1091)
