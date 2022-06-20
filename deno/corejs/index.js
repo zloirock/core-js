@@ -1,7 +1,7 @@
 /**
- * core-js 3.23.1
+ * core-js 3.23.2
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.23.1/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.23.2/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -879,10 +879,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.23.1',
+  version: '3.23.2',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.23.1/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.23.2/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -3025,7 +3025,10 @@ var getPrototypeOf = __webpack_require__(81);
 var setPrototypeOf = __webpack_require__(68);
 var wellKnownSymbol = __webpack_require__(31);
 var uid = __webpack_require__(38);
+var InternalStateModule = __webpack_require__(49);
 
+var enforceInternalState = InternalStateModule.enforce;
+var getInternalState = InternalStateModule.get;
 var Int8Array = global.Int8Array;
 var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
 var Uint8ClampedArray = global.Uint8ClampedArray;
@@ -3037,7 +3040,7 @@ var TypeError = global.TypeError;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
-var TYPED_ARRAY_CONSTRUCTOR = uid('TYPED_ARRAY_CONSTRUCTOR');
+var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
 // Fixing native typed arrays in Opera Presto crashes the browser, see #595
 var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf && classof(global.opera) !== 'Opera';
 var TYPED_ARRAY_TAG_REQUIRED = false;
@@ -3066,6 +3069,13 @@ var isView = function isView(it) {
   return klass === 'DataView'
     || hasOwn(TypedArrayConstructorsList, klass)
     || hasOwn(BigIntArrayConstructorsList, klass);
+};
+
+var getTypedArrayConstructor = function (it) {
+  var proto = getPrototypeOf(it);
+  if (!isObject(proto)) return;
+  var state = getInternalState(proto);
+  return (state && hasOwn(state, TYPED_ARRAY_CONSTRUCTOR)) ? state[TYPED_ARRAY_CONSTRUCTOR] : getTypedArrayConstructor(proto);
 };
 
 var isTypedArray = function (it) {
@@ -3132,14 +3142,14 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
 for (NAME in TypedArrayConstructorsList) {
   Constructor = global[NAME];
   Prototype = Constructor && Constructor.prototype;
-  if (Prototype) createNonEnumerableProperty(Prototype, TYPED_ARRAY_CONSTRUCTOR, Constructor);
+  if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
   else NATIVE_ARRAY_BUFFER_VIEWS = false;
 }
 
 for (NAME in BigIntArrayConstructorsList) {
   Constructor = global[NAME];
   Prototype = Constructor && Constructor.prototype;
-  if (Prototype) createNonEnumerableProperty(Prototype, TYPED_ARRAY_CONSTRUCTOR, Constructor);
+  if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
 }
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
@@ -3177,12 +3187,12 @@ if (DESCRIPTORS && !hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
 
 module.exports = {
   NATIVE_ARRAY_BUFFER_VIEWS: NATIVE_ARRAY_BUFFER_VIEWS,
-  TYPED_ARRAY_CONSTRUCTOR: TYPED_ARRAY_CONSTRUCTOR,
   TYPED_ARRAY_TAG: TYPED_ARRAY_TAG_REQUIRED && TYPED_ARRAY_TAG,
   aTypedArray: aTypedArray,
   aTypedArrayConstructor: aTypedArrayConstructor,
   exportTypedArrayMethod: exportTypedArrayMethod,
   exportTypedArrayStaticMethod: exportTypedArrayStaticMethod,
+  getTypedArrayConstructor: getTypedArrayConstructor,
   isView: isView,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
@@ -7526,12 +7536,10 @@ $({ target: 'Math', stat: true, forced: true }, {
 
 var $ = __webpack_require__(2);
 
-var DEG_PER_RAD = Math.PI / 180;
-
 // `Math.DEG_PER_RAD` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: Math.DEG_PER_RAD !== DEG_PER_RAD }, {
-  DEG_PER_RAD: DEG_PER_RAD
+$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true }, {
+  DEG_PER_RAD: Math.PI / 180
 });
 
 
@@ -7643,12 +7651,10 @@ module.exports = Math.sign || function sign(x) {
 
 var $ = __webpack_require__(2);
 
-var RAD_PER_DEG = 180 / Math.PI;
-
 // `Math.RAD_PER_DEG` constant
 // https://rwaldron.github.io/proposal-math-extensions/
-$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true, forced: Math.RAD_PER_DEG !== RAD_PER_DEG }, {
-  RAD_PER_DEG: RAD_PER_DEG
+$({ target: 'Math', stat: true, nonConfigurable: true, nonWritable: true }, {
+  RAD_PER_DEG: 180 / Math.PI
 });
 
 
@@ -9270,13 +9276,13 @@ module.exports = function (instance, list) {
 var ArrayBufferViewCore = __webpack_require__(117);
 var speciesConstructor = __webpack_require__(226);
 
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 
 // a part of `TypedArraySpeciesCreate` abstract operation
 // https://tc39.es/ecma262/#typedarray-species-create
 module.exports = function (originalArray) {
-  return aTypedArrayConstructor(speciesConstructor(originalArray, originalArray[TYPED_ARRAY_CONSTRUCTOR]));
+  return aTypedArrayConstructor(speciesConstructor(originalArray, getTypedArrayConstructor(originalArray)));
 };
 
 
@@ -9313,12 +9319,12 @@ var ArrayBufferViewCore = __webpack_require__(117);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 
 // `%TypedArray%.prototype.toReversed` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toReversed
 exportTypedArrayMethod('toReversed', function toReversed() {
-  return arrayToReversed(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR]);
+  return arrayToReversed(aTypedArray(this), getTypedArrayConstructor(this));
 });
 
 
@@ -9334,8 +9340,8 @@ var aCallable = __webpack_require__(28);
 var arrayFromConstructorAndList = __webpack_require__(140);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 
 // `%TypedArray%.prototype.toSorted` method
@@ -9343,7 +9349,7 @@ var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   if (compareFn !== undefined) aCallable(compareFn);
   var O = aTypedArray(this);
-  var A = arrayFromConstructorAndList(O[TYPED_ARRAY_CONSTRUCTOR], O);
+  var A = arrayFromConstructorAndList(getTypedArrayConstructor(O), O);
   return sort(A, compareFn);
 });
 
@@ -9359,14 +9365,14 @@ var arraySlice = __webpack_require__(153);
 var arrayToSpliced = __webpack_require__(154);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 
 // `%TypedArray%.prototype.toSpliced` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSpliced
 // eslint-disable-next-line no-unused-vars -- required for .length
 exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , ...items */) {
-  return arrayToSpliced(aTypedArray(this), this[TYPED_ARRAY_CONSTRUCTOR], arraySlice(arguments));
+  return arrayToSpliced(aTypedArray(this), getTypedArrayConstructor(this), arraySlice(arguments));
 }, { arity: 2 });
 
 
@@ -9406,8 +9412,8 @@ var classof = __webpack_require__(74);
 var uncurryThis = __webpack_require__(13);
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
+var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var TYPED_ARRAY_CONSTRUCTOR = ArrayBufferViewCore.TYPED_ARRAY_CONSTRUCTOR;
 var slice = uncurryThis(''.slice);
 
 var PROPER_ORDER = !!function () {
@@ -9427,7 +9433,7 @@ exportTypedArrayMethod('with', { 'with': function (index, value) {
   aTypedArray(this);
   var relativeIndex = toIntegerOrInfinity(index);
   var actualValue = slice(classof(this), 0, 3) === 'Big' ? toBigInt(value) : +value;
-  return arrayWith(this, this[TYPED_ARRAY_CONSTRUCTOR], relativeIndex, actualValue);
+  return arrayWith(this, getTypedArrayConstructor(this), relativeIndex, actualValue);
 } }['with'], !PROPER_ORDER);
 
 
