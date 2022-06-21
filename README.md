@@ -164,7 +164,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## [Usage](docs/Usage.md)[⬆](#index)
 
-## [Compatibility data](docs/Compatibility data.md)[⬆](#index)
+## [Compatibility data](docs/Compatibility%20data.md)[⬆](#index)
 
 ## Supported engines[⬆](#index)
 **Tested in:**
