@@ -1,5 +1,5 @@
 # ES WeakMap
-Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+Module [`es.weak-map`](/packages/core-js/modules/es.weak-map.js).
 ```js
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
@@ -9,7 +9,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
