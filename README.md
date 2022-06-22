@@ -163,8 +163,13 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## [Usage](docs/Usage.md)[⬆](#index)
 
-### [Installation:](docs/Usage.md#installation)[⬆](#index)
-### [`postinstall` message](docs/Usage.md#postinstall-message)[⬆](#index)
+### [Installation:](docs/Usage.md#installation)
+### [`postinstall` message](docs/Usage.md#postinstall-message)
+### [CommonJS API](docs/Usage.md#commonjs-api)
+### [Babel](docs/Usage.md#babel)
+### [swc](docs/Usage.md#swc)
+### [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
+### [Custom build](docs/Usage.md#custom-build)
 
 ## [Compatibility data](docs/Compatibility%20data.md)[⬆](#index)
 
