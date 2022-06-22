@@ -1,5 +1,5 @@
 # ES Map
-Module [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js).
+Module [`es.map`](/packages/core-js/modules/es.map.js).
 ```js
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -16,7 +16,7 @@ class Map {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/map
 ```
