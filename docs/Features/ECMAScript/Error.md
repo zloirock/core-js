@@ -1,5 +1,5 @@
 # ES Error
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js).
+Modules [`es.aggregate-error`](/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](/packages/core-js/modules/es.error.cause.js).
 ```js
 class [
   Error,
@@ -26,7 +26,7 @@ class Error {
   toString(): string; // different fixes
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js/es|stable|actual|full/error
