@@ -9,7 +9,7 @@
 - [iterable DOM collections](#iterable-dom-collections)
 
 ## `structuredClone`[⬆](#index)
-[Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](../../packages/core-js/modules/web.structured-clone.js)
+[Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](/packages/core-js/modules/web.structured-clone.js)
 ```js
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```
@@ -50,15 +50,15 @@ structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ### Caveats when using `structuredClone` polyfill:[⬆](#index)
 
 * `ArrayBuffer` instances and many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
-* Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](../../packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
+* Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
 
 ## Base64 utility methods[⬆](#index)
-[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64). Modules [`web.atob`](../../packages/core-js/modules/web.atob.js), [`web.btoa`](../../packages/core-js/modules/web.btoa.js).
+[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64). Modules [`web.atob`](/packages/core-js/modules/web.atob.js), [`web.btoa`](/packages/core-js/modules/web.btoa.js).
 ```js
 function atob(data: string): string;
 function btoa(data: string): string;
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa
@@ -70,7 +70,7 @@ atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
 ```
 
 ## `setTimeout` and `setInterval`[⬆](#index)
-Module [`web.timers`](../../packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+Module [`web.timers`](/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
 ```js
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
@@ -87,7 +87,7 @@ setTimeout(log.bind(null, 42), 1000);
 setTimeout(log, 1000, 42);
 ```
 ## `setImmediate`[⬆](#index)
-Module [`web.immediate`](../../packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
+Module [`web.immediate`](/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
 ```js
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
@@ -109,11 +109,11 @@ clearImmediate(setImmediate(() => {
 ```
 
 ## `queueMicrotask`[⬆](#index)
-[Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask), module [`web.queue-microtask`](../../packages/core-js/modules/web.queue-microtask.js)
+[Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask), module [`web.queue-microtask`](/packages/core-js/modules/web.queue-microtask.js)
 ```js
 function queueMicrotask(fn: Function): void;
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/queue-microtask
 ```
@@ -123,7 +123,7 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 ## `URL` and `URLSearchParams`[⬆](#index)
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](../../packages/core-js/modules/web.url.js), [`web.url.to-json`](../../packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](../../packages/core-js/modules/web.url-search-params.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](/packages/core-js/modules/web.url.js), [`web.url.to-json`](/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](/packages/core-js/modules/web.url-search-params.js).
 ```js
 class URL {
   constructor(url: string, base?: string);
@@ -216,7 +216,7 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 - `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
 ### `DOMException`:[⬆](#index)
-[The specification.](https://webidl.spec.whatwg.org/#idl-DOMException) Modules [`web.dom-exception.constructor`](../../packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](../../packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](../../packages/core-js/modules/web.dom-exception.to-string-tag.js).
+[The specification.](https://webidl.spec.whatwg.org/#idl-DOMException) Modules [`web.dom-exception.constructor`](/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](/packages/core-js/modules/web.dom-exception.to-string-tag.js).
 ```js
 class DOMException {
   constructor(message: string, name?: string);
@@ -247,7 +247,7 @@ console.log(Object.prototype.toString.call(exception)); // => '[object DOMExcept
 ```
 
 ## Iterable DOM collections[⬆](#index)
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](../../packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](../../packages/core-js/modules/web.dom-collections.for-each.js).
+Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](/packages/core-js/modules/web.dom-collections.for-each.js).
 ```js
 class [
   CSSRuleList,
@@ -291,7 +291,7 @@ class [DOMTokenList, NodeList] {
   @@iterator(): Iterator<value>;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
