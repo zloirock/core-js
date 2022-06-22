@@ -155,6 +155,14 @@ queueMicrotask(() => console.log('called as microtask'));
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
   - [Web standards](#web-standards)
+    - [`structuredClone`](#structuredclone)
+    - [Base64 utility methods](#base64-utility-methods)
+    - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
+    - [`setImmediate`](#setimmediate)
+    - [`queueMicrotask`](#queuemicrotask)
+    - [`URL` and `URLSearchParams`](#url-and-urlsearchparams)
+    - [`DOMException`](#domexception)
+    - [iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
 - [Contributing](./CONTRIBUTING.md)
@@ -1382,7 +1390,15 @@ Reflect.getOwnMetadataKeys(object);    // => ['foo']
 Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
-### [Web standards](docs/Web%20standards.md)[⬆](#index)
+### [Web standards](docs/Features/Web%20standards.md)[⬆](#index)
+#### [`structuredClone`](docs/Features/Web%20standards.md#structuredclone)
+#### [Base64 utility methods](docs/Features/Web%20standards.md#base64-utility-methods)
+#### [`setTimeout` and `setInterval`](docs/Features/Web%20standards.md#settimeout-and-setinterval)
+#### [`setImmediate`](docs/Features/Web%20standards.md#setimmediate)
+#### [`queueMicrotask`](docs/Features/Web%20standards.md#queuemicrotask)
+#### [`URL` and `URLSearchParams`](docs/Features/Web%20standards.md#url-and-urlsearchparams)
+#### [`DOMException`](docs/Features/Web%20standards.md#domexception)
+#### [iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
 
 ### Iteration helpers[⬆](#index)
 Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
