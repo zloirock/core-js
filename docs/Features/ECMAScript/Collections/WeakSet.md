@@ -1,5 +1,5 @@
 # ES WeakSet
-Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+Module [`es.weak-set`](/packages/core-js/modules/es.weak-set.js).
 ```js
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
@@ -8,7 +8,7 @@ class WeakSet {
   has(key: Object): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```
