@@ -73,6 +73,13 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ### Index
 - [Usage](#usage)
+  - [Installation](#installation)
+  - [`postinstall` message](#postinstall-message)
+  - [CommonJS API](#commonjs-api)
+  - [Babel](#babel)
+  - [swc](#swc)
+  - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
+  - [Custom build](#custom-build)
 - [Compatibility data](#compatibility-data)
 - [Supported engines](#supported-engines)
 - [Features](#features)
@@ -155,6 +162,9 @@ queueMicrotask(() => console.log('called as microtask'));
 - [Changelog](./CHANGELOG.md)
 
 ## [Usage](docs/Usage.md)[⬆](#index)
+
+### [Installation:](docs/Usage.md#installation)[⬆](#index)
+### [`postinstall` message](docs/Usage.md#postinstall-message)[⬆](#index)
 
 ## [Compatibility data](docs/Compatibility%20data.md)[⬆](#index)
 
