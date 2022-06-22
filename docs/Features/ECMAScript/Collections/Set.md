@@ -1,5 +1,5 @@
 # ES Set
-Module [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js).
+Module [`es.set`](/packages/core-js/modules/es.set.js).
 ```js
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -15,7 +15,7 @@ class Set {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/set
 ```
