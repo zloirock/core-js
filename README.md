@@ -162,7 +162,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [`queueMicrotask`](#queuemicrotask)
     - [`URL` and `URLSearchParams`](#url-and-urlsearchparams)
     - [`DOMException`](#domexception)
-    - [iterable DOM collections](#iterable-dom-collections)
+    - [Iterable DOM collections](#iterable-dom-collections)
   - [Iteration helpers](#iteration-helpers)
 - [Missing polyfills](#missing-polyfills)
 - [Contributing](./CONTRIBUTING.md)
@@ -1398,7 +1398,7 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 #### [`queueMicrotask`](docs/Features/Web%20standards.md#queuemicrotask)
 #### [`URL` and `URLSearchParams`](docs/Features/Web%20standards.md#url-and-urlsearchparams)
 #### [`DOMException`](docs/Features/Web%20standards.md#domexception)
-#### [iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
+#### [Iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
 
 ### Iteration helpers[⬆](#index)
 Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
