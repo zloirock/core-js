@@ -13,7 +13,7 @@
 ```js
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/structured-clone
 ```
