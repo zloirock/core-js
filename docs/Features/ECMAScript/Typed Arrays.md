@@ -174,5 +174,5 @@ new Int32Array([1, 2, 3]).at(1);  // => 2
 new Int32Array([1, 2, 3]).at(-1); // => 3
 ```
 
-## Caveats when using typed arrays polyfills:[⬆](#index)
+## Caveats when using typed arrays polyfills:
 * Polyfills of Typed Arrays constructors work completely how should work by the spec, but because of internal usage of getters / setters on each instance, are slow and consumes significant memory. However, polyfills of Typed Arrays constructors required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
