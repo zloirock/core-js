@@ -75,7 +75,7 @@ Module [`web.timers`](/packages/core-js/modules/web.timers.js). Additional argum
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/set-timeout
 core-js(-pure)/stable|actual|full/set-interval
@@ -92,7 +92,7 @@ Module [`web.immediate`](/packages/core-js/modules/web.immediate.js). [`setImmed
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
@@ -160,7 +160,7 @@ class URLSearchParams {
   @@iterator(): Iterator<[key, value]>;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
@@ -227,7 +227,7 @@ class DOMException {
   @@toStringTag: 'DOMException';
 }
 ````
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
