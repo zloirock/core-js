@@ -1,5 +1,5 @@
 # ES Function
-Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
+Modules [`es.function.name`](/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](/packages/core-js/modules/es.function.bind.js).
 ```js
 class Function {
   name: string;
@@ -7,7 +7,7 @@ class Function {
   @@hasInstance(value: any): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name
