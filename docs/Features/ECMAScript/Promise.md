@@ -1,5 +1,5 @@
 # ES Promise
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.promise`](/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](/packages/core-js/modules/es.promise.finally.js).
 ```js
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -14,7 +14,7 @@ class Promise {
   static race(iterable: Iterable): Promise;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/promise
 core-js(-pure)/es|stable|actual|full/promise/all-settled
