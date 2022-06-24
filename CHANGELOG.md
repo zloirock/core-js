@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed regression of some IE8- issues
 
 ##### [3.23.2 - 2022.06.21](https://github.com/zloirock/core-js/releases/tag/v3.23.2)
 - Avoided creation of extra properties for the handling of `%TypedArray%` constructors in new methods, [#1092 (comment)](https://github.com/zloirock/core-js/issues/1092#issuecomment-1158760512)
