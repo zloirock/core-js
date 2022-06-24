@@ -13,7 +13,7 @@ var min = Math.min;
 
 // `Array.prototype.toSpliced` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
-$({ target: 'Array', proto: true, arity: 2 }, {
+$({ target: 'Array', proto: true }, {
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
     var O = toIndexedObject(this);
     var len = lengthOfArrayLike(O);
