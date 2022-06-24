@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Changed the order of operations in `%TypedArray%.prototype.toSpliced` following [proposal-change-array-by-copy/89](https://github.com/tc39/proposal-change-array-by-copy/issues/89)
+- Fixed regression of some IE8- issues
 
 ##### [3.23.2 - 2022.06.21](https://github.com/zloirock/core-js/releases/tag/v3.23.2)
 - Avoided creation of extra properties for the handling of `%TypedArray%` constructors in new methods, [#1092 (comment)](https://github.com/zloirock/core-js/issues/1092#issuecomment-1158760512)
