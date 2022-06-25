@@ -1,17 +1,13 @@
 'use strict';
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var isBigIntArray = require('../internals/is-big-int-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
-var toBigInt = require('../internals/to-big-int');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
-var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var push = uncurryThis([].push);
 var max = Math.max;
 var min = Math.min;
 
@@ -38,9 +34,8 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
   var len = lengthOfArrayLike(O);
   var actualStart = toAbsoluteIndex(start, len);
   var argumentsLength = arguments.length;
-  var convertedItems = [];
   var k = 0;
-  var insertCount, actualDeleteCount, newLen, A;
+  var insertCount, actualDeleteCount, convertedItems, newLen, A;
   if (argumentsLength === 0) {
     insertCount = actualDeleteCount = 0;
   } else if (argumentsLength === 1) {
@@ -50,9 +45,9 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
     insertCount = argumentsLength - 2;
     if (insertCount) {
-      var IS_BIG_INT = isBigIntArray(O);
+      convertedItems = new C(insertCount);
       for (var i = 2; i < argumentsLength; i++) {
-        push(convertedItems, IS_BIG_INT ? toBigInt(arguments[i]) : +arguments[i]);
+        convertedItems[i - 2] = arguments[i];
       }
     }
   }
