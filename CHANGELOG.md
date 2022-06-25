@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.23.3 - 2022.06.26](https://github.com/zloirock/core-js/releases/tag/v3.23.3)
 - Changed the order of operations in `%TypedArray%.prototype.toSpliced` following [proposal-change-array-by-copy/89](https://github.com/tc39/proposal-change-array-by-copy/issues/89)
 - Fixed regression of some IE8- issues
 
