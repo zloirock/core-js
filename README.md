@@ -257,49 +257,7 @@ core-js(-pure)/es
 #### [`DOMException`](docs/Features/Web%20standards.md#domexception)
 #### [Iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
 
-### Iteration helpers[⬆](#index)
-Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
-```js
-function isIterable(value: any): boolean;
-function getIterator(value: any): Object;
-function getIteratorMethod(value: any): Function | void;
-```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
-core-js-pure/es|stable|actual|full/is-iterable
-core-js-pure/es|stable|actual|full/get-iterator
-core-js-pure/es|stable|actual|full/get-iterator-method
-```
-[*Examples*](https://goo.gl/SXsM6D):
-```js
-import isIterable from 'core-js-pure/actual/is-iterable';
-import getIterator from 'core-js-pure/actual/get-iterator';
-import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
-
-let list = (function () {
-  return arguments;
-})(1, 2, 3);
-
-console.log(isIterable(list)); // true;
-
-let iterator = getIterator(list);
-console.log(iterator.next().value); // 1
-console.log(iterator.next().value); // 2
-console.log(iterator.next().value); // 3
-console.log(iterator.next().value); // undefined
-
-getIterator({}); // TypeError: [object Object] is not iterable!
-
-let method = getIteratorMethod(list);
-console.log(typeof method);         // 'function'
-let iterator = method.call(list);
-console.log(iterator.next().value); // 1
-console.log(iterator.next().value); // 2
-console.log(iterator.next().value); // 3
-console.log(iterator.next().value); // undefined
-
-console.log(getIteratorMethod({})); // undefined
-```
+### [Iteration helpers](/docs/Features/Iteration%20helpers.md)[⬆](#index)
 
 ## Missing polyfills[⬆](#index)
 - ES `BigInt` can't be polyfilled since it requires changes in the behavior of operators, you could find more info [here](https://github.com/zloirock/core-js/issues/381). You could try to use [`JSBI`](https://github.com/GoogleChromeLabs/jsbi).
