@@ -1714,7 +1714,16 @@ GLOBAL.tests = {
     return Int8Array.prototype.toSorted;
   },
   'esnext.typed-array.to-spliced': function () {
-    return Int8Array.prototype.toSpliced;
+    var array = new Int8Array([1]);
+
+    var spliced = array.toSpliced(1, 0, {
+      valueOf: function () {
+        array[0] = 2;
+        return 3;
+      }
+    });
+
+    return spliced[0] === 2 && spliced[1] === 3;
   },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;

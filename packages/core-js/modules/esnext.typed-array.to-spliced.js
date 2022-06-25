@@ -6,6 +6,7 @@ var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toBigInt = require('../internals/to-big-int');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var uncurryThis = require('../internals/function-uncurry-this');
+var fails = require('../internals/fails');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
@@ -13,6 +14,21 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var push = uncurryThis([].push);
 var max = Math.max;
 var min = Math.min;
+
+// some early implementations, like WebKit, does not follow the final semantic
+var PROPER_ORDER = !fails(function () {
+  // eslint-disable-next-line es-x/no-typed-arrays -- required for testing
+  var array = new Int8Array([1]);
+
+  var spliced = array.toSpliced(1, 0, {
+    valueOf: function () {
+      array[0] = 2;
+      return 3;
+    }
+  });
+
+  return spliced[0] !== 2 || spliced[1] !== 3;
+});
 
 // `%TypedArray%.prototype.toSpliced` method
 // https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSpliced
@@ -48,4 +64,4 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
   for (; k < newLen; k++) A[k] = O[k + actualDeleteCount - insertCount];
 
   return A;
-});
+}, !PROPER_ORDER);
