@@ -216,19 +216,7 @@ core-js(-pure)/es
 #### [ECMAScript: Typed Arrays](docs/Features/ECMAScript/Typed%20Arrays.md)
 #### [ECMAScript: Reflect](docs/Features/ECMAScript/Reflect.md)
 #### [ECMAScript: JSON](docs/Features/ECMAScript/JSON.md)
-#### ECMAScript: globalThis
-Module [`es.global-this`](/packages/core-js/modules/es.global-this.js).
-```js
-let globalThis: Object;
-```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
-core-js(-pure)/es|stable|actual|full/global-this
-```
-[*Examples*](https://goo.gl/LAifsc):
-```js
-globalThis.Array === Array; // => true
-```
+#### [ECMAScript: globalThis](docs/Features/ECMAScript/globalThis.md)
 
 ### [ECMAScript proposals](docs/Features/ECMAScript/Proposals)[⬆](#index)
 [The TC39 process.](https://tc39.github.io/process-document/)
