@@ -2,11 +2,11 @@
 
 [![Open Collective](https://opencollective.com/core-js/all/badge.svg?label=open%20collective)](https://opencollective.com/core-js) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![tests](https://github.com/zloirock/core-js/workflows/tests/badge.svg)](https://github.com/zloirock/core-js/actions) [![eslint](https://github.com/zloirock/core-js/workflows/eslint/badge.svg)](https://github.com/zloirock/core-js/actions)
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](https://github.com/zloirock/core-js#ecmascript): [promises](https://github.com/zloirock/core-js#ecmascript-promise), [symbols](https://github.com/zloirock/core-js#ecmascript-symbol), [collections](https://github.com/zloirock/core-js#ecmascript-collections), iterators, [typed arrays](https://github.com/zloirock/core-js#ecmascript-typed-arrays), many other features, [ECMAScript proposals](https://github.com/zloirock/core-js#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](https://github.com/zloirock/core-js#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](/README.md#ecmascript): [promises](/README.md#ecmascript-promise), [symbols](/README.md#ecmascript-symbol), [collections](/README.md#ecmascript-collections), iterators, [typed arrays](/README.md#ecmascript-typed-arrays), many other features, [ECMAScript proposals](/README.md#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](/README.md#web-standards) like [`URL`](/README.md#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 ## As advertising: the author is looking for a good job -)
 
-## [core-js@3, babel and a look into the future](https://github.com/zloirock/core-js/tree/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
+## [core-js@3, babel and a look into the future](/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
 
 ## Raising funds
 
@@ -46,4 +46,4 @@ Promise.any([
   .toArray();                          // => [9, 25]
 ```
 
-**It's a bundled global version for Deno 1.0+, for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/master/README.md).**
+**It's a bundled global version for Deno 1.0+, for more info see [`core-js` documentation](/README.md).**
