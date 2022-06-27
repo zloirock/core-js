@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<meta charset='UTF-8'>
+<title>core-js-compat</title>
+<style>
+th,td {
+  padding: 0.25em 0.5em;
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-size: 0.8em;
+}
+th {
+  background-color: white;
+  color: black;
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+td {
+  color: white;
+}
+.true {
+  background-color: #00882c;
+}
+.false {
+  background-color: #e11;
+}
+.nodata {
+  background-color: grey;
+}
+.data {
+  text-align: center;
+}
+</style>
+<table id='table'></table>
+<script src='./compat-data.js'></script>
+<script src='./tests.js'></script>
+<script src='./browsers-runner.js'></script>
