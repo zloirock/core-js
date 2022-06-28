@@ -5,10 +5,10 @@
 This is the list of versions of `core-js` which are
 currently being supported with security updates.
 
-| Version  | Supported          |
-| -------- | ------------------ |
-| >= 3.4   | :white_check_mark: |
-| < 3.4    | :x:                |
+| Version   | Supported          |
+| --------- | ------------------ |
+| >= 3.23.3 | :white_check_mark: |
+| < 3.23.3  | :x:                |
 
 ## Reporting a Vulnerability
 
