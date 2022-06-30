@@ -468,8 +468,12 @@ const base = {
   'unicorn/prefer-code-point': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
+  // prefer `EventTarget` over `EventEmitter`
+  'unicorn/prefer-event-target': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
+  // prefer using a logical operator over a ternary
+  'unicorn/prefer-logical-operator-over-ternary': ERROR,
   // prefer modern `Math`` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
@@ -707,6 +711,8 @@ const es3 = {
   'unicorn/prefer-code-point': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
+  // prefer using a logical operator over a ternary
+  'unicorn/prefer-logical-operator-over-ternary': OFF,
 };
 
 const forbidESAnnexBBuiltIns = {
