@@ -40,6 +40,7 @@ engine         | mandatory check | how to run tests | base data inherits from   
 `ie`           | features        | browser runner   |                              |
 `ios`          |                 | browser runner   | `safari`                     | required
 `node`         | non-ES features | node runner      | `chrome` (only ES)           | required
+`oculus`       |                 | browser runner   | `android`                    | required
 `opera`        |                 | browser runner   | `chrome` (>12)               | in case of inconsistency
 `opera_mobile` |                 | browser runner   | `opera`, `chrome`            | required
 `phantom`      |                 | browser runner   | `safari`                     |

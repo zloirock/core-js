@@ -21,6 +21,7 @@ const validTargets = new Set([
   'ie',
   'ios',
   'node',
+  'oculus',
   'opera',
   'opera_mobile',
   'phantom',

@@ -52,6 +52,7 @@ for (const scope of [data, external]) {
       map('ChromeToOperaMobile');
     }
     map('ChromeToSamsung');
+    map('AndroidToOculus');
     map('SafariToIOS');
     map('SafariToPhantom');
 
