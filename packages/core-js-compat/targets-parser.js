@@ -18,6 +18,7 @@ const validTargets = new Set([
   'edge',
   'electron',
   'firefox',
+  'hermes',
   'ie',
   'ios',
   'node',

@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
+- Added compat data for Hermes
 - Added compat data for Oculus Browser, [#1098](https://github.com/zloirock/core-js/issues/1098)
 
 ##### [3.23.5 - 2022.07.18](https://github.com/zloirock/core-js/releases/tag/v3.23.5)

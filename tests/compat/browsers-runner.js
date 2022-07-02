@@ -10,6 +10,7 @@ var engines = [
   'edge',
   'electron',
   'firefox',
+  'hermes',
   'ie',
   'ios',
   'node',
