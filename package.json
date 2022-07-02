@@ -149,8 +149,6 @@
     "downloads": "zx scripts/downloads-by-versions.mjs",
     "downloads-main-only": "zx scripts/downloads-by-versions.mjs --main-only",
     "usage": "zx scripts/usage.mjs",
-    "usage-1000": "zx scripts/usage.mjs -l=1000",
-    "usage-10000": "zx scripts/usage.mjs -l=10000",
     "update-version": "zx scripts/update-version.mjs && run-s bundle-deno build-compat-data copy-compat-table",
     "publish": "npm publish --workspaces",
     "c": "npm run check",
