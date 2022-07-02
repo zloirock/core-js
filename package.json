@@ -41,7 +41,7 @@
     "confusing-browser-globals": "^1.0.11",
     "david": "^12.0.0",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
-    "eslint": "^8.18.0",
+    "eslint": "^8.19.0",
     "eslint-plugin-array-func": "^3.1.7",
     "eslint-plugin-es-x": "^5.2.1",
     "eslint-plugin-eslint-comments": "^3.2.0",
@@ -64,7 +64,7 @@
     "npm-run-all": "^4.1.5",
     "p-timeout": "^5.1.0",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.23.0",
+    "playwright": "^1.23.1",
     "promises-aplus-tests": "^2.1.2",
     "promises-es6-tests": "~0.5.0",
     "qunit": "^2.19.1",
@@ -74,7 +74,7 @@
     "test262-harness": "^10.0.0",
     "webpack": "^5.73.0",
     "webpack-cli": "^4.10.0",
-    "zx": "^7.0.4"
+    "zx": "^7.0.6"
   },
   "license": "MIT",
   "repository": {
