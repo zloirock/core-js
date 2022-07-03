@@ -194,6 +194,8 @@ export default {
   // Need to find another data source since release notes are not available for new versions.
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   AndroidToOculus: [
+    [57, '3.0'],
+    [61, '4.0'],
     [66, '5.0'],
     [74, '6.0'],
     [77, '7.0'],
@@ -207,6 +209,11 @@ export default {
     [89, '15.0'],
     [91, '16.0'],
     [93, '17.0'],
+    [95, '18.0'],
+    [96, '19.0'],
+    // [???, '20.0'],
+    [100, '21.0'],
+    [102, '22.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   SafariToIOS: [
