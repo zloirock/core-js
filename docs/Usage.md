@@ -13,11 +13,11 @@
 ## Installation:[⬆](#index)
 ```
 // global version
-npm install --save core-js@3.23.2
+npm install --save core-js@3.23.3
 // version without global namespace pollution
-npm install --save core-js-pure@3.23.2
+npm install --save core-js-pure@3.23.3
 // bundled global version
-npm install --save core-js-bundle@3.23.2
+npm install --save core-js-bundle@3.23.3
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
@@ -78,7 +78,6 @@ import "core-js/stage/2";
 **Note: The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.**
 
 #### Caveats when using CommonJS API:[⬆](#index)
-
 * `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
 * If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
   * For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and/or something else from `core-js`, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
