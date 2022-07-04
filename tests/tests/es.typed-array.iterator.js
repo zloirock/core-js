@@ -105,7 +105,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const name in TYPED_ARRAYS) {
     const TypedArray = GLOBAL[name];
-    assert.isIterable(TypedArray.prototype, `${ name } is itrable`);
+    assert.isIterable(TypedArray.prototype, `${ name } is iterable`);
     assert.arity(TypedArray.prototype[Symbol.iterator], 0, `${ name }::@@iterator arity is 0`);
     assert.name(TypedArray.prototype[Symbol.iterator], 'values', `${ name }::@@iterator name is 'values'`);
     assert.looksNative(TypedArray.prototype[Symbol.iterator], `${ name }::@@iterator looks native`);

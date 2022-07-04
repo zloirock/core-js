@@ -29,7 +29,7 @@ var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
-// TODO: Use only propper RegExpIdentifierName
+// TODO: Use only proper RegExpIdentifierName
 var IS_NCG = /^\?<[^\s\d!#%&*+<=>@^][^\s!#%&*+<=>@^]*>/;
 var re1 = /a/g;
 var re2 = /a/g;

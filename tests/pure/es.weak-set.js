@@ -84,8 +84,8 @@ QUnit.test('WeakSet#delete', assert => {
   assert.true(weakset.has(a), 'WeakSet has values before .delete() #1');
   assert.true(weakset.has(b), 'WeakSet has values before .delete() #2');
   weakset.delete(a);
-  assert.false(weakset.has(a), 'WeakSet hasn`t value after .delete() #1');
-  assert.true(weakset.has(b), 'WeakSet hasn`t value after .delete() #2');
+  assert.false(weakset.has(a), 'WeakSet hasn\'t value after .delete() #1');
+  assert.true(weakset.has(b), 'WeakSet hasn\'t value after .delete() #2');
   assert.notThrows(() => !weakset.delete(1), 'return false on primitive');
 });
 
@@ -97,7 +97,7 @@ QUnit.test('WeakSet#has', assert => {
   weakset.add(object);
   assert.true(weakset.has(object), 'WeakSet has value after .add()');
   weakset.delete(object);
-  assert.false(weakset.has(object), 'WeakSet hasn`t value after .delete()');
+  assert.false(weakset.has(object), 'WeakSet hasn\'t value after .delete()');
   assert.notThrows(() => !weakset.has(1), 'return false on primitive');
 });
 

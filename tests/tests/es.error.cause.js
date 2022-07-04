@@ -16,7 +16,7 @@ function runErrorTestCase($Error, ERROR_NAME) {
 
     assert.same($Error.prototype.constructor, $Error, 'prototype constructor');
     // eslint-disable-next-line no-prototype-builtins -- safe
-    assert.false($Error.prototype.hasOwnProperty('cause'), 'prototype hasn`t cause');
+    assert.false($Error.prototype.hasOwnProperty('cause'), 'prototype hasn\'t cause');
 
     assert.true($Error(1) instanceof $Error, 'no cause, without new');
     assert.true(new $Error(1) instanceof $Error, 'no cause, with new');
