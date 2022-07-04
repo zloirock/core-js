@@ -261,7 +261,7 @@ QUnit.test('Set#size', assert => {
     const getter = sizeDescriptor && sizeDescriptor.get;
     const setter = sizeDescriptor && sizeDescriptor.set;
     assert.same(typeof getter, 'function', 'size is getter');
-    assert.same(typeof setter, 'undefined', 'size isn`t setter');
+    assert.same(typeof setter, 'undefined', 'size isn\'t setter');
     assert.throws(() => Set.prototype.size, TypeError);
   }
 });
