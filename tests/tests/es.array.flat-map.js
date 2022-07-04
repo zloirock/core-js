@@ -1,4 +1,4 @@
-/* eslint-disable unicorn/prefer-array-flat -- reqired for testing */
+/* eslint-disable unicorn/prefer-array-flat -- required for testing */
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('Array#flatMap', assert => {

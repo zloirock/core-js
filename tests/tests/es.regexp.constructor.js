@@ -13,12 +13,12 @@ if (DESCRIPTORS) {
     assert.same({}.toString.call(RegExp()).slice(8, -1), 'RegExp');
     assert.same({}.toString.call(new RegExp()).slice(8, -1), 'RegExp');
     let regexp = /a/g;
-    assert.notSame(regexp, new RegExp(regexp), 'new RegExp(regexp) isnt regexp');
+    assert.notSame(regexp, new RegExp(regexp), 'new RegExp(regexp) isn`t regexp');
     assert.same(regexp, RegExp(regexp), 'RegExp(regexp) is regexp');
     regexp[Symbol.match] = false;
-    assert.notSame(regexp, RegExp(regexp), 'RegExp(regexp) isnt regexp, changed Symbol.match');
+    assert.notSame(regexp, RegExp(regexp), 'RegExp(regexp) isn`t regexp, changed Symbol.match');
     const object = {};
-    assert.notSame(object, RegExp(object), 'RegExp(O) isnt O');
+    assert.notSame(object, RegExp(object), 'RegExp(O) isn`t O');
     object[Symbol.match] = true;
     object.constructor = RegExp;
     assert.same(object, RegExp(object), 'RegExp(O) is O, changed Symbol.match');
