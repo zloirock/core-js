@@ -6,13 +6,13 @@
 
 </div>
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](#ecmascript): [promises](docs/Features/ECMAScript/Promise.md), [symbols](docs/Features/ECMAScript/Symbol.md), [collections](docs/Features/ECMAScript/Collections.md), iterators, [typed arrays](docs/Features/ECMAScript/Typed%20Arrays.md), many other features, [ECMAScript proposals](docs/Features/proposals#index), [some cross-platform WHATWG / W3C features and proposals](docs/Features/Web%20standards.md) like [`URL`](docs/Features/Web%20standards.md#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 **If you're looking documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
 ## As advertising: the author is looking for a good job -)
 
-## [core-js@3, babel and a look into the future](/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
+## [core-js@3, babel and a look into the future](docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
 
 ## Raising funds
 
@@ -83,10 +83,10 @@ queueMicrotask(() => console.log('called as microtask'));
   - [swc](docs/Usage.md#swc)
   - [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
   - [Custom build](docs/Usage.md#custom-build)
-- [Compatibility data](#compatibility-data)
-- [Supported engines](#supported-engines)
-- [Features](#features)
-  - [ECMAScript](#ecmascript)
+- [Compatibility data](docs/Compatibility%20data.md)
+- [Supported engines](docs/Compatibility%20data.md#supported-engines)
+- [Features](docs/Features)
+  - [ECMAScript](docs/Features/ECMAScript)
     - [ECMAScript: Object](#ecmascript-object)
     - [ECMAScript: Function](#ecmascript-function)
     - [ECMAScript: Error](#ecmascript-error)
