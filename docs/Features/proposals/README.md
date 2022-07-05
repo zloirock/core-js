@@ -8,13 +8,13 @@
 
 # Finished[⬆](#index)
 Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
-## [`globalThis`](global-this)
-## [Relative indexing method](#relative-indexing-method)
-## [`Array.prototype.includes`](#arrayprototypeincludes)
-## [`Array.prototype.flat` / `Array.prototype.flatMap`](#arrayprototypeflat--arrayprototypeflatmap)
-## [`Array` find from last](#array-find-from-last)
-## [`Object.values` / `Object.entries`](#objectvalues--objectentries)
-## [`Object.fromEntries`](#objectfromentries)
+## [`globalThis`](global-this.md)
+## [Relative indexing method](relative-indexing-method.md)
+## [`Array.prototype.includes`](array-includes.md)
+## [`Array.prototype.flat` / `Array.prototype.flatMap`](array-flat-map.md)
+## [`Array` find from last](array-find-from-last.md)
+## [`Object.values` / `Object.entries`](object-values-entries.md)
+## [`Object.fromEntries`](object-from-entries.md)
 ## [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
 ## [Accessible `Object.prototype.hasOwnProperty`](#accessible-objectprototypehasownproperty)
 ## [`String` padding](#string-padding)
@@ -36,8 +36,8 @@ Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, t
 ```js
 core-js(-pure)/stage/3
 ```
-## [`Array` grouping](#array-grouping)
-## [Change `Array` by copy](#change-array-by-copy)
+## [`Array` grouping](array-grouping.md)
+## [Change `Array` by copy](change-array-by-copy.md)
 
 # Stage 2[⬆](#index)
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
@@ -78,13 +78,13 @@ core-js(-pure)/stage/1
 ```js
 core-js(-pure)/stage/0
 ```
-## [`Function.prototype.unThis`](#functionprototypeunthis)
-## [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
-## [`URL`](#url)
+## [`Function.prototype.unThis`](function-un-this.md)
+## [`Function.{ isCallable, isConstructor }`](function-is-callable-is-constructor.md)
+## [`URL`](url.md)
 
 # Pre-stage 0[⬆](#index)
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
 ```js
 core-js(-pure)/stage/pre
 ```
-## [`Reflect` metadata](#reflect-metadata)
+## [`Reflect` metadata](reflect-metadata.md)
