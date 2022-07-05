@@ -57,20 +57,21 @@ core-js(-pure)/stage/2
 ```js
 core-js(-pure)/stage/1
 ```
-## [`Observable`](#observable)
+## [`Observable`](observable.md)
 ## [New collections methods](#new-collections-methods)
 ## [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
 ## [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
 ## [`Array` filtering](#array-filtering)
 ## [`Array` deduplication](#array-deduplication)
 ## [Getting last item from `Array`](#getting-last-item-from-array)
-## [`Number.range`](#numberrange)
+## [`Number.range`](number-range.md)
 ## [`Number.fromString`](#numberfromstring)
-## [`Math` extensions](#math-extensions)
-## [`Math.signbit`](#mathsignbit)
-## [`String.cooked`](#stringcooked)
+## [`Math` extensions](math-extensions.md)
+## [`Math.signbit`](math-signbit.md)
+## [`String.cooked`](string-cooked.md)
 ## [`String.prototype.codePoints`](#stringprototypecodepoints)
 ## [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
+## [Seeded pseudo-random numbers](seeded-random.md)
 
 # Stage 0[⬆](#index)
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
