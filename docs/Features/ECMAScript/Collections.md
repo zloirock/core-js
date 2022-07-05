@@ -1,3 +1,5 @@
+`core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in old environments uses fast polyfill (O(1) lookup).
+
 # ES Map
 Module [`es.map`](/packages/core-js/modules/es.map.js).
 ```js
@@ -171,3 +173,5 @@ console.log(weakset.has([2])); // => false
 weakset.delete(b);
 console.log(weakset.has(b));   // => false
 ```
+## Caveats when using collections polyfill:
+* Weak-collections polyfill stores values as hidden properties of keys. It works correctly and doesn't leak in most cases. However, it is desirable to store a collection longer than its keys.
