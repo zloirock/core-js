@@ -40,14 +40,14 @@ QUnit.test('URL constructor', assert => {
   // assert.same(String(new URL('file://nnsc.nsf.net/bar/baz')), 'file://nnsc.nsf.net/bar/baz', 'file scheme'); // 'file:///bar/baz' in FF
   // assert.same(String(new URL('file://localhost/bar/baz')), 'file:///bar/baz', 'file scheme'); // 'file://localhost/bar/baz' in Chrome
 
-  assert.throws(() => new URL(), 'TypeError: Failed to construct \'URL\': 1 argument required, but only 0 present.');
-  assert.throws(() => new URL(''), 'TypeError: Failed to construct \'URL\': Invalid URL');
-  assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct \'URL\': Invalid URL');
-  assert.throws(() => new URL('abc'), 'TypeError: Failed to construct \'URL\': Invalid URL');
-  assert.throws(() => new URL('//abc'), 'TypeError: Failed to construct \'URL\': Invalid URL');
-  assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct \'URL\': Invalid base URL');
-  assert.throws(() => new URL('http:///www.domain.com/', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
-  assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct \'URL\': Invalid base URL');
+  assert.throws(() => new URL(), 'TypeError: Failed to construct URL: 1 argument required, but only 0 present.');
+  assert.throws(() => new URL(''), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('', 'about:blank'), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('abc'), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('//abc'), 'TypeError: Failed to construct URL: Invalid URL');
+  assert.throws(() => new URL('http:///www.domain.com/', 'abc'), 'TypeError: Failed to construct URL: Invalid base URL');
+  assert.throws(() => new URL('http:///www.domain.com/', null), 'TypeError: Failed to construct URL: Invalid base URL');
+  assert.throws(() => new URL('//abc', null), 'TypeError: Failed to construct URL: Invalid base URL');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:ff'), 'incorrect IPv6');
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
   // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF

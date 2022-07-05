@@ -212,7 +212,7 @@ QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
   // eslint-disable-next-line regexp/no-useless-dollar-replacements -- required for testing
   assert.same('1234'.replace(re, '$<!!!>'), '174');
   assert.same('1234'.replace(re, '$`'), '114');
-  assert.same('1234'.replace(re, '$\''), '144');
+  assert.same('1234'.replace(re, "$'"), '144');
   assert.same('1234'.replace(re, '$$'), '1$4');
   assert.same('1234'.replace(re, '$&'), '1234');
   // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
