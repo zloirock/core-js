@@ -71,7 +71,7 @@ structuredClone(new Set([1, 2, 3]));           // => new Set([1, 2, 3])
 queueMicrotask(() => console.log('called as microtask'));
 ```
 
-### Index
+## Index
 - [Usage](docs/Usage.md)
   - [Installation](docs/Usage.md#installation)
   - [`postinstall` message](docs/Usage.md#postinstall-message)
@@ -172,7 +172,7 @@ queueMicrotask(() => console.log('called as microtask'));
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 
-## [Usage](docs/Usage.md)[⬆](#index)
+## [Usage](docs/Usage.md)
 ### [Installation:](docs/Usage.md#installation)
 ### [`postinstall` message](docs/Usage.md#postinstall-message)
 ### [CommonJS API](docs/Usage.md#commonjs-api)
@@ -184,17 +184,17 @@ queueMicrotask(() => console.log('called as microtask'));
 ### [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
 ### [Custom build](docs/Usage.md#custom-build)
 
-## [Compatibility data](docs/Compatibility%20data.md)[⬆](#index)
+## [Compatibility data](docs/Compatibility%20data.md)
 
-## [Supported engines](docs/Supported%20engines.md)[⬆](#index)
+## [Supported engines](docs/Supported%20engines.md)
 
-## [Features:](docs/Features)[⬆](#index)
+## [Features:](docs/Features)
 [*CommonJS entry points:*](docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)
 ```
 
-### [ECMAScript](docs/Features/ECMAScript)[⬆](#index)
+### [ECMAScript](docs/Features/ECMAScript)
 [*CommonJS entry points:*](docs/Usage.md#commonjs-api)
 ```
 core-js(-pure)/es
@@ -220,10 +220,10 @@ core-js(-pure)/es
 #### [ECMAScript: JSON](docs/Features/ECMAScript/JSON.md)
 #### [ECMAScript: globalThis](docs/Features/ECMAScript/globalThis.md)
 
-### [ECMAScript proposals](docs/Features/ECMAScript/Proposals)[⬆](#index)
+### [ECMAScript proposals](docs/Features/ECMAScript/Proposals)
 [The TC39 process.](https://tc39.github.io/process-document/)
 
-#### [Finished proposals](docs/Features/ECMAScript/Proposals/README.md#finished)[⬆](#index)
+#### [Finished proposals](docs/Features/ECMAScript/Proposals/README.md#finished)
 ##### [`globalThis`](docs/Features/ECMAScript/Proposals.md#globalthis)
 ##### [Relative indexing method](docs/Features/ECMAScript/Proposals.md#relative-indexing-method)
 ##### [`Array.prototype.includes`](docs/Features/ECMAScript/Proposals.md#arrayprototypeincludes)
@@ -238,18 +238,18 @@ core-js(-pure)/es
 ##### [`String#replaceAll`](docs/Features/ECMAScript/Proposals.md#stringreplaceall)
 
 
-#### [Stage 3 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-3)[⬆](#index)
+#### [Stage 3 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-3)
 
-#### [Stage 2 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-2)[⬆](#index)
+#### [Stage 2 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-2)
 
-#### [Stage 1 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-1)[⬆](#index)
+#### [Stage 1 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-1)
 
-#### [Stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-0)[⬆](#index)
+#### [Stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-0)
 
-#### [Pre-stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#pre-stage-0)[⬆](#index)
+#### [Pre-stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#pre-stage-0)
 
 
-### [Web standards](docs/Features/Web%20standards.md)[⬆](#index)
+### [Web standards](docs/Features/Web%20standards.md)
 #### [`structuredClone`](docs/Features/Web%20standards.md#structuredclone)
 #### [Base64 utility methods](docs/Features/Web%20standards.md#base64-utility-methods)
 #### [`setTimeout` and `setInterval`](docs/Features/Web%20standards.md#settimeout-and-setinterval)
@@ -259,6 +259,6 @@ core-js(-pure)/es
 #### [`DOMException`](docs/Features/Web%20standards.md#domexception)
 #### [Iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
 
-### [Iteration helpers](docs/Features/Iteration%20helpers.md)[⬆](#index)
+### [Iteration helpers](docs/Features/Iteration%20helpers.md)
 
-## [Missing polyfills](docs/Missing%20polyfills.md)[⬆](#index)
+## [Missing polyfills](docs/Missing%20polyfills.md)
