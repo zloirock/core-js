@@ -1,4 +1,4 @@
-# ES globalThis
+# `globalThis`
 Module [`es.global-this`](/packages/core-js/modules/es.global-this.js).
 ```js
 let globalThis: Object;
