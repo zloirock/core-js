@@ -1,4 +1,4 @@
-# [Array deduplication](https://github.com/tc39/proposal-array-unique)
+# [`Array` deduplication](https://github.com/tc39/proposal-array-unique)
 Modules [`esnext.array.unique-by`](/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](/packages/core-js/modules/esnext.typed-array.unique-by.js)
 ```js
 class Array {
