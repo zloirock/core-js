@@ -1,4 +1,4 @@
-# ES Function
+# `Function`
 Modules [`es.function.name`](/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](/packages/core-js/modules/es.function.bind.js).
 ```js
 class Function {
