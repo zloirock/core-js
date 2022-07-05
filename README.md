@@ -72,14 +72,17 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 ### Index
-- [Usage](#usage)
-  - [Installation](#installation)
-  - [`postinstall` message](#postinstall-message)
+- [Usage](docs/Usage.md)
+  - [Installation](docs/Usage.md#installation)
+  - [`postinstall` message](docs/Usage.md#postinstall-message)
   - [CommonJS API](/docs/Usage.md#commonjs-api)
-  - [Babel](#babel)
-  - [swc](#swc)
-  - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
-  - [Custom build](#custom-build)
+  - [Babel](docs/Usage.md#babel)
+    - [`@babel/polyfill`](docs/Usage.md#babelpolyfill)
+    - [`@babel/preset-env`](docs/Usage.md#babelpreset-env)
+    - [`@babel/runtime`](docs/Usage.md#babelruntime)
+  - [swc](docs/Usage.md#swc)
+  - [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
+  - [Custom build](docs/Usage.md#custom-build)
 - [Compatibility data](#compatibility-data)
 - [Supported engines](#supported-engines)
 - [Features](#features)
@@ -170,12 +173,13 @@ queueMicrotask(() => console.log('called as microtask'));
 - [Changelog](CHANGELOG.md)
 
 ## [Usage](docs/Usage.md)[⬆](#index)
-
-
 ### [Installation:](docs/Usage.md#installation)
 ### [`postinstall` message](docs/Usage.md#postinstall-message)
 ### [CommonJS API](docs/Usage.md#commonjs-api)
 ### [Babel](docs/Usage.md#babel)
+#### [`@babel/polyfill`](docs/Usage.md#babelpolyfill)
+#### [`@babel/preset-env`](docs/Usage.md#babelpreset-env)
+#### [`@babel/runtime`](docs/Usage.md#babelruntime)
 ### [swc](docs/Usage.md#swc)
 ### [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
 ### [Custom build](docs/Usage.md#custom-build)
@@ -186,7 +190,6 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## [Features:](docs/Features)[⬆](#index)
 [*CommonJS entry points:*](docs/Usage.md#commonjs-api)
-
 ```
 core-js(-pure)
 ```
