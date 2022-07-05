@@ -1,6 +1,7 @@
+# Collections
 `core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in old environments uses fast polyfill (O(1) lookup).
 
-# ES Map
+## `Map`
 Module [`es.map`](/packages/core-js/modules/es.map.js).
 ```js
 class Map {
@@ -55,7 +56,7 @@ for (let [key, value] of map.entries()) {
   console.log(value);                               // => 1, 2, 3
 }
 ```
-# ES Set
+## `Set`
 Module [`es.set`](/packages/core-js/modules/es.set.js).
 ```js
 class Set {
@@ -100,7 +101,7 @@ for (let [key, value] of set.entries()) {
   console.log(value);                               // => 1, 2, 3
 }
 ```
-# ES WeakMap
+## `WeakMap`
 Module [`es.weak-map`](/packages/core-js/modules/es.weak-map.js).
 ```js
 class WeakMap {
@@ -146,7 +147,7 @@ let person = new Person('Vasya');
 console.log(person.getName());            // => 'Vasya'
 for (let key in person) console.log(key); // => only 'getName'
 ```
-# ES WeakSet
+## WeakSet
 Module [`es.weak-set`](/packages/core-js/modules/es.weak-set.js).
 ```js
 class WeakSet {
