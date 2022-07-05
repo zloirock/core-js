@@ -210,13 +210,10 @@ core-js(-pure)/es
 #### [ECMAScript: Promise](docs/Features/ECMAScript/Promise.md)
 #### [ECMAScript: Symbol](docs/Features/ECMAScript/Symbol.md)
 #### [ECMAScript: Collections](docs/Features/ECMAScript/Collections)
-`core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in old environments uses fast polyfill (O(1) lookup).
 ##### [Map](docs/Features/ECMAScript/Collections/Map.md)
 ##### [Set](docs/Features/ECMAScript/Collections/Set.md)
 ##### [WeakMap](docs/Features/ECMAScript/Collections/WeakMap.md)
 ##### [WeakSet](docs/Features/ECMAScript/Collections/WeakSet.md)
-##### Caveats when using collections polyfill:[⬆](#index)
-* Weak-collections polyfill stores values as hidden properties of keys. It works correctly and doesn't leak in most cases. However, it is desirable to store a collection longer than its keys.
 
 #### [ECMAScript: Typed Arrays](docs/Features/ECMAScript/Typed%20Arrays.md)
 #### [ECMAScript: Reflect](docs/Features/ECMAScript/Reflect.md)
