@@ -4,7 +4,7 @@ QUnit.test('RegExp#exec lastIndex updating', assert => {
   let re = /b/;
   assert.same(re.lastIndex, 0, '.lastIndex starts at 0 for non-global regexps');
   re.exec('abc');
-  assert.same(re.lastIndex, 0, '.lastIndex isn\'t updated for non-global regexps');
+  assert.same(re.lastIndex, 0, '.lastIndex is not updated for non-global regexps');
 
   re = /b/g;
   assert.same(re.lastIndex, 0, '.lastIndex starts at 0 for global regexps');
@@ -13,11 +13,11 @@ QUnit.test('RegExp#exec lastIndex updating', assert => {
 
   re = /b*/;
   re.exec('a');
-  assert.same(re.lastIndex, 0, '.lastIndex isn\'t updated for non-global regexps if the match is empty');
+  assert.same(re.lastIndex, 0, '.lastIndex is not updated for non-global regexps if the match is empty');
 
   re = /b*/g;
   re.exec('a');
-  assert.same(re.lastIndex, 0, '.lastIndex isn\'t updated for global regexps if the match is empty');
+  assert.same(re.lastIndex, 0, '.lastIndex is not updated for global regexps if the match is empty');
 });
 
 QUnit.test('RegExp#exec capturing groups', assert => {

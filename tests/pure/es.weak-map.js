@@ -85,8 +85,8 @@ QUnit.test('WeakMap#delete', assert => {
   assert.true(weakmap.has(a), 'WeakMap has values before .delete() #1');
   assert.true(weakmap.has(b), 'WeakMap has values before .delete() #2');
   weakmap.delete(a);
-  assert.false(weakmap.has(a), 'WeakMap hasn\'t value after .delete() #1');
-  assert.true(weakmap.has(b), 'WeakMap hasn\'t value after .delete() #2');
+  assert.false(weakmap.has(a), 'WeakMap has not value after .delete() #1');
+  assert.true(weakmap.has(b), 'WeakMap has not value after .delete() #2');
   assert.notThrows(() => !weakmap.delete(1), 'return false on primitive');
   const object = {};
   weakmap.set(object, 42);

@@ -270,7 +270,7 @@ const base = {
   // enforce padding within blocks
   'padded-blocks': [ERROR, NEVER],
   // specify whether double or single quotes should be used
-  quotes: [ERROR, 'single', 'avoid-escape'],
+  quotes: [ERROR, 'single', { avoidEscape: true }],
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: false }],
   // require or disallow use of semicolons instead of ASI
