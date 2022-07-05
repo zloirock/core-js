@@ -1,4 +1,4 @@
-# ES Date
+# `Date`
 Modules [`es.date.to-string`](/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](/packages/core-js/modules/es.date.to-primitive.js).
 
 Annex B methods. Modules [`es.date.get-year`](/packages/core-js/modules/es.date.get-year.js), [`es.date.set-year`](/packages/core-js/modules/es.date.set-year.js) and [`es.date.to-gmt-string`](/packages/core-js/modules/es.date.to-gmt-string.js).
