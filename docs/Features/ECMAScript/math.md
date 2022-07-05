@@ -1,4 +1,4 @@
-# ES Math
+# `Math`
 Modules [`es.math.acosh`](/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](/packages/core-js/modules/es.math.fround.js), [`es.math.hypot`](/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](/packages/core-js/modules/es.math.sinh.js), [`es.math.tanh`](/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](/packages/core-js/modules/es.math.trunc.js).
 ```js
 namespace Math {
