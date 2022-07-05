@@ -105,7 +105,7 @@ QUnit.test('Array.from', assert => {
   }, () => {
     throw new Error();
   }), 'Uses ToLength');
-  assert.arrayEqual(from([], undefined), [], 'Works with undefined as asecond argument');
+  assert.arrayEqual(from([], undefined), [], 'Works with undefined as second argument');
   assert.throws(() => from([], null), TypeError, 'Throws with null as second argument');
   assert.throws(() => from([], 0), TypeError, 'Throws with 0 as second argument');
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');

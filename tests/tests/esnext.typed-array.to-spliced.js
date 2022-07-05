@@ -11,7 +11,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSpliced', assert => {
     assert.name(toSpliced, 'toSpliced', `${ name }::toSpliced name is 'toSpliced'`);
     assert.looksNative(toSpliced, `${ name }::toSpliced looks native`);
 
-    const array = new TypedArray([1, 2, 3, 4, 5]);
+    let array = new TypedArray([1, 2, 3, 4, 5]);
     assert.notSame(array.toSpliced(2), array, 'immutable');
 
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(2), new TypedArray([1, 2]));
@@ -19,6 +19,15 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSpliced', assert => {
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(2, 2), new TypedArray([1, 2, 5]));
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(2, -2), new TypedArray([1, 2, 3, 4, 5]));
     assert.deepEqual(new TypedArray([1, 2, 3, 4, 5]).toSpliced(2, 2, 6, 7), new TypedArray([1, 2, 6, 7, 5]));
+
+    array = new TypedArray([1]);
+
+    assert.deepEqual(array.toSpliced(1, 0, {
+      valueOf() {
+        array[0] = 2;
+        return 3;
+      },
+    }), new TypedArray([2, 3]), 'operations order');
 
     assert.throws(() => toSpliced.call(null), TypeError, "isn't generic #1");
     assert.throws(() => toSpliced.call(undefined), TypeError, "isn't generic #2");

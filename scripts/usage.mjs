@@ -8,7 +8,7 @@ const agents = [
   'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko',
 ];
 const protocols = ['http', 'https'];
-const limit = argv.l || 100;
+const limit = argv._[0] ?? 100;
 const attempts = new Map();
 let tested = 0;
 let withCoreJS = 0;

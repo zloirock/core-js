@@ -171,6 +171,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## [Usage](docs/Usage.md)[⬆](#index)
 
+
 ### [Installation:](docs/Usage.md#installation)
 ### [`postinstall` message](docs/Usage.md#postinstall-message)
 ### [CommonJS API](docs/Usage.md#commonjs-api)
@@ -185,6 +186,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## [Features:](docs/Features)[⬆](#index)
 [*CommonJS entry points:*](docs/Usage.md#commonjs-api)
+
 ```
 core-js(-pure)
 ```

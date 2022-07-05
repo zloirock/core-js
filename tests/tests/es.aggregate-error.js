@@ -18,7 +18,7 @@ QUnit.test('AggregateError', assert => {
 
   assert.same(AggregateError.prototype.constructor, AggregateError, 'prototype constructor');
   // eslint-disable-next-line no-prototype-builtins -- safe
-  assert.false(AggregateError.prototype.hasOwnProperty('cause'), 'prototype hasn`t cause');
+  assert.false(AggregateError.prototype.hasOwnProperty('cause'), 'prototype hasn\'t cause');
 
   assert.true(AggregateError([1], 1) instanceof AggregateError, 'no cause, without new');
   assert.true(new AggregateError([1], 1) instanceof AggregateError, 'no cause, with new');
