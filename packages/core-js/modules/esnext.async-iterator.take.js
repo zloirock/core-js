@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var apply = require('../internals/function-apply');
 var call = require('../internals/function-call');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 
@@ -26,7 +27,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise, args) {
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(limit)
+      remaining: toPositiveInteger(notANaN(+limit))
     });
   }
 });
