@@ -19,6 +19,8 @@ const ignore = new Set([
   'esnext.array.group-by-to-map',
   'esnext.array.last-index',
   'esnext.array.last-item',
+  'esnext.async-iterator.as-indexed-pairs',
+  'esnext.iterator.as-indexed-pairs',
   'esnext.map.update-or-insert',
   'esnext.map.upsert',
   'esnext.math.iaddh',

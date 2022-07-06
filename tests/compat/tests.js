@@ -1431,9 +1431,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
-  'esnext.async-iterator.as-indexed-pairs': function () {
-    return AsyncIterator.prototype.asIndexedPairs;
-  },
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
   },
@@ -1454,6 +1451,9 @@ GLOBAL.tests = {
   },
   'esnext.async-iterator.from': function () {
     return AsyncIterator.from;
+  },
+  'esnext.async-iterator.indexed': function () {
+    return AsyncIterator.prototype.indexed;
   },
   'esnext.async-iterator.map': function () {
     return AsyncIterator.prototype.map;
@@ -1496,9 +1496,6 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'esnext.iterator.as-indexed-pairs': function () {
-    return Iterator.prototype.asIndexedPairs;
-  },
   'esnext.iterator.drop': function () {
     return Iterator.prototype.drop;
   },
@@ -1519,6 +1516,9 @@ GLOBAL.tests = {
   },
   'esnext.iterator.from': function () {
     return Iterator.from;
+  },
+  'esnext.iterator.indexed': function () {
+    return Iterator.prototype.indexed;
   },
   'esnext.iterator.map': function () {
     return Iterator.prototype.map;
