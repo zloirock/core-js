@@ -8,6 +8,7 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIterator = require('../internals/get-async-iterator');
 var getIterator = require('../internals/get-iterator');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -32,6 +33,6 @@ $({ target: 'AsyncIterator', stat: true, forced: true }, {
       usingIterator = getIteratorMethod(object);
       if (usingIterator) return new AsyncFromSyncIterator(getIterator(object, usingIterator));
     }
-    return new AsyncIteratorProxy({ iterator: iterator !== undefined ? iterator : object });
+    return new AsyncIteratorProxy(getIteratorDirect(iterator !== undefined ? iterator : object), {});
   }
 });

@@ -6,6 +6,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var getMethod = require('../internals/get-method');
 
 var createMethod = function (TYPE) {
@@ -13,10 +14,11 @@ var createMethod = function (TYPE) {
   var IS_FOR_EACH = TYPE == 1;
   var IS_EVERY = TYPE == 2;
   var IS_SOME = TYPE == 3;
-  return function (iterator, fn, target) {
-    anObject(iterator);
+  return function (object, fn, target) {
+    var record = getIteratorDirect(object);
     var Promise = getBuiltIn('Promise');
-    var next = aCallable(iterator.next);
+    var iterator = record.iterator;
+    var next = record.next;
     var index = 0;
     var MAPPING = fn !== undefined;
     if (MAPPING || !IS_TO_ARRAY) aCallable(fn);

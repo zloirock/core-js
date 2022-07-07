@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
@@ -44,8 +45,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
-    return new IteratorProxy({
-      iterator: anObject(this),
+    return new IteratorProxy(getIteratorDirect(this), {
       mapper: aCallable(mapper),
       innerIterator: null,
       innerNext: null
