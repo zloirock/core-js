@@ -2,7 +2,7 @@
 **This proposal has been withdrawn and will be removed from the next major `core-js` version.**
 
 Modules [`esnext.math.iaddh`](/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](/packages/core-js/modules/esnext.math.umulh.js)
-```js
+```ts
 namespace Math {
   iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
   isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
@@ -11,7 +11,7 @@ namespace Math {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/efficient-64-bit-arithmetic
 core-js(-pure)/full/math/iaddh
 core-js(-pure)/full/math/isubh

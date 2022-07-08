@@ -1,5 +1,5 @@
 # [ES Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)
-```js
+```ts
 class Array {
   at(index: int): any;
 }

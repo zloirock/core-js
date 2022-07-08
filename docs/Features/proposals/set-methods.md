@@ -1,6 +1,6 @@
 # [New `Set` methods](https://github.com/tc39/proposal-set-methods)
 Modules [`esnext.set.difference`](/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](/packages/core-js/modules/esnext.set.union.js)
-```js
+```ts
 class Set {
   difference(iterable: Iterable<mixed>): Set;
   intersection(iterable: Iterable<mixed>): Set;
@@ -12,7 +12,7 @@ class Set {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/set-methods
 core-js(-pure)/full/set/difference
 core-js(-pure)/full/set/intersection

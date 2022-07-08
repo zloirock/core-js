@@ -61,11 +61,11 @@ File names should be in the kebab-case. Name of polyfill modules should follow t
 ## Testing
 
 Before testing, you should install dependencies:
-```
+```sh
 $ npm i
 ```
 You can run all tests by
-```
+```sh
 $ npm run test
 ```
 You can run parts of the test case separately:

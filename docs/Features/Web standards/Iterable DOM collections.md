@@ -1,6 +1,6 @@
 # Iterable DOM collections
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](/packages/core-js/modules/web.dom-collections.for-each.js).
-```js
+```ts
 class [
   CSSRuleList,
   CSSStyleDeclaration,
@@ -44,7 +44,7 @@ class [DOMTokenList, NodeList] {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```

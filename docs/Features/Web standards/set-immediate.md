@@ -1,11 +1,11 @@
 # `setImmediate`
 Module [`web.immediate`](/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
-```js
+```ts
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```

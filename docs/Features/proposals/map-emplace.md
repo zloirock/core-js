@@ -1,6 +1,6 @@
 # [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)
 Modules [`esnext.map.emplace`](/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](/packages/core-js/modules/esnext.weak-map.emplace.js)
-```js
+```ts
 class Map {
   emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
 }
@@ -10,7 +10,7 @@ class WeakMap {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/map-upsert-stage-2
 core-js(-pure)/full/map/emplace
 core-js(-pure)/full/weak-map/emplace

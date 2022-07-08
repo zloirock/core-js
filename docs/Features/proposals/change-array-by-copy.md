@@ -1,6 +1,6 @@
 # [Change `Array` by copy](https://github.com/tc39/proposal-change-array-by-copy)
 Modules [`esnext.array.to-reversed`](/packages/core-js/modules/esnext.array.to-reversed.js), [`esnext.array.to-sorted`](/packages/core-js/modules/esnext.array.to-sorted.js), [`esnext.array.to-spliced`](/packages/core-js/modules/esnext.array.to-spliced.js), [`esnext.array.with`](/packages/core-js/modules/esnext.array.with.js), [`esnext.typed-array.to-reversed`](/packages/core-js/modules/esnext.typed-array.to-reversed.js), [`esnext.typed-array.to-sorted`](/packages/core-js/modules/esnext.typed-array.to-sorted.js), [`esnext.typed-array.to-spliced`](/packages/core-js/modules/esnext.typed-array.to-spliced.js), [`esnext.typed-array.with`](/packages/core-js/modules/esnext.typed-array.with.js).
-```js
+```ts
 class Array {
   toReversed(): Array<mixed>;
   toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
@@ -45,4 +45,3 @@ const correctionNeeded = [1, 1, 3];
 correctionNeeded.with(1, 2); // => [1, 2, 3]
 correctionNeeded; // => [1, 1, 3]
 ```
-

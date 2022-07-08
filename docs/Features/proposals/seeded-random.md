@@ -2,13 +2,13 @@
 **API of this proposal has been changed. This proposal will be removed from the next major `core-js` version and will be added back after adding and stabilization of the spec text.**
 
 Module [`esnext.math.seeded-prng`](/packages/core-js/modules/esnext.math.seeded-prng.js)
-```js
+```ts
 class Math {
   seededPRNG({ seed: number }): Iterator<number>;
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/seeded-random
 core-js(-pure)/full/math/seeded-prng
 ```

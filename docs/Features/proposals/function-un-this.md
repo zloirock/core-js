@@ -1,6 +1,6 @@
 # [`Function.prototype.unThis`](https://github.com/js-choi/proposal-function-un-this)
 Module [`esnext.function.un-this`](/packages/core-js/modules/esnext.function.un-this.js)
-```js
+```ts
 class Function {
   unThis(): Function;
 }

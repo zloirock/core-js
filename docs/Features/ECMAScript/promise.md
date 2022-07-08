@@ -1,6 +1,6 @@
 # `Promise`
 Modules [`es.promise`](/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](/packages/core-js/modules/es.promise.finally.js).
-```js
+```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled: Function, onRejected: Function): Promise;

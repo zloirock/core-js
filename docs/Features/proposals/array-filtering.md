@@ -1,6 +1,6 @@
 # [Array filtering](https://github.com/tc39/proposal-array-filtering)
 Modules [`esnext.array.filter-reject`](/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](/packages/core-js/modules/esnext.typed-array.filter-reject.js).
-```js
+```ts
 class Array {
   filterReject(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
 }

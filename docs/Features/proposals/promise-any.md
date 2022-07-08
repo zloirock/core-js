@@ -1,5 +1,5 @@
 # [`Promise.any`](https://github.com/tc39/proposal-promise-any)
-```js
+```ts
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
   errors: Array<any>;
@@ -11,6 +11,6 @@ class Promise {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/promise-any
 ```

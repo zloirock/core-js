@@ -2,7 +2,7 @@
 **This proposal has been withdrawn and will be removed from the next major `core-js` version.**
 
 Module [`esnext.string.at`](/packages/core-js/modules/esnext.string.at.js)
-```js
+```ts
 class String {
   at(index: number): string;
 }

@@ -1,6 +1,6 @@
 # `URL` and `URLSearchParams`
 [`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](/packages/core-js/modules/web.url.js), [`web.url.to-json`](/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](/packages/core-js/modules/web.url-search-params.js).
-```js
+```ts
 class URL {
   constructor(url: string, base?: string);
   attribute href: string;
@@ -37,7 +37,7 @@ class URLSearchParams {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
 core-js/stable|actual|full/url/to-json

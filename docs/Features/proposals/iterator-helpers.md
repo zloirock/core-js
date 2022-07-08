@@ -1,6 +1,6 @@
 # [Iterator helpers](https://github.com/tc39/proposal-iterator-helpers)
 Modules [`esnext.async-iterator.constructor`](/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.as-indexed-pairs`](/packages/core-js/modules/esnext.async-iterator.as-indexed-pairs.js), [`esnext.async-iterator.drop`](/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](/packages/core-js/modules/esnext.async-iterator.to-array.js), [`esnext.iterator.constructor`](/packages/core-js/modules/esnext.iterator.constructor.js), [`esnext.iterator.as-indexed-pairs`](/packages/core-js/modules/esnext.iterator.as-indexed-pairs.js), [`esnext.iterator.drop`](/packages/core-js/modules/esnext.iterator.drop.js), [`esnext.iterator.every`](/packages/core-js/modules/esnext.iterator.every.js), [`esnext.iterator.filter`](/packages/core-js/modules/esnext.iterator.filter.js), [`esnext.iterator.find`](/packages/core-js/modules/esnext.iterator.find.js), [`esnext.iterator.flat-map`](/packages/core-js/modules/esnext.iterator.flat-map.js), [`esnext.iterator.for-each`](/packages/core-js/modules/esnext.iterator.for-each.js), [`esnext.iterator.from`](/packages/core-js/modules/esnext.iterator.from.js), [`esnext.iterator.map`](/packages/core-js/modules/esnext.iterator.map.js), [`esnext.iterator.reduce`](/packages/core-js/modules/esnext.iterator.reduce.js), [`esnext.iterator.some`](/packages/core-js/modules/esnext.iterator.some.js), [`esnext.iterator.take`](/packages/core-js/modules/esnext.iterator.take.js), [`esnext.iterator.to-array`](/packages/core-js/modules/esnext.iterator.to-array.js) and [`esnext.iterator.to-async`](/packages/core-js/modules/esnext.iterator.to-async.js)
-```js
+```ts
 class Iterator {
   static from(iterable: Iterable<mixed>): Iterator<any>;
   asIndexedPairs(): Iterator<[index, any]>;
@@ -37,7 +37,7 @@ class AsyncIterator {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/iterator-helpers
 core-js(-pure)/full/async-iterator
 core-js(-pure)/full/async-iterator/as-indexed-pairs

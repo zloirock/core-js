@@ -1,6 +1,6 @@
 # `DOMException`:
 [The specification.](https://webidl.spec.whatwg.org/#idl-DOMException) Modules [`web.dom-exception.constructor`](/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](/packages/core-js/modules/web.dom-exception.to-string-tag.js).
-```js
+```ts
 class DOMException {
   constructor(message: string, name?: string);
   readonly attribute name: string;
@@ -11,7 +11,7 @@ class DOMException {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag

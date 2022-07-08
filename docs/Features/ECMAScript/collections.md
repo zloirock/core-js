@@ -7,7 +7,7 @@
 
 ## `Map`
 Module [`es.map`](/packages/core-js/modules/es.map.js).
-```js
+```ts
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
   clear(): void;
@@ -62,7 +62,7 @@ for (let [key, value] of map.entries()) {
 ```
 ## `Set`
 Module [`es.set`](/packages/core-js/modules/es.set.js).
-```js
+```ts
 class Set {
   constructor(iterable?: Iterable<value>): Set;
   add(key: any): this;
@@ -107,7 +107,7 @@ for (let [key, value] of set.entries()) {
 ```
 ## `WeakMap`
 Module [`es.weak-map`](/packages/core-js/modules/es.weak-map.js).
-```js
+```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
   delete(key: Object): boolean;
@@ -153,7 +153,7 @@ for (let key in person) console.log(key); // => only 'getName'
 ```
 ## `WeakSet`
 Module [`es.weak-set`](/packages/core-js/modules/es.weak-set.js).
-```js
+```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
   add(key: Object): this;

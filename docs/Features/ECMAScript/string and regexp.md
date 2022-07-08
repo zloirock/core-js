@@ -6,7 +6,7 @@ Adding support of well-known [symbols](./Symbol.md) `@@match`, `@@replace`, `@@s
 Annex B methods. Modules [`es.string.anchor`](/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](/packages/core-js/modules/es.string.big.js), [`es.string.blink`](/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](/packages/core-js/modules/es.string.italics.js), [`es.string.link`](/packages/core-js/modules/es.string.link.js), [`es.string.small`](/packages/core-js/modules/es.string.small.js), [`es.string.strike`](/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](/packages/core-js/modules/es.string.sub.js), [`es.string.sup`](/packages/core-js/modules/es.string.sup.js), [`es.string.substr`](/packages/core-js/modules/es.string.substr.js), [`es.escape`](/packages/core-js/modules/es.escape.js) and [`es.unescape`](/packages/core-js/modules/es.unescape.js).
 
 `RegExp` features: modules [`es.regexp.constructor`](/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](/packages/core-js/modules/es.regexp.test.js).
-```js
+```ts
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
   static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;

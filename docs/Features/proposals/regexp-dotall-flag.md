@@ -1,5 +1,5 @@
 # [`RegExp` `s` (`dotAll`) flag](https://github.com/tc39/proposal-regexp-dotall-flag)
-```js
+```ts
 // patched for support `RegExp` dotAll (`s`) flag:
 class RegExp {
   constructor(pattern: RegExp | string, flags?: string): RegExp;
@@ -9,6 +9,6 @@ class RegExp {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/regexp-dotall-flag
 ```

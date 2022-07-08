@@ -1,5 +1,5 @@
 # [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)
-```js
+```ts
 class Array {
   includes(searchElement: any, from?: number): boolean;
 }

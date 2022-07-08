@@ -2,13 +2,13 @@
 **This proposal is dead and will be removed from the next major `core-js` version.**
 
 Module [`esnext.promise.try`](/packages/core-js/modules/esnext.promise.try.js)
-```js
+```ts
 class Promise {
   static try(callbackfn: Function): promise;
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/promise-try
 core-js(-pure)/full/promise/try
 ```

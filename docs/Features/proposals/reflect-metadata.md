@@ -1,6 +1,6 @@
 # [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata)
 Modules [`esnext.reflect.define-metadata`](/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](/packages/core-js/modules/esnext.reflect.metadata.js).
-```js
+```ts
 namespace Reflect {
   defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
   getMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
@@ -14,7 +14,7 @@ namespace Reflect {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/reflect-metadata
 core-js(-pure)/full/reflect/define-metadata
 core-js(-pure)/full/reflect/delete-metadata

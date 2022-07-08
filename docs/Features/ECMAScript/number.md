@@ -5,7 +5,7 @@ Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
 ```
 Modules [`es.number.epsilon`](/packages/core-js/modules/es.number.epsilon.js), [`es.number.is-finite`](/packages/core-js/modules/es.number.is-finite.js), [`es.number.is-integer`](/packages/core-js/modules/es.number.is-integer.js), [`es.number.is-nan`](/packages/core-js/modules/es.number.is-nan.js), [`es.number.is-safe-integer`](/packages/core-js/modules/es.number.is-safe-integer.js), [`es.number.max-safe-integer`](/packages/core-js/modules/es.number.max-safe-integer.js), [`es.number.min-safe-integer`](/packages/core-js/modules/es.number.min-safe-integer.js), [`es.number.parse-float`](/packages/core-js/modules/es.number.parse-float.js), [`es.number.parse-int`](/packages/core-js/modules/es.number.parse-int.js), [`es.number.to-exponential`](/packages/core-js/modules/es.number.to-exponential.js), [`es.number.to-fixed`](/packages/core-js/modules/es.number.to-fixed.js), [`es.number.to-precision`](/packages/core-js/modules/es.number.to-precision.js), [`es.parse-int`](/packages/core-js/modules/es.parse-int.js), [`es.parse-float`](/packages/core-js/modules/es.parse-float.js).
-```js
+```ts
 class Number {
   constructor(value: any): number;
   toExponential(digits: number): string;

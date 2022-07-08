@@ -1,5 +1,5 @@
 # [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)
-```js
+```ts
 class Object {
   static hasOwn(object: object, key: PropertyKey): boolean;
 }

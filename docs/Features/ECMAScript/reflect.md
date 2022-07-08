@@ -1,6 +1,6 @@
 # `Reflect`
 Modules [`es.reflect.apply`](/packages/core-js/modules/es.reflect.apply.js), [`es.reflect.construct`](/packages/core-js/modules/es.reflect.construct.js), [`es.reflect.define-property`](/packages/core-js/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](/packages/core-js/modules/es.reflect.delete-property.js), [`es.reflect.get`](/packages/core-js/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](/packages/core-js/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](/packages/core-js/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](/packages/core-js/modules/es.reflect.has.js), [`es.reflect.is-extensible`](/packages/core-js/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](/packages/core-js/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](/packages/core-js/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](/packages/core-js/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](/packages/core-js/modules/es.reflect.set-prototype-of.js).
-```js
+```ts
 namespace Reflect {
   apply(target: Function, thisArgument: any, argumentsList: Array<mixed>): any;
   construct(target: Function, argumentsList: Array<mixed>, newTarget?: Function): Object;

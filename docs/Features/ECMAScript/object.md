@@ -4,7 +4,7 @@ Modules [`es.object.assign`](/packages/core-js/modules/es.object.assign.js), [`e
 Just ES5 features: [`es.object.create`](/packages/core-js/modules/es.object.create.js), [`es.object.define-property`](/packages/core-js/modules/es.object.define-property.js) and [`es.object.define-properties`](/packages/core-js/modules/es.object.es.object.define-properties.js).
 
 [ES2017 Annex B](https://tc39.es/ecma262/#sec-object.prototype.__defineGetter__) - modules [`es.object.define-setter`](/packages/core-js/modules/es.object.define-setter.js), [`es.object.define-getter`](/packages/core-js/modules/es.object.define-getter.js), [`es.object.lookup-setter`](/packages/core-js/modules/es.object.lookup-setter.js) and [`es.object.lookup-getter`](/packages/core-js/modules/es.object.lookup-getter.js)
-```js
+```ts
 class Object {
   toString(): string; // ES2015+ fix: @@toStringTag support
   __defineGetter__(property: PropertyKey, getter: Function): void;

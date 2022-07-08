@@ -1,10 +1,10 @@
 # `structuredClone`
 [Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](/packages/core-js/modules/web.structured-clone.js)
-```js
+```ts
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js(-pure)/stable|actual|full/structured-clone
 ```
 [*Examples*](https://is.gd/RhK7TW):

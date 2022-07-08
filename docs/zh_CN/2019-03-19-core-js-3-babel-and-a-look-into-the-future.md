@@ -218,7 +218,7 @@ import "regenerator-runtime/runtime";
 
 别忘记直接安装这两个依赖！
 
-```js
+```sh
 npm i --save core-js regenerator-runtime
 ```
 

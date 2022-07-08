@@ -1,6 +1,6 @@
 # `Symbol`
 Modules [`es.symbol`](/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](/packages/core-js/modules/es.symbol.description.js), [`es.symbol.has-instance`](/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](/packages/core-js/modules/es.math.to-string-tag.js).
-```js
+```ts
 class Symbol {
   constructor(description?): symbol;
   readonly attribute description: string | void;
@@ -27,7 +27,7 @@ class Object {
 }
 ```
 Also wrapped some methods for correct work with `Symbol` polyfill.
-```js
+```ts
 class Object {
   static create(prototype: Object | null, properties?: { [property: PropertyKey]: PropertyDescriptor }): Object;
   static defineProperties(object: Object, properties: { [property: PropertyKey]: PropertyDescriptor })): Object;

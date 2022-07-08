@@ -1,6 +1,6 @@
 # [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)
 Modules [`esnext.set.of`](/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](/packages/core-js/modules/esnext.weak-map.from.js)
-```js
+```ts
 class Set {
   static of(...args: Array<mixed>): Set;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => any, thisArg?: any): Set;
@@ -49,7 +49,7 @@ class WeakMap {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/collection-methods
 core-js/proposals/collection-of-from
 core-js(-pure)/full/set/add-all

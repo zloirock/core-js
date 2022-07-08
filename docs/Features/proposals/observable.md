@@ -1,6 +1,6 @@
 # [`Observable`](https://github.com/zenparsing/es-observable)
 Modules [`esnext.observable`](/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](/packages/core-js/modules/esnext.symbol.observable.js)
-```js
+```ts
 class Observable {
   constructor(subscriber: Function): Observable;
   subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
@@ -15,7 +15,7 @@ class Symbol {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/observable
 core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable

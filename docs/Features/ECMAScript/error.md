@@ -1,6 +1,6 @@
 # ES Error
 Modules [`es.aggregate-error`](/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](/packages/core-js/modules/es.error.cause.js).
-```js
+```ts
 class [
   Error,
   EvalError,

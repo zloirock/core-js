@@ -1,11 +1,11 @@
 # [`compositeKey` and `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
 Modules [`esnext.composite-key`](/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](/packages/core-js/modules/esnext.composite-symbol.js)
-```js
+```ts
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol

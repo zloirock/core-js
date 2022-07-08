@@ -1,6 +1,6 @@
 # [`Number.range`](https://github.com/tc39/proposal-Number.range)
 Module [`esnext.number.range`](/packages/core-js/modules/esnext.number.range.js) and [`esnext.bigint.range`](/packages/core-js/modules/esnext.bigint.range.js)
-```js
+```ts
 class Number {
   range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): RangeIterator;
 }
@@ -10,7 +10,7 @@ class BigInt {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/number-range
 core-js(-pure)/full/bigint/range
 core-js(-pure)/full/number/range

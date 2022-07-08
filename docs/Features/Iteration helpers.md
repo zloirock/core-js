@@ -1,11 +1,11 @@
 Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
-```js
+```ts
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
 function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js-pure/es|stable|actual|full/is-iterable
 core-js-pure/es|stable|actual|full/get-iterator
 core-js-pure/es|stable|actual|full/get-iterator-method

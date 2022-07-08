@@ -1,5 +1,5 @@
 # [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors)
-```js
+```ts
 class Object {
   static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
 }

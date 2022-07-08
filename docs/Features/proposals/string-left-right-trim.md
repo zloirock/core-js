@@ -1,5 +1,5 @@
 # [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)
-```js
+```ts
 class String {
   trimLeft(): string;
   trimRight(): string;
@@ -8,6 +8,6 @@ class String {
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/string-left-right-trim
 ```

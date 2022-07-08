@@ -1,12 +1,12 @@
 # [`String.cooked`](https://github.com/tc39/proposal-string-cooked)
 Module [`esnext.string.cooked`](/packages/core-js/modules/esnext.string.cooked.js)
-```js
+```ts
 class String {
   static cooked(template: Array<string>, ...substitutions: Array<string>): string;
 }
 ```
 [*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
-```js
+```
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```

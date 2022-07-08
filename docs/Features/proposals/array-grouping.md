@@ -1,6 +1,6 @@
 # [`Array` grouping](https://github.com/tc39/proposal-array-grouping)
 Modules [`esnext.array.group`](/packages/core-js/modules/esnext.array.group.js), [`esnext.array.group-to-map`](/packages/core-js/modules/esnext.array.group-to-map.js).
-```js
+```ts
 class Array {
   group(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
   groupToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;

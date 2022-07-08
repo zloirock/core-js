@@ -1,5 +1,5 @@
 # [`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)
-```js
+```ts
 class Object {
   static fromEntries(iterable: Iterable<[key, value]>): Object;
 }
