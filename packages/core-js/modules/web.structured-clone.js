@@ -108,7 +108,7 @@ var FORCED_REPLACEMENT = IS_PURE
 // NodeJS <17.2 structured cloning implementation from `performance.mark` is too naive
 // and can't clone, for example, `RegExp` or some boxed primitives
 // https://github.com/nodejs/node/issues/40840
-// no one of current implementations supports new (html/5749) error cloning semantic
+// no one of those implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });
