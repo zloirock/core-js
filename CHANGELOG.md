@@ -2,6 +2,7 @@
 ##### Unreleased
 - Added a workaround of the Bun ~ 0.1.1 [bug](https://github.com/Jarred-Sumner/bun/issues/399) that define some globals with incorrect property descriptors and that causes a crash of `core-js`
 - Added a fix of the FF103+ `structuredClone` bugs ([1774866](https://bugzilla.mozilla.org/show_bug.cgi?id=1774866) (fixed in FF104) and [1777321](https://bugzilla.mozilla.org/show_bug.cgi?id=1777321) (still not fixed)) that now can clone errors, but `.stack` of the clone is an empty string
+- Fixed `{ Map, WeakMap }.prototype.emplace` logic, [#1102](https://github.com/zloirock/core-js/issues/1102)
 - Fixed order of errors throwing on iterator helpers
 
 ##### [3.23.3 - 2022.06.26](https://github.com/zloirock/core-js/releases/tag/v3.23.3)
