@@ -3,6 +3,7 @@
 var $ = require('../internals/export');
 var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 
 var IteratorProxy = createIteratorProxy(function (args) {
@@ -13,8 +14,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   asIndexedPairs: function asIndexedPairs() {
-    return new IteratorProxy({
-      iterator: anObject(this),
+    return new IteratorProxy(getIteratorDirect(this), {
       index: 0
     });
   }

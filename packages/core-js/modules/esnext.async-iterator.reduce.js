@@ -5,14 +5,16 @@ var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
-    var iterator = anObject(this);
-    var next = aCallable(iterator.next);
+    var record = getIteratorDirect(this);
+    var iterator = record.iterator;
+    var next = record.next;
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
     aCallable(reducer);

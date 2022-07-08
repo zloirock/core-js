@@ -2,10 +2,10 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
-var anObject = require('../internals/an-object');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   forEach: function forEach(fn) {
-    iterate(anObject(this), fn, { IS_ITERATOR: true });
+    iterate(getIteratorDirect(this), fn, { IS_RECORD: true });
   }
 });

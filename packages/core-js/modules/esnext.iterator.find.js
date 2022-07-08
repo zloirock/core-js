@@ -3,14 +3,14 @@
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
-var anObject = require('../internals/an-object');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   find: function find(fn) {
-    anObject(this);
+    var record = getIteratorDirect(this);
     aCallable(fn);
-    return iterate(this, function (value, stop) {
+    return iterate(record, function (value, stop) {
       if (fn(value)) return stop(value);
-    }, { IS_ITERATOR: true, INTERRUPTED: true }).result;
+    }, { IS_RECORD: true, INTERRUPTED: true }).result;
   }
 });

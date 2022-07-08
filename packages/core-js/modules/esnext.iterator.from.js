@@ -7,6 +7,7 @@ var isPrototypeOf = require('../internals/object-is-prototype-of');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIterator = require('../internals/get-iterator');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 
 var IteratorProxy = createIteratorProxy(function (args) {
@@ -25,6 +26,6 @@ $({ target: 'Iterator', stat: true, forced: true }, {
       if (isPrototypeOf(IteratorPrototype, iterator)) return iterator;
     } else {
       iterator = object;
-    } return new IteratorProxy({ iterator: iterator });
+    } return new IteratorProxy(getIteratorDirect(iterator), {});
   }
 });
