@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround for Bun ~ 0.1.1 [bug](https://github.com/Jarred-Sumner/bun/issues/399) that define some globals with incorrect property descriptors
 - Fixed order of errors throwing on iterator helpers
 
 ##### [3.23.3 - 2022.06.26](https://github.com/zloirock/core-js/releases/tag/v3.23.3)
