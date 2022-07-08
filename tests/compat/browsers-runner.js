@@ -5,6 +5,7 @@ var i;
 
 var engines = [
   'android',
+  'bun',
   'chrome',
   'deno',
   'edge',
