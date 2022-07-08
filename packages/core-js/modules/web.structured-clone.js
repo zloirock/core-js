@@ -84,8 +84,10 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // FF94+, Safari 15.4+, Chrome 98+, NodeJS 17.0+, Deno 1.13+
 // FF<103 and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
-// FF103+ can clone errors, but `.stack` of clone is an empty string
+// FF103 can clone errors, but `.stack` of clone is an empty string
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1778762
+// FF104+ fixed it on usual errors, but not on DOMExceptions
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1777321
 // Chrome <102 returns `null` if cloned object contains multiple references to one error
 // https://bugs.chromium.org/p/v8/issues/detail?id=12542
 // NodeJS implementation can't clone DOMExceptions
