@@ -70,31 +70,31 @@ $ npm run test
 ```
 You can run parts of the test case separately:
 - Linting:
-  ```
+  ```sh
   $ npm run lint
   ```
 - The global version unit tests:
-  ```
+  ```sh
   $ npm run test-unit-global-standalone
   ```
 - The pure version unit tests:
-  ```
+  ```sh
   $ npm run test-unit-pure-standalone
   ```
 - [Promises/A+](https://github.com/promises-aplus/promises-tests) and [ES6 `Promise`](https://github.com/promises-es6/promises-es6) test cases:
-  ```
+  ```sh
   $ npm run test-promises-standalone
   ```
 - [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable):
-  ```
+  ```sh
   $ npm run test-observables-standalone
   ```
 - CommonJS entry points tests:
-  ```
+  ```sh
   $ npm run test-entries-standalone
   ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
-  ```
+  ```sh
   $ npm run bundle-standalone
   ```
 - For running the global version of the unit test case, use this file:
