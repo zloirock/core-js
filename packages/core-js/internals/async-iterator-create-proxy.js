@@ -10,6 +10,7 @@ var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
+var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
 
@@ -49,7 +50,13 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
         var iterator = state.iterator;
+        var innerIterator = state.innerIterator;
         state.done = true;
+        if (innerIterator) try {
+          iteratorClose(innerIterator, 'return', value);
+        } catch (error) {
+          return iteratorClose(iterator, 'throw', error);
+        }
         var $$return = getMethod(iterator, 'return');
         if ($$return === undefined) return resolve({ done: true, value: value });
         Promise.resolve(call($$return, iterator, value)).then(function (result) {

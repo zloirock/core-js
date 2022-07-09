@@ -8,6 +8,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var iteratorClose = require('../internals/iterator-close');
 
 var ITERATOR_PROXY = 'IteratorProxy';
 var setInternalState = InternalStateModule.set;
@@ -35,7 +36,13 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     'return': function (value) {
       var state = getInternalState(this);
       var iterator = state.iterator;
+      var innerIterator = state.innerIterator;
       state.done = true;
+      if (innerIterator) try {
+        iteratorClose(innerIterator, 'return', value);
+      } catch (error) {
+        return iteratorClose(iterator, 'throw', error);
+      }
       var $$return = getMethod(iterator, 'return');
       return { done: true, value: $$return ? anObject(call($$return, iterator, value)).value : value };
     }
