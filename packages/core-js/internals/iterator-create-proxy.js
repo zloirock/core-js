@@ -33,18 +33,18 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       var result = state.done ? undefined : call(nextHandler, state);
       return { done: state.done, value: result };
     },
-    'return': function (value) {
+    'return': function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
       var innerIterator = state.innerIterator;
       state.done = true;
       if (innerIterator) try {
-        iteratorClose(innerIterator, 'return', value);
+        iteratorClose(innerIterator, 'return');
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }
       var $$return = getMethod(iterator, 'return');
-      return { done: true, value: $$return ? anObject(call($$return, iterator, value)).value : value };
+      return { done: true, value: $$return ? anObject(call($$return, iterator)).value : undefined };
     }
   });
 

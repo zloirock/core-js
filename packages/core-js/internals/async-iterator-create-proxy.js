@@ -45,7 +45,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         error ? reject(value) : resolve(value);
       });
     },
-    'return': function (value) {
+    'return': function () {
       var that = this;
       return new Promise(function (resolve, reject) {
         var state = getInternalState(that);
@@ -53,15 +53,15 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         var innerIterator = state.innerIterator;
         state.done = true;
         if (innerIterator) try {
-          iteratorClose(innerIterator, 'return', value);
+          iteratorClose(innerIterator, 'return');
         } catch (error) {
           return iteratorClose(iterator, 'throw', error);
         }
         var $$return = getMethod(iterator, 'return');
-        if ($$return === undefined) return resolve({ done: true, value: value });
-        Promise.resolve(call($$return, iterator, value)).then(function (result) {
+        if ($$return === undefined) return resolve({ done: true, value: undefined });
+        Promise.resolve(call($$return, iterator)).then(function (result) {
           anObject(result);
-          resolve({ done: true, value: value });
+          resolve({ done: true, value: undefined });
         }, reject);
       });
     }
