@@ -26,19 +26,15 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     } else state = record;
     state.type = ASYNC_ITERATOR_PROXY;
     state.done = false;
-    state.ignoreArgument = !IS_ITERATOR;
     setInternalState(this, state);
   };
 
   AsyncIteratorProxy.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
-    next: function next(arg) {
+    next: function next() {
       var that = this;
-      var hasArgument = !!arguments.length;
       return new Promise(function (resolve) {
         var state = getInternalState(that);
-        var args = hasArgument ? [state.ignoreArgument ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
-        state.ignoreArgument = false;
-        resolve(state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise, args)));
+        resolve(state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise)));
       });
     },
     'return': function (value) {

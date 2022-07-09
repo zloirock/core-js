@@ -23,16 +23,13 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     } else state = record;
     state.type = ITERATOR_PROXY;
     state.done = false;
-    state.ignoreArg = !IS_ITERATOR;
     setInternalState(this, state);
   };
 
   IteratorProxy.prototype = defineBuiltIns(create(IteratorPrototype), {
-    next: function next(arg) {
+    next: function next() {
       var state = getInternalState(this);
-      var args = arguments.length ? [state.ignoreArg ? undefined : arg] : IS_ITERATOR ? [] : [undefined];
-      state.ignoreArg = false;
-      var result = state.done ? undefined : call(nextHandler, state, args);
+      var result = state.done ? undefined : call(nextHandler, state);
       return { done: state.done, value: result };
     },
     'return': function (value) {

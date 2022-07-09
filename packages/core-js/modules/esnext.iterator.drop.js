@@ -1,7 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var apply = require('../internals/function-apply');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
@@ -9,7 +8,7 @@ var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 
-var IteratorProxy = createIteratorProxy(function (args) {
+var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var next = this.next;
   var result, done;
@@ -19,7 +18,7 @@ var IteratorProxy = createIteratorProxy(function (args) {
     done = this.done = !!result.done;
     if (done) return;
   }
-  result = anObject(apply(next, iterator, args));
+  result = anObject(call(next, iterator));
   done = this.done = !!result.done;
   if (!done) return result.value;
 });
