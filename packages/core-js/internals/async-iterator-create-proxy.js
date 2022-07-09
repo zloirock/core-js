@@ -1,5 +1,6 @@
 'use strict';
 var call = require('../internals/function-call');
+var perform = require('../internals/perform');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -32,10 +33,11 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   AsyncIteratorProxy.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
     next: function next() {
       var that = this;
-      return new Promise(function (resolve) {
+      var result = perform(function () {
         var state = getInternalState(that);
-        resolve(state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise)));
+        return state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise));
       });
+      return result.error ? Promise.reject(result.value) : Promise.resolve(result.value);
     },
     'return': function (value) {
       var that = this;
