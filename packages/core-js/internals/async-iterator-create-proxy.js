@@ -37,7 +37,12 @@ module.exports = function (nextHandler, IS_ITERATOR) {
         var state = getInternalState(that);
         return state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise));
       });
-      return result.error ? Promise.reject(result.value) : Promise.resolve(result.value);
+      var error = result.error;
+      var value = result.value;
+      if (IS_ITERATOR) return error ? Promise.reject(value) : Promise.resolve(value);
+      return new Promise(function (resolve, reject) {
+        error ? reject(value) : resolve(value);
+      });
     },
     'return': function (value) {
       var that = this;
