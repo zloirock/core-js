@@ -47,16 +47,6 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       var result = anObject(apply($return, iterator, hasArg ? [arg] : []));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
-  },
-  'throw': function (arg) {
-    var iterator = getInternalState(this).iterator;
-    var hasArg = !!arguments.length;
-    return new Promise(function (resolve, reject) {
-      var $throw = getMethod(iterator, 'throw');
-      if ($throw === undefined) return reject(arg);
-      var result = anObject(apply($throw, iterator, hasArg ? [arg] : []));
-      asyncFromSyncIteratorContinuation(result, resolve, reject);
-    });
   }
 });
 

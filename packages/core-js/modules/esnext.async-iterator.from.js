@@ -1,10 +1,8 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
-var call = require('../internals/function-call');
 var toObject = require('../internals/to-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
-var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIterator = require('../internals/get-async-iterator');
 var getIterator = require('../internals/get-iterator');
 var getIteratorDirect = require('../internals/get-iterator-direct');
@@ -12,12 +10,9 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
+var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-
-var AsyncIteratorProxy = createAsyncIteratorProxy(function () {
-  return call(this.next, this.iterator);
-}, true);
 
 $({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
@@ -32,6 +27,6 @@ $({ target: 'AsyncIterator', stat: true, forced: true }, {
       usingIterator = getIteratorMethod(object);
       if (usingIterator) iterator = new AsyncFromSyncIterator(getIterator(object, usingIterator));
     }
-    return new AsyncIteratorProxy(getIteratorDirect(iterator !== undefined ? iterator : object));
+    return new WrapAsyncIterator(getIteratorDirect(iterator !== undefined ? iterator : object));
   }
 });
