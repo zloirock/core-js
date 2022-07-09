@@ -38,14 +38,6 @@ module.exports = function (nextHandler, IS_ITERATOR) {
       state.done = true;
       var $$return = getMethod(iterator, 'return');
       return { done: true, value: $$return ? anObject(call($$return, iterator, value)).value : value };
-    },
-    'throw': function (value) {
-      var state = getInternalState(this);
-      var iterator = state.iterator;
-      state.done = true;
-      var $$throw = getMethod(iterator, 'throw');
-      if ($$throw) return call($$throw, iterator, value);
-      throw value;
     }
   });
 

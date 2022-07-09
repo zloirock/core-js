@@ -52,17 +52,6 @@ module.exports = function (nextHandler, IS_ITERATOR) {
           resolve({ done: true, value: value });
         }, reject);
       });
-    },
-    'throw': function (value) {
-      var that = this;
-      return new Promise(function (resolve, reject) {
-        var state = getInternalState(that);
-        var iterator = state.iterator;
-        state.done = true;
-        var $$throw = getMethod(iterator, 'throw');
-        if ($$throw === undefined) return reject(value);
-        resolve(call($$throw, iterator, value));
-      });
     }
   });
 
