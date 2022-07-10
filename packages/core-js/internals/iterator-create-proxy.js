@@ -16,21 +16,11 @@ var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
-module.exports = function (nextHandler, IS_ITERATOR) {
-  var IteratorProxy = function Iterator(record, state) {
-    if (state) {
-      state.iterator = record.iterator;
-      state.next = record.next;
-    } else state = record;
-    state.type = ITERATOR_PROXY;
-    state.done = false;
-    setInternalState(this, state);
-  };
-
-  IteratorProxy.prototype = defineBuiltIns(create(IteratorPrototype), {
+var createIteratorProxyPrototype = function (IS_ITERATOR) {
+  var IteratorProxyPrototype = defineBuiltIns(create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
-      var result = state.done ? undefined : call(nextHandler, state);
+      var result = state.done ? undefined : state.nextHandler();
       return { done: state.done, value: result };
     },
     'return': function () {
@@ -49,8 +39,30 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   });
 
   if (!IS_ITERATOR) {
-    createNonEnumerableProperty(IteratorProxy.prototype, TO_STRING_TAG, 'Generator');
+    createNonEnumerableProperty(IteratorProxyPrototype, TO_STRING_TAG, 'Iterator Helper');
   }
+
+  return IteratorProxyPrototype;
+};
+
+var IteratorHelperPrototype = createIteratorProxyPrototype(false);
+var WrapForValidIteratorPrototype = createIteratorProxyPrototype(true);
+
+module.exports = function (nextHandler, IS_ITERATOR) {
+  var IteratorProxy = function Iterator(record, state) {
+    if (state) {
+      state.iterator = record.iterator;
+      state.next = record.next;
+    } else state = record;
+    state.type = ITERATOR_PROXY;
+    state.nextHandler = nextHandler;
+    state.done = false;
+    setInternalState(this, state);
+  };
+
+  IteratorProxy.prototype = IS_ITERATOR
+    ? WrapForValidIteratorPrototype
+    : IteratorHelperPrototype;
 
   return IteratorProxy;
 };

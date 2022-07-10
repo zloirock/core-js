@@ -20,23 +20,13 @@ var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
-module.exports = function (nextHandler, IS_ITERATOR) {
-  var AsyncIteratorProxy = function AsyncIterator(record, state) {
-    if (state) {
-      state.iterator = record.iterator;
-      state.next = record.next;
-    } else state = record;
-    state.type = ASYNC_ITERATOR_PROXY;
-    state.done = false;
-    setInternalState(this, state);
-  };
-
-  AsyncIteratorProxy.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
+var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
+  var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
     next: function next() {
       var that = this;
       var result = perform(function () {
         var state = getInternalState(that);
-        return state.done ? { done: true, value: undefined } : anObject(call(nextHandler, state, Promise));
+        return state.done ? { done: true, value: undefined } : anObject(state.nextHandler(Promise));
       });
       var error = result.error;
       var value = result.value;
@@ -68,8 +58,30 @@ module.exports = function (nextHandler, IS_ITERATOR) {
   });
 
   if (!IS_ITERATOR) {
-    createNonEnumerableProperty(AsyncIteratorProxy.prototype, TO_STRING_TAG, 'Generator');
+    createNonEnumerableProperty(AsyncIteratorProxyPrototype, TO_STRING_TAG, 'Async Iterator Helper');
   }
+
+  return AsyncIteratorProxyPrototype;
+};
+
+var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
+var WrapForValidAsyncIteratorPrototype = createAsyncIteratorProxyPrototype(true);
+
+module.exports = function (nextHandler, IS_ITERATOR) {
+  var AsyncIteratorProxy = function AsyncIterator(record, state) {
+    if (state) {
+      state.iterator = record.iterator;
+      state.next = record.next;
+    } else state = record;
+    state.type = ASYNC_ITERATOR_PROXY;
+    state.nextHandler = nextHandler;
+    state.done = false;
+    setInternalState(this, state);
+  };
+
+  AsyncIteratorProxy.prototype = IS_ITERATOR
+    ? WrapForValidAsyncIteratorPrototype
+    : AsyncIteratorHelperPrototype;
 
   return AsyncIteratorProxy;
 };
