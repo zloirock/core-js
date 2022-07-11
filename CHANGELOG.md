@@ -1,5 +1,16 @@
 ## Changelog
 ##### Unreleased
+- Recent updates of the [iterator helpers proposal](https://github.com/tc39/proposal-iterator-helpers), [#1101](https://github.com/zloirock/core-js/issues/1101):
+  - `.asIndexedPairs` renamed to `.indexed`, [proposal-iterator-helpers/183](https://github.com/tc39/proposal-iterator-helpers/pull/183):
+    - `Iterator.prototype.asIndexedPairs` -> `Iterator.prototype.indexed`
+    - `AsyncIterator.prototype.asIndexedPairs` -> `AsyncIterator.prototype.indexed`
+  - Avoid exposing spec fiction `%AsyncFromSyncIteratorPrototype%` in `AsyncIterator.from` (and in `Iterator.prototype.toAsync`), [proposal-iterator-helpers/182](https://github.com/tc39/proposal-iterator-helpers/pull/182)
+  - Avoid unnecessary promise creation in `%WrapForValidAsyncIteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197)
+  - Do not forward the parameter of `.next` / `.return` to an underlying iterator by the extended iterator protocol, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
+  - `.throw` methods removed from all wrappers / helpers prototypes, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
+  - Close inner iterators in `{ Iterator, AsyncIterator }.prototype.flatMap` on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
+  - Throw `RangeError` on `NaN` in `{ Iterator, AsyncIterator }.prototype.{ drop, take }`, [proposal-iterator-helpers/181](https://github.com/tc39/proposal-iterator-helpers/pull/181)
+  - Some other minor updates of this proposal
 - Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
 - Added compat data for Bun, [#1103](https://github.com/zloirock/core-js/issues/1103)
 - Added compat data for Hermes, [#1099](https://github.com/zloirock/core-js/issues/1099)
