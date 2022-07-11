@@ -6,7 +6,7 @@
 
 </div>
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](#ecmascript): [promises](docs/Features/ECMAScript/Promise.md), [symbols](docs/Features/ECMAScript/Symbol.md), [collections](docs/Features/ECMAScript/Collections.md), iterators, [typed arrays](docs/Features/ECMAScript/Typed%20Arrays.md), many other features, [ECMAScript proposals](docs/Features/proposals#index), [some cross-platform WHATWG / W3C features and proposals](docs/Features/Web%20standards.md) like [`URL`](docs/Features/Web%20standards.md#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](docs/Features/ECMAScript): [promises](docs/Features/ECMAScript/Promise.md), [symbols](docs/Features/ECMAScript/symbol.md), [collections](docs/Features/ECMAScript/collections.md), iterators, [typed arrays](docs/Features/ECMAScript/typed-array.md), many other features, [ECMAScript proposals](docs/Features/proposals#index), [some cross-platform WHATWG / W3C features and proposals](docs/Features/Web%20standards/README.md) like [`URL`](docs/Features/Web%20standards/url.md). You can load only required features or use it without global namespace pollution.
 
 **If you're looking documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
@@ -186,7 +186,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ### [Compatibility data](docs/Compatibility%20data.md)
 
-### [Supported engines](docs/Supported%20engines.md)
+### [Supported engines](docs/Compatibility%20data.md#supported-engines)
 
 ### [Features:](docs/Features)
 [*CommonJS entry points:*](docs/Usage.md#commonjs-api)
@@ -199,65 +199,65 @@ core-js(-pure)
 ```
 core-js(-pure)/es
 ```
-##### [ECMAScript: Object](docs/Features/ECMAScript/Object.md)
-##### [ECMAScript: Function](docs/Features/ECMAScript/Function.md)
-##### [ECMAScript: Error](docs/Features/ECMAScript/Error.md)
-##### [ECMAScript: Array](docs/Features/ECMAScript/Array.md)
-##### [ECMAScript: String and RegExp](docs/Features/ECMAScript/String%20and%20RegExp.md)
-##### [ECMAScript: Number](docs/Features/ECMAScript/Number.md)
-##### [ECMAScript: Math](docs/Features/ECMAScript/Math.md)
-##### [ECMAScript: Date](docs/Features/ECMAScript/Date.md)
-##### [ECMAScript: Promise](docs/Features/ECMAScript/Promise.md)
-##### [ECMAScript: Symbol](docs/Features/ECMAScript/Symbol.md)
-##### [ECMAScript: Collections](docs/Features/ECMAScript/Collections)
-###### [Map](docs/Features/ECMAScript/Collections/Map.md)
-###### [Set](docs/Features/ECMAScript/Collections/Set.md)
-###### [WeakMap](docs/Features/ECMAScript/Collections/WeakMap.md)
-###### [WeakSet](docs/Features/ECMAScript/Collections/WeakSet.md)
+##### [ECMAScript: Object](docs/Features/ECMAScript/object.md)
+##### [ECMAScript: Function](docs/Features/ECMAScript/function.md)
+##### [ECMAScript: Error](docs/Features/ECMAScript/error.md)
+##### [ECMAScript: Array](docs/Features/ECMAScript/array.md)
+##### [ECMAScript: String and RegExp](docs/Features/ECMAScript/string%20and%20regexp.md)
+##### [ECMAScript: Number](docs/Features/ECMAScript/number.md)
+##### [ECMAScript: Math](docs/Features/ECMAScript/math.md)
+##### [ECMAScript: Date](docs/Features/ECMAScript/date.md)
+##### [ECMAScript: Promise](docs/Features/ECMAScript/promise.md)
+##### [ECMAScript: Symbol](docs/Features/ECMAScript/symbol.md)
+##### [ECMAScript: Collections](docs/Features/ECMAScript/collections.md)
+###### [Map](docs/Features/ECMAScript/collections.mp#map)
+###### [Set](docs/Features/ECMAScript/collections.md#set)
+###### [WeakMap](docs/Features/ECMAScript/collections#weakmap)
+###### [WeakSet](docs/Features/ECMAScript/collections#weakset)
 
-##### [ECMAScript: Typed Arrays](docs/Features/ECMAScript/Typed%20Arrays.md)
-##### [ECMAScript: Reflect](docs/Features/ECMAScript/Reflect.md)
-##### [ECMAScript: JSON](docs/Features/ECMAScript/JSON.md)
-##### [ECMAScript: globalThis](docs/Features/ECMAScript/globalThis.md)
+##### [ECMAScript: Typed Arrays](docs/Features/ECMAScript/typed-array.md)
+##### [ECMAScript: Reflect](docs/Features/ECMAScript/reflect.md)
+##### [ECMAScript: JSON](docs/Features/ECMAScript/json.md)
+##### [ECMAScript: globalThis](docs/Features/ECMAScript/global-this.md)
 
-#### [ECMAScript proposals](docs/Features/ECMAScript/Proposals)
+#### [ECMAScript proposals](docs/Features/proposals/README.md)
 [The TC39 process.](https://tc39.github.io/process-document/)
 
-##### [Finished proposals](docs/Features/ECMAScript/Proposals/README.md#finished)
-###### [`globalThis`](docs/Features/ECMAScript/Proposals.md#globalthis)
-###### [Relative indexing method](docs/Features/ECMAScript/Proposals.md#relative-indexing-method)
-###### [`Array.prototype.includes`](docs/Features/ECMAScript/Proposals.md#arrayprototypeincludes)
-###### [`Array.prototype.flat` / `Array.prototype.flatMap`](docs/Features/ECMAScript/Proposals.md#arrayprototypeflat--arrayprototypeflatmap)
-###### [Array find from last](docs/Features/ECMAScript/Proposals.md#array-find-from-last)
-###### [`Object.values` / `Object.entries`](docs/Features/ECMAScript/Proposals.md#objectvalues--objectentries)
-###### [`Object.fromEntries`](docs/Features/ECMAScript/Proposals.md#objectfromentries)
-###### [`Object.getOwnPropertyDescriptors`](docs/Features/ECMAScript/Proposals.md#objectgetownpropertydescriptors)
-###### [Accessible `Object.prototype.hasOwnProperty`](docs/Features/ECMAScript/Proposals.md#accessible-objectprototypehasownproperty)
-###### [`String` padding](docs/Features/ECMAScript/Proposals.md#string-padding)
-###### [`String#matchAll`](docs/Features/ECMAScript/Proposals.md#stringmatchall)
-###### [`String#replaceAll`](docs/Features/ECMAScript/Proposals.md#stringreplaceall)
+##### [Finished proposals](docs/Features/proposals/README.md#finished)
+###### [`globalThis`](docs/Features/proposals.md#globalthis)
+###### [Relative indexing method](docs/Features/proposals.md#relative-indexing-method)
+###### [`Array.prototype.includes`](docs/Features/proposals.md#arrayprototypeincludes)
+###### [`Array.prototype.flat` / `Array.prototype.flatMap`](docs/Features/proposals.md#arrayprototypeflat--arrayprototypeflatmap)
+###### [Array find from last](docs/Features/proposals.md#array-find-from-last)
+###### [`Object.values` / `Object.entries`](docs/Features/proposals.md#objectvalues--objectentries)
+###### [`Object.fromEntries`](docs/Features/proposals.md#objectfromentries)
+###### [`Object.getOwnPropertyDescriptors`](docs/Features/proposals.md#objectgetownpropertydescriptors)
+###### [Accessible `Object.prototype.hasOwnProperty`](docs/Features/proposals.md#accessible-objectprototypehasownproperty)
+###### [`String` padding](docs/Features/proposals.md#string-padding)
+###### [`String#matchAll`](docs/Features/proposals.md#stringmatchall)
+###### [`String#replaceAll`](docs/Features/proposals.md#stringreplaceall)
 
 
-##### [Stage 3 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-3)
+##### [Stage 3 proposals](docs/Features/proposals/README.md#stage-3)
 
-##### [Stage 2 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-2)
+##### [Stage 2 proposals](docs/Features/proposals/README.md#stage-2)
 
-##### [Stage 1 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-1)
+##### [Stage 1 proposals](docs/Features/proposals/README.md#stage-1)
 
-##### [Stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#stage-0)
+##### [Stage 0 proposals](docs/Features/proposals/README.md#stage-0)
 
-##### [Pre-stage 0 proposals](docs/Features/ECMAScript/Proposals/README.md#pre-stage-0)
+##### [Pre-stage 0 proposals](docs/Features/proposals/README.md#pre-stage-0)
 
 
-#### [Web standards](docs/Features/Web%20standards.md)
-##### [`structuredClone`](docs/Features/Web%20standards.md#structuredclone)
-##### [Base64 utility methods](docs/Features/Web%20standards.md#base64-utility-methods)
-##### [`setTimeout` and `setInterval`](docs/Features/Web%20standards.md#settimeout-and-setinterval)
-##### [`setImmediate`](docs/Features/Web%20standards.md#setimmediate)
-##### [`queueMicrotask`](docs/Features/Web%20standards.md#queuemicrotask)
-##### [`URL` and `URLSearchParams`](docs/Features/Web%20standards.md#url-and-urlsearchparams)
-##### [`DOMException`](docs/Features/Web%20standards.md#domexception)
-##### [Iterable DOM collections](docs/Features/Web%20standards.md#iterable-dom-collections)
+#### [Web standards](docs/Features/Web%20standards/README.md)
+##### [`structuredClone`](docs/Features/Web%20standards/structuredclone)
+##### [Base64 utility methods](docs/Features/Web%20standards/Base64%20utility%20methods.md)
+##### [`setTimeout` and `setInterval`](docs/Features/Web%20standards/set-timeout%20and%20set-interval.md)
+##### [`setImmediate`](docs/Features/Web%20standards/set-immediate.md)
+##### [`QueueMicrotask`](docs/Features/Web%20standards/queue-microtask.md)
+##### [`URL` and `URLSearchParams`](docs/Features/Web%20standards/url.md)
+##### [`DOMException`](docs/Features/Web%20standards/dom-exception.md)
+##### [Iterable DOM collections](docs/Features/Web%20standards/Iterable%20DOM%20collections.md)
 
 #### [Iteration helpers](docs/Features/Iteration%20helpers.md)
 
