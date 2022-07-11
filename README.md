@@ -165,7 +165,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [`queueMicrotask`](docs/features/web-standards/queue-microtask.md)
     - [`URL` and `URLSearchParams`](docs/features/web-standards/url.md)
     - [`DOMException`](docs/features/web-standards/dom-exception.md)
-    - [Iterable DOM collections](docs/features/web-standards/Iterable%20DOM%20collections.md)
+    - [Iterable DOM collections](docs/features/web-standards/dom-collections.md)
   - [Iteration helpers](docs/features/iteration-helpers.md)
 - [Missing polyfills](docs/missing-polyfills.md)
 - [Contributing](CONTRIBUTING.md)
@@ -257,7 +257,7 @@ core-js(-pure)/es
 ##### [`QueueMicrotask`](docs/features/web-standards/queue-microtask.md)
 ##### [`URL` and `URLSearchParams`](docs/features/web-standards/url.md)
 ##### [`DOMException`](docs/features/web-standards/dom-exception.md)
-##### [Iterable DOM collections](docs/features/web-standards/Iterable%20DOM%20collections.md)
+##### [Iterable DOM collections](docs/features/web-standards/dom-collections.md)
 
 #### [Iteration helpers](docs/features/iteration-helpers.md)
 
