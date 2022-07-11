@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Opera Android 70 compat data mapping
 
 ##### [3.23.4 - 2022.07.10](https://github.com/zloirock/core-js/releases/tag/v3.23.4)
 - Added a workaround of the Bun ~ 0.1.1 [bug](https://github.com/Jarred-Sumner/bun/issues/399) that define some globals with incorrect property descriptors and that causes a crash of `core-js`
