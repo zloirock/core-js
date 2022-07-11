@@ -10,13 +10,17 @@ var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var iteratorClose = require('../internals/iterator-close');
 
-var ITERATOR_PROXY = 'IteratorProxy';
+var ITERATOR_HELPER = 'IteratorHelper';
+var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
+  var ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
+
+  var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
+
   var IteratorProxyPrototype = defineBuiltIns(create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
@@ -49,6 +53,8 @@ var IteratorHelperPrototype = createIteratorProxyPrototype(false);
 var WrapForValidIteratorPrototype = createIteratorProxyPrototype(true);
 
 module.exports = function (nextHandler, IS_ITERATOR) {
+  var ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
+
   var IteratorProxy = function Iterator(record, state) {
     if (state) {
       state.iterator = record.iterator;
@@ -60,9 +66,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  IteratorProxy.prototype = IS_ITERATOR
-    ? WrapForValidIteratorPrototype
-    : IteratorHelperPrototype;
+  IteratorProxy.prototype = IS_ITERATOR ? WrapForValidIteratorPrototype : IteratorHelperPrototype;
 
   return IteratorProxy;
 };

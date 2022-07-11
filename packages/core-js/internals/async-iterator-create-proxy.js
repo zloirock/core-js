@@ -14,13 +14,17 @@ var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
 
-var ASYNC_ITERATOR_PROXY = 'AsyncIteratorProxy';
+var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
+var WRAP_FOR_VALID_ASYNC_ITERATOR = 'WrapForValidAsyncIterator';
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
+  var ASYNC_ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER;
+
+  var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
+
   var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
     next: function next() {
       var that = this;
@@ -68,6 +72,8 @@ var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
 var WrapForValidAsyncIteratorPrototype = createAsyncIteratorProxyPrototype(true);
 
 module.exports = function (nextHandler, IS_ITERATOR) {
+  var ASYNC_ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER;
+
   var AsyncIteratorProxy = function AsyncIterator(record, state) {
     if (state) {
       state.iterator = record.iterator;
@@ -79,9 +85,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     setInternalState(this, state);
   };
 
-  AsyncIteratorProxy.prototype = IS_ITERATOR
-    ? WrapForValidAsyncIteratorPrototype
-    : AsyncIteratorHelperPrototype;
+  AsyncIteratorProxy.prototype = IS_ITERATOR ? WrapForValidAsyncIteratorPrototype : AsyncIteratorHelperPrototype;
 
   return AsyncIteratorProxy;
 };
