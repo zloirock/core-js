@@ -66,7 +66,7 @@ console.log(targets);
 // object:
 {
   android: '4.0',      // Android WebView version
-  bun: '0.2',          // Bun version
+  bun: '0.1.2',        // Bun version
   chrome: '38',        // Chrome version
   deno: '1.12',        // Deno version
   edge: '13',          // Edge version
