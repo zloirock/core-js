@@ -4,7 +4,7 @@ Module [`web.immediate`](/packages/core-js/modules/web.immediate.js). [`setImmed
 function setImmediate(callback: any, ...args: Array<mixed>): number;
 function clearImmediate(id: number): void;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate

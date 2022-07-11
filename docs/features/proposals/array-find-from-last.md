@@ -10,7 +10,7 @@ class %TypedArray% {
   findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/array-find-from-last
 ```

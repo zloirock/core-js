@@ -7,7 +7,7 @@ class Function {
   @@hasInstance(value: any): boolean;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name

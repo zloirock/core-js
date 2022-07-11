@@ -14,7 +14,7 @@ class Promise {
   static race(iterable: Iterable): Promise;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/promise
 core-js(-pure)/es|stable|actual|full/promise/all-settled

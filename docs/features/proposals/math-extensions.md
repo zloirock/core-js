@@ -11,7 +11,7 @@ namespace Math {
   scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/math-extensions
 core-js(-pure)/full/math/clamp

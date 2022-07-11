@@ -5,7 +5,7 @@ class Symbol {
   static metadataKey: @@metadataKey;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/decorator-metadata
 core-js(-pure)/full/symbol/metadata-key

@@ -7,7 +7,7 @@ class RegExp {
   @@replace(string: string, replaceValue: Function | string): string;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/regexp-named-groups
 ```

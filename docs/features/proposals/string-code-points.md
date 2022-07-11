@@ -5,7 +5,7 @@ class String {
   codePoints(): Iterator<{ codePoint, position }>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/string-code-points
 core-js(-pure)/full/string/code-points

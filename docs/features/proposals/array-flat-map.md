@@ -5,7 +5,7 @@ class Array {
   flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/array-flat-map
 ```

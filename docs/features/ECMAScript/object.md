@@ -34,7 +34,7 @@ class Object {
   static values(object: any): Array<mixed>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/object
 core-js(-pure)/es|stable|actual|full/object/assign

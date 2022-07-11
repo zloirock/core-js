@@ -36,7 +36,7 @@ class URLSearchParams {
   @@iterator(): Iterator<[key, value]>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url

@@ -3,7 +3,7 @@
 ```ts
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stable|actual|full/structured-clone
 ```

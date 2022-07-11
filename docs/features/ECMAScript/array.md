@@ -43,7 +43,7 @@ class Arguments {
   @@iterator(): Iterator<value>; // available only in core-js methods
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/array
 core-js(-pure)/es|stable|actual|full/array/from

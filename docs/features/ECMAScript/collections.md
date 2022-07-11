@@ -23,7 +23,7 @@ class Map {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/map
 ```
@@ -77,7 +77,7 @@ class Set {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/set
 ```
@@ -116,7 +116,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
@@ -161,7 +161,7 @@ class WeakSet {
   has(key: Object): boolean;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```

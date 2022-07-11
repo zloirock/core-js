@@ -4,7 +4,7 @@
 function atob(data: string): string;
 function btoa(data: string): string;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa

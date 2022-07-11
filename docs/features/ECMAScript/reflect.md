@@ -17,7 +17,7 @@ namespace Reflect {
   setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/reflect
 core-js(-pure)/es|stable|actual|full/reflect/apply

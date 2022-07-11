@@ -72,19 +72,19 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 ## Index
-- [Usage](docs/Usage.md)
-  - [Installation](docs/Usage.md#installation)
-  - [`postinstall` message](docs/Usage.md#postinstall-message)
-  - [CommonJS API](/docs/Usage.md#commonjs-api)
-  - [Babel](docs/Usage.md#babel)
-    - [`@babel/polyfill`](docs/Usage.md#babelpolyfill)
-    - [`@babel/preset-env`](docs/Usage.md#babelpreset-env)
-    - [`@babel/runtime`](docs/Usage.md#babelruntime)
-  - [swc](docs/Usage.md#swc)
-  - [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
-  - [Custom build](docs/Usage.md#custom-build)
-- [Compatibility data](docs/Compatibility%20data.md)
-- [Supported engines](docs/Compatibility%20data.md#supported-engines)
+- [Usage](docs/usage.md)
+  - [Installation](docs/usage.md#installation)
+  - [`postinstall` message](docs/usage.md#postinstall-message)
+  - [CommonJS API](/docs/usage.md#commonjs-api)
+  - [Babel](docs/usage.md#babel)
+    - [`@babel/polyfill`](docs/usage.md#babelpolyfill)
+    - [`@babel/preset-env`](docs/usage.md#babelpreset-env)
+    - [`@babel/runtime`](docs/usage.md#babelruntime)
+  - [swc](docs/usage.md#swc)
+  - [Configurable level of aggressiveness](docs/usage.md#configurable-level-of-aggressiveness)
+  - [Custom build](docs/usage.md#custom-build)
+- [Compatibility data](docs/compatibility-data.md)
+- [Supported engines](docs/compatibility-data.md#supported-engines)
 - [Features](docs/features)
   - [ECMAScript](docs/features/ECMAScript)
     - [ECMAScript: Object](docs/features/ECMAScript/object.md)
@@ -167,35 +167,35 @@ queueMicrotask(() => console.log('called as microtask'));
     - [`DOMException`](docs/features/Web%20standards/dom-exception.md)
     - [Iterable DOM collections](docs/features/Web%20standards/Iterable%20DOM%20collections.md)
   - [Iteration helpers](docs/features/Iteration%20helpers.md)
-- [Missing polyfills](docs/Missing%20polyfills.md)
+- [Missing polyfills](docs/missing-polyfills.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
 
-### [Usage](docs/Usage.md)
-#### [Installation:](docs/Usage.md#installation)
-#### [`postinstall` message](docs/Usage.md#postinstall-message)
-#### [CommonJS API](docs/Usage.md#commonjs-api)
-#### [Babel](docs/Usage.md#babel)
-##### [`@babel/polyfill`](docs/Usage.md#babelpolyfill)
-##### [`@babel/preset-env`](docs/Usage.md#babelpreset-env)
-##### [`@babel/runtime`](docs/Usage.md#babelruntime)
-#### [swc](docs/Usage.md#swc)
-#### [Configurable level of aggressiveness](docs/Usage.md#configurable-level-of-aggressiveness)
-#### [Custom build](docs/Usage.md#custom-build)
+### [Usage](docs/usage.md)
+#### [Installation:](docs/usage.md#installation)
+#### [`postinstall` message](docs/usage.md#postinstall-message)
+#### [CommonJS API](docs/usage.md#commonjs-api)
+#### [Babel](docs/usage.md#babel)
+##### [`@babel/polyfill`](docs/usage.md#babelpolyfill)
+##### [`@babel/preset-env`](docs/usage.md#babelpreset-env)
+##### [`@babel/runtime`](docs/usage.md#babelruntime)
+#### [swc](docs/usage.md#swc)
+#### [Configurable level of aggressiveness](docs/usage.md#configurable-level-of-aggressiveness)
+#### [Custom build](docs/usage.md#custom-build)
 
-### [Compatibility data](docs/Compatibility%20data.md)
+### [Compatibility data](docs/compatibility-data.md)
 
-### [Supported engines](docs/Compatibility%20data.md#supported-engines)
+### [Supported engines](docs/compatibility-data.md#supported-engines)
 
 ### [Features:](docs/features)
-[*CommonJS entry points:*](docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](docs/usage.md#commonjs-api)
 ```
 core-js(-pure)
 ```
 
 #### [ECMAScript](docs/features/ECMAScript)
-[*CommonJS entry points:*](docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es
 ```
@@ -261,4 +261,4 @@ core-js(-pure)/es
 
 #### [Iteration helpers](docs/features/Iteration%20helpers.md)
 
-### [Missing polyfills](docs/Missing%20polyfills.md)
+### [Missing polyfills](docs/missing-polyfills.md)

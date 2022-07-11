@@ -5,7 +5,7 @@ class Object {
   static values(object: any): Array<mixed>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/object-values-entries
 ```

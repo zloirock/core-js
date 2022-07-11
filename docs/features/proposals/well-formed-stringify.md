@@ -4,7 +4,7 @@ namespace JSON {
   stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/well-formed-stringify
 ```

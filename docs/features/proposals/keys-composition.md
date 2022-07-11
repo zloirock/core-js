@@ -4,7 +4,7 @@ Modules [`esnext.composite-key`](/packages/core-js/modules/esnext.composite-key.
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key

@@ -14,7 +14,7 @@ class Date {
   static now(): number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/es|stable|actual|full/date
 core-js/es|stable|actual|full/date/to-string

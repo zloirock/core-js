@@ -2,7 +2,7 @@
 ```ts
 let globalThis: Object;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/global-this
 ```

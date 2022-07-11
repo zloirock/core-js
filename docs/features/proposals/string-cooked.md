@@ -5,7 +5,7 @@ class String {
   static cooked(template: Array<string>, ...substitutions: Array<string>): string;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked

@@ -9,7 +9,7 @@ class %TypedArray% {
   filterReject(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/array-filtering-stage-1
 core-js(-pure)/full/array(/virtual)/filter-reject

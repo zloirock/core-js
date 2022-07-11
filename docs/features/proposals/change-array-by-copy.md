@@ -15,7 +15,7 @@ class %TypedArray% {
   with(index: includes, value: any): %TypedArray%;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/change-array-by-copy
 core-js(-pure)/actual|full/array(/virtual)/to-reversed

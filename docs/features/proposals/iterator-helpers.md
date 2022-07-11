@@ -36,7 +36,7 @@ class AsyncIterator {
   @@toStringTag: 'AsyncIterator'
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/iterator-helpers
 core-js(-pure)/full/async-iterator

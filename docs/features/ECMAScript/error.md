@@ -26,7 +26,7 @@ class Error {
   toString(): string; // different fixes
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js/es|stable|actual|full/error

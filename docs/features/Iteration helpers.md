@@ -4,7 +4,7 @@ function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
 function getIteratorMethod(value: any): Function | void;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js-pure/es|stable|actual|full/is-iterable
 core-js-pure/es|stable|actual|full/get-iterator

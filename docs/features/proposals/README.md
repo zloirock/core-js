@@ -32,7 +32,7 @@ Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, t
 
 # Stage 3[⬆](#index)
 `core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/3
 ```
@@ -40,7 +40,7 @@ core-js(-pure)/stage/3
 ## [Change `Array` by copy](change-array-by-copy.md)
 
 # Stage 2[⬆](#index)
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/2
 ```
@@ -53,7 +53,7 @@ core-js(-pure)/stage/2
 ## [`Symbol.metadataKey` for decorators metadata proposal](decorator-metadata.md)
 
 # Stage 1[⬆](#index)
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/1
 ```
@@ -74,7 +74,7 @@ core-js(-pure)/stage/1
 ## [Seeded pseudo-random numbers](seeded-random.md)
 
 # Stage 0[⬆](#index)
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/0
 ```
@@ -83,7 +83,7 @@ core-js(-pure)/stage/0
 ## [`URL`](url.md)
 
 # Pre-stage 0[⬆](#index)
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/pre
 ```

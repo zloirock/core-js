@@ -7,7 +7,7 @@ class Function {
   static isConstructor(value: any): boolean;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable

@@ -89,7 +89,7 @@ class %TypedArray% {
   static BYTES_PER_ELEMENT: number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/es|stable|actual|full/array-buffer
 core-js/es|stable|actual|full/array-buffer/constructor

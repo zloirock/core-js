@@ -7,7 +7,7 @@ class Math {
   seededPRNG({ seed: number }): Iterator<number>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/seeded-random
 core-js(-pure)/full/math/seeded-prng

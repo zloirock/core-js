@@ -13,7 +13,7 @@ namespace Reflect {
   metadata(metadataKey: any, metadataValue: any): decorator(target: Object, targetKey?: PropertyKey) => void;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/reflect-metadata
 core-js(-pure)/full/reflect/define-metadata

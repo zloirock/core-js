@@ -9,7 +9,7 @@ class Object {
   iterateEntries(object: any): Iterator<[string, any]>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/object-iteration
 core-js(-pure)/full/object/iterate-keys

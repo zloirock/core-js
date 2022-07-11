@@ -11,7 +11,7 @@ class Set {
   union(iterable: Iterable<mixed>): Set;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/set-methods
 core-js(-pure)/full/set/difference

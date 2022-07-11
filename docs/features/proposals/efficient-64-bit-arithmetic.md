@@ -10,7 +10,7 @@ namespace Math {
   umulh(a: number, b: number): number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/efficient-64-bit-arithmetic
 core-js(-pure)/full/math/iaddh

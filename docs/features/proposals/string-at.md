@@ -7,7 +7,7 @@ class String {
   at(index: number): string;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/string-at
 core-js(-pure)/full/string/at

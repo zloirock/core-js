@@ -5,7 +5,7 @@ class Symbol {
   static matcher: @@matcher;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/pattern-matching
 core-js(-pure)/full/symbol/matcher

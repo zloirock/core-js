@@ -4,7 +4,7 @@ class Promise {
   static allSettled(iterable: Iterable): Promise;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/promise-all-settled
 ```

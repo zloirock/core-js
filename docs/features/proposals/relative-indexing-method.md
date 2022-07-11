@@ -12,7 +12,7 @@ class %TypedArray% {
   at(index: int): number;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/relative-indexing-method
 ```

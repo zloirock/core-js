@@ -6,7 +6,7 @@ class Array {
   groupToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js/proposals/array-grouping-stage-3-2
 core-js(-pure)/actual|full/array(/virtual)/group

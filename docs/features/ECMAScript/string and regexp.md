@@ -65,7 +65,7 @@ class RegExp {
 function escape(string: string): string;
 function unescape(string: string): string;
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/string
 core-js(-pure)/es|stable|actual|full/string/from-code-point

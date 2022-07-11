@@ -37,7 +37,7 @@ class Object {
   propertyIsEnumerable(key: PropertyKey): boolean;
 }
 ```
-[*CommonJS entry points:*](/docs/Usage.md#commonjs-api)
+[*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/symbol
 core-js(-pure)/es|stable|actual|full/symbol/async-iterator
