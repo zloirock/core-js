@@ -26,6 +26,6 @@ $({ target: 'Iterator', stat: true, forced: true }, {
       if (isPrototypeOf(IteratorPrototype, iterator)) return iterator;
     } else {
       iterator = object;
-    } return new IteratorProxy(getIteratorDirect(iterator), {});
+    } return new IteratorProxy(getIteratorDirect(iterator));
   }
 });

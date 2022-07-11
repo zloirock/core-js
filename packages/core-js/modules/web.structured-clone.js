@@ -69,7 +69,7 @@ var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
   return !fails(function () {
     var error = new $Error();
     var test = structuredCloneImplementation({ a: error, b: error });
-    return !(test && test.a === test.b && test.a instanceof $Error);
+    return !(test && test.a === test.b && test.a instanceof $Error && test.stack === error.stack);
   });
 };
 
@@ -82,13 +82,17 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 };
 
 // FF94+, Safari 15.4+, Chrome 98+, NodeJS 17.0+, Deno 1.13+
-// FF and Safari implementations can't clone errors
+// FF<103 and Safari implementations can't clone errors
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1556604
+// FF103 can clone errors, but `.stack` of clone is an empty string
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1778762
+// FF104+ fixed it on usual errors, but not on DOMExceptions
+// https://bugzilla.mozilla.org/show_bug.cgi?id=1777321
 // Chrome <102 returns `null` if cloned object contains multiple references to one error
 // https://bugs.chromium.org/p/v8/issues/detail?id=12542
 // NodeJS implementation can't clone DOMExceptions
 // https://github.com/nodejs/node/issues/41038
-// no one of current implementations supports new (html/5749) error cloning semantic
+// only FF103+ supports new (html/5749) error cloning semantic
 var nativeStructuredClone = global.structuredClone;
 
 var FORCED_REPLACEMENT = IS_PURE
@@ -106,7 +110,7 @@ var FORCED_REPLACEMENT = IS_PURE
 // NodeJS <17.2 structured cloning implementation from `performance.mark` is too naive
 // and can't clone, for example, `RegExp` or some boxed primitives
 // https://github.com/nodejs/node/issues/40840
-// no one of current implementations supports new (html/5749) error cloning semantic
+// no one of those implementations supports new (html/5749) error cloning semantic
 var structuredCloneFromMark = !nativeStructuredClone && checkBasicSemantic(function (value) {
   return new PerformanceMark(PERFORMANCE_MARK, { detail: value }).detail;
 });

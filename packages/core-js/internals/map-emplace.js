@@ -10,9 +10,15 @@ module.exports = function emplace(key, handler) {
   var get = aCallable(map.get);
   var has = aCallable(map.has);
   var set = aCallable(map.set);
-  var value = (call(has, map, key) && 'update' in handler)
-    ? handler.update(call(get, map, key), key, map)
-    : handler.insert(key, map);
-  call(set, map, key, value);
-  return value;
+  var value, inserted;
+  if (call(has, map, key)) {
+    value = call(get, map, key);
+    if ('update' in handler) {
+      value = handler.update(value, key, map);
+      call(set, map, key, value);
+    } return value;
+  }
+  inserted = handler.insert(key, map);
+  call(set, map, key, inserted);
+  return inserted;
 };

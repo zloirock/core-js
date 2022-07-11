@@ -17,9 +17,11 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
   var IteratorProxy = function Iterator(record, state) {
+    if (state) {
+      state.iterator = record.iterator;
+      state.next = record.next;
+    } else state = record;
     state.type = ITERATOR_PROXY;
-    state.iterator = record.iterator;
-    state.next = record.next;
     state.done = false;
     state.ignoreArg = !IS_ITERATOR;
     setInternalState(this, state);

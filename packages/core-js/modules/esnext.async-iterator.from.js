@@ -33,6 +33,6 @@ $({ target: 'AsyncIterator', stat: true, forced: true }, {
       usingIterator = getIteratorMethod(object);
       if (usingIterator) return new AsyncFromSyncIterator(getIterator(object, usingIterator));
     }
-    return new AsyncIteratorProxy(getIteratorDirect(iterator !== undefined ? iterator : object), {});
+    return new AsyncIteratorProxy(getIteratorDirect(iterator !== undefined ? iterator : object));
   }
 });
