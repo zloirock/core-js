@@ -72,6 +72,10 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 ### Index
+<!-- AUTO-GENERATED-CONTENT:START (TOC:collapse=true&collapseText="Click to expand") -->
+<details>
+<summary>"Click to expand"</summary>
+  
 - [Usage](#usage)
   - [Installation](#installation)
   - [`postinstall` message](#postinstall-message)
@@ -171,6 +175,9 @@ queueMicrotask(() => console.log('called as microtask'));
 - [Contributing](./CONTRIBUTING.md)
 - [Security policy](https://github.com/zloirock/core-js/blob/master/SECURITY.md)
 - [Changelog](./CHANGELOG.md)
+
+</details>
+<!-- AUTO-GENERATED-CONTENT:END -->
 
 ## Usage[⬆](#index)
 ### Installation:[⬆](#index)
