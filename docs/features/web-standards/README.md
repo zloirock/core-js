@@ -1,6 +1,6 @@
 # Index
 - [`structuredClone`](structured-clone.md)
-- [Base64 utility methods](Base64%20utility%20methods.md)
+- [Base64 utility methods](base64-utility-methods.md)
 - [`setTimeout` and `setInterval`](set-timeout%20and%20set-interval.md)
 - [`setImmediate`](set-immediate.md)
 - [`queueMicrotask`](queue-microtask.md)

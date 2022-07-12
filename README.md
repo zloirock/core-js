@@ -159,7 +159,7 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Reflect` metadata](docs/features/proposals/reflect-metadata.md)
   - [Web standards](docs/features/web-standards)
     - [`structuredClone`](docs/features/web-standards/structured-clone.md)
-    - [Base64 utility methods](docs/features/web-standards/Base64%20utility%20methods.md)
+    - [Base64 utility methods](docs/features/web-standards/base64-utility-methods.md)
     - [`setTimeout` and `setInterval`](docs/features/web-standards/set-timeout%20and%20set-interval.md)
     - [`setImmediate`](docs/features/web-standards/set-immediate.md)
     - [`queueMicrotask`](docs/features/web-standards/queue-microtask.md)
@@ -251,7 +251,7 @@ core-js(-pure)/es
 
 #### [Web standards](docs/features/web-standards/README.md)
 ##### [`structuredClone`](docs/features/web-standards/structuredclone)
-##### [Base64 utility methods](docs/features/web-standards/Base64%20utility%20methods.md)
+##### [Base64 utility methods](docs/features/web-standards/base64-utility-methods.md)
 ##### [`setTimeout` and `setInterval`](docs/features/web-standards/set-timeout%20and%20set-interval.md)
 ##### [`setImmediate`](docs/features/web-standards/set-immediate.md)
 ##### [`QueueMicrotask`](docs/features/web-standards/queue-microtask.md)
