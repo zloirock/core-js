@@ -6,6 +6,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getBuiltIn = require('../internals/get-built-in');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var closeAsyncIteration = require('../internals/async-iterator-close');
 
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
@@ -20,6 +21,10 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
     aCallable(reducer);
 
     return new Promise(function (resolve, reject) {
+      var ifAbruptCloseAsyncIterator = function (error) {
+        closeAsyncIteration(iterator, reject, error, reject);
+      };
+
       var loop = function () {
         try {
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
@@ -32,14 +37,14 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
                   noInitial = false;
                   accumulator = value;
                   loop();
-                } else {
+                } else try {
                   Promise.resolve(reducer(accumulator, value)).then(function (result) {
                     accumulator = result;
                     loop();
-                  }, reject);
-                }
+                  }, ifAbruptCloseAsyncIterator);
+                } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
               }
-            } catch (err) { reject(err); }
+            } catch (error2) { reject(error2); }
           }, reject);
         } catch (error) { reject(error); }
       };
