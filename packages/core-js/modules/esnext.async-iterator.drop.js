@@ -14,9 +14,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   return new Promise(function (resolve, reject) {
     var loop = function () {
       try {
-        Promise.resolve(
-          anObject(call(state.next, state.iterator))
-        ).then(function (step) {
+        Promise.resolve(anObject(call(state.next, state.iterator))).then(function (step) {
           try {
             if (anObject(step).done) {
               state.done = true;

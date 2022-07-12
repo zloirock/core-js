@@ -17,17 +17,17 @@ var IteratorProxy = createIteratorProxy(function () {
   var result, mapped, iteratorMethod, innerIterator;
 
   while (true) {
+    if (innerIterator = this.innerIterator) try {
+      result = anObject(call(this.innerNext, innerIterator));
+      if (!result.done) return result.value;
+      this.innerIterator = this.innerNext = null;
+    } catch (error) { iteratorClose(iterator, 'throw', error); }
+
+    result = anObject(call(this.next, iterator));
+
+    if (this.done = !!result.done) return;
+
     try {
-      if (innerIterator = this.innerIterator) {
-        result = anObject(call(this.innerNext, innerIterator));
-        if (!result.done) return result.value;
-        this.innerIterator = this.innerNext = null;
-      }
-
-      result = anObject(call(this.next, iterator));
-
-      if (this.done = !!result.done) return;
-
       mapped = mapper(result.value);
       iteratorMethod = getIteratorMethod(mapped);
 
@@ -37,9 +37,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
       this.innerIterator = innerIterator = anObject(call(iteratorMethod, mapped));
       this.innerNext = aCallable(innerIterator.next);
-    } catch (error) {
-      iteratorClose(iterator, 'throw', error);
-    }
+    } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
 });
 
