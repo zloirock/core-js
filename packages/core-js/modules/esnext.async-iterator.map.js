@@ -23,11 +23,14 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
         if (anObject(step).done) {
           state.done = true;
           resolve({ done: true, value: undefined });
-        } else try {
-          Promise.resolve(mapper(step.value)).then(function (value) {
-            resolve({ done: false, value: value });
-          }, ifAbruptCloseAsyncIterator);
-        } catch (error2) { ifAbruptCloseAsyncIterator(error2); }
+        } else {
+          var value = step.value;
+          try {
+            Promise.resolve(mapper(value)).then(function (mapped) {
+              resolve({ done: false, value: mapped });
+            }, ifAbruptCloseAsyncIterator);
+          } catch (error2) { ifAbruptCloseAsyncIterator(error2); }
+        }
       } catch (error) { reject(error); }
     }, reject);
   });

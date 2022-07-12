@@ -32,7 +32,7 @@ var createMethod = function (TYPE) {
         try {
           if (IS_TO_ARRAY && MAPPING) try {
             doesNotExceedSafeInteger(index);
-          } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
+          } catch (error5) { ifAbruptCloseAsyncIterator(error5); }
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
@@ -40,26 +40,30 @@ var createMethod = function (TYPE) {
                   target.length = index;
                   resolve(target);
                 } else resolve(IS_SOME ? false : IS_EVERY || undefined);
-              } else try {
+              } else {
                 var value = step.value;
-                if (MAPPING) {
-                  Promise.resolve(IS_TO_ARRAY ? fn(value, index) : fn(value)).then(function (result) {
-                    if (IS_FOR_EACH) {
-                      loop();
-                    } else if (IS_EVERY) {
-                      result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
-                    } else if (IS_TO_ARRAY) {
-                      target[index++] = result;
-                      loop();
-                    } else {
-                      result ? closeAsyncIteration(iterator, resolve, IS_SOME || value, reject) : loop();
-                    }
-                  }, ifAbruptCloseAsyncIterator);
-                } else {
-                  target[index++] = value;
-                  loop();
-                }
-              } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
+                try {
+                  if (MAPPING) {
+                    Promise.resolve(IS_TO_ARRAY ? fn(value, index) : fn(value)).then(function (result) {
+                      if (IS_FOR_EACH) {
+                        loop();
+                      } else if (IS_EVERY) {
+                        result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
+                      } else if (IS_TO_ARRAY) {
+                        try {
+                          target[index++] = result;
+                          loop();
+                        } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
+                      } else {
+                        result ? closeAsyncIteration(iterator, resolve, IS_SOME || value, reject) : loop();
+                      }
+                    }, ifAbruptCloseAsyncIterator);
+                  } else {
+                    target[index++] = value;
+                    loop();
+                  }
+                } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
+              }
             } catch (error2) { reject(error2); }
           }, reject);
         } catch (error) { reject(error); }

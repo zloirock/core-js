@@ -7,30 +7,39 @@ var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var getAsyncIterator = require('../internals/get-async-iterator');
+var closeAsyncIteration = require('../internals/async-iterator-close');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
+  var iterator = state.iterator;
   var mapper = state.mapper;
   var innerIterator;
 
   return new Promise(function (resolve, reject) {
+    var ifAbruptCloseAsyncIterator = function (error) {
+      closeAsyncIteration(iterator, reject, error, reject);
+    };
+
     var outerLoop = function () {
       try {
-        Promise.resolve(anObject(call(state.next, state.iterator))).then(function (step) {
+        Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
           try {
             if (anObject(step).done) {
               state.done = true;
               resolve({ done: true, value: undefined });
             } else {
-              Promise.resolve(mapper(step.value)).then(function (mapped) {
-                try {
-                  state.innerIterator = innerIterator = getAsyncIterator(mapped);
-                  state.innerNext = aCallable(innerIterator.next);
-                  return innerLoop();
-                } catch (error2) { reject(error2); }
-              }, reject);
+              var value = step.value;
+              try {
+                Promise.resolve(mapper(value)).then(function (mapped) {
+                  try {
+                    state.innerIterator = innerIterator = getAsyncIterator(mapped);
+                    state.innerNext = aCallable(innerIterator.next);
+                    innerLoop();
+                  } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
+                }, ifAbruptCloseAsyncIterator);
+              } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
             }
-          } catch (error1) { reject(error1); }
+          } catch (error2) { reject(error2); }
         }, reject);
       } catch (error) { reject(error); }
     };
@@ -44,9 +53,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
                 state.innerIterator = state.innerNext = null;
                 outerLoop();
               } else resolve({ done: false, value: result.value });
-            } catch (error1) { reject(error1); }
-          }, reject);
-        } catch (error) { reject(error); }
+            } catch (error1) { ifAbruptCloseAsyncIterator(error1); }
+          }, ifAbruptCloseAsyncIterator);
+        } catch (error) { ifAbruptCloseAsyncIterator(error); }
       } else outerLoop();
     };
 
