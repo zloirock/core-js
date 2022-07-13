@@ -253,10 +253,10 @@ core-js(-pure)/es
 ####### [Caveats](docs/features/proposals/iterator-helpers.md#caveats)
 ###### [New `Set` methods](docs/features/proposals/set-methods.md)
 ###### [`Map.prototype.emplace`](docs/features/proposals/map-upsert.md)
-###### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)
-###### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)
-###### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)
-###### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)
+###### [`Array.fromAsync`](docs/features/proposals/array-from-async.md)
+###### [`Array.isTemplateObject`](docs/features/proposals/array-is-template-object.md)
+###### [`Symbol.{ asyncDispose, dispose }` for `using` statement](docs/features/proposals/using-statement.md)
+###### [`Symbol.metadataKey` for decorators metadata proposal](docs/features/proposals/decorator-metadata.md)
 
 ##### [Stage 1 proposals](docs/features/proposals/README.md#stage-1)
 
