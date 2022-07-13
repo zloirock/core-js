@@ -176,6 +176,8 @@ queueMicrotask(() => console.log('called as microtask'));
 #### [Installation:](docs/usage.md#installation)
 #### [`postinstall` message](docs/usage.md#postinstall-message)
 #### [CommonJS API](docs/usage.md#commonjs-api)
+##### [Caveats when using CommonJS API](docs/usage.md#caveats-when-using-commonjs-api)
+##### [CommonJS and prototype methods without global namespace pollution](docs/usage.md#commonjs-and-prototype-methods-without-global-namespace-pollution)
 #### [Babel](docs/usage.md#babel)
 ##### [`@babel/polyfill`](docs/usage.md#babelpolyfill)
 ##### [`@babel/preset-env`](docs/usage.md#babelpreset-env)
@@ -208,14 +210,18 @@ core-js(-pure)/es
 ##### [ECMAScript: Math](docs/features/ecmascript/math.md)
 ##### [ECMAScript: Date](docs/features/ecmascript/date.md)
 ##### [ECMAScript: Promise](docs/features/ecmascript/promise.md)
+###### [Unhandled rejection tracking](docs/features/ecmascript/promise.md#unhandled-rejection-tracking)
 ##### [ECMAScript: Symbol](docs/features/ecmascript/symbol.md)
+###### [Caveats when using `Symbol` polyfill](docs/features/ecmascript/symbol.md#caveats-when-using-symbol-polyfill)
 ##### [ECMAScript: Collections](docs/features/ecmascript/collections.md)
 ###### [Map](docs/features/ecmascript/collections.mp#map)
 ###### [Set](docs/features/ecmascript/collections.md#set)
 ###### [WeakMap](docs/features/ecmascript/collections#weakmap)
 ###### [WeakSet](docs/features/ecmascript/collections#weakset)
+###### [Caveats when using collections polyfill](docs/features/ecmascript/collections.md#caveats-when-using-collections-polyfill)
 
 ##### [ECMAScript: Typed Arrays](docs/features/ecmascript/typed-array.md)
+###### [Caveats when using typed arrays polyfills](docs/features/ecmascript/typed-array.md#caveats-when-using-typed-arrays-polyfills)
 ##### [ECMAScript: Reflect](docs/features/ecmascript/reflect.md)
 ##### [ECMAScript: JSON](docs/features/ecmascript/json.md)
 ##### [ECMAScript: globalThis](docs/features/ecmascript/global-this.md)
@@ -236,7 +242,7 @@ core-js(-pure)/es
 ###### [`String` padding](docs/features/proposals/string-padding.md)
 ###### [`String#matchAll`](docs/features/proposals/string-match-all.md)
 ###### [`String#replaceAll`](docs/features/proposals/string-replace-all.md)
-
+###### [`String.prototype.trimStart` / `String.prototype.trimEnd`](docs/features/proposals/string-left-right-trim.md)
 
 ##### [Stage 3 proposals](docs/features/proposals/README.md#stage-3)
 
