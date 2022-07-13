@@ -245,6 +245,8 @@ core-js(-pure)/es
 ###### [`String.prototype.trimStart` / `String.prototype.trimEnd`](docs/features/proposals/string-left-right-trim.md)
 
 ##### [Stage 3 proposals](docs/features/proposals/README.md#stage-3)
+###### [`Array` grouping](docs/features/proposals/array-grouping.md)
+###### [Change `Array` by copy](docs/features/proposals/change-array-by-copy.md)
 
 ##### [Stage 2 proposals](docs/features/proposals/README.md#stage-2)
 
