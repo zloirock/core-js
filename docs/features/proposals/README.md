@@ -46,7 +46,7 @@ core-js(-pure)/stage/2
 ```
 ## [`Iterator` helpers](iterator-helpers.md)
 ## [New `Set` methods](set-methods.md)
-## [`Map.prototype.emplace`](map-emplace.md)
+## [`Map.prototype.emplace`](map-upsert.md)
 ## [`Array.fromAsync`](array-from-async.md)
 ## [`Array.isTemplateObject`](array-is-template-object.md)
 ## [`Symbol.{ asyncDispose, dispose }` for `using` statement](using-statement.md)

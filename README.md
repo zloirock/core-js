@@ -131,7 +131,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [Stage 2 proposals](docs/features/proposals#stage-2)
       - [`Iterator` helpers](docs/features/proposals/iterator-helpers.md)
       - [New `Set` methods](docs/features/proposals/set-methods.md)
-      - [`Map.prototype.emplace`](docs/features/proposals/map-emplace.md)
+      - [`Map.prototype.emplace`](docs/features/proposals/map-upsert.md)
       - [`Array.fromAsync`](docs/features/proposals/array-from-async.md)
       - [`Array.isTemplateObject`](docs/features/proposals/array-is-template-object.md)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](docs/features/proposals/using-statement.md)
@@ -249,6 +249,14 @@ core-js(-pure)/es
 ###### [Change `Array` by copy](docs/features/proposals/change-array-by-copy.md)
 
 ##### [Stage 2 proposals](docs/features/proposals/README.md#stage-2)
+###### [Iterator helpers](docs/features/proposals/iterator-helpers.md)
+####### [Caveats](docs/features/proposals/iterator-helpers.md#caveats)
+###### [New `Set` methods](docs/features/proposals/set-methods.md)
+###### [`Map.prototype.emplace`](docs/features/proposals/map-upsert.md)
+###### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)
+###### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)
+###### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)
+###### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)
 
 ##### [Stage 1 proposals](docs/features/proposals/README.md#stage-1)
 
