@@ -251,6 +251,11 @@ core-js(-pure)/es
 ##### [Stage 1 proposals](docs/features/proposals/README.md#stage-1)
 
 ##### [Stage 0 proposals](docs/features/proposals/README.md#stage-0)
+###### [`Function.prototype.unThis`](docs/features/proposals/function-un-this.md)
+###### [`Function.{ isCallable, isConstructor }`](docs/features/proposals/function-is-callable-is-constructor.md)
+###### [`URL`](docs/features/proposals/url.md)
+###### [`String#at`](docs/features/proposals/string-at.md)
+###### [Efficient 64 bit arithmetic](docs/features/proposals/efficient-64-bit-arithmetic.md)
 
 ##### [Pre-stage 0 proposals](docs/features/proposals/README.md#pre-stage-0)
 ###### [`Reflect` metadata](docs/features/proposals/reflect-metadata.md)
