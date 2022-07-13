@@ -253,15 +253,18 @@ core-js(-pure)/es
 ##### [Stage 0 proposals](docs/features/proposals/README.md#stage-0)
 
 ##### [Pre-stage 0 proposals](docs/features/proposals/README.md#pre-stage-0)
+###### [`Reflect` metadata](docs/features/proposals/reflect-metadata.md)
 
 
 #### [Web standards](docs/features/web-standards/README.md)
 ##### [`structuredClone`](docs/features/web-standards/structuredclone)
+###### [Caveats when using `structuredClone` polyfill](docs/features/web-standards/structured-clone.md#caveats-when-using-structuredclone-polyfill)
 ##### [Base64 utility methods](docs/features/web-standards/base64-utility-methods.md)
 ##### [`setTimeout` and `setInterval`](docs/features/web-standards/set-timeout%20and%20set-interval.md)
 ##### [`setImmediate`](docs/features/web-standards/set-immediate.md)
 ##### [`QueueMicrotask`](docs/features/web-standards/queue-microtask.md)
 ##### [`URL` and `URLSearchParams`](docs/features/web-standards/url.md)
+###### [Caveats when using `URL` and `URLSearchParams`](docs/features/web-standards/url.md#caveats-when-using-url-and-urlsearchparams)
 ##### [`DOMException`](docs/features/web-standards/dom-exception.md)
 ##### [Iterable DOM collections](docs/features/web-standards/dom-collections.md)
 
