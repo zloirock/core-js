@@ -223,6 +223,10 @@ function IMMEDIATE() {
   return setImmediate && clearImmediate;
 }
 
+function TIMERS() {
+  return !/MSIE .\./.test(USERAGENT);
+}
+
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
@@ -1851,6 +1855,8 @@ GLOBAL.tests = {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
   'web.set-immediate': IMMEDIATE,
+  'web.set-interval': TIMERS,
+  'web.set-timeout': TIMERS,
   'web.structured-clone': function () {
     var error = new Error();
     var test = structuredClone({ a: error, b: error });
@@ -1858,9 +1864,8 @@ GLOBAL.tests = {
     test = structuredClone(new AggregateError([1], 'a', { cause: 3 }));
     return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'a' && test.cause == 3;
   },
-  'web.timers': function () {
-    return !/MSIE .\./.test(USERAGENT);
-  },
+  // TODO: Remove this module from `core-js@4` since it's split to submodules
+  'web.timers': TIMERS,
   'web.url.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
