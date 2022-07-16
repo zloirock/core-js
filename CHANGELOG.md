@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed a typo in the `structuredClone` feature detection, [#1106](https://github.com/zloirock/core-js/issues/1106)
 - Added Opera Android 70 compat data mapping
 
 ##### [3.23.4 - 2022.07.10](https://github.com/zloirock/core-js/releases/tag/v3.23.4)

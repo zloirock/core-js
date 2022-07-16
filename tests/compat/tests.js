@@ -1858,11 +1858,20 @@ GLOBAL.tests = {
   'web.set-interval': TIMERS,
   'web.set-timeout': TIMERS,
   'web.structured-clone': function () {
-    var error = new Error();
-    var test = structuredClone({ a: error, b: error });
-    if (!(test && test.a === test.b && test.a instanceof Error && test.stack === error.stack)) return false;
-    test = structuredClone(new AggregateError([1], 'a', { cause: 3 }));
-    return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'a' && test.cause == 3;
+    function checkErrorsCloning(structuredCloneImplementation, $Error) {
+      var error = new $Error();
+      var test = structuredCloneImplementation({ a: error, b: error });
+      return test && test.a === test.b && test.a instanceof $Error && test.a.stack === error.stack;
+    }
+
+    function checkNewErrorsCloningSemantic(structuredCloneImplementation) {
+      var test = structuredCloneImplementation(new AggregateError([1], 'message', { cause: 3 }));
+      return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'message' && test.cause == 3;
+    }
+
+    return checkErrorsCloning(structuredClone, Error)
+      && checkErrorsCloning(structuredClone, DOMException)
+      && checkNewErrorsCloningSemantic(structuredClone);
   },
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.timers': TIMERS,
