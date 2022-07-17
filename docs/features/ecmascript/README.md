@@ -5,3 +5,5 @@ The Javascript language specification.
 ```
 core-js(-pure)/es
 ```
+
+## Index (WIP)
