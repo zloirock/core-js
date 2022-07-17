@@ -1,5 +1,5 @@
 # tc39 ES Proposals
-Polyfills for potential future JS additions.
+[The TC39 process.](https://tc39.github.io/process-document/)
 
 # Index
 - [Finished](#finished)
