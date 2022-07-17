@@ -223,8 +223,6 @@ core-js(-pure)
 ##### [ECMAScript: globalThis](docs/features/ecmascript/global-this.md)
 
 #### [ECMAScript proposals](docs/features/proposals/README.md)
-[The TC39 process.](https://tc39.github.io/process-document/)
-
 ##### [Finished proposals](docs/features/proposals/README.md#finished)
 ###### [`globalThis`](docs/features/proposals/global-this.md)
 ###### [Relative indexing method](docs/features/proposals/relative-indexing-method.md)
