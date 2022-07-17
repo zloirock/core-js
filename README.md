@@ -191,10 +191,6 @@ queueMicrotask(() => console.log('called as microtask'));
 ### [Supported engines](docs/compatibility-data.md#supported-engines)
 
 ### [Features:](docs/features)
-[*CommonJS entry points:*](docs/usage.md#commonjs-api)
-```
-core-js(-pure)
-```
 
 #### [ECMAScript](docs/features/ecmascript/README.md)
 ##### [ECMAScript: Object](docs/features/ecmascript/object.md)
