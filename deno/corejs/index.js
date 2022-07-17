@@ -1,7 +1,7 @@
 /**
- * core-js 3.23.4
+ * core-js 3.23.5
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.23.4/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.23.5/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -879,10 +879,10 @@ var store = __webpack_require__(34);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.23.4',
+  version: '3.23.5',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.23.4/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.23.5/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -10239,7 +10239,7 @@ var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
   return !fails(function () {
     var error = new $Error();
     var test = structuredCloneImplementation({ a: error, b: error });
-    return !(test && test.a === test.b && test.a instanceof $Error && test.stack === error.stack);
+    return !(test && test.a === test.b && test.a instanceof $Error && test.a.stack === error.stack);
   });
 };
 
