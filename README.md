@@ -197,10 +197,6 @@ core-js(-pure)
 ```
 
 #### [ECMAScript](docs/features/ecmascript)
-[*CommonJS entry points:*](docs/usage.md#commonjs-api)
-```
-core-js(-pure)/es
-```
 ##### [ECMAScript: Object](docs/features/ecmascript/object.md)
 ##### [ECMAScript: Function](docs/features/ecmascript/function.md)
 ##### [ECMAScript: Error](docs/features/ecmascript/error.md)
