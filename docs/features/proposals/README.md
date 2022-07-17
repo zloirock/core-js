@@ -1,4 +1,4 @@
-# tc39 ES Proposals
+# ES Proposals
 [The TC39 process.](https://tc39.github.io/process-document/)
 
 # Index
