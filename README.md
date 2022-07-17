@@ -85,7 +85,7 @@ queueMicrotask(() => console.log('called as microtask'));
   - [Custom build](docs/usage.md#custom-build)
 - [Compatibility data](docs/compatibility-data.md)
 - [Supported engines](docs/compatibility-data.md#supported-engines)
-- [Features](docs/features)
+- [Features](docs/features/README.md)
   - [ECMAScript](docs/features/ecmascript/README.md)
     - [ECMAScript: Object](docs/features/ecmascript/object.md)
     - [ECMAScript: Function](docs/features/ecmascript/function.md)
@@ -190,7 +190,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ### [Supported engines](docs/compatibility-data.md#supported-engines)
 
-### [Features:](docs/features)
+### [Features:](docs/features/README.md)
 
 #### [ECMAScript](docs/features/ecmascript/README.md)
 ##### [ECMAScript: Object](docs/features/ecmascript/object.md)
