@@ -86,7 +86,7 @@ queueMicrotask(() => console.log('called as microtask'));
 - [Compatibility data](docs/compatibility-data.md)
 - [Supported engines](docs/compatibility-data.md#supported-engines)
 - [Features](docs/features)
-  - [ECMAScript](docs/features/ecmascript)
+  - [ECMAScript](docs/features/ecmascript/README.md)
     - [ECMAScript: Object](docs/features/ecmascript/object.md)
     - [ECMAScript: Function](docs/features/ecmascript/function.md)
     - [ECMAScript: Error](docs/features/ecmascript/error.md)
@@ -196,7 +196,7 @@ queueMicrotask(() => console.log('called as microtask'));
 core-js(-pure)
 ```
 
-#### [ECMAScript](docs/features/ecmascript)
+#### [ECMAScript](docs/features/ecmascript/README.md)
 ##### [ECMAScript: Object](docs/features/ecmascript/object.md)
 ##### [ECMAScript: Function](docs/features/ecmascript/function.md)
 ##### [ECMAScript: Error](docs/features/ecmascript/error.md)
