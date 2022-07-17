@@ -1,5 +1,5 @@
 # ES
-The Javascript language specification.
+Polyfills for properties of global object namespaces.
 
 [*CommonJS entry points:*](docs/usage.md#commonjs-api)
 ```
