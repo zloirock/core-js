@@ -12,6 +12,11 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
 
   return new Promise(function (resolve, reject) {
+    var doneAndReject = function (error) {
+      state.done = true;
+      reject(error);
+    };
+
     var loop = function () {
       try {
         Promise.resolve(anObject(call(state.next, state.iterator))).then(function (step) {
@@ -23,9 +28,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
               state.remaining--;
               loop();
             } else resolve({ done: false, value: step.value });
-          } catch (err) { reject(err); }
-        }, reject);
-      } catch (error) { reject(error); }
+          } catch (err) { doneAndReject(err); }
+        }, doneAndReject);
+      } catch (error) { doneAndReject(error); }
     };
 
     loop();

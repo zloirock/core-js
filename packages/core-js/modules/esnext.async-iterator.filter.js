@@ -14,8 +14,13 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var filterer = state.filterer;
 
   return new Promise(function (resolve, reject) {
+    var doneAndReject = function (error) {
+      state.done = true;
+      reject(error);
+    };
+
     var ifAbruptCloseAsyncIterator = function (error) {
-      closeAsyncIteration(iterator, reject, error, reject);
+      closeAsyncIteration(iterator, doneAndReject, error, doneAndReject);
     };
 
     var loop = function () {
@@ -33,9 +38,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
                 }, ifAbruptCloseAsyncIterator);
               } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
             }
-          } catch (error2) { reject(error2); }
-        }, reject);
-      } catch (error) { reject(error); }
+          } catch (error2) { doneAndReject(error2); }
+        }, doneAndReject);
+      } catch (error) { doneAndReject(error); }
     };
 
     loop();

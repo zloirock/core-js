@@ -28,15 +28,19 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
   var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
     next: function next() {
       var that = this;
+      var state;
       var result = perform(function () {
-        var state = getInternalState(that);
+        state = getInternalState(that);
         return (IS_ITERATOR && state.done) ? { done: true, value: undefined } : anObject(state.nextHandler(Promise));
       });
       var error = result.error;
       var value = result.value;
       if (IS_ITERATOR) return error ? Promise.reject(value) : Promise.resolve(value);
       return new Promise(function (resolve, reject) {
-        error ? reject(value) : resolve(value);
+        if (error) {
+          if (state) state.done = true;
+          reject(value);
+        } else resolve(value);
       });
     },
     'return': function () {

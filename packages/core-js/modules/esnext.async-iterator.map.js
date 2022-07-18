@@ -14,8 +14,13 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var mapper = state.mapper;
 
   return new Promise(function (resolve, reject) {
+    var doneAndReject = function (error) {
+      state.done = true;
+      reject(error);
+    };
+
     var ifAbruptCloseAsyncIterator = function (error) {
-      closeAsyncIteration(iterator, reject, error, reject);
+      closeAsyncIteration(iterator, doneAndReject, error, doneAndReject);
     };
 
     Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
@@ -31,8 +36,8 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
             }, ifAbruptCloseAsyncIterator);
           } catch (error2) { ifAbruptCloseAsyncIterator(error2); }
         }
-      } catch (error) { reject(error); }
-    }, reject);
+      } catch (error) { doneAndReject(error); }
+    }, doneAndReject);
   });
 });
 
