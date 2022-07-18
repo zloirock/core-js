@@ -35,13 +35,8 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       });
       var error = result.error;
       var value = result.value;
-      if (IS_ITERATOR) return error ? Promise.reject(value) : Promise.resolve(value);
-      return new Promise(function (resolve, reject) {
-        if (error) {
-          if (state) state.done = true;
-          reject(value);
-        } else resolve(value);
-      });
+      if (error && state) state.done = true;
+      return error ? Promise.reject(value) : Promise.resolve(value);
     },
     'return': function () {
       var that = this;
