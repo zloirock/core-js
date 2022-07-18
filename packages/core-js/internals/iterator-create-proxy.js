@@ -28,8 +28,13 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       //   for `%WrapForValidIteratorPrototype%.next` our `nextHandler` returns `IterResultObject`
       //   for `%IteratorHelperPrototype%.next` - just a value
       if (IS_ITERATOR) return state.nextHandler();
-      var result = state.done ? undefined : state.nextHandler();
-      return { done: state.done, value: result };
+      try {
+        var result = state.done ? undefined : state.nextHandler();
+        return { done: state.done, value: result };
+      } catch (error) {
+        state.done = true;
+        throw error;
+      }
     },
     'return': function () {
       var state = getInternalState(this);
