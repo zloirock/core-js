@@ -9,20 +9,16 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
   var iterator = state.iterator;
 
-  var doneAndReThrow = function (error) {
-    state.done = true;
-    throw error;
-  };
-
   return Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
     if (anObject(step).done) {
       state.done = true;
       return { done: true, value: undefined };
     }
     return { done: false, value: [state.index++, step.value] };
-  }, doneAndReThrow).then(function (result) {
-    return result;
-  }, doneAndReThrow);
+  }).then(null, function (error) {
+    state.done = true;
+    throw error;
+  });
 });
 
 module.exports = function indexed() {

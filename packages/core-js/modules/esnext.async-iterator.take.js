@@ -13,11 +13,6 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var iterator = state.iterator;
   var returnMethod;
 
-  var doneAndReThrow = function (error) {
-    state.done = true;
-    throw error;
-  };
-
   if (!state.remaining--) {
     var resultDone = { done: true, value: undefined };
     state.done = true;
@@ -33,9 +28,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
       state.done = true;
       return { done: true, value: undefined };
     } return { done: false, value: step.value };
-  }, doneAndReThrow).then(function (result) {
-    return result;
-  }, doneAndReThrow);
+  }).then(null, function (error) {
+    state.done = true;
+    throw error;
+  });
 });
 
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
