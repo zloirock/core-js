@@ -24,6 +24,10 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
   var IteratorProxyPrototype = defineBuiltIns(create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
+      // for simplification:
+      //   for `%WrapForValidIteratorPrototype%.next` our `nextHandler` returns `IterResultObject`
+      //   for `%IteratorHelperPrototype%.next` - just a value
+      if (IS_ITERATOR) return state.nextHandler();
       var result = state.done ? undefined : state.nextHandler();
       return { done: state.done, value: result };
     },

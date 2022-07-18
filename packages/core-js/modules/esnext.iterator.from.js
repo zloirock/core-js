@@ -1,7 +1,6 @@
 // https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
@@ -11,9 +10,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 
 var IteratorProxy = createIteratorProxy(function () {
-  var result = anObject(call(this.next, this.iterator));
-  var done = this.done = !!result.done;
-  if (!done) return result.value;
+  return call(this.next, this.iterator);
 }, true);
 
 $({ target: 'Iterator', stat: true, forced: true }, {

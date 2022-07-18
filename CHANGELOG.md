@@ -6,6 +6,7 @@
     - `AsyncIterator.prototype.asIndexedPairs` -> `AsyncIterator.prototype.indexed`
   - Avoid exposing spec fiction `%AsyncFromSyncIteratorPrototype%` in `AsyncIterator.from` (and in `Iterator.prototype.toAsync`), [proposal-iterator-helpers/182](https://github.com/tc39/proposal-iterator-helpers/pull/182)
   - Avoid unnecessary promise creation in `%WrapForValidAsyncIteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197)
+  - Do not validate value in `%WrapForValid(Async)IteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197) and [proposal-iterator-helpers/205](https://github.com/tc39/proposal-iterator-helpers/pull/205)
   - Do not forward the parameter of `.next` / `.return` to an underlying iterator by the extended iterator protocol, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
   - `.throw` methods removed from all wrappers / helpers prototypes, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
   - Close inner iterators in `{ Iterator, AsyncIterator }.prototype.flatMap` on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
