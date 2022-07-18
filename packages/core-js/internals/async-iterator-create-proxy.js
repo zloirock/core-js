@@ -30,7 +30,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       var that = this;
       var result = perform(function () {
         var state = getInternalState(that);
-        return state.done ? { done: true, value: undefined } : anObject(state.nextHandler(Promise));
+        return (IS_ITERATOR && state.done) ? { done: true, value: undefined } : anObject(state.nextHandler(Promise));
       });
       var error = result.error;
       var value = result.value;
