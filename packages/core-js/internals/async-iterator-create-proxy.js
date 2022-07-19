@@ -43,14 +43,14 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     if (IS_GENERATOR) {
       state.awaiting = promise;
       var clean = function () {
-        state.awaiting = null;
+        if (state.awaiting === promise) state.awaiting = null;
       };
       promise.then(clean, clean);
     } return promise;
   };
 
   var enqueue = function (state, asyncHandler) {
-    return state.awaiting ? state.awaiting.then(asyncHandler, asyncHandler) : asyncHandler();
+    return state.awaiting ? state.awaiting = state.awaiting.then(asyncHandler, asyncHandler) : asyncHandler();
   };
 
   var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
