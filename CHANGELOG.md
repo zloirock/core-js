@@ -11,7 +11,7 @@
   - `.throw` methods removed from all wrappers / helpers prototypes, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
   - Close inner iterators in `{ Iterator, AsyncIterator }.prototype.flatMap` on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
   - Throw `RangeError` on `NaN` in `{ Iterator, AsyncIterator }.prototype.{ drop, take }`, [proposal-iterator-helpers/181](https://github.com/tc39/proposal-iterator-helpers/pull/181)
-  - Some other minor updates of this proposal
+  - Many other updates and fixes of this proposal
 - Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
 - Added compat data for Bun, [#1103](https://github.com/zloirock/core-js/issues/1103)
 - Added compat data for Hermes, [#1099](https://github.com/zloirock/core-js/issues/1099)
