@@ -39,18 +39,19 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     } return { exit: false, value: state };
   };
 
-  var awaiting = function (state, promise) {
-    if (IS_GENERATOR) {
-      state.awaiting = promise;
-      var clean = function () {
-        if (state.awaiting === promise) state.awaiting = null;
-      };
-      promise.then(clean, clean);
-    } return promise;
-  };
+  var enqueue = function (state, handler) {
+    var task = function () {
+      var promise = handler();
+      if (IS_GENERATOR) {
+        state.awaiting = promise;
+        var clean = function () {
+          if (state.awaiting === promise) state.awaiting = null;
+        };
+        promise.then(clean, clean);
+      } return promise;
+    };
 
-  var enqueue = function (state, asyncHandler) {
-    return state.awaiting ? state.awaiting = state.awaiting.then(asyncHandler, asyncHandler) : asyncHandler();
+    return state.awaiting ? state.awaiting = state.awaiting.then(task, task) : task();
   };
 
   var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
@@ -66,7 +67,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         var handlerError = handlerCompletion.error;
         var value = handlerCompletion.value;
         if (handlerError) state.done = true;
-        return awaiting(state, handlerError ? Promise.reject(value) : Promise.resolve(value));
+        return handlerError ? Promise.reject(value) : Promise.resolve(value);
       });
     },
     'return': function () {
@@ -75,7 +76,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       var state = stateCompletion.value;
 
       return exit ? state : enqueue(state, function () {
-        return awaiting(state, new Promise(function (resolve, reject) {
+        return new Promise(function (resolve, reject) {
           var iterator = state.iterator;
           var innerIterator = state.innerIterator;
           state.done = true;
@@ -90,7 +91,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
             anObject(result);
             resolve({ done: true, value: undefined });
           }, reject);
-        }));
+        });
       });
     }
   });
