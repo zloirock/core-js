@@ -924,6 +924,8 @@ export const data = {
   'es.promise': {
     // V8 6.6 has a serious bug
     chrome: '67', // '51',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
@@ -931,28 +933,38 @@ export const data = {
   'es.promise.constructor': {
     // V8 6.6 has a serious bug
     chrome: '67', // '51',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
   },
   'es.promise.all': {
     chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
   },
   'es.promise.all-settled': {
     chrome: '76',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '71',
     safari: '13',
   },
   'es.promise.any': {
     chrome: '85',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '79',
     safari: '14.0',
   },
   'es.promise.catch': {
     chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
@@ -960,6 +972,8 @@ export const data = {
   'es.promise.finally': {
     // V8 6.6 has a serious bug
     chrome: '67', // '63',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     // Previous versions are non-generic
     // https://bugs.webkit.org/show_bug.cgi?id=200788
@@ -969,18 +983,24 @@ export const data = {
   },
   'es.promise.race': {
     chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
   },
   'es.promise.reject': {
     chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
   },
   'es.promise.resolve': {
     chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
     firefox: '69',
     safari: '11.0',
     rhino: '1.7.14',
