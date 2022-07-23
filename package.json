@@ -64,7 +64,7 @@
     "npm-run-all": "^4.1.5",
     "p-timeout": "^5.1.0",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.23.4",
+    "playwright": "^1.24.0",
     "promises-aplus-tests": "^2.1.2",
     "promises-es6-tests": "~0.5.0",
     "qunit": "^2.19.1",
