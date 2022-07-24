@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
 
 ##### [3.23.5 - 2022.07.18](https://github.com/zloirock/core-js/releases/tag/v3.23.5)
 - Fixed a typo in the `structuredClone` feature detection, [#1106](https://github.com/zloirock/core-js/issues/1106)
