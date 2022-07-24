@@ -2488,6 +2488,7 @@ export const data = {
   },
   'web.set-interval': {
     android: '1.5',
+    bun: '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
@@ -2500,6 +2501,7 @@ export const data = {
   },
   'web.set-timeout': {
     android: '1.5',
+    bun: '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
