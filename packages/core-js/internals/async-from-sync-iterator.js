@@ -1,5 +1,5 @@
 'use strict';
-var apply = require('../internals/function-apply');
+var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var getMethod = require('../internals/get-method');
@@ -30,31 +30,19 @@ var AsyncFromSyncIterator = function AsyncIterator(iterator) {
 };
 
 AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
-  next: function next(arg) {
+  next: function next() {
     var state = getInternalState(this);
-    var hasArg = !!arguments.length;
     return new Promise(function (resolve, reject) {
-      var result = anObject(apply(state.next, state.iterator, hasArg ? [arg] : []));
+      var result = anObject(call(state.next, state.iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   },
-  'return': function (arg) {
+  'return': function () {
     var iterator = getInternalState(this).iterator;
-    var hasArg = !!arguments.length;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
-      if ($return === undefined) return resolve({ done: true, value: arg });
-      var result = anObject(apply($return, iterator, hasArg ? [arg] : []));
-      asyncFromSyncIteratorContinuation(result, resolve, reject);
-    });
-  },
-  'throw': function (arg) {
-    var iterator = getInternalState(this).iterator;
-    var hasArg = !!arguments.length;
-    return new Promise(function (resolve, reject) {
-      var $throw = getMethod(iterator, 'throw');
-      if ($throw === undefined) return reject(arg);
-      var result = anObject(apply($throw, iterator, hasArg ? [arg] : []));
+      if ($return === undefined) return resolve({ done: true, value: undefined });
+      var result = anObject(call($return, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   }

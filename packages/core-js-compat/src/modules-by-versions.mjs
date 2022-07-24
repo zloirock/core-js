@@ -150,4 +150,8 @@ export default {
     'esnext.array.group-to-map',
     'esnext.symbol.metadata-key',
   ],
+  3.24: [
+    'esnext.async-iterator.indexed',
+    'esnext.iterator.indexed',
+  ],
 };

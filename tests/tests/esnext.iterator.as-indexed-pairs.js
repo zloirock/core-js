@@ -5,7 +5,7 @@ QUnit.test('Iterator#asIndexedPairs', assert => {
 
   assert.isFunction(asIndexedPairs);
   assert.arity(asIndexedPairs, 0);
-  assert.name(asIndexedPairs, 'asIndexedPairs');
+  // assert.name(asIndexedPairs, 'asIndexedPairs');
   assert.looksNative(asIndexedPairs);
   assert.nonEnumerable(Iterator.prototype, 'asIndexedPairs');
 
