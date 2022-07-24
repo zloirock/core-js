@@ -9,9 +9,10 @@
   - Do not validate value in `%WrapForValid(Async)IteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197) and [proposal-iterator-helpers/205](https://github.com/tc39/proposal-iterator-helpers/pull/205)
   - Do not forward the parameter of `.next` / `.return` to an underlying iterator by the extended iterator protocol, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
   - `.throw` methods removed from all wrappers / helpers prototypes, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
-  - Close inner iterators in `{ Iterator, AsyncIterator }.prototype.flatMap` on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
+  - Close inner iterators of `{ Iterator, AsyncIterator }.prototype.flatMap` proxy iterators on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
   - Throw `RangeError` on `NaN` in `{ Iterator, AsyncIterator }.prototype.{ drop, take }`, [proposal-iterator-helpers/181](https://github.com/tc39/proposal-iterator-helpers/pull/181)
   - Many other updates and fixes of this proposal
+- `%TypedArray%.prototype.toSpliced` method removed from the [change array by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) and marked as obsolete in `core-js`, [proposal-change-array-by-copy/88](https://github.com/tc39/proposal-change-array-by-copy/issues/88)
 - Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
 - Added compat data for Bun, [#1103](https://github.com/zloirock/core-js/issues/1103)
 - Added compat data for Hermes, [#1099](https://github.com/zloirock/core-js/issues/1099)
