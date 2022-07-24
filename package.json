@@ -107,6 +107,7 @@
     "compat-node-json": "node tests/compat/node-runner --mode=JSON",
     "compat-deno": "deno run --allow-read tests/compat/deno-runner.mjs",
     "compat-deno-json": "deno run --allow-read tests/compat/deno-runner.mjs --mode=JSON",
+    "compat-hermes": "zx tests/compat/hermes-adapter.mjs",
     "compat-rhino": "run-s compat-rhino-prepare compat-rhino-run",
     "compat-rhino-prepare": "zx tests/compat/rhino-prepare.mjs --version=1.7.14",
     "compat-rhino-run": "java -jar tests/compat/rhino.jar -version 200 -require tests/compat/rhino-runner.js",

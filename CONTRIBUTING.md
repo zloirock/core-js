@@ -26,6 +26,7 @@ For updating `core-js-compat` data:
 - If you want to add new data for NodeJS, run `npm run compat-node` with the installed required NodeJS version and you will see the results in the console. Use `npm run compat-node-json` if you want to get the result as JSON.
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno-json` if you want to get the result as JSON.
 - If you want to add new data for Rhino, set the required Rhino version in `compat-rhino-prepare` NPM script in [`package.json`](./package.json), run `npm run compat-rhino` and you will see the results in the console.
+- If you want to add new data for Hermes, run `npm run compat-hermes -- YOR_PATH_TO_HERMES` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
@@ -37,6 +38,7 @@ engine         | mandatory check | how to run tests | base data inherits from   
 `edge`         | features        | browser runner   | `ie` (<=18), `chrome` (>=74) |
 `electron`     |                 | browser runner   | `chrome`                     | required
 `firefox`      | features        | browser runner   |                              |
+`hermes`       | features        | hermes runner    |                              |
 `ie`           | features        | browser runner   |                              |
 `ios`          |                 | browser runner   | `safari`                     | required
 `node`         | non-ES features | node runner      | `chrome` (only ES)           | required
