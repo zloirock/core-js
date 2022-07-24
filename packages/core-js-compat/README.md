@@ -73,7 +73,8 @@ console.log(targets);
   firefox: '15',       // Firefox version
   ie: '8',             // Internet Explorer version
   ios: '13.0',         // iOS Safari version
-  node: 'current',     // NodeJS version, you could use 'current' for set it to currently used
+  node: 'current',     // NodeJS version, you can use 'current' for set it to currently used
+  oculus: '5.0',       // Oculus Browser version
   opera: '12',         // Opera version
   opera_mobile: '7',   // Opera Mobile version
   phantom: '1.9',      // PhantomJS headless browser version

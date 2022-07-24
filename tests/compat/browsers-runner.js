@@ -13,6 +13,7 @@ var engines = [
   'ie',
   'ios',
   'node',
+  'oculus',
   'opera',
   'opera_mobile',
   'phantom',
