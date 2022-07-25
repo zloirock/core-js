@@ -18,6 +18,7 @@
   - Bun (`bun`), compat data for 0.1.1-0.1.5, [#1103](https://github.com/zloirock/core-js/issues/1103)
   - Hermes (`hermes`), compat data for 0.1-0.11, [#1099](https://github.com/zloirock/core-js/issues/1099)
   - Oculus Browser (`oculus`), compat data mapping for 3.0-22.0, [#1098](https://github.com/zloirock/core-js/issues/1098)
+- Added Samsung Internet 18.0 compat data mapping
 
 ##### [3.23.5 - 2022.07.18](https://github.com/zloirock/core-js/releases/tag/v3.23.5)
 - Fixed a typo in the `structuredClone` feature detection, [#1106](https://github.com/zloirock/core-js/issues/1106)
