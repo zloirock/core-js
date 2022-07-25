@@ -33,6 +33,8 @@ if (!V8_VERSION && USERAGENT) {
 
 var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
 
+var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
+
 // var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
@@ -59,7 +61,7 @@ var PROMISES_SUPPORT = function () {
 
   return promise.then(empty) instanceof FakePromise
     && V8_VERSION !== 66
-    && (!IS_BROWSER || typeof PromiseRejectionEvent == 'function');
+    && (!(IS_BROWSER || IS_DENO) || typeof PromiseRejectionEvent == 'function');
 };
 
 var PROMISE_STATICS_ITERATION = function () {
@@ -1429,9 +1431,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
   },
-  'esnext.async-iterator.as-indexed-pairs': function () {
-    return AsyncIterator.prototype.asIndexedPairs;
-  },
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
   },
@@ -1452,6 +1451,9 @@ GLOBAL.tests = {
   },
   'esnext.async-iterator.from': function () {
     return AsyncIterator.from;
+  },
+  'esnext.async-iterator.indexed': function () {
+    return AsyncIterator.prototype.indexed;
   },
   'esnext.async-iterator.map': function () {
     return AsyncIterator.prototype.map;
@@ -1494,9 +1496,6 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'esnext.iterator.as-indexed-pairs': function () {
-    return Iterator.prototype.asIndexedPairs;
-  },
   'esnext.iterator.drop': function () {
     return Iterator.prototype.drop;
   },
@@ -1517,6 +1516,9 @@ GLOBAL.tests = {
   },
   'esnext.iterator.from': function () {
     return Iterator.from;
+  },
+  'esnext.iterator.indexed': function () {
+    return Iterator.prototype.indexed;
   },
   'esnext.iterator.map': function () {
     return Iterator.prototype.map;
@@ -1716,18 +1718,6 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.to-sorted': function () {
     return Int8Array.prototype.toSorted;
-  },
-  'esnext.typed-array.to-spliced': function () {
-    var array = new Int8Array([1]);
-
-    var spliced = array.toSpliced(1, 0, {
-      valueOf: function () {
-        array[0] = 2;
-        return 3;
-      }
-    });
-
-    return spliced[0] === 2 && spliced[1] === 3;
   },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;

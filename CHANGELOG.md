@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.24.0 - 2022.07.25](https://github.com/zloirock/core-js/releases/tag/v3.24.0)
 - Recent updates of the [iterator helpers proposal](https://github.com/tc39/proposal-iterator-helpers), [#1101](https://github.com/zloirock/core-js/issues/1101):
   - `.asIndexedPairs` renamed to `.indexed`, [proposal-iterator-helpers/183](https://github.com/tc39/proposal-iterator-helpers/pull/183):
     - `Iterator.prototype.asIndexedPairs` -> `Iterator.prototype.indexed`
