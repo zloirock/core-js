@@ -14,9 +14,10 @@
   - Many other updates and fixes of this proposal
 - `%TypedArray%.prototype.toSpliced` method removed from the [change array by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) and marked as obsolete in `core-js`, [proposal-change-array-by-copy/88](https://github.com/tc39/proposal-change-array-by-copy/issues/88)
 - Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
-- Added compat data for Bun, [#1103](https://github.com/zloirock/core-js/issues/1103)
-- Added compat data for Hermes, [#1099](https://github.com/zloirock/core-js/issues/1099)
-- Added compat data for Oculus Browser, [#1098](https://github.com/zloirock/core-js/issues/1098)
+- Available new targets in `core-js-compat` / `core-js-builder` and added compat data for them:
+  - Bun (`bun`), compat data for 0.1.1-0.1.5, [#1103](https://github.com/zloirock/core-js/issues/1103)
+  - Hermes (`hermes`), compat data for 0.1-0.11, [#1099](https://github.com/zloirock/core-js/issues/1099)
+  - Oculus Browser (`oculus`), compat data mapping for 3.0-22.0, [#1098](https://github.com/zloirock/core-js/issues/1098)
 
 ##### [3.23.5 - 2022.07.18](https://github.com/zloirock/core-js/releases/tag/v3.23.5)
 - Fixed a typo in the `structuredClone` feature detection, [#1106](https://github.com/zloirock/core-js/issues/1106)
