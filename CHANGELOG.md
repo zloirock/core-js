@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed detection of `@@species` support in `Promise` in some old engines
+- Added iOS Safari 15.6 compat data mapping
 
 ##### [3.24.0 - 2022.07.25](https://github.com/zloirock/core-js/releases/tag/v3.24.0)
 - Recent updates of the [iterator helpers proposal](https://github.com/tc39/proposal-iterator-helpers), [#1101](https://github.com/zloirock/core-js/issues/1101):
