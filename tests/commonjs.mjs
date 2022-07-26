@@ -685,6 +685,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
     ok(typeof load(NS, 'async-iterator/for-each') == 'function');
     ok(typeof load(NS, 'async-iterator/from') == 'function');
+    ok(typeof load(NS, 'async-iterator/indexed') == 'function');
     ok(typeof load(NS, 'async-iterator/map') == 'function');
     ok(typeof load(NS, 'async-iterator/reduce') == 'function');
     ok(typeof load(NS, 'async-iterator/some') == 'function');
@@ -707,6 +708,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/flat-map') == 'function');
     ok(typeof load(NS, 'iterator/for-each') == 'function');
     ok(typeof load(NS, 'iterator/from') == 'function');
+    ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(typeof load(NS, 'iterator/map') == 'function');
     ok(typeof load(NS, 'iterator/reduce') == 'function');
     ok(typeof load(NS, 'iterator/some') == 'function');

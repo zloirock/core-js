@@ -3,7 +3,7 @@ import { createIterator } from '../helpers/helpers';
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator#take', assert => {
-  assert.expect(12);
+  assert.expect(13);
   const async = assert.async();
   const { take } = AsyncIterator.prototype;
 
@@ -29,4 +29,5 @@ QUnit.test('AsyncIterator#take', assert => {
   assert.throws(() => take.call({}, 1), TypeError);
   assert.throws(() => take.call([], 1), TypeError);
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
+  assert.throws(() => take.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 });

@@ -1,4 +1,5 @@
 'use strict';
+// TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toAbsoluteIndex = require('../internals/to-absolute-index');

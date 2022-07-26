@@ -5,5 +5,6 @@ require('../modules/esnext.array.to-spliced');
 require('../modules/esnext.array.with');
 require('../modules/esnext.typed-array.to-reversed');
 require('../modules/esnext.typed-array.to-sorted');
+// TODO: Remove from `core-js@4`
 require('../modules/esnext.typed-array.to-spliced');
 require('../modules/esnext.typed-array.with');

@@ -1,6 +1,29 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed detection of `@@species` support in `Promise` in some old engines
+- `{ Array, %TypedArray% }.prototype.{ findLast, findLastIndex }` marked as shipped [in FF104](https://bugzilla.mozilla.org/show_bug.cgi?id=1775026)
+- Added iOS Safari 15.6 compat data mapping
+
+##### [3.24.0 - 2022.07.25](https://github.com/zloirock/core-js/releases/tag/v3.24.0)
+- Recent updates of the [iterator helpers proposal](https://github.com/tc39/proposal-iterator-helpers), [#1101](https://github.com/zloirock/core-js/issues/1101):
+  - `.asIndexedPairs` renamed to `.indexed`, [proposal-iterator-helpers/183](https://github.com/tc39/proposal-iterator-helpers/pull/183):
+    - `Iterator.prototype.asIndexedPairs` -> `Iterator.prototype.indexed`
+    - `AsyncIterator.prototype.asIndexedPairs` -> `AsyncIterator.prototype.indexed`
+  - Avoid exposing spec fiction `%AsyncFromSyncIteratorPrototype%` in `AsyncIterator.from` and `Iterator.prototype.toAsync`, [proposal-iterator-helpers/182](https://github.com/tc39/proposal-iterator-helpers/pull/182), [proposal-iterator-helpers/202](https://github.com/tc39/proposal-iterator-helpers/pull/202)
+  - Avoid unnecessary promise creation in `%WrapForValidAsyncIteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197)
+  - Do not validate value in `%WrapForValid(Async)IteratorPrototype%.next`, [proposal-iterator-helpers/197](https://github.com/tc39/proposal-iterator-helpers/pull/197) and [proposal-iterator-helpers/205](https://github.com/tc39/proposal-iterator-helpers/pull/205)
+  - Do not forward the parameter of `.next` / `.return` to an underlying iterator by the extended iterator protocol, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
+  - `.throw` methods removed from all wrappers / helpers prototypes, a part of [proposal-iterator-helpers/194](https://github.com/tc39/proposal-iterator-helpers/pull/194)
+  - Close inner iterators of `{ Iterator, AsyncIterator }.prototype.flatMap` proxy iterators on `.return`, [proposal-iterator-helpers/195](https://github.com/tc39/proposal-iterator-helpers/pull/195)
+  - Throw `RangeError` on `NaN` in `{ Iterator, AsyncIterator }.prototype.{ drop, take }`, [proposal-iterator-helpers/181](https://github.com/tc39/proposal-iterator-helpers/pull/181)
+  - Many other updates and fixes of this proposal
+- `%TypedArray%.prototype.toSpliced` method removed from the [change array by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) and marked as obsolete in `core-js`, [proposal-change-array-by-copy/88](https://github.com/tc39/proposal-change-array-by-copy/issues/88)
+- Polyfill `Promise` with `unhandledrejection` event support (browser style) in Deno < [1.24](https://github.com/denoland/deno/releases/tag/v1.24.0)
+- Available new targets in `core-js-compat` / `core-js-builder` and added compat data for them:
+  - Bun (`bun`), compat data for 0.1.1-0.1.5, [#1103](https://github.com/zloirock/core-js/issues/1103)
+  - Hermes (`hermes`), compat data for 0.1-0.11, [#1099](https://github.com/zloirock/core-js/issues/1099)
+  - Oculus Browser (`oculus`), compat data mapping for 3.0-22.0, [#1098](https://github.com/zloirock/core-js/issues/1098)
+- Added Samsung Internet 18.0 compat data mapping
 
 ##### [3.23.5 - 2022.07.18](https://github.com/zloirock/core-js/releases/tag/v3.23.5)
 - Fixed a typo in the `structuredClone` feature detection, [#1106](https://github.com/zloirock/core-js/issues/1106)

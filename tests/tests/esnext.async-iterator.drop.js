@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers';
 
 QUnit.test('AsyncIterator#drop', assert => {
-  assert.expect(14);
+  assert.expect(15);
   const async = assert.async();
   const { drop } = AsyncIterator.prototype;
 
@@ -29,4 +29,5 @@ QUnit.test('AsyncIterator#drop', assert => {
   assert.throws(() => drop.call({}, 1), TypeError);
   assert.throws(() => drop.call([], 1), TypeError);
   assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
+  assert.throws(() => drop.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 });

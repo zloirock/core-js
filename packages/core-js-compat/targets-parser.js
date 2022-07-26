@@ -13,14 +13,17 @@ const aliases = new Map([
 
 const validTargets = new Set([
   'android',
+  'bun',
   'chrome',
   'deno',
   'edge',
   'electron',
   'firefox',
+  'hermes',
   'ie',
   'ios',
   'node',
+  'oculus',
   'opera',
   'opera_mobile',
   'phantom',

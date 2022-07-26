@@ -1,3 +1,4 @@
+// TODO: Remove from `core-js@4`
 import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSpliced', assert => {

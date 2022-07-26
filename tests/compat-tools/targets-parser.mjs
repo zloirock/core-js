@@ -25,11 +25,13 @@ deepStrictEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), n
 
 deepStrictEqual(targetsParser({ esmodules: true }), new Map([
   ['android', '61'],
+  ['bun', '0.1.1'],
   ['chrome', '61'],
   ['deno', '1.0'],
   ['edge', '16'],
   ['firefox', '60'],
   ['ios', '10.3'],
+  ['oculus', '4.0'],
   ['opera', '48'],
   ['opera_mobile', '45'],
   ['safari', '10.1'],
@@ -77,6 +79,7 @@ deepStrictEqual(targetsParser({
   random: 42,
 }), new Map([
   ['android', '4.2'],
+  ['bun', '0.1.1'],
   ['chrome', '56'],
   ['deno', '1.0'],
   ['edge', '13'],
@@ -85,6 +88,7 @@ deepStrictEqual(targetsParser({
   ['ie', '8'],
   ['ios', '10.3'],
   ['node', String(process.versions.node)],
+  ['oculus', '4.0'],
   ['opera', '48'],
   ['opera_mobile', '40'],
   ['safari', '5.1'],

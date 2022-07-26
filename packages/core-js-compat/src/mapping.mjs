@@ -124,6 +124,7 @@ export default {
     [102, '19.0'],
     [104, '20.0'],
   ],
+  // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   ChromeToSamsung: [
     [18, '1.0'],
@@ -145,6 +146,7 @@ export default {
     [90, '15.0'],
     [92, '16.0'],
     [96, '17.0'],
+    [99, '18.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {
@@ -190,6 +192,31 @@ export default {
     [30, '4.4'],
     [33, '4.4.3'],
   ],
+  // https://developer.oculus.com/documentation/web/browser-release-notes/
+  // Need to find another data source since release notes are not available for new versions.
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
+  AndroidToOculus: [
+    [57, '3.0'],
+    [61, '4.0'],
+    [66, '5.0'],
+    [74, '6.0'],
+    [77, '7.0'],
+    [79, '8.0'],
+    [81, '9.0'],
+    [83, '10.0'],
+    [84, '11.0'],
+    [86, '12.0'],
+    [87, '13.0'],
+    [88, '14.0'],
+    [89, '15.0'],
+    [91, '16.0'],
+    [93, '17.0'],
+    [95, '18.0'],
+    [96, '19.0'],
+    [98, '20.0'],
+    [100, '21.0'],
+    [102, '22.0'],
+  ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   SafariToIOS: [
     ['3.0', '1.0'],
@@ -219,6 +246,7 @@ export default {
     ['15.3', '15.3'],
     ['15.4', '15.4'],
     ['15.5', '15.5'],
+    ['15.6', '15.6'],
   ],
   SafariToPhantom: [
     ['4.1', '1.9'],

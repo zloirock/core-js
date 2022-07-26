@@ -21,25 +21,30 @@ For updating `core-js-compat` data:
 
 - If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/compat/`](http://zloirock.github.io/core-js/compat/)) and you will see what `core-js` modules are required for this browser.
 
-![compat-table](https://user-images.githubusercontent.com/2213682/173199354-1f3aeb83-7231-46b2-8a14-a9d47ce3ae45.png)
+![compat-table](https://user-images.githubusercontent.com/2213682/180694428-856bcd0f-cab3-446f-be1a-2f669614dcc0.png)
 
 - If you want to add new data for NodeJS, run `npm run compat-node` with the installed required NodeJS version and you will see the results in the console. Use `npm run compat-node-json` if you want to get the result as JSON.
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno-json` if you want to get the result as JSON.
+- If you want to add new data for Bun, run `npm run compat-bun` with the installed required Bun version and you will see the results in the console.
 - If you want to add new data for Rhino, set the required Rhino version in `compat-rhino-prepare` NPM script in [`package.json`](./package.json), run `npm run compat-rhino` and you will see the results in the console.
+- If you want to add new data for Hermes, run `npm run compat-hermes -- YOR_PATH_TO_HERMES` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
 engine         | mandatory check | how to run tests | base data inherits from      | mapping for a new version
 ---            | ---             | ---              | ---                          | ---
 `android`      |                 | browser runner   | `chrome`                     |
+`bun`          | features        | bun runner       |                              |
 `chrome`       | features        | browser runner   |                              |
 `deno`         | non-ES features | deno runner      | `chrome` (only ES)           | required
 `edge`         | features        | browser runner   | `ie` (<=18), `chrome` (>=74) |
 `electron`     |                 | browser runner   | `chrome`                     | required
 `firefox`      | features        | browser runner   |                              |
+`hermes`       | features        | hermes runner    |                              |
 `ie`           | features        | browser runner   |                              |
 `ios`          |                 | browser runner   | `safari`                     | required
 `node`         | non-ES features | node runner      | `chrome` (only ES)           | required
+`oculus`       |                 | browser runner   | `android` (-> `chrome`)      | required
 `opera`        |                 | browser runner   | `chrome` (>12)               | in case of inconsistency
 `opera_mobile` |                 | browser runner   | `opera`, `chrome`            | required
 `phantom`      |                 | browser runner   | `safari`                     |

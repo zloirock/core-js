@@ -18,7 +18,7 @@ const {
   exclude: [                    // optional list / filter of modules to exclude, the signature is similar to `modules` option
     'web.atob',
   ],
-  version: '3.23',              // used `core-js` version, by default - the latest
+  version: '3.24',              // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
@@ -66,14 +66,17 @@ console.log(targets);
 // object:
 {
   android: '4.0',      // Android WebView version
+  bun: '0.1.2',        // Bun version
   chrome: '38',        // Chrome version
   deno: '1.12',        // Deno version
   edge: '13',          // Edge version
   electron: '5.0',     // Electron framework version
   firefox: '15',       // Firefox version
+  hermes: '0.11',      // Hermes version
   ie: '8',             // Internet Explorer version
   ios: '13.0',         // iOS Safari version
-  node: 'current',     // NodeJS version, you could use 'current' for set it to currently used
+  node: 'current',     // NodeJS version, you can use 'current' for set it to currently used
+  oculus: '5.0',       // Oculus Browser version
   opera: '12',         // Opera version
   opera_mobile: '7',   // Opera Mobile version
   phantom: '1.9',      // PhantomJS headless browser version
@@ -109,9 +112,9 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 require('core-js-compat').modules; // => Array<ModuleName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.23'); // => Array<ModuleName>
+require('core-js-compat/get-modules-list-for-target-version')('3.24'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.23'); // => Array<ModuleName>
+require('core-js-compat').getModulesListForTargetVersion('3.24'); // => Array<ModuleName>
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://es6.zloirock.ru/compat/), the example:
