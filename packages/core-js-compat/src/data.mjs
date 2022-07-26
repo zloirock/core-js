@@ -237,12 +237,14 @@ export const data = {
   'es.array.find-last': {
     bun: '0.1.1',
     chrome: '97',
+    firefox: '104',
     hermes: '0.11',
     safari: '15.4',
   },
   'es.array.find-last-index': {
     bun: '0.1.1',
     chrome: '97',
+    firefox: '104',
     hermes: '0.11',
     safari: '15.4',
   },
@@ -1843,12 +1845,14 @@ export const data = {
   'es.typed-array.find-last': {
     bun: '0.1.1',
     chrome: '97',
+    firefox: '104',
     hermes: '0.11',
     safari: '15.4',
   },
   'es.typed-array.find-last-index': {
     bun: '0.1.1',
     chrome: '97',
+    firefox: '104',
     hermes: '0.11',
     safari: '15.4',
   },

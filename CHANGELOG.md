@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed detection of `@@species` support in `Promise` in some old engines
+- `{ Array, %TypedArray% }.prototype.{ findLast, findLastIndex }` marked as shipped [in FF104](https://bugzilla.mozilla.org/show_bug.cgi?id=1775026)
 - Added iOS Safari 15.6 compat data mapping
 
 ##### [3.24.0 - 2022.07.25](https://github.com/zloirock/core-js/releases/tag/v3.24.0)
