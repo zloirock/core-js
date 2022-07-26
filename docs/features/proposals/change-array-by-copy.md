@@ -1,5 +1,5 @@
 # [Change `Array` by copy](https://github.com/tc39/proposal-change-array-by-copy)
-Modules [`esnext.array.to-reversed`](/packages/core-js/modules/esnext.array.to-reversed.js), [`esnext.array.to-sorted`](/packages/core-js/modules/esnext.array.to-sorted.js), [`esnext.array.to-spliced`](/packages/core-js/modules/esnext.array.to-spliced.js), [`esnext.array.with`](/packages/core-js/modules/esnext.array.with.js), [`esnext.typed-array.to-reversed`](/packages/core-js/modules/esnext.typed-array.to-reversed.js), [`esnext.typed-array.to-sorted`](/packages/core-js/modules/esnext.typed-array.to-sorted.js), [`esnext.typed-array.to-spliced`](/packages/core-js/modules/esnext.typed-array.to-spliced.js), [`esnext.typed-array.with`](/packages/core-js/modules/esnext.typed-array.with.js).
+Modules [`esnext.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-reversed.js), [`esnext.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-sorted.js), [`esnext.array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-spliced.js), [`esnext.array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.with.js), [`esnext.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-reversed.js), [`esnext.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-sorted.js), [`esnext.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.with.js).
 ```ts
 class Array {
   toReversed(): Array<mixed>;
@@ -10,7 +10,6 @@ class Array {
 
 class %TypedArray% {
   toReversed(): %TypedArray%;
-  toSpliced(start?: number, deleteCount?: number, ...items: %TypedArray%): %TypedArray%;
   toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
   with(index: includes, value: any): %TypedArray%;
 }
@@ -24,7 +23,6 @@ core-js(-pure)/actual|full/array(/virtual)/to-spliced
 core-js(-pure)/actual|full/array(/virtual)/with
 core-js/actual|full/typed-array/to-reversed
 core-js/actual|full/typed-array/to-sorted
-core-js/actual|full/typed-array/to-spliced
 core-js/actual|full/typed-array/with
 ```
 [*Examples*](https://is.gd/tVkbY3):
