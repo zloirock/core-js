@@ -50,7 +50,7 @@
     "eslint-plugin-n": "^15.2.4",
     "eslint-plugin-promise": "^6.0.0",
     "eslint-plugin-qunit": "^7.3.1",
-    "eslint-plugin-regexp": "^1.7.0",
+    "eslint-plugin-regexp": "^1.8.0",
     "eslint-plugin-sonarjs": "~0.14.0",
     "eslint-plugin-unicorn": "^43.0.2",
     "jsonc-eslint-parser": "^2.1.0",
