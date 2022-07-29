@@ -176,11 +176,11 @@ queueMicrotask(() => console.log('called as microtask'));
 ### Installation:[⬆](#index)
 ```
 // global version
-npm install --save core-js@3.24.0
+npm install --save core-js@3.24.1
 // version without global namespace pollution
-npm install --save core-js-pure@3.24.0
+npm install --save core-js-pure@3.24.1
 // bundled global version
-npm install --save core-js-bundle@3.24.0
+npm install --save core-js-bundle@3.24.1
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).

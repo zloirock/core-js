@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.24.1 - 2022.07.30](https://github.com/zloirock/core-js/releases/tag/v3.24.1)
 - NodeJS is ignored in `IS_BROWSER` detection to avoid a false positive with `jsdom`, [#1110](https://github.com/zloirock/core-js/issues/1110)
 - Fixed detection of `@@species` support in `Promise` in some old engines
 - `{ Array, %TypedArray% }.prototype.{ findLast, findLastIndex }` marked as shipped [in FF104](https://bugzilla.mozilla.org/show_bug.cgi?id=1775026)
