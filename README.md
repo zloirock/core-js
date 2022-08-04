@@ -6,7 +6,7 @@
 
 </div>
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2021](docs/features/ecmascript/README.md): [promises](docs/features/ecmascript/Promise.md), [symbols](docs/features/ecmascript/symbol.md), [collections](docs/features/ecmascript/collections.md), iterators, [typed arrays](docs/features/ecmascript/typed-array.md), many other features, [ECMAScript proposals](docs/features/proposals/README.md), [some cross-platform WHATWG / W3C features and proposals](docs/features/web-standards/README.md) like [`URL`](docs/features/web-standards/url.md). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2023](docs/features/ecmascript/README.md): [promises](docs/features/ecmascript/Promise.md), [symbols](docs/features/ecmascript/symbol.md), [collections](docs/features/ecmascript/collections.md), iterators, [typed arrays](docs/features/ecmascript/typed-array.md), many other features, [ECMAScript proposals](docs/features/proposals/README.md), [some cross-platform WHATWG / W3C features and proposals](docs/features/web-standards/README.md) like [`URL`](docs/features/web-standards/url.md). You can load only required features or use it without global namespace pollution.
 
 **If you are looking for documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
 
