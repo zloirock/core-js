@@ -35,7 +35,7 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => 
         core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
         modern: window['__core-js_shared__']?.versions,
         legacy: window.core?.version,
-      })`), 1e4);
+      })`), { milliseconds: 1e4 });
       const versions = modern ? modern.map(({ version, mode }) => `${ version } (${ mode } mode)`) : legacy ? [legacy] : [];
 
       await page.close();
