@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Electron 21 compat data mapping
 
 ##### [3.24.1 - 2022.07.30](https://github.com/zloirock/core-js/releases/tag/v3.24.1)
 - NodeJS is ignored in `IS_BROWSER` detection to avoid a false positive with `jsdom`, [#1110](https://github.com/zloirock/core-js/issues/1110)
