@@ -207,7 +207,7 @@
 
 ##### [Stage 2 proposals](docs/features/proposals/README.md#stage-2)
 ###### [Iterator helpers](docs/features/proposals/iterator-helpers.md)
-###### [Caveats](docs/features/proposals/iterator-helpers.md#caveats)
+- [Caveats](docs/features/proposals/iterator-helpers.md#caveats)
 ###### [New `Set` methods](docs/features/proposals/set-methods.md)
 ###### [`Map.prototype.emplace`](docs/features/proposals/map-upsert.md)
 ###### [`Array.fromAsync`](docs/features/proposals/array-from-async.md)
