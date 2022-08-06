@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
+- Some stylistic changes
 - Added Electron 21 compat data mapping
 
 ##### [3.24.1 - 2022.07.30](https://github.com/zloirock/core-js/releases/tag/v3.24.1)

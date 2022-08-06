@@ -3,7 +3,7 @@
 require('../modules/es.string.iterator');
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
-var USE_NATIVE_URL = require('../internals/native-url');
+var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var global = require('../internals/global');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
