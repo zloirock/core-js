@@ -1,5 +1,5 @@
 var getBuiltIn = require('../internals/get-built-in');
-var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
+var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 var setToStringTag = require('../internals/set-to-string-tag');
 
 // `Symbol.toStringTag` well-known symbol

@@ -1,5 +1,5 @@
 'use strict';
-var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-native');
+var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var isCallable = require('../internals/is-callable');

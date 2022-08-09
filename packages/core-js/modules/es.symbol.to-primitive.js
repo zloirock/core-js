@@ -1,4 +1,4 @@
-var defineWellKnownSymbol = require('../internals/define-well-known-symbol');
+var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 var defineSymbolToPrimitive = require('../internals/symbol-define-to-primitive');
 
 // `Symbol.toPrimitive` well-known symbol
