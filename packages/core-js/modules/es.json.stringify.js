@@ -9,7 +9,7 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isSymbol = require('../internals/is-symbol');
 var arraySlice = require('../internals/array-slice');
-var NATIVE_SYMBOL = require('../internals/native-symbol');
+var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
 var $stringify = getBuiltIn('JSON', 'stringify');
 var exec = uncurryThis(/./.exec);

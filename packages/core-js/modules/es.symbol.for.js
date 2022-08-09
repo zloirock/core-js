@@ -3,7 +3,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
 var shared = require('../internals/shared');
-var NATIVE_SYMBOL_REGISTRY = require('../internals/native-symbol-registry');
+var NATIVE_SYMBOL_REGISTRY = require('../internals/symbol-registry-detection');
 
 var StringToSymbolRegistry = shared('string-to-symbol-registry');
 var SymbolToStringRegistry = shared('symbol-to-string-registry');

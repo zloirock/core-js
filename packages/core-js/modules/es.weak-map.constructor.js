@@ -8,7 +8,7 @@ var collectionWeak = require('../internals/collection-weak');
 var isObject = require('../internals/is-object');
 var isExtensible = require('../internals/object-is-extensible');
 var enforceInternalState = require('../internals/internal-state').enforce;
-var NATIVE_WEAK_MAP = require('../internals/native-weak-map');
+var NATIVE_WEAK_MAP = require('../internals/weak-map-basic-detection');
 
 var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
 var InternalWeakMap;
