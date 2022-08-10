@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Avoid unnecessary promise creation and do not validate result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Some stylistic changes
 - Added Electron 21 compat data mapping

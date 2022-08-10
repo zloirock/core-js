@@ -46,8 +46,9 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }
-      var $$return = getMethod(iterator, 'return');
-      return { done: true, value: $$return ? anObject(call($$return, iterator)).value : undefined };
+      var returnMethod = getMethod(iterator, 'return');
+      var result = returnMethod && call(returnMethod, iterator);
+      return IS_ITERATOR && returnMethod ? result : { value: returnMethod ? anObject(result).value : undefined, done: true };
     }
   });
 
