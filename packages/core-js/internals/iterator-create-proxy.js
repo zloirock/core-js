@@ -30,7 +30,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       if (IS_ITERATOR) return state.nextHandler();
       try {
         var result = state.done ? undefined : state.nextHandler();
-        return { done: state.done, value: result };
+        return { value: result, done: state.done };
       } catch (error) {
         state.done = true;
         throw error;

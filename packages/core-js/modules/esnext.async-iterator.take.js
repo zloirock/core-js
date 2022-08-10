@@ -14,7 +14,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var returnMethod;
 
   if (!state.remaining--) {
-    var resultDone = { done: true, value: undefined };
+    var resultDone = { value: undefined, done: true };
     state.done = true;
     returnMethod = iterator['return'];
     if (returnMethod !== undefined) {
@@ -26,8 +26,8 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   } return Promise.resolve(call(state.next, iterator)).then(function (step) {
     if (anObject(step).done) {
       state.done = true;
-      return { done: true, value: undefined };
-    } return { done: false, value: step.value };
+      return { value: undefined, done: true };
+    } return { value: step.value, done: false };
   }).then(null, function (error) {
     state.done = true;
     throw error;

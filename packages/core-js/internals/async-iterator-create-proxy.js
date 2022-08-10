@@ -35,7 +35,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     var state = stateCompletion.value;
 
     if (stateError || (IS_GENERATOR && state.done)) {
-      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve({ done: true, value: undefined }) };
+      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve({ value: undefined, done: true }) };
     } return { exit: false, value: state };
   };
 

@@ -29,12 +29,12 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
           try {
             if (anObject(step).done) {
               state.done = true;
-              resolve({ done: true, value: undefined });
+              resolve({ value: undefined, done: true });
             } else {
               var value = step.value;
               try {
                 Promise.resolve(filterer(value)).then(function (selected) {
-                  selected ? resolve({ done: false, value: value }) : loop();
+                  selected ? resolve({ value: value, done: false }) : loop();
                 }, ifAbruptCloseAsyncIterator);
               } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
             }

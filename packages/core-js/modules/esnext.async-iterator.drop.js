@@ -23,11 +23,11 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
           try {
             if (anObject(step).done) {
               state.done = true;
-              resolve({ done: true, value: undefined });
+              resolve({ value: undefined, done: true });
             } else if (state.remaining) {
               state.remaining--;
               loop();
-            } else resolve({ done: false, value: step.value });
+            } else resolve({ value: step.value, done: false });
           } catch (err) { doneAndReject(err); }
         }, doneAndReject);
       } catch (error) { doneAndReject(error); }

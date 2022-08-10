@@ -12,9 +12,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   return Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
     if (anObject(step).done) {
       state.done = true;
-      return { done: true, value: undefined };
+      return { value: undefined, done: true };
     }
-    return { done: false, value: [state.index++, step.value] };
+    return { value: [state.index++, step.value], done: false };
   }).then(null, function (error) {
     state.done = true;
     throw error;
