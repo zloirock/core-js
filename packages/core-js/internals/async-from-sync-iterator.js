@@ -17,7 +17,7 @@ var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
   var done = result.done;
   Promise.resolve(result.value).then(function (value) {
-    resolve({ done: done, value: value });
+    resolve({ value: value, done: done });
   }, reject);
 };
 
@@ -41,7 +41,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
     var iterator = getInternalState(this).iterator;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
-      if ($return === undefined) return resolve({ done: true, value: undefined });
+      if ($return === undefined) return resolve({ value: undefined, done: true });
       var result = anObject(call($return, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });

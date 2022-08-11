@@ -31,7 +31,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
           try {
             if (anObject(step).done) {
               state.done = true;
-              resolve({ done: true, value: undefined });
+              resolve({ value: undefined, done: true });
             } else {
               var value = step.value;
               try {
@@ -57,7 +57,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
               if (anObject(result).done) {
                 state.innerIterator = state.innerNext = null;
                 outerLoop();
-              } else resolve({ done: false, value: result.value });
+              } else resolve({ value: result.value, done: false });
             } catch (error1) { ifAbruptCloseAsyncIterator(error1); }
           }, ifAbruptCloseAsyncIterator);
         } catch (error) { ifAbruptCloseAsyncIterator(error); }

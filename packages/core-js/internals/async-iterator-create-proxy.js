@@ -35,7 +35,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     var state = stateCompletion.value;
 
     if (stateError || (IS_GENERATOR && state.done)) {
-      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve({ done: true, value: undefined }) };
+      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve({ value: undefined, done: true }) };
     } return { exit: false, value: state };
   };
 
@@ -76,21 +76,29 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       var state = stateCompletion.value;
 
       return exit ? state : enqueue(state, function () {
-        return new Promise(function (resolve, reject) {
-          var iterator = state.iterator;
-          var innerIterator = state.innerIterator;
-          state.done = true;
+        state.done = true;
+        var iterator = state.iterator;
+        var innerIterator = state.innerIterator;
+        var returnMethod, result;
+        var completion = perform(function () {
           if (innerIterator) try {
             iteratorClose(innerIterator, 'return');
           } catch (error) {
             return iteratorClose(iterator, 'throw', error);
           }
-          var $$return = getMethod(iterator, 'return');
-          if ($$return === undefined) return resolve({ done: true, value: undefined });
-          Promise.resolve(call($$return, iterator)).then(function (result) {
-            anObject(result);
-            resolve({ done: true, value: undefined });
-          }, reject);
+          return getMethod(iterator, 'return');
+        });
+        returnMethod = result = completion.value;
+        if (completion.error) return Promise.reject(result);
+        if (returnMethod === undefined) return Promise.resolve({ value: undefined, done: true });
+        completion = perform(function () {
+          return call(returnMethod, iterator);
+        });
+        result = completion.value;
+        if (completion.error) return Promise.reject(result);
+        return IS_ITERATOR ? Promise.resolve(result) : Promise.resolve(result).then(function (resolved) {
+          anObject(resolved);
+          return { value: undefined, done: true };
         });
       });
     }
