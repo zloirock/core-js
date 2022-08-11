@@ -9,7 +9,7 @@ var anInstance = require('../internals/an-instance');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
-var clearErrorStack = require('../internals/clear-error-stack');
+var clearErrorStack = require('../internals/error-stack-clear');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
