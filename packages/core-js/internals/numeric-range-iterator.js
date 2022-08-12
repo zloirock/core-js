@@ -1,6 +1,7 @@
 'use strict';
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var defineProperties = require('../internals/object-define-properties').f;
 var DESCRIPTORS = require('../internals/descriptors');
@@ -34,7 +35,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   } else {
     throw new $TypeError(INCORRECT_RANGE);
   }
-  if (step == null) {
+  if (isNullOrUndefined(step)) {
     step = ifIncrease ? one : -one;
   }
   if (typeof step != type) {

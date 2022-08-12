@@ -5,10 +5,11 @@ var call = require('../internals/function-call');
 var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aCallable = require('../internals/a-callable');
-var isCallable = require('../internals/is-callable');
 var anObject = require('../internals/an-object');
-var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
+var isCallable = require('../internals/is-callable');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
+var isObject = require('../internals/is-object');
 var getMethod = require('../internals/get-method');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltIns = require('../internals/define-built-ins');
@@ -74,7 +75,7 @@ var Subscription = function (observer, subscriber) {
   try {
     var cleanup = subscriber(subscriptionObserver);
     var subscription = cleanup;
-    if (cleanup != null) subscriptionState.cleanup = isCallable(cleanup.unsubscribe)
+    if (!isNullOrUndefined(cleanup)) subscriptionState.cleanup = isCallable(cleanup.unsubscribe)
       ? function () { subscription.unsubscribe(); }
       : aCallable(cleanup);
   } catch (error) {

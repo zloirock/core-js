@@ -2,9 +2,10 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIns = require('../internals/define-built-ins');
 var getWeakData = require('../internals/internal-metadata').getWeakData;
-var anObject = require('../internals/an-object');
-var isObject = require('../internals/is-object');
 var anInstance = require('../internals/an-instance');
+var anObject = require('../internals/an-object');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
+var isObject = require('../internals/is-object');
 var iterate = require('../internals/iterate');
 var ArrayIterationModule = require('../internals/array-iteration');
 var hasOwn = require('../internals/has-own-property');
@@ -63,7 +64,7 @@ module.exports = {
         id: id++,
         frozen: undefined
       });
-      if (iterable != undefined) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
+      if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 
     var Prototype = Constructor.prototype;
