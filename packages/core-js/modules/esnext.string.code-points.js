@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toString = require('../internals/to-string');
 var InternalStateModule = require('../internals/internal-state');

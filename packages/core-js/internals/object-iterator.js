@@ -1,6 +1,6 @@
 'use strict';
 var InternalStateModule = require('../internals/internal-state');
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var hasOwn = require('../internals/has-own-property');
 var objectKeys = require('../internals/object-keys');
 var toObject = require('../internals/to-object');

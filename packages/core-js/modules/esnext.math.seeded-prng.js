@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var numberIsFinite = require('../internals/number-is-finite');
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var InternalStateModule = require('../internals/internal-state');
 
 var SEEDED_RANDOM = 'Seeded Random';

@@ -1,6 +1,6 @@
 'use strict';
 var InternalStateModule = require('../internals/internal-state');
-var createIteratorConstructor = require('../internals/create-iterator-constructor');
+var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var defineProperties = require('../internals/object-define-properties').f;
