@@ -2,6 +2,7 @@
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var arraySpeciesCreate = require('../internals/array-species-create');
@@ -20,7 +21,7 @@ module.exports = function uniqueBy(resolver) {
   var length = lengthOfArrayLike(that);
   var result = arraySpeciesCreate(that, 0);
   var map = new Map();
-  var resolverFunction = resolver != null ? aCallable(resolver) : function (value) {
+  var resolverFunction = !isNullOrUndefined(resolver) ? aCallable(resolver) : function (value) {
     return value;
   };
   var index, item, key;

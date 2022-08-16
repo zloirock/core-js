@@ -2,7 +2,7 @@
 var charAt = require('../internals/string-multibyte').charAt;
 var toString = require('../internals/to-string');
 var InternalStateModule = require('../internals/internal-state');
-var defineIterator = require('../internals/define-iterator');
+var defineIterator = require('../internals/iterator-define');
 
 var STRING_ITERATOR = 'String Iterator';
 var setInternalState = InternalStateModule.set;

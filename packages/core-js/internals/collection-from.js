@@ -4,6 +4,7 @@ var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var aConstructor = require('../internals/a-constructor');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var iterate = require('../internals/iterate');
 
 var push = [].push;
@@ -15,7 +16,7 @@ module.exports = function from(source /* , mapFn, thisArg */) {
   aConstructor(this);
   mapping = mapFn !== undefined;
   if (mapping) aCallable(mapFn);
-  if (source == undefined) return new this();
+  if (isNullOrUndefined(source)) return new this();
   array = [];
   if (mapping) {
     n = 0;
