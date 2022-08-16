@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var setArrayLength = require('../internals/array-set-length');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
@@ -37,6 +38,6 @@ $({ target: 'Array', proto: true, arity: 1, forced: INCORRECT_RESULT || SILENT_O
       for (var j = 0; j < argCount; j++) {
         O[j] = arguments[j];
       }
-    } return O.length = len + argCount;
+    } return setArrayLength(O, len + argCount);
   }
 });

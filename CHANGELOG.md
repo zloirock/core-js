@@ -3,6 +3,7 @@
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
 - Avoid unnecessary promise creation and do not validate result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
+- Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting  
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Some stylistic changes
 - Added Electron 21 compat data mapping
