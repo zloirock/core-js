@@ -2,7 +2,7 @@ import semver from 'semver';
 
 const { coerce, cmp } = semver;
 const { cyan, green } = chalk;
-const ALL = !argv['main-only'];
+const ALL = !argv._.includes('main-only');
 const downloadsByPatch = {};
 const downloadsByMinor = {};
 const downloadsByMajor = {};
