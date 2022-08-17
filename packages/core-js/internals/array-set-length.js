@@ -7,7 +7,9 @@ var $TypeError = TypeError;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 // Safari < 13 does not throw an error in this case
-var SILENT_ON_NO_WRITABLE_LENGTH_SET = DESCRIPTORS && !function () {
+var SILENT_ON_NON_WRITABLE_LENGTH_SET = DESCRIPTORS && !function () {
+  // makes no sense without proper strict mode support
+  if (this !== undefined) return true;
   try {
     // eslint-disable-next-line es-x/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).length = 1;
@@ -16,7 +18,7 @@ var SILENT_ON_NO_WRITABLE_LENGTH_SET = DESCRIPTORS && !function () {
   }
 }();
 
-module.exports = SILENT_ON_NO_WRITABLE_LENGTH_SET ? function (O, length) {
+module.exports = SILENT_ON_NON_WRITABLE_LENGTH_SET ? function (O, length) {
   if (isArray(O) && !getOwnPropertyDescriptor(O, 'length').writable) {
     throw $TypeError('Cannot set read only .length');
   } return O.length = length;

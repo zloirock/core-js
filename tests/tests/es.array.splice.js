@@ -1,4 +1,6 @@
-import { STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants';
+
+const { defineProperty } = Object;
 
 QUnit.test('Array#splice', assert => {
   const { splice } = Array.prototype;
@@ -30,6 +32,9 @@ QUnit.test('Array#splice', assert => {
   array = [0, 1, 2];
   assert.deepEqual(array.splice(2), [2]);
   if (STRICT) {
+    if (DESCRIPTORS) {
+      assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'now-writable length');
+    }
     assert.throws(() => splice.call(null), TypeError);
     assert.throws(() => splice.call(undefined), TypeError);
   }

@@ -4,6 +4,7 @@ var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var setArrayLength = require('../internals/array-set-length');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
@@ -60,7 +61,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     for (k = 0; k < insertCount; k++) {
       O[k + actualStart] = arguments[k + 2];
     }
-    O.length = len - actualDeleteCount + insertCount;
+    setArrayLength(O, len - actualDeleteCount + insertCount);
     return A;
   }
 });
