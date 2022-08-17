@@ -6,6 +6,7 @@
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting  
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Some stylistic changes
+- Throwing a `TypeError` in `core-js-compat` / `core-js-builder` in case of passing invalid module names / filters for avoiding unexpected result, related to [#1115](https://github.com/zloirock/core-js/issues/1115)
 - Added Electron 21 compat data mapping
 
 ##### [3.24.1 - 2022.07.30](https://github.com/zloirock/core-js/releases/tag/v3.24.1)
