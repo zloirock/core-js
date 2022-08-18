@@ -216,6 +216,7 @@ export default {
     [98, '20.0'],
     [100, '21.0'],
     [102, '22.0'],
+    [104, '23.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   SafariToIOS: [

@@ -8,6 +8,7 @@
 - Some stylistic changes
 - Throwing a `TypeError` in `core-js-compat` / `core-js-builder` in case of passing invalid module names / filters for avoiding unexpected result, related to [#1115](https://github.com/zloirock/core-js/issues/1115)
 - Added Electron 21 compat data mapping
+- Added Oculus Browser 23.0 compat data mapping
 
 ##### [3.24.1 - 2022.07.30](https://github.com/zloirock/core-js/releases/tag/v3.24.1)
 - NodeJS is ignored in `IS_BROWSER` detection to avoid a false positive with `jsdom`, [#1110](https://github.com/zloirock/core-js/issues/1110)
