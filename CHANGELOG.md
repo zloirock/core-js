@@ -5,6 +5,7 @@
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting  
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
+- Availability cloning of `FileList` in the `structuredClone` polyfill extended to some more old engines versions
 - Some stylistic changes
 - Throwing a `TypeError` in `core-js-compat` / `core-js-builder` in case of passing invalid module names / filters for avoiding unexpected result, related to [#1115](https://github.com/zloirock/core-js/issues/1115)
 - Added Electron 21 compat data mapping
