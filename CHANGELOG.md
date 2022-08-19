@@ -3,7 +3,7 @@
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
 - Avoid unnecessary promise creation and do not validate result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
-- Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting  
+- Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Availability cloning of `FileList` in the `structuredClone` polyfill extended to some more old engines versions
 - Some stylistic changes
@@ -135,7 +135,7 @@
   - FF26- implementation does not properly convert argument to string
   - IE / Edge <16 implementation have wrong arity
 - Added `/full/` namespace as the replacement for `/features/` since it's more descriptive in context of the rest namespaces (`/es/` ⊆ `/stable/` ⊆ `/actual/` ⊆ `/full/`)
-- Avoided propagation of removed parts of proposals to upper stages. For example, `%TypedArray%.prototype.groupBy` was removed from the `Array` grouping proposal a long time ago. We can't completely remove this method since it's a breaking change. But this proposal has been promoted to stage 3 - so the proposal should be promoted without this method, this method should not be available in `/actual/` entries - but it should be available in early-stage entries to avoid breakage. 
+- Avoided propagation of removed parts of proposals to upper stages. For example, `%TypedArray%.prototype.groupBy` was removed from the `Array` grouping proposal a long time ago. We can't completely remove this method since it's a breaking change. But this proposal has been promoted to stage 3 - so the proposal should be promoted without this method, this method should not be available in `/actual/` entries - but it should be available in early-stage entries to avoid breakage.
 - Significant internal refactoring and splitting of modules (but without exposing to public API since it will be a breaking change - it will be exposed in the next major version)
 - Bug fixes:
   - Fixed work of non-standard V8 `Error` features with wrapped `Error` constructors, [#1061](https://github.com/zloirock/core-js/issues/1061)
@@ -416,7 +416,7 @@
 ##### [3.12.0 - 2021.05.06](https://github.com/zloirock/core-js/releases/tag/v3.12.0)
 - Added well-known symbol `Symbol.metadata` for [decorators stage 2 proposal](https://github.com/tc39/proposal-decorators)
 - Added well-known symbol `Symbol.matcher` for [pattern matching stage 1 proposal](https://github.com/tc39/proposal-pattern-matching)
-- Fixed regression of V8 ~ Node 0.12 `String(Symbol())` bug, [#933](https://github.com/zloirock/core-js/issues/933)  
+- Fixed regression of V8 ~ Node 0.12 `String(Symbol())` bug, [#933](https://github.com/zloirock/core-js/issues/933)
 
 ##### [3.11.3 - 2021.05.05](https://github.com/zloirock/core-js/releases/tag/v3.11.3)
 - Native promise-based APIs `Promise#{ catch, finally }` returns polyfilled `Promise` instances when it's required
@@ -653,7 +653,7 @@
 - Added compat data for iOS 13 and Node 13.0
 
 ##### [3.3.2 - 2019.10.14](https://github.com/zloirock/core-js/releases/tag/v3.3.2)
-- Fixed compatibility of `core-js-compat` with Node 6 and Yarn, [#669](https://github.com/zloirock/core-js/issues/669) 
+- Fixed compatibility of `core-js-compat` with Node 6 and Yarn, [#669](https://github.com/zloirock/core-js/issues/669)
 
 ##### [3.3.1 - 2019.10.13](https://github.com/zloirock/core-js/releases/tag/v3.3.1)
 - Fixed an NPM publishing issue
@@ -1081,7 +1081,7 @@
   - [String padding](https://github.com/tc39/proposal-string-pad-start-end) to [stage 4 (ES2017)](https://tc39.es/ecma262/2017/#sec-string.prototype.padend)
   - [`global`](https://github.com/tc39/proposal-global) to [stage 3](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-09/sept-28.md#revisit-systemglobal--global)
   - [String trimming](https://github.com/tc39/proposal-string-left-right-trim) to [stage 2](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-07/jul-27.md#10iic-trimstarttrimend)
-- Updated typed arrays to the modern (ES2016+) arguments validation, 
+- Updated typed arrays to the modern (ES2016+) arguments validation,
 [#293](https://github.com/zloirock/core-js/pull/293)
 - Fixed `%TypedArray%.from` Safari bug, [#285](https://github.com/zloirock/core-js/issues/285)
 - Fixed compatibility with old version of Prototype.js, [#278](https://github.com/zloirock/core-js/issues/278), [#289](https://github.com/zloirock/core-js/issues/289)
@@ -1200,7 +1200,7 @@
   - Additional fixes for `String#split` (`RegExp#@@split`)
 - **Improvements**:
   - Correct subclassing wrapped collections, `Number` and `RegExp` constructors with native class syntax
-  - Correct support `SharedArrayBuffer` and buffers from other realms in typed arrays wrappers 
+  - Correct support `SharedArrayBuffer` and buffers from other realms in typed arrays wrappers
   - Additional validations for `Object.{defineProperty, getOwnPropertyDescriptor}` and `Reflect.defineProperty`
 - **Bug Fixes**:
   - Fixed some cases `Array#lastIndexOf` with negative second argument
