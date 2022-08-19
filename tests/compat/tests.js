@@ -544,7 +544,7 @@ GLOBAL.tests = {
     new ArrayBuffer();
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
-    return ArrayBuffer.name == 'ArrayBuffer';
+    return ArrayBuffer.length == 1 && ArrayBuffer.name == 'ArrayBuffer';
   }],
   'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return ArrayBuffer.isView;

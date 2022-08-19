@@ -4,6 +4,7 @@
 - Avoid unnecessary promise creation and do not validate result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting
+- Fixed `ArrayBuffer.length` in V8 ~ Chrome 27-
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Availability cloning of `FileList` in the `structuredClone` polyfill extended to some more old engines versions
 - Some stylistic changes

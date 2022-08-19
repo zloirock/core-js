@@ -448,7 +448,7 @@ export const data = {
   },
   'es.array-buffer.constructor': {
     bun: '0.1.1',
-    chrome: '26',
+    chrome: '28',
     edge: '14',
     firefox: '44',
     hermes: '0.1',

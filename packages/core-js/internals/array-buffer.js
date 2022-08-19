@@ -197,9 +197,9 @@ if (!NATIVE_ARRAY_BUFFER) {
     new NativeArrayBuffer();
     new NativeArrayBuffer(1.5);
     new NativeArrayBuffer(NaN);
-    return INCORRECT_ARRAY_BUFFER_NAME && !CONFIGURABLE_FUNCTION_NAME;
+    return NativeArrayBuffer.length != 1 || INCORRECT_ARRAY_BUFFER_NAME && !CONFIGURABLE_FUNCTION_NAME;
   })) {
-  /* eslint-enable no-new -- required for testing */
+    /* eslint-enable no-new -- required for testing */
     $ArrayBuffer = function ArrayBuffer(length) {
       anInstance(this, ArrayBufferPrototype);
       return new NativeArrayBuffer(toIndex(length));
