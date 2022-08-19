@@ -122,8 +122,20 @@ var throwUncloneable = function (type) {
   throw new DOMException('Uncloneable type: ' + type, DATA_CLONE_ERROR);
 };
 
-var throwUnpolyfillable = function (type, kind) {
-  throw new DOMException((kind || 'Cloning') + ' of ' + type + ' cannot be properly polyfilled in this engine', DATA_CLONE_ERROR);
+var throwUnpolyfillable = function (type, action) {
+  throw new DOMException((action || 'Cloning') + ' of ' + type + ' cannot be properly polyfilled in this engine', DATA_CLONE_ERROR);
+};
+
+var createDataTransfer = function () {
+  var dataTransfer;
+  try {
+    dataTransfer = new global.DataTransfer();
+  } catch (error) {
+    try {
+      dataTransfer = new global.ClipboardEvent('').clipboardData;
+    } catch (error2) { /* empty */ }
+  }
+  return dataTransfer && dataTransfer.items && dataTransfer.files ? dataTransfer : null;
 };
 
 var structuredCloneInternal = function (value, map) {
@@ -240,9 +252,8 @@ var structuredCloneInternal = function (value, map) {
       }
       break;
     case 'FileList':
-      C = global.DataTransfer;
-      if (isConstructor(C)) {
-        dataTransfer = new C();
+      dataTransfer = createDataTransfer();
+      if (dataTransfer) {
         for (i = 0, length = lengthOfArrayLike(value); i < length; i++) {
           dataTransfer.items.add(structuredCloneInternal(value[i], map));
         }

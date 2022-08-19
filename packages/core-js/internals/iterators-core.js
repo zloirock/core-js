@@ -1,6 +1,7 @@
 'use strict';
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
+var isObject = require('../internals/is-object');
 var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -25,7 +26,7 @@ if ([].keys) {
   }
 }
 
-var NEW_ITERATOR_PROTOTYPE = IteratorPrototype == null || fails(function () {
+var NEW_ITERATOR_PROTOTYPE = !isObject(IteratorPrototype) || fails(function () {
   var test = {};
   // FF44- legacy iterators case
   return IteratorPrototype[ITERATOR].call(test) !== test;

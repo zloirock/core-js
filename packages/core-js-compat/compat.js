@@ -6,12 +6,21 @@ const getModulesListForTargetVersion = require('./get-modules-list-for-target-ve
 const allModules = require('./modules');
 const targetsParser = require('./targets-parser');
 
+function throwInvalidFilter(filter) {
+  throw TypeError(`Specified invalid module name or pattern: ${ filter }`);
+}
+
+function atLeastSomeModules(modules, filter) {
+  if (!modules.length) throwInvalidFilter(filter);
+  return modules;
+}
+
 function getModules(filter) {
   if (typeof filter == 'string') {
     if (has(entries, filter)) return entries[filter];
-    return allModules.filter(it => it.startsWith(filter));
-  } else if (filter instanceof RegExp) return allModules.filter(it => filter.test(it));
-  throw TypeError('Wrong filter!');
+    return atLeastSomeModules(allModules.filter(it => it.startsWith(filter)), filter);
+  } else if (filter instanceof RegExp) return atLeastSomeModules(allModules.filter(it => filter.test(it)), filter);
+  throwInvalidFilter(filter);
 }
 
 function normalizeModules(option) {
