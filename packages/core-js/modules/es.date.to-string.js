@@ -5,15 +5,15 @@ var defineBuiltIn = require('../internals/define-built-in');
 var DatePrototype = Date.prototype;
 var INVALID_DATE = 'Invalid Date';
 var TO_STRING = 'toString';
-var un$DateToString = uncurryThis(DatePrototype[TO_STRING]);
-var getTime = uncurryThis(DatePrototype.getTime);
+var nativeDateToString = uncurryThis(DatePrototype[TO_STRING]);
+var thisTimeValue = uncurryThis(DatePrototype.getTime);
 
 // `Date.prototype.toString` method
 // https://tc39.es/ecma262/#sec-date.prototype.tostring
 if (String(new Date(NaN)) != INVALID_DATE) {
   defineBuiltIn(DatePrototype, TO_STRING, function toString() {
-    var value = getTime(this);
+    var value = thisTimeValue(this);
     // eslint-disable-next-line no-self-compare -- NaN check
-    return value === value ? un$DateToString(this) : INVALID_DATE;
+    return value === value ? nativeDateToString(this) : INVALID_DATE;
   });
 }

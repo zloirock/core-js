@@ -11,7 +11,7 @@ var speciesConstructor = require('../internals/species-constructor');
 var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
 var DataView = ArrayBufferModule.DataView;
 var DataViewPrototype = DataView.prototype;
-var un$ArrayBufferSlice = uncurryThis(ArrayBuffer.prototype.slice);
+var nativeArrayBufferSlice = uncurryThis(ArrayBuffer.prototype.slice);
 var getUint8 = uncurryThis(DataViewPrototype.getUint8);
 var setUint8 = uncurryThis(DataViewPrototype.setUint8);
 
@@ -23,8 +23,8 @@ var INCORRECT_SLICE = fails(function () {
 // https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice
 $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE }, {
   slice: function slice(start, end) {
-    if (un$ArrayBufferSlice && end === undefined) {
-      return un$ArrayBufferSlice(anObject(this), start); // FF fix
+    if (nativeArrayBufferSlice && end === undefined) {
+      return nativeArrayBufferSlice(anObject(this), start); // FF fix
     }
     var length = anObject(this).byteLength;
     var first = toAbsoluteIndex(start, length);

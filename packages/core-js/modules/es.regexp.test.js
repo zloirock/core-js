@@ -3,9 +3,9 @@
 require('../modules/es.regexp.exec');
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
-var isObject = require('../internals/is-object');
+var anObject = require('../internals/an-object');
+var toString = require('../internals/to-string');
 
 var DELEGATES_TO_EXEC = function () {
   var execCalled = false;
@@ -17,19 +17,19 @@ var DELEGATES_TO_EXEC = function () {
   return re.test('abc') === true && execCalled;
 }();
 
-var $TypeError = TypeError;
-var un$Test = uncurryThis(/./.test);
+var nativeTest = /./.test;
 
 // `RegExp.prototype.test` method
 // https://tc39.es/ecma262/#sec-regexp.prototype.test
 $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
-  test: function (str) {
-    var exec = this.exec;
-    if (!isCallable(exec)) return un$Test(this, str);
-    var result = call(exec, this, str);
-    if (result !== null && !isObject(result)) {
-      throw new $TypeError('RegExp exec method returned something other than an Object or null');
-    }
-    return !!result;
+  test: function (S) {
+    var R = anObject(this);
+    var string = toString(S);
+    var exec = R.exec;
+    if (!isCallable(exec)) return call(nativeTest, R, string);
+    var result = call(exec, R, string);
+    if (result === null) return false;
+    anObject(result);
+    return true;
   }
 });

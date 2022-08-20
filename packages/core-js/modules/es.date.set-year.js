@@ -4,7 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
 var DatePrototype = Date.prototype;
-var getTime = uncurryThis(DatePrototype.getTime);
+var thisTimeValue = uncurryThis(DatePrototype.getTime);
 var setFullYear = uncurryThis(DatePrototype.setFullYear);
 
 // `Date.prototype.setYear` method
@@ -12,7 +12,7 @@ var setFullYear = uncurryThis(DatePrototype.setFullYear);
 $({ target: 'Date', proto: true }, {
   setYear: function setYear(year) {
     // validate
-    getTime(this);
+    thisTimeValue(this);
     var yi = toIntegerOrInfinity(year);
     var yyyy = 0 <= yi && yi <= 99 ? yi + 1900 : yi;
     return setFullYear(this, yyyy);

@@ -1,13 +1,13 @@
 ## Changelog
 ##### Unreleased
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
-- Avoid unnecessary promise creation and do not validate result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
+- Avoiding unnecessary promise creation and validation result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting
 - Fixed `ArrayBuffer.length` in V8 ~ Chrome 27-
 - Relaxed condition of re-usage native `WeakMap` for internal states with multiple `core-js` copies
 - Availability cloning of `FileList` in the `structuredClone` polyfill extended to some more old engines versions
-- Some stylistic changes
+- Some stylistic changes and minor fixes
 - Throwing a `TypeError` in `core-js-compat` / `core-js-builder` in case of passing invalid module names / filters for avoiding unexpected result, related to [#1115](https://github.com/zloirock/core-js/issues/1115)
 - Added Electron 21 compat data mapping
 - Added Oculus Browser 23.0 compat data mapping

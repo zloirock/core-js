@@ -49,10 +49,10 @@ var mapSet = uncurryThis(MapPrototype.set);
 var setAdd = uncurryThis(Set.prototype.add);
 var objectKeys = getBuiltin('Object', 'keys');
 var push = uncurryThis([].push);
-var booleanValueOf = uncurryThis(true.valueOf);
-var numberValueOf = uncurryThis(1.0.valueOf);
-var stringValueOf = uncurryThis(''.valueOf);
-var getTime = uncurryThis(Date.prototype.getTime);
+var thisBooleanValue = uncurryThis(true.valueOf);
+var thisNumberValue = uncurryThis(1.0.valueOf);
+var thisStringValue = uncurryThis(''.valueOf);
+var thisTimeValue = uncurryThis(Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
@@ -285,16 +285,16 @@ var structuredCloneInternal = function (value, map) {
           cloned = Object(value.valueOf());
           break;
         case 'Boolean':
-          cloned = Object(booleanValueOf(value));
+          cloned = Object(thisBooleanValue(value));
           break;
         case 'Number':
-          cloned = Object(numberValueOf(value));
+          cloned = Object(thisNumberValue(value));
           break;
         case 'String':
-          cloned = Object(stringValueOf(value));
+          cloned = Object(thisStringValue(value));
           break;
         case 'Date':
-          cloned = new Date(getTime(value));
+          cloned = new Date(thisTimeValue(value));
           break;
         case 'ArrayBuffer':
           C = global.DataView;

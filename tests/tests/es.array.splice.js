@@ -33,7 +33,7 @@ QUnit.test('Array#splice', assert => {
   assert.deepEqual(array.splice(2), [2]);
   if (STRICT) {
     if (DESCRIPTORS) {
-      assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'now-writable length');
+      assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'non-writable length');
     }
     assert.throws(() => splice.call(null), TypeError);
     assert.throws(() => splice.call(undefined), TypeError);

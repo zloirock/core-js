@@ -9,7 +9,7 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var createProperty = require('../internals/create-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
-var un$Slice = require('../internals/array-slice');
+var nativeSlice = require('../internals/array-slice');
 
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
@@ -38,7 +38,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
         if (Constructor === null) Constructor = undefined;
       }
       if (Constructor === $Array || Constructor === undefined) {
-        return un$Slice(O, k, fin);
+        return nativeSlice(O, k, fin);
       }
     }
     result = new (Constructor === undefined ? $Array : Constructor)(max(fin - k, 0));

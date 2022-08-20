@@ -15,7 +15,7 @@ var V8 = require('../internals/engine-v8-version');
 var WEBKIT = require('../internals/engine-webkit-version');
 
 var test = [];
-var un$Sort = uncurryThis(test.sort);
+var nativeSort = uncurryThis(test.sort);
 var push = uncurryThis(test.push);
 
 // IE8-
@@ -83,7 +83,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
 
     var array = toObject(this);
 
-    if (STABLE_SORT) return comparefn === undefined ? un$Sort(array) : un$Sort(array, comparefn);
+    if (STABLE_SORT) return comparefn === undefined ? nativeSort(array) : nativeSort(array, comparefn);
 
     var items = [];
     var arrayLength = lengthOfArrayLike(array);
@@ -95,7 +95,7 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
 
     internalSort(items, getSortCompare(comparefn));
 
-    itemsLength = items.length;
+    itemsLength = lengthOfArrayLike(items);
     index = 0;
 
     while (index < itemsLength) array[index] = items[index++];

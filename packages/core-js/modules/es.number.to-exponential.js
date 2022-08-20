@@ -14,31 +14,31 @@ var abs = Math.abs;
 var floor = Math.floor;
 var pow = Math.pow;
 var round = Math.round;
-var un$ToExponential = uncurryThis(1.0.toExponential);
+var nativeToExponential = uncurryThis(1.0.toExponential);
 var repeat = uncurryThis($repeat);
 var stringSlice = uncurryThis(''.slice);
 
 // Edge 17-
-var ROUNDS_PROPERLY = un$ToExponential(-6.9e-11, 4) === '-6.9000e-11'
+var ROUNDS_PROPERLY = nativeToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // IE11- && Edge 14-
-  && un$ToExponential(1.255, 2) === '1.25e+0'
+  && nativeToExponential(1.255, 2) === '1.25e+0'
   // FF86-, V8 ~ Chrome 49-50
-  && un$ToExponential(12345, 3) === '1.235e+4'
+  && nativeToExponential(12345, 3) === '1.235e+4'
   // FF86-, V8 ~ Chrome 49-50
-  && un$ToExponential(25, 0) === '3e+1';
+  && nativeToExponential(25, 0) === '3e+1';
 
 // IE8-
 var THROWS_ON_INFINITY_FRACTION = fails(function () {
-  un$ToExponential(1, Infinity);
+  nativeToExponential(1, Infinity);
 }) && fails(function () {
-  un$ToExponential(1, -Infinity);
+  nativeToExponential(1, -Infinity);
 });
 
 // Safari <11 && FF <50
 var PROPER_NON_FINITE_THIS_CHECK = !fails(function () {
-  un$ToExponential(Infinity, Infinity);
+  nativeToExponential(Infinity, Infinity);
 }) && !fails(function () {
-  un$ToExponential(NaN, Infinity);
+  nativeToExponential(NaN, Infinity);
 });
 
 var FORCED = !ROUNDS_PROPERLY || !THROWS_ON_INFINITY_FRACTION || !PROPER_NON_FINITE_THIS_CHECK;
@@ -48,12 +48,12 @@ var FORCED = !ROUNDS_PROPERLY || !THROWS_ON_INFINITY_FRACTION || !PROPER_NON_FIN
 $({ target: 'Number', proto: true, forced: FORCED }, {
   toExponential: function toExponential(fractionDigits) {
     var x = thisNumberValue(this);
-    if (fractionDigits === undefined) return un$ToExponential(x);
+    if (fractionDigits === undefined) return nativeToExponential(x);
     var f = toIntegerOrInfinity(fractionDigits);
     if (!$isFinite(x)) return String(x);
     // TODO: ES2018 increased the maximum number of fraction digits to 100, need to improve the implementation
     if (f < 0 || f > 20) throw $RangeError('Incorrect fraction digits');
-    if (ROUNDS_PROPERLY) return un$ToExponential(x, f);
+    if (ROUNDS_PROPERLY) return nativeToExponential(x, f);
     var s = '';
     var m = '';
     var e = 0;
