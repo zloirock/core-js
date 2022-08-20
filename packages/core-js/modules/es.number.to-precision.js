@@ -4,14 +4,14 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var thisNumberValue = require('../internals/this-number-value');
 
-var un$ToPrecision = uncurryThis(1.0.toPrecision);
+var nativeToPrecision = uncurryThis(1.0.toPrecision);
 
 var FORCED = fails(function () {
   // IE7-
-  return un$ToPrecision(1, undefined) !== '1';
+  return nativeToPrecision(1, undefined) !== '1';
 }) || !fails(function () {
   // V8 ~ Android 4.3-
-  un$ToPrecision({});
+  nativeToPrecision({});
 });
 
 // `Number.prototype.toPrecision` method
@@ -19,7 +19,7 @@ var FORCED = fails(function () {
 $({ target: 'Number', proto: true, forced: FORCED }, {
   toPrecision: function toPrecision(precision) {
     return precision === undefined
-      ? un$ToPrecision(thisNumberValue(this))
-      : un$ToPrecision(thisNumberValue(this), precision);
+      ? nativeToPrecision(thisNumberValue(this))
+      : nativeToPrecision(thisNumberValue(this), precision);
   }
 });

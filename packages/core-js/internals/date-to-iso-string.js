@@ -4,10 +4,11 @@ var fails = require('../internals/fails');
 var padStart = require('../internals/string-pad').start;
 
 var $RangeError = RangeError;
+var $isFinite = isFinite;
 var abs = Math.abs;
 var DatePrototype = Date.prototype;
-var n$DateToISOString = DatePrototype.toISOString;
-var getTime = uncurryThis(DatePrototype.getTime);
+var nativeDateToISOString = DatePrototype.toISOString;
+var thisTimeValue = uncurryThis(DatePrototype.getTime);
 var getUTCDate = uncurryThis(DatePrototype.getUTCDate);
 var getUTCFullYear = uncurryThis(DatePrototype.getUTCFullYear);
 var getUTCHours = uncurryThis(DatePrototype.getUTCHours);
@@ -20,11 +21,11 @@ var getUTCSeconds = uncurryThis(DatePrototype.getUTCSeconds);
 // https://tc39.es/ecma262/#sec-date.prototype.toisostring
 // PhantomJS / old WebKit fails here:
 module.exports = (fails(function () {
-  return n$DateToISOString.call(new Date(-5e13 - 1)) != '0385-07-25T07:06:39.999Z';
+  return nativeDateToISOString.call(new Date(-5e13 - 1)) != '0385-07-25T07:06:39.999Z';
 }) || !fails(function () {
-  n$DateToISOString.call(new Date(NaN));
+  nativeDateToISOString.call(new Date(NaN));
 })) ? function toISOString() {
-  if (!isFinite(getTime(this))) throw $RangeError('Invalid time value');
+  if (!$isFinite(thisTimeValue(this))) throw $RangeError('Invalid time value');
   var date = this;
   var year = getUTCFullYear(date);
   var milliseconds = getUTCMilliseconds(date);
@@ -37,4 +38,4 @@ module.exports = (fails(function () {
     ':' + padStart(getUTCSeconds(date), 2, 0) +
     '.' + padStart(milliseconds, 3, 0) +
     'Z';
-} : n$DateToISOString;
+} : nativeDateToISOString;
