@@ -14,8 +14,8 @@ QUnit.test('Array#unshift', assert => {
 
   if (STRICT) {
     if (DESCRIPTORS) {
-      assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'now-writable length, with arg');
-      assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false })), TypeError, 'now-writable length, without arg');
+      assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'non-writable length, with arg');
+      assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
     }
 
     assert.throws(() => unshift.call(null), TypeError);
