@@ -31,6 +31,7 @@ deepStrictEqual(targetsParser({ esmodules: true }), new Map([
   ['edge', '16'],
   ['firefox', '60'],
   ['ios', '10.3'],
+  ['node', '13.2'],
   ['oculus', '4.0'],
   ['opera', '48'],
   ['opera_mobile', '45'],
@@ -39,11 +40,11 @@ deepStrictEqual(targetsParser({ esmodules: true }), new Map([
 ]), 'targets.esmodules');
 
 deepStrictEqual(targetsParser({ node: 'current' }), new Map([
-  ['node', String(process.versions.node)],
+  ['node', process.versions.node],
 ]), 'targets.node: current');
 
-deepStrictEqual(targetsParser({ node: '13.2' }), new Map([
-  ['node', '13.2'],
+deepStrictEqual(targetsParser({ node: '14.0' }), new Map([
+  ['node', '14.0'],
 ]), 'targets.node: version');
 
 deepStrictEqual(targetsParser({
@@ -64,7 +65,7 @@ deepStrictEqual(targetsParser({
 
 deepStrictEqual(targetsParser({
   esmodules: true,
-  node: 'current',
+  node: '12.0',
   browsers: 'edge 13, safari 5.1, ios 13',
   android: '4.2',
   chrome: 77,
@@ -87,7 +88,7 @@ deepStrictEqual(targetsParser({
   ['firefox', '60'],
   ['ie', '8'],
   ['ios', '10.3'],
-  ['node', String(process.versions.node)],
+  ['node', '12.0'],
   ['oculus', '4.0'],
   ['opera', '48'],
   ['opera_mobile', '40'],

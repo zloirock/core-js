@@ -9,6 +9,7 @@
 - Availability cloning of `FileList` in the `structuredClone` polyfill extended to some more old engines versions
 - Some stylistic changes and minor fixes
 - Throwing a `TypeError` in `core-js-compat` / `core-js-builder` in case of passing invalid module names / filters for avoiding unexpected result, related to [#1115](https://github.com/zloirock/core-js/issues/1115)
+- Added missed NodeJS 13.2 to `esmodules` `core-js-compat` / `core-js-builder` target
 - Added Electron 21 compat data mapping
 - Added Oculus Browser 23.0 compat data mapping
 
