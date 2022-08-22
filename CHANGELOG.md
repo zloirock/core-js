@@ -2,6 +2,7 @@
 ##### Unreleased
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
 - Avoiding unnecessary promise creation and validation result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
+- Fixed omitting the result of proxing `.return` in `%IteratorHelperPrototype%.return`, [#1116](https://github.com/zloirock/core-js/issues/1116)
 - Fixed the order creation of properties of iteration result object of some iterators (`value` should be created before `done`)
 - Fixed some cases of Safari < 13 bug - silent on non-writable array `.length` setting
 - Fixed `ArrayBuffer.length` in V8 ~ Chrome 27-
