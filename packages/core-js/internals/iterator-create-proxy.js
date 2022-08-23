@@ -1,6 +1,5 @@
 'use strict';
 var call = require('../internals/function-call');
-var anObject = require('../internals/an-object');
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
@@ -39,16 +38,19 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
     'return': function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
-      var innerIterator = state.innerIterator;
       state.done = true;
+      if (IS_ITERATOR) {
+        var returnMethod = getMethod(iterator, 'return');
+        return returnMethod ? call(returnMethod, iterator) : { value: undefined, done: true };
+      }
+      var innerIterator = state.innerIterator;
       if (innerIterator) try {
         iteratorClose(innerIterator, 'return');
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }
-      var returnMethod = getMethod(iterator, 'return');
-      var result = returnMethod && call(returnMethod, iterator);
-      return IS_ITERATOR && returnMethod ? result : { value: returnMethod ? anObject(result).value : undefined, done: true };
+      iteratorClose(iterator, 'return');
+      return { value: undefined, done: true };
     }
   });
 
