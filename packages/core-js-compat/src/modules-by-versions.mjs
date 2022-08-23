@@ -154,4 +154,7 @@ export default {
     'esnext.async-iterator.indexed',
     'esnext.iterator.indexed',
   ],
+  3.25: [
+    'es.object.proto',
+  ],
 };

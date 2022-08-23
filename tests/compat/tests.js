@@ -838,6 +838,9 @@ GLOBAL.tests = {
   'es.object.prevent-extensions': function () {
     return Object.preventExtensions(true);
   },
+  'es.object.proto': function () {
+    return '__proto__' in Object.prototype;
+  },
   'es.object.seal': function () {
     return Object.seal(true);
   },

@@ -4,6 +4,8 @@ import external from 'core-js-compat/src/external.mjs';
 import mappings from 'core-js-compat/src/mapping.mjs';
 import helpers from 'core-js-compat/helpers.js';
 
+const { compare, has, semver, sortObjectByKey } = helpers;
+
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
     const { chrome, ie } = module;
@@ -12,21 +14,21 @@ for (const scope of [data, external]) {
       const [engine, targetKey] = mappingKey.split('To')
         .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }_${ b }`).toLowerCase());
       const version = module[engine];
-      if (!version || module[targetKey]) return;
+      if (!version || has(module, targetKey)) return;
       const mapping = mappings[mappingKey];
       if (typeof mapping == 'function') {
         return module[targetKey] = String(mapping(version));
       }
-      const source = helpers.semver(version);
+      const source = semver(version);
       for (const [from, to] of mapping) {
-        if (helpers.compare(source, '<=', from)) {
+        if (compare(source, '<=', from)) {
           return module[targetKey] = String(to);
         }
       }
     }
 
     map('ChromeToAndroid');
-    if (!module.android && chrome) {
+    if (!has(module, 'android') && chrome) {
       module.android = String(Math.max(chrome, 37));
     }
     if (key.startsWith('es')) {
@@ -35,7 +37,7 @@ for (const scope of [data, external]) {
     if (/^(?:es|esnext|web)\./.test(key)) {
       map('ChromeToElectron');
     }
-    if (!module.edge) {
+    if (!has(module, 'edge')) {
       if (ie && !key.includes('immediate')) {
         module.edge = '12';
       } else if (chrome) {
@@ -46,7 +48,7 @@ for (const scope of [data, external]) {
       map('ChromeToNode');
     }
     map('ChromeToOpera');
-    if (!module.opera_mobile && module.opera <= 42) {
+    if (!has(module, 'opera_mobile') && module.opera <= 42) {
       module.opera_mobile = module.opera;
     } else {
       map('ChromeToOperaMobile');
@@ -56,7 +58,11 @@ for (const scope of [data, external]) {
     map('SafariToIOS');
     map('SafariToPhantom');
 
-    scope[key] = helpers.sortObjectByKey(module);
+    for (const [engine, version] of Object.entries(module)) {
+      if (!version) delete module[engine];
+    }
+
+    scope[key] = sortObjectByKey(module);
   }
 }
 

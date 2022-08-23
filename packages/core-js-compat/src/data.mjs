@@ -1115,6 +1115,16 @@ export const data = {
     safari: '9.0',
     rhino: '1.7.13',
   },
+  'es.object.proto': {
+    bun: '0.1.1',
+    chrome: '5',
+    deno: false,
+    firefox: '2',
+    hermes: '0.1',
+    ie: '11',
+    opera: '10.50',
+    safari: '3.1',
+  },
   'es.object.seal': {
     bun: '0.1.1',
     chrome: '44',
