@@ -18,7 +18,7 @@ const {
   exclude: [                    // optional list / filter of modules to exclude, the signature is similar to `modules` option
     'web.atob',
   ],
-  version: '3.24',              // used `core-js` version, by default - the latest
+  version: '3.25',              // used `core-js` version, by default - the latest
 });
 
 console.log(targets);
@@ -112,9 +112,9 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 require('core-js-compat').modules; // => Array<ModuleName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.24'); // => Array<ModuleName>
+require('core-js-compat/get-modules-list-for-target-version')('3.25'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.24'); // => Array<ModuleName>
+require('core-js-compat').getModulesListForTargetVersion('3.25'); // => Array<ModuleName>
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://es6.zloirock.ru/compat/), the example:

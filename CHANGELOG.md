@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.25.0 - 2022.08.25](https://github.com/zloirock/core-js/releases/tag/v3.25.0)
 - Added [`Object.prototype.__proto__`](https://tc39.es/ecma262/#sec-object.prototype.__proto__) polyfill
   - It's optional, legacy, and in some cases (mainly because of developers' mistakes) can cause problems, but [some libraries depend on it](https://github.com/denoland/deno/issues/13321), and most code can't work without the proper libraries' ecosystem
   - Only for modern engines where this feature is missed (like Deno), it's not installed in IE10- since here we have no proper way setting of the prototype
