@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Bun 0.1.6-0.1.10 compat data 
 
 ##### [3.25.0 - 2022.08.25](https://github.com/zloirock/core-js/releases/tag/v3.25.0)
 - Added [`Object.prototype.__proto__`](https://tc39.es/ecma262/#sec-object.prototype.__proto__) polyfill

@@ -2061,6 +2061,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.find-last-index': null,
   'esnext.array.group': {
+    bun: '0.1.9',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -2069,6 +2070,7 @@ export const data = {
   'esnext.array.group-by-to-map': {
   },
   'esnext.array.group-to-map': {
+    bun: '0.1.9',
   },
   'esnext.array.is-template-object': {
   },
@@ -2396,6 +2398,7 @@ export const data = {
   'esnext.typed-array.unique-by': {
   },
   'esnext.typed-array.with': {
+    bun: '0.1.9',
   },
   'esnext.weak-map.delete-all': {
   },
@@ -2444,6 +2447,7 @@ export const data = {
     safari: '3.0',
   },
   'web.clear-immediate': {
+    bun: '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
@@ -2491,6 +2495,7 @@ export const data = {
   },
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.immediate': {
+    bun: '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
@@ -2504,6 +2509,7 @@ export const data = {
     safari: '12.1',
   },
   'web.set-immediate': {
+    bun: '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
