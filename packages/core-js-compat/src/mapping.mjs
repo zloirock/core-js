@@ -81,9 +81,8 @@ export default {
     [98, '1.18'],
     [99, '1.19'],
     [100, '1.20'],
-    [100, '1.21'],
-    [100, '1.22'],
     [104, '1.23'],
+    [106, '1.25'],
   ],
   // https://github.com/Kilian/electron-to-chromium/blob/master/chromium-versions.js
   // Maybe also required to handle used Node versions?
