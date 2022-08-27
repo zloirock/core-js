@@ -1,11 +1,29 @@
 'use strict';
-const cmp = require('semver/functions/cmp');
-const semver = require('semver/functions/coerce');
-
 const has = Function.call.bind({}.hasOwnProperty);
 
-function compare(a, operator, b) {
-  return cmp(semver(a), operator, semver(b));
+function semver(input) {
+  if (input instanceof semver) return input;
+  // eslint-disable-next-line new-cap -- ok
+  if (!(this instanceof semver)) return new semver(input);
+  const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(input);
+  if (!match) throw TypeError(`Invalid version: ${ input }`);
+  const [, $major, $minor, $patch] = match;
+  this.major = +$major;
+  this.minor = $minor ? +$minor : 0;
+  this.patch = $patch ? +$patch : 0;
+}
+
+function compare($a, $operator, $b) {
+  const a = semver($a);
+  const b = semver($b);
+  const operator = String($operator);
+  if (a.major < b.major) return operator == '<' || operator == '<=' || operator == '!=';
+  if (a.major > b.major) return operator == '>' || operator == '>=' || operator == '!=';
+  if (a.minor < b.minor) return operator == '<' || operator == '<=' || operator == '!=';
+  if (a.minor > b.minor) return operator == '>' || operator == '>=' || operator == '!=';
+  if (a.patch < b.patch) return operator == '<' || operator == '<=' || operator == '!=';
+  if (a.patch > b.patch) return operator == '>' || operator == '>=' || operator == '!=';
+  return operator == '==' || operator == '<=' || operator == '>=';
 }
 
 function filterOutStabilizedProposals(modules) {

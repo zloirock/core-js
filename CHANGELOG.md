@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- Dropped `semver` dependency from `core-js-compat`
+  - `semver` package (ironically) added [a breaking change and dropped NodeJS 8 support in the minor `7.1` version](https://github.com/npm/node-semver/commit/d61f828e64260a0a097f26210f5500), after that `semver` in `core-js-compat` was pinned to `7.0` since for avoiding breaking changes it should support NodeJS 8. However, since `core-js-compat` is usually used with other packages that use `semver` dependency, it causes multiple duplication of `semver` in dependencies. So I decided to remove `semver` dependency and replace it with a couple of simple helpers.
 - Added Bun 0.1.6-0.1.10 compat data
 - Added Deno 1.25 compat data mapping
 
