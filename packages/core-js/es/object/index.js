@@ -17,6 +17,7 @@ require('../../modules/es.object.is-frozen');
 require('../../modules/es.object.is-sealed');
 require('../../modules/es.object.keys');
 require('../../modules/es.object.prevent-extensions');
+require('../../modules/es.object.proto');
 require('../../modules/es.object.seal');
 require('../../modules/es.object.set-prototype-of');
 require('../../modules/es.object.values');

@@ -544,7 +544,7 @@ GLOBAL.tests = {
     new ArrayBuffer();
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
-    return ArrayBuffer.name == 'ArrayBuffer';
+    return ArrayBuffer.length == 1 && ArrayBuffer.name == 'ArrayBuffer';
   }],
   'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return ArrayBuffer.isView;
@@ -837,6 +837,9 @@ GLOBAL.tests = {
   'es.object.lookup-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.prevent-extensions': function () {
     return Object.preventExtensions(true);
+  },
+  'es.object.proto': function () {
+    return '__proto__' in Object.prototype;
   },
   'es.object.seal': function () {
     return Object.seal(true);

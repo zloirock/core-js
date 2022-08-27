@@ -34,6 +34,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(!load(NS, 'object/is-sealed')({}));
     ok(load(NS, 'object/keys')({ q: 0 })[0] === 'q');
     ok(load(NS, 'object/prevent-extensions')({}));
+    load(NS, 'object/proto');
     ok(load(NS, 'object/seal')({}));
     ok(load(NS, 'object/set-prototype-of')({}, []) instanceof Array);
     ok(load(NS, 'object/to-string')([]) === '[object Array]');

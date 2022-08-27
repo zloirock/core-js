@@ -1,5 +1,14 @@
 ## Changelog
 ##### Unreleased
+- Added Bun 0.1.6-0.1.10 compat data
+- Added Deno 1.25 compat data mapping
+
+##### [3.25.0 - 2022.08.25](https://github.com/zloirock/core-js/releases/tag/v3.25.0)
+- Added [`Object.prototype.__proto__`](https://tc39.es/ecma262/#sec-object.prototype.__proto__) polyfill
+  - It's optional, legacy, and in some cases (mainly because of developers' mistakes) can cause problems, but [some libraries depend on it](https://github.com/denoland/deno/issues/13321), and most code can't work without the proper libraries' ecosystem
+  - Only for modern engines where this feature is missed (like Deno), it's not installed in IE10- since here we have no proper way setting of the prototype
+  - Without fixes of early implementations where it's not an accessor since those fixes are impossible
+  - Only for the global version
 - Considering `document.all` as an object in some missed cases, see [ECMAScript Annex B 3.6](https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot)
 - Avoiding unnecessary promise creation and validation result in `%WrapForValid(Async)IteratorPrototype%.return`, [proposal-iterator-helpers/215](https://github.com/tc39/proposal-iterator-helpers/pull/215)
 - Fixed omitting the result of proxing `.return` in `%IteratorHelperPrototype%.return`, [#1116](https://github.com/zloirock/core-js/issues/1116)

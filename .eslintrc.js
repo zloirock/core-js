@@ -1095,7 +1095,7 @@ module.exports = {
   },
   env: {
     // unnecessary global builtins disabled by related rules
-    es2021: true,
+    es2022: true,
     browser: true,
     node: true,
     worker: true,
