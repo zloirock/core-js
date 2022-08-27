@@ -1,5 +1,5 @@
 'use strict';
-const has = Function.call.bind({}.hasOwnProperty);
+const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
 function semver(input) {
   if (input instanceof semver) return input;
