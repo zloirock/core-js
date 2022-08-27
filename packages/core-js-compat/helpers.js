@@ -13,17 +13,13 @@ function semver(input) {
   this.patch = $patch ? +$patch : 0;
 }
 
-function compare($a, $operator, $b) {
+function compare($a, operator, $b) {
   const a = semver($a);
   const b = semver($b);
-  const operator = String($operator);
-  if (a.major < b.major) return operator == '<' || operator == '<=' || operator == '!=';
-  if (a.major > b.major) return operator == '>' || operator == '>=' || operator == '!=';
-  if (a.minor < b.minor) return operator == '<' || operator == '<=' || operator == '!=';
-  if (a.minor > b.minor) return operator == '>' || operator == '>=' || operator == '!=';
-  if (a.patch < b.patch) return operator == '<' || operator == '<=' || operator == '!=';
-  if (a.patch > b.patch) return operator == '>' || operator == '>=' || operator == '!=';
-  return operator == '==' || operator == '<=' || operator == '>=';
+  for (const component of ['major', 'minor', 'patch']) {
+    if (a[component] < b[component]) return operator === '<' || operator === '<=' || operator === '!=';
+    if (a[component] > b[component]) return operator === '>' || operator === '>=' || operator === '!=';
+  } return operator === '==' || operator === '<=' || operator === '>=';
 }
 
 function filterOutStabilizedProposals(modules) {
