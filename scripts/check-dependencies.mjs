@@ -12,7 +12,6 @@ const ignoreEverywhere = new Set([
 const ignoreInPackages = new Set([
   ...ignoreEverywhere,
   'mkdirp',
-  'semver',
   'webpack',
 ]);
 

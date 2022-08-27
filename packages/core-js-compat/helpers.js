@@ -1,11 +1,30 @@
 'use strict';
-const cmp = require('semver/functions/cmp');
-const semver = require('semver/functions/coerce');
+// eslint-disable-next-line es-x/no-object-hasown -- safe
+const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
-const has = Function.call.bind({}.hasOwnProperty);
+function semver(input) {
+  if (input instanceof semver) return input;
+  // eslint-disable-next-line new-cap -- ok
+  if (!(this instanceof semver)) return new semver(input);
+  const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(input);
+  if (!match) throw TypeError(`Invalid version: ${ input }`);
+  const [, $major, $minor, $patch] = match;
+  this.major = +$major;
+  this.minor = $minor ? +$minor : 0;
+  this.patch = $patch ? +$patch : 0;
+}
 
-function compare(a, operator, b) {
-  return cmp(semver(a), operator, semver(b));
+semver.prototype.toString = function () {
+  return `${ this.major }.${ this.minor }.${ this.patch }`;
+};
+
+function compare($a, operator, $b) {
+  const a = semver($a);
+  const b = semver($b);
+  for (const component of ['major', 'minor', 'patch']) {
+    if (a[component] < b[component]) return operator === '<' || operator === '<=' || operator === '!=';
+    if (a[component] > b[component]) return operator === '>' || operator === '>=' || operator === '!=';
+  } return operator === '==' || operator === '<=' || operator === '>=';
 }
 
 function filterOutStabilizedProposals(modules) {
