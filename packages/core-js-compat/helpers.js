@@ -1,4 +1,5 @@
 'use strict';
+// eslint-disable-next-line es-x/no-object-hasown -- safe
 const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
 function semver(input) {
@@ -12,6 +13,10 @@ function semver(input) {
   this.minor = $minor ? +$minor : 0;
   this.patch = $patch ? +$patch : 0;
 }
+
+semver.prototype.toString = function () {
+  return `${ this.major }.${ this.minor }.${ this.patch }`;
+};
 
 function compare($a, operator, $b) {
   const a = semver($a);
