@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
+var createIterResultObject = require('../internals/create-iter-result-object');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -23,11 +24,11 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
           try {
             if (anObject(step).done) {
               state.done = true;
-              resolve({ value: undefined, done: true });
+              resolve(createIterResultObject(undefined, true));
             } else if (state.remaining) {
               state.remaining--;
               loop();
-            } else resolve({ value: step.value, done: false });
+            } else resolve(createIterResultObject(step.value, false));
           } catch (err) { doneAndReject(err); }
         }, doneAndReject);
       } catch (error) { doneAndReject(error); }

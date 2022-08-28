@@ -7,6 +7,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 
 var ITERATOR_HELPER = 'IteratorHelper';
@@ -29,7 +30,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       if (IS_ITERATOR) return state.nextHandler();
       try {
         var result = state.done ? undefined : state.nextHandler();
-        return { value: result, done: state.done };
+        return createIterResultObject(result, state.done);
       } catch (error) {
         state.done = true;
         throw error;
@@ -41,7 +42,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       state.done = true;
       if (IS_ITERATOR) {
         var returnMethod = getMethod(iterator, 'return');
-        return returnMethod ? call(returnMethod, iterator) : { value: undefined, done: true };
+        return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
       var innerIterator = state.innerIterator;
       if (innerIterator) try {
@@ -50,7 +51,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         return iteratorClose(iterator, 'throw', error);
       }
       iteratorClose(iterator, 'return');
-      return { value: undefined, done: true };
+      return createIterResultObject(undefined, true);
     }
   });
 

@@ -10,6 +10,7 @@ var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
@@ -35,7 +36,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     var state = stateCompletion.value;
 
     if (stateError || (IS_GENERATOR && state.done)) {
-      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve({ value: undefined, done: true }) };
+      return { exit: true, value: stateError ? Promise.reject(state) : Promise.resolve(createIterResultObject(undefined, true)) };
     } return { exit: false, value: state };
   };
 
@@ -90,7 +91,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         });
         returnMethod = result = completion.value;
         if (completion.error) return Promise.reject(result);
-        if (returnMethod === undefined) return Promise.resolve({ value: undefined, done: true });
+        if (returnMethod === undefined) return Promise.resolve(createIterResultObject(undefined, true));
         completion = perform(function () {
           return call(returnMethod, iterator);
         });
@@ -98,7 +99,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         if (completion.error) return Promise.reject(result);
         return IS_ITERATOR ? Promise.resolve(result) : Promise.resolve(result).then(function (resolved) {
           anObject(resolved);
-          return { value: undefined, done: true };
+          return createIterResultObject(undefined, true);
         });
       });
     }

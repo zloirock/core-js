@@ -2,6 +2,7 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var numberIsFinite = require('../internals/number-is-finite');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var InternalStateModule = require('../internals/internal-state');
 
 var SEEDED_RANDOM = 'Seeded Random';
@@ -19,7 +20,7 @@ var $SeededRandomGenerator = createIteratorConstructor(function SeededRandomGene
 }, SEEDED_RANDOM, function next() {
   var state = getInternalState(this);
   var seed = state.seed = (state.seed * 1103515245 + 12345) % 2147483647;
-  return { value: (seed & 1073741823) / 1073741823, done: false };
+  return createIterResultObject((seed & 1073741823) / 1073741823, false);
 });
 
 // `Math.seededPRNG` method
