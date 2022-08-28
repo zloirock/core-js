@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
@@ -47,17 +48,20 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
   });
 }, REGEXP_STRING, function next() {
   var state = getInternalState(this);
-  if (state.done) return { value: undefined, done: true };
+  if (state.done) return createIterResultObject(undefined, true);
   var R = state.regexp;
   var S = state.string;
   var match = regExpExec(R, S);
-  if (match === null) return { value: undefined, done: state.done = true };
+  if (match === null) {
+    state.done = true;
+    return createIterResultObject(undefined, true);
+  }
   if (state.global) {
     if (toString(match[0]) === '') R.lastIndex = advanceStringIndex(S, toLength(R.lastIndex), state.unicode);
-    return { value: match, done: false };
+    return createIterResultObject(match, false);
   }
   state.done = true;
-  return { value: match, done: false };
+  return createIterResultObject(match, false);
 });
 
 var $matchAll = function (string) {

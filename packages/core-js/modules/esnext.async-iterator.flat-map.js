@@ -6,6 +6,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var getAsyncIterator = require('../internals/get-async-iterator');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
@@ -31,7 +32,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
           try {
             if (anObject(step).done) {
               state.done = true;
-              resolve({ value: undefined, done: true });
+              resolve(createIterResultObject(undefined, true));
             } else {
               var value = step.value;
               try {
@@ -57,7 +58,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
               if (anObject(result).done) {
                 state.innerIterator = state.innerNext = null;
                 outerLoop();
-              } else resolve({ value: result.value, done: false });
+              } else resolve(createIterResultObject(result.value, false));
             } catch (error1) { ifAbruptCloseAsyncIterator(error1); }
           }, ifAbruptCloseAsyncIterator);
         } catch (error) { ifAbruptCloseAsyncIterator(error); }

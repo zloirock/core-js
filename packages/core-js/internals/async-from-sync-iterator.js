@@ -7,6 +7,7 @@ var defineBuiltIns = require('../internals/define-built-ins');
 var InternalStateModule = require('../internals/internal-state');
 var getBuiltIn = require('../internals/get-built-in');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
+var createIterResultObject = require('../internals/create-iter-result-object');
 
 var Promise = getBuiltIn('Promise');
 
@@ -17,7 +18,7 @@ var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
   var done = result.done;
   Promise.resolve(result.value).then(function (value) {
-    resolve({ value: value, done: done });
+    resolve(createIterResultObject(value, done));
   }, reject);
 };
 
@@ -41,7 +42,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
     var iterator = getInternalState(this).iterator;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
-      if ($return === undefined) return resolve({ value: undefined, done: true });
+      if ($return === undefined) return resolve(createIterResultObject(undefined, true));
       var result = anObject(call($return, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });

@@ -1,6 +1,7 @@
 'use strict';
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
+var createIterResultObject = require('../internals/create-iter-result-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var defineProperties = require('../internals/object-define-properties').f;
@@ -64,7 +65,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   }
 }, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
-  if (state.hitsEnd) return { value: undefined, done: true };
+  if (state.hitsEnd) return createIterResultObject(undefined, true);
   var start = state.start;
   var end = state.end;
   var step = state.step;
@@ -78,8 +79,9 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     endCondition = inclusiveEnd ? end > currentYieldingValue : end >= currentYieldingValue;
   }
   if (endCondition) {
-    return { value: undefined, done: state.hitsEnd = true };
-  } return { value: currentYieldingValue, done: false };
+    state.hitsEnd = true;
+    return createIterResultObject(undefined, true);
+  } return createIterResultObject(currentYieldingValue, false);
 });
 
 var getter = function (fn) {
