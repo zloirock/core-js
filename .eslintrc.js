@@ -859,6 +859,10 @@ const forbidES2022BuiltIns = {
   'es-x/no-regexp-d-flag': ERROR,
 };
 
+const forbidES2023BuiltIns = {
+  'es-x/no-array-prototype-findlast-findlastindex': ERROR,
+};
+
 const forbidModernESBuiltIns = {
   ...forbidESAnnexBBuiltIns,
   ...forbidES5BuiltIns,
@@ -870,6 +874,7 @@ const forbidModernESBuiltIns = {
   ...forbidES2020BuiltIns,
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
+  ...forbidES2023BuiltIns,
 };
 
 const asyncAwait = {
@@ -926,6 +931,7 @@ const nodePackages = {
   ...forbidES2020BuiltIns,
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
+  ...forbidES2023BuiltIns,
 };
 
 const nodeDev = {
@@ -933,6 +939,8 @@ const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
   'n/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
+  'es-x/no-array-string-prototype-at': ERROR,
+  ...forbidES2023BuiltIns,
 };
 
 const tests = {
