@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants';
 
 const { defineProperty } = Object;
 
@@ -15,7 +15,7 @@ QUnit.test('Array#push', assert => {
   assert.same(object[0x100000000], 1, 'proper ToLength #2');
 
   if (STRICT) {
-    if (DESCRIPTORS) {
+    if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
       assert.throws(() => push.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'non-writable length, with arg');
       assert.throws(() => push.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
     }
