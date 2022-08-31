@@ -29,7 +29,6 @@ module.exports = async function ({
   blacklist = null, // TODO: Obsolete, remove from `core-js@4`
   exclude = [],
   targets = null,
-  output = 'bundle',
   filename = null,
   summary = {},
 } = {}) {
@@ -37,45 +36,37 @@ module.exports = async function ({
 
   const TITLE = filename != null ? filename : '`core-js`';
   let script = banner;
-  let code = '\n';
+  let code = '';
 
   const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
 
   if (list.length) {
-    if (output === 'bundle') {
-      const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
-      const tempFile = join(tmpdir, tempFileName);
+    const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
+    const tempFile = join(tmpdir, tempFileName);
 
-      await webpack({
-        mode: 'none',
-        node: {
-          global: false,
-          process: false,
-          setImmediate: false,
-        },
-        entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
-        output: {
-          filename: tempFileName,
-          hashFunction: 'md5',
-          path: tmpdir,
-        },
-      });
+    await webpack({
+      mode: 'none',
+      node: {
+        global: false,
+        process: false,
+        setImmediate: false,
+      },
+      entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
+      output: {
+        filename: tempFileName,
+        hashFunction: 'md5',
+        path: tmpdir,
+      },
+    });
 
-      const file = await readFile(tempFile);
+    const file = await readFile(tempFile);
 
-      await unlink(tempFile);
+    await unlink(tempFile);
 
-      code = `!function (undefined) { 'use strict'; ${
-        // compress `__webpack_require__` with `keep_fnames` option
-        String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
-      } }();\n`;
-    } else {
-      let template;
-      if (output === 'esm') template = it => `import 'core-js/modules/${ it }.js';\n`;
-      else if (output === 'cjs') template = it => `require('core-js/modules/${ it }');\n`;
-      else throw TypeError('Incorrect output type');
-      code = list.map(template).join('');
-    }
+    code = `!function (undefined) { 'use strict'; ${
+      // compress `__webpack_require__` with `keep_fnames` option
+      String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
+    } }();`;
   }
 
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
