@@ -8,6 +8,7 @@
     "directory": "packages/core-js-builder"
   },
   "main": "index.js",
+  "sideEffects": false,
   "dependencies": {
     "core-js": "3.25.0",
     "core-js-compat": "3.25.0",
