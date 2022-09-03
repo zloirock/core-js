@@ -35,6 +35,7 @@ Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, t
 
 ## Stage 3[⬆](#index)
 `core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
+
 [*CommonJS entry points:*](/docs/usage.md#commonjs-api)
 ```
 core-js(-pure)/stage/3
