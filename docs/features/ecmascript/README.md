@@ -20,5 +20,5 @@ core-js(-pure)/es
 - [Collections](collections.md)
 - [`TypedArray`s](typed-array.md)
 - [`Reflect`](reflect.md)
-- [JSON](json.md)
+- [`JSON`](json.md)
 - [`globalThis`](global-this.md)
