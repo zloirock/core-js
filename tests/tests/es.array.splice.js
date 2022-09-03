@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants';
 
 const { defineProperty } = Object;
 
@@ -32,7 +32,7 @@ QUnit.test('Array#splice', assert => {
   array = [0, 1, 2];
   assert.deepEqual(array.splice(2), [2]);
   if (STRICT) {
-    if (DESCRIPTORS) {
+    if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
       assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'non-writable length');
     }
     assert.throws(() => splice.call(null), TypeError);

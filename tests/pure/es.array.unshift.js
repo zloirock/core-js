@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants';
 
 import unshift from 'core-js-pure/es/array/virtual/unshift';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -9,7 +9,7 @@ QUnit.test('Array#unshift', assert => {
   assert.same(unshift.call([1], 0), 2, 'proper result');
 
   if (STRICT) {
-    if (DESCRIPTORS) {
+    if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
       assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'non-writable length, with arg');
       assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
     }
