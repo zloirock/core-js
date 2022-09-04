@@ -109,6 +109,20 @@ if (DESCRIPTORS) {
         assert.arrayEqual(array, [1, 2, 3, 4], 'correct values, passed iterable');
         return true;
       }, 'passed iterable');
+      assert.notThrows(() => {
+        array = new TypedArray([{ valueOf() { return 2; } }]);
+        assert.same(array.byteOffset, 0, '#byteOffset, passed array with object convertible to primitive');
+        assert.same(array.byteLength, bytes, '#byteLength, passed array with object convertible to primitive');
+        assert.arrayEqual(array, [2], 'correct values, passed array with object convertible to primitive');
+        return true;
+      }, 'passed array with object convertible to primitive');
+      assert.notThrows(() => {
+        array = new TypedArray(createIterable([{ valueOf() { return 2; } }]));
+        assert.same(array.byteOffset, 0, '#byteOffset, passed iterable with object convertible to primitive');
+        assert.same(array.byteLength, bytes, '#byteLength, passed iterable with object convertible to primitive');
+        assert.arrayEqual(array, [2], 'correct values, passed iterable with object convertible to primitive');
+        return true;
+      }, 'passed iterable with object convertible to primitive');
       array = new TypedArray(new TypedArray([1, 2, 3, 4]));
       assert.same(array.byteOffset, 0, '#byteOffset, passed typed array');
       assert.same(array.byteLength, 4 * bytes, '#byteLength, passed typed array');

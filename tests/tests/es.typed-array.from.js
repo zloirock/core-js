@@ -24,6 +24,8 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
     assert.true(instance instanceof TypedArray, 'correct instance with iterable');
     assert.arrayEqual(instance, [1, 2, 3], 'correct elements with iterable');
     assert.arrayEqual(TypedArray.from([1, 2, 3], it => it * it), [1, 4, 9], 'accept callback');
+    assert.arrayEqual(TypedArray.from([{ valueOf() { return 2; } }]), [2], 'passed array with object convertible to primitive');
+    assert.arrayEqual(TypedArray.from(createIterable([{ valueOf() { return 2; } }])), [2], 'passed iterable with object convertible to primitive');
     const context = {};
     TypedArray.from([1], function (value, key) {
       assert.same(arguments.length, 2, 'correct number of callback arguments');

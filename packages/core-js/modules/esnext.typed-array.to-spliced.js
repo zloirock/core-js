@@ -2,7 +2,9 @@
 // TODO: Remove from `core-js@4`
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var isBigIntArray = require('../internals/is-big-int-array');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
+var toBigInt = require('../internals/to-big-int');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var fails = require('../internals/fails');
 
@@ -36,7 +38,7 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
   var actualStart = toAbsoluteIndex(start, len);
   var argumentsLength = arguments.length;
   var k = 0;
-  var insertCount, actualDeleteCount, convertedItems, newLen, A;
+  var insertCount, actualDeleteCount, thisIsBigIntArray, convertedItems, value, newLen, A;
   if (argumentsLength === 0) {
     insertCount = actualDeleteCount = 0;
   } else if (argumentsLength === 1) {
@@ -45,10 +47,13 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
   } else {
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
     insertCount = argumentsLength - 2;
+    thisIsBigIntArray = isBigIntArray(O);
     if (insertCount) {
       convertedItems = new C(insertCount);
       for (var i = 2; i < argumentsLength; i++) {
-        convertedItems[i - 2] = arguments[i];
+        value = arguments[i];
+        // FF30- typed arrays doesn't properly convert objects to typed array values
+        convertedItems[i - 2] = thisIsBigIntArray ? toBigInt(value) : +value;
       }
     }
   }
