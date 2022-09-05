@@ -1,9 +1,8 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArray%.of', assert => {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     assert.isFunction(TypedArray.of, `${ name }.of is function`);
     assert.arity(TypedArray.of, 0, `${ name }.of arity is 0`);
     assert.name(TypedArray.of, 'of', `${ name }.of name is 'of'`);

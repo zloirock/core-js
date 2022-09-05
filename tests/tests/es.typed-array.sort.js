@@ -1,9 +1,8 @@
-import { DESCRIPTORS, GLOBAL, STRICT, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, STRICT, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { sort } = TypedArray.prototype;
     assert.isFunction(sort, `${ name }::sort is function`);
     assert.arity(sort, 1, `${ name }::sort arity is 1`);

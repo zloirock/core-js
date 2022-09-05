@@ -1,10 +1,9 @@
 import { createConversionChecker } from '../helpers/helpers';
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { fill } = TypedArray.prototype;
     assert.isFunction(fill, `${ name }::fill is function`);
     assert.arity(fill, 1, `${ name }::fill arity is 1`);

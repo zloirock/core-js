@@ -1,13 +1,12 @@
 import { createAsyncIterable, createIterable } from '../helpers/helpers';
-import { DESCRIPTORS, GLOBAL, STRICT_THIS, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, STRICT_THIS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) QUnit.test(`%TypedArray%.fromAsync, ${ name }`, assert => {
+  for (const { name, TypedArray } of TYPED_ARRAYS) QUnit.test(`%TypedArray%.fromAsync, ${ name }`, assert => {
     assert.expect(26);
     // eslint-disable-next-line qunit/no-async-in-loops -- safe
     const async = assert.async();
-    const TypedArray = GLOBAL[name];
     const { fromAsync } = TypedArray;
 
     assert.isFunction(fromAsync);

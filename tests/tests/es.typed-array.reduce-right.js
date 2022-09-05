@@ -1,9 +1,8 @@
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.reduceRight', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { reduceRight } = TypedArray.prototype;
     assert.isFunction(reduceRight, `${ name }::reduceRight is function`);
     assert.arity(reduceRight, 1, `${ name }::reduceRight arity is 1`);

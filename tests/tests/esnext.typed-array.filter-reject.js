@@ -1,9 +1,8 @@
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.filterReject', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { filterReject } = TypedArray.prototype;
     assert.isFunction(filterReject, `${ name }::filterReject is function`);
     assert.arity(filterReject, 1, `${ name }::filterReject arity is 1`);

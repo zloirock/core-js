@@ -1,4 +1,4 @@
-import { GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { TYPED_ARRAYS } from '../helpers/constants';
 
 QUnit.test('ArrayBuffer.isView', assert => {
   const { isView } = ArrayBuffer;
@@ -7,9 +7,9 @@ QUnit.test('ArrayBuffer.isView', assert => {
   assert.name(isView, 'isView');
   assert.looksNative(isView);
   assert.nonEnumerable(ArrayBuffer, 'isView');
-  for (const name in TYPED_ARRAYS) {
-    if (GLOBAL[name]) {
-      assert.true(isView(new GLOBAL[name]([1])), `${ name } - true`);
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
+    if (TypedArray) {
+      assert.true(isView(new TypedArray([1])), `${ name } - true`);
     }
   }
   assert.true(isView(new DataView(new ArrayBuffer(1))), 'DataView - true');
