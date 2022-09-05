@@ -47,7 +47,7 @@ exportTypedArrayMethod('toSpliced', function toSpliced(start, deleteCount /* , .
   } else {
     actualDeleteCount = min(max(toIntegerOrInfinity(deleteCount), 0), len - actualStart);
     insertCount = argumentsLength - 2;
-    thisIsBigIntArray = isBigIntArray(O);
+    thisIsBigIntArray = isBigIntArray(C);
     if (insertCount) {
       convertedItems = new C(insertCount);
       for (var i = 2; i < argumentsLength; i++) {
