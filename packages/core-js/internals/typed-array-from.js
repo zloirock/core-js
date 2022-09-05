@@ -31,7 +31,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   }
   length = lengthOfArrayLike(O);
   result = new (aTypedArrayConstructor(C))(length);
-  thisIsBigIntArray = isBigIntArray(C);
+  thisIsBigIntArray = isBigIntArray(result);
   for (i = 0; length > i; i++) {
     value = mapping ? mapfn(O[i], i) : O[i];
     // FF30- typed arrays doesn't properly convert objects to typed array values
