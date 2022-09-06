@@ -2520,6 +2520,15 @@ export const data = {
     node: '12.0', // '11.0',
     safari: '12.1',
   },
+  'web.self': {
+    chrome: '86',
+    // https://github.com/denoland/deno/issues/15765
+    // deno: false,
+    // fails in early Chrome-based Edge
+    // edge: '12',
+    firefox: '31',
+    safari: '10',
+  },
   'web.set-immediate': {
     bun: '0.1.7',
     ie: '10',

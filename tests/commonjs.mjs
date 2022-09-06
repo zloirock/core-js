@@ -584,6 +584,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'dom-collections').iterator == 'function');
     ok(typeof load(NS, 'dom-collections/for-each') == 'function');
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
+    ok(load(NS, 'self').Math === Math);
     ok(typeof load(NS, 'set-timeout') == 'function');
     ok(typeof load(NS, 'set-interval') == 'function');
     ok(typeof load(NS, 'set-immediate') == 'function');
