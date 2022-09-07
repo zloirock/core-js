@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.25.1 - 2022.09.08](https://github.com/zloirock/core-js/releases/tag/v3.25.1)
 - Added some fixes and workarounds of FF30- typed arrays bug that does not properly convert objects to numbers
 - Added `sideEffects` field to `core-js-pure` `package.json` for better tree shaking, [#1117](https://github.com/zloirock/core-js/issues/1117)
 - Dropped `semver` dependency from `core-js-compat`
