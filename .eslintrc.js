@@ -1236,7 +1236,6 @@ module.exports = {
         Observable: READONLY,
         compositeKey: READONLY,
         compositeSymbol: READONLY,
-        structuredClone: READONLY,
       },
     },
     {
