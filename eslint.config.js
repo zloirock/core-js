@@ -1,6 +1,20 @@
 'use strict';
+const pluginArrayFunc = require('eslint-plugin-array-func');
+const pluginESX = require('eslint-plugin-es-x');
+const pluginESlintComments = require('eslint-plugin-eslint-comments');
+const pluginImport = require('eslint-plugin-import');
+const pluginJSONC = require('eslint-plugin-jsonc');
+const pluginN = require('eslint-plugin-n');
+const pluginPromise = require('eslint-plugin-promise');
+const pluginQUnit = require('eslint-plugin-qunit');
+const pluginRegExp = require('eslint-plugin-regexp');
+const pluginSonarJS = require('eslint-plugin-sonarjs');
+const pluginUnicorn = require('eslint-plugin-unicorn');
+const parserJSONC = require('jsonc-eslint-parser');
+const globals = require('globals');
 const RESTRICTED_GLOBALS = require('confusing-browser-globals');
 const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+
 const DEV_NODE_VERSIONS = '^16.13';
 const ERROR = 'error';
 const OFF = 'off';
@@ -144,7 +158,7 @@ const base = {
   // disallow usage of __proto__ property
   'no-proto': ERROR,
   // disallow declaring the same variable more then once
-  'no-redeclare': ERROR,
+  'no-redeclare': [ERROR, { builtinGlobals: false }],
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': ERROR,
   // disallow redundant return statements
@@ -675,7 +689,7 @@ const base = {
   // disallow identifiers from shadowing catch parameter names
   'es-x/no-shadow-catch-param': ERROR,
 
-  // eslint-comments
+  // eslint-comments:
   // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': ERROR,
 };
@@ -1095,193 +1109,206 @@ const json = {
   strict: OFF,
 };
 
-module.exports = {
-  root: true,
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'script',
-  },
-  env: {
-    // unnecessary global builtins disabled by related rules
-    es2022: true,
-    browser: true,
-    node: true,
-    worker: true,
-  },
-  plugins: [
-    'array-func',
-    'es-x',
-    'eslint-comments',
-    'import',
-    'jsonc',
-    'n',
-    'promise',
-    'qunit',
-    'regexp',
-    'sonarjs',
-    'unicorn',
-  ],
-  reportUnusedDisableDirectives: true,
-  rules: {
-    ...base,
-    ...forbidESAnnexBBuiltIns,
-  },
-  overrides: [
-    {
-      files: [
-        'packages/core-js/**',
-        'packages/core-js-pure/**',
-        'tests/compat/**.js',
-        'tests/worker/**',
-      ],
-      parserOptions: {
-        ecmaVersion: 3,
-      },
-      rules: es3,
-    },
-    {
-      files: [
-        'packages/core-js/**',
-        'packages/core-js-pure/**',
-        'tests/pure/**',
-        'tests/worker/**',
-      ],
-      rules: forbidModernESBuiltIns,
-    },
-    {
-      files: [
-        'packages/core-js/**',
-        'packages/core-js-pure/**',
-      ],
-      rules: polyfills,
-    },
-    {
-      files: [
-        'packages/core-js/postinstall.js',
-        'packages/core-js-pure/postinstall.js',
-      ],
-      rules: disable(forbidES5BuiltIns),
-    },
-    {
-      files: [
-        'tests/helpers/**',
-        'tests/pure/**',
-        'tests/tests/**',
-        'tests/wpt-url-resources/**',
-      ],
-      parserOptions: {
-        sourceType: 'module',
-      },
-      rules: transpiledAndPolyfilled,
-    },
-    {
-      files: [
-        'tests/compat/**',
-        'tests/helpers/**',
-        'tests/observables/**',
-        'tests/promises-aplus/**',
-        'tests/pure/**',
-        'tests/tests/**',
-        'tests/worker/**',
-        'tests/wpt-url-resources/**',
-        'tests/commonjs.js',
-        'tests/commonjs-entries-content.js',
-        'tests/targets-parser.js',
-      ],
-      rules: tests,
-    },
-    {
-      files: [
-        'tests/helpers/**',
-        'tests/pure/**',
-        'tests/tests/**',
-      ],
-      env: {
-        qunit: true,
-      },
-      rules: qunit,
-    },
-    {
-      files: [
-        'packages/core-js-builder/**',
-        'packages/core-js-compat/**',
-      ],
-      rules: nodePackages,
-    },
-    {
-      files: [
-        'packages/core-js-compat/src/**',
-        'scripts/**',
-        'tests/compat/deno-runner.mjs',
-        'tests/observables/**',
-        'tests/promises-aplus/**',
-        'tests/commonjs.js',
-        'tests/commonjs-entries-content.js',
-        'tests/targets-parser.js',
-        '.eslintrc.js',
-        '.webpack.config.js',
-        'babel.config.js',
-      ],
-      rules: nodeDev,
-    },
-    {
-      files: [
-        'tests/observables/**',
-        'tests/tests/**',
-        'tests/compat/**',
-      ],
-      globals: {
-        AsyncIterator: READONLY,
-        Iterator: READONLY,
-        Observable: READONLY,
-        compositeKey: READONLY,
-        compositeSymbol: READONLY,
-      },
-    },
-    {
-      files: ['**/*.mjs'],
-      parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-      },
-    },
-    {
-      files: [
-        'scripts/**',
-        'tests/**/*.mjs',
-      ],
-      // zx
-      globals: {
-        $: READONLY,
-        __dirname: READONLY,
-        __filename: READONLY,
-        argv: READONLY,
-        cd: READONLY,
-        chalk: READONLY,
-        echo: READONLY,
-        fetch: READONLY,
-        fs: READONLY,
-        glob: READONLY,
-        nothrow: READONLY,
-        os: READONLY,
-        path: READONLY,
-        question: READONLY,
-        require: READONLY,
-        sleep: READONLY,
-        stdin: READONLY,
-        which: READONLY,
-        within: READONLY,
-        YAML: READONLY,
-      },
-      rules: {
-        // allow use of console
-        'no-console': OFF,
-      },
-    },
-    {
-      files: ['**/*.json'],
-      parser: 'jsonc-eslint-parser',
-      rules: json,
-    },
-  ],
+const globalsESNext = {
+  AsyncIterator: READONLY,
+  Iterator: READONLY,
+  Observable: READONLY,
+  compositeKey: READONLY,
+  compositeSymbol: READONLY,
 };
+
+const globalsZX = {
+  $: READONLY,
+  __dirname: READONLY,
+  __filename: READONLY,
+  argv: READONLY,
+  cd: READONLY,
+  chalk: READONLY,
+  echo: READONLY,
+  fetch: READONLY,
+  fs: READONLY,
+  glob: READONLY,
+  nothrow: READONLY,
+  os: READONLY,
+  path: READONLY,
+  question: READONLY,
+  require: READONLY,
+  sleep: READONLY,
+  stdin: READONLY,
+  which: READONLY,
+  within: READONLY,
+  YAML: READONLY,
+};
+
+module.exports = [
+  {
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'script',
+      // unnecessary global builtins disabled by related rules
+      globals: {
+        ...globals.builtin,
+        ...globals.browser,
+        ...globals.node,
+        ...globals.worker,
+      },
+    },
+    linterOptions: {
+      reportUnusedDisableDirectives: true,
+    },
+    plugins: {
+      'array-func': pluginArrayFunc,
+      'es-x': pluginESX,
+      'eslint-comments': pluginESlintComments,
+      import: pluginImport,
+      jsonc: pluginJSONC,
+      n: pluginN,
+      promise: pluginPromise,
+      qunit: pluginQUnit,
+      regexp: pluginRegExp,
+      sonarjs: pluginSonarJS,
+      unicorn: pluginUnicorn,
+    },
+    rules: {
+      ...base,
+      ...forbidESAnnexBBuiltIns,
+    },
+  },
+  {
+    files: [
+      '**/*.mjs',
+    ],
+    languageOptions: {
+      sourceType: 'module',
+    },
+  },
+  {
+    files: [
+      'packages/core-js/**',
+      'packages/core-js-pure/**',
+      'tests/compat/**/*.js',
+      'tests/worker/**',
+    ],
+    languageOptions: {
+      ecmaVersion: 3,
+    },
+    rules: es3,
+  },
+  {
+    files: [
+      'packages/core-js/**',
+      'packages/core-js-pure/**',
+      'tests/pure/**',
+      'tests/worker/**',
+    ],
+    rules: forbidModernESBuiltIns,
+  },
+  {
+    files: [
+      'packages/core-js/**',
+      'packages/core-js-pure/**',
+    ],
+    rules: polyfills,
+  },
+  {
+    files: [
+      'packages/core-js/postinstall.js',
+      'packages/core-js-pure/postinstall.js',
+    ],
+    rules: disable(forbidES5BuiltIns),
+  },
+  {
+    files: [
+      'tests/helpers/**',
+      'tests/pure/**',
+      'tests/tests/**',
+      'tests/wpt-url-resources/**',
+    ],
+    languageOptions: {
+      sourceType: 'module',
+    },
+    rules: transpiledAndPolyfilled,
+  },
+  {
+    files: [
+      'tests/compat/**',
+      'tests/helpers/**',
+      'tests/observables/**',
+      'tests/promises-aplus/**',
+      'tests/pure/**',
+      'tests/tests/**',
+      'tests/worker/**',
+      'tests/wpt-url-resources/**',
+      'tests/commonjs.js',
+      'tests/commonjs-entries-content.js',
+      'tests/targets-parser.js',
+    ],
+    rules: tests,
+  },
+  {
+    files: [
+      'tests/helpers/**',
+      'tests/pure/**',
+      'tests/tests/**',
+    ],
+    languageOptions: {
+      globals: globals.qunit,
+    },
+    rules: qunit,
+  },
+  {
+    files: [
+      'packages/core-js-builder/**',
+      'packages/core-js-compat/**',
+    ],
+    rules: nodePackages,
+  },
+  {
+    files: [
+      'packages/core-js-compat/src/**',
+      'scripts/**',
+      'tests/compat/deno-runner.mjs',
+      'tests/observables/**',
+      'tests/promises-aplus/**',
+      'tests/commonjs.js',
+      'tests/commonjs-entries-content.js',
+      'tests/targets-parser.js',
+      '.eslintrc.js',
+      '.webpack.config.js',
+      'babel.config.js',
+    ],
+    rules: nodeDev,
+  },
+  {
+    files: [
+      'tests/observables/**',
+      'tests/tests/**',
+      'tests/compat/**',
+    ],
+    languageOptions: {
+      globals: globalsESNext,
+    },
+  },
+  {
+    files: [
+      'packages/core-js-compat/src/**',
+      'scripts/**',
+      'tests/**/*.mjs',
+    ],
+    languageOptions: {
+      // zx
+      globals: globalsZX,
+    },
+    rules: {
+      // allow use of console
+      'no-console': OFF,
+    },
+  },
+  {
+    files: ['**/*.json'],
+    languageOptions: {
+      parser: parserJSONC,
+    },
+    rules: json,
+  },
+];
