@@ -1,4 +1,4 @@
-import { deepEqual } from 'assert/strict';
+import { deepEqual, ok } from 'assert/strict';
 import compat from 'core-js-compat/compat.js';
 
 deepEqual(compat({
@@ -118,5 +118,16 @@ deepEqual(compat({
     'es.math.to-string-tag': { chrome: '40', firefox: '27' },
   },
 }, 'some targets');
+
+const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
+
+ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');
+ok(!inverted1.includes('esnext.iterator.from'), 'inverse #2');
+ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
+
+const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
+
+ok(inverted2.includes('es.math.acosh'), 'inverse #4');
+ok(!inverted2.includes('es.map'), 'inverse #5');
 
 echo(chalk.green('compat tool tested'));
