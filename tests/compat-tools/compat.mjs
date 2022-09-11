@@ -1,7 +1,7 @@
-import { deepStrictEqual } from 'assert';
+import { deepEqual } from 'assert/strict';
 import compat from 'core-js-compat/compat.js';
 
-deepStrictEqual(compat({
+deepEqual(compat({
   modules: [
     'core-js/es/math',
     'es.array.at',
@@ -52,7 +52,7 @@ deepStrictEqual(compat({
   },
 }, 'basic');
 
-deepStrictEqual(compat({
+deepEqual(compat({
   modules: [
     /^es\.math\.a/,
     /^es\.math\.c/,
@@ -75,7 +75,7 @@ deepStrictEqual(compat({
   },
 }, 'no target');
 
-deepStrictEqual(compat({
+deepEqual(compat({
   modules: /^es\.math\.a/,
 }), {
   list: [
@@ -90,13 +90,13 @@ deepStrictEqual(compat({
   },
 }, 'no exclude');
 
-deepStrictEqual(
+deepEqual(
   compat({ targets: { chrome: 93 } }),
   compat({ modules: 'core-js', targets: { chrome: 93 } }),
   'no modules',
 );
 
-deepStrictEqual(compat({
+deepEqual(compat({
   modules: 'core-js/es/math',
   targets: {
     chrome: 40,

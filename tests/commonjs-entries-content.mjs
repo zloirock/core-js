@@ -1,4 +1,4 @@
-import { deepStrictEqual, ok } from 'assert';
+import { deepEqual, ok } from 'assert/strict';
 import konan from 'konan';
 
 const allModules = require('core-js-compat/modules');
@@ -11,7 +11,7 @@ function filter(regexp) {
 function equal(name, required) {
   const contains = new Set(entries[name]);
   const shouldContain = new Set(Array.isArray(required) ? required : filter(required));
-  deepStrictEqual(contains, shouldContain);
+  deepEqual(contains, shouldContain);
 }
 
 function superset(name, required) {
