@@ -42,10 +42,10 @@ engine         | mandatory check | how to run tests | base data inherits from   
 `firefox`      | features        | browser runner   |                              |
 `hermes`       | features        | hermes runner    |                              |
 `ie`           | features        | browser runner   |                              |
-`ios`          |                 | browser runner   | `safari`                     | required
+`ios`          |                 | browser runner   | `safari`                     | in case of inconsistency (!= safari)
 `node`         | non-ES features | node runner      | `chrome` (only ES)           | required
 `oculus`       |                 | browser runner   | `android` (-> `chrome`)      | required
-`opera`        |                 | browser runner   | `chrome` (>12)               | in case of inconsistency
+`opera`        |                 | browser runner   | `chrome` (>12)               | in case of inconsistency (!= chrome + 14)
 `opera_mobile` |                 | browser runner   | `opera`, `chrome`            | required
 `phantom`      |                 | browser runner   | `safari`                     |
 `rhino`        | features        | rhino runner     |                              |
