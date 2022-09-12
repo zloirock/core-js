@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
+- Nothing
 
 ##### [3.25.1 - 2022.09.08](https://github.com/zloirock/core-js/releases/tag/v3.25.1)
 - Added some fixes and workarounds of FF30- typed arrays bug that does not properly convert objects to numbers
