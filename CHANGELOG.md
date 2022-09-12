@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Avoiding observable side effects of `%Array.prototype.values%` usage in array-like branch of `Array.fromAsync`, [proposal-array-from-async/30](https://github.com/tc39/proposal-array-from-async/pull/30)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)
 
