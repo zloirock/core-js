@@ -218,13 +218,14 @@ export default {
     [104, '23.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
+  // https://en.wikipedia.org/wiki/Safari_version_history
   SafariToIOS: [
     ['3.0', '1.0'],
     ['3.1', '2.0'],
-    ['3.2', '3.0'],
-    ['4.0', '3.2'],
-    ['4.1', '4.2'],
-    ['5.1', '5.1'],
+    ['4.0', '3.0'],
+    ['4.1', '3.2'],
+    ['5.0', '4.2'],
+    ['5.1', '5.0'],
     ['6.0', '6.0'],
     ['6.1', '7.0'],
     ['7.1', '8.0'],
