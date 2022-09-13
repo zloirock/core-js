@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Considering `document.all` as a callable in some missed cases
 - Added Safari 16.0 compat data
 - Added iOS Safari 16.0 compat data mapping
 - Fixed ancient iOS Safari versions compat data mapping
