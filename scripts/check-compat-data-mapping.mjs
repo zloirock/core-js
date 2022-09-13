@@ -10,10 +10,15 @@ async function getJSON(path, ...slice) {
   return JSON.parse(text.slice(...slice));
 }
 
-async function latestMDN(name, branch = 'mdn/browser-compat-data/main') {
+async function getFromMDN(name, branch = 'mdn/browser-compat-data/main') {
   const {
     browsers: { [name]: { releases } },
   } = await getJSON(`https://raw.githubusercontent.com/${ branch }/browsers/${ name }.json`);
+  return releases;
+}
+
+async function getLatestFromMDN(name, branch) {
+  const releases = await getFromMDN(name, branch);
   const version = Object.keys(releases).reduce((a, b) => {
     return releases[b].engine_version && cmp(coerce(b), '>', coerce(a)) ? b : a;
   });
@@ -43,17 +48,19 @@ const [
   oculus,
   opera,
   operaMobile,
+  safari,
   ios,
   samsung,
 ] = await Promise.all([
   getJSON('https://nodejs.org/dist/index.json'),
   getJSON('https://raw.githubusercontent.com/Kilian/electron-to-chromium/master/chromium-versions.js', 17, -1),
-  latestMDN('deno'),
-  latestMDN('oculus'),
-  latestMDN('opera'),
-  latestMDN('opera_android'),
-  latestMDN('safari_ios'),
-  latestMDN('samsunginternet_android'),
+  getLatestFromMDN('deno'),
+  getLatestFromMDN('oculus'),
+  getLatestFromMDN('opera'),
+  getLatestFromMDN('opera_android'),
+  getFromMDN('safari'),
+  getLatestFromMDN('safari_ios'),
+  getLatestFromMDN('samsunginternet_android'),
 ]);
 
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
@@ -62,7 +69,7 @@ assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno')
 assert(oculus.engine <= latest(mapping.AndroidToOculus)[0], 'Oculus');
 assert(opera.engine - opera.version === 14, 'Opera');
 assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobile');
-assert(cmp(coerce(ios.version), '<=', coerce(latest(mapping.SafariToIOS)[1])), 'iOS Safari');
+assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
 assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
 
 if (updated) echo(chalk.green('updates of compat data mapping not required'));
