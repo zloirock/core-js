@@ -596,6 +596,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
+    ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/group') == 'function');
     ok(typeof load(NS, 'array/group-to-map') == 'function');
     ok(typeof load(NS, 'array/group-by') == 'function');
@@ -667,7 +668,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
-    ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/filter-out') == 'function');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');

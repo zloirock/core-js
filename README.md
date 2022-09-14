@@ -126,13 +126,13 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Symbol.prototype.description`](#symbolprototypedescription)
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
     - [Stage 3 proposals](#stage-3-proposals)
+      - [`Array.fromAsync`](#arrayfromasync)
       - [`Array` grouping](#array-grouping)
       - [Change `Array` by copy](#change-array-by-copy)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Iterator` helpers](#iterator-helpers)
       - [New `Set` methods](#new-set-methods)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
-      - [`Array.fromAsync`](#arrayfromasync)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
@@ -2103,6 +2103,22 @@ core-js/proposals/well-formed-stringify
 ```js
 core-js(-pure)/stage/3
 ```
+##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
+Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
+```js
+class Array {
+  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/array-from-async-stage-2
+core-js(-pure)/full/array/from-async
+```
+[*Example*](https://goo.gl/Jt7SsD):
+```js
+await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
+```
 ##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
 Modules [`esnext.array.group`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group.js), [`esnext.array.group-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-to-map.js).
 ```js
@@ -2342,22 +2358,6 @@ map.emplace('a', { update: it => it ** 2, insert: () => 3}); // => 4
 map.emplace('b', { update: it => it ** 2, insert: () => 3}); // => 3
 
 console.log(map); // => Map { 'a': 4, 'b': 3 }
-```
-##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
-Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
-```js
-class Array {
-  static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/array-from-async-stage-2
-core-js(-pure)/full/array/from-async
-```
-[*Example*](https://goo.gl/Jt7SsD):
-```js
-await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
 ```
 ##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
 Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
