@@ -1698,6 +1698,12 @@ GLOBAL.tests = {
   'esnext.string.cooked': function () {
     return String.cooked;
   },
+  'esnext.string.is-well-formed': function () {
+    return String.prototype.isWellFormed;
+  },
+  'esnext.string.to-well-formed': function () {
+    return String.prototype.toWellFormed;
+  },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;
   },

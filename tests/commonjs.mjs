@@ -786,6 +786,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
+    ok(load(NS, 'string/is-well-formed')('a'));
+    ok(load(NS, 'string/virtual/is-well-formed').call('a'));
+    ok(load(NS, 'string/to-well-formed')('a') === 'a');
+    ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok(load(NS, 'symbol/async-dispose'));
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/matcher'));
@@ -821,6 +825,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceFilterReject({}) === undefined);
     ok(typeof instanceFilterReject([]) == 'function');
     ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
+
+    const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
+    ok(typeof instanceIsWellFormed == 'function');
+    ok(instanceIsWellFormed({}) === undefined);
+    ok(typeof instanceIsWellFormed('') == 'function');
+    ok(instanceIsWellFormed('').call('a'));
+
+    const instanceToWellFormed = load(NS, 'instance/to-well-formed');
+    ok(typeof instanceToWellFormed == 'function');
+    ok(instanceToWellFormed({}) === undefined);
+    ok(typeof instanceToWellFormed('') == 'function');
+    ok(instanceToWellFormed('').call('a') === 'a');
 
     const instanceUniqueBy = load(NS, 'instance/unique-by');
     ok(typeof instanceUniqueBy == 'function');
@@ -897,6 +913,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/url');
   load('proposals/using-statement');
   load('proposals/well-formed-stringify');
+  load('proposals/well-formed-unicode-strings');
   load('proposals');
 
   ok(load('stage/4'));

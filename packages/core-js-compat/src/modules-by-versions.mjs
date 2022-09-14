@@ -157,4 +157,8 @@ export default {
   3.25: [
     'es.object.proto',
   ],
+  3.26: [
+    'esnext.string.is-well-formed',
+    'esnext.string.to-well-formed',
+  ],
 };
