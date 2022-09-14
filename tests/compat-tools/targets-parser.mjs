@@ -1,13 +1,13 @@
-import { deepStrictEqual } from 'assert';
+import { deepEqual } from 'assert/strict';
 import targetsParser from 'core-js-compat/targets-parser.js';
 
-deepStrictEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
+deepEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
   ['chrome', '56'],
   ['ie', '11'],
   ['ios', '12.2-12.5'],
 ]), 'browserslist');
 
-deepStrictEqual(targetsParser({
+deepEqual(targetsParser({
   ie: 11,
   chrome: 56,
   ios: '12.2',
@@ -17,13 +17,13 @@ deepStrictEqual(targetsParser({
   ['ios', '12.2'],
 ]), 'targets object');
 
-deepStrictEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), new Map([
+deepEqual(targetsParser({ browsers: 'ie 11, chrome 56, ios_saf 12.2' }), new Map([
   ['chrome', '56'],
   ['ie', '11'],
   ['ios', '12.2-12.5'],
 ]), 'targets.browsers');
 
-deepStrictEqual(targetsParser({ esmodules: true }), new Map([
+deepEqual(targetsParser({ esmodules: true }), new Map([
   ['android', '61'],
   ['bun', '0.1.1'],
   ['chrome', '61'],
@@ -39,15 +39,15 @@ deepStrictEqual(targetsParser({ esmodules: true }), new Map([
   ['samsung', '8.0'],
 ]), 'targets.esmodules');
 
-deepStrictEqual(targetsParser({ node: 'current' }), new Map([
+deepEqual(targetsParser({ node: 'current' }), new Map([
   ['node', process.versions.node],
 ]), 'targets.node: current');
 
-deepStrictEqual(targetsParser({ node: '14.0' }), new Map([
+deepEqual(targetsParser({ node: '14.0' }), new Map([
   ['node', '14.0'],
 ]), 'targets.node: version');
 
-deepStrictEqual(targetsParser({
+deepEqual(targetsParser({
   ie_mob: 11,
   chromeandroid: 56,
   and_ff: 60,
@@ -63,7 +63,7 @@ deepStrictEqual(targetsParser({
   ['opera_mobile', '40'],
 ]), 'normalization');
 
-deepStrictEqual(targetsParser({
+deepEqual(targetsParser({
   esmodules: true,
   node: '12.0',
   browsers: 'edge 13, safari 5.1, ios 13',

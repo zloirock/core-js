@@ -1131,7 +1131,7 @@ module.exports = {
       files: [
         'packages/core-js/**',
         'packages/core-js-pure/**',
-        'tests/compat/**',
+        'tests/compat/**.js',
         'tests/worker/**',
       ],
       parserOptions: {
@@ -1236,11 +1236,10 @@ module.exports = {
         Observable: READONLY,
         compositeKey: READONLY,
         compositeSymbol: READONLY,
-        structuredClone: READONLY,
       },
     },
     {
-      files: ['*.mjs'],
+      files: ['**/*.mjs'],
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
@@ -1280,7 +1279,7 @@ module.exports = {
       },
     },
     {
-      files: ['*.json'],
+      files: ['**/*.json'],
       parser: 'jsonc-eslint-parser',
       rules: json,
     },

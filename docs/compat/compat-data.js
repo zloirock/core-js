@@ -4432,10 +4432,14 @@
     "safari": "15.4",
     "samsung": "18.0"
   },
-  "esnext.array.group": {},
+  "esnext.array.group": {
+    "bun": "0.1.9"
+  },
   "esnext.array.group-by": {},
   "esnext.array.group-by-to-map": {},
-  "esnext.array.group-to-map": {},
+  "esnext.array.group-to-map": {
+    "bun": "0.1.9"
+  },
   "esnext.array.is-template-object": {},
   "esnext.array.last-index": {},
   "esnext.array.last-item": {},
@@ -4733,7 +4737,9 @@
   },
   "esnext.typed-array.to-spliced": {},
   "esnext.typed-array.unique-by": {},
-  "esnext.typed-array.with": {},
+  "esnext.typed-array.with": {
+    "bun": "0.1.9"
+  },
   "esnext.weak-map.delete-all": {},
   "esnext.weak-map.from": {},
   "esnext.weak-map.of": {},
@@ -4777,6 +4783,7 @@
     "samsung": "1.0"
   },
   "web.clear-immediate": {
+    "bun": "0.1.7",
     "ie": "10",
     "node": "0.9.1"
   },
@@ -4854,6 +4861,7 @@
     "samsung": "5.0"
   },
   "web.immediate": {
+    "bun": "0.1.7",
     "ie": "10",
     "node": "0.9.1"
   },
@@ -4874,6 +4882,7 @@
     "samsung": "10.0"
   },
   "web.set-immediate": {
+    "bun": "0.1.7",
     "ie": "10",
     "node": "0.9.1"
   },

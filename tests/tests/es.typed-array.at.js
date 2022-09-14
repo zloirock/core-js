@@ -1,14 +1,13 @@
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.indexOf', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { at } = TypedArray.prototype;
-    assert.isFunction(at);
-    assert.arity(at, 1);
-    assert.name(at, 'at');
-    assert.looksNative(at);
+    assert.isFunction(at, `${ name }::at is function`);
+    assert.arity(at, 1, `${ name }::at arity is 1`);
+    assert.name(at, 'at', `${ name }::at name is 'at'`);
+    assert.looksNative(at, `${ name }::at looks native`);
     assert.same(1, new TypedArray([1, 2, 3]).at(0));
     assert.same(2, new TypedArray([1, 2, 3]).at(1));
     assert.same(3, new TypedArray([1, 2, 3]).at(2));

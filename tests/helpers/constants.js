@@ -14,7 +14,7 @@ export const NATIVE = GLOBAL.NATIVE || false;
 
 export const NODE = Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
 
-export const TYPED_ARRAYS = {
+const $TYPED_ARRAYS = {
   Float32Array: 4,
   Float64Array: 8,
   Int8Array: 1,
@@ -25,6 +25,25 @@ export const TYPED_ARRAYS = {
   Uint32Array: 4,
   Uint8ClampedArray: 1,
 };
+
+export const TYPED_ARRAYS = [];
+
+for (const name in $TYPED_ARRAYS) TYPED_ARRAYS.push({
+  name,
+  TypedArray: GLOBAL[name],
+  bytes: $TYPED_ARRAYS[name],
+  $: Number,
+});
+
+export const TYPED_ARRAYS_WITH_BIG_INT = TYPED_ARRAYS.slice();
+
+for (const name of ['BigInt64Array', 'BigUint64Array']) if (GLOBAL[name]) TYPED_ARRAYS_WITH_BIG_INT.push({
+  name,
+  TypedArray: GLOBAL[name],
+  bytes: 8,
+  // eslint-disable-next-line es-x/no-bigint -- safe
+  $: BigInt,
+});
 
 export const LITTLE_ENDIAN = (() => {
   try {

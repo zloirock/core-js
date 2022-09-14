@@ -1,10 +1,9 @@
 /* eslint-disable unicorn/require-array-join-separator -- required for testing */
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.join', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { join } = TypedArray.prototype;
     assert.isFunction(join, `${ name }::join is function`);
     assert.arity(join, 1, `${ name }::join arity is 1`);

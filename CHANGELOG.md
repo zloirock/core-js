@@ -1,10 +1,16 @@
 ## Changelog
 ##### Unreleased
+- Considering `document.all` as a callable in some missed cases
+- Added Safari 16.0 compat data
+- Added iOS Safari 16.0 compat data mapping
+- Fixed ancient iOS Safari versions compat data mapping
+
+##### [3.25.1 - 2022.09.08](https://github.com/zloirock/core-js/releases/tag/v3.25.1)
 - Added some fixes and workarounds of FF30- typed arrays bug that does not properly convert objects to numbers
 - Added `sideEffects` field to `core-js-pure` `package.json` for better tree shaking, [#1117](https://github.com/zloirock/core-js/issues/1117)
 - Dropped `semver` dependency from `core-js-compat`
   - `semver` package (ironically) added [a breaking change and dropped NodeJS 8 support in the minor `7.1` version](https://github.com/npm/node-semver/commit/d61f828e64260a0a097f26210f5500), after that `semver` in `core-js-compat` was pinned to `7.0` since for avoiding breaking changes it should support NodeJS 8. However, since `core-js-compat` is usually used with other packages that use `semver` dependency, it causes multiple duplication of `semver` in dependencies. So I decided to remove `semver` dependency and replace it with a couple of simple helpers.
-- Added Bun 0.1.6-0.1.10 compat data
+- Added Bun 0.1.6-0.1.11 compat data
 - Added Deno 1.25 compat data mapping
 - Updated Electron 21 compat data mapping
 - Some stylistic changes, minor fixes, and improvements

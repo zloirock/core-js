@@ -355,7 +355,7 @@ export const data = {
     firefox: '55',
     hermes: '0.2',
     // the same to Chrome bug fixed only in Safari TP
-    // safari: '15.4',
+    safari: '16.0',
   },
   'es.array.reduce': {
     bun: '0.1.1',
@@ -444,7 +444,7 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     // bug with setting length fixed only in Safari TP
-    // safari: '15.4',
+    safari: '16.0',
   },
   'es.array-buffer.constructor': {
     bun: '0.1.1',
@@ -2082,17 +2082,21 @@ export const data = {
   },
   'esnext.array.to-reversed': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   'esnext.array.to-sorted': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   'esnext.array.to-spliced': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   'esnext.array.unique-by': {
   },
   'esnext.array.with': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   'esnext.async-iterator.constructor': {
   },
@@ -2388,9 +2392,11 @@ export const data = {
   },
   'esnext.typed-array.to-reversed': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   'esnext.typed-array.to-sorted': {
     bun: '0.1.1',
+    safari: '16.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.to-spliced': {

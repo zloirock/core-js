@@ -56,6 +56,9 @@ for (const scope of [data, external]) {
     map('ChromeToSamsung');
     map('AndroidToOculus');
     map('SafariToIOS');
+    if (!has(module, 'ios') && has(module, 'safari') && semver(module.safari).major >= 15) {
+      module.ios = module.safari;
+    }
     map('SafariToPhantom');
 
     for (const [engine, version] of Object.entries(module)) {

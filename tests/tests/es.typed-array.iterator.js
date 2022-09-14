@@ -4,8 +4,7 @@ const Symbol = GLOBAL.Symbol || {};
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { keys } = TypedArray.prototype;
     assert.isFunction(keys, `${ name }::keys is function`);
     assert.arity(keys, 0, `${ name }::keys arity is 0`);
@@ -37,8 +36,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.keys', assert => {
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { values } = TypedArray.prototype;
     assert.isFunction(values, `${ name }::values is function`);
     assert.arity(values, 0, `${ name }::values arity is 0`);
@@ -70,8 +68,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.values', assert => {
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { entries } = TypedArray.prototype;
     assert.isFunction(entries, `${ name }::entries is function`);
     assert.arity(entries, 0, `${ name }::entries arity is 0`);
@@ -103,8 +100,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.entries', assert => {
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.@@iterator', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     assert.isIterable(TypedArray.prototype, `${ name } is iterable`);
     assert.arity(TypedArray.prototype[Symbol.iterator], 0, `${ name }::@@iterator arity is 0`);
     assert.name(TypedArray.prototype[Symbol.iterator], 'values', `${ name }::@@iterator name is 'values'`);

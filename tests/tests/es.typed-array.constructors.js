@@ -1,14 +1,10 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 
-const Symbol = GLOBAL.Symbol || {};
 const { keys, getOwnPropertyDescriptor, getPrototypeOf, defineProperty, assign } = Object;
 
 if (DESCRIPTORS) {
-  for (const name in TYPED_ARRAYS) {
-    const bytes = TYPED_ARRAYS[name];
-    const TypedArray = GLOBAL[name];
-
+  for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     QUnit.test(`${ name } constructor`, assert => {
       assert.isFunction(TypedArray);
       assert.arity(TypedArray, 3);

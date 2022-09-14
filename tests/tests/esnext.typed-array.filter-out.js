@@ -1,10 +1,9 @@
 // TODO: Remove from `core-js@4`
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.filterOut', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { filterOut } = TypedArray.prototype;
     assert.isFunction(filterOut, `${ name }::filterOut is function`);
     assert.arity(filterOut, 1, `${ name }::filterOut arity is 1`);

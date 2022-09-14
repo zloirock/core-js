@@ -1,11 +1,10 @@
-import { DESCRIPTORS, GLOBAL, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
 
 const { getPrototypeOf } = Object;
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.groupBy', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
-  for (const name in TYPED_ARRAYS) {
-    const TypedArray = GLOBAL[name];
+  for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { groupBy } = TypedArray.prototype;
     assert.isFunction(groupBy, `${ name }::groupBy is function`);
     assert.arity(groupBy, 1, `${ name }::groupBy arity is 1`);
