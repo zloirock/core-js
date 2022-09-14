@@ -22,12 +22,9 @@ var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
   }, reject);
 };
 
-var AsyncFromSyncIterator = function AsyncIterator(iterator) {
-  setInternalState(this, {
-    type: ASYNC_FROM_SYNC_ITERATOR,
-    iterator: anObject(iterator),
-    next: iterator.next
-  });
+var AsyncFromSyncIterator = function AsyncIterator(iteratorRecord) {
+  iteratorRecord.type = ASYNC_FROM_SYNC_ITERATOR;
+  setInternalState(this, iteratorRecord);
 };
 
 AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
