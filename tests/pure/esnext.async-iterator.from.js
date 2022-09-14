@@ -4,7 +4,7 @@ import values from 'core-js-pure/es/array/values';
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator.from', assert => {
-  assert.expect(9);
+  assert.expect(10);
   const async = assert.async();
   const { from } = AsyncIterator;
 
@@ -29,4 +29,5 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}), TypeError);
+  assert.throws(() => from(assign(new AsyncIterator(), { next: 42 })), TypeError);
 });

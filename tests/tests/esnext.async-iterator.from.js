@@ -1,5 +1,7 @@
+const { assign } = Object;
+
 QUnit.test('AsyncIterator.from', assert => {
-  assert.expect(12);
+  assert.expect(13);
   const async = assert.async();
   const { from } = AsyncIterator;
 
@@ -18,7 +20,7 @@ QUnit.test('AsyncIterator.from', assert => {
     async();
   });
 
-  const asyncIterator = Object.assign(new AsyncIterator(), {
+  const asyncIterator = assign(new AsyncIterator(), {
     next: () => { /* empty */ },
   });
 
@@ -27,4 +29,5 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}), TypeError);
+  assert.throws(() => from(assign(new AsyncIterator(), { next: 42 })), TypeError);
 });
