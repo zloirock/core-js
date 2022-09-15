@@ -3,7 +3,7 @@
 - Considering `document.all` as a callable in some missed cases
 - Added Safari 16.0 compat data
 - Added iOS Safari 16.0 compat data mapping
-- Fixed ancient iOS Safari versions compat data mapping
+- Fixed some ancient iOS Safari versions compat data mapping
 
 ##### [3.25.1 - 2022.09.08](https://github.com/zloirock/core-js/releases/tag/v3.25.1)
 - Added some fixes and workarounds of FF30- typed arrays bug that does not properly convert objects to numbers
