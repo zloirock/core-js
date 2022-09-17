@@ -2305,7 +2305,7 @@ core-js(-pure)/full/set/is-superset-of
 core-js(-pure)/full/set/symmetric-difference
 core-js(-pure)/full/set/union
 ```
-[*Examples*](https://goo.gl/QMQdaJ):
+[*Examples*](https://tinyurl.com/2henaoac):
 ```js
 new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
 new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
