@@ -2285,13 +2285,13 @@ require('core-js/full/async-iterator');
 Modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 ```js
 class Set {
-  difference(iterable: Iterable<mixed>): Set;
-  intersection(iterable: Iterable<mixed>): Set;
-  isDisjointFrom(iterable: Iterable<mixed>): boolean;
-  isSubsetOf(iterable: Iterable<mixed>): boolean;
-  isSupersetOf(iterable: Iterable<mixed>): boolean;
-  symmetricDifference(iterable: Iterable<mixed>): Set;
-  union(iterable: Iterable<mixed>): Set;
+  difference(iterable: SetLike<mixed>): Set;
+  intersection(iterable: SetLike<mixed>): Set;
+  isDisjointFrom(iterable: SetLike<mixed>): boolean;
+  isSubsetOf(iterable: SetLike<mixed>): boolean;
+  isSupersetOf(iterable: SetLike<mixed>): boolean;
+  symmetricDifference(iterable: SetLike<mixed>): Set;
+  union(iterable: SetLike<mixed>): Set;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
