@@ -5,7 +5,7 @@
   ],
   "devDependencies": {
     "@babel/cli": "^7.18.10",
-    "@babel/core": "^7.19.0",
+    "@babel/core": "^7.19.1",
     "@babel/plugin-proposal-class-properties": "^7.18.6",
     "@babel/plugin-proposal-class-static-block": "^7.18.6",
     "@babel/plugin-proposal-logical-assignment-operators": "^7.18.9",
@@ -60,7 +60,7 @@
     "karma-qunit": "^4.1.2",
     "konan": "^2.1.1",
     "moon-unit": "0.2.2",
-    "npm": "8.19.1",
+    "npm": "8.19.2",
     "npm-run-all": "^4.1.5",
     "p-timeout": "^6.0.0",
     "phantomjs-prebuilt": "~2.1.16",

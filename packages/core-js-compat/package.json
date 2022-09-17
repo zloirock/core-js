@@ -10,7 +10,7 @@
   "main": "index.js",
   "sideEffects": false,
   "dependencies": {
-    "browserslist": "^4.21.3"
+    "browserslist": "^4.21.4"
   },
   "funding": {
     "type": "opencollective",
