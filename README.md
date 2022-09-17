@@ -2307,14 +2307,14 @@ core-js(-pure)/full/set/union
 ```
 [*Examples*](https://goo.gl/QMQdaJ):
 ```js
-new Set([1, 2, 3]).union([3, 4, 5]);               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersection([3, 4, 5]);        // => Set {3}
-new Set([1, 2, 3]).difference([3, 4, 5]);          // => Set {1, 2}
-new Set([1, 2, 3]).symmetricDifference([3, 4, 5]); // => Set {1, 2, 4, 5}
+new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
+new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
+new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
+new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
 
-new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]);      // => true
-new Set([1, 2, 3]).isSubsetOf([5, 4, 3, 2, 1]);    // => true
-new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]);  // => true
+new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
+new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
+new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
