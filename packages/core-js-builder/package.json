@@ -1,7 +1,7 @@
 {
   "name": "core-js-builder",
   "description": "core-js builder",
-  "version": "3.25.1",
+  "version": "3.25.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git",
@@ -10,8 +10,8 @@
   "main": "index.js",
   "sideEffects": false,
   "dependencies": {
-    "core-js": "3.25.1",
-    "core-js-compat": "3.25.1",
+    "core-js": "3.25.2",
+    "core-js-compat": "3.25.2",
     "mkdirp": ">=0.5.5 <1",
     "webpack": ">=4.46.0 <5"
   },

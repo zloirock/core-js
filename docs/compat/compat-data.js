@@ -679,7 +679,7 @@
     "firefox": "4",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "3.2",
+    "ios": "3.0",
     "node": "0.1.27",
     "oculus": "3.0",
     "opera": "10.50",
@@ -779,7 +779,9 @@
   "es.array.push": {
     "bun": "0.1.1",
     "firefox": "55",
-    "hermes": "0.2"
+    "hermes": "0.2",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "es.array.reduce": {
     "android": "83",
@@ -964,10 +966,12 @@
     "firefox": "23",
     "hermes": "0.1",
     "ie": "9",
+    "ios": "16.0",
     "node": "12.0",
     "oculus": "6.0",
     "opera": "58",
     "opera_mobile": "50",
+    "safari": "16.0",
     "samsung": "10.0"
   },
   "es.array-buffer.constructor": {
@@ -1092,7 +1096,7 @@
     "firefox": "2",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "3.2",
+    "ios": "3.0",
     "node": "0.1.27",
     "oculus": "3.0",
     "opera": "10.50",
@@ -1247,7 +1251,7 @@
     "firefox": "4",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "5.1",
+    "ios": "5.0",
     "node": "0.1.101",
     "oculus": "3.0",
     "opera": "12",
@@ -1283,7 +1287,7 @@
     "electron": "0.20",
     "firefox": "2",
     "hermes": "0.1",
-    "ios": "3.2",
+    "ios": "3.0",
     "node": "0.1.27",
     "oculus": "3.0",
     "opera": "10.50",
@@ -1962,7 +1966,7 @@
     "firefox": "4",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "3.2",
+    "ios": "3.0",
     "node": "0.1.27",
     "oculus": "3.0",
     "opera": "12",
@@ -2000,7 +2004,7 @@
     "firefox": "4",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "5.1",
+    "ios": "5.0",
     "node": "0.11.15",
     "oculus": "3.0",
     "opera": "12",
@@ -2020,7 +2024,7 @@
     "firefox": "4",
     "hermes": "0.1",
     "ie": "9",
-    "ios": "5.1",
+    "ios": "5.0",
     "node": "0.11.15",
     "oculus": "3.0",
     "opera": "12",
@@ -4444,17 +4448,25 @@
   "esnext.array.last-index": {},
   "esnext.array.last-item": {},
   "esnext.array.to-reversed": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.array.to-sorted": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.array.to-spliced": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.array.unique-by": {},
   "esnext.array.with": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.async-iterator.constructor": {},
   "esnext.async-iterator.as-indexed-pairs": {},
@@ -4730,10 +4742,14 @@
   },
   "esnext.typed-array.group-by": {},
   "esnext.typed-array.to-reversed": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.typed-array.to-sorted": {
-    "bun": "0.1.1"
+    "bun": "0.1.1",
+    "ios": "16.0",
+    "safari": "16.0"
   },
   "esnext.typed-array.to-spliced": {},
   "esnext.typed-array.unique-by": {},

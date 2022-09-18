@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.25.2 - 2022.09.19](https://github.com/zloirock/core-js/releases/tag/v3.25.2)
 - Considering `document.all` as a callable in some missed cases
 - Added Safari 16.0 compat data
 - Added iOS Safari 16.0 compat data mapping
