@@ -1,5 +1,6 @@
 // TODO: Remove this entry from `core-js@4`
 require('../proposals/accessible-object-hasownproperty');
+require('../proposals/array-find-from-last');
 // require('../proposals/error-cause');
 require('../proposals/global-this');
 require('../proposals/promise-all-settled');
