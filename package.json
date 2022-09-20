@@ -55,7 +55,7 @@
     "eslint-plugin-unicorn": "^43.0.2",
     "jsonc-eslint-parser": "^2.1.0",
     "jszip": "^3.10.1",
-    "karma": "^6.4.0",
+    "karma": "^6.4.1",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "konan": "^2.1.1",
