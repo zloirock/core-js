@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Opera Android 71 compat data mapping
 
 ##### [3.25.2 - 2022.09.19](https://github.com/zloirock/core-js/releases/tag/v3.25.2)
 - Considering `document.all` as a callable in some missed cases
