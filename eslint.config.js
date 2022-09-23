@@ -1184,10 +1184,8 @@ module.exports = [
   },
   {
     files: [
-      'packages/core-js/**',
-      'packages/core-js-pure/**',
-      'tests/compat/**/*.js',
-      'tests/worker/**',
+      'packages/core-js?(-pure)/**',
+      'tests/@(compat|worker)/*.js',
     ],
     languageOptions: {
       ecmaVersion: 3,
@@ -1196,33 +1194,26 @@ module.exports = [
   },
   {
     files: [
-      'packages/core-js/**',
-      'packages/core-js-pure/**',
-      'tests/pure/**',
-      'tests/worker/**',
+      'packages/core-js?(-pure)/**',
+      'tests/@(pure|worker)/**',
     ],
     rules: forbidModernESBuiltIns,
   },
   {
     files: [
-      'packages/core-js/**',
-      'packages/core-js-pure/**',
+      'packages/core-js?(-pure)/**',
     ],
     rules: polyfills,
   },
   {
     files: [
-      'packages/core-js/postinstall.js',
-      'packages/core-js-pure/postinstall.js',
+      '**/postinstall.js',
     ],
     rules: disable(forbidES5BuiltIns),
   },
   {
     files: [
-      'tests/helpers/**',
-      'tests/pure/**',
-      'tests/tests/**',
-      'tests/wpt-url-resources/**',
+      'tests/@(helpers|pure|tests|wpt-url-resources)/**',
     ],
     languageOptions: {
       sourceType: 'module',
@@ -1231,25 +1222,13 @@ module.exports = [
   },
   {
     files: [
-      'tests/compat/**',
-      'tests/helpers/**',
-      'tests/observables/**',
-      'tests/promises-aplus/**',
-      'tests/pure/**',
-      'tests/tests/**',
-      'tests/worker/**',
-      'tests/wpt-url-resources/**',
-      'tests/commonjs.js',
-      'tests/commonjs-entries-content.js',
-      'tests/targets-parser.js',
+      'tests/**',
     ],
     rules: tests,
   },
   {
     files: [
-      'tests/helpers/**',
-      'tests/pure/**',
-      'tests/tests/**',
+      'tests/@(helpers|pure|tests)/**',
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -1258,32 +1237,23 @@ module.exports = [
   },
   {
     files: [
-      'packages/core-js-builder/**',
-      'packages/core-js-compat/**',
+      'packages/core-js-@(builder|compat)/**',
     ],
     rules: nodePackages,
   },
   {
     files: [
+      '*.js',
       'packages/core-js-compat/src/**',
       'scripts/**',
-      'tests/compat/deno-runner.mjs',
-      'tests/observables/**',
-      'tests/promises-aplus/**',
-      'tests/commonjs.js',
-      'tests/commonjs-entries-content.js',
-      'tests/targets-parser.js',
-      '.eslintrc.js',
-      '.webpack.config.js',
-      'babel.config.js',
+      'tests/?(compat/)*.mjs',
+      'tests/@(compat-tools|observables|promises-aplus)/**',
     ],
     rules: nodeDev,
   },
   {
     files: [
-      'tests/observables/**',
-      'tests/tests/**',
-      'tests/compat/**',
+      'tests/@(observables|tests|compat)/**',
     ],
     languageOptions: {
       globals: globalsESNext,
