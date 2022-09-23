@@ -9,14 +9,12 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 18
           cache: npm
-          cache-dependency-path: |
-            package.json
-            packages/*/package.json
+          cache-dependency-path: '**/package.json'
       - run: npm i
       - run: npm run lint
 
@@ -24,14 +22,12 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 18
           cache: npm
-          cache-dependency-path: |
-            package.json
-            packages/*/package.json
+          cache-dependency-path: '**/package.json'
       - run: npm i
       - run: npx playwright install-deps
       - run: npm run ci-karma
@@ -50,13 +46,11 @@ jobs:
           - 18
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-          cache-dependency-path: |
-            package.json
-            packages/*/package.json
+          cache-dependency-path: '**/package.json'
       - run: npm i
       - run: npm run ci-tests
