@@ -16,7 +16,7 @@ var min = Math.min;
 
 // some early implementations, like WebKit, does not follow the final semantic
 var PROPER_ORDER = !fails(function () {
-  // eslint-disable-next-line es-x/no-typed-arrays -- required for testing
+  // eslint-disable-next-line es/no-typed-arrays -- required for testing
   var array = new Int8Array([1]);
 
   var spliced = array.toSpliced(1, 0, {

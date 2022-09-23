@@ -7,5 +7,5 @@ var forcedStringTrimMethod = require('../internals/string-trim-forced');
 // https://tc39.es/ecma262/#String.prototype.trimright
 module.exports = forcedStringTrimMethod('trimEnd') ? function trimEnd() {
   return $trimEnd(this);
-// eslint-disable-next-line es-x/no-string-prototype-trimstart-trimend -- safe
+// eslint-disable-next-line es/no-string-prototype-trimstart-trimend -- safe
 } : ''.trimEnd;

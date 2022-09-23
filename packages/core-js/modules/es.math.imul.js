@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
 
-// eslint-disable-next-line es-x/no-math-imul -- required for testing
+// eslint-disable-next-line es/no-math-imul -- required for testing
 var $imul = Math.imul;
 
 var FORCED = fails(function () {

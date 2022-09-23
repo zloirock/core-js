@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var expm1 = require('../internals/math-expm1');
 
-// eslint-disable-next-line es-x/no-math-cosh -- required for testing
+// eslint-disable-next-line es/no-math-cosh -- required for testing
 var $cosh = Math.cosh;
 var abs = Math.abs;
 var E = Math.E;

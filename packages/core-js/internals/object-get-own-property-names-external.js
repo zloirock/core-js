@@ -1,4 +1,4 @@
-/* eslint-disable es-x/no-object-getownpropertynames -- safe */
+/* eslint-disable es/no-object-getownpropertynames -- safe */
 var classof = require('../internals/classof-raw');
 var toIndexedObject = require('../internals/to-indexed-object');
 var $getOwnPropertyNames = require('../internals/object-get-own-property-names').f;

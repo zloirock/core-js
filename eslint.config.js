@@ -336,27 +336,27 @@ const base = {
 
   // node:
   // disallow deprecated APIs
-  'n/no-deprecated-api': ERROR,
+  'node/no-deprecated-api': ERROR,
   // require require() calls to be placed at top-level module scope
-  'n/global-require': ERROR,
+  'node/global-require': ERROR,
   // disallow the assignment to `exports`
-  'n/no-exports-assign': ERROR,
+  'node/no-exports-assign': ERROR,
   // disallow require calls to be mixed with regular variable declarations
-  'n/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
+  'node/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
-  'n/no-new-require': ERROR,
+  'node/no-new-require': ERROR,
   // disallow string concatenation with `__dirname` and `__filename`
-  'n/no-path-concat': ERROR,
+  'node/no-path-concat': ERROR,
   // disallow the use of `process.exit()`
-  'n/no-process-exit': ERROR,
+  'node/no-process-exit': ERROR,
   // prefer global
-  'n/prefer-global/buffer': [ERROR, ALWAYS],
-  'n/prefer-global/console': [ERROR, ALWAYS],
-  'n/prefer-global/process': [ERROR, ALWAYS],
-  'n/prefer-global/text-decoder': [ERROR, ALWAYS],
-  'n/prefer-global/text-encoder': [ERROR, ALWAYS],
-  'n/prefer-global/url-search-params': [ERROR, ALWAYS],
-  'n/prefer-global/url': [ERROR, ALWAYS],
+  'node/prefer-global/buffer': [ERROR, ALWAYS],
+  'node/prefer-global/console': [ERROR, ALWAYS],
+  'node/prefer-global/process': [ERROR, ALWAYS],
+  'node/prefer-global/text-decoder': [ERROR, ALWAYS],
+  'node/prefer-global/text-encoder': [ERROR, ALWAYS],
+  'node/prefer-global/url-search-params': [ERROR, ALWAYS],
+  'node/prefer-global/url': [ERROR, ALWAYS],
 
   // es6+:
   // require parentheses around arrow function arguments
@@ -677,17 +677,17 @@ const base = {
   'regexp/use-ignore-case': ERROR,
 
   // disallow function declarations in if statement clauses without using blocks
-  'es-x/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
+  'es/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
   // disallow initializers in for-in heads
-  'es-x/no-initializers-in-for-in': ERROR,
+  'es/no-initializers-in-for-in': ERROR,
   // disallow \u2028 and \u2029 in string literals
-  'es-x/no-json-superset': ERROR,
+  'es/no-json-superset': ERROR,
   // disallow labelled function declarations
-  'es-x/no-labelled-function-declarations': ERROR,
+  'es/no-labelled-function-declarations': ERROR,
   // disallow the `RegExp.prototype.compile` method
-  'es-x/no-regexp-prototype-compile': ERROR,
+  'es/no-regexp-prototype-compile': ERROR,
   // disallow identifiers from shadowing catch parameter names
-  'es-x/no-shadow-catch-param': ERROR,
+  'es/no-shadow-catch-param': ERROR,
 
   // eslint-comments:
   // require include descriptions in eslint directive-comments
@@ -730,151 +730,151 @@ const es3 = {
 };
 
 const forbidESAnnexBBuiltIns = {
-  'es-x/no-date-prototype-getyear-setyear': ERROR,
-  'es-x/no-date-prototype-togmtstring': ERROR,
-  'es-x/no-escape-unescape': ERROR,
-  'es-x/no-legacy-object-prototype-accessor-methods': ERROR,
-  'es-x/no-string-create-html-methods': ERROR,
-  'es-x/no-string-prototype-substr': ERROR,
-  'es-x/no-string-prototype-trimleft-trimright': ERROR,
+  'es/no-date-prototype-getyear-setyear': ERROR,
+  'es/no-date-prototype-togmtstring': ERROR,
+  'es/no-escape-unescape': ERROR,
+  'es/no-legacy-object-prototype-accessor-methods': ERROR,
+  'es/no-string-create-html-methods': ERROR,
+  'es/no-string-prototype-substr': ERROR,
+  'es/no-string-prototype-trimleft-trimright': ERROR,
 };
 
 const forbidES5BuiltIns = {
-  'es-x/no-array-isarray': ERROR,
-  'es-x/no-array-prototype-every': ERROR,
-  'es-x/no-array-prototype-filter': ERROR,
-  'es-x/no-array-prototype-foreach': ERROR,
-  'es-x/no-array-prototype-indexof': ERROR,
-  'es-x/no-array-prototype-lastindexof': ERROR,
-  'es-x/no-array-prototype-map': ERROR,
-  'es-x/no-array-prototype-reduce': ERROR,
-  'es-x/no-array-prototype-reduceright': ERROR,
-  'es-x/no-array-prototype-some': ERROR,
-  'es-x/no-date-now': ERROR,
-  'es-x/no-function-prototype-bind': ERROR,
-  'es-x/no-json': ERROR,
-  'es-x/no-object-create': ERROR,
-  'es-x/no-object-defineproperties': ERROR,
-  'es-x/no-object-defineproperty': ERROR,
-  'es-x/no-object-freeze': ERROR,
-  'es-x/no-object-getownpropertydescriptor': ERROR,
-  'es-x/no-object-getownpropertynames': ERROR,
-  'es-x/no-object-getprototypeof': ERROR,
-  'es-x/no-object-isextensible': ERROR,
-  'es-x/no-object-isfrozen': ERROR,
-  'es-x/no-object-issealed': ERROR,
-  'es-x/no-object-keys': ERROR,
-  'es-x/no-object-preventextensions': ERROR,
-  'es-x/no-object-seal': ERROR,
-  'es-x/no-string-prototype-trim': ERROR,
+  'es/no-array-isarray': ERROR,
+  'es/no-array-prototype-every': ERROR,
+  'es/no-array-prototype-filter': ERROR,
+  'es/no-array-prototype-foreach': ERROR,
+  'es/no-array-prototype-indexof': ERROR,
+  'es/no-array-prototype-lastindexof': ERROR,
+  'es/no-array-prototype-map': ERROR,
+  'es/no-array-prototype-reduce': ERROR,
+  'es/no-array-prototype-reduceright': ERROR,
+  'es/no-array-prototype-some': ERROR,
+  'es/no-date-now': ERROR,
+  'es/no-function-prototype-bind': ERROR,
+  'es/no-json': ERROR,
+  'es/no-object-create': ERROR,
+  'es/no-object-defineproperties': ERROR,
+  'es/no-object-defineproperty': ERROR,
+  'es/no-object-freeze': ERROR,
+  'es/no-object-getownpropertydescriptor': ERROR,
+  'es/no-object-getownpropertynames': ERROR,
+  'es/no-object-getprototypeof': ERROR,
+  'es/no-object-isextensible': ERROR,
+  'es/no-object-isfrozen': ERROR,
+  'es/no-object-issealed': ERROR,
+  'es/no-object-keys': ERROR,
+  'es/no-object-preventextensions': ERROR,
+  'es/no-object-seal': ERROR,
+  'es/no-string-prototype-trim': ERROR,
 };
 
 const forbidES2015BuiltIns = {
-  'es-x/no-array-from': ERROR,
-  'es-x/no-array-of': ERROR,
-  'es-x/no-array-prototype-copywithin': ERROR,
-  'es-x/no-array-prototype-entries': ERROR,
-  'es-x/no-array-prototype-fill': ERROR,
-  'es-x/no-array-prototype-find': ERROR,
-  'es-x/no-array-prototype-findindex': ERROR,
-  'es-x/no-array-prototype-keys': ERROR,
-  'es-x/no-array-prototype-values': ERROR,
-  'es-x/no-map': ERROR,
-  'es-x/no-math-acosh': ERROR,
-  'es-x/no-math-asinh': ERROR,
-  'es-x/no-math-atanh': ERROR,
-  'es-x/no-math-cbrt': ERROR,
-  'es-x/no-math-clz32': ERROR,
-  'es-x/no-math-cosh': ERROR,
-  'es-x/no-math-expm1': ERROR,
-  'es-x/no-math-fround': ERROR,
-  'es-x/no-math-hypot': ERROR,
-  'es-x/no-math-imul': ERROR,
-  'es-x/no-math-log10': ERROR,
-  'es-x/no-math-log1p': ERROR,
-  'es-x/no-math-log2': ERROR,
-  'es-x/no-math-sign': ERROR,
-  'es-x/no-math-sinh': ERROR,
-  'es-x/no-math-tanh': ERROR,
-  'es-x/no-math-trunc': ERROR,
-  'es-x/no-number-epsilon': ERROR,
-  'es-x/no-number-isfinite': ERROR,
-  'es-x/no-number-isinteger': ERROR,
-  'es-x/no-number-isnan': ERROR,
-  'es-x/no-number-issafeinteger': ERROR,
-  'es-x/no-number-maxsafeinteger': ERROR,
-  'es-x/no-number-minsafeinteger': ERROR,
-  'es-x/no-number-parsefloat': ERROR,
-  'es-x/no-number-parseint': ERROR,
-  'es-x/no-object-assign': ERROR,
-  'es-x/no-object-getownpropertysymbols': ERROR,
-  'es-x/no-object-is': ERROR,
-  'es-x/no-object-setprototypeof': ERROR,
-  'es-x/no-promise': ERROR,
-  'es-x/no-proxy': ERROR,
-  'es-x/no-reflect': ERROR,
-  'es-x/no-regexp-prototype-flags': ERROR,
-  'es-x/no-set': ERROR,
-  'es-x/no-string-fromcodepoint': ERROR,
-  'es-x/no-string-prototype-codepointat': ERROR,
-  'es-x/no-string-prototype-endswith': ERROR,
-  'es-x/no-string-prototype-includes': ERROR,
-  'es-x/no-string-prototype-normalize': ERROR,
-  'es-x/no-string-prototype-repeat': ERROR,
-  'es-x/no-string-prototype-startswith': ERROR,
-  'es-x/no-string-raw': ERROR,
-  'es-x/no-symbol': ERROR,
-  'es-x/no-typed-arrays': ERROR,
-  'es-x/no-weak-map': ERROR,
-  'es-x/no-weak-set': ERROR,
+  'es/no-array-from': ERROR,
+  'es/no-array-of': ERROR,
+  'es/no-array-prototype-copywithin': ERROR,
+  'es/no-array-prototype-entries': ERROR,
+  'es/no-array-prototype-fill': ERROR,
+  'es/no-array-prototype-find': ERROR,
+  'es/no-array-prototype-findindex': ERROR,
+  'es/no-array-prototype-keys': ERROR,
+  'es/no-array-prototype-values': ERROR,
+  'es/no-map': ERROR,
+  'es/no-math-acosh': ERROR,
+  'es/no-math-asinh': ERROR,
+  'es/no-math-atanh': ERROR,
+  'es/no-math-cbrt': ERROR,
+  'es/no-math-clz32': ERROR,
+  'es/no-math-cosh': ERROR,
+  'es/no-math-expm1': ERROR,
+  'es/no-math-fround': ERROR,
+  'es/no-math-hypot': ERROR,
+  'es/no-math-imul': ERROR,
+  'es/no-math-log10': ERROR,
+  'es/no-math-log1p': ERROR,
+  'es/no-math-log2': ERROR,
+  'es/no-math-sign': ERROR,
+  'es/no-math-sinh': ERROR,
+  'es/no-math-tanh': ERROR,
+  'es/no-math-trunc': ERROR,
+  'es/no-number-epsilon': ERROR,
+  'es/no-number-isfinite': ERROR,
+  'es/no-number-isinteger': ERROR,
+  'es/no-number-isnan': ERROR,
+  'es/no-number-issafeinteger': ERROR,
+  'es/no-number-maxsafeinteger': ERROR,
+  'es/no-number-minsafeinteger': ERROR,
+  'es/no-number-parsefloat': ERROR,
+  'es/no-number-parseint': ERROR,
+  'es/no-object-assign': ERROR,
+  'es/no-object-getownpropertysymbols': ERROR,
+  'es/no-object-is': ERROR,
+  'es/no-object-setprototypeof': ERROR,
+  'es/no-promise': ERROR,
+  'es/no-proxy': ERROR,
+  'es/no-reflect': ERROR,
+  'es/no-regexp-prototype-flags': ERROR,
+  'es/no-set': ERROR,
+  'es/no-string-fromcodepoint': ERROR,
+  'es/no-string-prototype-codepointat': ERROR,
+  'es/no-string-prototype-endswith': ERROR,
+  'es/no-string-prototype-includes': ERROR,
+  'es/no-string-prototype-normalize': ERROR,
+  'es/no-string-prototype-repeat': ERROR,
+  'es/no-string-prototype-startswith': ERROR,
+  'es/no-string-raw': ERROR,
+  'es/no-symbol': ERROR,
+  'es/no-typed-arrays': ERROR,
+  'es/no-weak-map': ERROR,
+  'es/no-weak-set': ERROR,
 };
 
 const forbidES2016BuiltIns = {
-  'es-x/no-array-prototype-includes': ERROR,
+  'es/no-array-prototype-includes': ERROR,
 };
 
 const forbidES2017BuiltIns = {
-  'es-x/no-atomics': ERROR,
-  'es-x/no-object-entries': ERROR,
-  'es-x/no-object-getownpropertydescriptors': ERROR,
-  'es-x/no-object-values': ERROR,
-  'es-x/no-shared-array-buffer': ERROR,
-  'es-x/no-string-prototype-padstart-padend': ERROR,
+  'es/no-atomics': ERROR,
+  'es/no-object-entries': ERROR,
+  'es/no-object-getownpropertydescriptors': ERROR,
+  'es/no-object-values': ERROR,
+  'es/no-shared-array-buffer': ERROR,
+  'es/no-string-prototype-padstart-padend': ERROR,
 };
 
 const forbidES2018BuiltIns = {
-  'es-x/no-promise-prototype-finally': ERROR,
+  'es/no-promise-prototype-finally': ERROR,
 };
 
 const forbidES2019BuiltIns = {
   'unicorn/prefer-array-flat': OFF,
-  'es-x/no-array-prototype-flat': ERROR,
-  'es-x/no-object-fromentries': ERROR,
-  'es-x/no-string-prototype-trimstart-trimend': ERROR,
-  'es-x/no-symbol-prototype-description': ERROR,
+  'es/no-array-prototype-flat': ERROR,
+  'es/no-object-fromentries': ERROR,
+  'es/no-string-prototype-trimstart-trimend': ERROR,
+  'es/no-symbol-prototype-description': ERROR,
 };
 
 const forbidES2020BuiltIns = {
-  'es-x/no-bigint': ERROR,
-  'es-x/no-global-this': ERROR,
-  'es-x/no-promise-all-settled': ERROR,
-  'es-x/no-string-prototype-matchall': ERROR,
+  'es/no-bigint': ERROR,
+  'es/no-global-this': ERROR,
+  'es/no-promise-all-settled': ERROR,
+  'es/no-string-prototype-matchall': ERROR,
 };
 
 const forbidES2021BuiltIns = {
-  'es-x/no-promise-any': ERROR,
-  'es-x/no-string-prototype-replaceall': ERROR,
-  'es-x/no-weakrefs': ERROR,
+  'es/no-promise-any': ERROR,
+  'es/no-string-prototype-replaceall': ERROR,
+  'es/no-weakrefs': ERROR,
 };
 
 const forbidES2022BuiltIns = {
-  'es-x/no-array-string-prototype-at': ERROR,
-  'es-x/no-object-hasown': ERROR,
-  'es-x/no-regexp-d-flag': ERROR,
+  'es/no-array-string-prototype-at': ERROR,
+  'es/no-object-hasown': ERROR,
+  'es/no-regexp-d-flag': ERROR,
 };
 
 const forbidES2023BuiltIns = {
-  'es-x/no-array-prototype-findlast-findlastindex': ERROR,
+  'es/no-array-prototype-findlast-findlastindex': ERROR,
 };
 
 const forbidModernESBuiltIns = {
@@ -905,25 +905,25 @@ const polyfills = {
 
 const transpiledAndPolyfilled = {
   // disallow accessor properties
-  'es-x/no-accessor-properties': ERROR,
+  'es/no-accessor-properties': ERROR,
   // disallow async functions
-  'es-x/no-async-functions': ERROR,
+  'es/no-async-functions': ERROR,
   // disallow async iteration
-  'es-x/no-async-iteration': ERROR,
+  'es/no-async-iteration': ERROR,
   // disallow generators
-  'es-x/no-generators': ERROR,
+  'es/no-generators': ERROR,
   // disallow top-level `await`
-  'es-x/no-top-level-await': ERROR,
+  'es/no-top-level-await': ERROR,
   // unpolyfillable es2015 builtins
-  'es-x/no-proxy': ERROR,
-  'es-x/no-string-prototype-normalize': ERROR,
+  'es/no-proxy': ERROR,
+  'es/no-string-prototype-normalize': ERROR,
   // unpolyfillable es2017 builtins
-  'es-x/no-atomics': ERROR,
-  'es-x/no-shared-array-buffer': ERROR,
+  'es/no-atomics': ERROR,
+  'es/no-shared-array-buffer': ERROR,
   // unpolyfillable es2020 builtins
-  'es-x/no-bigint': ERROR,
+  'es/no-bigint': ERROR,
   // unpolyfillable es2021 builtins
-  'es-x/no-weakrefs': ERROR,
+  'es/no-weakrefs': ERROR,
   // prefer code points over char codes
   'unicorn/prefer-code-point': OFF,
 };
@@ -933,13 +933,13 @@ const nodePackages = {
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'n/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
   ...disable(forbidES2017BuiltIns),
-  'es-x/no-atomics': ERROR,
-  'es-x/no-shared-array-buffer': ERROR,
+  'es/no-atomics': ERROR,
+  'es/no-shared-array-buffer': ERROR,
   ...forbidES2018BuiltIns,
   ...forbidES2019BuiltIns,
   ...forbidES2020BuiltIns,
@@ -951,9 +951,9 @@ const nodePackages = {
 const nodeDev = {
   ...asyncAwait,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'n/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
-  'es-x/no-array-string-prototype-at': ERROR,
+  'es/no-array-string-prototype-at': ERROR,
   ...forbidES2023BuiltIns,
 };
 
@@ -1158,11 +1158,11 @@ module.exports = [
     },
     plugins: {
       'array-func': pluginArrayFunc,
-      'es-x': pluginESX,
+      es: pluginESX,
       'eslint-comments': pluginESlintComments,
       import: pluginImport,
       jsonc: pluginJSONC,
-      n: pluginN,
+      node: pluginN,
       promise: pluginPromise,
       qunit: pluginQUnit,
       regexp: pluginRegExp,

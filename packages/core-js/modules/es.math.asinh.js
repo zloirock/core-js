@@ -1,6 +1,6 @@
 var $ = require('../internals/export');
 
-// eslint-disable-next-line es-x/no-math-asinh -- required for testing
+// eslint-disable-next-line es/no-math-asinh -- required for testing
 var $asinh = Math.asinh;
 var log = Math.log;
 var sqrt = Math.sqrt;

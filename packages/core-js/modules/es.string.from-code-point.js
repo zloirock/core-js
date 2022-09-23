@@ -4,7 +4,7 @@ var toAbsoluteIndex = require('../internals/to-absolute-index');
 
 var $RangeError = RangeError;
 var fromCharCode = String.fromCharCode;
-// eslint-disable-next-line es-x/no-string-fromcodepoint -- required for testing
+// eslint-disable-next-line es/no-string-fromcodepoint -- required for testing
 var $fromCodePoint = String.fromCodePoint;
 var join = uncurryThis([].join);
 

@@ -8,7 +8,7 @@ QUnit.test('String#substr', assert => {
 
   assert.same(substr('ab', -1), 'b');
 
-  /* eslint-disable es-x/no-symbol -- safe */
+  /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
     assert.throws(() => substr(Symbol(), 1, 3), 'throws on symbol context');
   }

@@ -1,5 +1,5 @@
 'use strict';
-// eslint-disable-next-line es-x/no-object-hasown -- safe
+// eslint-disable-next-line es/no-object-hasown -- safe
 const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
 function semver(input) {

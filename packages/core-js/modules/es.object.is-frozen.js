@@ -4,7 +4,7 @@ var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
 var ARRAY_BUFFER_NON_EXTENSIBLE = require('../internals/array-buffer-non-extensible');
 
-// eslint-disable-next-line es-x/no-object-isfrozen -- safe
+// eslint-disable-next-line es/no-object-isfrozen -- safe
 var $isFrozen = Object.isFrozen;
 var FAILS_ON_PRIMITIVES = fails(function () { $isFrozen(1); });
 

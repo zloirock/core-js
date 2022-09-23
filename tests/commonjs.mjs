@@ -1,4 +1,4 @@
-/* eslint-disable import/no-dynamic-require, n/global-require -- required */
+/* eslint-disable import/no-dynamic-require, node/global-require -- required */
 import { ok } from 'assert';
 const entries = require('core-js-compat/entries');
 

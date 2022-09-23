@@ -5,9 +5,9 @@ var isObject = require('../internals/is-object');
 var toObject = require('../internals/to-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
-// eslint-disable-next-line es-x/no-object-getprototypeof -- safe
+// eslint-disable-next-line es/no-object-getprototypeof -- safe
 var getPrototypeOf = Object.getPrototypeOf;
-// eslint-disable-next-line es-x/no-object-setprototypeof -- safe
+// eslint-disable-next-line es/no-object-setprototypeof -- safe
 var setPrototypeOf = Object.setPrototypeOf;
 var ObjectPrototype = Object.prototype;
 var PROTO = '__proto__';

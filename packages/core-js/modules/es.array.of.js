@@ -8,7 +8,7 @@ var $Array = Array;
 
 var ISNT_GENERIC = fails(function () {
   function F() { /* empty */ }
-  // eslint-disable-next-line es-x/no-array-of -- safe
+  // eslint-disable-next-line es/no-array-of -- safe
   return !($Array.of.call(F) instanceof F);
 });
 

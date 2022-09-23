@@ -1,7 +1,7 @@
 var $ = require('../internals/export');
 var log1p = require('../internals/math-log1p');
 
-// eslint-disable-next-line es-x/no-math-acosh -- required for testing
+// eslint-disable-next-line es/no-math-acosh -- required for testing
 var $acosh = Math.acosh;
 var log = Math.log;
 var sqrt = Math.sqrt;

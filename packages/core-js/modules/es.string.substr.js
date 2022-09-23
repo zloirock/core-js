@@ -9,7 +9,7 @@ var stringSlice = uncurryThis(''.slice);
 var max = Math.max;
 var min = Math.min;
 
-// eslint-disable-next-line unicorn/prefer-string-slice, es-x/no-string-prototype-substr -- required for testing
+// eslint-disable-next-line unicorn/prefer-string-slice, es/no-string-prototype-substr -- required for testing
 var FORCED = !''.substr || 'ab'.substr(-1) !== 'b';
 
 // `String.prototype.substr` method

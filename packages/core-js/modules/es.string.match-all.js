@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable es-x/no-string-prototype-matchall -- safe */
+/* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
