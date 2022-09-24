@@ -63,8 +63,6 @@ const base = {
   'no-func-assign': ERROR,
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': ERROR,
-  // disallow literal numbers that lose precision
-  // 'no-loss-of-precision': ERROR, // TODO
   // disallow the use of object properties of the global object (Math and JSON) as functions
   'no-obj-calls': ERROR,
   // disallow use of Object.prototypes builtins directly
