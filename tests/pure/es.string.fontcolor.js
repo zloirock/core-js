@@ -5,7 +5,7 @@ QUnit.test('String#fontcolor', assert => {
   assert.same(fontcolor('a', 'b'), '<font color="b">a</font>', 'lower case');
   assert.same(fontcolor('a', '"'), '<font color="&quot;">a</font>', 'escape quotes');
 
-  /* eslint-disable es-x/no-symbol -- safe */
+  /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
     assert.throws(() => fontcolor(Symbol(), 'b'), 'throws on symbol context');
     assert.throws(() => fontcolor('a', Symbol()), 'throws on symbol argument');

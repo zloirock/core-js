@@ -41,7 +41,7 @@ for (const name of ['BigInt64Array', 'BigUint64Array']) if (GLOBAL[name]) TYPED_
   name,
   TypedArray: GLOBAL[name],
   bytes: 8,
-  // eslint-disable-next-line es-x/no-bigint -- safe
+  // eslint-disable-next-line es/no-bigint -- safe
   $: BigInt,
 });
 

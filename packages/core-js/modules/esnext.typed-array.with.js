@@ -11,7 +11,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var PROPER_ORDER = !!function () {
   try {
-    // eslint-disable-next-line no-throw-literal, es-x/no-typed-arrays -- required for testing
+    // eslint-disable-next-line no-throw-literal, es/no-typed-arrays -- required for testing
     new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
   } catch (error) {
     // some early implementations, like WebKit, does not follow the final semantic

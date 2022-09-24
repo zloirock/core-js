@@ -1,4 +1,4 @@
-/* eslint-disable es-x/no-object-getownpropertydescriptor, unicorn/relative-url-style -- required for testing */
+/* eslint-disable es/no-object-getownpropertydescriptor, unicorn/relative-url-style -- required for testing */
 import { DESCRIPTORS, NODE } from '../helpers/constants';
 import urlTestData from '../wpt-url-resources/urltestdata';
 import settersTestData from '../wpt-url-resources/setters';

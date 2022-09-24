@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable es-x/no-array-prototype-lastindexof -- safe */
+/* eslint-disable es/no-array-prototype-lastindexof -- safe */
 var apply = require('../internals/function-apply');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
