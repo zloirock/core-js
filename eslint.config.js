@@ -1,4 +1,7 @@
 'use strict';
+const globals = require('globals');
+const confusingBrowserGlobals = require('confusing-browser-globals');
+const parserJSONC = require('jsonc-eslint-parser');
 const pluginArrayFunc = require('eslint-plugin-array-func');
 const pluginESX = require('eslint-plugin-es-x');
 const pluginESlintComments = require('eslint-plugin-eslint-comments');
@@ -10,12 +13,10 @@ const pluginQUnit = require('eslint-plugin-qunit');
 const pluginRegExp = require('eslint-plugin-regexp');
 const pluginSonarJS = require('eslint-plugin-sonarjs');
 const pluginUnicorn = require('eslint-plugin-unicorn');
-const parserJSONC = require('jsonc-eslint-parser');
-const globals = require('globals');
-const RESTRICTED_GLOBALS = require('confusing-browser-globals');
-const SUPPORTED_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 
+const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 const DEV_NODE_VERSIONS = '^16.13';
+
 const ERROR = 'error';
 const OFF = 'off';
 const ALWAYS = 'always';
@@ -23,10 +24,7 @@ const NEVER = 'never';
 const READONLY = 'readonly';
 
 function disable(rules) {
-  return Object.keys(rules).reduce((memo, rule) => {
-    memo[rule] = OFF;
-    return memo;
-  }, {});
+  return Object.fromEntries(Object.keys(rules).map(key => [key, OFF]));
 }
 
 const base = {
@@ -72,7 +70,7 @@ const base = {
   // disallow use of Object.prototypes builtins directly
   'no-prototype-builtins': ERROR,
   // disallow specific global variables
-  'no-restricted-globals': [ERROR, ...RESTRICTED_GLOBALS],
+  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
   // disallow returning values from setters
   'no-setter-return': ERROR,
   // disallow sparse arrays
@@ -208,7 +206,11 @@ const base = {
   // disallow initializing variables to undefined
   'no-undef-init': ERROR,
   // disallow declaration of variables that are not used in the code
-  'no-unused-vars': [ERROR, { vars: 'local', args: 'after-used', ignoreRestSiblings: true }],
+  'no-unused-vars': [ERROR, {
+    vars: 'local',
+    args: 'after-used',
+    ignoreRestSiblings: true,
+  }],
 
   // stylistic issues:
   // enforce spacing inside array brackets
@@ -306,7 +308,10 @@ const base = {
   // require or disallow spaces before/after unary operators
   'space-unary-ops': ERROR,
   // require or disallow a space immediately following the // or /* in a comment
-  'spaced-comment': [ERROR, ALWAYS, { line: { exceptions: ['/'] }, block: { exceptions: ['*'] } }],
+  'spaced-comment': [ERROR, ALWAYS, {
+    line: { exceptions: ['/'] },
+    block: { exceptions: ['*'] },
+  }],
   // enforce spacing around colons of switch statements
   'switch-colon-spacing': ERROR,
   // require or disallow the Unicode Byte Order Mark
@@ -933,7 +938,7 @@ const nodePackages = {
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: SUPPORTED_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
