@@ -480,8 +480,6 @@ const base = {
   'unicorn/prefer-array-index-of': ERROR,
   // prefer `.some(…)` over `.filter(…).length` check and `.find(…)`
   'unicorn/prefer-array-some': ERROR,
-  // prefer code points over char codes
-  'unicorn/prefer-code-point': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `EventTarget` over `EventEmitter`
@@ -725,8 +723,6 @@ const es3 = {
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
   // require strict mode directives
   strict: OFF,
-  // prefer code points over char codes
-  'unicorn/prefer-code-point': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
@@ -928,8 +924,6 @@ const transpiledAndPolyfilled = {
   'es/no-bigint': ERROR,
   // unpolyfillable es2021 builtins
   'es/no-weakrefs': ERROR,
-  // prefer code points over char codes
-  'unicorn/prefer-code-point': OFF,
 };
 
 const nodePackages = {
