@@ -243,6 +243,8 @@ const base = {
   'key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
   // enforce consistent linebreak style
   'linebreak-style': [ERROR, 'unix'],
+  // require logical assignment operator shorthand
+  'logical-assignment-operators': [ERROR, ALWAYS],
   // specify the maximum length of a line in your program
   'max-len': [ERROR, {
     code: 140,
@@ -699,6 +701,8 @@ const es3 = {
   'comma-dangle': [ERROR, NEVER],
   // encourages use of dot notation whenever possible
   'dot-notation': [ERROR, { allowKeywords: false }],
+  // disallow logical assignment operator shorthand
+  'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
   // require let or const instead of var
@@ -930,6 +934,8 @@ const transpiledAndPolyfilled = {
 
 const nodePackages = {
   ...asyncAwait,
+  // disallow logical assignment operator shorthand
+  'logical-assignment-operators': [ERROR, NEVER],
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version

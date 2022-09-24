@@ -41,7 +41,7 @@
     "confusing-browser-globals": "^1.0.11",
     "david": "^12.0.0",
     "es-observable": "git+https://github.com/tc39/proposal-observable.git#d3404f06bc70c7c578a5047dfb3dc813730e3319",
-    "eslint": "^8.23.1",
+    "eslint": "^8.24.0",
     "eslint-plugin-array-func": "^3.1.7",
     "eslint-plugin-es-x": "^5.3.1",
     "eslint-plugin-eslint-comments": "^3.2.0",
