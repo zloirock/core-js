@@ -1,8 +1,12 @@
 ## Changelog
 ##### Unreleased
-- Forced polyfilling `Array.prototype.groupToMap` in the pure version for returning wrapped `Map` instances
+- Nothing
+
+##### [3.25.3 - 2022.09.26](https://github.com/zloirock/core-js/releases/tag/v3.25.3)
+- Forced polyfilling of `Array.prototype.groupToMap` in the pure version for returning wrapped `Map` instances
 - Fixed existence of `Array.prototype.{ findLast, findLastIndex }` in `/stage/4` entry
 - Added Opera Android 71 compat data mapping
+- Some stylistic changes
 
 ##### [3.25.2 - 2022.09.19](https://github.com/zloirock/core-js/releases/tag/v3.25.2)
 - Considering `document.all` as a callable in some missed cases
