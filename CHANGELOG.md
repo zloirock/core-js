@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- `Array.prototype.{ group, groupToMap }` marked as [supported from V8 ~ Chromium 108](https://chromestatus.com/feature/5714791975878656)
 
 ##### [3.25.3 - 2022.09.26](https://github.com/zloirock/core-js/releases/tag/v3.25.3)
 - Forced polyfilling of `Array.prototype.groupToMap` in the pure version for returning wrapped `Map` instances

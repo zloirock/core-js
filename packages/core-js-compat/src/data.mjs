@@ -2062,6 +2062,7 @@ export const data = {
   'esnext.array.find-last-index': null,
   'esnext.array.group': {
     bun: '0.1.9',
+    chrome: '108',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -2071,6 +2072,7 @@ export const data = {
   },
   'esnext.array.group-to-map': {
     bun: '0.1.9',
+    chrome: '108',
   },
   'esnext.array.is-template-object': {
   },
