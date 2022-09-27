@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a workaround of a Nashorn bug with `Function.prototype.{ call, bind }`, [#1128](https://github.com/zloirock/core-js/issues/1128)
 - `Array.prototype.{ group, groupToMap }` marked as [supported from V8 ~ Chromium 108](https://chromestatus.com/feature/5714791975878656)
 
 ##### [3.25.3 - 2022.09.26](https://github.com/zloirock/core-js/releases/tag/v3.25.3)
