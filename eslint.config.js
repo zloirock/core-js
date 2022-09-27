@@ -205,7 +205,7 @@ const base = {
   'no-undef-init': ERROR,
   // disallow declaration of variables that are not used in the code
   'no-unused-vars': [ERROR, {
-    vars: 'local',
+    vars: 'all',
     args: 'after-used',
     ignoreRestSiblings: true,
   }],
