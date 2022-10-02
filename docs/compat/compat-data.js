@@ -4437,12 +4437,20 @@
     "samsung": "18.0"
   },
   "esnext.array.group": {
-    "bun": "0.1.9"
+    "android": "108",
+    "bun": "0.1.9",
+    "chrome": "108",
+    "edge": "108",
+    "opera": "94"
   },
   "esnext.array.group-by": {},
   "esnext.array.group-by-to-map": {},
   "esnext.array.group-to-map": {
-    "bun": "0.1.9"
+    "android": "108",
+    "bun": "0.1.9",
+    "chrome": "108",
+    "edge": "108",
+    "opera": "94"
   },
   "esnext.array.is-template-object": {},
   "esnext.array.last-index": {},

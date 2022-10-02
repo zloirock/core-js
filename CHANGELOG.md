@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.25.4 - 2022.10.03](https://github.com/zloirock/core-js/releases/tag/v3.25.4)
 - Added a workaround of a Nashorn bug with `Function.prototype.{ call, apply, bind }` on string methods, [#1128](https://github.com/zloirock/core-js/issues/1128)
 - Updated lists of `[Serializable]` and `[Transferable]` objects in the `structuredClone` polyfill. Mainly, for better error messages if polyfilling of cloning such types is impossible
 - `Array.prototype.{ group, groupToMap }` marked as [supported from V8 ~ Chromium 108](https://chromestatus.com/feature/5714791975878656)

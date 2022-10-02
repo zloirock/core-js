@@ -1,7 +1,7 @@
 /**
- * core-js 3.25.3
+ * core-js 3.25.4
  * © 2014-2022 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.25.3/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.25.4/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -552,17 +552,19 @@ module.exports = fails(function () {
 
 var NATIVE_BIND = __webpack_require__(8);
 
-var FunctionPrototype = Function.prototype;
+var $Function = Function;
+var FunctionPrototype = $Function.prototype;
 var bind = FunctionPrototype.bind;
 var call = FunctionPrototype.call;
 var uncurryThis = NATIVE_BIND && bind.bind(call, call);
 
-module.exports = NATIVE_BIND ? function (fn) {
-  return fn && uncurryThis(fn);
-} : function (fn) {
-  return fn && function () {
+module.exports = function (fn) {
+  // Nashorn bug:
+  //   https://github.com/zloirock/core-js/issues/1128
+  //   https://github.com/zloirock/core-js/issues/1130
+  return fn instanceof $Function ? NATIVE_BIND ? uncurryThis(fn) : function () {
     return call.apply(fn, arguments);
-  };
+  } : undefined;
 };
 
 
@@ -925,10 +927,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.25.3',
+  version: '3.25.4',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2022 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.25.3/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.25.4/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -11742,9 +11744,13 @@ var structuredCloneInternal = function (value, map) {
           } catch (error) {
             throwUnpolyfillable(type);
           } break;
+        case 'CropTarget':
         case 'CryptoKey':
-        case 'GPUCompilationMessage':
+        case 'FileSystemDirectoryHandle':
+        case 'FileSystemFileHandle':
+        case 'FileSystemHandle':
         case 'GPUCompilationInfo':
+        case 'GPUCompilationMessage':
         case 'ImageBitmap':
         case 'RTCCertificate':
         case 'WebAssembly.Module':
@@ -11843,6 +11849,7 @@ var tryToTransfer = function (rawTransfer, map) {
         } catch (error) { /* empty */ }
         break;
       case 'ArrayBuffer':
+      case 'MediaSourceHandle':
       case 'MessagePort':
       case 'OffscreenCanvas':
       case 'ReadableStream':
@@ -11856,6 +11863,8 @@ var tryToTransfer = function (rawTransfer, map) {
   }
 };
 
+// `structuredClone` method
+// https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone
 $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
