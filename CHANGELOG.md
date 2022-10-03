@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Fixed regression with an error on reuse of some built-in methods from another realm, [#1133](https://github.com/zloirock/core-js/issues/1133)
 
 ##### [3.25.4 - 2022.10.03](https://github.com/zloirock/core-js/releases/tag/v3.25.4)
 - Added a workaround of a Nashorn bug with `Function.prototype.{ call, apply, bind }` on string methods, [#1128](https://github.com/zloirock/core-js/issues/1128)
