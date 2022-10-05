@@ -505,6 +505,8 @@ const base = {
   'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
   'unicorn/require-post-message-target-origin': ERROR,
+  // forbid braces for case clauses
+  'unicorn/switch-case-braces': [ERROR, 'avoid'],
   // enforce consistent case for text encoding identifiers
   'unicorn/text-encoding-identifier-case': ERROR,
 
@@ -899,6 +901,8 @@ const asyncAwait = {
   'promise/prefer-await-to-callbacks': ERROR,
   // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
   'promise/prefer-await-to-then': ERROR,
+  // disallow awaiting non-promise values
+  'unicorn/no-unnecessary-await': ERROR,
 };
 
 const polyfills = {

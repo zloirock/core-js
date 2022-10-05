@@ -17,7 +17,7 @@ QUnit.test('Array#findLastIndex', assert => {
     assert.same(this, context, 'correct callback context');
   }, context);
   assert.same([{}, 2, NaN, 42, 1].findLastIndex(it => !(it % 2)), 3);
-  assert.same([{}, 2, NaN, 42, 1].findLastIndex(it => it === 43), -1);
+  assert.same([{}, 2, NaN, 42, 1].findLastIndex(it => it > 42), -1);
   let values = '';
   let keys = '';
   [1, 2, 3].findLastIndex((value, key) => {
