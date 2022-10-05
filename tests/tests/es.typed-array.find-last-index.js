@@ -18,7 +18,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.findLastIndex', assert => {
       assert.same(this, context, 'correct callback context');
     }, context);
     assert.same(new TypedArray([1, 2, 3, 2, 1]).findLastIndex(it => !(it % 2)), 3);
-    assert.same(new TypedArray([1, 2, 3, 2, 1]).findLastIndex(it => it === 4), -1);
+    assert.same(new TypedArray([1, 2, 3, 2, 1]).findLastIndex(it => it > 3), -1);
     let values = '';
     let keys = '';
     new TypedArray([1, 2, 3]).findLastIndex((value, key) => {
