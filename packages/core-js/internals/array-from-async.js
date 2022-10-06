@@ -1,5 +1,6 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
+var uncurryThis = require('../internals/function-uncurry-this');
 var toObject = require('../internals/to-object');
 var isConstructor = require('../internals/is-constructor');
 var getAsyncIterator = require('../internals/get-async-iterator');
@@ -13,7 +14,20 @@ var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var toArray = require('../internals/async-iterator-iteration').toArray;
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-var arrayIterator = getVirtual('Array').values;
+var arrayIterator = uncurryThis(getVirtual('Array').values);
+var arrayIteratorNext = uncurryThis(arrayIterator([]).next);
+
+var safeArrayIterator = function () {
+  return new SafeArrayIterator(this);
+};
+
+var SafeArrayIterator = function (O) {
+  this.iterator = arrayIterator(O);
+};
+
+SafeArrayIterator.prototype.next = function () {
+  return arrayIteratorNext(this.iterator);
+};
 
 // `Array.fromAsync` method implementation
 // https://github.com/tc39/proposal-array-from-async
@@ -26,7 +40,7 @@ module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg =
     var O = toObject(asyncItems);
     if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
     var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
-    var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || arrayIterator;
+    var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || safeArrayIterator;
     var A = isConstructor(C) ? new C() : [];
     var iterator = usingAsyncIterator
       ? getAsyncIterator(O, usingAsyncIterator)

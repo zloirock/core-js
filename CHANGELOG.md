@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):
+  - Moved to Stage 3, [September TC39 meeting](https://github.com/babel/proposals/issues/83#issuecomment-1246218703)
+  - Avoid observable side effects of `%Array.prototype.values%` usage in array-like branch, [proposal-array-from-async/30](https://github.com/tc39/proposal-array-from-async/pull/30)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)
 

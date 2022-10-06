@@ -1,4 +1,3 @@
-require('../proposals/array-from-async-stage-2');
 require('../proposals/array-is-template-object');
 require('../proposals/decorator-metadata');
 require('../proposals/iterator-helpers');
