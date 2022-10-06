@@ -54,8 +54,10 @@ module.exports = function ({
   exclude = [],
   targets = null,
   version = null,
+  inverse = false,
 } = {}) {
   if (modules == null) modules = filter;
+  inverse = !!inverse;
 
   const parsedTargets = targets ? targetsParser(targets) : null;
 
@@ -72,12 +74,12 @@ module.exports = function ({
 
   modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
 
-  modules = filterOutStabilizedProposals(modules);
+  if (!inverse) modules = filterOutStabilizedProposals(modules);
 
   for (const key of modules) {
     const check = checkModule(key, parsedTargets);
 
-    if (check.required) {
+    if (check.required ^ inverse) {
       result.list.push(key);
       result.targets[key] = check.targets;
     }

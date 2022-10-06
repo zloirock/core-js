@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 
 ##### [3.25.5 - 2022.10.04](https://github.com/zloirock/core-js/releases/tag/v3.25.5)
 - Fixed regression with an error on reuse of some built-in methods from another realm, [#1133](https://github.com/zloirock/core-js/issues/1133)
