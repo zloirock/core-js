@@ -29,44 +29,53 @@ module.exports = async function ({
   blacklist = null, // TODO: Obsolete, remove from `core-js@4`
   exclude = [],
   targets = null,
+  format = 'bundle',
   filename = null,
   summary = {},
 } = {}) {
+  if (!['bundle', 'cjs', 'esm'].includes(format)) throw TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
   const TITLE = filename != null ? filename : '`core-js`';
   let script = banner;
-  let code = '';
+  let code = '\n';
 
   const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
 
   if (list.length) {
-    const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
-    const tempFile = join(tmpdir, tempFileName);
+    if (format === 'bundle') {
+      const tempFileName = `core-js-${ Math.random().toString(36).slice(2) }.js`;
+      const tempFile = join(tmpdir, tempFileName);
 
-    await webpack({
-      mode: 'none',
-      node: {
-        global: false,
-        process: false,
-        setImmediate: false,
-      },
-      entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
-      output: {
-        filename: tempFileName,
-        hashFunction: 'md5',
-        path: tmpdir,
-      },
-    });
+      await webpack({
+        mode: 'none',
+        node: {
+          global: false,
+          process: false,
+          setImmediate: false,
+        },
+        entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
+        output: {
+          filename: tempFileName,
+          hashFunction: 'md5',
+          path: tmpdir,
+        },
+      });
 
-    const file = await readFile(tempFile);
+      const file = await readFile(tempFile);
 
-    await unlink(tempFile);
+      await unlink(tempFile);
 
-    code = `!function (undefined) { 'use strict'; ${
-      // compress `__webpack_require__` with `keep_fnames` option
-      String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
-    } }();`;
+      code = `!function (undefined) { 'use strict'; ${
+        // compress `__webpack_require__` with `keep_fnames` option
+        String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
+      } }();\n`;
+    } else {
+      const template = it => format === 'esm'
+        ? `import 'core-js/modules/${ it }.js';\n`
+        : `require('core-js/modules/${ it }');\n`;
+      code = list.map(template).join('');
+    }
   }
 
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
@@ -81,9 +90,9 @@ module.exports = async function ({
 
   if (summary.console.modules) {
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, modules:\u001B[0m`);
-    for (const it of list) {
+    if (list.length) for (const it of list) {
       console.log(`\u001B[36m${ it + (targets ? ` \u001B[32mfor \u001B[36m${ JSON.stringify(compatTargets[it]) }` : '') }\u001B[0m`);
-    }
+    } else console.log('\u001B[36mnothing\u001B[0m');
   }
 
   if (filename != null) {
