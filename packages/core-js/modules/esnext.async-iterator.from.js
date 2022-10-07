@@ -18,15 +18,17 @@ $({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
     var object = toObject(O);
     var usingIterator = getMethod(object, ASYNC_ITERATOR);
-    var iterator;
+    var iteratorRecord;
     if (usingIterator) {
-      iterator = getAsyncIterator(object, usingIterator);
-      if (isPrototypeOf(AsyncIteratorPrototype, iterator)) return iterator;
+      iteratorRecord = getIteratorDirect(getAsyncIterator(object, usingIterator));
+      if (isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)) return iteratorRecord.iterator;
     }
-    if (iterator === undefined) {
+    if (iteratorRecord === undefined) {
       usingIterator = getIteratorMethod(object);
-      if (usingIterator) iterator = new AsyncFromSyncIterator(getIterator(object, usingIterator));
+      if (usingIterator) iteratorRecord = getIteratorDirect(new AsyncFromSyncIterator(
+        getIteratorDirect(getIterator(object, usingIterator))
+      ));
     }
-    return new WrapAsyncIterator(getIteratorDirect(iterator !== undefined ? iterator : object));
+    return new WrapAsyncIterator(iteratorRecord !== undefined ? iteratorRecord : getIteratorDirect(object));
   }
 });

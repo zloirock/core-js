@@ -5,6 +5,7 @@ var toObject = require('../internals/to-object');
 var isConstructor = require('../internals/is-constructor');
 var getAsyncIterator = require('../internals/get-async-iterator');
 var getIterator = require('../internals/get-iterator');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
 var getVirtual = require('../internals/entry-virtual');
@@ -44,7 +45,7 @@ module.exports = function fromAsync(asyncItems /* , mapfn = undefined, thisArg =
     var A = isConstructor(C) ? new C() : [];
     var iterator = usingAsyncIterator
       ? getAsyncIterator(O, usingAsyncIterator)
-      : new AsyncFromSyncIterator(getIterator(O, usingSyncIterator));
+      : new AsyncFromSyncIterator(getIteratorDirect(getIterator(O, usingSyncIterator)));
     resolve(toArray(iterator, mapfn, A));
   });
 };

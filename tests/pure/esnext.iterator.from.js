@@ -1,6 +1,7 @@
 import { createIterable, createIterator } from '../helpers/helpers';
 
 import Iterator from 'core-js-pure/full/iterator';
+import assign from 'core-js-pure/es/object/assign';
 
 QUnit.test('Iterator.from', assert => {
   const { from } = Iterator;
@@ -17,4 +18,5 @@ QUnit.test('Iterator.from', assert => {
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}), TypeError);
+  assert.throws(() => from(assign(new Iterator(), { next: 42 })), TypeError);
 });

@@ -17,12 +17,12 @@ $({ target: 'Iterator', stat: true, forced: true }, {
   from: function from(O) {
     var object = toObject(O);
     var usingIterator = getIteratorMethod(object);
-    var iterator;
+    var iteratorRecord;
     if (usingIterator) {
-      iterator = getIterator(object, usingIterator);
-      if (isPrototypeOf(IteratorPrototype, iterator)) return iterator;
+      iteratorRecord = getIteratorDirect(getIterator(object, usingIterator));
+      if (isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)) return iteratorRecord.iterator;
     } else {
-      iterator = object;
-    } return new IteratorProxy(getIteratorDirect(iterator));
+      iteratorRecord = getIteratorDirect(object);
+    } return new IteratorProxy(iteratorRecord);
   }
 });
