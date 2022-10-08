@@ -65,7 +65,7 @@
     "npm-run-all": "^4.1.5",
     "p-timeout": "^6.0.0",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.26.1",
+    "playwright": "^1.27.0",
     "promises-aplus-tests": "^2.1.2",
     "promises-es6-tests": "~0.5.0",
     "qunit": "^2.19.1",
@@ -75,7 +75,7 @@
     "test262-harness": "^10.0.0",
     "webpack": "^5.74.0",
     "webpack-cli": "^4.10.0",
-    "zx": "^7.0.8"
+    "zx": "^7.1.1"
   },
   "license": "MIT",
   "repository": {
