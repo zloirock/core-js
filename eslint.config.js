@@ -1149,6 +1149,17 @@ const globalsZX = {
 
 module.exports = [
   {
+    ignores: [
+      'deno/corejs/**',
+      'docs/**',
+      'packages/core-js-bundle/!(package.json)',
+      'packages/core-js-compat/!(package).json',
+      'packages/core-js-pure/override/**',
+      'tests/bundles/**',
+      'tests/compat/compat-data.js',
+    ],
+  },
+  {
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',
