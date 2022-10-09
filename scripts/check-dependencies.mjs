@@ -2,7 +2,7 @@ import { promisify } from 'util';
 import david from 'david';
 import semver from 'semver';
 
-const { eq, coerce, minVersion } = semver;
+const { eq, coerce, minVersion, validRange } = semver;
 const getDependencies = promisify(david.getDependencies);
 
 const ignoreEverywhere = new Set([
@@ -16,18 +16,21 @@ const ignoreInPackages = new Set([
 ]);
 
 await Promise.all((await glob(['package.json', 'packages/*/package.json'])).map(async path => {
-  const pkg = JSON.parse(await fs.readFile(path));
-  const dependencies = await getDependencies(pkg);
-  const devDependencies = await getDependencies(pkg, { dev: true });
+  const pkg = await fs.readJson(path);
+  const dependencies = await getDependencies({
+    dependencies: {
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+    },
+  });
   const ignore = path === 'package.json' ? ignoreEverywhere : ignoreInPackages;
-  Object.assign(dependencies, devDependencies);
   for (const name of Object.keys(dependencies)) {
     if (ignore.has(name)) {
       delete dependencies[name];
       continue;
     }
     const { required, stable, warn } = dependencies[name];
-    if (/^(?:file|git)/.test(required) || warn || eq(minVersion(required), coerce(stable))) {
+    if (!validRange(required) || warn || eq(minVersion(required), coerce(stable))) {
       delete dependencies[name];
     }
   }
