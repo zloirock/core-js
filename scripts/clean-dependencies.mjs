@@ -1,8 +1,9 @@
 import { readdir, rm } from 'fs/promises';
 
-await rm('node_modules', { force: true, recursive: true });
+await rm('package-lock.json', { force: true });
 
 const packages = await readdir('packages');
-await Promise.all(packages.map(pkg => rm(`packages/${ pkg }/node_modules`, { force: true, recursive: true })));
+const folders = ['node_modules', ...packages.map(pkg => `packages/${ pkg }/node_modules`)];
+await Promise.all(folders.map(folder => rm(folder, { force: true, recursive: true })));
 
-console.log('\u001B[32mnode_modules cleaned\u001B[0m');
+console.log('\u001B[32mdependencies cleaned\u001B[0m');
