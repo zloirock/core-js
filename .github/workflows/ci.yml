@@ -13,7 +13,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: npm
       - run: npm ci
       - run: npm run lint
 
@@ -25,7 +24,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: npm
       - run: npm ci
       - run: npx playwright install-deps
       - run: npm run ci-karma
@@ -47,6 +45,5 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
-          cache: npm
       - run: npm ci
       - run: npm run ci-tests
