@@ -45,5 +45,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
+          check-latest: true
       - run: npm ci
       - run: npm run ci-tests
