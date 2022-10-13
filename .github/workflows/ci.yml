@@ -48,6 +48,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm i npm@^8.19.2 -g
+      # https://github.com/npm/cli/issues/2971
+      - run: npm i npm@^$(node -pe "require('./package').devDependencies.npm") -g --globalconfig=.npmrc
       - run: npm ci
       - run: npm run ci-tests
