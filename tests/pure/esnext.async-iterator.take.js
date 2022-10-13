@@ -22,7 +22,8 @@ QUnit.test('AsyncIterator#take', assert => {
     return take.call(createIterator([1, 2, 3]), 0).toArray();
   }).then(it => {
     assert.arrayEqual(it, [], 'zero');
-  }).then(() => async());
+    async();
+  });
 
   assert.throws(() => take.call(undefined, 1), TypeError);
   assert.throws(() => take.call(null, 1), TypeError);

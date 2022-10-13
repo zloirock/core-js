@@ -26,6 +26,7 @@ QUnit.test('Promise.allSettled, resolved', assert => {
 QUnit.test('Promise.allSettled, rejected', assert => {
   assert.expect(1);
   const async = assert.async();
+  // eslint-disable-next-line promise/valid-params -- required for testing
   Promise.allSettled().catch(() => {
     assert.required('rejected as expected');
     async();

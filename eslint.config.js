@@ -413,6 +413,8 @@ const base = {
   // promise:
   // avoid calling `cb()` inside of a `then()` or `catch()`
   'promise/no-callback-in-promise': ERROR,
+  // disallow creating new promises with paths that resolve multiple times (no-multiple-resolved)
+  'promise/no-multiple-resolved': ERROR,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': ERROR,
   // avoid calling new on a `Promise` static method
@@ -424,7 +426,10 @@ const base = {
   // avoid wrapping values in `Promise.resolve` or `Promise.reject` when not needed
   'promise/no-return-wrap': ERROR,
   // enforce consistent param names when creating new promises
-  'promise/param-names': ERROR,
+  'promise/param-names': [ERROR, {
+    resolvePattern: '^resolve',
+    rejectPattern: '^reject',
+  }],
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 

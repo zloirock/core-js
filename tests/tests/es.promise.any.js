@@ -36,6 +36,7 @@ QUnit.test('Promise.any, rejected #1', assert => {
 QUnit.test('Promise.any, rejected #2', assert => {
   assert.expect(1);
   const async = assert.async();
+  // eslint-disable-next-line promise/valid-params -- required for testing
   Promise.any().catch(() => {
     assert.required('rejected as expected');
     async();

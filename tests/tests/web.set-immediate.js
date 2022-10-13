@@ -7,6 +7,7 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   assert.isFunction(clearImmediate, 'clearImmediate is function');
   assert.name(setImmediate, 'setImmediate');
   assert.name(clearImmediate, 'clearImmediate');
+
   timeLimitedPromise(1e3, resolve => {
     setImmediate(() => {
       called = true;
@@ -17,7 +18,9 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   }).catch(() => {
     assert.avoid('setImmediate works');
   }).then(assert.async());
+
   assert.false(called, 'setImmediate is async');
+
   timeLimitedPromise(1e3, resolve => {
     setImmediate((a, b) => {
       resolve(a + b);
@@ -27,6 +30,7 @@ QUnit.test('setImmediate / clearImmediate', assert => {
   }).catch(() => {
     assert.avoid('setImmediate works with additional args');
   }).then(assert.async());
+
   timeLimitedPromise(50, resolve => {
     clearImmediate(setImmediate(resolve));
   }).then(() => {

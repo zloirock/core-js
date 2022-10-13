@@ -21,8 +21,7 @@ QUnit.test('Iterator#toAsync', assert => {
 
   Iterator.from([1, 2, 3]).toAsync().map(it => Promise.resolve(it)).toArray().then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
-  }).then(() => {
-    return Iterator.from(new Set([1, 2, 3])).toAsync().map(it => Promise.resolve(it)).toArray();
+    return Iterator.from(new Set([1, 2, 3])).toAsync().map(el => Promise.resolve(el)).toArray();
   }).then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
     async();
