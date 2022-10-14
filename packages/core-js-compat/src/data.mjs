@@ -2352,10 +2352,14 @@ export const data = {
   },
   'esnext.string.code-points': {
   },
+  'esnext.string.is-well-formed': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
+  'esnext.string.to-well-formed': {
+  },
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {

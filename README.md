@@ -134,6 +134,7 @@ queueMicrotask(() => console.log('called as microtask'));
       - [New `Set` methods](#new-set-methods)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
+      - [Well-formed unicode strings](#well-formed-unicode-strings)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
@@ -2374,6 +2375,28 @@ core-js(-pure)/full/array/is-template-object
 *Example*:
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
+```
+##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
+Modules [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js) and [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
+```js
+class String {
+  isWellFormed(): boolean;
+  toWellFormed(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/well-formed-unicode-strings
+core-js(-pure)/full/string(/virtual)/is-well-formed
+core-js(-pure)/full/string(/virtual)/to-well-formed
+```
+[*Examples*](https://tinyurl.com/2fulc2ak):
+```js
+'a💩b'.isWellFormed();      // => true
+'a\uD83Db'.isWellFormed();  // => false
+
+'a💩b'.toWellFormed();      // => 'a💩b'
+'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
 ##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)[⬆](#index)
 Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js).
