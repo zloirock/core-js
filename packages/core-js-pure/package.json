@@ -43,7 +43,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/zloirock/core-js.git"
+    "url": "https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-pure"
   },
   "funding": {
     "type": "opencollective",
