@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):
-  - Moved to Stage 3, [September TC39 meeting](https://github.com/babel/proposals/issues/83#issuecomment-1246218703)
+  - Moved to Stage 3, [September TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2022-09/sep-14.md#arrayfromasync-for-stage-3)
   - Avoid observable side effects of `%Array.prototype.values%` usage in array-like branch, [proposal-array-from-async/30](https://github.com/tc39/proposal-array-from-async/pull/30)
 - Added [well-formed unicode strings stage 2 proposal](https://github.com/tc39/proposal-is-usv-string):
   - `String.prototype.isWellFormed`
