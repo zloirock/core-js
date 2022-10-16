@@ -5,6 +5,11 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "license": "MIT",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
   "workspaces": [
     "./packages/*"
   ],

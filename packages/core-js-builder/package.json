@@ -12,6 +12,11 @@
     "url": "https://opencollective.com/core-js"
   },
   "license": "MIT",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
   "sideEffects": false,
   "main": "index.js",
   "dependencies": {

@@ -58,6 +58,11 @@
     "url": "https://opencollective.com/core-js"
   },
   "license": "MIT",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
   "main": "index.js",
   "scripts": {
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
