@@ -1,3 +1,5 @@
+var parent = require('./3');
+
 require('../proposals/array-is-template-object');
 require('../proposals/decorator-metadata');
 require('../proposals/iterator-helpers');
@@ -8,6 +10,5 @@ require('../proposals/well-formed-unicode-strings');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping');
 require('../proposals/decorators');
-var parent = require('./3');
 
 module.exports = parent;
