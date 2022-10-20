@@ -13,13 +13,15 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
     aCallable(reducer);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
+    var counter = 0;
     iterate(record, function (value) {
       if (noInitial) {
         noInitial = false;
         accumulator = value;
       } else {
-        accumulator = reducer(accumulator, value);
+        accumulator = reducer(accumulator, value, counter);
       }
+      counter++;
     }, { IS_RECORD: true });
     if (noInitial) throw $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;

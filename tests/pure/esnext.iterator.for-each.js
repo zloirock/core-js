@@ -16,10 +16,11 @@ QUnit.test('Iterator#forEach', assert => {
 
   assert.arrayEqual(array, [1, 2, 3], 'basic functionality');
 
-  forEach.call(createIterator([1]), function (arg) {
+  forEach.call(createIterator([1]), function (arg, counter) {
     assert.same(this, STRICT_THIS, 'this');
-    assert.same(arguments.length, 1, 'arguments length');
+    assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
+    assert.same(counter, 0, 'counter');
   });
 
   assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);

@@ -18,7 +18,7 @@ var IteratorProxy = createIteratorProxy(function () {
     done = this.done = !!result.done;
     if (done) return;
     value = result.value;
-    if (callWithSafeIterationClosing(iterator, filterer, value)) return value;
+    if (callWithSafeIterationClosing(iterator, filterer, [value, this.counter++], true)) return value;
   }
 });
 

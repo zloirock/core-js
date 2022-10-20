@@ -75,6 +75,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     } else state = record;
     state.type = ITERATOR_PROXY;
     state.nextHandler = nextHandler;
+    state.counter = 0;
     state.done = false;
     setInternalState(this, state);
   };

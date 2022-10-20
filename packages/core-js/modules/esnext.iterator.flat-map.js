@@ -28,7 +28,7 @@ var IteratorProxy = createIteratorProxy(function () {
     if (this.done = !!result.done) return;
 
     try {
-      mapped = mapper(result.value);
+      mapped = mapper(result.value, this.counter++);
       iteratorMethod = getIteratorMethod(mapped);
 
       if (!iteratorMethod) {

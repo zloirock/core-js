@@ -12,7 +12,7 @@ var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var result = anObject(call(this.next, iterator));
   var done = this.done = !!result.done;
-  if (!done) return callWithSafeIterationClosing(iterator, this.mapper, result.value);
+  if (!done) return callWithSafeIterationClosing(iterator, this.mapper, [result.value, this.counter++], true);
 });
 
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {

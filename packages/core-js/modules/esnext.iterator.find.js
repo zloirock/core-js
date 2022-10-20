@@ -8,9 +8,10 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   find: function find(fn) {
     var record = getIteratorDirect(this);
+    var counter = 0;
     aCallable(fn);
     return iterate(record, function (value, stop) {
-      if (fn(value)) return stop(value);
+      if (fn(value, counter++)) return stop(value);
     }, { IS_RECORD: true, INTERRUPTED: true }).result;
   }
 });
