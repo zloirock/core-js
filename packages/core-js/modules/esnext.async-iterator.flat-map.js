@@ -36,7 +36,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
             } else {
               var value = step.value;
               try {
-                Promise.resolve(mapper(value)).then(function (mapped) {
+                Promise.resolve(mapper(value, state.counter++)).then(function (mapped) {
                   try {
                     state.innerIterator = innerIterator = getAsyncIterator(mapped);
                     state.innerNext = aCallable(innerIterator.next);

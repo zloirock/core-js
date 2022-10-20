@@ -18,6 +18,7 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
     var next = record.next;
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
+    var counter = 0;
     aCallable(reducer);
 
     return new Promise(function (resolve, reject) {
@@ -38,12 +39,13 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
                   accumulator = value;
                   loop();
                 } else try {
-                  Promise.resolve(reducer(accumulator, value)).then(function (result) {
+                  Promise.resolve(reducer(accumulator, value, counter)).then(function (result) {
                     accumulator = result;
                     loop();
                   }, ifAbruptCloseAsyncIterator);
                 } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
               }
+              counter++;
             } catch (error2) { reject(error2); }
           }, reject);
         } catch (error) { reject(error); }

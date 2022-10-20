@@ -4,7 +4,7 @@ import { STRICT_THIS } from '../helpers/constants';
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator#reduce', assert => {
-  assert.expect(18);
+  assert.expect(19);
   const async = assert.async();
   const { reduce } = AsyncIterator.prototype;
 
@@ -14,11 +14,12 @@ QUnit.test('AsyncIterator#reduce', assert => {
 
   reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1).then(it => {
     assert.same(it, 7, 'basic functionality, initial');
-    return reduce.call(createIterator([2]), function (a, b) {
+    return reduce.call(createIterator([2]), function (a, b, counter) {
       assert.same(this, STRICT_THIS, 'this');
-      assert.same(arguments.length, 2, 'arguments length');
+      assert.same(arguments.length, 3, 'arguments length');
       assert.same(a, 1, 'argument 1');
       assert.same(b, 2, 'argument 2');
+      assert.same(counter, 0, 'counter');
     }, 1);
   }).then(() => {
     return reduce.call(createIterator([1, 2, 3]), (a, b) => a + b);

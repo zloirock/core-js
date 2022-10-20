@@ -32,7 +32,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
         } else {
           var value = step.value;
           try {
-            Promise.resolve(mapper(value)).then(function (mapped) {
+            Promise.resolve(mapper(value, state.counter++)).then(function (mapped) {
               resolve(createIterResultObject(mapped, false));
             }, ifAbruptCloseAsyncIterator);
           } catch (error2) { ifAbruptCloseAsyncIterator(error2); }

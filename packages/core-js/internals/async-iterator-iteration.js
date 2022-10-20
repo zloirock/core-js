@@ -19,7 +19,7 @@ var createMethod = function (TYPE) {
     var Promise = getBuiltIn('Promise');
     var iterator = record.iterator;
     var next = record.next;
-    var index = 0;
+    var counter = 0;
     var MAPPING = fn !== undefined;
     if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
 
@@ -30,28 +30,28 @@ var createMethod = function (TYPE) {
 
       var loop = function () {
         try {
-          if (IS_TO_ARRAY && MAPPING) try {
-            doesNotExceedSafeInteger(index);
+          if (MAPPING) try {
+            doesNotExceedSafeInteger(counter);
           } catch (error5) { ifAbruptCloseAsyncIterator(error5); }
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
                 if (IS_TO_ARRAY) {
-                  target.length = index;
+                  target.length = counter;
                   resolve(target);
                 } else resolve(IS_SOME ? false : IS_EVERY || undefined);
               } else {
                 var value = step.value;
                 try {
                   if (MAPPING) {
-                    Promise.resolve(IS_TO_ARRAY ? fn(value, index) : fn(value)).then(function (result) {
+                    Promise.resolve(fn(value, counter)).then(function (result) {
                       if (IS_FOR_EACH) {
                         loop();
                       } else if (IS_EVERY) {
                         result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
                       } else if (IS_TO_ARRAY) {
                         try {
-                          target[index++] = result;
+                          target[counter++] = result;
                           loop();
                         } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
                       } else {
@@ -59,7 +59,7 @@ var createMethod = function (TYPE) {
                       }
                     }, ifAbruptCloseAsyncIterator);
                   } else {
-                    target[index++] = value;
+                    target[counter++] = value;
                     loop();
                   }
                 } catch (error3) { ifAbruptCloseAsyncIterator(error3); }

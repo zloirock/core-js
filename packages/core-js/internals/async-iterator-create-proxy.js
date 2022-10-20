@@ -125,6 +125,7 @@ module.exports = function (nextHandler, IS_ITERATOR) {
     } else state = record;
     state.type = ASYNC_ITERATOR_PROXY;
     state.nextHandler = nextHandler;
+    state.counter = 0;
     state.done = false;
     state.awaiting = null;
     setInternalState(this, state);

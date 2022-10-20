@@ -2,7 +2,7 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#some', assert => {
-  assert.expect(18);
+  assert.expect(19);
   const async = assert.async();
   const { some } = AsyncIterator.prototype;
 
@@ -17,10 +17,11 @@ QUnit.test('AsyncIterator#some', assert => {
     return some.call(createIterator([1, 2, 3]), it => it === 4);
   }).then(result => {
     assert.false(result, 'basic functionality, -');
-    return some.call(createIterator([1]), function (arg) {
+    return some.call(createIterator([1]), function (arg, counter) {
       assert.same(this, STRICT_THIS, 'this');
-      assert.same(arguments.length, 1, 'arguments length');
+      assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
+      assert.same(counter, 0, 'counter');
     });
   }).then(() => {
     return some.call(createIterator([1]), () => { throw 42; });

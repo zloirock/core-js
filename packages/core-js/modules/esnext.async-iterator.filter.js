@@ -34,7 +34,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
             } else {
               var value = step.value;
               try {
-                Promise.resolve(filterer(value)).then(function (selected) {
+                Promise.resolve(filterer(value, state.counter++)).then(function (selected) {
                   selected ? resolve(createIterResultObject(value, false)) : loop();
                 }, ifAbruptCloseAsyncIterator);
               } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
