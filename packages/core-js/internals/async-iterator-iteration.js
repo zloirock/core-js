@@ -4,6 +4,7 @@
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
 var getIteratorDirect = require('../internals/get-iterator-direct');
@@ -44,20 +45,25 @@ var createMethod = function (TYPE) {
                 var value = step.value;
                 try {
                   if (MAPPING) {
-                    Promise.resolve(fn(value, counter)).then(function (result) {
+                    var result = fn(value, counter);
+
+                    var handler = function ($result) {
                       if (IS_FOR_EACH) {
                         loop();
                       } else if (IS_EVERY) {
-                        result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
+                        $result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
                       } else if (IS_TO_ARRAY) {
                         try {
-                          target[counter++] = result;
+                          target[counter++] = $result;
                           loop();
                         } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
                       } else {
-                        result ? closeAsyncIteration(iterator, resolve, IS_SOME || value, reject) : loop();
+                        $result ? closeAsyncIteration(iterator, resolve, IS_SOME || value, reject) : loop();
                       }
-                    }, ifAbruptCloseAsyncIterator);
+                    };
+
+                    if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
+                    else handler(result);
                   } else {
                     target[counter++] = value;
                     loop();

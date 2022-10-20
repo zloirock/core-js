@@ -8,6 +8,7 @@
   - `String.prototype.toWellFormed`
 - Recent updates of the [iterator helpers proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Added a counter parameter to helpers, [proposal-iterator-helpers/211](https://github.com/tc39/proposal-iterator-helpers/pull/211)
+  - Don't await non-objects returned from functions passed to `AsyncIterator` helpers, [proposal-iterator-helpers/239](https://github.com/tc39/proposal-iterator-helpers/pull/239)
   - Early exit on broken `.next` in missed cases of `{ Iterator, AsyncIterator }.from`, [proposal-iterator-helpers/232](https://github.com/tc39/proposal-iterator-helpers/pull/232)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)

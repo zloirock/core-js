@@ -4,6 +4,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 var getBuiltIn = require('../internals/get-built-in');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
@@ -39,10 +40,15 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
                   accumulator = value;
                   loop();
                 } else try {
-                  Promise.resolve(reducer(accumulator, value, counter)).then(function (result) {
-                    accumulator = result;
+                  var result = reducer(accumulator, value, counter);
+
+                  var handler = function ($result) {
+                    accumulator = $result;
                     loop();
-                  }, ifAbruptCloseAsyncIterator);
+                  };
+
+                  if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
+                  else handler(result);
                 } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
               }
               counter++;
