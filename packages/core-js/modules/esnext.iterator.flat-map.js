@@ -5,22 +5,20 @@ var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
-
-var $TypeError = TypeError;
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var mapper = this.mapper;
-  var result, mapped, iteratorMethod, innerIterator;
+  var result, inner;
 
   while (true) {
-    if (innerIterator = this.innerIterator) try {
-      result = anObject(call(this.innerNext, innerIterator));
+    if (inner = this.inner) try {
+      result = anObject(call(inner.next, inner.iterator));
       if (!result.done) return result.value;
-      this.innerIterator = this.innerNext = null;
+      this.inner = null;
     } catch (error) { iteratorClose(iterator, 'throw', error); }
 
     result = anObject(call(this.next, iterator));
@@ -28,15 +26,7 @@ var IteratorProxy = createIteratorProxy(function () {
     if (this.done = !!result.done) return;
 
     try {
-      mapped = mapper(result.value, this.counter++);
-      iteratorMethod = getIteratorMethod(mapped);
-
-      if (!iteratorMethod) {
-        throw $TypeError('.flatMap callback should return an iterable object');
-      }
-
-      this.innerIterator = innerIterator = anObject(call(iteratorMethod, mapped));
-      this.innerNext = aCallable(innerIterator.next);
+      this.inner = getIteratorFlattenable(mapper(result.value, this.counter++));
     } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
 });
@@ -45,8 +35,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: aCallable(mapper),
-      innerIterator: null,
-      innerNext: null
+      inner: null
     });
   }
 });

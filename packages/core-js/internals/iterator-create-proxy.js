@@ -44,9 +44,8 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         var returnMethod = getMethod(iterator, 'return');
         return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
-      var innerIterator = state.innerIterator;
-      if (innerIterator) try {
-        iteratorClose(innerIterator, 'return');
+      if (state.inner) try {
+        iteratorClose(state.inner.iterator, 'return');
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }

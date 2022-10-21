@@ -79,11 +79,10 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       return exit ? state : enqueue(state, function () {
         state.done = true;
         var iterator = state.iterator;
-        var innerIterator = state.innerIterator;
         var returnMethod, result;
         var completion = perform(function () {
-          if (innerIterator) try {
-            iteratorClose(innerIterator, 'return');
+          if (state.inner) try {
+            iteratorClose(state.inner.iterator, 'return');
           } catch (error) {
             return iteratorClose(iterator, 'throw', error);
           }
