@@ -2,13 +2,7 @@
 
 ## Supported Versions
 
-This is the list of versions of `core-js` which are
-currently being supported with security updates.
-
-| Version   | Supported          |
-| --------- | ------------------ |
-| >= 3.23.3 | :white_check_mark: |
-| < 3.23.3  | :x:                |
+The [latest released version](https://github.com/zloirock/core-js/releases) of `core-js` is supported.
 
 ## Reporting a Vulnerability
 
