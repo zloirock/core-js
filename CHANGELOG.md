@@ -13,8 +13,9 @@
   - Early exit on broken `.next` in missed cases of `{ Iterator, AsyncIterator }.from`, [proposal-iterator-helpers/232](https://github.com/tc39/proposal-iterator-helpers/pull/232)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)
-- Added NodeJS 19.0 compat data mapping
-- Added Deno 1.26 and 1.27 compat data mapping
+- Added NodeJS 19.0 compat data
+- Added Deno 1.26 and 1.27 compat data
+- Added Opera Android 72 compat data mapping
 - Updated Electron 22 compat data mapping
 
 ##### [3.25.5 - 2022.10.04](https://github.com/zloirock/core-js/releases/tag/v3.25.5)
