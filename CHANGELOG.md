@@ -11,6 +11,7 @@
   - Don't await non-objects returned from functions passed to `AsyncIterator` helpers, [proposal-iterator-helpers/239](https://github.com/tc39/proposal-iterator-helpers/pull/239)
   - `{ Iterator, AsyncIterator }.prototype.flatMap` supports returning both - iterables and iterators, [proposal-iterator-helpers/233](https://github.com/tc39/proposal-iterator-helpers/pull/233)
   - Early exit on broken `.next` in missed cases of `{ Iterator, AsyncIterator }.from`, [proposal-iterator-helpers/232](https://github.com/tc39/proposal-iterator-helpers/pull/232)
+- Added `self` polyfill as a part of [The Minimum Common Web Platform API](https://common-min-api.proposal.wintercg.org/), [specification](https://html.spec.whatwg.org/multipage/window-object.html#dom-self), [#1118](https://github.com/zloirock/core-js/issues/1118)
 - Added `inverse` option to `core-js-compat`, [#1119](https://github.com/zloirock/core-js/issues/1119)
 - Added `format` option to `core-js-builder`, [#1120](https://github.com/zloirock/core-js/issues/1120)
 - Added NodeJS 19.0 compat data
