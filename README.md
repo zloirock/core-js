@@ -159,6 +159,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
   - [Web standards](#web-standards)
+    - [`self`](#self)
     - [`structuredClone`](#structuredclone)
     - [Base64 utility methods](#base64-utility-methods)
     - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
@@ -1831,7 +1832,7 @@ JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}
 #### ECMAScript: globalThis[⬆](#index)
 Module [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
 ```js
-let globalThis: Object;
+let globalThis: GlobalThisValue;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
@@ -3021,6 +3022,20 @@ Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
 ### Web standards[⬆](#index)
+#### `self`[⬆](#index)
+[Spec](https://html.spec.whatwg.org/multipage/window-object.html#dom-self), module [`web.self`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.self.js)
+```js
+getter self: GlobalThisValue;
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js(-pure)/stable|actual|full/self
+```
+[*Examples*](https://tinyurl.com/27nghouh):
+```js
+self.Array === Array; // => true
+```
+
 #### `structuredClone`[⬆](#index)
 [Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
 ```js
