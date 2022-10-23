@@ -7,6 +7,7 @@ require('../modules/web.dom-exception.stack');
 require('../modules/web.dom-exception.to-string-tag');
 require('../modules/web.immediate');
 require('../modules/web.queue-microtask');
+require('../modules/web.self');
 require('../modules/web.structured-clone');
 require('../modules/web.timers');
 require('../modules/web.url');

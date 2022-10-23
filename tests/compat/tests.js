@@ -1853,6 +1853,13 @@ GLOBAL.tests = {
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
   },
+  'web.self': function () {
+    // eslint-disable-next-line no-restricted-globals -- safe
+    if (self !== GLOBAL) return false;
+    if (!DESCRIPTORS_SUPPORT) return true;
+    var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
+    return descriptor.get && descriptor.enumerable;
+  },
   'web.set-immediate': IMMEDIATE,
   'web.set-interval': TIMERS,
   'web.set-timeout': TIMERS,
