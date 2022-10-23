@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.26.0 - 2022.10.24](https://github.com/zloirock/core-js/releases/tag/v3.26.0)
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):
   - Moved to Stage 3, [September TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2022-09/sep-14.md#arrayfromasync-for-stage-3)
   - Avoid observable side effects of `%Array.prototype.values%` usage in array-like branch, [proposal-array-from-async/30](https://github.com/tc39/proposal-array-from-async/pull/30)

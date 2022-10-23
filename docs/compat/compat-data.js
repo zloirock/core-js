@@ -4440,7 +4440,9 @@
     "android": "108",
     "bun": "0.1.9",
     "chrome": "108",
+    "deno": "1.27",
     "edge": "108",
+    "electron": "22.0",
     "opera": "94"
   },
   "esnext.array.group-by": {},
@@ -4449,7 +4451,9 @@
     "android": "108",
     "bun": "0.1.9",
     "chrome": "108",
+    "deno": "1.27",
     "edge": "108",
+    "electron": "22.0",
     "opera": "94"
   },
   "esnext.array.is-template-object": {},
@@ -4653,6 +4657,7 @@
   "esnext.string.at": {},
   "esnext.string.cooked": {},
   "esnext.string.code-points": {},
+  "esnext.string.is-well-formed": {},
   "esnext.string.match-all": {
     "android": "80",
     "bun": "0.1.1",
@@ -4687,6 +4692,7 @@
     "safari": "13.1",
     "samsung": "14.0"
   },
+  "esnext.string.to-well-formed": {},
   "esnext.symbol.async-dispose": {},
   "esnext.symbol.dispose": {},
   "esnext.symbol.matcher": {},
@@ -4904,6 +4910,19 @@
     "opera_mobile": "50",
     "safari": "12.1",
     "samsung": "10.0"
+  },
+  "web.self": {
+    "android": "86",
+    "chrome": "86",
+    "edge": "86",
+    "electron": "11.0",
+    "firefox": "31",
+    "ios": "10.0",
+    "oculus": "12.0",
+    "opera": "72",
+    "opera_mobile": "61",
+    "safari": "10",
+    "samsung": "14.0"
   },
   "web.set-immediate": {
     "bun": "0.1.7",

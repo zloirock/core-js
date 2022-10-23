@@ -1698,6 +1698,12 @@ GLOBAL.tests = {
   'esnext.string.cooked': function () {
     return String.cooked;
   },
+  'esnext.string.is-well-formed': function () {
+    return String.prototype.isWellFormed;
+  },
+  'esnext.string.to-well-formed': function () {
+    return String.prototype.toWellFormed;
+  },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;
   },
@@ -1846,6 +1852,13 @@ GLOBAL.tests = {
   'web.immediate': IMMEDIATE,
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
+  },
+  'web.self': function () {
+    // eslint-disable-next-line no-restricted-globals -- safe
+    if (self !== GLOBAL) return false;
+    if (!DESCRIPTORS_SUPPORT) return true;
+    var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
+    return descriptor.get && descriptor.enumerable;
   },
   'web.set-immediate': IMMEDIATE,
   'web.set-interval': TIMERS,
