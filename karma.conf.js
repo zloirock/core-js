@@ -7,22 +7,20 @@ Object.assign(process.env, {
   WEBKIT_BIN: webkit.executablePath(),
 });
 
-module.exports = function (config) {
-  config.set({
-    plugins: [
-      'karma-*',
-      '@onslip/karma-playwright-launcher',
-    ],
-    files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
-    frameworks: ['qunit'],
-    basePath: '.',
-    browsers: [
-      'ChromiumHeadless',
-      'FirefoxHeadless',
-      'WebKitHeadless',
-      'PhantomJS',
-    ],
-    logLevel: config.LOG_ERROR,
-    singleRun: true,
-  });
-};
+module.exports = config => config.set({
+  plugins: [
+    'karma-*',
+    '@onslip/karma-playwright-launcher',
+  ],
+  files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
+  frameworks: ['qunit'],
+  basePath: '.',
+  browsers: [
+    'ChromiumHeadless',
+    'FirefoxHeadless',
+    'WebKitHeadless',
+    'PhantomJS',
+  ],
+  logLevel: config.LOG_ERROR,
+  singleRun: true,
+});
