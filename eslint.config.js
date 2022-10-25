@@ -1085,6 +1085,8 @@ const json = {
   'jsonc/no-dupe-keys': ERROR,
   // disallow escape sequences in identifiers.
   'jsonc/no-escape-sequence-in-identifier': ERROR,
+  // disallow irregular whitespace
+  'jsonc/no-irregular-whitespace': ERROR,
   // disallow use of multiline strings
   'jsonc/no-multi-str': ERROR,
   // disallow number property keys
