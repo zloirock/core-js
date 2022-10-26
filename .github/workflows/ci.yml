@@ -40,7 +40,7 @@ jobs:
           - macos-latest
         node:
           - 16.13
-          - 18
+          - 18.12
           - 19
     runs-on: ${{ matrix.os }}
     steps:
