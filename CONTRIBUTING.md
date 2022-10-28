@@ -86,6 +86,10 @@ You can run parts of the test case separately:
   ```
   $ npm run test-unit-pure-standalone
   ```
+- [Test262](https://github.com/tc39/test262) test case:
+  ```
+  $ npm run test262
+  ```
 - [Promises/A+](https://github.com/promises-aplus/promises-tests) and [ES6 `Promise`](https://github.com/promises-es6/promises-es6) test cases:
   ```
   $ npm run test-promises-standalone

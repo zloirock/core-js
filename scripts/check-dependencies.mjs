@@ -15,7 +15,7 @@ const ignoreInPackages = new Set([
   'webpack',
 ]);
 
-await Promise.all((await glob(['package.json', 'packages/*/package.json'])).map(async path => {
+await Promise.all((await glob(['package.json', '@(packages|scripts|tests)/*/package.json'])).map(async path => {
   const pkg = await fs.readJson(path);
   const dependencies = await getDependencies({
     dependencies: {
