@@ -1162,7 +1162,7 @@ module.exports = [
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
-      'tests/bundles/**',
+      'tests/**/bundles/**',
       'tests/compat/compat-data.js',
     ],
   },

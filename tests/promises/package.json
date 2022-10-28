@@ -1,0 +1,7 @@
+{
+  "name": "tests/promises",
+  "devDependencies": {
+    "promises-aplus-tests": "^2.1.2",
+    "promises-es6-tests": "~0.5.0"
+  }
+}

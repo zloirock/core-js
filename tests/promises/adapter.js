@@ -1,7 +1,7 @@
 'use strict';
-delete global.Promise;
+delete globalThis.Promise;
 
-const { Promise } = require('core-js');
+const Promise = require('../../packages/core-js/es/promise');
 const assert = require('assert');
 
 module.exports = {
@@ -19,11 +19,11 @@ module.exports = {
   rejected(reason) {
     return Promise.reject(reason);
   },
-  defineGlobalPromise(global) {
-    global.Promise = Promise;
-    global.assert = assert;
+  defineGlobalPromise() {
+    globalThis.Promise = Promise;
+    globalThis.assert = assert;
   },
   removeGlobalPromise() {
-    delete global.Promise;
+    delete globalThis.Promise;
   },
 };

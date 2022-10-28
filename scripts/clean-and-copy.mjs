@@ -12,7 +12,7 @@ function options(overwrite) {
 }
 
 await Promise.all((await glob([
-  'tests/bundles/*',
+  'tests/**/bundles/*',
   // TODO: drop it from `core-js@4`
   'packages/core-js/features',
   'packages/core-js-pure/!(override|.npmignore|package.json|README.md)',
