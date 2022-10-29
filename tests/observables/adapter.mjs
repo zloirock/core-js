@@ -1,4 +1,4 @@
-/* eslint-disable import/no-dynamic-require -- required for testing */
+/* eslint-disable import/no-dynamic-require -- dynamic */
 delete globalThis.Observable;
 
 const pkg = argv.pure ? 'core-js-pure' : 'core-js';
