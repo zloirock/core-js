@@ -9,10 +9,9 @@ const ignore = {
 };
 
 await Promise.all((await glob(['package.json', '@(packages|scripts|tests)/*/package.json'])).map(async path => {
-  const pkg = await fs.readJson(path);
-  if (!pkg.dependencies && !pkg.devDependencies) return;
+  const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
+  if (!dependencies && !devDependencies) return;
 
-  const name = pkg.name ?? 'root';
   const exclude = ignore[name];
 
   $.verbose = false;
@@ -24,11 +23,11 @@ await Promise.all((await glob(['package.json', '@(packages|scripts|tests)/*/pack
   `;
 
   const { results } = JSON.parse(stdout);
-  const dependencies = { ...results.dependencies, ...results.devDependencies };
+  const obsolete = { ...results.dependencies, ...results.devDependencies };
 
-  if (Object.keys(dependencies).length) {
+  if (Object.keys(obsolete).length) {
     echo(chalk.cyan(`${ name }:`));
-    console.table(dependencies);
+    console.table(obsolete);
   }
 }));
 
