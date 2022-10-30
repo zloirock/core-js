@@ -5,3 +5,5 @@ const rhino = await fetch(
 );
 
 await fs.writeFile('tests/compat/rhino.jar', Buffer.from(await rhino.arrayBuffer()));
+
+await $`java -jar tests/compat/rhino.jar -version 200 -require tests/compat/rhino-runner.js`;
