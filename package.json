@@ -120,7 +120,6 @@
     "@onslip/karma-playwright-launcher": "^0.2.1",
     "babel-loader": "^9.0.0",
     "confusing-browser-globals": "^1.0.11",
-    "david": "^12.0.0",
     "eslint": "^8.26.0",
     "eslint-plugin-array-func": "^3.1.7",
     "eslint-plugin-es-x": "^5.3.1",
@@ -148,6 +147,7 @@
     "qunit": "^2.19.3",
     "semver": "^7.3.8",
     "terser": "^5.15.1",
+    "updates": "^13.1.13",
     "webpack": "^5.74.0",
     "webpack-cli": "^4.10.0",
     "zx": "^7.1.1"
