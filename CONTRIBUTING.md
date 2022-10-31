@@ -86,25 +86,25 @@ You can run parts of the test case separately:
   ```
   $ npm run test-unit-pure-standalone
   ```
-- [Test262](https://github.com/tc39/test262) test case:
+- [Test262](https://github.com/tc39/test262) test case (it's not included to the default tests):
   ```
-  $ npm run test262
+  $ npx run-s init bundle-package test262
   ```
 - [Promises/A+](https://github.com/promises-aplus/promises-tests) and [ES6 `Promise`](https://github.com/promises-es6/promises-es6) test cases:
   ```
-  $ npm run test-promises-standalone
+  $ npx run-s init test-promises
   ```
 - [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable):
   ```
-  $ npm run test-observables-standalone
+  $ npx run-s init test-observables
   ```
 - CommonJS entry points tests:
   ```
-  $ npm run test-entries-standalone
+  $ npx run-s init test-entries
   ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```
-  $ npm run bundle-standalone
+  $ npx run-s init bundle
   ```
 - For running the global version of the unit test case, use this file:
   ```
