@@ -11,7 +11,7 @@ Contributions are always welcome. If you don't know how you can help, you can ch
 - Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs), how to do it [see below](#how-to-update-core-js-compat-data), and the name of the polyfill module to [`packages/core-js-compat/src/modules-by-versions.mjs`](./packages/core-js-compat/src/modules-by-versions.mjs) (this data is also used for getting the default list of polyfills at bundling and generation indexes).
 - Add it to entry points where it's required: directories [`packages/core-js/es`](./packages/core-js/es), [`packages/core-js/stable`](./packages/core-js/stable), [`packages/core-js/actual`](./packages/core-js/actual), [`packages/core-js/full`](./packages/core-js/full), [`packages/core-js/proposals`](./packages/core-js/proposals), [`packages/core-js/stage`](./packages/core-js/stage) and [`packages/core-js/web`](./packages/core-js/web).
 - Add unit tests to [`tests/tests`](./tests/tests) and [`tests/pure`](./tests/pure).
-- Add tests of entry points to [`tests/commonjs.js`](./tests/commonjs.js).
+- Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
 - Document it in [README.md](./README.md) and [CHANGELOG.md](./CHANGELOG.md).
 
