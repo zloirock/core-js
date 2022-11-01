@@ -1220,7 +1220,7 @@ module.exports = [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(pure|worker)/**',
+      'tests/@(unit-pure|worker)/**',
     ],
     rules: forbidModernESBuiltIns,
   },
@@ -1238,7 +1238,7 @@ module.exports = [
   },
   {
     files: [
-      'tests/@(helpers|pure|tests|wpt-url-resources)/**',
+      'tests/@(helpers|unit-global|unit-pure|wpt-url-resources)/**',
     ],
     languageOptions: {
       sourceType: 'module',
@@ -1253,7 +1253,7 @@ module.exports = [
   },
   {
     files: [
-      'tests/@(helpers|pure|tests)/**',
+      'tests/@(helpers|unit-global|unit-pure)/**',
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -1278,7 +1278,7 @@ module.exports = [
   },
   {
     files: [
-      'tests/@(observables|tests|compat)/**',
+      'tests/@(compat|observables|unit-global)/**',
     ],
     languageOptions: {
       globals: globalsESNext,

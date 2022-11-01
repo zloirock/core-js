@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <meta charset='UTF-8'>
-<title>core-js</title>
+<title>core-js-pure</title>
 <link rel='stylesheet' href='https://code.jquery.com/qunit/qunit-2.17.2.css'>
 <div id='qunit'></div>
 <div id='qunit-fixture'></div>
@@ -8,8 +8,4 @@
 <script>
   window.USE_FUNCTION_CONSTRUCTOR = true;
 </script>
-<script src='../packages/core-js-bundle/index.js'></script>
-<script>
-  window.inspectSource = window['__core-js_shared__'].inspectSource;
-</script>
-<script src='./bundles/tests.js'></script>
+<script src='../bundles/unit-pure.js'></script>

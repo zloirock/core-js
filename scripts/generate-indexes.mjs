@@ -20,7 +20,7 @@ await generateNamespaceIndex('es', /^es\./);
 await generateNamespaceIndex('stable', /^(?:es|web)\./);
 await generateNamespaceIndex('full', /^(?:es|esnext|web)\./);
 
-await generateTestsIndex('tests', 'core-js');
-await generateTestsIndex('pure', 'core-js-pure');
+await generateTestsIndex('unit-global', 'core-js');
+await generateTestsIndex('unit-pure', 'core-js-pure');
 
 echo(chalk.green('indexes generated'));
