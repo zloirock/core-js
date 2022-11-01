@@ -78,13 +78,13 @@ You can run parts of the test case separately:
   ```
   $ npm run lint
   ```
-- The global version unit tests:
+- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright) and ancient WebKit (PhantomJS)):
   ```
-  $ npm run test-unit-global-standalone
+  $ npx run-s init bundle test-unit-karma
   ```
-- The pure version unit tests:
+- Unit test case in NodeJS:
   ```
-  $ npm run test-unit-pure-standalone
+  $ npx run-s init bundle test-unit-node
   ```
 - [Test262](https://github.com/tc39/test262) test case (it's not included to the default tests):
   ```
