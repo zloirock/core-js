@@ -111,7 +111,7 @@
     "@babel/plugin-transform-template-literals": "^7.18.9",
     "@babel/plugin-transform-unicode-regex": "^7.18.6",
     "@onslip/karma-playwright-launcher": "^0.2.1",
-    "babel-loader": "^9.0.0",
+    "babel-loader": "^9.0.1",
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^8.26.0",
     "eslint-plugin-array-func": "^3.1.7",
