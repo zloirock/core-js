@@ -28,7 +28,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install-deps
-      - run: npx run-s init bundle test-unit-karma
+      - run: npm run ci-karma
 
   tests:
     needs: lint
@@ -52,7 +52,7 @@ jobs:
       # https://github.com/npm/cli/issues/2971
       - run: npm i npm@$(node -pe "require('./package').devDependencies.npm") -g --no-audit --no-fund --loglevel=error
       - run: npm ci
-      - run: npx run-s init bundle test-unit-node test-entries test-compat-tools test-builder
+      - run: npm run ci-tests
 
   promises-and-observables:
     needs: tests
@@ -70,4 +70,4 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npx run-s init test-promises test-observables
+      - run: npm run ci-promises-and-observables
