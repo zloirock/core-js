@@ -40,5 +40,5 @@ node_modules/
 /tests/**/bundles/
 /tests/compat/*.jar
 /tests/compat/compat-data.js
-/tests/tests/index.js
-/tests/pure/index.js
+/tests/unit-global/index.js
+/tests/unit-pure/index.js
