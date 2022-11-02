@@ -50,6 +50,8 @@
     "test-unit-node-global": "qunit packages/core-js-bundle/index.js tests/bundles/unit-global.js",
     "test-unit-node-global-multiple-copies": "qunit packages/core-js/index.js packages/core-js-bundle/index.js tests/bundles/unit-global.js",
     "test-unit-node-pure": "qunit tests/bundles/unit-pure.js",
+    "test-unit-karma-minified": "karma start -f=packages/core-js-bundle/minified.js,tests/bundles/unit-global.js",
+    "test-unit-karma-pure": "karma start -f=tests/bundles/unit-pure.js",
     "test-promises": "npm run zxi tests/promises/runner.mjs",
     "test-observables": "npm run zxi tests/observables/runner.mjs",
     "test-entries": "run-p test-entries-content test-entries-unit",
