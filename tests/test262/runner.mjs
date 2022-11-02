@@ -1,7 +1,3 @@
-cd('tests/test262');
-
-await $`npm i --no-audit --no-fund --loglevel=error`;
-
 await $`npx test262-harness \
   --threads=${ os.cpus().length } \
   --host-args="--unhandled-rejections=none" \
