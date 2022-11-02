@@ -318,24 +318,24 @@ const base = {
   // import:
   // ensure all imports appear before other statements
   'import/first': ERROR,
+  // forbid import of modules using absolute paths
+  'import/no-absolute-path': ERROR,
   // forbid AMD imports
   'import/no-amd': ERROR,
   // forbid cycle dependencies
   'import/no-cycle': [ERROR, { commonjs: true }],
-  // ensure imports point to files / modules that can be resolved
-  'import/no-unresolved': [ERROR, { commonjs: true }],
-  // forbid import of modules using absolute paths
-  'import/no-absolute-path': ERROR,
-  // forbid `require()` calls with expressions
-  'import/no-dynamic-require': ERROR,
   // disallow importing from the same path more than once
   'import/no-duplicates': ERROR,
+  // forbid `require()` calls with expressions
+  'import/no-dynamic-require': ERROR,
   // forbid imports with CommonJS exports
   'import/no-import-module-exports': ERROR,
   // prevent importing packages through relative paths
   'import/no-relative-packages': ERROR,
   // forbid a module from importing itself
   'import/no-self-import': ERROR,
+  // ensure imports point to files / modules that can be resolved
+  'import/no-unresolved': [ERROR, { commonjs: true }],
   // forbid useless path segments
   'import/no-useless-path-segments': ERROR,
 
@@ -1282,6 +1282,15 @@ module.exports = [
     ],
     languageOptions: {
       globals: globalsESNext,
+    },
+  },
+  {
+    files: [
+      '@(scripts|tests)/*/**',
+    ],
+    rules: {
+      // disable this rule for lazily installed dependencies
+      'import/no-unresolved': [ERROR, { commonjs: true, ignore: ['^[^.]'] }],
     },
   },
   {

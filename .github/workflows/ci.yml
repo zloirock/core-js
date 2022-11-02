@@ -26,7 +26,6 @@ jobs:
           node-version: 19
           cache: npm
       - run: npm ci
-      - run: npx playwright install-deps
       - run: npm run ci-karma
 
   promises-and-observables:
