@@ -18,7 +18,6 @@ jobs:
       - run: npm run lint
 
   karma:
-    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -30,8 +29,24 @@ jobs:
       - run: npx playwright install-deps
       - run: npm run ci-karma
 
+  promises-and-observables:
+    strategy:
+      matrix:
+        node:
+          - 16.13
+          - 18.12
+          - 19
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run ci-promises-and-observables
+
   tests:
-    needs: lint
     strategy:
       matrix:
         os:
@@ -51,21 +66,3 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run ci-tests
-
-  promises-and-observables:
-    needs: lint
-    strategy:
-      matrix:
-        node:
-          - 16.13
-          - 18.12
-          - 19
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm ci
-      - run: npm run ci-promises-and-observables
