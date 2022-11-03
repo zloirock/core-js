@@ -56,7 +56,7 @@ If you have no access to all required browsers / versions of browsers, use [Sauc
 
 ## Style and standards
 
-The coding style should follow our [`.eslintrc`](./.eslintrc.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
+The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:
 - Polyfill implementations should use only ES3 syntax and standard library, they should not use other polyfills from the global scope.
 - Unit tests should use the modern syntax with our [minimalistic Babel config](./babel.config.js). Unit tests for the pure version should not use any modern standard library features.
 - Tools, scripts and tests, performed in NodeJS, should use only the syntax and the standard library available in NodeJS 8.

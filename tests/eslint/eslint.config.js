@@ -1238,7 +1238,7 @@ module.exports = [
   },
   {
     files: [
-      'tests/@(helpers|unit-global|unit-pure|wpt-url-resources)/**',
+      'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
     ],
     languageOptions: {
       sourceType: 'module',
@@ -1253,7 +1253,7 @@ module.exports = [
   },
   {
     files: [
-      'tests/@(helpers|unit-global|unit-pure)/**',
+      'tests/@(helpers|unit-@(global|pure))/**',
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -1272,13 +1272,13 @@ module.exports = [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-tools|entries|observables|promises-aplus)/**',
+      'tests/@(compat-tools|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
     ],
     rules: nodeDev,
   },
   {
     files: [
-      'tests/@(compat|observables|unit-global)/**',
+      'tests/@(compat|unit-global)/**',
     ],
     languageOptions: {
       globals: globalsESNext,
