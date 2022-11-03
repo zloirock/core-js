@@ -28,7 +28,7 @@
     "bundle-tests-global": "webpack --entry ./tests/unit-global/index.js --output-filename unit-global.js",
     "bundle-tests-pure": "webpack --entry ./tests/unit-pure/index.js --output-filename unit-pure.js",
     "check-compat-tests": "zx scripts/check-compat-tests.mjs",
-    "check-dependencies": "zx scripts/check-dependencies.mjs",
+    "check-dependencies": "npm run zxi scripts/check-dependencies/check-dependencies.mjs",
     "check-mapping": "zx scripts/check-compat-data-mapping.mjs",
     "check-modules-by-versions": "zx scripts/check-compat-data-modules-by-versions.mjs",
     "check-unused-modules": "zx scripts/check-unused-modules.mjs",
@@ -124,7 +124,6 @@
     "npm-run-all": "^4.1.5",
     "semver": "^7.3.8",
     "terser": "^5.15.1",
-    "updates": "^13.1.13",
     "webpack": "^5.74.0",
     "webpack-cli": "^4.10.0",
     "zx": "^7.1.1"

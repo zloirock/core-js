@@ -1,0 +1,6 @@
+{
+  "name": "scripts/check-dependencies",
+  "devDependencies": {
+    "updates": "^13.1.13"
+  }
+}
