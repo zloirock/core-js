@@ -1,10 +1,9 @@
-const { basename, dirname } = path;
-const [file, ...params] = argv._;
+const file = argv._.shift();
 
-cd(dirname(file));
+cd(path.dirname(file));
 
 await $`npm install --no-audit --no-fund --loglevel=error`;
 
 process.env.FORCE_COLOR = '1';
 
-await $`zx ${ basename(file) } ${ params }`;
+await import(`../${ file }`);
