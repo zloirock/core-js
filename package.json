@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "zxi": "zx scripts/zxi.mjs",
-    "init": "run-s generate-indexes clean-and-copy build-compat",
+    "init": "run-s build-indexes clean-and-copy build-compat",
+    "build-indexes": "zx scripts/build-indexes.mjs",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
     "build-compat": "zx scripts/build-compat/index.mjs",
     "bundle": "run-p bundle-package bundle-helpers bundle-tests-global bundle-tests-pure",
@@ -37,7 +38,6 @@
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "zx tests/compat/rhino-adapter.mjs --version=1.7.14",
     "copy-compat-table": "zx scripts/copy-compat-table.mjs",
-    "generate-indexes": "zx scripts/generate-indexes.mjs",
     "lint": "run-s init test-lint",
     "test-lint": "npm run zxi tests/eslint/runner.mjs",
     "test-unit": "run-s test-unit-karma test-unit-node",
