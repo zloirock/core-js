@@ -1,5 +1,4 @@
 import { chromium } from 'playwright';
-import pTimeout from 'p-timeout';
 import jszip from 'jszip';
 
 const { cyan, green, gray, red } = chalk;
@@ -19,6 +18,10 @@ const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv').async('string');
 const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
 
+function timeout(promise, time) {
+  return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(Error('timeout')), time))]);
+}
+
 // run in parallel
 await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => {
   let browser, site;
@@ -31,11 +34,11 @@ await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => 
       await page.goto(`${ protocol }://${ site }`);
 
       // seems js hangs on some sites, so added a time limit
-      const { core, modern, legacy } = await pTimeout(page.evaluate(`({
+      const { core, modern, legacy } = await timeout(page.evaluate(`({
         core: !!window['__core-js_shared__'] || !!window.core || !!window._babelPolyfill,
         modern: window['__core-js_shared__']?.versions,
         legacy: window.core?.version,
-      })`), { milliseconds: 1e4 });
+      })`), 1e4);
       const versions = modern ? modern.map(({ version, mode }) => `${ version } (${ mode } mode)`) : legacy ? [legacy] : [];
 
       await page.close();
