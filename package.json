@@ -19,11 +19,9 @@
     "build-indexes": "zx scripts/build-indexes.mjs",
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
     "build-compat": "zx scripts/build-compat/index.mjs",
-    "bundle": "run-p bundle-package bundle-helpers bundle-tests-global bundle-tests-pure",
-    "bundle-helpers": "webpack --entry ./tests/helpers/qunit-helpers.js --output-filename qunit-helpers.js",
-    "bundle-tests-global": "webpack --entry ./tests/unit-global/index.js --output-filename unit-global.js",
-    "bundle-tests-pure": "webpack --entry ./tests/unit-pure/index.js --output-filename unit-pure.js",
+    "bundle": "run-p bundle-package bundle-tests",
     "bundle-package": "zx scripts/bundle-package.mjs",
+    "bundle-tests": "npm run zxi cd scripts/bundle-tests/bundle-tests.mjs",
     "check-compat-tests": "zx scripts/check-compat-tests.mjs",
     "check-dependencies": "npm run zxi scripts/check-dependencies/check-dependencies.mjs",
     "check-mapping": "zx scripts/check-compat-data-mapping.mjs",
@@ -100,13 +98,10 @@
     "@babel/plugin-transform-spread": "^7.19.0",
     "@babel/plugin-transform-template-literals": "^7.18.9",
     "@babel/plugin-transform-unicode-regex": "^7.18.6",
-    "babel-loader": "^9.1.0",
     "konan": "^2.1.1",
     "npm-run-all": "^4.1.5",
     "semver": "^7.3.8",
     "terser": "^5.15.1",
-    "webpack": "^5.74.0",
-    "webpack-cli": "^4.10.0",
     "zx": "^7.1.1"
   }
 }

@@ -1,5 +1,6 @@
 'use strict';
 const { resolve } = require('path');
+const babelConfig = require('../../babel.config');
 
 module.exports = {
   mode: 'none',
@@ -9,6 +10,7 @@ module.exports = {
       exclude: /node_modules/,
       use: {
         loader: 'babel-loader',
+        options: babelConfig,
       },
     }],
   },
@@ -17,6 +19,6 @@ module.exports = {
   stats: 'errors-warnings',
   output: {
     hashFunction: 'md5',
-    path: resolve(__dirname, './tests/bundles'),
+    path: resolve(__dirname, '../../tests/bundles'),
   },
 };
