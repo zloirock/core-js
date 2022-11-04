@@ -1,7 +1,7 @@
-import semver from 'semver';
+import coerce from 'semver/functions/coerce.js';
 
 const { version } = await fs.readJson('package.json');
-const { major, minor, patch } = semver.coerce(version);
+const { major, minor, patch } = coerce(version);
 let ok = true;
 
 if (minor || patch) { // ignore for pre-releases
