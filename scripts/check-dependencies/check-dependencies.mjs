@@ -18,7 +18,7 @@ await Promise.all(pkgs.map(async path => {
 
   $.verbose = false;
 
-  const { stdout } = await $`npx updates \
+  const { stdout } = await $`updates \
     --json \
     --file ${ path } \
     --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
