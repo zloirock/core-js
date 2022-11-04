@@ -1,8 +1,6 @@
 const { cyan, green } = chalk;
 const dir = path.dirname(import.meta.url).slice(7);
 
-cd('../..');
-
 process.env.ESLINT_USE_FLAT_CONFIG = true;
 
 const start = Date.now();

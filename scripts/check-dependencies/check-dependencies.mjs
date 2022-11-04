@@ -8,7 +8,7 @@ const ignore = {
   ],
 };
 
-const pkgs = await glob('../../?(@(packages|scripts|tests)/*/)package.json');
+const pkgs = await glob('?(@(packages|scripts|tests)/*/)package.json');
 
 await Promise.all(pkgs.map(async path => {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
