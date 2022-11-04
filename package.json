@@ -62,7 +62,7 @@
     "refresh": "npm run clean-dependencies && npm it",
     "downloads": "zx scripts/downloads-by-versions.mjs",
     "usage": "npm run zxi scripts/usage/usage.mjs",
-    "update-version": "zx scripts/update-version.mjs && run-s bundle-deno build-compat-data copy-compat-table",
+    "update-version": "zx scripts/update-version.mjs && run-s bundle-deno build-compat copy-compat-table",
     "publish": "npm publish --workspaces",
     "c": "npm run check",
     "r": "npm run refresh",
