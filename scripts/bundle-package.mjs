@@ -2,12 +2,13 @@ import { minify } from 'terser';
 import builder from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
+const { cyan, green } = chalk;
 const DENO = argv.deno;
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
-  echo(chalk.green(`${ kind }: ${ chalk.cyan(`${ PATH }${ name }.js`) }, size: ${ chalk.cyan(`${ size }KB`) }`));
+  echo(green(`${ kind }: ${ cyan(`${ PATH }${ name }.js`) }, size: ${ cyan(`${ size }KB`) }`));
 }
 
 async function bundle({ bundled, minified, options = {} }) {
@@ -45,7 +46,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-bundle(DENO ? {
+await bundle(DENO ? {
   bundled: 'index',
   options: {
     targets: { deno: '1.0' },
