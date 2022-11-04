@@ -7,7 +7,7 @@ for (const version of Object.values(modulesByVersions)) {
   for (const module of version) defaults.delete(module);
 }
 
-fs.writeJson('packages/core-js-compat/modules-by-versions.json', {
+await fs.writeJson('packages/core-js-compat/modules-by-versions.json', {
   '3.0': [...defaults],
   ...modulesByVersions,
 }, { spaces: '  ' });

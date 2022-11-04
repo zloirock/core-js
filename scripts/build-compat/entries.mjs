@@ -36,7 +36,7 @@ const entriesList = await glob([
 const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(entriesList.map(async file => {
   // TODO: store entries without the package name in `core-js@4`
   const entry = file.replace(/\.js$/, '').replace(/\/index$/, '');
-  return [entry.slice(9), await getModulesForEntryPoint(`../${ entry }`, import.meta.url)];
+  return [entry.slice(9), await getModulesForEntryPoint(`../../${ entry }`, import.meta.url)];
 }))));
 
 await fs.writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
