@@ -2,6 +2,7 @@ const PREV_VERSION = require('core-js/package').version;
 const NEW_VERSION = require('../package').version;
 
 const { readdir, readJson, readFile, writeJson, writeFile } = fs;
+const { green, red } = chalk;
 const now = new Date();
 const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
 const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
@@ -56,6 +57,11 @@ if (NEW_VERSION !== PREV_VERSION) {
   })`));
 }
 
-if (CURRENT_YEAR !== OLD_YEAR) echo(chalk.green('the year updated'));
-if (NEW_VERSION !== PREV_VERSION) echo(chalk.green('the version updated'));
-else if (CURRENT_YEAR === OLD_YEAR) echo(chalk.red('bump is not required'));
+if (CURRENT_YEAR !== OLD_YEAR) echo(green('the year updated'));
+if (NEW_VERSION !== PREV_VERSION) echo(green('the version updated'));
+else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
+
+process.env.FORCE_COLOR = '1';
+
+await $`npm run bundle-package -- --deno`;
+await $`run-s build-compat copy-compat-table`;
