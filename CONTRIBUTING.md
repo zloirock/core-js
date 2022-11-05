@@ -102,6 +102,14 @@ You can run parts of the test case separately:
   ```
   $ npx run-s init test-entries
   ```
+- `core-js-compat` tools tests:
+  ```
+  $ npx run-s init test-compat-tools
+  ```
+- `core-js-builder` tests:
+  ```
+  $ npx run-s init test-builder
+  ```
 - If you want to run tests in a certain browser, at first, you should build packages and test bundles:
   ```
   $ npx run-s init bundle
