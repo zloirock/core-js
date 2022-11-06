@@ -63,5 +63,5 @@ else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
 process.env.FORCE_COLOR = '1';
 
-await $`npm run bundle-package -- --deno`;
+await $`npm run bundle-package deno`;
 await $`run-s build-compat copy-compat-table`;

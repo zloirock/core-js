@@ -3,7 +3,7 @@ import builder from 'core-js-builder';
 import config from 'core-js-builder/config.js';
 
 const { cyan, green } = chalk;
-const DENO = argv.deno;
+const DENO = argv._.includes('deno');
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
