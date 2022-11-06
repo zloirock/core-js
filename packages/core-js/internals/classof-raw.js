@@ -1,7 +1,7 @@
-var uncurryThisRaw = require('../internals/function-uncurry-this-raw');
+var uncurryThis = require('../internals/function-uncurry-this');
 
-var toString = uncurryThisRaw({}.toString);
-var stringSlice = uncurryThisRaw(''.slice);
+var toString = uncurryThis({}.toString);
+var stringSlice = uncurryThis(''.slice);
 
 module.exports = function (it) {
   return stringSlice(toString(it), 8, -1);

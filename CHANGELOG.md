@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3
+- Avoiding a check of the target in the internal `function-uncurry-this` helper where it's not required
 
 ##### [3.26.0 - 2022.10.24](https://github.com/zloirock/core-js/releases/tag/v3.26.0)
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):

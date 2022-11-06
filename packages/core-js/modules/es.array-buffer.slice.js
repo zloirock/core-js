@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var ArrayBufferModule = require('../internals/array-buffer');
 var anObject = require('../internals/an-object');

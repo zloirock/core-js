@@ -2,7 +2,7 @@
 /* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var requireObjectCoercible = require('../internals/require-object-coercible');

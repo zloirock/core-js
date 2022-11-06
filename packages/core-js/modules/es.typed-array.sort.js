@@ -1,6 +1,6 @@
 'use strict';
 var global = require('../internals/global');
-var uncurryThis = require('../internals/function-uncurry-this');
+var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var internalSort = require('../internals/array-sort');
