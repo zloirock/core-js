@@ -15,9 +15,7 @@
   ],
   "scripts": {
     "zxi": "zx scripts/zxi.mjs",
-    "init": "run-s build-indexes clean-and-copy build-compat",
-    "build-indexes": "zx scripts/build-indexes.mjs",
-    "clean-and-copy": "zx scripts/clean-and-copy.mjs",
+    "init": "zx scripts/init.mjs",
     "build-compat": "zx scripts/build-compat/index.mjs",
     "bundle": "run-p bundle-package bundle-tests",
     "bundle-package": "npm run zxi scripts/bundle-package/bundle-package.mjs",
