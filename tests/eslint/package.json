@@ -8,7 +8,7 @@
     "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "^2.26.0",
     "eslint-plugin-jsonc": "^2.5.0",
-    "eslint-plugin-n": "^15.4.0",
+    "eslint-plugin-n": "^15.5.0",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^7.3.2",
     "eslint-plugin-regexp": "^1.9.0",
