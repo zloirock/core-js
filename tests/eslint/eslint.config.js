@@ -63,6 +63,8 @@ const base = {
   'no-func-assign': ERROR,
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': ERROR,
+  // disallow `new` operators with global non-constructor functions
+  'no-new-native-nonconstructor': ERROR,
   // disallow the use of object properties of the global object (Math and JSON) as functions
   'no-obj-calls': ERROR,
   // disallow use of Object.prototypes builtins directly
@@ -111,6 +113,8 @@ const base = {
   'no-empty-function': ERROR,
   // disallow empty destructuring patterns
   'no-empty-pattern': ERROR,
+  // disallow empty static blocks
+  'no-empty-static-block': ERROR,
   // disallow use of eval()
   'no-eval': ERROR,
   // disallow adding to native types
