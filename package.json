@@ -20,7 +20,7 @@
     "clean-and-copy": "zx scripts/clean-and-copy.mjs",
     "build-compat": "zx scripts/build-compat/index.mjs",
     "bundle": "run-p bundle-package bundle-tests",
-    "bundle-package": "zx scripts/bundle-package.mjs",
+    "bundle-package": "npm run zxi scripts/bundle-package/bundle-package.mjs",
     "bundle-tests": "npm run zxi cd scripts/bundle-tests/bundle-tests.mjs",
     "check-compat-tests": "zx scripts/check-compat-tests.mjs",
     "check-dependencies": "npm run zxi scripts/check-dependencies/check-dependencies.mjs",
@@ -95,7 +95,6 @@
     "konan": "^2.1.1",
     "npm-run-all2": "^6.0.2",
     "semver": "^7.3.8",
-    "terser": "^5.15.1",
     "zx": "^7.1.1"
   }
 }
