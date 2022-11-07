@@ -2062,7 +2062,8 @@ export const data = {
   'esnext.array.find-last-index': null,
   'esnext.array.group': {
     bun: '0.1.9',
-    chrome: '108',
+    // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
+    // chrome: '108',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -2072,7 +2073,8 @@ export const data = {
   },
   'esnext.array.group-to-map': {
     bun: '0.1.9',
-    chrome: '108',
+    // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
+    // chrome: '108',
   },
   'esnext.array.is-template-object': {
   },

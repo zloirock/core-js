@@ -2,6 +2,7 @@
 ##### Unreleased
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3
 - Avoiding a check of the target in the internal `function-uncurry-this` helper where it's not required
+- V8 will not ship `Array.prototype.{ group, groupToMap }` in V8 ~ Chromium 108, [proposal-array-grouping/44](https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107)
 
 ##### [3.26.0 - 2022.10.24](https://github.com/zloirock/core-js/releases/tag/v3.26.0)
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):
