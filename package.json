@@ -83,7 +83,7 @@
     "@babel/plugin-transform-modules-commonjs": "^7.19.6",
     "@babel/plugin-transform-new-target": "^7.18.6",
     "@babel/plugin-transform-object-super": "^7.18.6",
-    "@babel/plugin-transform-parameters": "^7.20.1",
+    "@babel/plugin-transform-parameters": "^7.20.3",
     "@babel/plugin-transform-property-literals": "^7.18.6",
     "@babel/plugin-transform-reserved-words": "^7.18.6",
     "@babel/plugin-transform-shorthand-properties": "^7.18.6",
