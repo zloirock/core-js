@@ -1276,7 +1276,7 @@ module.exports = [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-tools|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
+      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
     ],
     rules: nodeDev,
   },
