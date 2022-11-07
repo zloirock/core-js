@@ -1310,6 +1310,8 @@ module.exports = [
     rules: {
       // allow use of console
       'no-console': OFF,
+      // import used for tasks
+      'import/first': OFF,
     },
   },
   {

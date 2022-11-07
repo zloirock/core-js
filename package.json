@@ -32,7 +32,6 @@
     "compat-hermes": "zx tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "zx tests/compat/rhino-adapter.mjs --version=1.7.14",
-    "copy-compat-table": "zx scripts/copy-compat-table.mjs",
     "lint": "run-s init test-lint",
     "test-lint": "npm run zxi tests/eslint/runner.mjs",
     "test-unit": "run-s test-unit-karma test-unit-node",
