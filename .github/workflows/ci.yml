@@ -26,7 +26,7 @@ jobs:
           node-version: 19
           cache: npm
       - run: npm ci
-      - run: npm run ci-karma
+      - run: npx run-s init bundle test-unit-karma
 
   promises-and-observables:
     strategy:
@@ -43,7 +43,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run ci-promises-and-observables
+      - run: npx run-s init test-promises test-observables
 
   tests:
     strategy:
@@ -64,4 +64,4 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run ci-tests
+      - run: npx run-s init bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
