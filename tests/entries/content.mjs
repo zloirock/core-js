@@ -1,8 +1,8 @@
 import { deepEqual, ok } from 'assert/strict';
 import konan from 'konan';
 
-const allModules = require('core-js-compat/modules');
-const entries = require('core-js-compat/entries');
+const allModules = await readJson('packages/core-js-compat/modules.json');
+const entries = await readJson('packages/core-js-compat/entries.json');
 
 function filter(regexp) {
   return allModules.filter(it => regexp.test(it));
