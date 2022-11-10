@@ -1,3 +1,4 @@
+#!/usr/bin/env zx
 const { delimiter, dirname, normalize } = path;
 const { pathExists } = fs;
 const { cwd, env } = process;
@@ -25,4 +26,4 @@ if (PKG) {
 
 env.FORCE_COLOR = '1';
 
-await import(`../${ FILE }`);
+await import(`../../${ FILE }`);
