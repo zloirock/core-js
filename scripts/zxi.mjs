@@ -1,4 +1,3 @@
-#!/usr/bin/env zx
 const { delimiter, dirname, normalize } = path;
 const { pathExists } = fs;
 const { cwd, env } = process;

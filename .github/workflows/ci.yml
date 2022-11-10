@@ -63,6 +63,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm i zx -g
       - run: npm ci
       - run: npx run-s init bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
