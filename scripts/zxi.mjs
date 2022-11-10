@@ -25,4 +25,4 @@ if (PKG) {
 
 env.FORCE_COLOR = '1';
 
-await import(`${ ROOT }/${ FILE }`);
+await import(normalize(`${ ROOT }/${ FILE }`));
