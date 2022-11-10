@@ -1,4 +1,4 @@
-const { delimiter, dirname, normalize } = path;
+const { delimiter, dirname, join, normalize, relative } = path;
 const { pathExists } = fs;
 const { cwd, env } = process;
 const { _: args } = argv;
@@ -9,6 +9,7 @@ const CD = FILE === 'cd';
 if (CD) FILE = args.shift();
 
 const DIR = dirname(FILE);
+const SCRIPT = join('./', relative(dirname(import.meta.url.slice(5)), ROOT), FILE);
 const PKG = pathExists(`${ DIR }/package.json`);
 
 if (PKG) {
@@ -25,4 +26,4 @@ if (PKG) {
 
 env.FORCE_COLOR = '1';
 
-await import(normalize(`${ ROOT }/${ FILE }`));
+await import(SCRIPT);
