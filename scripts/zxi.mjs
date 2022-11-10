@@ -9,7 +9,7 @@ const CD = FILE === 'cd';
 if (CD) FILE = args.shift();
 
 const DIR = dirname(FILE);
-const SCRIPT = join('./', relative(dirname(import.meta.url.slice(5)), ROOT), FILE);
+const SCRIPT = join('./', relative(dirname(import.meta.url.slice(7)), ROOT), FILE);
 const PKG = pathExists(`${ DIR }/package.json`);
 
 if (PKG) {
