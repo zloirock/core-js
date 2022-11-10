@@ -9,14 +9,16 @@ const agents = [
 const protocols = ['http', 'https'];
 const limit = argv._[0] ?? 100;
 const attempts = new Map();
+const start = Date.now();
 let tested = 0;
 let withCoreJS = 0;
 
-// get Alexa rank
+echo(green('downloading and parsing T1M Alexa data, it could take some minutes'));
 const response = await fetch('https://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
 const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv').async('string');
 const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
+echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) / 1e3) } seconds\n${ gray('-'.repeat(120)) }`));
 
 function timeout(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(Error('timeout')), time))]);
