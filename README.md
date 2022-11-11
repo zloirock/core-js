@@ -176,7 +176,7 @@ queueMicrotask(() => console.log('called as microtask'));
 
 ## Usage[⬆](#index)
 ### Installation:[⬆](#index)
-```
+```sh
 // global version
 npm install --save core-js@3.26.0
 // version without global namespace pollution
