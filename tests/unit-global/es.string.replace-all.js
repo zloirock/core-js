@@ -42,6 +42,7 @@ QUnit.test('String#replaceAll', assert => {
     assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
   }
 
+  // eslint-disable-next-line regexp/no-missing-g-flag -- required for testing
   assert.throws(() => 'b.b.b.b.b'.replaceAll(/\./, 'a'), TypeError);
   assert.same('b.b.b.b.b'.replaceAll(/\./g, 'a'), 'babababab');
   const object = {};

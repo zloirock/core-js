@@ -69,6 +69,7 @@ QUnit.test('String#matchAll', assert => {
     value: undefined,
     done: true,
   });
+  // eslint-disable-next-line regexp/no-missing-g-flag -- required for testing
   assert.throws(() => '1111a2b3cccc'.matchAll(/(\d)(\D)/), TypeError);
   iterator = '1111a2b3cccc'.matchAll('(\\d)(\\D)');
   assert.isIterator(iterator);

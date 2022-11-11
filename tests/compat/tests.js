@@ -1080,6 +1080,7 @@ GLOBAL.tests = {
   },
   'es.string.match-all': function () {
     try {
+      // eslint-disable-next-line regexp/no-missing-g-flag -- required for testing
       'a'.matchAll(/./);
     } catch (error) {
       return 'a'.matchAll(/./g);

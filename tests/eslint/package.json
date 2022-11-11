@@ -11,7 +11,7 @@
     "eslint-plugin-n": "^15.5.1",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^7.3.2",
-    "eslint-plugin-regexp": "^1.9.0",
+    "eslint-plugin-regexp": "^1.10.0",
     "eslint-plugin-sonarjs": "~0.16.0",
     "eslint-plugin-unicorn": "^44.0.2",
     "globals": "^13.17.0",
