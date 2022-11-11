@@ -1,2 +1,2 @@
-import './content.mjs';
-import './unit.mjs';
+await import('./content.mjs');
+await import('./unit.mjs');

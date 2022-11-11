@@ -1,3 +1,3 @@
-import './compat.mjs';
-import './targets-parser.mjs';
-import './get-modules-list-for-target-version.mjs';
+await import('./compat.mjs');
+await import('./targets-parser.mjs');
+await import('./get-modules-list-for-target-version.mjs');

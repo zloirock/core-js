@@ -1,3 +1,3 @@
-import './data.mjs';
-import './entries.mjs';
-import './modules-by-versions.mjs';
+await import('./data.mjs');
+await import('./entries.mjs');
+await import('./modules-by-versions.mjs');

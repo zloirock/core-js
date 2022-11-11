@@ -1,2 +1,2 @@
-import './modules-by-versions.mjs';
-import './tests-coverage.mjs';
+await import('./modules-by-versions.mjs');
+await import('./tests-coverage.mjs');
