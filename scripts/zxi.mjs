@@ -10,7 +10,7 @@ if (CD) FILE = args.shift();
 const DIR = dirname(FILE);
 
 if (await pathExists(`${ DIR }/package.json`)) {
-  await $`npm --prefix ${ DIR } install --no-audit --no-fund --loglevel=error`;
+  await $`npm install --prefix ${ DIR } --no-audit --no-fund --loglevel=error`;
 
   const BIN = normalize(`${ cwd() }/${ DIR }/node_modules/.bin`);
 
