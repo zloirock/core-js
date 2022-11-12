@@ -12,10 +12,9 @@ const DIR = dirname(FILE);
 if (await pathExists(`${ DIR }/package.json`)) {
   await $`npm install \
     --prefix ${ DIR } \
-    --legacy-peer-deps \
     --no-audit \
     --no-fund \
-    --loglevel=error \
+    --loglevel verbose \
   `;
 
   const BIN = normalize(`${ cwd() }/${ DIR }/node_modules/.bin`);
