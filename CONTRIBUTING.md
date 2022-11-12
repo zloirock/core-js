@@ -116,9 +116,9 @@ You can run parts of the test case separately:
   ```
 - For running the global version of the unit test case, use this file:
   ```sh
-  tests/unit-global/index.html
+  tests/unit-browser/global.html
   ```
 - For running the pure version of the unit test case, use this file:
   ```sh
-  tests/unit-pure/index.html
+  tests/unit-browser/pure.html
   ```
