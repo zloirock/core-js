@@ -178,18 +178,18 @@ queueMicrotask(() => console.log('called as microtask'));
 ### Installation:[⬆](#index)
 ```sh
 // global version
-npm install --save core-js@3.26.0
+npm install --save core-js@3.26.1
 // version without global namespace pollution
-npm install --save core-js-pure@3.26.0
+npm install --save core-js-pure@3.26.1
 // bundled global version
-npm install --save core-js-bundle@3.26.0
+npm install --save core-js-bundle@3.26.1
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
-```
+```sh
 ADBLOCK=true npm install
 // or
 DISABLE_OPENCOLLECTIVE=true npm install
