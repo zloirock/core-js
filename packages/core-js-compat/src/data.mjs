@@ -14,8 +14,8 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.symbol.description': {
     bun: '0.1.1',
@@ -35,8 +35,8 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.symbol.has-instance': {
     bun: '0.1.1',
@@ -44,8 +44,8 @@ export const data = {
     edge: '15',
     firefox: '49',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.is-concat-spreadable': {
     bun: '0.1.1',
@@ -53,8 +53,8 @@ export const data = {
     edge: '15',
     firefox: '48',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.iterator': {
     bun: '0.1.1',
@@ -62,8 +62,8 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.symbol.key-for': {
     bun: '0.1.1',
@@ -71,16 +71,16 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.symbol.match': {
     bun: '0.1.1',
     chrome: '50',
     firefox: '40',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.match-all': {
     bun: '0.1.1',
@@ -94,32 +94,32 @@ export const data = {
     chrome: '50',
     firefox: '49',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.search': {
     bun: '0.1.1',
     chrome: '50',
     firefox: '49',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.species': {
     bun: '0.1.1',
     chrome: '51',
     edge: '13',
     firefox: '41',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.split': {
     bun: '0.1.1',
     chrome: '50',
     firefox: '49',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.to-primitive': {
     bun: '0.1.1',
@@ -127,8 +127,8 @@ export const data = {
     edge: '15',
     firefox: '44',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.to-string-tag': {
     bun: '0.1.1',
@@ -136,16 +136,16 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.symbol.unscopables': {
     bun: '0.1.1',
     chrome: '41',
     edge: '13',
     firefox: '48',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.error.cause': {
     bun: '0.1.1',
@@ -160,8 +160,8 @@ export const data = {
     firefox: '11',
     hermes: '0.1',
     ie: '9',
-    safari: '8.0',
     rhino: '1.7.14',
+    safari: '8.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.aggregate-error': null,
@@ -203,8 +203,8 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.fill': {
     bun: '0.1.1',
@@ -268,16 +268,16 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.from': {
     bun: '0.1.1',
     chrome: '51',
     edge: '15',
     firefox: '53',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.array.includes': {
     bun: '0.1.1',
@@ -293,8 +293,8 @@ export const data = {
     firefox: '47',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.is-array': {
     bun: '0.1.1',
@@ -303,8 +303,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '10.50',
-    safari: '4.0',
     rhino: '1.7.13',
+    safari: '4.0',
   },
   'es.array.iterator': {
     bun: '0.1.1',
@@ -319,8 +319,8 @@ export const data = {
     edge: '13',
     firefox: '4',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.last-index-of': {
     bun: '0.1.1',
@@ -328,8 +328,8 @@ export const data = {
     firefox: '47',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.map': {
     bun: '0.1.1',
@@ -344,8 +344,8 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.array.push': {
     bun: '0.1.1',
@@ -364,8 +364,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     node: '6.0', // ^^^
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.reduce-right': {
     bun: '0.1.1',
@@ -374,8 +374,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     node: '6.0', // ^^^
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.reverse': {
     bun: '0.1.1',
@@ -385,8 +385,8 @@ export const data = {
     ie: '5.5',
     opera: '10.50',
     // safari 12.0 has a serious bug
-    safari: '12.0.2',
     rhino: '1.7.13',
+    safari: '12.0.2',
   },
   'es.array.slice': {
     bun: '0.1.1',
@@ -401,8 +401,8 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.array.sort': {
     bun: '0.1.1',
@@ -468,8 +468,8 @@ export const data = {
     firefox: '46',
     hermes: '0.1',
     ie: '11',
-    safari: '12.1',
     rhino: '1.7.13',
+    safari: '12.1',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.data-view': null,
@@ -479,8 +479,8 @@ export const data = {
     firefox: '15',
     hermes: '0.1',
     ie: '10',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.date.get-year': {
     bun: '0.1.1',
@@ -489,8 +489,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '3',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   // TODO: Remove from `core-js@4`
   'es.date.now': {
@@ -500,8 +500,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '10.50',
-    safari: '4.0',
     rhino: '1.7.13',
+    safari: '4.0',
   },
   'es.date.set-year': {
     bun: '0.1.1',
@@ -510,8 +510,8 @@ export const data = {
     hermes: '0.1',
     ie: '3',
     opera: '3',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   'es.date.to-gmt-string': {
     bun: '0.1.1',
@@ -520,8 +520,8 @@ export const data = {
     hermes: '0.1',
     ie: '3',
     opera: '3',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   'es.date.to-iso-string': {
     bun: '0.1.1',
@@ -529,8 +529,8 @@ export const data = {
     firefox: '7',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.date.to-json': {
     bun: '0.1.1',
@@ -538,8 +538,8 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '9',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.date.to-primitive': {
     bun: '0.1.1',
@@ -557,8 +557,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.escape': {
     bun: '0.1.1',
@@ -567,8 +567,8 @@ export const data = {
     hermes: '0.1',
     ie: '3',
     opera: '3',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   'es.function.bind': {
     bun: '0.1.1',
@@ -577,8 +577,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '12',
-    safari: '5.1',
     rhino: '1.7.13',
+    safari: '5.1',
   },
   'es.function.has-instance': {
     bun: '0.1.1',
@@ -595,16 +595,16 @@ export const data = {
     firefox: '2',
     hermes: '0.1',
     opera: '10.50',
-    safari: '4.0',
     rhino: '1.7.13',
+    safari: '4.0',
   },
   'es.global-this': {
     bun: '0.1.1',
     chrome: '71',
     firefox: '65',
     hermes: '0.2',
-    safari: '12.1',
     rhino: '1.7.14',
+    safari: '12.1',
   },
   'es.json.stringify': {
     bun: '0.1.1',
@@ -627,8 +627,8 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.math.acosh': {
     bun: '0.1.1',
@@ -644,8 +644,8 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.atanh': {
     bun: '0.1.1',
@@ -653,8 +653,8 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.cbrt': {
     bun: '0.1.1',
@@ -662,8 +662,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.clz32': {
     bun: '0.1.1',
@@ -671,8 +671,8 @@ export const data = {
     edge: '12',
     firefox: '31',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.math.cosh': {
     bun: '0.1.1',
@@ -680,8 +680,8 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.expm1': {
     bun: '0.1.1',
@@ -689,8 +689,8 @@ export const data = {
     edge: '13',
     firefox: '46',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.fround': {
     bun: '0.1.1',
@@ -698,8 +698,8 @@ export const data = {
     edge: '12',
     firefox: '26',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.hypot': {
     bun: '0.1.1',
@@ -708,8 +708,8 @@ export const data = {
     edge: '12',
     firefox: '27',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.imul': {
     bun: '0.1.1',
@@ -717,8 +717,8 @@ export const data = {
     edge: '13',
     firefox: '20',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.math.log10': {
     bun: '0.1.1',
@@ -726,8 +726,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.log1p': {
     bun: '0.1.1',
@@ -735,8 +735,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.log2': {
     bun: '0.1.1',
@@ -744,8 +744,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.sign': {
     bun: '0.1.1',
@@ -753,8 +753,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.math.sinh': {
     bun: '0.1.1',
@@ -762,8 +762,8 @@ export const data = {
     edge: '13',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.tanh': {
     bun: '0.1.1',
@@ -771,8 +771,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.math.to-string-tag': {
     bun: '0.1.1',
@@ -788,8 +788,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.number.constructor': {
     bun: '0.1.1',
@@ -797,8 +797,8 @@ export const data = {
     edge: '13',
     firefox: '46',
     hermes: '0.5',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.epsilon': {
     bun: '0.1.1',
@@ -806,8 +806,8 @@ export const data = {
     edge: '12',
     firefox: '25',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.number.is-finite': {
     android: '4.1',
@@ -816,8 +816,8 @@ export const data = {
     edge: '12',
     firefox: '16',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.is-integer': {
     bun: '0.1.1',
@@ -825,8 +825,8 @@ export const data = {
     edge: '12',
     firefox: '16',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.is-nan': {
     android: '4.1',
@@ -835,8 +835,8 @@ export const data = {
     edge: '12',
     firefox: '15',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.is-safe-integer': {
     bun: '0.1.1',
@@ -844,8 +844,8 @@ export const data = {
     edge: '12',
     firefox: '32',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.max-safe-integer': {
     bun: '0.1.1',
@@ -853,8 +853,8 @@ export const data = {
     edge: '12',
     firefox: '31',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.min-safe-integer': {
     bun: '0.1.1',
@@ -862,24 +862,24 @@ export const data = {
     edge: '12',
     firefox: '31',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.number.parse-float': {
     bun: '0.1.1',
     chrome: '35',
     firefox: '39',
     hermes: '0.1',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.number.parse-int': {
     bun: '0.1.1',
     chrome: '35',
     firefox: '39',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.number.to-exponential': {
     bun: '0.1.1',
@@ -887,16 +887,16 @@ export const data = {
     edge: '18',
     firefox: '87',
     hermes: '0.1',
-    safari: '11',
     rhino: '1.7.14',
+    safari: '11',
   },
   'es.number.to-fixed': {
     bun: '0.1.1',
     chrome: '26',
     firefox: '4',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.number.to-precision': {
     bun: '0.1.1',
@@ -904,8 +904,8 @@ export const data = {
     firefox: '4',
     hermes: '0.1',
     ie: '8',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.object.assign': {
     bun: '0.1.1',
@@ -924,8 +924,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '12',
-    safari: '4.0',
     rhino: '1.7.13',
+    safari: '4.0',
   },
   'es.object.define-getter': {
     bun: '0.1.1',
@@ -933,8 +933,8 @@ export const data = {
     edge: '16',
     firefox: '48',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.object.define-properties': {
     bun: '0.1.1',
@@ -943,8 +943,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '12',
-    safari: '5.1',
     rhino: '1.7.13',
+    safari: '5.1',
   },
   'es.object.define-property': {
     bun: '0.1.1',
@@ -953,8 +953,8 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     opera: '12',
-    safari: '5.1',
     rhino: '1.7.13',
+    safari: '5.1',
   },
   'es.object.define-setter': {
     bun: '0.1.1',
@@ -962,8 +962,8 @@ export const data = {
     edge: '16',
     firefox: '48',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.object.entries': {
     bun: '0.1.1',
@@ -971,8 +971,8 @@ export const data = {
     edge: '14',
     firefox: '47',
     hermes: '0.1',
-    safari: '10.1',
     rhino: '1.7.14',
+    safari: '10.1',
   },
   'es.object.freeze': {
     bun: '0.1.1',
@@ -980,16 +980,16 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.from-entries': {
     bun: '0.1.1',
     chrome: '73',
     firefox: '63',
     hermes: '0.4',
-    safari: '12.1',
     rhino: '1.7.14',
+    safari: '12.1',
   },
   'es.object.get-own-property-descriptor': {
     bun: '0.1.1',
@@ -997,8 +997,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.get-own-property-descriptors': {
     bun: '0.1.1',
@@ -1014,8 +1014,8 @@ export const data = {
     edge: '13',
     firefox: '34',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.get-own-property-symbols': {
     bun: '0.1.1',
@@ -1023,8 +1023,8 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.object.get-prototype-of': {
     bun: '0.1.1',
@@ -1032,8 +1032,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.has-own': {
     bun: '0.1.1',
@@ -1049,8 +1049,8 @@ export const data = {
     edge: '12',
     firefox: '22',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.is-extensible': {
     bun: '0.1.1',
@@ -1058,8 +1058,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.is-frozen': {
     bun: '0.1.1',
@@ -1067,8 +1067,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.is-sealed': {
     bun: '0.1.1',
@@ -1076,8 +1076,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.keys': {
     bun: '0.1.1',
@@ -1085,8 +1085,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.lookup-getter': {
     bun: '0.1.1',
@@ -1094,8 +1094,8 @@ export const data = {
     edge: '16',
     firefox: '48',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.object.lookup-setter': {
     bun: '0.1.1',
@@ -1103,8 +1103,8 @@ export const data = {
     edge: '16',
     firefox: '48',
     hermes: '0.1',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.object.prevent-extensions': {
     bun: '0.1.1',
@@ -1112,8 +1112,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.proto': {
     bun: '0.1.1',
@@ -1131,8 +1131,8 @@ export const data = {
     edge: '13',
     firefox: '35',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.set-prototype-of': {
     bun: '0.1.1',
@@ -1140,8 +1140,8 @@ export const data = {
     firefox: '31',
     hermes: '0.1',
     ie: '11',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.object.to-string': {
     bun: '0.1.1',
@@ -1157,8 +1157,8 @@ export const data = {
     edge: '14',
     firefox: '47',
     hermes: '0.1',
-    safari: '10.1',
     rhino: '1.7.14',
+    safari: '10.1',
   },
   'es.parse-float': {
     bun: '0.1.1',
@@ -1167,8 +1167,8 @@ export const data = {
     firefox: '8',
     hermes: '0.1',
     ie: '8',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   'es.parse-int': {
     bun: '0.1.1',
@@ -1177,8 +1177,8 @@ export const data = {
     firefox: '21',
     hermes: '0.1',
     ie: '9',
-    safari: '7.1',
     rhino: '1.7.13',
+    safari: '7.1',
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.promise': {
@@ -1188,8 +1188,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.constructor': {
     bun: '0.1.1',
@@ -1198,8 +1198,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.all': {
     bun: '0.1.1',
@@ -1207,8 +1207,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.all-settled': {
     bun: '0.1.1',
@@ -1232,8 +1232,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.finally': {
     bun: '0.1.1',
@@ -1245,8 +1245,8 @@ export const data = {
     // Previous versions are non-generic
     // https://bugs.webkit.org/show_bug.cgi?id=200788
     ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
-    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
     rhino: '1.7.14',
+    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
   },
   'es.promise.race': {
     bun: '0.1.1',
@@ -1254,8 +1254,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.reject': {
     bun: '0.1.1',
@@ -1263,8 +1263,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.promise.resolve': {
     bun: '0.1.1',
@@ -1272,8 +1272,8 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
-    safari: '11.0',
     rhino: '1.7.14',
+    safari: '11.0',
   },
   'es.reflect.apply': {
     bun: '0.1.1',
@@ -1443,8 +1443,8 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'es.string.at-alternative': {
     bun: '0.1.1',
@@ -1458,8 +1458,8 @@ export const data = {
     edge: '13',
     firefox: '29',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.string.ends-with': {
     bun: '0.1.1',
@@ -1474,8 +1474,8 @@ export const data = {
     edge: '13',
     firefox: '29',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.string.includes': {
     bun: '0.1.1',
@@ -1490,8 +1490,8 @@ export const data = {
     edge: '13',
     firefox: '36',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.string.match': {
     bun: '0.1.1',
@@ -1514,8 +1514,8 @@ export const data = {
     edge: '15',
     firefox: '48',
     hermes: '0.1',
-    safari: '11.0',
     rhino: '1.7.13',
+    safari: '11.0',
   },
   'es.string.pad-start': {
     bun: '0.1.1',
@@ -1523,8 +1523,8 @@ export const data = {
     edge: '15',
     firefox: '48',
     hermes: '0.1',
-    safari: '11.0',
     rhino: '1.7.13',
+    safari: '11.0',
   },
   'es.string.raw': {
     bun: '0.1.1',
@@ -1532,8 +1532,8 @@ export const data = {
     edge: '13',
     firefox: '34',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.14',
+    safari: '9.0',
   },
   'es.string.repeat': {
     bun: '0.1.1',
@@ -1541,8 +1541,8 @@ export const data = {
     edge: '13',
     firefox: '24',
     hermes: '0.1',
-    safari: '9.0',
     rhino: '1.7.13',
+    safari: '9.0',
   },
   'es.string.replace': {
     bun: '0.1.1',
@@ -1580,12 +1580,12 @@ export const data = {
   'es.string.substr': {
     bun: '0.1.1',
     chrome: '1',
-    ie: '9',
     firefox: '1',
     hermes: '0.1',
+    ie: '9',
     opera: '4',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   'es.string.trim': {
     bun: '0.1.1',
@@ -1628,8 +1628,8 @@ export const data = {
     chrome: '5',
     edge: '12',
     firefox: '17',
-    safari: '6.0',
     rhino: '1.7.14',
+    safari: '6.0',
   },
   'es.string.big': {
     bun: '0.1.1',
@@ -1637,8 +1637,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.blink': {
     bun: '0.1.1',
@@ -1646,8 +1646,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.bold': {
     bun: '0.1.1',
@@ -1655,8 +1655,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.fixed': {
     bun: '0.1.1',
@@ -1664,24 +1664,24 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.fontcolor': {
     bun: '0.1.1',
     chrome: '5',
     edge: '12',
     firefox: '17',
-    safari: '6.0',
     rhino: '1.7.14',
+    safari: '6.0',
   },
   'es.string.fontsize': {
     bun: '0.1.1',
     chrome: '5',
     edge: '12',
     firefox: '17',
-    safari: '6.0',
     rhino: '1.7.14',
+    safari: '6.0',
   },
   'es.string.italics': {
     bun: '0.1.1',
@@ -1689,16 +1689,16 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.link': {
     bun: '0.1.1',
     chrome: '5',
     edge: '12',
     firefox: '17',
-    safari: '6.0',
     rhino: '1.7.14',
+    safari: '6.0',
   },
   'es.string.small': {
     bun: '0.1.1',
@@ -1706,8 +1706,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.strike': {
     bun: '0.1.1',
@@ -1715,8 +1715,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.sub': {
     bun: '0.1.1',
@@ -1724,8 +1724,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.string.sup': {
     bun: '0.1.1',
@@ -1733,8 +1733,8 @@ export const data = {
     edge: '12',
     firefox: '2',
     opera: '10.50',
-    safari: '3.1',
     rhino: '1.7.13',
+    safari: '3.1',
   },
   'es.typed-array.float32-array': {
     bun: '0.1.1',
@@ -2022,8 +2022,8 @@ export const data = {
     hermes: '0.1',
     ie: '3',
     opera: '3',
-    safari: '1',
     rhino: '1.7.13',
+    safari: '1',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.weak-map': null,
@@ -2032,8 +2032,8 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.weak-set': null,
@@ -2042,8 +2042,8 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
@@ -2473,8 +2473,8 @@ export const data = {
     firefox: '50',
     hermes: '0.1',
     node: '0.0.1',
-    safari: '10.0',
     rhino: '1.7.13',
+    safari: '10.0',
   },
   'web.dom-collections.iterator': {
     bun: '0.1.1',
@@ -2483,8 +2483,8 @@ export const data = {
     firefox: '60',
     hermes: '0.1',
     node: '0.0.1',
-    safari: '13.1',
     rhino: '1.7.13',
+    safari: '13.1',
   },
   'web.dom-exception.constructor': {
     bun: '0.1.1',
@@ -2542,12 +2542,12 @@ export const data = {
     chrome: '1',
     deno: '1.0',
     firefox: '1',
+    hermes: '0.1',
     ie: '10',
     node: '0.0.1',
-    hermes: '0.1',
     opera: '7',
-    safari: '1.0',
     rhino: '1.7.13',
+    safari: '1.0',
   },
   'web.set-timeout': {
     android: '1.5',
@@ -2559,8 +2559,8 @@ export const data = {
     ie: '10',
     node: '0.0.1',
     opera: '7',
-    safari: '1.0',
     rhino: '1.7.13',
+    safari: '1.0',
   },
   'web.structured-clone': {
     // https://github.com/whatwg/html/pull/5749
@@ -2580,8 +2580,8 @@ export const data = {
     ie: '10',
     node: '0.0.1',
     opera: '7',
-    safari: '1.0',
     rhino: '1.7.13',
+    safari: '1.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'web.url': null,
