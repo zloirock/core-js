@@ -1,9 +1,24 @@
 import { readdir, rm } from 'fs/promises';
 
-await rm('package-lock.json', { force: true });
+const ignore = new Set([
+  'scripts/usage',
+  'tests/test262',
+]);
 
-const packages = await readdir('packages');
-const folders = ['node_modules', ...packages.map(pkg => `packages/${ pkg }/node_modules`)];
-await Promise.all(folders.map(folder => rm(folder, { force: true, recursive: true })));
+const folders = [''].concat(...await Promise.all([
+  'packages',
+  'scripts',
+  'tests',
+].map(async parent => {
+  const dir = await readdir(parent);
+  return dir.map(name => `${ parent }/${ name }`);
+})));
+
+await Promise.all(folders.map(async folder => {
+  if (!ignore.has(folder)) try {
+    await rm(`./${ folder }/package-lock.json`, { force: true });
+    await rm(`./${ folder }/node_modules`, { force: true, recursive: true });
+  } catch { /* empty */ }
+}));
 
 console.log('\u001B[32mdependencies cleaned\u001B[0m');
