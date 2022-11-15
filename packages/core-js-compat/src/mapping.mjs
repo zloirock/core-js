@@ -223,6 +223,11 @@ export default {
     [102, '22.0'],
     [104, '23.0'],
   ],
+  // This is the base data. Since it have no direct Safari equals by the
+  // WebKit / JavaScriptCore version, don't use mapping for future releases.
+  SafariToBun: [
+    ['16.0', '0.1.1'],
+  ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   // https://en.wikipedia.org/wiki/Safari_version_history
   SafariToIOS: [

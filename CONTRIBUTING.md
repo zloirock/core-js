@@ -34,7 +34,7 @@ For updating `core-js-compat` data:
 engine         | how to run tests | base data inherits from | mandatory check | mapping for a new version
 ---            | ---              | ---                     | ---             | ---
 `android`      | browser runner   | `chrome`                |                 |
-`bun`          | bun runner       |                         | required        |
+`bun`          | bun runner       | `safari` (only ES)      | required        |
 `chrome`       | browser runner   |                         | required        |
 `deno`         | deno runner      | `chrome` (only ES)      | non-ES features | required
 `edge`         | browser runner   | `ie`, `chrome`          | required        |

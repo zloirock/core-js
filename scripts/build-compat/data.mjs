@@ -55,6 +55,9 @@ for (const scope of [data, external]) {
     }
     map('ChromeToSamsung');
     map('AndroidToOculus');
+    if (/^(?:es|esnext)\./.test(key)) {
+      map('SafariToBun');
+    }
     map('SafariToIOS');
     if (!has(module, 'ios') && has(module, 'safari') && semver(module.safari).major >= 15) {
       module.ios = module.safari;
