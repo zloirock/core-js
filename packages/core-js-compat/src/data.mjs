@@ -384,8 +384,8 @@ export const data = {
     hermes: '0.1',
     ie: '5.5',
     opera: '10.50',
-    // safari 12.0 has a serious bug
     rhino: '1.7.13',
+    // safari 12.0 has a serious bug
     safari: '12.0.2',
   },
   'es.array.slice': {
