@@ -225,6 +225,7 @@ export default {
   ],
   // This is the base data. Since it have no direct Safari equals by the
   // WebKit / JavaScriptCore version, don't use mapping for future releases.
+  // https://github.com/oven-sh/bun/issues/396
   SafariToBun: [
     ['16.0', '0.1.1'],
   ],
