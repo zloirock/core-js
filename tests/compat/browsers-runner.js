@@ -17,6 +17,7 @@ var environments = [
   'edge',
   'electron',
   'firefox',
+  'firefox-android',
   'hermes',
   'ie',
   'ios',

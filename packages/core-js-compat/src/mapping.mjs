@@ -236,6 +236,10 @@ export default {
     [104, '23.0'],
     [106, '24.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  FirefoxToFirefoxAndroid(firefox) {
+    return firefox <= 4 ? 4 : firefox;
+  },
   // This is the base data. Since it have no direct Safari equals by the
   // WebKit / JavaScriptCore version, don't use mapping for future releases.
   // https://github.com/oven-sh/bun/issues/396

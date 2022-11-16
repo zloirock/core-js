@@ -31,28 +31,29 @@ For updating `core-js-compat` data:
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
-engine           | how to run tests | base data inherits from | mandatory check | mapping for a new version
----              | ---              | ---                     | ---             | ---
-`android`        | browser runner   | `chrome`                |                 |
-`bun`            | bun runner       | `safari` (only ES)      | required        |
-`chrome`         | browser runner   |                         | required        |
-`chrome-android` | browser runner   | `chrome`                |                 |
-`deno`           | deno runner      | `chrome` (only ES)      | non-ES features | required
-`edge`           | browser runner   | `ie`, `chrome`          | required        |
-`electron`       | browser runner   | `chrome`                |                 | required
-`firefox`        | browser runner   |                         | required        |
-`hermes`         | hermes runner    |                         | required        |
-`ie`             | browser runner   |                         | required        |
-`ios`            | browser runner   | `safari`                |                 | if inconsistent (!= safari)
-`node`           | node runner      | `chrome` (only ES)      | non-ES features | required
-`oculus`         | browser runner   | `chrome`                |                 | required
-`opera`          | browser runner   | `chrome`                |                 | if inconsistent (!= chrome - 14)
-`opera-android`  | browser runner   | `opera`, `chrome`       |                 | required
-`phantom`        | browser runner   | `safari`                |                 |
-`react-native`   | hermes runner    | `hermes`                | required        |
-`rhino`          | rhino runner     |                         | required        |
-`safari`         | browser runner   |                         | required        |
-`samsung`        | browser runner   | `chrome`                |                 | required
+engine            | how to run tests | base data inherits from | mandatory check | mapping for a new version
+---               | ---              | ---                     | ---             | ---
+`android`         | browser runner   | `chrome`                |                 |
+`bun`             | bun runner       | `safari` (only ES)      | required        |
+`chrome`          | browser runner   |                         | required        |
+`chrome-android`  | browser runner   | `chrome`                |                 |
+`deno`            | deno runner      | `chrome` (only ES)      | non-ES features | required
+`edge`            | browser runner   | `ie`, `chrome`          | required        |
+`electron`        | browser runner   | `chrome`                |                 | required
+`firefox`         | browser runner   |                         | required        |
+`firefox-android` | browser runner   | `firefox`               |                 |
+`hermes`          | hermes runner    |                         | required        |
+`ie`              | browser runner   |                         | required        |
+`ios`             | browser runner   | `safari`                |                 | if inconsistent (!= safari)
+`node`            | node runner      | `chrome` (only ES)      | non-ES features | required
+`oculus`          | browser runner   | `chrome`                |                 | required
+`opera`           | browser runner   | `chrome`                |                 | if inconsistent (!= chrome - 14)
+`opera-android`   | browser runner   | `opera`, `chrome`       |                 | required
+`phantom`         | browser runner   | `safari`                |                 |
+`react-native`    | hermes runner    | `hermes`                | required        |
+`rhino`           | rhino runner     |                         | required        |
+`safari`          | browser runner   |                         | required        |
+`samsung`         | browser runner   | `chrome`                |                 | required
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 

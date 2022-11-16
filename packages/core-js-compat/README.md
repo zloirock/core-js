@@ -80,6 +80,7 @@ console.log(targets);
   edge: '13',             // Edge version
   electron: '5.0',        // Electron framework version
   firefox: '15',          // Firefox version
+  'firefox-android': '4', // Firefox Android version
   hermes: '0.11',         // Hermes version
   ie: '8',                // Internet Explorer version
   ios: '13.0',            // iOS Safari version

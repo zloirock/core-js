@@ -5,8 +5,7 @@ const external = require('./external');
 
 const aliases = new Map([
   ['and_chr', 'chrome-android'],
-  ['and_ff', 'firefox'],
-  ['firefox-android', 'firefox'],
+  ['and_ff', 'firefox-android'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
   ['op_mob', 'opera-android'],
@@ -25,6 +24,7 @@ const validTargets = new Set([
   'edge',
   'electron',
   'firefox',
+  'firefox-android',
   'hermes',
   'ie',
   'ios',

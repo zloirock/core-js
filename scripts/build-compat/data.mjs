@@ -64,6 +64,7 @@ for (const scope of [data, external]) {
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
+    map('FirefoxToFirefoxAndroid');
     map('SafariToIOS');
     if (!has(module, 'ios') && has(module, 'safari') && semver(module.safari).major >= 15) {
       module.ios = module.safari;
