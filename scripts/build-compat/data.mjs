@@ -29,6 +29,7 @@ for (const scope of [data, external]) {
 
     map('ChromeToAndroid');
     if (!has(module, 'android') && chrome) {
+      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
       module.android = String(Math.max(chrome, 37));
     }
     if (key.startsWith('es')) {
