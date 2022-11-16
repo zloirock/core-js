@@ -69,6 +69,7 @@ for (const scope of [data, external]) {
       module.ios = module.safari;
     }
     map('SafariToPhantom');
+    map('HermesToReactNative');
 
     for (const [engine, version] of Object.entries(module)) {
       if (!version) delete module[engine];

@@ -271,4 +271,9 @@ export default {
     ['4.1', '1.9'],
     ['6.0', '2.0'],
   ],
+  // This is the base data. Since it have no direct Hermes version equals,
+  // don't use mapping for future releases.
+  HermesToReactNative: [
+    ['0.11', '0.69'],
+  ],
 };

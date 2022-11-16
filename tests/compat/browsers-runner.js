@@ -25,6 +25,7 @@ var environments = [
   'opera',
   'opera-android',
   'phantom',
+  'react-native',
   'rhino',
   'safari',
   'samsung'

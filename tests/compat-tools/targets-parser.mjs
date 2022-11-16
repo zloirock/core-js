@@ -55,6 +55,7 @@ deepEqual(targetsParser({
   ios_saf: '12.2',
   op_mob: 40,
   op_mini: 1,
+  react: '0.70',
   random: 42,
 }), new Map([
   ['chrome-android', '56'],
@@ -62,6 +63,7 @@ deepEqual(targetsParser({
   ['ie', '11'],
   ['ios', '12.2'],
   ['opera-android', '40'],
+  ['react-native', '0.70'],
 ]), 'normalization');
 
 deepEqual(targetsParser({
@@ -78,6 +80,7 @@ deepEqual(targetsParser({
   and_ff: 65,
   ios_saf: '12.2',
   op_mob: 40,
+  'react-native': '0.70',
   random: 42,
 }), new Map([
   ['android', '4.2'],
@@ -94,6 +97,7 @@ deepEqual(targetsParser({
   ['oculus', '4.0'],
   ['opera', '48'],
   ['opera-android', '40'],
+  ['react-native', '0.70'],
   ['safari', '5.1'],
   ['samsung', '4'],
 ]), 'mixed');

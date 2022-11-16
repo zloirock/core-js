@@ -12,6 +12,8 @@ const aliases = new Map([
   ['op_mob', 'opera-android'],
   // TODO: Remove from `core-js@4`
   ['opera_mobile', 'opera-android'],
+  ['react', 'react-native'],
+  ['reactnative', 'react-native'],
 ]);
 
 const validTargets = new Set([
@@ -31,6 +33,7 @@ const validTargets = new Set([
   'opera',
   'opera-android',
   'phantom',
+  'react-native',
   'rhino',
   'safari',
   'samsung',

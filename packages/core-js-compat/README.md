@@ -88,6 +88,7 @@ console.log(targets);
   opera: '12',            // Opera version
   'opera-android': '7',   // Opera Android version
   phantom: '1.9',         // PhantomJS headless browser version
+  'react-native': '0.70', // React Native version (default Hermes engine)
   rhino: '1.7.13',        // Rhino engine version
   safari: '14.0',         // Safari version
   samsung: '14.0',        // Samsung Internet version

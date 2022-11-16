@@ -27,7 +27,7 @@ For updating `core-js-compat` data:
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno json` if you want to get the result as JSON.
 - If you want to add new data for Bun, run `npm run compat-bun` with the installed required Bun version and you will see the results in the console.
 - If you want to add new data for Rhino, set the required Rhino version in `compat-rhino` NPM script in [`package.json`](./package.json), run `npm run compat-rhino` and you will see the results in the console.
-- If you want to add new data for Hermes, run `npm run compat-hermes YOR_PATH_TO_HERMES` and you will see the results in the console.
+- If you want to add new data for Hermes (incl. shipped with React Native), run `npm run compat-hermes YOR_PATH_TO_HERMES` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
@@ -45,10 +45,11 @@ engine           | how to run tests | base data inherits from | mandatory check 
 `ie`             | browser runner   |                         | required        |
 `ios`            | browser runner   | `safari`                |                 | if inconsistent (!= safari)
 `node`           | node runner      | `chrome` (only ES)      | non-ES features | required
-`oculus`         | browser runner   | `chrome`                | required
+`oculus`         | browser runner   | `chrome`                |                 | required
 `opera`          | browser runner   | `chrome`                |                 | if inconsistent (!= chrome - 14)
 `opera-android`  | browser runner   | `opera`, `chrome`       |                 | required
 `phantom`        | browser runner   | `safari`                |                 |
+`react-native`   | hermes runner    | `hermes`                | required        |
 `rhino`          | rhino runner     |                         | required        |
 `safari`         | browser runner   |                         | required        |
 `samsung`        | browser runner   | `chrome`                |                 | required
