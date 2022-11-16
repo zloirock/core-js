@@ -6,7 +6,7 @@
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.27.1",
+    "playwright": "^1.28.0",
     "qunit": "^2.19.3"
   }
 }
