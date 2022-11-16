@@ -6,6 +6,7 @@ const external = require('./external');
 const aliases = new Map([
   ['and_chr', 'chrome-android'],
   ['and_ff', 'firefox'],
+  ['firefox-android', 'firefox'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
   ['op_mob', 'opera-android'],
