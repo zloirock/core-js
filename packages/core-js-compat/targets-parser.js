@@ -4,7 +4,7 @@ const { compare, has } = require('./helpers');
 const external = require('./external');
 
 const aliases = new Map([
-  ['and_chr', 'chrome'],
+  ['and_chr', 'chrome-android'],
   ['and_ff', 'firefox'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
@@ -17,6 +17,7 @@ const validTargets = new Set([
   'android',
   'bun',
   'chrome',
+  'chrome-android',
   'deno',
   'edge',
   'electron',

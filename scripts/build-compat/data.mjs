@@ -32,6 +32,7 @@ for (const scope of [data, external]) {
       // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
       module.android = String(Math.max(chrome, 37));
     }
+    map('ChromeToChromeAndroid');
     if (key.startsWith('es')) {
       map('ChromeToDeno');
     }
@@ -58,8 +59,8 @@ for (const scope of [data, external]) {
     if (has(module, 'opera-android')) {
       module.opera_mobile = module['opera-android'];
     }
+    map('ChromeToOculus');
     map('ChromeToSamsung');
-    map('AndroidToOculus');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }

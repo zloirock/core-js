@@ -130,6 +130,13 @@ export default {
     [106, '21.0'],
     [108, '22.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
+  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
+  ChromeToChromeAndroid(chrome) {
+    return chrome <= 18 ? 18
+         : chrome <= 25 ? 25
+         : chrome;
+  },
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
@@ -205,7 +212,7 @@ export default {
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
-  AndroidToOculus: [
+  ChromeToOculus: [
     [57, '3.0'],
     [61, '4.0'],
     [66, '5.0'],

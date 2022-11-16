@@ -12,6 +12,7 @@ var environments = [
   'android',
   'bun',
   'chrome',
+  'chrome-android',
   'deno',
   'edge',
   'electron',

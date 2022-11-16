@@ -70,28 +70,29 @@ console.log(targets);
 ```js
 // browserslist query:
 'defaults, not IE 11, maintained node versions'
-// object:
+// object (sure, all those fields optional):
 {
-  android: '4.0',        // Android WebView version
-  bun: '0.1.2',          // Bun version
-  chrome: '38',          // Chrome version
-  deno: '1.12',          // Deno version
-  edge: '13',            // Edge version
-  electron: '5.0',       // Electron framework version
-  firefox: '15',         // Firefox version
-  hermes: '0.11',        // Hermes version
-  ie: '8',               // Internet Explorer version
-  ios: '13.0',           // iOS Safari version
-  node: 'current',       // NodeJS version, you can use 'current' for set it to currently used
-  oculus: '5.0',         // Oculus Browser version
-  opera: '12',           // Opera version
-  'opera-android': '7',  // Opera Mobile version
-  phantom: '1.9',        // PhantomJS headless browser version
-  rhino: '1.7.13',       // Rhino engine version
-  safari: '14.0',        // Safari version
-  samsung: '14.0',       // Samsung Internet version
-  esmodules: true,       // That option set target to minimum supporting ES Modules versions of all browsers
-  browsers: '> 0.25%',   // Browserslist query or object with target browsers
+  android: '4.0',         // Android WebView version
+  bun: '0.1.2',           // Bun version
+  chrome: '38',           // Chrome version
+  'chrome-android': '18', // Chrome Android version
+  deno: '1.12',           // Deno version
+  edge: '13',             // Edge version
+  electron: '5.0',        // Electron framework version
+  firefox: '15',          // Firefox version
+  hermes: '0.11',         // Hermes version
+  ie: '8',                // Internet Explorer version
+  ios: '13.0',            // iOS Safari version
+  node: 'current',        // NodeJS version, you can use 'current' for set it to currently used
+  oculus: '5.0',          // Oculus Browser version
+  opera: '12',            // Opera version
+  'opera-android': '7',   // Opera Android version
+  phantom: '1.9',         // PhantomJS headless browser version
+  rhino: '1.7.13',        // Rhino engine version
+  safari: '14.0',         // Safari version
+  samsung: '14.0',        // Samsung Internet version
+  esmodules: true,        // That option set target to minimum supporting ES Modules versions of all browsers
+  browsers: '> 0.25%',    // Browserslist query or object with target browsers
 }
 ```
 

@@ -27,6 +27,7 @@ deepEqual(targetsParser({ esmodules: true }), new Map([
   ['android', '61'],
   ['bun', '0.1.1'],
   ['chrome', '61'],
+  ['chrome-android', '61'],
   ['deno', '1.0'],
   ['edge', '16'],
   ['firefox', '60'],
@@ -56,7 +57,7 @@ deepEqual(targetsParser({
   op_mini: 1,
   random: 42,
 }), new Map([
-  ['chrome', '56'],
+  ['chrome-android', '56'],
   ['firefox', '60'],
   ['ie', '11'],
   ['ios', '12.2'],
@@ -81,7 +82,8 @@ deepEqual(targetsParser({
 }), new Map([
   ['android', '4.2'],
   ['bun', '0.1.1'],
-  ['chrome', '56'],
+  ['chrome', '61'],
+  ['chrome-android', '56'],
   ['deno', '1.0'],
   ['edge', '13'],
   ['electron', '1'],
