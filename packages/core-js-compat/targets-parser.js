@@ -8,7 +8,9 @@ const aliases = new Map([
   ['and_ff', 'firefox'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
-  ['op_mob', 'opera_mobile'],
+  ['op_mob', 'opera-android'],
+  // TODO: Remove from `core-js@4`
+  ['opera_mobile', 'opera-android'],
 ]);
 
 const validTargets = new Set([
@@ -25,7 +27,7 @@ const validTargets = new Set([
   'node',
   'oculus',
   'opera',
-  'opera_mobile',
+  'opera-android',
   'phantom',
   'rhino',
   'safari',

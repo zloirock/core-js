@@ -22,7 +22,7 @@ var environments = [
   'node',
   'oculus',
   'opera',
-  'opera_mobile',
+  'opera-android',
   'phantom',
   'rhino',
   'safari',
@@ -34,7 +34,7 @@ var columnHeaders = ['module', 'current'].concat(environments);
 
 for (var i = 0; i < columnHeaders.length; i++) {
   tableHeader.appendChild(createElement('th', {
-    innerHTML: columnHeaders[i].replace(/_/g, '<br />')
+    innerHTML: columnHeaders[i].replace(/-/g, '<br />')
   }));
 }
 

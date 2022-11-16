@@ -12,7 +12,7 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }_${ b }`).toLowerCase());
+        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }-${ b }`).toLowerCase());
       const version = module[engine];
       if (!version || has(module, targetKey)) return;
       const mapping = mappings[mappingKey];
@@ -48,10 +48,14 @@ for (const scope of [data, external]) {
       map('ChromeToNode');
     }
     map('ChromeToOpera');
-    if (!has(module, 'opera_mobile') && module.opera <= 42) {
-      module.opera_mobile = module.opera;
+    if (!has(module, 'opera-android') && module.opera <= 42) {
+      module['opera-android'] = module.opera;
     } else {
-      map('ChromeToOperaMobile');
+      map('ChromeToOperaAndroid');
+    }
+    // TODO: Remove from `core-js@4`
+    if (has(module, 'opera-android')) {
+      module.opera_mobile = module['opera-android'];
     }
     map('ChromeToSamsung');
     map('AndroidToOculus');

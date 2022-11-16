@@ -34,7 +34,7 @@ deepEqual(targetsParser({ esmodules: true }), new Map([
   ['node', '13.2'],
   ['oculus', '4.0'],
   ['opera', '48'],
-  ['opera_mobile', '45'],
+  ['opera-android', '45'],
   ['safari', '10.1'],
   ['samsung', '8.0'],
 ]), 'targets.esmodules');
@@ -60,7 +60,7 @@ deepEqual(targetsParser({
   ['firefox', '60'],
   ['ie', '11'],
   ['ios', '12.2'],
-  ['opera_mobile', '40'],
+  ['opera-android', '40'],
 ]), 'normalization');
 
 deepEqual(targetsParser({
@@ -91,7 +91,7 @@ deepEqual(targetsParser({
   ['node', '12.0'],
   ['oculus', '4.0'],
   ['opera', '48'],
-  ['opera_mobile', '40'],
+  ['opera-android', '40'],
   ['safari', '5.1'],
   ['samsung', '4'],
 ]), 'mixed');

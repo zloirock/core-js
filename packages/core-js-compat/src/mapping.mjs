@@ -163,7 +163,7 @@ export default {
          : chrome - 14;
   },
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
-  ChromeToOperaMobile: [
+  ChromeToOperaAndroid: [
     [59, 43],
     [60, 44],
     [61, 45],

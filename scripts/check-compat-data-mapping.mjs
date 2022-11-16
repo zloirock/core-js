@@ -47,7 +47,7 @@ const [
   deno,
   oculus,
   opera,
-  operaMobile,
+  operaAndroid,
   safari,
   ios,
   samsung,
@@ -68,7 +68,7 @@ assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 assert(oculus.engine <= latest(mapping.AndroidToOculus)[0], 'Oculus');
 assert(opera.version == mapping.ChromeToOpera(opera.engine), 'Opera');
-assert(operaMobile.engine <= latest(mapping.ChromeToOperaMobile)[0], 'Opera Mobile');
+assert(operaAndroid.engine <= latest(mapping.ChromeToOperaAndroid)[0], 'Opera Android');
 assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
 assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
 
