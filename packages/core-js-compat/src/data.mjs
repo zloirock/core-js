@@ -387,7 +387,7 @@ export const data = {
     firefox: '23',
     hermes: '0.1',
     ie: '9',
-    // bug with setting length fixed only in Safari TP
+    // bug with setting length fixed only in Safari 16
     safari: '16.0',
   },
   'es.array-buffer.constructor': {
