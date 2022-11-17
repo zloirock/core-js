@@ -130,6 +130,7 @@ export default {
   ],
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
+  // https://en.wikipedia.org/wiki/Samsung_Internet#History
   ChromeToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
@@ -151,6 +152,7 @@ export default {
     [92, '16.0'],
     [96, '17.0'],
     [99, '18.0'],
+    [102, '19.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {

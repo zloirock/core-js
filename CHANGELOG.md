@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Added Samsung Internet 19.0 compat data mapping
 
 ##### [3.26.1 - 2022.11.14](https://github.com/zloirock/core-js/releases/tag/v3.26.1)
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3
