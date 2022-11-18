@@ -1840,17 +1840,21 @@ export const data = {
   'esnext.array.last-item': {
   },
   'esnext.array.to-reversed': {
+    deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.to-sorted': {
+    deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.to-spliced': {
+    deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.unique-by': {
   },
   'esnext.array.with': {
+    deno: '1.27',
     safari: '16.0',
   },
   'esnext.async-iterator.constructor': {
@@ -2150,9 +2154,11 @@ export const data = {
   'esnext.typed-array.group-by': {
   },
   'esnext.typed-array.to-reversed': {
+    deno: '1.27',
     safari: '16.0',
   },
   'esnext.typed-array.to-sorted': {
+    deno: '1.27',
     safari: '16.0',
   },
   // TODO: Remove from `core-js@4`
@@ -2161,6 +2167,7 @@ export const data = {
   'esnext.typed-array.unique-by': {
   },
   'esnext.typed-array.with': {
+    deno: '1.27',
     bun: '0.1.9',
   },
   'esnext.weak-map.delete-all': {

@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as enabled by default from Deno 1.27, [deno/16429](https://github.com/denoland/deno/pull/16429)
+- Added Deno 1.28 compat data mapping
 - Added Samsung Internet 19.0 compat data mapping
 - Fixed the first version in the Chromium-based Edge compat data mapping
 
