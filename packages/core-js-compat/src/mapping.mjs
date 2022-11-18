@@ -130,6 +130,18 @@ export default {
     [106, '21.0'],
     [108, '22.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  ChromeToOpera(chrome) {
+    return chrome <= 28 ? 15
+         : chrome <= 82 ? chrome - 13
+         : chrome - 14;
+  },
+  ChromeToAndroid: [
+    [9, '3.0'],
+    [12, '4.0'],
+    [30, '4.4'],
+    [33, '4.4.3'],
+  ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
   // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
   ChromeToChromeAndroid(chrome) {
@@ -141,7 +153,7 @@ export default {
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
   // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#samsung-internet
-  ChromeToSamsung: [
+  ChromeAndroidToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
     [34, '2.0'],
@@ -164,14 +176,8 @@ export default {
     [99, '18.0'],
     [102, '19.0'],
   ],
-  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
-  ChromeToOpera(chrome) {
-    return chrome <= 28 ? 15
-         : chrome <= 82 ? chrome - 13
-         : chrome - 14;
-  },
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
-  ChromeToOperaAndroid: [
+  ChromeAndroidToOperaAndroid: [
     [59, 43],
     [60, 44],
     [61, 45],
@@ -203,16 +209,10 @@ export default {
     [104, 71],
     [106, 72],
   ],
-  ChromeToAndroid: [
-    [9, '3.0'],
-    [12, '4.0'],
-    [30, '4.4'],
-    [33, '4.4.3'],
-  ],
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
-  ChromeToQuest: [
+  ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],
     [66, '5.0'],

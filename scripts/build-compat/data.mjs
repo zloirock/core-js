@@ -27,17 +27,9 @@ for (const scope of [data, external]) {
       }
     }
 
-    map('ChromeToAndroid');
-    if (!has(module, 'android') && chrome) {
-      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
-      module.android = String(Math.max(chrome, 37));
-    }
-    map('ChromeToChromeAndroid');
-    if (key.startsWith('es')) {
+    if (/^(?:es|esnext)\./.test(key)) {
       map('ChromeToDeno');
-    }
-    if (/^(?:es|esnext|web)\./.test(key)) {
-      map('ChromeToElectron');
+      map('ChromeToNode');
     }
     if (!has(module, 'edge')) {
       if (ie && !key.includes('immediate')) {
@@ -46,25 +38,31 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 79));
       }
     }
-    if (key.startsWith('es')) {
-      map('ChromeToNode');
+    if (/^(?:es|esnext|web)\./.test(key)) {
+      map('ChromeToElectron');
     }
     map('ChromeToOpera');
+    map('ChromeToChromeAndroid');
+    map('ChromeToAndroid');
+    if (!has(module, 'android') && module['chrome-android']) {
+      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
+      module.android = String(Math.max(module['chrome-android'], 37));
+    }
     if (!has(module, 'opera-android') && module.opera <= 42) {
       module['opera-android'] = module.opera;
     } else {
-      map('ChromeToOperaAndroid');
+      map('ChromeAndroidToOperaAndroid');
     }
     // TODO: Remove from `core-js@4`
     if (has(module, 'opera-android')) {
       module.opera_mobile = module['opera-android'];
     }
-    map('ChromeToQuest');
+    map('ChromeAndroidToQuest');
     // TODO: Remove from `core-js@4`
     if (has(module, 'quest')) {
       module.oculus = module.quest;
     }
-    map('ChromeToSamsung');
+    map('ChromeAndroidToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }

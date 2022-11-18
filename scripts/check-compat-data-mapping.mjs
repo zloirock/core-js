@@ -66,10 +66,10 @@ const [
 assert(modernV8ToChrome(v8) <= latest(mapping.ChromeToNode)[0], 'NodeJS');
 assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
-assert(oculus.engine <= latest(mapping.ChromeToQuest)[0], 'Meta Quest');
+assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0], 'Meta Quest');
 assert(opera.version == mapping.ChromeToOpera(opera.engine), 'Opera');
-assert(operaAndroid.engine <= latest(mapping.ChromeToOperaAndroid)[0], 'Opera for Android');
+assert(operaAndroid.engine <= latest(mapping.ChromeAndroidToOperaAndroid)[0], 'Opera for Android');
 assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
-assert(samsung.engine <= latest(mapping.ChromeToSamsung)[0], 'Samsung Internet');
+assert(samsung.engine <= latest(mapping.ChromeAndroidToSamsung)[0], 'Samsung Internet');
 
 if (updated) echo(chalk.green('updates of compat data mapping not required'));
