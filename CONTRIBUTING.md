@@ -46,10 +46,10 @@ engine            | how to run tests | base data inherits from | mandatory check
 `ie`              | browser runner   |                         | required        |
 `ios`             | browser runner   | `safari`                |                 | if inconsistent (!= safari)
 `node`            | node runner      | `chrome` (only ES)      | non-ES features | required
-`oculus`          | browser runner   | `chrome`                |                 | required
 `opera`           | browser runner   | `chrome`                |                 | if inconsistent (!= chrome - 14)
 `opera-android`   | browser runner   | `opera`, `chrome`       |                 | required
 `phantom`         | browser runner   | `safari`                |                 |
+`quest`           | browser runner   | `chrome`                |                 | required
 `react-native`    | hermes runner    | `hermes`                | required        |
 `rhino`           | rhino runner     |                         | required        |
 `safari`          | browser runner   |                         | required        |
