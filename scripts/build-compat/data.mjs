@@ -41,7 +41,7 @@ for (const scope of [data, external]) {
       if (ie && !key.includes('immediate')) {
         module.edge = '12';
       } else if (chrome) {
-        module.edge = String(Math.max(chrome, 74));
+        module.edge = String(Math.max(chrome, 79));
       }
     }
     if (key.startsWith('es')) {
