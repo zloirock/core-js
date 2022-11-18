@@ -59,7 +59,11 @@ for (const scope of [data, external]) {
     if (has(module, 'opera-android')) {
       module.opera_mobile = module['opera-android'];
     }
-    map('ChromeToOculus');
+    map('ChromeToQuest');
+    // TODO: Remove from `core-js@4`
+    if (has(module, 'quest')) {
+      module.oculus = module.quest;
+    }
     map('ChromeToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
