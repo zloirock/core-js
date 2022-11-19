@@ -225,6 +225,7 @@ export default {
     [100, '21.0'],
     [102, '22.0'],
     [104, '23.0'],
+    [106, '24.0'],
   ],
   // This is the base data. Since it have no direct Safari equals by the
   // WebKit / JavaScriptCore version, don't use mapping for future releases.
