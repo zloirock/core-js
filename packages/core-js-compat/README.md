@@ -129,4 +129,4 @@ require('core-js-compat').getModulesListForTargetVersion('3.26'); // => Array<Mo
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/compat/), the example:
 
-![compat-table](https://user-images.githubusercontent.com/2213682/173199354-1f3aeb83-7231-46b2-8a14-a9d47ce3ae45.png)
+![compat-table](https://user-images.githubusercontent.com/2213682/202867481-69d28cd6-9e1a-453b-8875-39a5bf92eac3.png)

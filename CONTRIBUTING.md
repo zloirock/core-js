@@ -21,7 +21,7 @@ For updating `core-js-compat` data:
 
 - If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/compat/`](http://zloirock.github.io/core-js/compat/)) and you will see what `core-js` modules are required for this browser.
 
-![compat-table](https://user-images.githubusercontent.com/2213682/180694428-856bcd0f-cab3-446f-be1a-2f669614dcc0.png)
+![compat-table](https://user-images.githubusercontent.com/2213682/202867481-69d28cd6-9e1a-453b-8875-39a5bf92eac3.png)
 
 - If you want to add new data for NodeJS, run `npm run compat-node` with the installed required NodeJS version and you will see the results in the console. Use `npm run compat-node json` if you want to get the result as JSON.
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno json` if you want to get the result as JSON.
