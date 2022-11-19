@@ -212,6 +212,7 @@ export default {
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
+  // https://whatmyuseragent.com/browser/oc/oculus-browser
   ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],
