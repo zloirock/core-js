@@ -464,6 +464,8 @@ const base = {
   'unicorn/no-static-only-class': ERROR,
   // disallow `then` property
   'unicorn/no-thenable': ERROR,
+  // disallow comparing `undefined` using `typeof` when it's not required
+  'unicorn/no-typeof-undefined': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
@@ -502,6 +504,8 @@ const base = {
   'unicorn/prefer-logical-operator-over-ternary': ERROR,
   // prefer modern `Math`` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': ERROR,
+  // prefer using Set#size instead of Array#length
+  'unicorn/prefer-set-size': ERROR,
   // prefer `String#slice` over `String#{ substr, substring }`
   'unicorn/prefer-string-slice': ERROR,
   // prefer `switch` over multiple `else-if`
