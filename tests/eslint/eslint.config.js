@@ -595,6 +595,8 @@ const base = {
   'regexp/no-empty-lookarounds-assertion': ERROR,
   // disallow escape backspace `([\b])`
   'regexp/no-escape-backspace': ERROR,
+  // disallow unnecessary nested lookaround assertions
+  'regexp/no-extra-lookaround-assertions': ERROR,
   // disallow invalid regular expression strings in RegExp constructors
   'regexp/no-invalid-regexp': ERROR,
   // disallow invisible raw character
