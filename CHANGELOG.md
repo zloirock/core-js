@@ -83,6 +83,7 @@
     - `AsyncIterator.prototype[@@asyncDispose]`
   - Sync version of this proposal moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1333747094)
   - Added `/actual/` namespace entries for Stage 3 proposal
+- Added [`String.dedent` stage 2 proposal](https://github.com/tc39/proposal-string-dedent)
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
