@@ -128,12 +128,12 @@ superset('core-js/full/url', /^web\.url(\.|$)/);
 superset('core-js/full/url-search-params', /^web\.url-search-params/);
 superset('core-js/full/weak-map', /^(es|esnext)\.weak-map/);
 superset('core-js/full/weak-set', /^(es|esnext)\.weak-set/);
-equal('core-js/proposals', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
-equal('core-js/stage', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
-equal('core-js/stage/pre', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/0', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/1', /^(es\.(map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/2', /^es\.string\.at|esnext\./);
+equal('core-js/proposals', /^(es\.(weak-map|map|string\.(at|from-code-point))|esnext\.|web\.url)/);
+equal('core-js/stage', /^(es\.(weak-map|map|string\.(at|from-code-point))|esnext\.|web\.url)/);
+equal('core-js/stage/pre', /^(es\.(weak-map|map|string\.(at|from-code-point))|esnext\.|web\.url)/);
+subset('core-js/stage/0', /^(es\.(weak-map|map|string\.(at|from-code-point))|esnext\.|web\.url)/);
+subset('core-js/stage/1', /^(es\.(weak-map|map|string\.(at|from-code-point))|esnext\.|web\.url)/);
+subset('core-js/stage/2', /^es\.(weak-map|string\.(at|from-code-point))|esnext\./);
 subset('core-js/stage/3', /^es\.string\.at|esnext\./);
 subset('core-js/stage/4', /^es\.string\.at|esnext\./);
 

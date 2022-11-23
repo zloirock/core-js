@@ -1714,6 +1714,9 @@ GLOBAL.tests = {
   'esnext.string.cooked': function () {
     return String.cooked;
   },
+  'esnext.string.dedent': function () {
+    return String.dedent;
+  },
   'esnext.string.is-well-formed': function () {
     return String.prototype.isWellFormed;
   },
