@@ -1,17 +1,13 @@
 'use strict';
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
-var aCallable = require('../internals/a-callable');
-var anObject = require('../internals/an-object');
-var iterate = require('../internals/iterate');
+var call = require('../internals/function-call');
+var toSetLike = require('../internals/to-set-like');
+var $union = require('../internals/set-union');
 
 // `Set.prototype.union` method
 // https://github.com/tc39/proposal-set-methods
 $({ target: 'Set', proto: true, real: true, forced: true }, {
   union: function union(iterable) {
-    var set = anObject(this);
-    var newSet = new (getBuiltIn('Set'))(set);
-    iterate(iterable, aCallable(newSet.add), { that: newSet });
-    return newSet;
+    return call($union, this, toSetLike(iterable));
   }
 });
