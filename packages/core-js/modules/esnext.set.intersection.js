@@ -4,7 +4,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var speciesConstructor = require('../internals/species-constructor');
 var iterate = require('../internals/iterate');
 
 // `Set.prototype.intersection` method
@@ -12,7 +11,7 @@ var iterate = require('../internals/iterate');
 $({ target: 'Set', proto: true, real: true, forced: true }, {
   intersection: function intersection(iterable) {
     var set = anObject(this);
-    var newSet = new (speciesConstructor(set, getBuiltIn('Set')))();
+    var newSet = new (getBuiltIn('Set'))();
     var hasCheck = aCallable(set.has);
     var adder = aCallable(newSet.add);
     iterate(iterable, function (value) {
