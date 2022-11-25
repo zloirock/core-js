@@ -48,7 +48,11 @@ for (var key in tests) {
 
   var tr = document.createElement('tr');
   var td1 = document.createElement('td');
-  td1.innerHTML = key;
+  var a = document.createElement('a');
+  a.innerHTML = key;
+  a.href = "https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='" + key.replace(/-/g, '%2D') + "'";
+  a.target = '_blank';
+  td1.appendChild(a);
   td1.className = result;
   tr.appendChild(td1);
   var td2 = document.createElement('td');
