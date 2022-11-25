@@ -23,6 +23,18 @@ export function createIterator(elements, methods) {
   return iterator;
 }
 
+export function createSetLike(elements) {
+  return {
+    size: elements.length,
+    has(it) {
+      return includes(elements, it);
+    },
+    keys() {
+      return createIterator(elements);
+    },
+  };
+}
+
 export function createIterable(elements, methods) {
   const iterable = {
     called: false,

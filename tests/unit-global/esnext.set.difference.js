@@ -1,4 +1,4 @@
-import { createIterable } from '../helpers/helpers';
+import { createIterable, createSetLike } from '../helpers/helpers';
 
 QUnit.test('Set#difference', assert => {
   const { difference } = Set.prototype;
@@ -11,8 +11,14 @@ QUnit.test('Set#difference', assert => {
   assert.nonEnumerable(Set.prototype, 'difference');
 
   const set = new Set([1]);
-  assert.notSame(set.difference([2]), set);
+  assert.notSame(set.difference(new Set()), set);
 
+  assert.deepEqual(from(new Set([1, 2, 3]).difference(new Set([4, 5]))), [1, 2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).difference(new Set([3, 4]))), [1, 2]);
+  assert.deepEqual(from(new Set([1, 2, 3]).difference(createSetLike([4, 5]))), [1, 2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).difference(createSetLike([3, 4]))), [1, 2]);
+
+  // TODO: drop from core-js@4
   assert.deepEqual(from(new Set([1, 2, 3]).difference([4, 5])), [1, 2, 3]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference([3, 4])), [1, 2]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference(createIterable([3, 4]))), [1, 2]);
