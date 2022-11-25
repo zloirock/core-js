@@ -129,9 +129,9 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Array.fromAsync`](#arrayfromasync)
       - [`Array` grouping](#array-grouping)
       - [Change `Array` by copy](#change-array-by-copy)
+      - [New `Set` methods](#new-set-methods)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 2 proposals](#stage-2-proposals)
-      - [New `Set` methods](#new-set-methods)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
@@ -2277,6 +2277,40 @@ const correctionNeeded = [1, 1, 3];
 correctionNeeded.with(1, 2); // => [1, 2, 3]
 correctionNeeded; // => [1, 1, 3]
 ````
+##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)[⬆](#index)
+Modules [`esnext.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.v2.js), [`esnext.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.v2.js), [`esnext.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.v2.js), [`esnext.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.v2.js), [`esnext.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.v2.js), [`esnext.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.v2.js), [`esnext.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.v2.js)
+```js
+class Set {
+  difference(other: SetLike<mixed>): Set;
+  intersection(other: SetLike<mixed>): Set;
+  isDisjointFrom(other: SetLike<mixed>): boolean;
+  isSubsetOf(other: SetLike<mixed>): boolean;
+  isSupersetOf(other: SetLike<mixed>): boolean;
+  symmetricDifference(other: SetLike<mixed>): Set;
+  union(other: SetLike<mixed>): Set;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/set-methods-v2
+core-js(-pure)/actual|full/set/difference
+core-js(-pure)/actual|full/set/intersection
+core-js(-pure)/actual|full/set/is-disjoint-from
+core-js(-pure)/actual|full/set/is-subset-of
+core-js(-pure)/actual|full/set/is-superset-of
+core-js(-pure)/actual|full/set/symmetric-difference
+core-js(-pure)/actual|full/set/union
+```
+[*Examples*](https://tinyurl.com/2henaoac):
+```js
+new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
+new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
+new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
+new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
+new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
+new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
+new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
+```
 ##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
 Modules [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js) and [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
 ```js
@@ -2304,41 +2338,6 @@ core-js(-pure)/actual|full/string(/virtual)/to-well-formed
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/2
-```
-##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)[⬆](#index)
-Modules [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
-```js
-class Set {
-  difference(iterable: SetLike<mixed>): Set;
-  intersection(iterable: SetLike<mixed>): Set;
-  isDisjointFrom(iterable: SetLike<mixed>): boolean;
-  isSubsetOf(iterable: SetLike<mixed>): boolean;
-  isSupersetOf(iterable: SetLike<mixed>): boolean;
-  symmetricDifference(iterable: SetLike<mixed>): Set;
-  union(iterable: SetLike<mixed>): Set;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/set-methods
-core-js(-pure)/full/set/difference
-core-js(-pure)/full/set/intersection
-core-js(-pure)/full/set/is-disjoint-from
-core-js(-pure)/full/set/is-subset-of
-core-js(-pure)/full/set/is-superset-of
-core-js(-pure)/full/set/symmetric-difference
-core-js(-pure)/full/set/union
-```
-[*Examples*](https://tinyurl.com/2henaoac):
-```js
-new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
-new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
-new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
-
-new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
-new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
-new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)

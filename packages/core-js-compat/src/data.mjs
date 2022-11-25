@@ -2071,6 +2071,9 @@ export const data = {
   },
   'esnext.set.delete-all': {
   },
+  'esnext.set.difference.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
   },
   'esnext.set.every': {
@@ -2081,12 +2084,24 @@ export const data = {
   },
   'esnext.set.from': {
   },
+  'esnext.set.intersection.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
+  'esnext.set.is-disjoint-from.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
+  'esnext.set.is-subset-of.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
+  'esnext.set.is-superset-of.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
   },
   'esnext.set.join': {
@@ -2099,8 +2114,14 @@ export const data = {
   },
   'esnext.set.some': {
   },
+  'esnext.set.symmetric-difference.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
+  'esnext.set.union.v2': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.set.union': {
   },
   // TODO: Remove from `core-js@4`

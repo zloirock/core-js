@@ -6,6 +6,7 @@ var $symmetricDifference = require('../internals/set-symmetric-difference');
 
 // `Set.prototype.symmetricDifference` method
 // https://github.com/tc39/proposal-set-methods
+// TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
   symmetricDifference: function symmetricDifference(iterable) {
     return call($symmetricDifference, this, toSetLike(iterable));

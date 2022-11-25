@@ -162,4 +162,13 @@ export default {
     'esnext.string.to-well-formed',
     'web.self',
   ],
+  3.27: [
+    'esnext.set.difference.v2',
+    'esnext.set.intersection.v2',
+    'esnext.set.is-disjoint-from.v2',
+    'esnext.set.is-subset-of.v2',
+    'esnext.set.is-superset-of.v2',
+    'esnext.set.symmetric-difference.v2',
+    'esnext.set.union.v2',
+  ],
 };

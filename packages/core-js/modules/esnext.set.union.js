@@ -6,6 +6,7 @@ var $union = require('../internals/set-union');
 
 // `Set.prototype.union` method
 // https://github.com/tc39/proposal-set-methods
+// TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
   union: function union(iterable) {
     return call($union, this, toSetLike(iterable));
