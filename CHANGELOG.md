@@ -41,6 +41,23 @@
     - `String.prototype.toWellFormed`
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
+- [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
+  - Methods:
+    - `Set.prototype.intersection`
+    - `Set.prototype.union`
+    - `Set.prototype.difference`
+    - `Set.prototype.symmetricDifference`
+    - `Set.prototype.isSubsetOf`
+    - `Set.prototype.isSupersetOf`
+    - `Set.prototype.isDisjointFrom`
+  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332175557)
+  - Reimplemented with [new semantics](https://tc39.es/proposal-set-methods/):
+    - Optimized performance (iteration over lowest set)
+    - Accepted only `Set`-like objects as an argument, not all iterables
+    - Accepted only `Set`s as `this`, no `@@species` support, and other minor changes
+  - For avoiding breaking changes:
+    - New versions of methods are implemented as new modules and available in new entries or entries where old versions of methods were not available before (like `/actual/` namespace)
+    - In entries where they were available before (like `/full/` namespace), those methods are available with fallbacks to old semantics (in addition to `Set`-like, they accept iterable objects). This behavior will be removed from the next major release
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
