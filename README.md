@@ -83,8 +83,7 @@ queueMicrotask(() => console.log('called as microtask'));
   - [swc](#swc)
   - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
-- [Compatibility data](#compatibility-data)
-- [Supported engines](#supported-engines)
+- [Supported engines and compatibility data](#supported-engines-and-compatibility-data)
 - [Features](#features)
   - [ECMAScript](#ecmascript)
     - [ECMAScript: Object](#ecmascript-object)
@@ -405,28 +404,15 @@ It does not work with some features. Also, if you change the default behaviour, 
 
 For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
 
-## Compatibility data[⬆](#index)
+## Supported engines and compatibility data[⬆](#index)
+
+`core-js` tries to support all possible JS engines and environments with ES3 support. Some features have a higher lower bar - for example, *some* accessors can properly work only from ES5, promises require a way to set a microtask or a task, etc.
+
+However, I have no possibility to test `core-js` absolutely everywhere - for example, testing in IE7- and some other ancient was stopped. The list of definitely supported engines you can see in the compatibility table by the link below. [Write](https://github.com/zloirock/core-js/issues) if you have issues or questions with the support of any engine.
 
 `core-js` project provides (as [`core-js-compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools for work with it - it's useful for integration with tools like `babel` or `swc`. If you wanna help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/compat/), the example:
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/180694428-856bcd0f-cab3-446f-be1a-2f669614dcc0.png)
-
-## Supported engines[⬆](#index)
-**Tested in:**
-- Chrome 26+
-- Firefox 4+
-- Safari 5+
-- Opera 12+
-- Internet Explorer 8+ (sure, IE8 with ES3 limitations; IE7- also should work, but no longer tested)
-- Edge
-- Android Browser 2.3+
-- iOS Safari 5.1+
-- PhantomJS 1.9+
-- NodeJS 0.8+
-- Deno 1.0+
-- Rhino 1.7.14+
-
-...and it doesn't mean `core-js` will not work in other engines, they just have not been tested.
 
 ## Features:[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
