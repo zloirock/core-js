@@ -803,8 +803,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
-    ok(load(NS, 'symbol/async-dispose'));
-    ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/metadata'));
     ok(load(NS, 'symbol/metadata-key'));
@@ -820,6 +818,15 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
+    ok(load(NS, 'symbol/async-dispose'));
+    ok(load(NS, 'symbol/dispose'));
+    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    load(NS, 'async-iterator/async-dispose');
+    load(NS, 'iterator/dispose');
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints == 'function');
