@@ -1392,6 +1392,9 @@ GLOBAL.tests = {
       && set.add({}) == set
       && set[Symbol.toStringTag];
   }],
+  'esnext.suppressed-error.constructor': function () {
+    return typeof SuppressedError == 'function';
+  },
   'esnext.array.from-async': function () {
     return Array.fromAsync;
   },
@@ -1432,8 +1435,14 @@ GLOBAL.tests = {
   'esnext.array.with': function () {
     return []['with'];
   },
+  'esnext.async-disposable-stack.constructor': function () {
+    return typeof AsyncDisposableStack == 'function';
+  },
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
+  },
+  'esnext.async-iterator.async-dispose': function () {
+    return AsyncIterator.prototype[Symbol.asyncDispose];
   },
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
@@ -1483,6 +1492,9 @@ GLOBAL.tests = {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
+  'esnext.disposable-stack.constructor': function () {
+    return typeof DisposableStack == 'function';
+  },
   'esnext.function.is-callable': function () {
     return Function.isCallable;
   },
@@ -1499,6 +1511,9 @@ GLOBAL.tests = {
       return typeof Iterator == 'function'
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
+  },
+  'esnext.iterator.dispose': function () {
+    return Iterator.prototype[Symbol.dispose];
   },
   'esnext.iterator.drop': function () {
     return Iterator.prototype.drop;

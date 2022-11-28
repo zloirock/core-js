@@ -2382,7 +2382,7 @@ core-js(-pure)/full/array/is-template-object
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
-##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)[⬆](#index)
+##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
 Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js).
 ```js
 class Symbol {
