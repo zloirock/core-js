@@ -17,7 +17,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 
 var $SuppressedError = function SuppressedError(error, suppressed, message /* , options */) {
-  var options = arguments.length > 2 ? arguments[2] : undefined;
+  var options = arguments.length > 3 ? arguments[3] : undefined;
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
   var that;
   if (setPrototypeOf) {
