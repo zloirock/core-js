@@ -55,8 +55,7 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
       internalState.state = DISPOSED;
       if (!DESCRIPTORS) asyncDisposableStack.disposed = true;
       var stack = internalState.stack;
-      var length = stack.length;
-      var i = 0;
+      var i = stack.length;
       var thrown = false;
       var suppressed;
 
@@ -72,8 +71,8 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
       };
 
       var loop = function () {
-        if (i < length) {
-          var disposeMethod = stack[i++];
+        if (i) {
+          var disposeMethod = stack[--i];
           try {
             Promise.resolve(disposeMethod()).then(loop, handleError);
           } catch (error) {

@@ -52,10 +52,11 @@ defineBuiltIns(DisposableStackPrototype, {
     internalState.state = DISPOSED;
     if (!DESCRIPTORS) this.disposed = true;
     var stack = internalState.stack;
+    var i = stack.length;
     var thrown = false;
     var suppressed;
-    for (var i = 0, length = stack.length; i < length; i++) {
-      var disposeMethod = stack[i];
+    while (i) {
+      var disposeMethod = stack[--i];
       try {
         disposeMethod();
       } catch (errorResult) {
