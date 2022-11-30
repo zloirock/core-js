@@ -116,6 +116,7 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
     var newAsyncDisposableStack = new $AsyncDisposableStack();
     getAsyncDisposableStackInternalState(newAsyncDisposableStack).stack = internalState.stack;
+    internalState.stack = [];
     return newAsyncDisposableStack;
   }
 });

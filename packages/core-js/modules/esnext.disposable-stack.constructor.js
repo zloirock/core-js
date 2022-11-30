@@ -100,6 +100,7 @@ defineBuiltIns(DisposableStackPrototype, {
     if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
     var newDisposableStack = new $DisposableStack();
     getDisposableStackInternalState(newDisposableStack).stack = internalState.stack;
+    internalState.stack = [];
     return newDisposableStack;
   }
 });
