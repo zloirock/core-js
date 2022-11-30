@@ -92,20 +92,20 @@ QUnit.test('DisposableStack#move', assert => {
   assert.nonEnumerable(DisposableStack.prototype, 'move');
 
   let result = '';
-  const stack1 = new DisposableStack();
+  const stack = new DisposableStack();
 
-  stack1.defer(() => result += '2');
-  stack1.defer(() => result += '1');
+  stack.defer(() => result += '2');
+  stack.defer(() => result += '1');
 
-  const stack2 = stack1.move();
+  const stack2 = stack.move();
 
-  assert.false(stack1.disposed);
+  assert.false(stack.disposed);
 
-  stack1.dispose();
+  stack.dispose();
 
   assert.same(result, '');
 
-  assert.true(stack1.disposed);
+  assert.true(stack.disposed);
 
   stack2.dispose();
 

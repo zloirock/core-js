@@ -29,7 +29,7 @@ QUnit.test('DisposableStack#use', assert => {
   assert.nonEnumerable(DisposableStack.prototype, 'use');
 
   let result = '';
-  const stack1 = new DisposableStack();
+  const stack = new DisposableStack();
   const resource = {
     [Symbol.dispose]() {
       result += '1';
@@ -38,8 +38,8 @@ QUnit.test('DisposableStack#use', assert => {
     },
   };
 
-  assert.same(stack1.use(resource), resource);
-  assert.same(stack1.dispose(), undefined);
+  assert.same(stack.use(resource), resource);
+  assert.same(stack.dispose(), undefined);
   assert.same(result, '1');
 });
 

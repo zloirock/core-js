@@ -51,7 +51,7 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     var asyncDisposableStack = this;
     return new Promise(function (resolve, reject) {
       var internalState = getAsyncDisposableStackInternalState(asyncDisposableStack);
-      if (internalState.state == DISPOSED) return;
+      if (internalState.state == DISPOSED) return resolve(undefined);
       internalState.state = DISPOSED;
       if (!DESCRIPTORS) asyncDisposableStack.disposed = true;
       var stack = internalState.stack;
