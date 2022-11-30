@@ -1513,7 +1513,7 @@ GLOBAL.tests = {
     }
   },
   'esnext.iterator.dispose': function () {
-    return Iterator.prototype[Symbol.dispose];
+    return [].keys()[Symbol.dispose];
   },
   'esnext.iterator.drop': function () {
     return Iterator.prototype.drop;
