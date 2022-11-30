@@ -55,6 +55,7 @@
     - Optimized performance (iteration over lowest set)
     - Accepted only `Set`-like objects as an argument, not all iterables
     - Accepted only `Set`s as `this`, no `@@species` support, and other minor changes
+  - Added `/actual/` entries, unconditional forced replacement changed to feature detection
   - For avoiding breaking changes:
     - New versions of methods are implemented as new modules and available in new entries or entries where old versions of methods were not available before (like `/actual/` namespace)
     - In entries where they were available before (like `/full/` namespace), those methods are available with fallbacks to old semantics (in addition to `Set`-like, they accept iterable objects). This behavior will be removed from the next major release
