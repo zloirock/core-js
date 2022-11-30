@@ -881,6 +881,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
+  load('proposals/explicit-resource-management');
   load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
   load('proposals/global-this');

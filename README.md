@@ -134,7 +134,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
-      - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
+      - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
@@ -2382,7 +2382,7 @@ core-js(-pure)/full/array/is-template-object
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
-##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
+##### [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
 Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js).
 ```js
 class Symbol {
@@ -2392,7 +2392,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/using-statement
+core-js/proposals/explicit-resource-management
 core-js(-pure)/full/symbol/async-dispose
 core-js(-pure)/full/symbol/dispose
 ```
