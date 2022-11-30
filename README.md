@@ -2384,6 +2384,8 @@ core-js(-pure)/full/array/is-template-object
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
 ##### [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
+Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**
+
 Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js), [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js), [`esnext.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-disposable-stack.constructor.js), [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js), [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js), [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js), [`esnext.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
 ```js
 class Symbol {
@@ -2398,7 +2400,7 @@ class AsyncDisposableStack {
   adopt(value: object, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   @@asyncDispose(): Promise<undefined>;
-  @@toStringTag(): 'AsyncDisposableStack';
+  @@toStringTag: 'AsyncDisposableStack';
 }
 
 class DisposableStack {
@@ -2408,7 +2410,7 @@ class DisposableStack {
   adopt(value: object, onDispose: Function): value;
   defer(onDispose: Function): undefined;
   @@dispose(): undefined;
-  @@toStringTag(): 'DisposableStack';
+  @@toStringTag: 'DisposableStack';
 }
 
 class SuppressedError extends Error {
