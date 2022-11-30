@@ -8,7 +8,7 @@ var charCodeAt = uncurryThis(''.charCodeAt);
 
 // `String.prototype.isWellFormed` method
 // https://github.com/tc39/proposal-is-usv-string
-$({ target: 'String', proto: true, forced: true }, {
+$({ target: 'String', proto: true }, {
   isWellFormed: function isWellFormed() {
     var S = toString(requireObjectCoercible(this));
     var length = S.length;

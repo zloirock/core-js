@@ -1,3 +1,3 @@
-require('../../../modules/esnext.string.to-well-formed');
+var parent = require('../../../actual/string/virtual/to-well-formed');
 
-module.exports = require('../../../internals/entry-virtual')('String').toWellFormed;
+module.exports = parent;

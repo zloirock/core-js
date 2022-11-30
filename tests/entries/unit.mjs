@@ -614,6 +614,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
+    ok(load(NS, 'string/is-well-formed')('a'));
+    ok(load(NS, 'string/virtual/is-well-formed').call('a'));
+    ok(load(NS, 'string/to-well-formed')('a') === 'a');
+    ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');
@@ -662,6 +666,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceWith({}) === undefined);
     ok(typeof instanceWith([]) == 'function');
     ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
+
+    const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
+    ok(typeof instanceIsWellFormed == 'function');
+    ok(instanceIsWellFormed({}) === undefined);
+    ok(typeof instanceIsWellFormed('') == 'function');
+    ok(instanceIsWellFormed('').call('a'));
+
+    const instanceToWellFormed = load(NS, 'instance/to-well-formed');
+    ok(typeof instanceToWellFormed == 'function');
+    ok(instanceToWellFormed({}) === undefined);
+    ok(typeof instanceToWellFormed('') == 'function');
+    ok(instanceToWellFormed('').call('a') === 'a');
   }
 
   for (const NS of ['full', 'features']) {
@@ -787,10 +803,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
-    ok(load(NS, 'string/is-well-formed')('a'));
-    ok(load(NS, 'string/virtual/is-well-formed').call('a'));
-    ok(load(NS, 'string/to-well-formed')('a') === 'a');
-    ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok(load(NS, 'symbol/async-dispose'));
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/matcher'));
@@ -826,18 +838,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceFilterReject({}) === undefined);
     ok(typeof instanceFilterReject([]) == 'function');
     ok(instanceFilterReject([]).call([1, 2, 3], it => it % 2).length === 1);
-
-    const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
-    ok(typeof instanceIsWellFormed == 'function');
-    ok(instanceIsWellFormed({}) === undefined);
-    ok(typeof instanceIsWellFormed('') == 'function');
-    ok(instanceIsWellFormed('').call('a'));
-
-    const instanceToWellFormed = load(NS, 'instance/to-well-formed');
-    ok(typeof instanceToWellFormed == 'function');
-    ok(instanceToWellFormed({}) === undefined);
-    ok(typeof instanceToWellFormed('') == 'function');
-    ok(instanceToWellFormed('').call('a') === 'a');
 
     const instanceUniqueBy = load(NS, 'instance/unique-by');
     ok(typeof instanceUniqueBy == 'function');

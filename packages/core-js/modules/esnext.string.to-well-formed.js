@@ -12,7 +12,7 @@ var REPLACEMENT_CHARACTER = '\uFFFD';
 
 // `String.prototype.toWellFormed` method
 // https://github.com/tc39/proposal-is-usv-string
-$({ target: 'String', proto: true, forced: true }, {
+$({ target: 'String', proto: true }, {
   toWellFormed: function toWellFormed() {
     var S = toString(requireObjectCoercible(this));
     var length = S.length;
