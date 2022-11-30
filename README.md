@@ -593,10 +593,11 @@ class [
   constructor(message: string, { cause: any }): %Error%;
 }
 
-class AggregateError {
-  constructor(errors: Iterable, message: string, { cause: any }): AggregateError;
+class AggregateError extends Error {
+  constructor(errors: Iterable, message?: string, { cause: any }?): AggregateError;
   errors: Array<any>;
   message: string;
+  cause: any;
 }
 
 class Error {
@@ -2383,11 +2384,47 @@ core-js(-pure)/full/array/is-template-object
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
 ##### [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
-Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js).
+Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js), [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js), [`esnext.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-disposable-stack.constructor.js), [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js), [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js), [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js), [`esnext.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
 ```js
 class Symbol {
   static asyncDispose: @@asyncDispose;
   static dispose: @@dispose;
+}
+
+class AsyncDisposableStack {
+  constructor(): AsyncDisposableStack;
+  disposeAsync(): Promise<undefined>;
+  use(value: AsyncDisposable | Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  @@asyncDispose(): Promise<undefined>;
+  @@toStringTag(): 'AsyncDisposableStack';
+}
+
+class DisposableStack {
+  constructor(): DisposableStack;
+  dispose(): undefined;
+  use(value: Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  @@dispose(): undefined;
+  @@toStringTag(): 'DisposableStack';
+}
+
+class SuppressedError extends Error {
+  constructor(error: any, suppressed: any, message?: string, { cause: any }?): SuppressedError;
+  error: any;
+  suppressed: any;
+  message: string;
+  cause: any;
+}
+
+class AsyncIterator {
+  @@asyncDispose(): Promise<undefined>;
+}
+
+class Iterator {
+  @@dispose(): undefined;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2395,6 +2432,11 @@ class Symbol {
 core-js/proposals/explicit-resource-management
 core-js(-pure)/full/symbol/async-dispose
 core-js(-pure)/full/symbol/dispose
+core-js(-pure)/full/async-disposable-stack
+core-js(-pure)/full/disposable-stack
+core-js(-pure)/full/suppressed-error
+core-js(-pure)/full/async-iterator/async-dispose
+core-js(-pure)/full/iterator/dispose
 ```
 ##### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Module [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js).

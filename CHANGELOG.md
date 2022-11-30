@@ -59,7 +59,7 @@
     - `String.prototype.toWellFormed`
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
-- [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) stage 2 proposal
+- [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) stage 2 proposal:
   - Renamed from "`using` statement"
   - In addition to already present well-known symbols `@@dispose` and `@@asyncDispose`, added new built-ins:
     - `AsyncDisposableStack`
