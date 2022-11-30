@@ -123,6 +123,10 @@ QUnit.test('AsyncDisposableStack#@@asyncDispose', assert => {
   assert.same(AsyncDisposableStack.prototype[Symbol.asyncDispose], AsyncDisposableStack.prototype.disposeAsync);
 });
 
+QUnit.test('AsyncDisposableStack#@@toStringTag', assert => {
+  assert.same(AsyncDisposableStack.prototype[Symbol.toStringTag], 'AsyncDisposableStack', '@@toStringTag');
+});
+
 QUnit.test('AsyncDisposableStack#1', assert => {
   let result = '';
   const stack = new AsyncDisposableStack();

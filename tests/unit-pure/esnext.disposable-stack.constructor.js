@@ -114,6 +114,10 @@ QUnit.test('DisposableStack#@@dispose', assert => {
   assert.same(DisposableStack.prototype[Symbol.dispose], DisposableStack.prototype.dispose);
 });
 
+QUnit.test('DisposableStack#@@toStringTag', assert => {
+  assert.same(DisposableStack.prototype[Symbol.toStringTag], 'DisposableStack', '@@toStringTag');
+});
+
 QUnit.test('DisposableStack', assert => {
   let result1 = '';
   const stack1 = new DisposableStack();
