@@ -1,4 +1,4 @@
-require('../../actual/set/difference');
+require('../../actual/set/intersection');
 require('../../modules/es.array.iterator');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.intersection');
