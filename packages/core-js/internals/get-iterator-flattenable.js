@@ -7,5 +7,5 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 module.exports = function (obj) {
   var object = anObject(obj);
   var method = getIteratorMethod(object);
-  return getIteratorDirect(isCallable(method) ? call(method, object) : object);
+  return getIteratorDirect(anObject(isCallable(method) ? call(method, object) : object));
 };

@@ -24,5 +24,6 @@ module.exports = function from(obj) {
     iterator = object;
     alreadyAsync = true;
   }
+  anObject(iterator);
   return getIteratorDirect(alreadyAsync ? iterator : new AsyncFromSyncIterator(getIteratorDirect(iterator)));
 };
