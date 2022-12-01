@@ -1,7 +1,3 @@
-require('../../modules/es.object.to-string');
-require('../../modules/esnext.iterator.constructor');
-require('../../modules/esnext.iterator.map');
+var parent = require('../../actual/iterator/map');
 
-var entryUnbind = require('../../internals/entry-unbind');
-
-module.exports = entryUnbind('Iterator', 'map');
+module.exports = parent;

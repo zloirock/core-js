@@ -1,7 +1,7 @@
 import { createIterator, createIterable } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
-import Iterator from 'core-js-pure/full/iterator';
+import Iterator from 'core-js-pure/actual/iterator';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap } = Iterator.prototype;

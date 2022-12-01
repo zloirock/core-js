@@ -5,7 +5,7 @@ var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   every: function every(fn) {
     var record = getIteratorDirect(this);
     var counter = 0;

@@ -11,7 +11,7 @@ var IteratorProxy = createIteratorProxy(function () {
   return call(this.next, this.iterator);
 }, true);
 
-$({ target: 'Iterator', stat: true, forced: true }, {
+$({ target: 'Iterator', stat: true }, {
   from: function from(O) {
     var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)

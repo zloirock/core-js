@@ -38,7 +38,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       remaining: toPositiveInteger(notANaN(+limit))

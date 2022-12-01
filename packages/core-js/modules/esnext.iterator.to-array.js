@@ -6,7 +6,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var push = [].push;
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
     iterate(getIteratorDirect(this), push, { that: result, IS_RECORD: true });
