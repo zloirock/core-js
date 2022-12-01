@@ -1,10 +1,45 @@
 ## Changelog
 ##### Unreleased
+- [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
+  - Built-ins:
+    - `Iterator`
+      - `Iterator.from`
+      - `Iterator#drop`
+      - `Iterator#every`
+      - `Iterator#filter`
+      - `Iterator#find`
+      - `Iterator#flatMap`
+      - `Iterator#forEach`
+      - `Iterator#map`
+      - `Iterator#reduce`
+      - `Iterator#some`
+      - `Iterator#take`
+      - `Iterator#toArray`
+      - `Iterator#toAsync`
+      - `Iterator#@@toStringTag`
+    - `AsyncIterator`
+      - `AsyncIterator.from`
+      - `AsyncIterator#drop`
+      - `AsyncIterator#every`
+      - `AsyncIterator#filter`
+      - `AsyncIterator#find`
+      - `AsyncIterator#flatMap`
+      - `AsyncIterator#forEach`
+      - `AsyncIterator#map`
+      - `AsyncIterator#reduce`
+      - `AsyncIterator#some`
+      - `AsyncIterator#take`
+      - `AsyncIterator#toArray`
+      - `AsyncIterator#@@toStringTag`
+  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1333474304)
+  - Added `/actual/` entries, unconditional forced replacement disabled for features that survived to Stage 3
+  - `.from` accept strings, `.flatMap` throws on strings returned from the callback, [proposal-iterator-helpers/244](https://github.com/tc39/proposal-iterator-helpers/pull/244), [proposal-iterator-helpers/250](https://github.com/tc39/proposal-iterator-helpers/pull/250)
+  - `.from` and `.flatMap` throws on non-object *iterators*, [proposal-iterator-helpers/253](https://github.com/tc39/proposal-iterator-helpers/pull/253)
 - [Well-Formed Unicode Strings](https://github.com/tc39/proposal-is-usv-string) proposal:
   - Methods:
     - `String.prototype.isWellFormed`
     - `String.prototype.toWellFormed`
-  - Moved to Stage 3, [November TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
+  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
 - Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
