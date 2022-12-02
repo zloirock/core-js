@@ -652,6 +652,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/virtual/is-well-formed').call('a'));
     ok(load(NS, 'string/to-well-formed')('a') === 'a');
     ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
+    ok(load(NS, 'symbol/dispose'));
+    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
+    load(NS, 'iterator/dispose');
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');
@@ -819,14 +824,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
     ok(load(NS, 'symbol/async-dispose'));
-    ok(load(NS, 'symbol/dispose'));
-    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     load(NS, 'async-iterator/async-dispose');
-    load(NS, 'iterator/dispose');
     ok(typeof load(NS, 'async-disposable-stack') == 'function');
     ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
-    ok(typeof load(NS, 'disposable-stack') == 'function');
-    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints == 'function');

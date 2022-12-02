@@ -1,1 +1,3 @@
-require('../../modules/esnext.iterator.dispose');
+var parent = require('../../actual/iterator/dispose');
+
+module.exports = parent;

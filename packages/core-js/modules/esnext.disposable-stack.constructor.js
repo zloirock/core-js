@@ -115,6 +115,6 @@ if (DESCRIPTORS) defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
 defineBuiltIn(DisposableStackPrototype, DISPOSE, DisposableStackPrototype.dispose, { name: 'dispose' });
 defineBuiltIn(DisposableStackPrototype, TO_STRING_TAG, DISPOSABLE_STACK, { nonWritable: true });
 
-$({ global: true, constructor: true, forced: true }, {
+$({ global: true, constructor: true }, {
   DisposableStack: $DisposableStack
 });

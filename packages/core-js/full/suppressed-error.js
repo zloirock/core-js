@@ -1,5 +1,3 @@
-require('../modules/es.error.cause');
-require('../modules/esnext.suppressed-error.constructor');
-var path = require('../internals/path');
+var parent = require('../actual/suppressed-error');
 
-module.exports = path.SuppressedError;
+module.exports = parent;
