@@ -8,7 +8,7 @@ var $isSubsetOf = require('../internals/set-is-subset-of');
 // https://github.com/tc39/proposal-set-methods
 // TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  isSubsetOf: function isSubsetOf(iterable) {
-    return call($isSubsetOf, this, toSetLike(iterable));
+  isSubsetOf: function isSubsetOf(other) {
+    return call($isSubsetOf, this, toSetLike(other));
   }
 });

@@ -8,7 +8,7 @@ var $isDisjointFrom = require('../internals/set-is-disjoint-from');
 // https://github.com/tc39/proposal-set-methods
 // TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  isDisjointFrom: function isDisjointFrom(iterable) {
-    return call($isDisjointFrom, this, toSetLike(iterable));
+  isDisjointFrom: function isDisjointFrom(other) {
+    return call($isDisjointFrom, this, toSetLike(other));
   }
 });

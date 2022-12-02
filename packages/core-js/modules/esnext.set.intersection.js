@@ -8,7 +8,7 @@ var $intersection = require('../internals/set-intersection');
 // https://github.com/tc39/proposal-set-methods
 // TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  intersection: function intersection(iterable) {
-    return call($intersection, this, toSetLike(iterable));
+  intersection: function intersection(other) {
+    return call($intersection, this, toSetLike(other));
   }
 });

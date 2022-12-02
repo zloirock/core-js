@@ -8,7 +8,7 @@ var $difference = require('../internals/set-difference');
 // https://github.com/tc39/proposal-set-methods
 // TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  difference: function difference(iterable) {
-    return call($difference, this, toSetLike(iterable));
+  difference: function difference(other) {
+    return call($difference, this, toSetLike(other));
   }
 });

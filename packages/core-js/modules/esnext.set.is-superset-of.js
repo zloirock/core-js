@@ -8,7 +8,7 @@ var $isSupersetOf = require('../internals/set-is-superset-of');
 // https://github.com/tc39/proposal-set-methods
 // TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  isSupersetOf: function isSupersetOf(iterable) {
-    return call($isSupersetOf, this, toSetLike(iterable));
+  isSupersetOf: function isSupersetOf(other) {
+    return call($isSupersetOf, this, toSetLike(other));
   }
 });
