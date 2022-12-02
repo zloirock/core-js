@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/proposal-explicit-resource-management
+// https://github.com/tc39/proposal-async-explicit-resource-management
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');
 var getBuiltIn = require('../internals/get-built-in');

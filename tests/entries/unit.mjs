@@ -873,6 +873,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/change-array-by-copy');
   load('proposals/collection-methods');

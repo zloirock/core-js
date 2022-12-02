@@ -1,5 +1,5 @@
 'use strict';
-// https://github.com/tc39/proposal-observable
+// https://github.com/tc39/proposal-async-explicit-resource-management
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var getBuiltIn = require('../internals/get-built-in');
