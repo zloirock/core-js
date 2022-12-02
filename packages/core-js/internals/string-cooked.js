@@ -4,9 +4,8 @@ var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 var $TypeError = TypeError;
-var ArrayPrototype = Array.prototype;
-var push = uncurryThis(ArrayPrototype.push);
-var join = uncurryThis(ArrayPrototype.join);
+var push = uncurryThis([].push);
+var join = uncurryThis([].join);
 
 module.exports = function cooked(template /* , ...substitutions */) {
   var cookedTemplate = toIndexedObject(template);

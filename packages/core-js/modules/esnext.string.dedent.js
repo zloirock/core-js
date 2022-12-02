@@ -5,7 +5,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var makeBuiltIn = require('../internals/make-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var apply = require('../internals/function-apply');
-var bindContext = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var isCallable = require('../internals/is-callable');
@@ -18,9 +17,12 @@ var whitespaces = require('../internals/whitespaces');
 
 var WeakMap = getBuiltIn('WeakMap');
 var globalDedentRegistry = shared('GlobalDedentRegistry', new WeakMap());
-var globalDedentRegistryHas = bindContext(globalDedentRegistry.has, globalDedentRegistry);
-var globalDedentRegistryGet = bindContext(globalDedentRegistry.get, globalDedentRegistry);
-var globalDedentRegistrySet = bindContext(globalDedentRegistry.set, globalDedentRegistry);
+
+/* eslint-disable no-self-assign -- prototype methods protection */
+globalDedentRegistry.has = globalDedentRegistry.has;
+globalDedentRegistry.get = globalDedentRegistry.get;
+globalDedentRegistry.set = globalDedentRegistry.set;
+/* eslint-enable no-self-assign -- prototype methods protection */
 
 var $Array = Array;
 var $TypeError = TypeError;
@@ -41,14 +43,14 @@ var INVALID_CLOSING_LINE = 'Invalid closing line';
 
 var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
-  if (globalDedentRegistryHas(rawInput)) return globalDedentRegistryGet(rawInput);
+  if (globalDedentRegistry.has(rawInput)) return globalDedentRegistry.get(rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
   defineProperty(cookedArr, 'raw', {
     value: freeze(raw)
   });
   freeze(cookedArr);
-  globalDedentRegistrySet(rawInput, cookedArr);
+  globalDedentRegistry.set(rawInput, cookedArr);
   return cookedArr;
 };
 
