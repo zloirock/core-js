@@ -4,6 +4,7 @@ var tryToString = require('../internals/try-to-string');
 var iterateSimple = require('../internals/iterate-simple');
 
 var Set = getBuiltIn('Set');
+var SetPrototype = Set.prototype;
 var $TypeError = TypeError;
 
 var aSet = function (it) {
@@ -54,5 +55,7 @@ module.exports = {
   has: has,
   size: size,
   clone: clone,
-  iterate: iterate
+  iterate: iterate,
+  $has: SetPrototype.has,
+  $keys: SetPrototype.keys
 };

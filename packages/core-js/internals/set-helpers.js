@@ -5,10 +5,12 @@ var iterateSimple = require('../internals/iterate-simple');
 // eslint-disable-next-line es/no-set -- safe
 var $Set = Set;
 var SetPrototype = $Set.prototype;
+var $has = SetPrototype.has;
+var $keys = SetPrototype.keys;
 var add = uncurryThis(SetPrototype.add);
 var forEach = uncurryThis(SetPrototype.forEach);
-var has = uncurryThis(SetPrototype.has);
-var keys = uncurryThis(SetPrototype.keys);
+var has = uncurryThis($has);
+var keys = uncurryThis($keys);
 var next = keys(new $Set()).next;
 
 var aSet = function (it) {
@@ -42,5 +44,7 @@ module.exports = {
   has: has,
   size: size,
   clone: clone,
-  iterate: iterate
+  iterate: iterate,
+  $has: $has,
+  $keys: $keys
 };

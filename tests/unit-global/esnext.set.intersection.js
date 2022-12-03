@@ -18,6 +18,13 @@ QUnit.test('Set#intersection', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).intersection(createSetLike([4, 5]))), []);
   assert.deepEqual(from(new Set([1, 2, 3]).intersection(createSetLike([2, 3, 4]))), [2, 3]);
 
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(new Set([3, 2]))), [2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(new Set([3, 2, 1]))), [1, 2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(new Set([3, 2, 1, 0]))), [1, 2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(createSetLike([3, 2]))), [2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(createSetLike([3, 2, 1]))), [1, 2, 3]);
+  assert.deepEqual(from(new Set([1, 2, 3]).intersection(createSetLike([3, 2, 1, 0]))), [1, 2, 3]);
+
   // TODO: drop from core-js@4
   assert.deepEqual(from(new Set([1, 2, 3]).intersection([4, 5])), []);
   assert.deepEqual(from(new Set([1, 2, 3]).intersection([2, 3, 4])), [2, 3]);
