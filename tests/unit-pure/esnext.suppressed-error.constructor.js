@@ -1,4 +1,4 @@
-import SuppressedError from 'core-js-pure/full/suppressed-error';
+import SuppressedError from 'core-js-pure/actual/suppressed-error';
 import Symbol from 'core-js-pure/es/symbol';
 import toString from 'core-js-pure/es/object/to-string';
 

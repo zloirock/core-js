@@ -1,5 +1,5 @@
 import Iterator from 'core-js-pure/full/iterator';
-import Symbol from 'core-js-pure/full/symbol';
+import Symbol from 'core-js-pure/actual/symbol';
 import create from 'core-js-pure/es/object/create';
 
 QUnit.test('Iterator#@@dispose', assert => {
