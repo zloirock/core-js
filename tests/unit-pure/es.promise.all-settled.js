@@ -7,9 +7,7 @@ QUnit.test('Promise.allSettled', assert => {
 });
 
 QUnit.test('Promise.allSettled, resolved', assert => {
-  assert.expect(1);
-  const async = assert.async();
-  Promise.allSettled([
+  return Promise.allSettled([
     Promise.resolve(1),
     Promise.reject(2),
     Promise.resolve(3),
@@ -19,16 +17,14 @@ QUnit.test('Promise.allSettled, resolved', assert => {
       { reason: 2, status: 'rejected' },
       { value: 3, status: 'fulfilled' },
     ], 'resolved with a correct value');
-    async();
   });
 });
 
 QUnit.test('Promise.allSettled, rejected', assert => {
-  assert.expect(1);
-  const async = assert.async();
   // eslint-disable-next-line promise/valid-params -- required for testing
-  Promise.allSettled().catch(() => {
+  return Promise.allSettled().then(() => {
+    assert.avoid();
+  }, () => {
     assert.required('rejected as expected');
-    async();
   });
 });

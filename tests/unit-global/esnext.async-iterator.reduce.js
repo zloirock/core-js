@@ -2,8 +2,6 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#reduce', assert => {
-  assert.expect(21);
-  const async = assert.async();
   const { reduce } = AsyncIterator.prototype;
 
   assert.isFunction(reduce);
@@ -12,7 +10,15 @@ QUnit.test('AsyncIterator#reduce', assert => {
   assert.looksNative(reduce);
   assert.nonEnumerable(AsyncIterator.prototype, 'reduce');
 
-  reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1).then(it => {
+  assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
+  assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
+
+  return reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1).then(it => {
     assert.same(it, 7, 'basic functionality, initial');
     return reduce.call(createIterator([2]), function (a, b, counter) {
       assert.same(this, STRICT_THIS, 'this');
@@ -29,15 +35,9 @@ QUnit.test('AsyncIterator#reduce', assert => {
   }).catch(() => {
     assert.required('reduce an empty iterable with no initial');
     return reduce.call(createIterator([1]), () => { throw 42; }, 1);
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.same(error, 42, 'rejection on a callback error');
-  }).then(() => async());
-
-  assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
-  assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
-  assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
+  });
 });

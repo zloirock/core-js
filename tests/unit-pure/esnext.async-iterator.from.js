@@ -4,8 +4,6 @@ import values from 'core-js-pure/es/array/values';
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator.from', assert => {
-  assert.expect(10);
-  const async = assert.async();
   const { from } = AsyncIterator;
 
   assert.isFunction(from);
@@ -14,11 +12,6 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.true(AsyncIterator.from(values([])) instanceof AsyncIterator, 'proxy, iterator');
 
   assert.true(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
-
-  AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
-    assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
-    async();
-  });
 
   const asyncIterator = assign(new AsyncIterator(), {
     next: () => { /* empty */ },
@@ -30,4 +23,8 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}), TypeError);
   assert.throws(() => from(assign(new AsyncIterator(), { next: 42 })), TypeError);
+
+  return AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
+    assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
+  });
 });

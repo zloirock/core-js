@@ -8,48 +8,42 @@ QUnit.test('Promise.any', assert => {
 });
 
 QUnit.test('Promise.any, resolved', assert => {
-  assert.expect(1);
-  const async = assert.async();
-  Promise.any([
+  return Promise.any([
     Promise.resolve(1),
     Promise.reject(2),
     Promise.resolve(3),
   ]).then(it => {
     assert.same(it, 1, 'resolved with a correct value');
-    async();
   });
 });
 
 QUnit.test('Promise.any, rejected #1', assert => {
-  assert.expect(2);
-  const async = assert.async();
-  Promise.any([
+  return Promise.any([
     Promise.reject(1),
     Promise.reject(2),
     Promise.reject(3),
-  ]).catch(error => {
+  ]).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof AggregateError, 'instanceof AggregateError');
     assert.deepEqual(error.errors, [1, 2, 3], 'rejected with a correct value');
-    async();
   });
 });
 
 QUnit.test('Promise.any, rejected #2', assert => {
-  assert.expect(1);
-  const async = assert.async();
   // eslint-disable-next-line promise/valid-params -- required for testing
-  Promise.any().catch(() => {
+  return Promise.any().then(() => {
+    assert.avoid();
+  }, () => {
     assert.required('rejected as expected');
-    async();
   });
 });
 
 QUnit.test('Promise.any, rejected #3', assert => {
-  assert.expect(2);
-  const async = assert.async();
-  Promise.any([]).catch(error => {
+  return Promise.any([]).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof AggregateError, 'instanceof AggregateError');
     assert.deepEqual(error.errors, [], 'rejected with a correct value');
-    async();
   });
 });

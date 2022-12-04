@@ -2,8 +2,6 @@ import { createAsyncIterable, createIterable } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('Array.fromAsync', assert => {
-  assert.expect(27);
-  const async = assert.async();
   const { fromAsync } = Array;
 
   assert.isFunction(fromAsync);
@@ -14,7 +12,7 @@ QUnit.test('Array.fromAsync', assert => {
 
   function C() { /* empty */ }
 
-  fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {
+  return fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'async iterable and mapfn');
     return fromAsync(createAsyncIterable([1]), function (arg, index) {
       assert.same(this, STRICT_THIS, 'this');
@@ -55,20 +53,29 @@ QUnit.test('Array.fromAsync', assert => {
   }).then(it => {
     assert.arrayEqual(it, [1], 'non-iterable');
     return fromAsync(createIterable([1]), () => { throw 42; });
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.same(error, 42, 'rejection on a callback error');
     return fromAsync(undefined, () => { /* empty */ });
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof TypeError);
     return fromAsync(null, () => { /* empty */ });
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof TypeError);
     return fromAsync([1], null);
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof TypeError);
     return fromAsync([1], {});
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.true(error instanceof TypeError);
-    async();
   });
 });

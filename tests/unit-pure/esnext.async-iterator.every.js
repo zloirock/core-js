@@ -4,15 +4,21 @@ import { STRICT_THIS } from '../helpers/constants';
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 
 QUnit.test('AsyncIterator#every', assert => {
-  assert.expect(17);
-  const async = assert.async();
   const { every } = AsyncIterator.prototype;
 
   assert.isFunction(every);
   assert.arity(every, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'every');
 
-  every.call(createIterator([1, 2, 3]), it => typeof it == 'number').then(result => {
+  assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => every.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => every.call(createIterator([1]), null), TypeError);
+  assert.throws(() => every.call(createIterator([1]), {}), TypeError);
+
+  return every.call(createIterator([1, 2, 3]), it => typeof it == 'number').then(result => {
     assert.true(result, 'basic functionality, +');
     return every.call(createIterator([1, 2, 3]), it => it === 2);
   }).then(result => {
@@ -25,15 +31,9 @@ QUnit.test('AsyncIterator#every', assert => {
     });
   }).then(() => {
     return every.call(createIterator([1]), () => { throw 42; });
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.same(error, 42, 'rejection on a callback error');
-  }).then(() => async());
-
-  assert.throws(() => every.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => every.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => every.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => every.call([], () => { /* empty */ }), TypeError);
-  assert.throws(() => every.call(createIterator([1]), undefined), TypeError);
-  assert.throws(() => every.call(createIterator([1]), null), TypeError);
-  assert.throws(() => every.call(createIterator([1]), {}), TypeError);
+  });
 });

@@ -2,8 +2,6 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#filter', assert => {
-  assert.expect(18);
-  const async = assert.async();
   const { filter } = AsyncIterator.prototype;
 
   assert.isFunction(filter);
@@ -12,7 +10,15 @@ QUnit.test('AsyncIterator#filter', assert => {
   assert.looksNative(filter);
   assert.nonEnumerable(AsyncIterator.prototype, 'filter');
 
-  filter.call(createIterator([1, 2, 3]), it => it % 2).toArray().then(it => {
+  assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), null), TypeError);
+  assert.throws(() => filter.call(createIterator([1]), {}), TypeError);
+
+  return filter.call(createIterator([1, 2, 3]), it => it % 2).toArray().then(it => {
     assert.arrayEqual(it, [1, 3], 'basic functionality');
     return filter.call(createIterator([1]), function (arg, counter) {
       assert.same(this, STRICT_THIS, 'this');
@@ -22,15 +28,9 @@ QUnit.test('AsyncIterator#filter', assert => {
     }).toArray();
   }).then(() => {
     return filter.call(createIterator([1]), () => { throw 42; }).toArray();
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.same(error, 42, 'rejection on a callback error');
-  }).then(() => async());
-
-  assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
-  assert.throws(() => filter.call(createIterator([1]), null), TypeError);
-  assert.throws(() => filter.call(createIterator([1]), {}), TypeError);
+  });
 });

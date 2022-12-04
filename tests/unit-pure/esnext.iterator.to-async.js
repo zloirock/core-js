@@ -6,9 +6,6 @@ import Iterator from 'core-js-pure/full/iterator';
 import 'core-js-pure/full/async-iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
-  assert.expect(STRICT ? 6 : 4);
-  const async = assert.async();
-
   const { toAsync } = Iterator.prototype;
 
   assert.isFunction(toAsync);
@@ -19,11 +16,10 @@ QUnit.test('Iterator#toAsync', assert => {
     assert.throws(() => toAsync.call(null), TypeError);
   }
 
-  Iterator.from([1, 2, 3]).toAsync().map(it => Promise.resolve(it)).toArray().then(it => {
+  return Iterator.from([1, 2, 3]).toAsync().map(it => Promise.resolve(it)).toArray().then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
     return Iterator.from(new Set([1, 2, 3])).toAsync().map(el => Promise.resolve(el)).toArray();
   }).then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
-    async();
   });
 });

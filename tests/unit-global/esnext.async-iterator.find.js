@@ -2,8 +2,6 @@ import { createIterator } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#find', assert => {
-  assert.expect(19);
-  const async = assert.async();
   const { find } = AsyncIterator.prototype;
 
   assert.isFunction(find);
@@ -12,7 +10,15 @@ QUnit.test('AsyncIterator#find', assert => {
   assert.looksNative(find);
   assert.nonEnumerable(AsyncIterator.prototype, 'find');
 
-  find.call(createIterator([2, 3, 4]), it => it % 2).then(result => {
+  assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
+  assert.throws(() => find.call(createIterator([1]), null), TypeError);
+  assert.throws(() => find.call(createIterator([1]), {}), TypeError);
+
+  return find.call(createIterator([2, 3, 4]), it => it % 2).then(result => {
     assert.same(result, 3, 'basic functionality, +');
     return find.call(createIterator([1, 2, 3]), it => it === 4);
   }).then(result => {
@@ -25,15 +31,9 @@ QUnit.test('AsyncIterator#find', assert => {
     });
   }).then(() => {
     return find.call(createIterator([1]), () => { throw 42; });
-  }).catch(error => {
+  }).then(() => {
+    assert.avoid();
+  }, error => {
     assert.same(error, 42, 'rejection on a callback error');
-  }).then(() => async());
-
-  assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
-  assert.throws(() => find.call(createIterator([1]), null), TypeError);
-  assert.throws(() => find.call(createIterator([1]), {}), TypeError);
+  });
 });

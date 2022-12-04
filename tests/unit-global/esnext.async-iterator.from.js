@@ -1,8 +1,6 @@
 const { assign } = Object;
 
 QUnit.test('AsyncIterator.from', assert => {
-  assert.expect(13);
-  const async = assert.async();
   const { from } = AsyncIterator;
 
   assert.isFunction(from);
@@ -15,11 +13,6 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.true(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
 
-  AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
-    assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
-    async();
-  });
-
   const asyncIterator = assign(new AsyncIterator(), {
     next: () => { /* empty */ },
   });
@@ -30,4 +23,8 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}), TypeError);
   assert.throws(() => from(assign(new AsyncIterator(), { next: 42 })), TypeError);
+
+  return AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
+    assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
+  });
 });

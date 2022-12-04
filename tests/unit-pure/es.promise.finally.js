@@ -8,32 +8,28 @@ QUnit.test('Promise#finally', assert => {
 });
 
 QUnit.test('Promise#finally, resolved', assert => {
-  assert.expect(3);
-  const async = assert.async();
   let called = 0;
   let argument = null;
-  Promise.resolve(42).finally(it => {
+  return Promise.resolve(42).finally(it => {
     called++;
     argument = it;
   }).then(it => {
     assert.same(it, 42, 'resolved with a correct value');
     assert.same(called, 1, 'onFinally function called one time');
     assert.same(argument, undefined, 'onFinally function called with a correct argument');
-    async();
   });
 });
 
 QUnit.test('Promise#finally, rejected', assert => {
-  assert.expect(2);
-  const async = assert.async();
   let called = 0;
   let argument = null;
-  Promise.reject(42).finally(it => {
+  return Promise.reject(42).finally(it => {
     called++;
     argument = it;
-  }).catch(() => {
+  }).then(() => {
+    assert.avoid();
+  }, () => {
     assert.same(called, 1, 'onFinally function called one time');
     assert.same(argument, undefined, 'onFinally function called with a correct argument');
-    async();
   });
 });
