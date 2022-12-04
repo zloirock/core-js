@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
 import Symbol from 'core-js-pure/es/symbol';
-import withAt from 'core-js-pure/full/array/with';
+import withAt from 'core-js-pure/actual/array/with';
 
 QUnit.test('Array#with', assert => {
   assert.isFunction(withAt);

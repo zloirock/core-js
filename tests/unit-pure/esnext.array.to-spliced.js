@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
 import Symbol from 'core-js-pure/es/symbol';
-import toSpliced from 'core-js-pure/full/array/to-spliced';
+import toSpliced from 'core-js-pure/actual/array/to-spliced';
 
 QUnit.test('Array#toSpliced', assert => {
   assert.isFunction(toSpliced);
