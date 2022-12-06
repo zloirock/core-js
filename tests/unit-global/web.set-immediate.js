@@ -1,41 +1,42 @@
 import { timeLimitedPromise } from '../helpers/helpers';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
-  let called = false;
-  assert.expect(8);
   assert.isFunction(setImmediate, 'setImmediate is function');
   assert.isFunction(clearImmediate, 'clearImmediate is function');
   assert.name(setImmediate, 'setImmediate');
   assert.name(clearImmediate, 'clearImmediate');
+  let called = false;
 
-  timeLimitedPromise(1e3, resolve => {
+  const promise = timeLimitedPromise(1e3, resolve => {
     setImmediate(() => {
       called = true;
       resolve();
     });
   }).then(() => {
     assert.required('setImmediate works');
-  }).catch(() => {
+  }, () => {
     assert.avoid('setImmediate works');
-  }).then(assert.async());
+  }).then(() => {
+    return timeLimitedPromise(1e3, resolve => {
+      setImmediate((a, b) => {
+        resolve(a + b);
+      }, 'a', 'b');
+    });
+  }).then(it => {
+    assert.same(it, 'ab', 'setImmediate works with additional args');
+  }, () => {
+    assert.avoid('setImmediate works with additional args');
+  }).then(() => {
+    return timeLimitedPromise(50, resolve => {
+      clearImmediate(setImmediate(resolve));
+    });
+  }).then(() => {
+    assert.avoid('clearImmediate works');
+  }, () => {
+    assert.required('clearImmediate works');
+  });
 
   assert.false(called, 'setImmediate is async');
 
-  timeLimitedPromise(1e3, resolve => {
-    setImmediate((a, b) => {
-      resolve(a + b);
-    }, 'a', 'b');
-  }).then(it => {
-    assert.same(it, 'ab', 'setImmediate works with additional args');
-  }).catch(() => {
-    assert.avoid('setImmediate works with additional args');
-  }).then(assert.async());
-
-  timeLimitedPromise(50, resolve => {
-    clearImmediate(setImmediate(resolve));
-  }).then(() => {
-    assert.avoid('clearImmediate works');
-  }).catch(() => {
-    assert.required('clearImmediate works');
-  }).then(assert.async());
+  return promise;
 });

@@ -112,9 +112,10 @@ export const nativeSubclass = (() => {
   } catch { /* empty */ }
 })();
 
-export function timeLimitedPromise(time, fn) {
+export function timeLimitedPromise(time, functionOrPromise) {
   return Promise.race([
-    new Promise(fn), new Promise((resolve, reject) => {
+    typeof functionOrPromise == 'function' ? new Promise(functionOrPromise) : functionOrPromise,
+    new Promise((resolve, reject) => {
       setTimeout(reject, time);
     }),
   ]);

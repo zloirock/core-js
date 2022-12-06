@@ -4,9 +4,10 @@ import setTimeout from 'core-js-pure/stable/set-timeout';
 import setInterval from 'core-js-pure/stable/set-interval';
 
 QUnit.test('setInterval / clearInterval', assert => {
-  assert.expect(1);
+  assert.isFunction(setInterval, 'setInterval is function');
+  assert.isFunction(clearInterval, 'clearInterval is function');
 
-  timeLimitedPromise(1e4, (resolve, reject) => {
+  return timeLimitedPromise(1e4, (resolve, reject) => {
     let i = 0;
     const interval = setInterval((a, b) => {
       if (a + b !== 'ab' || i > 2) reject({ a, b, i });
@@ -17,8 +18,7 @@ QUnit.test('setInterval / clearInterval', assert => {
     }, 5, 'a', 'b');
   }).then(() => {
     assert.required('setInterval & clearInterval works with additional args');
-  }).catch(error => {
-    if (!error) error = {};
+  }, (error = {}) => {
     assert.avoid(`setInterval & clearInterval works with additional args: ${ error.a }, ${ error.b }, times: ${ error.i }`);
-  }).then(assert.async());
+  });
 });
