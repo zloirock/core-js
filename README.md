@@ -1010,7 +1010,7 @@ function parseInt(string: string, radix?: number = 10): number;
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/number
-core-js/es|stable|actual|full/number/constructor
+core-js(-pure)/es|stable|actual|full/number/constructor
 core-js(-pure)/es|stable|actual|full/number/is-finite
 core-js(-pure)/es|stable|actual|full/number/is-nan
 core-js(-pure)/es|stable|actual|full/number/is-integer

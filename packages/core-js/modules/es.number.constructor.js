@@ -1,4 +1,6 @@
 'use strict';
+var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var DESCRIPTORS = require('../internals/descriptors');
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -62,7 +64,8 @@ var toNumber = function (argument) {
 
 // `Number` constructor
 // https://tc39.es/ecma262/#sec-number-constructor
-if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1'))) {
+var shouldForce = !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1');
+if (IS_PURE || isForced(NUMBER, shouldForce)) {
   var NumberWrapper = function Number(value) {
     var n = arguments.length < 1 ? 0 : NativeNumber(toNumeric(value));
     var dummy = this;
@@ -83,6 +86,12 @@ if (isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumb
     }
   }
   NumberWrapper.prototype = NumberPrototype;
-  NumberPrototype.constructor = NumberWrapper;
-  defineBuiltIn(global, NUMBER, NumberWrapper, { constructor: true });
+  if (IS_PURE) {
+    var source = {};
+    source[NUMBER] = NumberWrapper;
+    $({ global: true, forced: true }, source);
+  } else {
+    NumberPrototype.constructor = NumberWrapper;
+    defineBuiltIn(global, NUMBER, NumberWrapper, { constructor: true });
+  }
 }
