@@ -65,3 +65,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx run-s init bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
+
+  bun:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        bun:
+          - 0.3
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 19
+          cache: npm
+      - uses: antongolub/action-setup-bun@v1
+        with:
+          bun-version: ${{ matrix.bun }}
+      - run: npm ci
+      - run: npx run-s init bundle test-unit-bun

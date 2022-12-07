@@ -3,6 +3,7 @@ import { readdir, rm } from 'fs/promises';
 const ignore = new Set([
   'scripts/usage',
   'tests/test262',
+  'tests/unit-bun',
 ]);
 
 const folders = [''].concat(...await Promise.all([

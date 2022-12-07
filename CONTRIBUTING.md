@@ -69,9 +69,9 @@ Before testing, you should install dependencies:
 ```sh
 npm i
 ```
-You can run all tests by
+You can run the most tests by
 ```sh
-npm run test
+npm t
 ```
 You can run parts of the test case separately:
 - Linting:
@@ -85,6 +85,10 @@ You can run parts of the test case separately:
 - Unit test case in NodeJS:
   ```sh
   npx run-s init bundle test-unit-node
+  ```
+- Unit test case in Bun (it's not included in `npm t` since required installed Bun, but included in CI):
+  ```sh
+  npx run-s init bundle test-unit-bun
   ```
 - [Test262](https://github.com/tc39/test262) test case (it's not included to the default tests):
   ```sh

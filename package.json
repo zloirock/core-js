@@ -36,6 +36,7 @@
     "test-unit": "run-s test-unit-karma test-unit-node",
     "test-unit-karma": "npm run zxi cd tests/unit-karma/runner.mjs",
     "test-unit-node": "npm run zxi tests/unit-node/runner.mjs",
+    "test-unit-bun": "npm run zxi tests/unit-bun/runner.mjs",
     "test-promises": "npm run zxi cd tests/promises/runner.mjs",
     "test-observables": "npm run zxi cd tests/observables/runner.mjs",
     "test-entries": "zx tests/entries/index.mjs",
