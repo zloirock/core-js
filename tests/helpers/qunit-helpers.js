@@ -1,8 +1,13 @@
 import { DESCRIPTORS } from './constants';
 import assign from 'core-js-pure/es/object/assign';
+import defineProperties from 'core-js-pure/es/object/define-properties';
 import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers';
+
+// for Babel template transform
+if (!Object.freeze) Object.freeze = Object;
+if (!DESCRIPTORS) Object.defineProperties = defineProperties;
 
 const { getOwnPropertyDescriptor } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
@@ -79,7 +84,7 @@ assign(QUnit.assert, {
     this.pushResult({
       result: /native code/.test(source),
       actual: source,
-      expected: 'The function should looks like a native',
+      expected: 'The function should look like a native',
       message,
     });
   },

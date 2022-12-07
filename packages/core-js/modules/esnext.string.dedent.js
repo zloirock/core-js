@@ -1,4 +1,5 @@
 'use strict';
+var FREEZING = require('../internals/freezing');
 var $ = require('../internals/export');
 var shared = require('../internals/shared');
 var getBuiltIn = require('../internals/get-built-in');
@@ -28,6 +29,8 @@ var $Array = Array;
 var $TypeError = TypeError;
 // eslint-disable-next-line es/no-object-freeze -- safe
 var freeze = Object.freeze || Object;
+// eslint-disable-next-line es/no-object-isfrozen -- safe
+var isFrozen = Object.isFrozen;
 var min = Math.min;
 var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
@@ -43,6 +46,8 @@ var INVALID_CLOSING_LINE = 'Invalid closing line';
 
 var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
+  // https://github.com/tc39/proposal-string-dedent/issues/75
+  if (FREEZING && !isFrozen(rawInput)) throw $TypeError('Raw template should be frozen');
   if (globalDedentRegistry.has(rawInput)) return globalDedentRegistry.get(rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
