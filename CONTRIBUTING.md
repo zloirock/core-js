@@ -86,7 +86,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s init bundle test-unit-node
   ```
-- Unit test case in Bun (it's not included in `npm t` since required installed Bun, but included in CI):
+- Unit test case in Bun (it's not included in `npm t` since required installed Bun):
   ```sh
   npx run-s init bundle test-unit-bun
   ```
