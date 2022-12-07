@@ -1803,6 +1803,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
   'esnext.array.from-async': {
+    bun: '0.3.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,
