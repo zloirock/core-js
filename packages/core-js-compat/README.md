@@ -70,28 +70,31 @@ console.log(targets);
 ```js
 // browserslist query:
 'defaults, not IE 11, maintained node versions'
-// object:
+// object (sure, all those fields optional):
 {
-  android: '4.0',      // Android WebView version
-  bun: '0.1.2',        // Bun version
-  chrome: '38',        // Chrome version
-  deno: '1.12',        // Deno version
-  edge: '13',          // Edge version
-  electron: '5.0',     // Electron framework version
-  firefox: '15',       // Firefox version
-  hermes: '0.11',      // Hermes version
-  ie: '8',             // Internet Explorer version
-  ios: '13.0',         // iOS Safari version
-  node: 'current',     // NodeJS version, you can use 'current' for set it to currently used
-  oculus: '5.0',       // Oculus Browser version
-  opera: '12',         // Opera version
-  opera_mobile: '7',   // Opera Mobile version
-  phantom: '1.9',      // PhantomJS headless browser version
-  rhino: '1.7.13',     // Rhino engine version
-  safari: '14.0',      // Safari version
-  samsung: '14.0',     // Samsung Internet version
-  esmodules: true,     // That option set target to minimum supporting ES Modules versions of all browsers
-  browsers: '> 0.25%', // Browserslist query or object with target browsers
+  android: '4.0',         // Android WebView version
+  bun: '0.1.2',           // Bun version
+  chrome: '38',           // Chrome version
+  'chrome-android': '18', // Chrome for Android version
+  deno: '1.12',           // Deno version
+  edge: '13',             // Edge version
+  electron: '5.0',        // Electron framework version
+  firefox: '15',          // Firefox version
+  'firefox-android': '4', // Firefox for Android version
+  hermes: '0.11',         // Hermes version
+  ie: '8',                // Internet Explorer version
+  ios: '13.0',            // iOS Safari version
+  node: 'current',        // NodeJS version, you can use 'current' for set it to currently used
+  opera: '12',            // Opera version
+  'opera-android': '7',   // Opera for Android version
+  phantom: '1.9',         // PhantomJS headless browser version
+  quest: '5.0',           // Meta Quest Browser version
+  'react-native': '0.70', // React Native version (default Hermes engine)
+  rhino: '1.7.13',        // Rhino engine version
+  safari: '14.0',         // Safari version
+  samsung: '14.0',        // Samsung Internet version
+  esmodules: true,        // That option set target to minimum supporting ES Modules versions of all browsers
+  browsers: '> 0.25%',    // Browserslist query or object with target browsers
 }
 ```
 
@@ -126,4 +129,4 @@ require('core-js-compat').getModulesListForTargetVersion('3.26'); // => Array<Mo
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/compat/), the example:
 
-![compat-table](https://user-images.githubusercontent.com/2213682/173199354-1f3aeb83-7231-46b2-8a14-a9d47ce3ae45.png)
+![compat-table](https://user-images.githubusercontent.com/2213682/202867481-69d28cd6-9e1a-453b-8875-39a5bf92eac3.png)

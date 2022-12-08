@@ -4,29 +4,37 @@ const { compare, has } = require('./helpers');
 const external = require('./external');
 
 const aliases = new Map([
-  ['and_chr', 'chrome'],
-  ['and_ff', 'firefox'],
+  ['and_chr', 'chrome-android'],
+  ['and_ff', 'firefox-android'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
-  ['op_mob', 'opera_mobile'],
+  ['oculus', 'quest'],
+  ['op_mob', 'opera-android'],
+  // TODO: Remove from `core-js@4`
+  ['opera_mobile', 'opera-android'],
+  ['react', 'react-native'],
+  ['reactnative', 'react-native'],
 ]);
 
 const validTargets = new Set([
   'android',
   'bun',
   'chrome',
+  'chrome-android',
   'deno',
   'edge',
   'electron',
   'firefox',
+  'firefox-android',
   'hermes',
   'ie',
   'ios',
   'node',
-  'oculus',
   'opera',
-  'opera_mobile',
+  'opera-android',
   'phantom',
+  'quest',
+  'react-native',
   'rhino',
   'safari',
   'samsung',

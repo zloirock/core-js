@@ -130,10 +130,30 @@ export default {
     [106, '21.0'],
     [108, '22.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  ChromeToOpera(chrome) {
+    return chrome <= 28 ? 15
+         : chrome <= 82 ? chrome - 13
+         : chrome - 14;
+  },
+  ChromeToAndroid: [
+    [9, '3.0'],
+    [12, '4.0'],
+    [30, '4.4'],
+    [33, '4.4.3'],
+  ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
+  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
+  ChromeToChromeAndroid(chrome) {
+    return chrome <= 18 ? 18
+         : chrome <= 25 ? 25
+         : chrome;
+  },
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
-  ChromeToSamsung: [
+  // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#samsung-internet
+  ChromeAndroidToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
     [34, '2.0'],
@@ -156,14 +176,8 @@ export default {
     [99, '18.0'],
     [102, '19.0'],
   ],
-  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
-  ChromeToOpera(chrome) {
-    return chrome <= 28 ? 15
-         : chrome <= 82 ? chrome - 13
-         : chrome - 14;
-  },
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
-  ChromeToOperaMobile: [
+  ChromeAndroidToOperaAndroid: [
     [59, 43],
     [60, 44],
     [61, 45],
@@ -195,16 +209,11 @@ export default {
     [104, 71],
     [106, 72],
   ],
-  ChromeToAndroid: [
-    [9, '3.0'],
-    [12, '4.0'],
-    [30, '4.4'],
-    [33, '4.4.3'],
-  ],
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
-  AndroidToOculus: [
+  // https://whatmyuseragent.com/browser/oc/oculus-browser
+  ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],
     [66, '5.0'],
@@ -228,6 +237,10 @@ export default {
     [104, '23.0'],
     [106, '24.0'],
   ],
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  FirefoxToFirefoxAndroid(firefox) {
+    return firefox <= 4 ? 4 : firefox;
+  },
   // This is the base data. Since it have no direct Safari equals by the
   // WebKit / JavaScriptCore version, don't use mapping for future releases.
   // https://github.com/oven-sh/bun/issues/396
@@ -262,5 +275,10 @@ export default {
   SafariToPhantom: [
     ['4.1', '1.9'],
     ['6.0', '2.0'],
+  ],
+  // This is the base data. Since it have no direct Hermes version equals,
+  // don't use mapping for future releases.
+  HermesToReactNative: [
+    ['0.11', '0.69'],
   ],
 };

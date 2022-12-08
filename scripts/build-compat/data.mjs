@@ -12,7 +12,7 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }_${ b }`).toLowerCase());
+        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }-${ b }`).toLowerCase());
       const version = module[engine];
       if (!version || has(module, targetKey)) return;
       const mapping = mappings[mappingKey];
@@ -27,15 +27,9 @@ for (const scope of [data, external]) {
       }
     }
 
-    map('ChromeToAndroid');
-    if (!has(module, 'android') && chrome) {
-      module.android = String(Math.max(chrome, 37));
-    }
-    if (key.startsWith('es')) {
+    if (/^(?:es|esnext)\./.test(key)) {
       map('ChromeToDeno');
-    }
-    if (/^(?:es|esnext|web)\./.test(key)) {
-      map('ChromeToElectron');
+      map('ChromeToNode');
     }
     if (!has(module, 'edge')) {
       if (ie && !key.includes('immediate')) {
@@ -44,25 +38,41 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 79));
       }
     }
-    if (key.startsWith('es')) {
-      map('ChromeToNode');
+    if (/^(?:es|esnext|web)\./.test(key)) {
+      map('ChromeToElectron');
     }
     map('ChromeToOpera');
-    if (!has(module, 'opera_mobile') && module.opera <= 42) {
-      module.opera_mobile = module.opera;
-    } else {
-      map('ChromeToOperaMobile');
+    map('ChromeToChromeAndroid');
+    map('ChromeToAndroid');
+    if (!has(module, 'android') && module['chrome-android']) {
+      // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
+      module.android = String(Math.max(module['chrome-android'], 37));
     }
-    map('ChromeToSamsung');
-    map('AndroidToOculus');
+    if (!has(module, 'opera-android') && module.opera <= 42) {
+      module['opera-android'] = module.opera;
+    } else {
+      map('ChromeAndroidToOperaAndroid');
+    }
+    // TODO: Remove from `core-js@4`
+    if (has(module, 'opera-android')) {
+      module.opera_mobile = module['opera-android'];
+    }
+    map('ChromeAndroidToQuest');
+    // TODO: Remove from `core-js@4`
+    if (has(module, 'quest')) {
+      module.oculus = module.quest;
+    }
+    map('ChromeAndroidToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
+    map('FirefoxToFirefoxAndroid');
     map('SafariToIOS');
     if (!has(module, 'ios') && has(module, 'safari') && semver(module.safari).major >= 15) {
       module.ios = module.safari;
     }
     map('SafariToPhantom');
+    map('HermesToReactNative');
 
     for (const [engine, version] of Object.entries(module)) {
       if (!version) delete module[engine];
