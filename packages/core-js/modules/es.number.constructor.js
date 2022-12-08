@@ -89,7 +89,7 @@ if (IS_PURE || isForced(NUMBER, shouldForce)) {
   if (IS_PURE) {
     var source = {};
     source[NUMBER] = NumberWrapper;
-    $({ global: true, forced: true }, source);
+    $({ global: true, forced: shouldForce }, source);
   } else {
     NumberPrototype.constructor = NumberWrapper;
     defineBuiltIn(global, NUMBER, NumberWrapper, { constructor: true });
