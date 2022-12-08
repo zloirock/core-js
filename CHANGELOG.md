@@ -1,13 +1,6 @@
 ## Changelog
 ##### Unreleased
 - Fixed a theoretically possible future conflict of polyfills definitions in the pure version
-- [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from Bun 0.3.0
-- [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from Deno 1.27, [deno/16429](https://github.com/denoland/deno/pull/16429)
-- Added Deno 1.28 compat data mapping
-- Added NodeJS 19.2 compat data mapping
-- Added Samsung Internet 19.0 compat data mapping
-- Added Oculus Quest Browser 24.0 compat data mapping
-- Fixed the first version in the Chromium-based Edge compat data mapping
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
@@ -15,6 +8,14 @@
   - `android` target name is also confusing for someone - that means Android WebView, some think thinks that it's Chrome for Android, but they have some differences. For avoiding confusion, added **`chrome-android`** target.
   - For consistency with two previous cases, added **`firefox-android`** target.
   - For avoiding breaking changes, the `oculus` and `opera_mobile` fields are available in the compat data till the next major release.
+- Compat data improvements:
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from Bun 0.3.0
+  - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from Deno 1.27, [deno/16429](https://github.com/denoland/deno/pull/16429)
+  - Added Deno 1.28 compat data mapping
+  - Added NodeJS 19.2 compat data mapping
+  - Added Samsung Internet 19.0 compat data mapping
+  - Added Quest Browser 24.0 compat data mapping
+  - Fixed the first version in the Chromium-based Edge compat data mapping
 
 ##### [3.26.1 - 2022.11.14](https://github.com/zloirock/core-js/releases/tag/v3.26.1)
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3
