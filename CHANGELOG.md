@@ -1,5 +1,11 @@
 ## Changelog
 ##### Unreleased
+- [Well-Formed Unicode Strings](https://github.com/tc39/proposal-is-usv-string) proposal:
+  - Methods:
+    - `String.prototype.isWellFormed`
+    - `String.prototype.toWellFormed`
+  - Moved to Stage 3, [November TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
+  - Added `/actual/` entries, disabled unconditional forced replacement
 - Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.

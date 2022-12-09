@@ -1,3 +1,3 @@
-require('../../modules/esnext.string.is-well-formed');
+var parent = require('../../actual/string/is-well-formed');
 
-module.exports = require('../../internals/entry-unbind')('String', 'isWellFormed');
+module.exports = parent;
