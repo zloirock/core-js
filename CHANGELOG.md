@@ -41,7 +41,6 @@
     - `String.prototype.toWellFormed`
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
-- Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
@@ -57,6 +56,8 @@
   - Added Samsung Internet 19.0 compat data mapping
   - Added Quest Browser 24.0 compat data mapping
   - Fixed the first version in the Chromium-based Edge compat data mapping
+- Fixed a theoretically possible future conflict of polyfills definitions in the pure version
+- Added pure version of the `Number` constructor, [#1154](https://github.com/zloirock/core-js/issues/1154), [#1155](https://github.com/zloirock/core-js/issues/1155), thanks [@trosos](https://github.com/trosos)
 
 ##### [3.26.1 - 2022.11.14](https://github.com/zloirock/core-js/releases/tag/v3.26.1)
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3

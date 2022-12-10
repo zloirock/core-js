@@ -1,3 +1,4 @@
 require('../../modules/es.number.constructor');
+var path = require('../../internals/path');
 
-module.exports = Number;
+module.exports = path.Number;
