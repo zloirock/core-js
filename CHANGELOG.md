@@ -35,12 +35,6 @@
   - Added `/actual/` entries, unconditional forced replacement disabled for features that survived to Stage 3
   - `.from` accept strings, `.flatMap` throws on strings returned from the callback, [proposal-iterator-helpers/244](https://github.com/tc39/proposal-iterator-helpers/pull/244), [proposal-iterator-helpers/250](https://github.com/tc39/proposal-iterator-helpers/pull/250)
   - `.from` and `.flatMap` throws on non-object *iterators*, [proposal-iterator-helpers/253](https://github.com/tc39/proposal-iterator-helpers/pull/253)
-- [Well-Formed Unicode Strings](https://github.com/tc39/proposal-is-usv-string) proposal:
-  - Methods:
-    - `String.prototype.isWellFormed`
-    - `String.prototype.toWellFormed`
-  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
-  - Added `/actual/` entries, disabled unconditional forced replacement
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
   - Methods:
     - `Set.prototype.intersection`
@@ -59,6 +53,12 @@
   - For avoiding breaking changes:
     - New versions of methods are implemented as new modules and available in new entries or entries where old versions of methods were not available before (like `/actual/` namespace)
     - In entries where they were available before (like `/full/` namespace), those methods are available with fallbacks to old semantics (in addition to `Set`-like, they accept iterable objects). This behavior will be removed from the next major release
+- [Well-Formed Unicode Strings](https://github.com/tc39/proposal-is-usv-string) proposal:
+  - Methods:
+    - `String.prototype.isWellFormed`
+    - `String.prototype.toWellFormed`
+  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
+  - Added `/actual/` entries, disabled unconditional forced replacement
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
