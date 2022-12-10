@@ -1,7 +1,7 @@
 import { createIterator, createIterable } from '../helpers/helpers';
 import { STRICT_THIS } from '../helpers/constants';
 
-import Iterator from 'core-js-pure/full/iterator';
+import Iterator from 'core-js-pure/actual/iterator';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap } = Iterator.prototype;
@@ -11,8 +11,8 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.nonEnumerable(Iterator.prototype, 'flatMap');
 
   assert.arrayEqual(
-    flatMap.call(createIterator([1, [], 2, createIterable([3, 4]), [5, 6], 'ab']), it => typeof it == 'number' ? [-it] : it).toArray(),
-    [-1, -2, 3, 4, 5, 6, 'a', 'b'],
+    flatMap.call(createIterator([1, [], 2, createIterable([3, 4]), [5, 6]]), it => typeof it == 'number' ? [-it] : it).toArray(),
+    [-1, -2, 3, 4, 5, 6],
     'basic functionality',
   );
   flatMap.call(createIterator([1]), function (arg, counter) {

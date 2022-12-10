@@ -1,6 +1,6 @@
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
-var toObject = require('../internals/to-object');
+var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
@@ -10,7 +10,7 @@ var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
 module.exports = function from(obj) {
-  var object = toObject(obj);
+  var object = anObject(obj);
   var alreadyAsync = true;
   var method = getMethod(object, ASYNC_ITERATOR);
   var iterator;
@@ -24,5 +24,6 @@ module.exports = function from(obj) {
     iterator = object;
     alreadyAsync = true;
   }
+  anObject(iterator);
   return getIteratorDirect(alreadyAsync ? iterator : new AsyncFromSyncIterator(getIteratorDirect(iterator)));
 };

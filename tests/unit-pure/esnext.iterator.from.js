@@ -1,6 +1,6 @@
 import { createIterable, createIterator } from '../helpers/helpers';
 
-import Iterator from 'core-js-pure/full/iterator';
+import Iterator from 'core-js-pure/actual/iterator';
 import assign from 'core-js-pure/es/object/assign';
 
 QUnit.test('Iterator.from', assert => {

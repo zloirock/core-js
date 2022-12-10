@@ -12,7 +12,7 @@ var closeAsyncIteration = require('../internals/async-iterator-close');
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
-$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var record = getIteratorDirect(this);
     var iterator = record.iterator;

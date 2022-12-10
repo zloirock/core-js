@@ -5,7 +5,7 @@ var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(this))));
   }

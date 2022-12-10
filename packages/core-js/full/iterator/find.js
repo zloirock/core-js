@@ -1,7 +1,3 @@
-require('../../modules/es.object.to-string');
-require('../../modules/esnext.iterator.constructor');
-require('../../modules/esnext.iterator.find');
+var parent = require('../../actual/iterator/find');
 
-var entryUnbind = require('../../internals/entry-unbind');
-
-module.exports = entryUnbind('Iterator', 'find');
+module.exports = parent;

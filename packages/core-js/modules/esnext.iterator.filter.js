@@ -22,7 +22,7 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new IteratorProxy(getIteratorDirect(this), {
       filterer: aCallable(filterer)

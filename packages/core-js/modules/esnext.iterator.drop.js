@@ -23,7 +23,7 @@ var IteratorProxy = createIteratorProxy(function () {
   if (!done) return result.value;
 });
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new IteratorProxy(getIteratorDirect(this), {
       remaining: toPositiveInteger(notANaN(+limit))

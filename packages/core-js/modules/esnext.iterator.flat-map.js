@@ -31,7 +31,7 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: aCallable(mapper),

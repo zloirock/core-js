@@ -7,7 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var $TypeError = TypeError;
 
-$({ target: 'Iterator', proto: true, real: true, forced: true }, {
+$({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var record = getIteratorDirect(this);
     aCallable(reducer);

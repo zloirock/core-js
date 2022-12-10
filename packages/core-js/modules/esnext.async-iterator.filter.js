@@ -54,7 +54,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       filterer: aCallable(filterer)

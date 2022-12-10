@@ -74,7 +74,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   });
 });
 
-$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       mapper: aCallable(mapper),
