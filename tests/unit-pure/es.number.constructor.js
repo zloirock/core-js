@@ -1,5 +1,4 @@
-import { nativeSubclass } from '../helpers/helpers';
-import { globalThis } from 'core-js-pure';
+import globalThis from 'core-js-pure/es/global-this';
 import create from 'core-js-pure/es/object/create';
 import Number from 'core-js-pure/es/number';
 import Symbol from 'core-js-pure/es/symbol';
@@ -20,8 +19,6 @@ function getCheck(assert) {
 QUnit.test('Number constructor: regression', assert => {
   const check = getCheck(assert);
   assert.isFunction(Number);
-  assert.arity(Number, 1);
-  assert.name(Number, 'Number');
   assert.same(Number.prototype.constructor, NativeNumber);
   assert.same(1.0.constructor, NativeNumber);
   const constants = ['MAX_VALUE', 'MIN_VALUE', 'NaN', 'NEGATIVE_INFINITY', 'POSITIVE_INFINITY'];
@@ -181,12 +178,6 @@ QUnit.test('Number constructor: regression', assert => {
   check(`${ whitespaces }0X42`, 66);
   check(`0X42${ whitespaces }`, 66);
   check(`${ whitespaces }0X42${ whitespaces }`, 66);
-  if (nativeSubclass) {
-    const Subclass = nativeSubclass(Number);
-    assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
-    assert.true(new Subclass() instanceof Number, 'correct subclassing with native classes #2');
-    assert.same(new Subclass(1).toFixed(2), '1.00', 'correct subclassing with native classes #3');
-  }
 });
 
 QUnit.test('Number constructor: binary', assert => {
