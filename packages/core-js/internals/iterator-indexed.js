@@ -1,18 +1,12 @@
 'use strict';
 // https://github.com/tc39/proposal-iterator-helpers
 var call = require('../internals/function-call');
-var anObject = require('../internals/an-object');
-var getIteratorDirect = require('../internals/get-iterator-direct');
-var createIteratorProxy = require('../internals/iterator-create-proxy');
+var map = require('../internals/iterator-map');
 
-var IteratorProxy = createIteratorProxy(function () {
-  var result = anObject(call(this.next, this.iterator));
-  var done = this.done = !!result.done;
-  if (!done) return [this.index++, result.value];
-});
+var callback = function (value, counter) {
+  return [counter, value];
+};
 
 module.exports = function indexed() {
-  return new IteratorProxy(getIteratorDirect(this), {
-    index: 0
-  });
+  return call(map, this, callback);
 };
