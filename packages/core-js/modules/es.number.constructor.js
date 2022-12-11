@@ -23,7 +23,7 @@ var NativeNumber = global[NUMBER];
 var PureNumberNamespace = path[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 var TypeError = global.TypeError;
-var arraySlice = uncurryThis(''.slice);
+var stringSlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
 // `ToNumeric` abstract operation
@@ -51,7 +51,7 @@ var toNumber = function (argument) {
         case 79: case 111: radix = 8; maxCode = 55; break; // fast equal of /^0o[0-7]+$/i
         default: return +it;
       }
-      digits = arraySlice(it, 2);
+      digits = stringSlice(it, 2);
       length = digits.length;
       for (index = 0; index < length; index++) {
         code = charCodeAt(digits, index);
@@ -65,15 +65,18 @@ var toNumber = function (argument) {
 
 var FORCED = isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1'));
 
+var calledWithNew = function (dummy) {
+  // includes check on 1..constructor(foo) case
+  return isPrototypeOf(NumberPrototype, dummy) && fails(function () { thisNumberValue(dummy); });
+};
+
 // `Number` constructor
 // https://tc39.es/ecma262/#sec-number-constructor
 var NumberWrapper = function Number(value) {
   var n = arguments.length < 1 ? 0 : NativeNumber(toNumeric(value));
-  var dummy = this;
-  // check on 1..constructor(foo) case
-  return isPrototypeOf(NumberPrototype, dummy) && fails(function () { thisNumberValue(dummy); })
-    ? inheritIfRequired(Object(n), dummy, NumberWrapper) : n;
+  return calledWithNew(this) ? inheritIfRequired(Object(n), this, NumberWrapper) : n;
 };
+
 NumberWrapper.prototype = NumberPrototype;
 if (FORCED && !IS_PURE) NumberPrototype.constructor = NumberWrapper;
 
@@ -81,7 +84,8 @@ $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
   Number: NumberWrapper
 });
 
-var copyStaticProperties = function (target, source) {
+// Use `internal/copy-constructor-properties` helper in `core-js@4`
+var copyConstructorProperties = function (target, source) {
   for (var keys = DESCRIPTORS ? getOwnPropertyNames(source) : (
     // ES3:
     'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
@@ -96,5 +100,5 @@ var copyStaticProperties = function (target, source) {
   }
 };
 
-if (IS_PURE && PureNumberNamespace) copyStaticProperties(path[NUMBER], PureNumberNamespace);
-if (FORCED || IS_PURE) copyStaticProperties(path[NUMBER], NativeNumber);
+if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
+if (FORCED || IS_PURE) copyConstructorProperties(path[NUMBER], NativeNumber);
