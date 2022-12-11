@@ -4,39 +4,39 @@
   - Built-ins:
     - `Iterator`
       - `Iterator.from`
-      - `Iterator#drop`
-      - `Iterator#every`
-      - `Iterator#filter`
-      - `Iterator#find`
-      - `Iterator#flatMap`
-      - `Iterator#forEach`
-      - `Iterator#map`
-      - `Iterator#reduce`
-      - `Iterator#some`
-      - `Iterator#take`
-      - `Iterator#toArray`
-      - `Iterator#toAsync`
-      - `Iterator#@@toStringTag`
+      - `Iterator.prototype.drop`
+      - `Iterator.prototype.every`
+      - `Iterator.prototype.filter`
+      - `Iterator.prototype.find`
+      - `Iterator.prototype.flatMap`
+      - `Iterator.prototype.forEach`
+      - `Iterator.prototype.map`
+      - `Iterator.prototype.reduce`
+      - `Iterator.prototype.some`
+      - `Iterator.prototype.take`
+      - `Iterator.prototype.toArray`
+      - `Iterator.prototype.toAsync`
+      - `Iterator.prototype[@@toStringTag]`
     - `AsyncIterator`
       - `AsyncIterator.from`
-      - `AsyncIterator#drop`
-      - `AsyncIterator#every`
-      - `AsyncIterator#filter`
-      - `AsyncIterator#find`
-      - `AsyncIterator#flatMap`
-      - `AsyncIterator#forEach`
-      - `AsyncIterator#map`
-      - `AsyncIterator#reduce`
-      - `AsyncIterator#some`
-      - `AsyncIterator#take`
-      - `AsyncIterator#toArray`
-      - `AsyncIterator#@@toStringTag`
+      - `AsyncIterator.prototype.drop`
+      - `AsyncIterator.prototype.every`
+      - `AsyncIterator.prototype.filter`
+      - `AsyncIterator.prototype.find`
+      - `AsyncIterator.prototype.flatMap`
+      - `AsyncIterator.prototype.forEach`
+      - `AsyncIterator.prototype.map`
+      - `AsyncIterator.prototype.reduce`
+      - `AsyncIterator.prototype.some`
+      - `AsyncIterator.prototype.take`
+      - `AsyncIterator.prototype.toArray`
+      - `AsyncIterator.prototype[@@toStringTag]`
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1333474304)
   - Added `/actual/` entries, unconditional forced replacement disabled for features that survived to Stage 3
   - `.from` accept strings, `.flatMap` throws on strings returned from the callback, [proposal-iterator-helpers/244](https://github.com/tc39/proposal-iterator-helpers/pull/244), [proposal-iterator-helpers/250](https://github.com/tc39/proposal-iterator-helpers/pull/250)
   - `.from` and `.flatMap` throws on non-object *iterators*, [proposal-iterator-helpers/253](https://github.com/tc39/proposal-iterator-helpers/pull/253)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
-  - Methods:
+  - Built-ins:
     - `Set.prototype.intersection`
     - `Set.prototype.union`
     - `Set.prototype.difference`
