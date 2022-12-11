@@ -1,18 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var aCallable = require('../internals/a-callable');
-var anObject = require('../internals/an-object');
-var iterate = require('../internals/iterate');
+var toSetLike = require('../internals/to-set-like');
+var $isSupersetOf = require('../internals/set-is-superset-of');
 
 // `Set.prototype.isSupersetOf` method
-// https://tc39.github.io/proposal-set-methods/#Set.prototype.isSupersetOf
+// https://github.com/tc39/proposal-set-methods
+// TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  isSupersetOf: function isSupersetOf(iterable) {
-    var set = anObject(this);
-    var hasCheck = aCallable(set.has);
-    return !iterate(iterable, function (value, stop) {
-      if (call(hasCheck, set, value) === false) return stop();
-    }, { INTERRUPTED: true }).stopped;
+  isSupersetOf: function isSupersetOf(other) {
+    return call($isSupersetOf, this, toSetLike(other));
   }
 });

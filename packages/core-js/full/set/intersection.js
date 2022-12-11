@@ -1,5 +1,5 @@
+require('../../actual/set/intersection');
 require('../../modules/es.array.iterator');
-require('../../modules/es.set');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.intersection');
 require('../../modules/web.dom-collections.iterator');

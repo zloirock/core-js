@@ -1,18 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var aCallable = require('../internals/a-callable');
-var anObject = require('../internals/an-object');
-var iterate = require('../internals/iterate');
+var toSetLike = require('../internals/to-set-like');
+var $isDisjointFrom = require('../internals/set-is-disjoint-from');
 
 // `Set.prototype.isDisjointFrom` method
-// https://tc39.github.io/proposal-set-methods/#Set.prototype.isDisjointFrom
+// https://github.com/tc39/proposal-set-methods
+// TODO: Obsolete version, remove from `core-js@4`
 $({ target: 'Set', proto: true, real: true, forced: true }, {
-  isDisjointFrom: function isDisjointFrom(iterable) {
-    var set = anObject(this);
-    var hasCheck = aCallable(set.has);
-    return !iterate(iterable, function (value, stop) {
-      if (call(hasCheck, set, value) === true) return stop();
-    }, { INTERRUPTED: true }).stopped;
+  isDisjointFrom: function isDisjointFrom(other) {
+    return call($isDisjointFrom, this, toSetLike(other));
   }
 });

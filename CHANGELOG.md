@@ -35,6 +35,24 @@
   - Added `/actual/` entries, unconditional forced replacement disabled for features that survived to Stage 3
   - `.from` accept strings, `.flatMap` throws on strings returned from the callback, [proposal-iterator-helpers/244](https://github.com/tc39/proposal-iterator-helpers/pull/244), [proposal-iterator-helpers/250](https://github.com/tc39/proposal-iterator-helpers/pull/250)
   - `.from` and `.flatMap` throws on non-object *iterators*, [proposal-iterator-helpers/253](https://github.com/tc39/proposal-iterator-helpers/pull/253)
+- [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
+  - Methods:
+    - `Set.prototype.intersection`
+    - `Set.prototype.union`
+    - `Set.prototype.difference`
+    - `Set.prototype.symmetricDifference`
+    - `Set.prototype.isSubsetOf`
+    - `Set.prototype.isSupersetOf`
+    - `Set.prototype.isDisjointFrom`
+  - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332175557)
+  - Reimplemented with [new semantics](https://tc39.es/proposal-set-methods/):
+    - Optimized performance (iteration over lowest set)
+    - Accepted only `Set`-like objects as an argument, not all iterables
+    - Accepted only `Set`s as `this`, no `@@species` support, and other minor changes
+  - Added `/actual/` entries, unconditional forced replacement changed to feature detection
+  - For avoiding breaking changes:
+    - New versions of methods are implemented as new modules and available in new entries or entries where old versions of methods were not available before (like `/actual/` namespace)
+    - In entries where they were available before (like `/full/` namespace), those methods are available with fallbacks to old semantics (in addition to `Set`-like, they accept iterable objects). This behavior will be removed from the next major release
 - [Well-Formed Unicode Strings](https://github.com/tc39/proposal-is-usv-string) proposal:
   - Methods:
     - `String.prototype.isWellFormed`

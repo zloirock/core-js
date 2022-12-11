@@ -1645,7 +1645,7 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference': function () {
+  'esnext.set.difference.v2': function () {
     return Set.prototype.difference;
   },
   'esnext.set.every': function () {
@@ -1660,16 +1660,16 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection': function () {
+  'esnext.set.intersection.v2': function () {
     return Set.prototype.intersection;
   },
-  'esnext.set.is-disjoint-from': function () {
+  'esnext.set.is-disjoint-from.v2': function () {
     return Set.prototype.isDisjointFrom;
   },
-  'esnext.set.is-subset-of': function () {
+  'esnext.set.is-subset-of.v2': function () {
     return Set.prototype.isSubsetOf;
   },
-  'esnext.set.is-superset-of': function () {
+  'esnext.set.is-superset-of.v2': function () {
     return Set.prototype.isSupersetOf;
   },
   'esnext.set.join': function () {
@@ -1687,10 +1687,10 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference': function () {
+  'esnext.set.symmetric-difference.v2': function () {
     return Set.prototype.symmetricDifference;
   },
-  'esnext.set.union': function () {
+  'esnext.set.union.v2': function () {
     return Set.prototype.union;
   },
   'esnext.string.code-points': function () {
