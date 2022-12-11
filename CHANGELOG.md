@@ -59,17 +59,7 @@
     - `String.prototype.toWellFormed`
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
-- [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) stage 2 proposal:
-  - Renamed from "`using` statement"
-  - In addition to already present well-known symbols `@@dispose` and `@@asyncDispose`, added new built-ins:
-    - `AsyncDisposableStack`
-      - `AsyncDisposableStack.prototype.disposeAsync`
-      - `AsyncDisposableStack.prototype.use`
-      - `AsyncDisposableStack.prototype.adopt`
-      - `AsyncDisposableStack.prototype.defer`
-      - `AsyncDisposableStack.prototype.move`
-      - `AsyncDisposableStack.prototype[@@asyncDispose]`
-- [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) stage 3 and [Async explicit resource management](https://github.com/tc39/proposal-async-explicit-resource-management) stage 2 proposals:
+- [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 and [Async explicit resource management](https://github.com/tc39/proposal-async-explicit-resource-management) Stage 2 proposals:
   - Renamed from "`using` statement" and [splitted into 2 (sync and async) proposals](https://github.com/tc39/proposal-explicit-resource-management/pull/131)
   - In addition to already present well-known symbols, added new built-ins:
     - `Symbol.dispose`
@@ -92,7 +82,7 @@
     - `Iterator.prototype[@@dispose]`
     - `AsyncIterator.prototype[@@asyncDispose]`
   - Sync version of this proposal moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1333747094)
-  - Added `/actual/` namespace entries for stage 3 proposal
+  - Added `/actual/` namespace entries for Stage 3 proposal
 - [Compat data targets](/packages/core-js-compat#targets-option) improvements:
   - [React Native from 0.70 shipped with Hermes as the default engine.](https://reactnative.dev/blog/2022/07/08/hermes-as-the-default) However, bundled Hermes versions differ from standalone Hermes releases. So added **`react-native`** target for React Native with bundled Hermes.
   - [According to the documentation](https://developer.oculus.com/documentation/web/browser-intro/), Oculus Browser was renamed to Meta Quest Browser, so `oculus` target was renamed to **`quest`**.
