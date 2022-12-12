@@ -1,71 +1,88 @@
+function createElement(name, props) {
+  var element = document.createElement(name);
+  if (props) for (var key in props) element[key] = props[key];
+  return element;
+}
+
 var table = document.getElementById('table');
 var tests = window.tests;
 var data = window.data;
-var i;
 
-var engines = [
+var environments = [
   'android',
   'bun',
   'chrome',
+  'chrome-android',
   'deno',
   'edge',
   'electron',
   'firefox',
+  'firefox-android',
   'hermes',
   'ie',
   'ios',
   'node',
-  'oculus',
   'opera',
-  'opera_mobile',
+  'opera-android',
   'phantom',
+  'quest',
+  'react-native',
   'rhino',
   'safari',
   'samsung'
 ];
 
-var trh = document.createElement('tr');
-var head = ['module', 'current'].concat(engines);
-for (i = 0; i < head.length; i++) {
-  var th = document.createElement('th');
-  th.innerHTML = head[i].split('_').join('<br />');
-  trh.appendChild(th);
-}
-table.appendChild(trh);
+var tableHeader = createElement('tr');
+var columnHeaders = ['module', 'current'].concat(environments);
 
-for (var key in tests) {
-  var test = tests[key];
+for (var i = 0; i < columnHeaders.length; i++) {
+  tableHeader.appendChild(createElement('th', {
+    innerHTML: columnHeaders[i].replace(/-/g, '<br />')
+  }));
+}
+
+table.appendChild(tableHeader);
+
+for (var moduleName in tests) {
+  var test = tests[moduleName];
   var result = true;
   try {
     if (typeof test == 'function') {
       result = !!test();
     } else {
-      for (i = 0; i < test.length; i++) result = result && !!test[i].call(undefined);
+      for (var t = 0; t < test.length; t++) result = result && !!test[t].call(undefined);
     }
   } catch (error) {
     result = false;
   }
 
-  var tr = document.createElement('tr');
-  var td1 = document.createElement('td');
-  var a = document.createElement('a');
-  a.innerHTML = key;
-  a.href = "https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='" + key.replace(/-/g, '%2D') + "'";
-  a.target = '_blank';
-  td1.appendChild(a);
-  td1.className = result;
-  tr.appendChild(td1);
-  var td2 = document.createElement('td');
-  td2.innerHTML = result ? 'not&nbsp;required' : 'required';
-  td2.className = result + ' data';
-  tr.appendChild(td2);
-  for (i = 0; i < engines.length; i++) {
-    var td = document.createElement('td');
-    var dataExists = !!data[key];
-    var mod = dataExists && data[key][engines[i]];
-    td.innerHTML = dataExists ? mod || 'no' : 'no&nbsp;data';
-    td.className = (dataExists ? !!mod : 'nodata') + ' data';
-    tr.appendChild(td);
+  var row = createElement('tr');
+  var rowHeader = createElement('td', {
+    className: result
+  });
+
+  rowHeader.appendChild(createElement('a', {
+    href: "https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='" + moduleName.replace(/-/g, '%2D') + "'",
+    target: '_blank',
+    innerHTML: moduleName
+  }));
+
+  row.appendChild(rowHeader);
+
+  row.appendChild(createElement('td', {
+    innerHTML: result ? 'not&nbsp;required' : 'required',
+    className: result + ' data'
+  }));
+
+  var moduleData = data[moduleName];
+
+  for (var j = 0; j < environments.length; j++) {
+    var environmentVersion = moduleData && moduleData[environments[j]];
+    row.appendChild(createElement('td', {
+      innerHTML: moduleData ? environmentVersion || 'no' : 'no&nbsp;data',
+      className: (moduleData ? !!environmentVersion : 'nodata') + ' data'
+    }));
   }
-  table.appendChild(tr);
+
+  table.appendChild(row);
 }
