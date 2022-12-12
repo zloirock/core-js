@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
@@ -14,6 +13,8 @@ var IteratorProxy = createIteratorProxy(function () {
   if (!done) return callWithSafeIterationClosing(iterator, this.mapper, [result.value, this.counter++], true);
 });
 
+// `Iterator.prototype.map` method
+// https://github.com/tc39/proposal-iterator-helpers
 module.exports = function map(mapper) {
   return new IteratorProxy(getIteratorDirect(this), {
     mapper: aCallable(mapper)

@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
@@ -12,6 +11,8 @@ var closeAsyncIteration = require('../internals/async-iterator-close');
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
+// `AsyncIterator.prototype.reduce` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var record = getIteratorDirect(this);

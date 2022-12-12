@@ -1,11 +1,12 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var push = [].push;
 
+// `Iterator.prototype.toArray` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];

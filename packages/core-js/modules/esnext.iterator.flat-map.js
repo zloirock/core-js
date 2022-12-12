@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
@@ -31,6 +30,8 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
+// `Iterator.prototype.flatMap` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
     return new IteratorProxy(getIteratorDirect(this), {

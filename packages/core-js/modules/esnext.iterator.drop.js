@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
@@ -23,6 +22,8 @@ var IteratorProxy = createIteratorProxy(function () {
   if (!done) return result.value;
 });
 
+// `Iterator.prototype.drop` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   drop: function drop(limit) {
     return new IteratorProxy(getIteratorDirect(this), {

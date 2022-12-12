@@ -1,4 +1,3 @@
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -6,6 +5,8 @@ var getAsyncIteratorFlattenable = require('../internals/get-async-iterator-flatt
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 
+// `AsyncIterator.from` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'AsyncIterator', stat: true }, {
   from: function from(O) {
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);

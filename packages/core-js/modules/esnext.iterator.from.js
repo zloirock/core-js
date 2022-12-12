@@ -1,4 +1,3 @@
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var toObject = require('../internals/to-object');
@@ -11,6 +10,8 @@ var IteratorProxy = createIteratorProxy(function () {
   return call(this.next, this.iterator);
 }, true);
 
+// `Iterator.from` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', stat: true }, {
   from: function from(O) {
     var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);

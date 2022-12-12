@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
@@ -54,6 +53,8 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   });
 });
 
+// `AsyncIterator.prototype.filter` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(filterer) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {

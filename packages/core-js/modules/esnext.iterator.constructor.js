@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var anInstance = require('../internals/an-instance');
@@ -36,6 +35,8 @@ if (FORCED || !hasOwn(IteratorPrototype, 'constructor') || IteratorPrototype.con
 
 IteratorConstructor.prototype = IteratorPrototype;
 
+// `Iterator` constructor
+// https://github.com/tc39/proposal-iterator-helpers
 $({ global: true, constructor: true, forced: FORCED }, {
   Iterator: IteratorConstructor
 });

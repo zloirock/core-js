@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
@@ -7,6 +6,8 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var $TypeError = TypeError;
 
+// `Iterator.prototype.reduce` method
+// https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var record = getIteratorDirect(this);

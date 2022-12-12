@@ -1,5 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
 var $ = require('../internals/export');
 var anInstance = require('../internals/an-instance');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -24,6 +23,8 @@ if (IS_PURE || !hasOwn(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPr
   createNonEnumerableProperty(AsyncIteratorPrototype, 'constructor', AsyncIteratorConstructor);
 }
 
+// `AsyncIterator` constructor
+// https://github.com/tc39/proposal-iterator-helpers
 $({ global: true, constructor: true, forced: IS_PURE }, {
   AsyncIterator: AsyncIteratorConstructor
 });
