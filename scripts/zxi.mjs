@@ -18,6 +18,7 @@ if (await pathExists(`${ DIR }/package.json`)) {
   await $`npm install \
     --no-audit \
     --no-fund \
+    --lockfile-version 3 \
     --loglevel error \
   `;
 
