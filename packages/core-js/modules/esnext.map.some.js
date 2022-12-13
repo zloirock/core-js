@@ -5,7 +5,7 @@ var bind = require('../internals/function-bind-context');
 var getMapIterator = require('../internals/get-map-iterator');
 var iterate = require('../internals/iterate');
 
-// `Set.prototype.some` method
+// `Map.prototype.some` method
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: true }, {
   some: function some(callbackfn /* , thisArg */) {

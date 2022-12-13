@@ -6,7 +6,7 @@ var aCallable = require('../internals/a-callable');
 
 var $TypeError = TypeError;
 
-// `Set.prototype.update` method
+// `Map.prototype.update` method
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: true }, {
   update: function update(key, callback /* , thunk */) {
