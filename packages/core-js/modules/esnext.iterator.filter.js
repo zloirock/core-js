@@ -9,7 +9,7 @@ var callWithSafeIterationClosing = require('../internals/call-with-safe-iteratio
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
-  var filterer = this.filterer;
+  var predicate = this.predicate;
   var next = this.next;
   var result, done, value;
   while (true) {
@@ -17,16 +17,16 @@ var IteratorProxy = createIteratorProxy(function () {
     done = this.done = !!result.done;
     if (done) return;
     value = result.value;
-    if (callWithSafeIterationClosing(iterator, filterer, [value, this.counter++], true)) return value;
+    if (callWithSafeIterationClosing(iterator, predicate, [value, this.counter++], true)) return value;
   }
 });
 
 // `Iterator.prototype.filter` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
-  filter: function filter(filterer) {
+  filter: function filter(predicate) {
     return new IteratorProxy(getIteratorDirect(this), {
-      filterer: aCallable(filterer)
+      predicate: aCallable(predicate)
     });
   }
 });

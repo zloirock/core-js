@@ -12,7 +12,7 @@ var closeAsyncIteration = require('../internals/async-iterator-close');
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
   var iterator = state.iterator;
-  var filterer = state.filterer;
+  var predicate = state.predicate;
 
   return new Promise(function (resolve, reject) {
     var doneAndReject = function (error) {
@@ -34,7 +34,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
             } else {
               var value = step.value;
               try {
-                var result = filterer(value, state.counter++);
+                var result = predicate(value, state.counter++);
 
                 var handler = function (selected) {
                   selected ? resolve(createIterResultObject(value, false)) : loop();
@@ -56,9 +56,9 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // `AsyncIterator.prototype.filter` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
-  filter: function filter(filterer) {
+  filter: function filter(predicate) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      filterer: aCallable(filterer)
+      predicate: aCallable(predicate)
     });
   }
 });
