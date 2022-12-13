@@ -14,5 +14,5 @@ module.exports = function isSubsetOf(other) {
   if (size(O) > otherRec.size) return false;
   return iterate(O, function (e) {
     if (!otherRec.includes(e)) return false;
-  }) !== false;
+  }, true) !== false;
 };

@@ -17,45 +17,41 @@ var add = function (set, it) {
   return set.add(it);
 };
 
-var remove = function (set, it) {
-  return set['delete'](it);
-};
-
-var forEach = function (set, fn) {
-  set.forEach(fn);
-};
-
 var has = function (set, it) {
   return set.has(it);
+};
+
+var remove = function (set, it) {
+  return set['delete'](it);
 };
 
 var size = function (set) {
   return set.size;
 };
 
+var iterate = function (set, fn, interruptible) {
+  if (!interruptible) return set.forEach(fn);
+  var iterator = set.keys();
+  return iterateSimple(iterator, fn, iterator.next);
+};
+
 var clone = function (set) {
   var result = new Set();
-  forEach(set, function (it) {
+  set.forEach(function (it) {
     add(result, it);
   });
   return result;
-};
-
-var iterate = function (set, fn) {
-  var iterator = set.keys();
-  return iterateSimple(iterator, fn, iterator.next);
 };
 
 module.exports = {
   Set: Set,
   aSet: aSet,
   add: add,
-  remove: remove,
-  forEach: forEach,
   has: has,
+  remove: remove,
   size: size,
-  clone: clone,
   iterate: iterate,
+  clone: clone,
   $has: SetPrototype.has,
   $keys: SetPrototype.keys
 };

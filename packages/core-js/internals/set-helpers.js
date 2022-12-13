@@ -23,6 +23,10 @@ var size = DESCRIPTORS ? uncurryThis(Object.getOwnPropertyDescriptor(SetPrototyp
   return set.size;
 };
 
+var iterate = function (set, fn, interruptible) {
+  return interruptible ? iterateSimple(keys(set), fn, next) : forEach(set, fn);
+};
+
 var clone = function (set) {
   var result = new $Set();
   forEach(set, function (it) {
@@ -31,20 +35,15 @@ var clone = function (set) {
   return result;
 };
 
-var iterate = function (set, fn) {
-  return iterateSimple(keys(set), fn, next);
-};
-
 module.exports = {
   Set: $Set,
   aSet: aSet,
   add: add,
-  remove: uncurryThis(SetPrototype['delete']),
-  forEach: forEach,
   has: has,
+  remove: uncurryThis(SetPrototype['delete']),
   size: size,
-  clone: clone,
   iterate: iterate,
+  clone: clone,
   $has: $has,
   $keys: $keys
 };

@@ -8,7 +8,7 @@ var aSet = SetHelpers.aSet;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
 var size = SetHelpers.size;
-var forEach = SetHelpers.forEach;
+var iterate = SetHelpers.iterate;
 var nativeHas = SetHelpers.$has;
 var nativeKeys = SetHelpers.$keys;
 
@@ -33,11 +33,11 @@ module.exports = function intersection(other) {
 
     var disordered = result;
     result = new Set();
-    forEach(O, function (e) {
+    iterate(O, function (e) {
       if (has(disordered, e)) add(result, e);
     });
   } else {
-    forEach(O, function (e) {
+    iterate(O, function (e) {
       if (otherRec.includes(e)) add(result, e);
     });
   }

@@ -7,7 +7,7 @@ var aSet = SetHelpers.aSet;
 var has = SetHelpers.has;
 var remove = SetHelpers.remove;
 var size = SetHelpers.size;
-var forEach = SetHelpers.forEach;
+var iterate = SetHelpers.iterate;
 var clone = SetHelpers.clone;
 
 // `Set.prototype.difference` method
@@ -16,7 +16,7 @@ module.exports = function difference(other) {
   var O = aSet(this);
   var otherRec = getSetRecord(other);
   var result = clone(O);
-  if (size(O) <= otherRec.size) forEach(O, function (e) {
+  if (size(O) <= otherRec.size) iterate(O, function (e) {
     if (otherRec.includes(e)) remove(result, e);
   });
   else iterateSimple(otherRec.getIterator(), function (e) {

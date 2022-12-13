@@ -16,7 +16,7 @@ module.exports = function isDisjointFrom(other) {
   return false !== (size(O) <= otherRec.size
     ? iterate(O, function (e) {
       if (otherRec.includes(e)) return false;
-    })
+    }, true)
     : iterateSimple(otherRec.getIterator(), function (e) {
       if (has(O, e)) return false;
     })
