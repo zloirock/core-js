@@ -77,6 +77,7 @@
 - `{ Map, WeakMap }.prototype.emplace` became stricter [by the spec draft](https://tc39.es/proposal-upsert/)
 - Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - Added pure version of the `Number` constructor, [#1154](https://github.com/zloirock/core-js/issues/1154), [#1155](https://github.com/zloirock/core-js/issues/1155), thanks [@trosos](https://github.com/trosos)
+- Some refactoring and optimization
 
 ##### [3.26.1 - 2022.11.14](https://github.com/zloirock/core-js/releases/tag/v3.26.1)
 - Disabled forced replacing of `Array.fromAsync` since it's on Stage 3

@@ -1,16 +1,15 @@
 'use strict';
-var getBuiltIn = require('../internals/get-built-in');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var MapHelpers = require('../internals/map-helpers');
 
-var Map = getBuiltIn('Map');
-var MapPrototype = Map.prototype;
-var mapGet = uncurryThis(MapPrototype.get);
-var mapHas = uncurryThis(MapPrototype.has);
-var mapSet = uncurryThis(MapPrototype.set);
+var Map = MapHelpers.Map;
+var mapGet = MapHelpers.get;
+var mapHas = MapHelpers.has;
+var mapSet = MapHelpers.set;
 var push = uncurryThis([].push);
 
 // `Array.prototype.groupToMap` method

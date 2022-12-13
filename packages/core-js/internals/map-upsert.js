@@ -7,7 +7,7 @@ var anObject = require('../internals/an-object');
 var $TypeError = TypeError;
 
 // `Map.prototype.upsert` method
-// https://github.com/thumbsupep/proposal-upsert
+// https://github.com/tc39/proposal-upsert
 module.exports = function upsert(key, updateFn /* , insertFn */) {
   var map = anObject(this);
   var get = aCallable(map.get);
