@@ -5,12 +5,11 @@ var iterateSimple = require('../internals/iterate-simple');
 
 var Set = getBuiltIn('Set');
 var SetPrototype = Set.prototype;
-var $TypeError = TypeError;
 
 var aSet = function (it) {
   anObject(it);
   if ('size' in it && 'has' in it && 'add' in it && 'delete' in it && 'keys' in it) return it;
-  throw $TypeError(tryToString(it) + ' is not a set');
+  throw TypeError(tryToString(it) + ' is not a set');
 };
 
 var add = function (set, it) {
@@ -30,17 +29,7 @@ var size = function (set) {
 };
 
 var iterate = function (set, fn, interruptible) {
-  if (!interruptible) return set.forEach(fn);
-  var iterator = set.keys();
-  return iterateSimple(iterator, fn, iterator.next);
-};
-
-var clone = function (set) {
-  var result = new Set();
-  set.forEach(function (it) {
-    add(result, it);
-  });
-  return result;
+  return interruptible ? iterateSimple(set.keys(), fn) : set.forEach(fn);
 };
 
 module.exports = {
@@ -51,7 +40,6 @@ module.exports = {
   remove: remove,
   size: size,
   iterate: iterate,
-  clone: clone,
   $has: SetPrototype.has,
   $keys: SetPrototype.keys
 };

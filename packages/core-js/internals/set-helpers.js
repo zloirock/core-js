@@ -27,14 +27,6 @@ var iterate = function (set, fn, interruptible) {
   return interruptible ? iterateSimple(keys(set), fn, next) : forEach(set, fn);
 };
 
-var clone = function (set) {
-  var result = new $Set();
-  forEach(set, function (it) {
-    add(result, it);
-  });
-  return result;
-};
-
 module.exports = {
   Set: $Set,
   aSet: aSet,
@@ -43,7 +35,6 @@ module.exports = {
   remove: uncurryThis(SetPrototype['delete']),
   size: size,
   iterate: iterate,
-  clone: clone,
   $has: $has,
   $keys: $keys
 };

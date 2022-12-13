@@ -1,5 +1,6 @@
 'use strict';
 var SetHelpers = require('../internals/set-helpers');
+var clone = require('../internals/set-clone');
 var getSetRecord = require('../internals/get-set-record');
 var iterateSimple = require('../internals/iterate-simple');
 
@@ -8,7 +9,6 @@ var has = SetHelpers.has;
 var remove = SetHelpers.remove;
 var size = SetHelpers.size;
 var iterate = SetHelpers.iterate;
-var clone = SetHelpers.clone;
 
 // `Set.prototype.difference` method
 // https://github.com/tc39/proposal-set-methods
