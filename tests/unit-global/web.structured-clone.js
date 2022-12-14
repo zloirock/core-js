@@ -250,6 +250,7 @@ QUnit.module('structuredClone', () => {
 
     for (const array of arrays) cloneObjectTest(assert, array, (orig, clone) => {
       assert.deepEqual(orig, clone, `array content should be same: ${ array }`);
+      assert.deepEqual(orig.length, clone.length, `array length should be same: ${ array }`);
       assert.deepEqual(keys(orig), keys(clone), `array key should be same: ${ array }`);
       for (const key of keys(orig)) {
         assert.same(orig[key], clone[key], `Property ${ key }`);
