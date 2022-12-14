@@ -28,6 +28,7 @@ var IS_DENO = require('../internals/engine-is-deno');
 var IS_NODE = require('../internals/engine-is-node');
 
 var Object = global.Object;
+var Array = global.Array;
 var Date = global.Date;
 var Error = global.Error;
 var EvalError = global.EvalError;
@@ -153,7 +154,7 @@ var structuredCloneInternal = function (value, map) {
 
   switch (type) {
     case 'Array':
-      cloned = [];
+      cloned = Array(lengthOfArrayLike(value));
       deep = true;
       break;
     case 'Object':

@@ -247,6 +247,7 @@ QUnit.module('structuredClone', () => {
     const arrays = [
       [],
       [1, 2, 3],
+      Array(1),
       assign(
         ['foo', 'bar'],
         { 10: true, 11: false, 20: 123, 21: 456, 30: null }),
