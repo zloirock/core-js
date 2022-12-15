@@ -1,9 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
 var MapHelpers = require('../internals/map-helpers');
+var iterate = require('../internals/map-iterate');
 
 var aMap = MapHelpers.aMap;
-var iterate = MapHelpers.iterate;
 
 // `Map.prototype.keyOf` method
 // https://github.com/tc39/proposal-collection-methods

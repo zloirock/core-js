@@ -2,9 +2,9 @@
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
 var MapHelpers = require('../internals/map-helpers');
+var iterate = require('../internals/map-iterate');
 
 var aMap = MapHelpers.aMap;
-var iterate = MapHelpers.iterate;
 
 // `Map.prototype.every` method
 // https://github.com/tc39/proposal-collection-methods

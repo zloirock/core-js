@@ -6,11 +6,11 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var MapHelpers = require('../internals/map-helpers');
+var iterate = require('../internals/map-iterate');
 
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
 var mapSet = MapHelpers.set;
-var iterate = MapHelpers.iterate;
 var push = uncurryThis([].push);
 
 // `Array.prototype.uniqueBy` method

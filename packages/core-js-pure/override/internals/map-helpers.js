@@ -1,7 +1,6 @@
 var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var tryToString = require('../internals/try-to-string');
-var iterateSimple = require('../internals/iterate-simple');
 
 var Map = getBuiltIn('Map');
 
@@ -27,12 +26,6 @@ var remove = function (map, key) {
   return map['delete'](key);
 };
 
-var iterate = function (map, fn, interruptible) {
-  return interruptible ? iterateSimple(map.entries(), function (entry) {
-    return fn(entry[1], entry[0]);
-  }) : map.forEach(fn);
-};
-
 module.exports = {
   Map: Map,
   aMap: aMap,
@@ -40,6 +33,5 @@ module.exports = {
   get: get,
   has: has,
   remove: remove,
-  proto: Map.prototype,
-  iterate: iterate
+  proto: Map.prototype
 };

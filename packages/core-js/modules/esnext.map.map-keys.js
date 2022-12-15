@@ -2,11 +2,11 @@
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
 var MapHelpers = require('../internals/map-helpers');
+var iterate = require('../internals/map-iterate');
 
 var Map = MapHelpers.Map;
 var aMap = MapHelpers.aMap;
 var set = MapHelpers.set;
-var iterate = MapHelpers.iterate;
 
 // `Map.prototype.mapKeys` method
 // https://github.com/tc39/proposal-collection-methods
