@@ -1,10 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
+var aMap = require('../internals/a-map');
 var MapHelpers = require('../internals/map-helpers');
 
 var $TypeError = TypeError;
-var aMap = MapHelpers.aMap;
 var get = MapHelpers.get;
 var has = MapHelpers.has;
 var set = MapHelpers.set;

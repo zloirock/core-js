@@ -1,8 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
+var aMap = require('../internals/a-map');
 var MapHelpers = require('../internals/map-helpers');
 
-var aMap = MapHelpers.aMap;
 var get = MapHelpers.get;
 var has = MapHelpers.has;
 var set = MapHelpers.set;

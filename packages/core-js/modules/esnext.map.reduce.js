@@ -1,11 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
-var MapHelpers = require('../internals/map-helpers');
+var aMap = require('../internals/a-map');
 var iterate = require('../internals/map-iterate');
 
 var $TypeError = TypeError;
-var aMap = MapHelpers.aMap;
 
 // `Map.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods

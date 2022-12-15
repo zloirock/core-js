@@ -1,10 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
-var MapHelpers = require('../internals/map-helpers');
+var aMap = require('../internals/a-map');
 var iterate = require('../internals/map-iterate');
-
-var aMap = MapHelpers.aMap;
 
 // `Map.prototype.findKey` method
 // https://github.com/tc39/proposal-collection-methods

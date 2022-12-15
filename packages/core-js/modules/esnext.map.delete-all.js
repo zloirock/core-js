@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var MapHelpers = require('../internals/map-helpers');
-
-var aMap = MapHelpers.aMap;
-var remove = MapHelpers.remove;
+var aMap = require('../internals/a-map');
+var remove = require('../internals/map-helpers').remove;
 
 // `Map.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
