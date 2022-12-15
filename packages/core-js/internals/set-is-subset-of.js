@@ -1,10 +1,8 @@
 'use strict';
-var SetHelpers = require('../internals/set-helpers');
-var iterate = require('../internals/set-iterate');
+var aSet = require('../internals/a-set');
 var size = require('../internals/set-size');
+var iterate = require('../internals/set-iterate');
 var getSetRecord = require('../internals/get-set-record');
-
-var aSet = SetHelpers.aSet;
 
 // `Set.prototype.isSubsetOf` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isSubsetOf

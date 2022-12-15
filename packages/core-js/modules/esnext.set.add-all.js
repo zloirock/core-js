@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var SetHelpers = require('../internals/set-helpers');
-
-var aSet = SetHelpers.aSet;
-var add = SetHelpers.add;
+var aSet = require('../internals/a-set');
+var add = require('../internals/set-helpers').add;
 
 // `Set.prototype.addAll` method
 // https://github.com/tc39/proposal-collection-methods

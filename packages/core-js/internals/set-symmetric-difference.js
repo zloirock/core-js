@@ -1,10 +1,10 @@
 'use strict';
+var aSet = require('../internals/a-set');
 var SetHelpers = require('../internals/set-helpers');
 var clone = require('../internals/set-clone');
 var getSetRecord = require('../internals/get-set-record');
 var iterateSimple = require('../internals/iterate-simple');
 
-var aSet = SetHelpers.aSet;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
 var remove = SetHelpers.remove;

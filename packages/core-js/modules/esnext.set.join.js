@@ -1,11 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
-var toString = require('../internals/to-string');
-var SetHelpers = require('../internals/set-helpers');
+var aSet = require('../internals/a-set');
 var iterate = require('../internals/set-iterate');
+var toString = require('../internals/to-string');
 
-var aSet = SetHelpers.aSet;
 var arrayJoin = uncurryThis([].join);
 var push = uncurryThis([].push);
 

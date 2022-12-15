@@ -1,11 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
+var aSet = require('../internals/a-set');
 var SetHelpers = require('../internals/set-helpers');
 var iterate = require('../internals/set-iterate');
 
 var Set = SetHelpers.Set;
-var aSet = SetHelpers.aSet;
 var add = SetHelpers.add;
 
 // `Set.prototype.map` method

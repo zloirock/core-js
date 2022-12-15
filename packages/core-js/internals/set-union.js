@@ -1,11 +1,9 @@
 'use strict';
-var SetHelpers = require('../internals/set-helpers');
+var aSet = require('../internals/a-set');
+var add = require('../internals/set-helpers').add;
 var clone = require('../internals/set-clone');
 var getSetRecord = require('../internals/get-set-record');
 var iterateSimple = require('../internals/iterate-simple');
-
-var aSet = SetHelpers.aSet;
-var add = SetHelpers.add;
 
 // `Set.prototype.union` method
 // https://github.com/tc39/proposal-set-methods

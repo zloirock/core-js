@@ -1,10 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
-var SetHelpers = require('../internals/set-helpers');
+var aSet = require('../internals/a-set');
 var iterate = require('../internals/set-iterate');
-
-var aSet = SetHelpers.aSet;
 
 // `Set.prototype.find` method
 // https://github.com/tc39/proposal-collection-methods

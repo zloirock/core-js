@@ -1,12 +1,12 @@
 'use strict';
+var aSet = require('../internals/a-set');
 var SetHelpers = require('../internals/set-helpers');
-var iterate = require('../internals/set-iterate');
 var clone = require('../internals/set-clone');
 var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
+var iterateSet = require('../internals/set-iterate');
 var iterateSimple = require('../internals/iterate-simple');
 
-var aSet = SetHelpers.aSet;
 var has = SetHelpers.has;
 var remove = SetHelpers.remove;
 
@@ -16,7 +16,7 @@ module.exports = function difference(other) {
   var O = aSet(this);
   var otherRec = getSetRecord(other);
   var result = clone(O);
-  if (size(O) <= otherRec.size) iterate(O, function (e) {
+  if (size(O) <= otherRec.size) iterateSet(O, function (e) {
     if (otherRec.includes(e)) remove(result, e);
   });
   else iterateSimple(otherRec.getIterator(), function (e) {

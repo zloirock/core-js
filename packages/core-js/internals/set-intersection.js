@@ -1,12 +1,12 @@
 'use strict';
+var aSet = require('../internals/a-set');
 var SetHelpers = require('../internals/set-helpers');
-var iterate = require('../internals/set-iterate');
 var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
+var iterateSet = require('../internals/set-iterate');
 var iterateSimple = require('../internals/iterate-simple');
 
 var Set = SetHelpers.Set;
-var aSet = SetHelpers.aSet;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
 var nativeHas = SetHelpers.$has;
@@ -33,11 +33,11 @@ module.exports = function intersection(other) {
 
     var disordered = result;
     result = new Set();
-    iterate(O, function (e) {
+    iterateSet(O, function (e) {
       if (has(disordered, e)) add(result, e);
     });
   } else {
-    iterate(O, function (e) {
+    iterateSet(O, function (e) {
       if (otherRec.includes(e)) add(result, e);
     });
   }

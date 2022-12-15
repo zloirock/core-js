@@ -1,11 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
-var SetHelpers = require('../internals/set-helpers');
+var aSet = require('../internals/a-set');
 var iterate = require('../internals/set-iterate');
 
 var $TypeError = TypeError;
-var aSet = SetHelpers.aSet;
 
 // `Set.prototype.reduce` method
 // https://github.com/tc39/proposal-collection-methods

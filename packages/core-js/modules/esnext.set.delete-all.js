@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var SetHelpers = require('../internals/set-helpers');
-
-var aSet = SetHelpers.aSet;
-var remove = SetHelpers.remove;
+var aSet = require('../internals/a-set');
+var remove = require('../internals/set-helpers').remove;
 
 // `Set.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
