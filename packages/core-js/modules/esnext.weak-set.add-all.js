@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var WeakSetHelpers = require('../internals/weak-set-helpers');
-
-var aWeakSet = WeakSetHelpers.aWeakSet;
-var add = WeakSetHelpers.add;
+var aWeakSet = require('../internals/a-weak-set');
+var add = require('../internals/weak-set-helpers').add;
 
 // `WeakSet.prototype.addAll` method
 // https://github.com/tc39/proposal-collection-methods
