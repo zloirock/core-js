@@ -3,9 +3,9 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var SetHelpers = require('../internals/set-helpers');
+var iterate = require('../internals/set-iterate');
 
 var aSet = SetHelpers.aSet;
-var iterate = SetHelpers.iterate;
 var arrayJoin = uncurryThis([].join);
 var push = uncurryThis([].push);
 

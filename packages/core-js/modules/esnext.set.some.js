@@ -2,9 +2,9 @@
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
 var SetHelpers = require('../internals/set-helpers');
+var iterate = require('../internals/set-iterate');
 
 var aSet = SetHelpers.aSet;
-var iterate = SetHelpers.iterate;
 
 // `Set.prototype.some` method
 // https://github.com/tc39/proposal-collection-methods

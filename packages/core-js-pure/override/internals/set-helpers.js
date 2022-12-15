@@ -1,7 +1,6 @@
 var getBuiltIn = require('../internals/get-built-in');
 var anObject = require('../internals/an-object');
 var tryToString = require('../internals/try-to-string');
-var iterateSimple = require('../internals/iterate-simple');
 
 var Set = getBuiltIn('Set');
 var SetPrototype = Set.prototype;
@@ -24,10 +23,6 @@ var remove = function (set, it) {
   return set['delete'](it);
 };
 
-var iterate = function (set, fn, interruptible) {
-  return interruptible ? iterateSimple(set.keys(), fn) : set.forEach(fn);
-};
-
 module.exports = {
   Set: Set,
   aSet: aSet,
@@ -35,7 +30,6 @@ module.exports = {
   has: has,
   remove: remove,
   proto: SetPrototype,
-  iterate: iterate,
   $has: SetPrototype.has,
   $keys: SetPrototype.keys
 };
