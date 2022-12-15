@@ -1,4 +1,3 @@
-var DESCRIPTORS = require('../internals/descriptors');
 var uncurryThis = require('../internals/function-uncurry-this');
 var iterateSimple = require('../internals/iterate-simple');
 
@@ -18,11 +17,6 @@ var aSet = function (it) {
   return it;
 };
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-var size = DESCRIPTORS ? uncurryThis(Object.getOwnPropertyDescriptor(SetPrototype, 'size').get) : function (set) {
-  return set.size;
-};
-
 var iterate = function (set, fn, interruptible) {
   return interruptible ? iterateSimple(keys(set), fn, next) : forEach(set, fn);
 };
@@ -33,7 +27,7 @@ module.exports = {
   add: add,
   has: has,
   remove: uncurryThis(SetPrototype['delete']),
-  size: size,
+  proto: SetPrototype,
   iterate: iterate,
   $has: $has,
   $keys: $keys

@@ -1,5 +1,6 @@
 'use strict';
 var SetHelpers = require('../internals/set-helpers');
+var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
 var iterateSimple = require('../internals/iterate-simple');
 
@@ -7,7 +8,6 @@ var Set = SetHelpers.Set;
 var aSet = SetHelpers.aSet;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
-var size = SetHelpers.size;
 var iterate = SetHelpers.iterate;
 var nativeHas = SetHelpers.$has;
 var nativeKeys = SetHelpers.$keys;

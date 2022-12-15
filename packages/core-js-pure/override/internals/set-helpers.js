@@ -24,10 +24,6 @@ var remove = function (set, it) {
   return set['delete'](it);
 };
 
-var size = function (set) {
-  return set.size;
-};
-
 var iterate = function (set, fn, interruptible) {
   return interruptible ? iterateSimple(set.keys(), fn) : set.forEach(fn);
 };
@@ -38,7 +34,7 @@ module.exports = {
   add: add,
   has: has,
   remove: remove,
-  size: size,
+  proto: SetPrototype,
   iterate: iterate,
   $has: SetPrototype.has,
   $keys: SetPrototype.keys

@@ -1,9 +1,9 @@
 'use strict';
 var SetHelpers = require('../internals/set-helpers');
+var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
 
 var aSet = SetHelpers.aSet;
-var size = SetHelpers.size;
 var iterate = SetHelpers.iterate;
 
 // `Set.prototype.isSubsetOf` method

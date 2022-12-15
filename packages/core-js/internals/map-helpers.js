@@ -1,4 +1,3 @@
-var DESCRIPTORS = require('../internals/descriptors');
 var uncurryThis = require('../internals/function-uncurry-this');
 var iterateSimple = require('../internals/iterate-simple');
 
@@ -17,11 +16,6 @@ var aMap = function (it) {
   return it;
 };
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-var size = DESCRIPTORS ? uncurryThis(Object.getOwnPropertyDescriptor(MapPrototype, 'size').get) : function (map) {
-  return map.size;
-};
-
 var iterate = function (map, fn, interruptible) {
   return interruptible ? iterateSimple(entries(map), function (entry) {
     return fn(entry[1], entry[0]);
@@ -35,6 +29,6 @@ module.exports = {
   get: get,
   has: has,
   remove: uncurryThis(MapPrototype['delete']),
-  size: size,
+  proto: MapPrototype,
   iterate: iterate
 };

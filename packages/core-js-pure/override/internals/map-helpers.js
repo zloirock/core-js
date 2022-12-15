@@ -27,10 +27,6 @@ var remove = function (map, key) {
   return map['delete'](key);
 };
 
-var size = function (map) {
-  return map.size;
-};
-
 var iterate = function (map, fn, interruptible) {
   return interruptible ? iterateSimple(map.entries(), function (entry) {
     return fn(entry[1], entry[0]);
@@ -44,6 +40,6 @@ module.exports = {
   get: get,
   has: has,
   remove: remove,
-  size: size,
+  proto: Map.prototype,
   iterate: iterate
 };
