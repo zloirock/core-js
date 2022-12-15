@@ -15,7 +15,7 @@ QUnit.test('Set#addAll', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).addAll(3, 4)), [1, 2, 3, 4]);
   assert.deepEqual(from(new Set([1, 2, 3]).addAll()), [1, 2, 3]);
 
-  assert.notThrows(() => addAll.call({ add() { /* empty */ } }, 1, 2, 3));
+  assert.throws(() => addAll.call({ add() { /* empty */ } }, 1, 2, 3));
   assert.throws(() => addAll.call({}, 1, 2, 3), TypeError);
   assert.throws(() => addAll.call(undefined, 1, 2, 3), TypeError);
   assert.throws(() => addAll.call(null, 1, 2, 3), TypeError);

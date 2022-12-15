@@ -27,7 +27,7 @@ QUnit.test('WeakSet#addAll', assert => {
   set = new WeakSet([a]).addAll();
   assert.true(set.has(a));
 
-  assert.notThrows(() => addAll.call({ add() { /* empty */ } }, a, b, c));
+  assert.throws(() => addAll.call({ add() { /* empty */ } }, a, b, c));
   assert.throws(() => addAll.call({}, a, b, c), TypeError);
   assert.throws(() => addAll.call(undefined, a, b, c), TypeError);
   assert.throws(() => addAll.call(null, a, b, c), TypeError);
