@@ -12,8 +12,9 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
   find: function find(callbackfn /* , thisArg */) {
     var set = aSet(this);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    return iterate(set, function (value) {
-      if (boundFunction(value, value, set)) return value;
+    var result = iterate(set, function (value) {
+      if (boundFunction(value, value, set)) return { value: value };
     }, true);
+    return result && result.value;
   }
 });

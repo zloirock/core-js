@@ -12,8 +12,9 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
   find: function find(callbackfn /* , thisArg */) {
     var map = aMap(this);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    return iterate(map, function (value, key) {
-      if (boundFunction(value, key, map)) return value;
+    var result = iterate(map, function (value, key) {
+      if (boundFunction(value, key, map)) return { value: value };
     }, true);
+    return result && result.value;
   }
 });

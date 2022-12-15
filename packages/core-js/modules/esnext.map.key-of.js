@@ -9,8 +9,9 @@ var iterate = MapHelpers.iterate;
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: true }, {
   keyOf: function keyOf(searchElement) {
-    return iterate(aMap(this), function (value, key) {
-      if (value === searchElement) return key;
+    var result = iterate(aMap(this), function (value, key) {
+      if (value === searchElement) return { key: key };
     }, true);
+    return result && result.key;
   }
 });
