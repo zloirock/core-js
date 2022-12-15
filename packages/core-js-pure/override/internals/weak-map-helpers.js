@@ -1,14 +1,4 @@
 var getBuiltIn = require('../internals/get-built-in');
-var anObject = require('../internals/an-object');
-var tryToString = require('../internals/try-to-string');
-
-var WeakMap = getBuiltIn('WeakMap');
-
-var aWeakMap = function (it) {
-  anObject(it);
-  if ('has' in it && 'get' in it && 'set' in it && 'delete') return it;
-  throw TypeError(tryToString(it) + ' is not a weakmap');
-};
 
 var set = function (map, key, value) {
   return map.set(key, value);
@@ -27,8 +17,7 @@ var remove = function (map, key) {
 };
 
 module.exports = {
-  WeakMap: WeakMap,
-  aWeakMap: aWeakMap,
+  WeakMap: getBuiltIn('WeakMap'),
   set: set,
   get: get,
   has: has,

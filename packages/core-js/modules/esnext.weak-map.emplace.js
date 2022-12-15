@@ -1,8 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
+var aWeakMap = require('../internals/a-weak-map');
 var WeakMapHelpers = require('../internals/weak-map-helpers');
 
-var aWeakMap = WeakMapHelpers.aWeakMap;
 var get = WeakMapHelpers.get;
 var has = WeakMapHelpers.has;
 var set = WeakMapHelpers.set;

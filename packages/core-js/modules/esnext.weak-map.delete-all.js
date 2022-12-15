@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var WeakMapHelpers = require('../internals/weak-map-helpers');
-
-var aWeakMap = WeakMapHelpers.aWeakMap;
-var remove = WeakMapHelpers.remove;
+var aWeakMap = require('../internals/a-weak-map');
+var remove = require('../internals/weak-map-helpers').remove;
 
 // `WeakMap.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
