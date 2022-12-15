@@ -45,7 +45,7 @@ QUnit.test('WeakSet#deleteAll', assert => {
   assert.false(set.has(d));
   assert.false(set.has(e));
 
-  assert.notThrows(() => !deleteAll.call({ delete() { /* empty */ } }, a, b, c));
+  assert.throws(() => deleteAll.call({ delete() { /* empty */ } }, a, b, c));
   assert.throws(() => deleteAll.call({}, a, b, c), TypeError);
   assert.throws(() => deleteAll.call(undefined, a, b, c), TypeError);
   assert.throws(() => deleteAll.call(null, a, b, c), TypeError);

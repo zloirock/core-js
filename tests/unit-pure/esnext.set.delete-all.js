@@ -25,7 +25,7 @@ QUnit.test('Set#deleteAll', assert => {
   assert.true(set.deleteAll());
   assert.deepEqual(from(set), [1, 2, 3]);
 
-  assert.notThrows(() => !deleteAll.call({ delete() { /* empty */ } }, 1, 2, 3));
+  assert.throws(() => deleteAll.call({ delete() { /* empty */ } }, 1, 2, 3));
   assert.throws(() => deleteAll.call({}, 1, 2, 3), TypeError);
   assert.throws(() => deleteAll.call(undefined, 1, 2, 3), TypeError);
   assert.throws(() => deleteAll.call(null, 1, 2, 3), TypeError);
