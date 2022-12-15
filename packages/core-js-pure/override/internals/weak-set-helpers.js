@@ -10,22 +10,12 @@ var aWeakSet = function (it) {
   throw TypeError(tryToString(it) + ' is not a weakset');
 };
 
-var add = function (set, it) {
-  return set.add(it);
-};
-
-var has = function (set, it) {
-  return set.has(it);
-};
-
-var remove = function (set, it) {
-  return set['delete'](it);
-};
+var caller = require('../internals/caller');
 
 module.exports = {
-  WeakSet: WeakSet,
   aWeakSet: aWeakSet,
-  add: add,
-  has: has,
-  remove: remove
+  WeakSet: getBuiltIn('WeakSet'),
+  add: caller('add', 1),
+  has: caller('has', 1),
+  remove: caller('delete', 1)
 };
