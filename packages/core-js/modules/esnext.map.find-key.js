@@ -1,19 +1,19 @@
 'use strict';
 var $ = require('../internals/export');
-var anObject = require('../internals/an-object');
 var bind = require('../internals/function-bind-context');
-var getMapIterator = require('../internals/get-map-iterator');
-var iterate = require('../internals/iterate');
+var MapHelpers = require('../internals/map-helpers');
+
+var aMap = MapHelpers.aMap;
+var iterate = MapHelpers.iterate;
 
 // `Map.prototype.findKey` method
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', proto: true, real: true, forced: true }, {
   findKey: function findKey(callbackfn /* , thisArg */) {
-    var map = anObject(this);
-    var iterator = getMapIterator(map);
+    var map = aMap(this);
     var boundFunction = bind(callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-    return iterate(iterator, function (key, value, stop) {
-      if (boundFunction(value, key, map)) return stop(key);
-    }, { AS_ENTRIES: true, IS_ITERATOR: true, INTERRUPTED: true }).result;
+    return iterate(map, function (value, key) {
+      if (boundFunction(value, key, map)) return key;
+    }, true);
   }
 });
