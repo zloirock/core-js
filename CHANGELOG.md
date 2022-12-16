@@ -74,10 +74,11 @@
   - Added Samsung Internet 19.0 compat data mapping
   - Added Quest Browser 24.0 compat data mapping
   - Fixed the first version in the Chromium-based Edge compat data mapping
-- Fixed handling of sparse arrays in `structuredClone`, [#1156](https://github.com/zloirock/core-js/issues/1156)
 - `{ Map, WeakMap }.prototype.emplace` became stricter [by the spec draft](https://tc39.es/proposal-upsert/)
-- Fixed a theoretically possible future conflict of polyfills definitions in the pure version
+- Removed some generic behavior (like `@@species` pattern) of some `.prototype` methods from the [new collections methods proposal](https://github.com/tc39/proposal-collection-methods) that *most likely* will not be implemented since it contradicts the current TC39 policy
 - Added pure version of the `Number` constructor, [#1154](https://github.com/zloirock/core-js/issues/1154), [#1155](https://github.com/zloirock/core-js/issues/1155), thanks [@trosos](https://github.com/trosos)
+- Fixed handling of sparse arrays in `structuredClone`, [#1156](https://github.com/zloirock/core-js/issues/1156)
+- Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - Some refactoring and optimization
 
 ##### [3.26.1 - 2022.11.14](https://github.com/zloirock/core-js/releases/tag/v3.26.1)
