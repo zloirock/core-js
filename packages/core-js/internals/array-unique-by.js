@@ -4,7 +4,6 @@ var aCallable = require('../internals/a-callable');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
-var arraySpeciesCreate = require('../internals/array-species-create');
 var MapHelpers = require('../internals/map-helpers');
 var iterate = require('../internals/map-iterate');
 
@@ -18,7 +17,7 @@ var push = uncurryThis([].push);
 module.exports = function uniqueBy(resolver) {
   var that = toObject(this);
   var length = lengthOfArrayLike(that);
-  var result = arraySpeciesCreate(that, 0);
+  var result = [];
   var map = new Map();
   var resolverFunction = !isNullOrUndefined(resolver) ? aCallable(resolver) : function (value) {
     return value;
