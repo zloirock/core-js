@@ -1136,9 +1136,12 @@ const json = {
 };
 
 const globalsESNext = {
+  AsyncDisposableStack: READONLY,
   AsyncIterator: READONLY,
+  DisposableStack: READONLY,
   Iterator: READONLY,
   Observable: READONLY,
+  SuppressedError: READONLY,
   compositeKey: READONLY,
   compositeSymbol: READONLY,
 };

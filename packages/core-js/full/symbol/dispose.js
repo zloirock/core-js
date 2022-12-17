@@ -1,4 +1,3 @@
-require('../../modules/esnext.symbol.dispose');
-var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
+var parent = require('../../actual/symbol/dispose');
 
-module.exports = WrappedWellKnownSymbolModule.f('dispose');
+module.exports = parent;

@@ -1802,6 +1802,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
+  'esnext.suppressed-error.constructor': {
+  },
   'esnext.array.from-async': {
     bun: '0.3.0',
   },
@@ -1858,10 +1860,14 @@ export const data = {
     deno: '1.27',
     safari: '16.0',
   },
+  'esnext.async-disposable-stack.constructor': {
+  },
   'esnext.async-iterator.constructor': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.async-iterator.as-indexed-pairs': {
+  },
+  'esnext.async-iterator.async-dispose': {
   },
   'esnext.async-iterator.drop': {
   },
@@ -1895,6 +1901,8 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
+  'esnext.disposable-stack.constructor': {
+  },
   'esnext.function.is-callable': {
   },
   'esnext.function.is-constructor': {
@@ -1907,6 +1915,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
+  },
+  'esnext.iterator.dispose': {
   },
   'esnext.iterator.drop': {
   },

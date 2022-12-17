@@ -652,6 +652,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/virtual/is-well-formed').call('a'));
     ok(load(NS, 'string/to-well-formed')('a') === 'a');
     ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
+    ok(load(NS, 'symbol/dispose'));
+    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
+    load(NS, 'iterator/dispose');
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');
@@ -803,8 +808,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
-    ok(load(NS, 'symbol/async-dispose'));
-    ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/metadata'));
     ok(load(NS, 'symbol/metadata-key'));
@@ -820,6 +823,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
+    ok(load(NS, 'symbol/async-dispose'));
+    load(NS, 'async-iterator/async-dispose');
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints == 'function');
@@ -866,6 +873,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
@@ -874,6 +882,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
+  load('proposals/explicit-resource-management');
   load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
   load('proposals/global-this');

@@ -163,6 +163,11 @@ export default {
     'web.self',
   ],
   3.27: [
+    'esnext.suppressed-error.constructor',
+    'esnext.async-disposable-stack.constructor',
+    'esnext.async-iterator.async-dispose',
+    'esnext.disposable-stack.constructor',
+    'esnext.iterator.dispose',
     'esnext.set.difference.v2',
     'esnext.set.intersection.v2',
     'esnext.set.is-disjoint-from.v2',

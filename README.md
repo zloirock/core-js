@@ -130,11 +130,12 @@ queueMicrotask(() => console.log('called as microtask'));
       - [`Array` grouping](#array-grouping)
       - [Change `Array` by copy](#change-array-by-copy)
       - [New `Set` methods](#new-set-methods)
+      - [Explicit resource management](#explicit-resource-management)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
-      - [`Symbol.{ asyncDispose, dispose }` for `using` statement](#symbol-asyncdispose-dispose--for-using-statement)
+      - [Async explicit resource management](#async-explicit-resource-management)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
@@ -593,10 +594,11 @@ class [
   constructor(message: string, { cause: any }): %Error%;
 }
 
-class AggregateError {
-  constructor(errors: Iterable, message: string, { cause: any }): AggregateError;
+class AggregateError extends Error {
+  constructor(errors: Iterable, message?: string, { cause: any }?): AggregateError;
   errors: Array<any>;
   message: string;
+  cause: any;
 }
 
 class Error {
@@ -2311,6 +2313,45 @@ new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
 new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
+##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
+Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**
+
+Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js), [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js), [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js), [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js).
+```js
+class Symbol {
+  static dispose: @@dispose;
+}
+
+class DisposableStack {
+  constructor(): DisposableStack;
+  dispose(): undefined;
+  use(value: Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  @@dispose(): undefined;
+  @@toStringTag: 'DisposableStack';
+}
+
+class SuppressedError extends Error {
+  constructor(error: any, suppressed: any, message?: string, { cause: any }?): SuppressedError;
+  error: any;
+  suppressed: any;
+  message: string;
+  cause: any;
+}
+
+class Iterator {
+  @@dispose(): undefined;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/explicit-resource-management
+core-js(-pure)/full/symbol/dispose
+core-js(-pure)/full/disposable-stack
+core-js(-pure)/full/suppressed-error
+core-js(-pure)/full/iterator/dispose
+```
 ##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
 Modules [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js) and [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
 ```js
@@ -2382,19 +2423,35 @@ core-js(-pure)/full/array/is-template-object
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
-##### [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)[⬆](#index)
-Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js).
+##### [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management)[⬆](#index)
+Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**
+
+Modules [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js), [`esnext.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-disposable-stack.constructor.js), [`esnext.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
 ```js
 class Symbol {
   static asyncDispose: @@asyncDispose;
-  static dispose: @@dispose;
+}
+
+class AsyncDisposableStack {
+  constructor(): AsyncDisposableStack;
+  disposeAsync(): Promise<undefined>;
+  use(value: AsyncDisposable | Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  @@asyncDispose(): Promise<undefined>;
+  @@toStringTag: 'AsyncDisposableStack';
+}
+
+class AsyncIterator {
+  @@asyncDispose(): Promise<undefined>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/using-statement
+core-js/proposals/async-explicit-resource-management
 core-js(-pure)/full/symbol/async-dispose
-core-js(-pure)/full/symbol/dispose
+core-js(-pure)/full/async-disposable-stack
+core-js(-pure)/full/async-iterator/async-dispose
 ```
 ##### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Module [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js).
