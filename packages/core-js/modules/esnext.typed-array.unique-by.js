@@ -12,5 +12,6 @@ var arrayUniqueBy = uncurryThis($arrayUniqueBy);
 // `%TypedArray%.prototype.uniqueBy` method
 // https://github.com/tc39/proposal-array-unique
 exportTypedArrayMethod('uniqueBy', function uniqueBy(resolver) {
-  return arrayFromConstructorAndList(getTypedArrayConstructor(this), arrayUniqueBy(aTypedArray(this), resolver));
+  aTypedArray(this);
+  return arrayFromConstructorAndList(getTypedArrayConstructor(this), arrayUniqueBy(this, resolver));
 }, true);
