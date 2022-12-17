@@ -18,8 +18,8 @@ if (await pathExists(`${ DIR }/package.json`)) {
   await $`npm install \
     --no-audit \
     --no-fund \
-    --lockfile-version 3 \
-    --loglevel error \
+    --lockfile-version=3 \
+    --loglevel=error \
   `;
 
   const BIN = normalize(`${ cwd() }/node_modules/.bin`);
