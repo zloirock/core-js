@@ -806,6 +806,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);
     ok(load(NS, 'set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
+    ok(load(NS, 'string/dedent')`
+      a${ 1 }b
+    ` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/matcher'));
@@ -916,6 +919,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-at');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
+  load('proposals/string-dedent');
   load('proposals/string-left-right-trim');
   load('proposals/string-match-all');
   load('proposals/string-padding');

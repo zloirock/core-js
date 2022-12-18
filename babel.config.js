@@ -41,7 +41,7 @@ module.exports = {
     constantSuper: true,
     enumerableModuleMeta: true,
     iterableIsArray: true,
-    mutableTemplateObject: true,
+    mutableTemplateObject: false,
     noClassCalls: true,
     noDocumentAll: true,
     noIncompleteNsImportDetection: true,

@@ -2141,6 +2141,8 @@ export const data = {
   },
   'esnext.string.code-points': {
   },
+  'esnext.string.dedent': {
+  },
   'esnext.string.is-well-formed': {
   },
   // TODO: Remove from `core-js@4`

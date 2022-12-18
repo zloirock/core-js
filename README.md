@@ -135,6 +135,7 @@ queueMicrotask(() => console.log('called as microtask'));
     - [Stage 2 proposals](#stage-2-proposals)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
+      - [`String.dedent`](#stringdedent)
       - [Async explicit resource management](#async-explicit-resource-management)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
@@ -2422,6 +2423,30 @@ core-js(-pure)/full/array/is-template-object
 *Example*:
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
+```
+##### [`String.dedent`](https://github.com/tc39/proposal-string-dedent)[⬆](#index)
+Module [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
+```js
+class String {
+  static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/string-dedent
+core-js(-pure)/full/string/dedent
+```
+[*Example*](https://tinyurl.com/2lbnofgo):
+```js
+const message = 42;
+
+console.log(String.dedent`
+  print('${ message }')
+`); // => print('42')
+
+String.dedent(console.log)`
+  print('${ message }')
+`; // => ["print('", "')", raw: Array(2)], 42
 ```
 ##### [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management)[⬆](#index)
 Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**

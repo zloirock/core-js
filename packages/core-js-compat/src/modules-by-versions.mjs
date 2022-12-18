@@ -175,5 +175,6 @@ export default {
     'esnext.set.is-superset-of.v2',
     'esnext.set.symmetric-difference.v2',
     'esnext.set.union.v2',
+    'esnext.string.dedent',
   ],
 };
