@@ -29,8 +29,8 @@ assign(QUnit.assert, {
       actual: result,
       expected: 'The property should be enumerable',
       message: DESCRIPTORS
-        ? 'Enumerability is not applicable'
-        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`,
+        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`
+        : 'Enumerability is not applicable',
     });
   },
   epsilon(a, b, EPSILON = 1e-11, message) {
@@ -118,8 +118,8 @@ assign(QUnit.assert, {
       actual: result,
       expected: 'The property should be non-enumerable',
       message: DESCRIPTORS
-        ? 'Enumerability is not applicable'
-        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
+        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`
+        : 'Enumerability is not applicable',
     });
   },
   nonWritable(O, key, message) {
@@ -129,8 +129,8 @@ assign(QUnit.assert, {
       actual: result,
       expected: 'The property should be non-writable',
       message: DESCRIPTORS
-        ? 'Writability is not applicable'
-        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`,
+        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`
+        : 'Writability is not applicable',
     });
   },
   notSame(actual, expected, message) {
