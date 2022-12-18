@@ -13,7 +13,7 @@ module.exports = function cooked(template /* , ...substitutions */) {
   var argumentsLength = arguments.length;
   var elements = [];
   var i = 0;
-  while (literalSegments > i) {
+  while (true) {
     var nextVal = cookedTemplate[i++];
     if (nextVal === undefined) throw $TypeError('Incorrect template');
     push(elements, toString(nextVal));
