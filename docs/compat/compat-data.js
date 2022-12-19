@@ -5563,6 +5563,7 @@
     "safari": "14.0",
     "samsung": "14.0"
   },
+  "esnext.suppressed-error.constructor": {},
   "esnext.array.from-async": {
     "bun": "0.3.0"
   },
@@ -5668,8 +5669,10 @@
     "ios": "16.0",
     "safari": "16.0"
   },
+  "esnext.async-disposable-stack.constructor": {},
   "esnext.async-iterator.constructor": {},
   "esnext.async-iterator.as-indexed-pairs": {},
+  "esnext.async-iterator.async-dispose": {},
   "esnext.async-iterator.drop": {},
   "esnext.async-iterator.every": {},
   "esnext.async-iterator.filter": {},
@@ -5686,6 +5689,7 @@
   "esnext.bigint.range": {},
   "esnext.composite-key": {},
   "esnext.composite-symbol": {},
+  "esnext.disposable-stack.constructor": {},
   "esnext.function.is-callable": {},
   "esnext.function.is-constructor": {},
   "esnext.function.un-this": {},
@@ -5714,6 +5718,7 @@
   },
   "esnext.iterator.constructor": {},
   "esnext.iterator.as-indexed-pairs": {},
+  "esnext.iterator.dispose": {},
   "esnext.iterator.drop": {},
   "esnext.iterator.every": {},
   "esnext.iterator.filter": {},
@@ -5870,6 +5875,7 @@
   "esnext.string.at": {},
   "esnext.string.cooked": {},
   "esnext.string.code-points": {},
+  "esnext.string.dedent": {},
   "esnext.string.is-well-formed": {},
   "esnext.string.match-all": {
     "android": "80",
