@@ -223,11 +223,17 @@ function createStringTrimMethodTest(METHOD_NAME) {
 }
 
 function IMMEDIATE() {
-  return setImmediate && clearImmediate && !IS_BUN;
+  return setImmediate && clearImmediate && !(IS_BUN && (function () {
+    var version = global.Bun.version.split('.');
+    return version.length < 3 || version[0] == 0 && (version[1] < 3 || version[1] == 3 && version[2] == 0);
+  })());
 }
 
 function TIMERS() {
-  return !IS_BUN && !/MSIE .\./.test(USERAGENT);
+  return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
+    var version = global.Bun.version.split('.');
+    return version.length < 3 || version[0] == 0 && (version[1] < 3 || version[1] == 3 && version[2] == 0);
+  })());
 }
 
 GLOBAL.tests = {
