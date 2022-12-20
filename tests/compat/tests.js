@@ -8,6 +8,7 @@ var NOT_WHITESPACES = '\u200B\u0085\u180E';
 var USERAGENT = GLOBAL.navigator && GLOBAL.navigator.userAgent || '';
 
 var process = GLOBAL.process;
+var Bun = GLOBAL.Bun;
 var Deno = GLOBAL.Deno;
 var versions = process && process.versions || Deno && Deno.version;
 var v8 = versions && versions.v8;
@@ -32,7 +33,7 @@ if (!V8_VERSION && USERAGENT) {
 }
 
 var IS_BROWSER = typeof window == 'object' && typeof Deno != 'object';
-
+var IS_BUN = typeof Bun == 'function' && Bun && typeof Bun.version == 'string';
 var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object';
 
 // var IS_NODE = Object.prototype.toString.call(process) == '[object process]';
@@ -222,11 +223,11 @@ function createStringTrimMethodTest(METHOD_NAME) {
 }
 
 function IMMEDIATE() {
-  return setImmediate && clearImmediate;
+  return setImmediate && clearImmediate && !IS_BUN;
 }
 
 function TIMERS() {
-  return !/MSIE .\./.test(USERAGENT);
+  return !IS_BUN && !/MSIE .\./.test(USERAGENT);
 }
 
 GLOBAL.tests = {
@@ -1799,7 +1800,9 @@ GLOBAL.tests = {
       return typeof btoa == 'function';
     }
   },
-  'web.clear-immediate': IMMEDIATE,
+  'web.clear-immediate': function () {
+    return setImmediate && clearImmediate;
+  },
   'web.dom-collections.for-each': function () {
     return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
       && (!GLOBAL.DOMTokenList || (DOMTokenList.prototype.forEach && DOMTokenList.prototype.forEach === [].forEach));

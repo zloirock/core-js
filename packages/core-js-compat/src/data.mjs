@@ -2299,7 +2299,8 @@ export const data = {
   },
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.immediate': {
-    bun: '0.1.7',
+    // https://github.com/oven-sh/bun/issues/1633
+    // bun: '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
@@ -2322,13 +2323,15 @@ export const data = {
     safari: '10',
   },
   'web.set-immediate': {
-    bun: '0.1.7',
+    // https://github.com/oven-sh/bun/issues/1633
+    // bun: '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
   'web.set-interval': {
     android: '1.5',
-    bun: '0.1.1',
+    // https://github.com/oven-sh/bun/issues/1633
+    // bun: '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
@@ -2341,7 +2344,8 @@ export const data = {
   },
   'web.set-timeout': {
     android: '1.5',
-    bun: '0.1.1',
+    // https://github.com/oven-sh/bun/issues/1633
+    // bun: '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
@@ -2362,7 +2366,8 @@ export const data = {
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.timers': {
     android: '1.5',
-    bun: '0.1.1',
+    // https://github.com/oven-sh/bun/issues/1633
+    // bun: '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
