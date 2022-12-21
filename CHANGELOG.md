@@ -104,7 +104,7 @@
 - `{ Map, WeakMap }.prototype.emplace` became stricter [by the spec draft](https://tc39.es/proposal-upsert/)
 - Removed some generic behavior (like `@@species` pattern) of some `.prototype` methods from the [new collections methods proposal](https://github.com/tc39/proposal-collection-methods) and the [`Array` deduplication proposal](https://github.com/tc39/proposal-array-unique) that *most likely* will not be implemented since it contradicts the current TC39 policy
 - Added pure version of the `Number` constructor, [#1154](https://github.com/zloirock/core-js/issues/1154), [#1155](https://github.com/zloirock/core-js/issues/1155), thanks [@trosos](https://github.com/trosos)
-- Added `set(Timeout|Interval|Immediate)` extra arguments fix for Bun (similarly to IE9-), [bun/1633](https://github.com/oven-sh/bun/issues/1633)
+- Added `set(Timeout|Interval|Immediate)` extra arguments fix for Bun 0.3.0- (similarly to IE9-), [bun/1633](https://github.com/oven-sh/bun/issues/1633)
 - Fixed handling of sparse arrays in `structuredClone`, [#1156](https://github.com/zloirock/core-js/issues/1156)
 - Fixed a theoretically possible future conflict of polyfills definitions in the pure version
 - Some refactoring and optimization
