@@ -13,7 +13,7 @@ const start = Date.now();
 let tested = 0;
 let withCoreJS = 0;
 
-echo(green('downloading and parsing T1M Alexa data, it could take some minutes'));
+echo(green('downloading and parsing T1M Alexa data, depending on AWS cloud speed it could take from some seconds to some minutes'));
 const response = await fetch('https://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
 const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv').async('string');
