@@ -2,8 +2,10 @@
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
+var isCallable = require('../internals/is-callable');
 var aCallable = require('../internals/a-callable');
 var iterate = require('../internals/iterate');
+var Map = require('../internals/map-helpers').Map;
 
 var push = uncurryThis([].push);
 
@@ -11,7 +13,8 @@ var push = uncurryThis([].push);
 // https://github.com/tc39/proposal-collection-methods
 $({ target: 'Map', stat: true, forced: true }, {
   groupBy: function groupBy(iterable, keyDerivative) {
-    var newMap = new this();
+    var C = isCallable(this) ? this : Map;
+    var newMap = new C();
     aCallable(keyDerivative);
     var has = aCallable(newMap.has);
     var get = aCallable(newMap.get);
