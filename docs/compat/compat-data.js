@@ -6164,7 +6164,6 @@
     "samsung": "5.0"
   },
   "web.immediate": {
-    "bun": "0.1.7",
     "ie": "10",
     "node": "0.9.1"
   },
@@ -6206,13 +6205,11 @@
     "samsung": "14.0"
   },
   "web.set-immediate": {
-    "bun": "0.1.7",
     "ie": "10",
     "node": "0.9.1"
   },
   "web.set-interval": {
     "android": "1.5",
-    "bun": "0.1.1",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
@@ -6237,7 +6234,6 @@
   },
   "web.set-timeout": {
     "android": "1.5",
-    "bun": "0.1.1",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
@@ -6263,7 +6259,6 @@
   "web.structured-clone": {},
   "web.timers": {
     "android": "1.5",
-    "bun": "0.1.1",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
