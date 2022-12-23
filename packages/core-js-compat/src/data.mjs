@@ -2144,12 +2144,14 @@ export const data = {
   'esnext.string.dedent': {
   },
   'esnext.string.is-well-formed': {
+    bun: '0.4.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
   'esnext.string.to-well-formed': {
+    bun: '0.4.0',
   },
   'esnext.symbol.async-dispose': {
   },
@@ -2300,7 +2302,7 @@ export const data = {
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.immediate': {
     // https://github.com/oven-sh/bun/issues/1633
-    // bun: '0.1.7',
+    bun: '0.4.0', // '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
@@ -2324,14 +2326,14 @@ export const data = {
   },
   'web.set-immediate': {
     // https://github.com/oven-sh/bun/issues/1633
-    // bun: '0.1.7',
+    bun: '0.4.0', // '0.1.7',
     ie: '10',
     node: '0.9.1',
   },
   'web.set-interval': {
     android: '1.5',
     // https://github.com/oven-sh/bun/issues/1633
-    // bun: '0.1.1',
+    bun: '0.4.0', // '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
@@ -2345,7 +2347,7 @@ export const data = {
   'web.set-timeout': {
     android: '1.5',
     // https://github.com/oven-sh/bun/issues/1633
-    // bun: '0.1.1',
+    bun: '0.4.0', // '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',
@@ -2367,7 +2369,7 @@ export const data = {
   'web.timers': {
     android: '1.5',
     // https://github.com/oven-sh/bun/issues/1633
-    // bun: '0.1.1',
+    bun: '0.4.0', // '0.1.1',
     chrome: '1',
     deno: '1.0',
     firefox: '1',

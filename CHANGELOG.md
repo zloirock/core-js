@@ -95,6 +95,7 @@
   - For avoiding breaking changes, the `oculus` and `opera_mobile` fields are available in the compat data till the next major release.
 - Compat data improvements:
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from Bun 0.3.0
+  - [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-array-from-async) marked as supported from Bun 0.4.0
   - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from Deno 1.27, [deno/16429](https://github.com/denoland/deno/pull/16429)
   - Added Deno 1.28 / 1.29 compat data mapping
   - Added NodeJS 19.2 compat data mapping
