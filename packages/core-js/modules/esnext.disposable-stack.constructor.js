@@ -57,6 +57,7 @@ defineBuiltIns(DisposableStackPrototype, {
     var suppressed;
     while (i) {
       var disposeMethod = stack[--i];
+      stack[i] = null;
       try {
         disposeMethod();
       } catch (errorResult) {

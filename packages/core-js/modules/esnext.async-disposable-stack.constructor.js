@@ -73,6 +73,7 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
       var loop = function () {
         if (i) {
           var disposeMethod = stack[--i];
+          stack[i] = null;
           try {
             Promise.resolve(disposeMethod()).then(loop, handleError);
           } catch (error) {
