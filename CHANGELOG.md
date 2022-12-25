@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.27.0 - 2022.12.26](https://github.com/zloirock/core-js/releases/tag/v3.27.0)
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
   - Built-ins:
     - `Iterator`

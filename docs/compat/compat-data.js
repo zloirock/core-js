@@ -5876,7 +5876,9 @@
   "esnext.string.cooked": {},
   "esnext.string.code-points": {},
   "esnext.string.dedent": {},
-  "esnext.string.is-well-formed": {},
+  "esnext.string.is-well-formed": {
+    "bun": "0.4.0"
+  },
   "esnext.string.match-all": {
     "android": "80",
     "bun": "0.1.1",
@@ -5921,7 +5923,9 @@
     "safari": "13.1",
     "samsung": "14.0"
   },
-  "esnext.string.to-well-formed": {},
+  "esnext.string.to-well-formed": {
+    "bun": "0.4.0"
+  },
   "esnext.symbol.async-dispose": {},
   "esnext.symbol.dispose": {},
   "esnext.symbol.matcher": {},
@@ -6164,6 +6168,7 @@
     "samsung": "5.0"
   },
   "web.immediate": {
+    "bun": "0.4.0",
     "ie": "10",
     "node": "0.9.1"
   },
@@ -6205,11 +6210,13 @@
     "samsung": "14.0"
   },
   "web.set-immediate": {
+    "bun": "0.4.0",
     "ie": "10",
     "node": "0.9.1"
   },
   "web.set-interval": {
     "android": "1.5",
+    "bun": "0.4.0",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
@@ -6234,6 +6241,7 @@
   },
   "web.set-timeout": {
     "android": "1.5",
+    "bun": "0.4.0",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
@@ -6259,6 +6267,7 @@
   "web.structured-clone": {},
   "web.timers": {
     "android": "1.5",
+    "bun": "0.4.0",
     "chrome": "1",
     "chrome-android": "18",
     "deno": "1.0",
