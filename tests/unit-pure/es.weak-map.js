@@ -1,8 +1,9 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers';
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants';
 
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 import freeze from 'core-js-pure/es/object/freeze';
+import isFrozen from 'core-js-pure/es/object/is-frozen';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
 import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
 import keys from 'core-js-pure/es/object/keys';
@@ -151,6 +152,10 @@ QUnit.test('WeakMap#set', assert => {
   weakmap.delete(object2);
   assert.same(weakmap.get(object1), undefined, 'works with frozen objects #3');
   assert.same(weakmap.get(object2), undefined, 'works with frozen objects #4');
+  const array = freeze([]);
+  weakmap.set(array, 42);
+  assert.same(weakmap.get(array), 42, 'works with frozen arrays #1');
+  if (FREEZING) assert.true(isFrozen(array), 'works with frozen arrays #2');
 });
 
 QUnit.test('WeakMap#@@toStringTag', assert => {

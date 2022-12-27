@@ -1,8 +1,8 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, FREEZING, GLOBAL, NATIVE } from '../helpers/constants';
 import { createIterable, nativeSubclass } from '../helpers/helpers';
 
 const Symbol = GLOBAL.Symbol || {};
-const { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } = Object;
+const { freeze, isFrozen, keys, getOwnPropertyNames, getOwnPropertySymbols } = Object;
 const { ownKeys } = GLOBAL.Reflect || {};
 
 QUnit.test('WeakMap', assert => {
@@ -163,6 +163,10 @@ QUnit.test('WeakMap#set', assert => {
   weakmap.delete(object2);
   assert.same(weakmap.get(object1), undefined, 'works with frozen objects #3');
   assert.same(weakmap.get(object2), undefined, 'works with frozen objects #4');
+  const array = freeze([]);
+  weakmap.set(array, 42);
+  assert.same(weakmap.get(array), 42, 'works with frozen arrays #1');
+  if (FREEZING) assert.true(isFrozen(array), 'works with frozen arrays #2');
 });
 
 QUnit.test('WeakMap#@@toStringTag', assert => {

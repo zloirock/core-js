@@ -1364,7 +1364,7 @@ GLOBAL.tests = {
     return unescape;
   },
   'es.weak-map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
-    var key = Object.freeze({});
+    var key = Object.freeze([]);
     var called = 0;
     var iterable = {
       next: function () {
@@ -1376,10 +1376,13 @@ GLOBAL.tests = {
     };
 
     var map = new WeakMap(iterable);
+    // MS IE bug
     return map.get(key) == 1
       && map.get(null) == undefined
       && map.set({}, 2) == map
-      && map[Symbol.toStringTag];
+      && map[Symbol.toStringTag]
+      // MS Edge bug
+      && Object.isFrozen(key);
   }],
   'es.weak-set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = {};

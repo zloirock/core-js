@@ -1786,7 +1786,8 @@ export const data = {
   'es.weak-map': null,
   'es.weak-map.constructor': {
     chrome: '51',
-    edge: '15',
+    // adding frozen arrays to WeakMap unfreeze them
+    // edge: '15',
     firefox: '53',
     rhino: '1.7.13',
     safari: '10.0',
