@@ -25,6 +25,8 @@ var freeze = $Object.freeze;
 // eslint-disable-next-line es/no-object-seal -- safe
 var seal = $Object.seal;
 
+var FROZEN = {};
+var SEALED = {};
 var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
 var InternalWeakMap;
 
@@ -44,7 +46,7 @@ var nativeSet = uncurryThis(WeakMapPrototype.set);
 var hasMSEdgeFreezingBug = function () {
   return FREEZING && fails(function () {
     var frozenArray = freeze([]);
-    new $WeakMap().set(frozenArray, 1);
+    nativeSet(new $WeakMap(), frozenArray, 1);
     return !isFrozen(frozenArray);
   });
 };
@@ -95,12 +97,12 @@ if (NATIVE_WEAK_MAP) if (IS_IE11) {
     set: function set(key, value) {
       var arrayIntegrityLevel;
       if (isArray(key)) {
-        if (isFrozen(key)) arrayIntegrityLevel = 'frozen';
-        else if (isSealed(key)) arrayIntegrityLevel = 'sealed';
+        if (isFrozen(key)) arrayIntegrityLevel = FROZEN;
+        else if (isSealed(key)) arrayIntegrityLevel = SEALED;
       }
       nativeSet(this, key, value);
-      if (arrayIntegrityLevel === 'frozen') freeze(key);
-      if (arrayIntegrityLevel === 'sealed') seal(key);
+      if (arrayIntegrityLevel == FROZEN) freeze(key);
+      if (arrayIntegrityLevel == SEALED) seal(key);
       return this;
     }
   });
