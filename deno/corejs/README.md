@@ -28,7 +28,7 @@
 
 *Example*:
 ```js
-import 'https://deno.land/x/corejs@v3.27.0/index.js'; // <- at the top of your entry point
+import 'https://deno.land/x/corejs@v3.27.1/index.js'; // <- at the top of your entry point
 
 Object.hasOwn({ foo: 42 }, 'foo');   // => true
 

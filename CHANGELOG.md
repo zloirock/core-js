@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.27.1 - 2022.12.30](https://github.com/zloirock/core-js/releases/tag/v3.27.1)
 - Fixed a Chakra-based MS Edge (18-) bug that unfreeze (O_o) frozen arrays used as `WeakMap` keys
 - Fixing of the previous bug also fixes some cases of `String.dedent` in MS Edge
 - Fixed dependencies of some entries
