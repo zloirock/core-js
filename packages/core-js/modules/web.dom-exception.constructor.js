@@ -80,8 +80,11 @@ var getterFor = function (key) {
 };
 
 if (DESCRIPTORS) {
+  // `DOMException.prototype.code` getter
   defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
+  // `DOMException.prototype.message` getter
   defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
+  // `DOMException.prototype.name` getter
   defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
 }
 
@@ -128,6 +131,7 @@ if (INCORRECT_CODE && DESCRIPTORS && NativeDOMException === PolyfilledDOMExcepti
   }));
 }
 
+// `DOMException` constants
 for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
   var constant = DOMExceptionConstants[key];
   var constantName = constant.s;
