@@ -15,14 +15,12 @@ QUnit.test('SuppressedError', assert => {
   assert.same(SuppressedError().suppressed, undefined);
   assert.same(SuppressedError().message, '');
   assert.same(SuppressedError().cause, undefined);
-  assert.false('cause' in SuppressedError());
   assert.same(SuppressedError().name, 'SuppressedError');
 
   assert.same(new SuppressedError().error, undefined);
   assert.same(new SuppressedError().suppressed, undefined);
   assert.same(new SuppressedError().message, '');
   assert.same(new SuppressedError().cause, undefined);
-  assert.false('cause' in new SuppressedError());
   assert.same(new SuppressedError().name, 'SuppressedError');
 
   const error1 = SuppressedError(1, 2, 3, { cause: 4 });
