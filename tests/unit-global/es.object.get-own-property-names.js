@@ -1,4 +1,3 @@
-import { GLOBAL } from '../helpers/constants';
 import { includes } from '../helpers/helpers';
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
@@ -37,7 +36,8 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.throws(() => {
     getOwnPropertyNames(undefined);
   }, TypeError, 'throws on undefined');
-  if (GLOBAL.document) {
+  /* Chakra bug
+  if (typeof document != 'undefined' && document.createElement) {
     assert.notThrows(() => {
       const iframe = document.createElement('iframe');
       iframe.src = 'http://example.com';
@@ -47,5 +47,6 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
       return getOwnPropertyNames(window);
     }, 'IE11 bug with iframe and window');
   }
+  */
 });
 
