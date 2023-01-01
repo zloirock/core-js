@@ -199,21 +199,21 @@ QUnit.module('structuredClone', () => {
   QUnit.test('Error', assert => {
     const errors = [
       ['Error', new Error()],
-      ['Error', new Error('abc', 'def', { cause: 42 })],
+      ['Error', new Error('msg', { cause: 42 })],
       ['EvalError', new EvalError()],
-      ['EvalError', new EvalError('ghi', 'jkl', { cause: 42 })],
+      ['EvalError', new EvalError('msg', { cause: 42 })],
       ['RangeError', new RangeError()],
-      ['RangeError', new RangeError('ghi', 'jkl', { cause: 42 })],
+      ['RangeError', new RangeError('msg', { cause: 42 })],
       ['ReferenceError', new ReferenceError()],
-      ['ReferenceError', new ReferenceError('ghi', 'jkl', { cause: 42 })],
+      ['ReferenceError', new ReferenceError('msg', { cause: 42 })],
       ['SyntaxError', new SyntaxError()],
-      ['SyntaxError', new SyntaxError('ghi', 'jkl', { cause: 42 })],
+      ['SyntaxError', new SyntaxError('msg', { cause: 42 })],
       ['TypeError', new TypeError()],
-      ['TypeError', new TypeError('ghi', 'jkl', { cause: 42 })],
+      ['TypeError', new TypeError('msg', { cause: 42 })],
       ['URIError', new URIError()],
-      ['URIError', new URIError('ghi', 'jkl', { cause: 42 })],
+      ['URIError', new URIError('msg', { cause: 42 })],
       ['AggregateError', new AggregateError([1, 2])],
-      ['AggregateError', new AggregateError([1, 2], 42, { cause: 42 })],
+      ['AggregateError', new AggregateError([1, 2], 'msg', { cause: 42 })],
     ];
 
     const compile = fromSource('WebAssembly.CompileError()');
