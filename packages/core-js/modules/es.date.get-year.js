@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
+// IE8- non-standard case
 var FORCED = fails(function () {
   return new Date(16e11).getYear() !== 120;
 });
