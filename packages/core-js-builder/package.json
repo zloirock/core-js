@@ -19,6 +19,7 @@
   },
   "sideEffects": false,
   "main": "index.js",
+  "types": "index.d.ts",
   "dependencies": {
     "core-js": "3.27.2",
     "core-js-compat": "3.27.2",

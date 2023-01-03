@@ -32,3 +32,5 @@ const bundle = await builder({
   filename: PATH_TO_MY_COREJS_BUNDLE,
 });
 ```
+
+ℹ️ When using TypeScript, make sure to set `esModuleInterop` to `true`.
