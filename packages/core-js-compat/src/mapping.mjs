@@ -238,7 +238,7 @@ export default {
     [104, '23.0'],
     [106, '24.0'],
   ],
-  // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
+  // https://github.com/mdn/browser-compat-data/blob/main/browsers/firefox_android.json
   FirefoxToFirefoxAndroid(firefox) {
     return firefox <= 4 ? 4 : firefox;
   },
