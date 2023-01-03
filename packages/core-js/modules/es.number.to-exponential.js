@@ -28,20 +28,23 @@ var ROUNDS_PROPERLY = nativeToExponential(-6.9e-11, 4) === '-6.9000e-11'
   && nativeToExponential(25, 0) === '3e+1';
 
 // IE8-
-var THROWS_ON_INFINITY_FRACTION = fails(function () {
-  nativeToExponential(1, Infinity);
-}) && fails(function () {
-  nativeToExponential(1, -Infinity);
-});
+var throwsOnInfinityFraction = function () {
+  return fails(function () {
+    nativeToExponential(1, Infinity);
+  }) && fails(function () {
+    nativeToExponential(1, -Infinity);
+  });
+};
 
 // Safari <11 && FF <50
-var PROPER_NON_FINITE_THIS_CHECK = !fails(function () {
-  nativeToExponential(Infinity, Infinity);
-}) && !fails(function () {
-  nativeToExponential(NaN, Infinity);
-});
+var properNonFiniteThisCheck = function () {
+  return !fails(function () {
+    nativeToExponential(Infinity, Infinity);
+    nativeToExponential(NaN, Infinity);
+  });
+};
 
-var FORCED = !ROUNDS_PROPERLY || !THROWS_ON_INFINITY_FRACTION || !PROPER_NON_FINITE_THIS_CHECK;
+var FORCED = !ROUNDS_PROPERLY || !throwsOnInfinityFraction() || !properNonFiniteThisCheck();
 
 // `Number.prototype.toExponential` method
 // https://tc39.es/ecma262/#sec-number.prototype.toexponential
