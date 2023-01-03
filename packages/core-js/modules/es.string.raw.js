@@ -14,10 +14,11 @@ $({ target: 'String', stat: true }, {
   raw: function raw(template) {
     var rawTemplate = toIndexedObject(toObject(template).raw);
     var literalSegments = lengthOfArrayLike(rawTemplate);
+    if (!literalSegments) return '';
     var argumentsLength = arguments.length;
     var elements = [];
     var i = 0;
-    while (literalSegments > i) {
+    while (true) {
       push(elements, toString(rawTemplate[i++]));
       if (i === literalSegments) return join(elements, '');
       if (i < argumentsLength) push(elements, toString(arguments[i]));

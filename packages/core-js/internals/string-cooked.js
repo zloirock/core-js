@@ -7,9 +7,12 @@ var $TypeError = TypeError;
 var push = uncurryThis([].push);
 var join = uncurryThis([].join);
 
+// `String.cooked` method
+// https://tc39.es/proposal-string-cooked/
 module.exports = function cooked(template /* , ...substitutions */) {
   var cookedTemplate = toIndexedObject(template);
   var literalSegments = lengthOfArrayLike(cookedTemplate);
+  if (!literalSegments) return '';
   var argumentsLength = arguments.length;
   var elements = [];
   var i = 0;
