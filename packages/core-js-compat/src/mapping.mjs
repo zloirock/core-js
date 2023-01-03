@@ -250,6 +250,7 @@ export default {
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/safari_ios.json
   // https://en.wikipedia.org/wiki/Safari_version_history
+  // iOS 15+ uses similar to the desktop Safari versioning
   SafariToIOS: [
     ['3.0', '1.0'],
     ['3.1', '2.0'],
