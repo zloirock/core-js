@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-string-slice -- required for testing */
 import { STRICT } from '../helpers/constants';
 
 QUnit.test('String#substr', assert => {

@@ -506,8 +506,6 @@ const base = {
   'unicorn/prefer-modern-math-apis': ERROR,
   // prefer using Set#size instead of Array#length
   'unicorn/prefer-set-size': ERROR,
-  // prefer `String#slice` over `String#{ substr, substring }`
-  'unicorn/prefer-string-slice': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
   // enforce consistent relative `URL` style
@@ -757,8 +755,9 @@ const forbidESAnnexBBuiltIns = {
   'es/no-escape-unescape': ERROR,
   'es/no-legacy-object-prototype-accessor-methods': ERROR,
   'es/no-string-create-html-methods': ERROR,
-  'es/no-string-prototype-substr': ERROR,
   'es/no-string-prototype-trimleft-trimright': ERROR,
+  // prefer `String#slice` over `String#{ substr, substring }`
+  'unicorn/prefer-string-slice': ERROR,
 };
 
 const forbidES5BuiltIns = {
