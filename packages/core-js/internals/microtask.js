@@ -2,6 +2,7 @@ var global = require('../internals/global');
 var bind = require('../internals/function-bind-context');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var macrotask = require('../internals/task').set;
+var Queue = require('../internals/queue');
 var IS_IOS = require('../internals/engine-is-ios');
 var IS_IOS_PEBBLE = require('../internals/engine-is-ios-pebble');
 var IS_WEBOS_WEBKIT = require('../internals/engine-is-webos-webkit');
@@ -13,26 +14,24 @@ var process = global.process;
 var Promise = global.Promise;
 // Node.js 11 shows ExperimentalWarning on getting `queueMicrotask`
 var queueMicrotaskDescriptor = getOwnPropertyDescriptor(global, 'queueMicrotask');
-var queueMicrotask = queueMicrotaskDescriptor && queueMicrotaskDescriptor.value;
-
-var flush, head, last, notify, toggle, node, promise, then;
+var microtask = queueMicrotaskDescriptor && queueMicrotaskDescriptor.value;
+var notify, toggle, node, promise, then;
 
 // modern engines have queueMicrotask method
-if (!queueMicrotask) {
-  flush = function () {
+if (!microtask) {
+  var queue = new Queue();
+
+  var flush = function () {
     var parent, fn;
     if (IS_NODE && (parent = process.domain)) parent.exit();
-    while (head) {
-      fn = head.fn;
-      head = head.next;
+    while (fn = queue.get()) {
       try {
         fn();
       } catch (error) {
-        if (head) notify();
-        else last = undefined;
+        if (queue.head) notify();
         throw error;
       }
-    } last = undefined;
+    }
     if (parent) parent.enter();
   };
 
@@ -73,13 +72,11 @@ if (!queueMicrotask) {
       macrotask(flush);
     };
   }
+
+  microtask = function (fn) {
+    if (!queue.head) notify();
+    queue.add(fn);
+  };
 }
 
-module.exports = queueMicrotask || function (fn) {
-  var task = { fn: fn, next: undefined };
-  if (last) last.next = task;
-  if (!head) {
-    head = task;
-    notify();
-  } last = task;
-};
+module.exports = microtask;
