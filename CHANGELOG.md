@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Refactoring, some minor optimizations
 

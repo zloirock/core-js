@@ -9,8 +9,7 @@ var proxyAccessor = require('../internals/proxy-accessor');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var installErrorCause = require('../internals/install-error-cause');
-var clearErrorStack = require('../internals/error-stack-clear');
-var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
+var installErrorStack = require('../internals/error-stack-install');
 var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
@@ -36,7 +35,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
     var message = normalizeStringArgument(IS_AGGREGATE_ERROR ? b : a, undefined);
     var result = IS_AGGREGATE_ERROR ? new OriginalError(a) : new OriginalError();
     if (message !== undefined) createNonEnumerableProperty(result, 'message', message);
-    if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(result, 'stack', clearErrorStack(result.stack, 2));
+    installErrorStack(result, WrappedError, result.stack, 2);
     if (this && isPrototypeOf(OriginalErrorPrototype, this)) inheritIfRequired(result, this, WrappedError);
     if (arguments.length > OPTIONS_POSITION) installErrorCause(result, arguments[OPTIONS_POSITION]);
     return result;

@@ -7,12 +7,11 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var clearErrorStack = require('../internals/error-stack-clear');
 var installErrorCause = require('../internals/install-error-cause');
+var installErrorStack = require('../internals/error-stack-install');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
@@ -29,7 +28,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
     createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
-  if (ERROR_STACK_INSTALLABLE) createNonEnumerableProperty(that, 'stack', clearErrorStack(that.stack, 1));
+  installErrorStack(that, $AggregateError, that.stack, 1);
   installErrorCause(that, options);
   var errorsArray = [];
   iterate(errors, push, { that: errorsArray });
