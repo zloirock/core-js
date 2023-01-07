@@ -10,18 +10,15 @@ var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
 var setInternalState = InternalStateModule.set;
 
-var TO_STRING_TAG = wellKnownSymbol('toStringTag');
-
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
-  var ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
+  var getInternalState = InternalStateModule.getterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
 
-  var getInternalState = InternalStateModule.getterFor(ITERATOR_PROXY);
-
-  var IteratorProxyPrototype = defineBuiltIns(create(IteratorPrototype), {
+  return defineBuiltIns(create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
       // for simplification:
@@ -53,26 +50,20 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       return createIterResultObject(undefined, true);
     }
   });
-
-  if (!IS_ITERATOR) {
-    createNonEnumerableProperty(IteratorProxyPrototype, TO_STRING_TAG, 'Iterator Helper');
-  }
-
-  return IteratorProxyPrototype;
 };
 
-var IteratorHelperPrototype = createIteratorProxyPrototype(false);
 var WrapForValidIteratorPrototype = createIteratorProxyPrototype(true);
+var IteratorHelperPrototype = createIteratorProxyPrototype(false);
+
+createNonEnumerableProperty(IteratorHelperPrototype, TO_STRING_TAG, 'Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
-  var ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
-
   var IteratorProxy = function Iterator(record, state) {
     if (state) {
       state.iterator = record.iterator;
       state.next = record.next;
     } else state = record;
-    state.type = ITERATOR_PROXY;
+    state.type = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
     state.nextHandler = nextHandler;
     state.counter = 0;
     state.done = false;

@@ -46,7 +46,7 @@ var eventListener = function (event) {
   run(event.data);
 };
 
-var globalPostMessage = function (id) {
+var globalPostMessageDefer = function (id) {
   // old engines have not location.origin
   global.postMessage(String(id), $location.protocol + '//' + $location.host);
 };
@@ -90,9 +90,9 @@ if (!set || !clear) {
     isCallable(global.postMessage) &&
     !global.importScripts &&
     $location && $location.protocol !== 'file:' &&
-    !fails(globalPostMessage)
+    !fails(globalPostMessageDefer)
   ) {
-    defer = globalPostMessage;
+    defer = globalPostMessageDefer;
     global.addEventListener('message', eventListener, false);
   // IE8-
   } else if (ONREADYSTATECHANGE in createElement('script')) {

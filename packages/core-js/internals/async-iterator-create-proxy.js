@@ -15,17 +15,14 @@ var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
 
+var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
 var WRAP_FOR_VALID_ASYNC_ITERATOR = 'WrapForValidAsyncIterator';
 var setInternalState = InternalStateModule.set;
 
-var TO_STRING_TAG = wellKnownSymbol('toStringTag');
-
 var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
   var IS_GENERATOR = !IS_ITERATOR;
-  var ASYNC_ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER;
-
-  var getInternalState = InternalStateModule.getterFor(ASYNC_ITERATOR_PROXY);
+  var getInternalState = InternalStateModule.getterFor(IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER);
 
   var getStateOrEarlyExit = function (that) {
     var stateCompletion = perform(function () {
@@ -55,7 +52,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     return state.awaiting ? state.awaiting = state.awaiting.then(task, task) : task();
   };
 
-  var AsyncIteratorProxyPrototype = defineBuiltIns(create(AsyncIteratorPrototype), {
+  return defineBuiltIns(create(AsyncIteratorPrototype), {
     next: function next() {
       var stateCompletion = getStateOrEarlyExit(this);
       var exit = stateCompletion.exit;
@@ -103,26 +100,20 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       });
     }
   });
-
-  if (IS_GENERATOR) {
-    createNonEnumerableProperty(AsyncIteratorProxyPrototype, TO_STRING_TAG, 'Async Iterator Helper');
-  }
-
-  return AsyncIteratorProxyPrototype;
 };
 
-var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
 var WrapForValidAsyncIteratorPrototype = createAsyncIteratorProxyPrototype(true);
+var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
+
+createNonEnumerableProperty(AsyncIteratorHelperPrototype, TO_STRING_TAG, 'Async Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR) {
-  var ASYNC_ITERATOR_PROXY = IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER;
-
   var AsyncIteratorProxy = function AsyncIterator(record, state) {
     if (state) {
       state.iterator = record.iterator;
       state.next = record.next;
     } else state = record;
-    state.type = ASYNC_ITERATOR_PROXY;
+    state.type = IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER;
     state.nextHandler = nextHandler;
     state.counter = 0;
     state.done = false;
