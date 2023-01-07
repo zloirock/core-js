@@ -121,6 +121,7 @@ const run = assert => {
   assert.same('uid=31'.replace(/(uid=)(\d+)/, '$1115'), 'uid=115', 'S15.5.4.11_A3_T1');
   assert.same('uid=31'.replace(/(uid=)(\d+)/, '$11A15'), 'uid=1A15', 'S15.5.4.11_A3_T3');
   assert.same('abc12 def34'.replace(/([a-z]+)(\d+)/, (a, b, c) => c + b), '12abc def34', 'S15.5.4.11_A4_T1');
+  // eslint-disable-next-line regexp/optimal-quantifier-concatenation -- required for testing
   assert.same('aaaaaaaaaa,aaaaaaaaaaaaaaa'.replace(/^(a+)\1*,\1+$/, '$1'), 'aaaaa', 'S15.5.4.11_A5_T1');
 
   // https://github.com/zloirock/core-js/issues/471

@@ -603,10 +603,12 @@ const base = {
   'regexp/no-lazy-ends': ERROR,
   // disallow legacy RegExp features
   'regexp/no-legacy-features': ERROR,
-  // disallow missing `g` flag in patterns used in `String#matchAll` and `String#replaceAll`
-  'regexp/no-missing-g-flag': ERROR,
+  // disallow capturing groups that do not behave as one would expect
+  'regexp/no-misleading-capturing-group': ERROR,
   // disallow multi-code-point characters in character classes and quantifiers
   'regexp/no-misleading-unicode-character': ERROR,
+  // disallow missing `g` flag in patterns used in `String#matchAll` and `String#replaceAll`
+  'regexp/no-missing-g-flag': ERROR,
   // disallow non-standard flags
   'regexp/no-non-standard-flag': ERROR,
   // disallow obscure character ranges
