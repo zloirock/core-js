@@ -16,7 +16,6 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 
 var $SuppressedError = function SuppressedError(error, suppressed, message /* , options */) {
-  var options = arguments.length > 3 ? arguments[3] : undefined;
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
   var that;
   if (setPrototypeOf) {
@@ -27,7 +26,7 @@ var $SuppressedError = function SuppressedError(error, suppressed, message /* , 
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
   installErrorStack(that, $SuppressedError, that.stack, 1);
-  installErrorCause(that, options);
+  if (arguments.length > 3) installErrorCause(that, arguments[3]);
   createNonEnumerableProperty(that, 'error', error);
   createNonEnumerableProperty(that, 'suppressed', suppressed);
   return that;

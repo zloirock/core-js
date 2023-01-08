@@ -24,13 +24,11 @@ if (!microtask) {
   var flush = function () {
     var parent, fn;
     if (IS_NODE && (parent = process.domain)) parent.exit();
-    while (fn = queue.get()) {
-      try {
-        fn();
-      } catch (error) {
-        if (queue.head) notify();
-        throw error;
-      }
+    while (fn = queue.get()) try {
+      fn();
+    } catch (error) {
+      if (queue.head) notify();
+      throw error;
     }
     if (parent) parent.enter();
   };
