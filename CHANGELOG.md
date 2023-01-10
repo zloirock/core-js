@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added one more workaround of a `webpack` dev server bug on IE global methods, [#1161](https://github.com/zloirock/core-js/issues/1161)
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Refactoring, some minor optimizations
