@@ -65,6 +65,7 @@ export default {
     [107, '19.0'],
     [108, '19.2'],
   ],
+  // https://github.com/denoland/deno/releases
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/deno.json
   ChromeToDeno: [
     [84, '1.0'],
@@ -90,6 +91,8 @@ export default {
     [109, '1.28'],
     [109, '1.29'],
   ],
+  // https://releases.electronjs.org/
+  // https://github.com/electron/electron/releases
   // https://github.com/Kilian/electron-to-chromium/blob/master/chromium-versions.js
   // Maybe also required to handle used Node versions?
   // https://github.com/electron/releases/blob/master/lite.json
@@ -243,6 +246,7 @@ export default {
   FirefoxToFirefoxAndroid(firefox) {
     return firefox <= 4 ? 4 : firefox;
   },
+  // https://github.com/oven-sh/bun/releases
   // This is the base data. Since it have no direct Safari equals by the
   // WebKit / JavaScriptCore version, don't use mapping for future releases.
   // https://github.com/oven-sh/bun/issues/396
