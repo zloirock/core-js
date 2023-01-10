@@ -179,6 +179,7 @@ export default {
     [96, '17.0'],
     [99, '18.0'],
     [102, '19.0'],
+    [106, '20.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   ChromeAndroidToOperaAndroid: [

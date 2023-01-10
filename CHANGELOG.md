@@ -3,7 +3,8 @@
 - Added one more workaround of a `webpack` dev server bug on IE global methods, [#1161](https://github.com/zloirock/core-js/issues/1161)
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
-- Added Quest Browser 25.0 compat data mapping
+- Added Samsung Internet 20 compat data mapping
+- Added Quest Browser 25 compat data mapping
 - Refactoring, some minor optimizations
 
 ##### [3.27.1 - 2022.12.30](https://github.com/zloirock/core-js/releases/tag/v3.27.1)
