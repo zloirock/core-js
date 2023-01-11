@@ -5,7 +5,7 @@
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
 - Added Samsung Internet 20 compat data mapping
 - Added Quest Browser 25 compat data mapping
-- Refactoring, some minor optimizations
+- Refactoring, some minor fixes, improvements, optimizations
 
 ##### [3.27.1 - 2022.12.30](https://github.com/zloirock/core-js/releases/tag/v3.27.1)
 - Fixed a Chakra-based MS Edge (18-) bug that unfreeze (O_o) frozen arrays used as `WeakMap` keys
