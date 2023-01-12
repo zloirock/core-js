@@ -20,21 +20,26 @@ async function bundle({ bundled, minified, options = {} }) {
   if (!minified) return;
 
   const { code, map } = await minify(source, {
-    ecma: 5,
+    ecma: 3,
     ie8: true,
+    safari10: true,
     keep_fnames: true,
     compress: {
-      hoist_funs: false,
+      hoist_funs: true,
       hoist_vars: true,
+      passes: 2,
       pure_getters: true,
-      passes: 3,
+      // document.all detection case
+      typeofs: false,
       unsafe_proto: true,
       unsafe_undefined: true,
     },
     format: {
       max_line_len: 32000,
       preamble: config.banner,
-      webkit: false,
+      webkit: true,
+      // https://v8.dev/blog/preparser#pife
+      wrap_func_args: false,
     },
     sourceMap: {
       url: `${ minified }.js.map`,

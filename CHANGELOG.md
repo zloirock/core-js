@@ -6,6 +6,7 @@
 - Added Samsung Internet 20 compat data mapping
 - Added Quest Browser 25 compat data mapping
 - Added Electron 23 and 24 compat data mapping
+- Minor tweaks of minification settings for `core-js-bundle`
 - Refactoring, some minor fixes, improvements, optimizations
 
 ##### [3.27.1 - 2022.12.30](https://github.com/zloirock/core-js/releases/tag/v3.27.1)
