@@ -3,9 +3,11 @@
 - Added one more workaround of a `webpack` dev server bug on IE global methods, [#1161](https://github.com/zloirock/core-js/issues/1161)
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
-- Added Samsung Internet 20 compat data mapping
-- Added Quest Browser 25 compat data mapping
-- Added Electron 23 and 24 compat data mapping
+- Compat data improvements:
+  - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from V8 ~ Chrome 110
+  - Added Samsung Internet 20 compat data mapping
+  - Added Quest Browser 25 compat data mapping
+  - Added Electron 23 and 24 compat data mapping
 - Minor tweaks of minification settings for `core-js-bundle`
 - Refactoring, some minor fixes, improvements, optimizations
 

@@ -1844,20 +1844,24 @@ export const data = {
   'esnext.array.last-item': {
   },
   'esnext.array.to-reversed': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.to-sorted': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.to-spliced': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
   'esnext.array.unique-by': {
   },
   'esnext.array.with': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
@@ -2191,10 +2195,12 @@ export const data = {
   'esnext.typed-array.group-by': {
   },
   'esnext.typed-array.to-reversed': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
   'esnext.typed-array.to-sorted': {
+    chrome: '110',
     deno: '1.27',
     safari: '16.0',
   },
@@ -2204,8 +2210,9 @@ export const data = {
   'esnext.typed-array.unique-by': {
   },
   'esnext.typed-array.with': {
-    deno: '1.27',
     bun: '0.1.9',
+    chrome: '110',
+    deno: '1.27',
   },
   'esnext.weak-map.delete-all': {
   },
