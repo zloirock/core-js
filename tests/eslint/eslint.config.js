@@ -13,8 +13,8 @@ const pluginQUnit = require('eslint-plugin-qunit');
 const pluginRegExp = require('eslint-plugin-regexp');
 const pluginSonarJS = require('eslint-plugin-sonarjs');
 const pluginUnicorn = require('eslint-plugin-unicorn');
-
 const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+
 const DEV_NODE_VERSIONS = '^16.13';
 
 const ERROR = 'error';
@@ -322,6 +322,8 @@ const base = {
   // import:
   // ensure all imports appear before other statements
   'import/first': ERROR,
+  // enforce a newline after import statements
+  'import/newline-after-import': ERROR,
   // forbid import of modules using absolute paths
   'import/no-absolute-path': ERROR,
   // forbid AMD imports
@@ -332,6 +334,8 @@ const base = {
   'import/no-duplicates': ERROR,
   // forbid `require()` calls with expressions
   'import/no-dynamic-require': ERROR,
+  // forbid empty named import blocks
+  'import/no-empty-named-blocks': ERROR,
   // forbid imports with CommonJS exports
   'import/no-import-module-exports': ERROR,
   // prevent importing packages through relative paths
@@ -1180,6 +1184,7 @@ module.exports = [
       'packages/core-js-pure/override/**',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
+      'tests/unit-@(global|pure)/index.js',
     ],
   },
   {

@@ -1,8 +1,8 @@
 var fs = require('fs');
 var os = require('os');
 var path = require('path');
-var env = process.env;
 
+var env = process.env;
 var ADBLOCK = is(env.ADBLOCK);
 var COLOR = is(env.npm_config_color);
 var DISABLE_OPENCOLLECTIVE = is(env.DISABLE_OPENCOLLECTIVE);

@@ -1,5 +1,5 @@
+import { WHITESPACES } from '../helpers/constants';
 import { nativeSubclass } from '../helpers/helpers';
-const whitespaces = ' \t\u000B\f\u00A0\uFEFF\n\r\u2028\u2029\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000';
 
 function getCheck(assert) {
   return function (a, b) {
@@ -167,15 +167,15 @@ QUnit.test('Number constructor: regression', assert => {
 
   number = new Number(42);
   assert.same(typeof number.constructor(number), 'number');
-  check(`${ whitespaces }42`, 42);
-  check(`42${ whitespaces }`, 42);
-  check(`${ whitespaces }42${ whitespaces }`, 42);
-  check(`${ whitespaces }0x42`, 66);
-  check(`0x42${ whitespaces }`, 66);
-  check(`${ whitespaces }0x42${ whitespaces }`, 66);
-  check(`${ whitespaces }0X42`, 66);
-  check(`0X42${ whitespaces }`, 66);
-  check(`${ whitespaces }0X42${ whitespaces }`, 66);
+  check(`${ WHITESPACES }42`, 42);
+  check(`42${ WHITESPACES }`, 42);
+  check(`${ WHITESPACES }42${ WHITESPACES }`, 42);
+  check(`${ WHITESPACES }0x42`, 66);
+  check(`0x42${ WHITESPACES }`, 66);
+  check(`${ WHITESPACES }0x42${ WHITESPACES }`, 66);
+  check(`${ WHITESPACES }0X42`, 66);
+  check(`0X42${ WHITESPACES }`, 66);
+  check(`${ WHITESPACES }0X42${ WHITESPACES }`, 66);
   if (nativeSubclass) {
     const Subclass = nativeSubclass(Number);
     assert.true(new Subclass() instanceof Subclass, 'correct subclassing with native classes #1');
@@ -219,12 +219,12 @@ QUnit.test('Number constructor: binary', assert => {
       return '0b101010';
     },
   }, 42);
-  check(`${ whitespaces }0b11`, 3);
-  check(`0b11${ whitespaces }`, 3);
-  check(`${ whitespaces }0b11${ whitespaces }`, 3);
-  check(`${ whitespaces }0B11`, 3);
-  check(`0B11${ whitespaces }`, 3);
-  check(`${ whitespaces }0B11${ whitespaces }`, 3);
+  check(`${ WHITESPACES }0b11`, 3);
+  check(`0b11${ WHITESPACES }`, 3);
+  check(`${ WHITESPACES }0b11${ WHITESPACES }`, 3);
+  check(`${ WHITESPACES }0B11`, 3);
+  check(`0B11${ WHITESPACES }`, 3);
+  check(`${ WHITESPACES }0B11${ WHITESPACES }`, 3);
 });
 
 QUnit.test('Number constructor: octal', assert => {
@@ -262,10 +262,10 @@ QUnit.test('Number constructor: octal', assert => {
       return '0o12345';
     },
   }, 5349);
-  check(`${ whitespaces }0o11`, 9);
-  check(`0o11${ whitespaces }`, 9);
-  check(`${ whitespaces }0o11${ whitespaces }`, 9);
-  check(`${ whitespaces }0O11`, 9);
-  check(`0O11${ whitespaces }`, 9);
-  check(`${ whitespaces }0O11${ whitespaces }`, 9);
+  check(`${ WHITESPACES }0o11`, 9);
+  check(`0o11${ WHITESPACES }`, 9);
+  check(`${ WHITESPACES }0o11${ WHITESPACES }`, 9);
+  check(`${ WHITESPACES }0O11`, 9);
+  check(`0O11${ WHITESPACES }`, 9);
+  check(`${ WHITESPACES }0O11${ WHITESPACES }`, 9);
 });
