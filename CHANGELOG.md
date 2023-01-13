@@ -8,6 +8,7 @@
   - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from V8 ~ Chrome 110
   - Added Samsung Internet 20 compat data mapping
   - Added Quest Browser 25 compat data mapping
+  - Added React Native 0.71 Hermes compat data
   - Added Electron 23 and 24 compat data mapping
 - Minor tweaks of minification settings for `core-js-bundle`
 - Refactoring, some minor fixes, improvements, optimizations
