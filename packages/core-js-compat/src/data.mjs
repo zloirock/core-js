@@ -158,7 +158,7 @@ export const data = {
   'es.array.at': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71.0',
+    'react-native': '0.71',
     safari: '15.4',
   },
   'es.array.concat': {
@@ -1242,7 +1242,7 @@ export const data = {
   'es.regexp.exec': {
     chrome: '64',
     firefox: '78',
-    'react-native': '0.71.0',
+    'react-native': '0.71',
     safari: '11.1',
   },
   'es.regexp.flags': {
@@ -1282,7 +1282,7 @@ export const data = {
   'es.string.at-alternative': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71.0',
+    'react-native': '0.71',
     safari: '15.4',
   },
   'es.string.code-point-at': {
@@ -1369,7 +1369,7 @@ export const data = {
   'es.string.replace': {
     chrome: '64',
     firefox: '78',
-    'react-native': '0.71.0',
+    'react-native': '0.71',
     safari: '14.0',
   },
   'es.string.replace-all': {
@@ -1592,7 +1592,7 @@ export const data = {
   'es.typed-array.at': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71.0',
+    'react-native': '0.71',
     safari: '15.4',
   },
   'es.typed-array.copy-within': {
