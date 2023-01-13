@@ -1,5 +1,7 @@
 ## Changelog
 ##### Unreleased
+- [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) minor updates:
+  - Closing of iterators of `Set`-like objects on early exit, [proposal-set-methods/85](https://github.com/tc39/proposal-set-methods/pull/85)
 - Added one more workaround of a `webpack` dev server bug on IE global methods, [#1161](https://github.com/zloirock/core-js/issues/1161)
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
