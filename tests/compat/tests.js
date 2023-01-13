@@ -883,12 +883,12 @@ GLOBAL.tests = {
   'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.all;
   }],
-  'es.promise.all-settled': function () {
+  'es.promise.all-settled': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.allSettled;
-  },
-  'es.promise.any': function () {
+  }],
+  'es.promise.any': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.any;
-  },
+  }],
   'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     // eslint-disable-next-line unicorn/no-thenable -- required for testing

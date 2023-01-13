@@ -6,12 +6,13 @@ var getBuiltIn = require('../internals/get-built-in');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var iterate = require('../internals/iterate');
+var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-incorrect-iteration');
 
 var PROMISE_ANY_ERROR = 'No one promise resolved';
 
 // `Promise.any` method
 // https://tc39.es/ecma262/#sec-promise.any
-$({ target: 'Promise', stat: true }, {
+$({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   any: function any(iterable) {
     var C = this;
     var AggregateError = getBuiltIn('AggregateError');

@@ -3,6 +3,7 @@
 - Added one more workaround of a `webpack` dev server bug on IE global methods, [#1161](https://github.com/zloirock/core-js/issues/1161)
 - Fixed possible `String.{ raw, cooked }` error with empty template array
 - Used non-standard V8 `Error.captureStackTrace` instead of stack parsing in new error classes / wrappers where it's possible
+- Added detection correctness of iteration to `Promise.{ allSettled, any }` feature detection, Hermes issue
 - Compat data improvements:
   - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from V8 ~ Chrome 110
   - Added Samsung Internet 20 compat data mapping
