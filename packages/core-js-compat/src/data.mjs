@@ -2331,7 +2331,7 @@ export const data = {
   'web.self': {
     chrome: '86',
     // https://github.com/denoland/deno/issues/15765
-    // deno: false,
+    deno: '1.29.3',
     // fails in early Chrome-based Edge
     // edge: '12',
     firefox: '31',

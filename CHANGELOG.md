@@ -12,6 +12,7 @@
   - Added Quest Browser 25 compat data mapping
   - Added React Native 0.71 Hermes compat data
   - Added Electron 23 and 24 compat data mapping
+  - `self` marked as fixed in Deno 1.29.3, [deno/17362](https://github.com/denoland/deno/pull/17362)
 - Minor tweaks of minification settings for `core-js-bundle`
 - Refactoring, some minor fixes, improvements, optimizations
 
