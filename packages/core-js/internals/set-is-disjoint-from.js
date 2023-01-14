@@ -4,19 +4,19 @@ var has = require('../internals/set-helpers').has;
 var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
 var iterateSet = require('../internals/set-iterate');
-var iterate = require('../internals/iterate');
+var iterateSimple = require('../internals/iterate-simple');
+var iteratorClose = require('../internals/iterator-close');
 
 // `Set.prototype.isDisjointFrom` method
 // https://tc39.github.io/proposal-set-methods/#Set.prototype.isDisjointFrom
 module.exports = function isDisjointFrom(other) {
   var O = aSet(this);
   var otherRec = getSetRecord(other);
-  return false !== (size(O) <= otherRec.size
-    ? iterateSet(O, function (e) {
-      if (otherRec.includes(e)) return false;
-    }, true)
-    : !iterate(otherRec.getIterator(), function (e, stop) {
-      if (has(O, e)) return stop();
-    }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped
-  );
+  if (size(O) <= otherRec.size) return iterateSet(O, function (e) {
+    if (otherRec.includes(e)) return false;
+  }, true) !== false;
+  var iterator = otherRec.getIterator();
+  return iterateSimple(iterator, function (e) {
+    if (has(O, e)) return iteratorClose(iterator, 'normal', false);
+  }) !== false;
 };
