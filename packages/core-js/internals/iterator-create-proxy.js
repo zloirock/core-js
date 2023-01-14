@@ -42,11 +42,11 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
       if (state.inner) try {
-        iteratorClose(state.inner.iterator, 'return');
+        iteratorClose(state.inner.iterator, 'normal');
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }
-      iteratorClose(iterator, 'return');
+      iteratorClose(iterator, 'normal');
       return createIterResultObject(undefined, true);
     }
   });

@@ -79,7 +79,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         var returnMethod, result;
         var completion = perform(function () {
           if (state.inner) try {
-            iteratorClose(state.inner.iterator, 'return');
+            iteratorClose(state.inner.iterator, 'normal');
           } catch (error) {
             return iteratorClose(iterator, 'throw', error);
           }
