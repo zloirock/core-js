@@ -27,10 +27,12 @@ type Target =
 
 type BrowserslistQuery = string | ReadonlyArray<string>;
 
-type Targets = {
+type Environments = {
   [target in Target]?: string | number;
-} & {
-  browsers?: BrowserslistQuery,
+};
+
+type Targets = Environments & {
+  browsers?: Environments | BrowserslistQuery,
   esmodules?: boolean,
 };
 
@@ -64,6 +66,6 @@ type Options = {
   summary?: Summary,
 };
 
-declare function builder(options: Options): Promise<string>;
+declare function builder(options?: Options): Promise<string>;
 
 export = builder;
