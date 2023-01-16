@@ -4,6 +4,7 @@ var call = require('../internals/function-call');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
 var $TypeError = TypeError;
+var max = Math.max;
 
 var SetRecord = function (set, size, has, keys) {
   this.set = set;
@@ -31,7 +32,7 @@ module.exports = function (obj) {
   if (numSize != numSize) throw $TypeError('Invalid size');
   return new SetRecord(
     obj,
-    toIntegerOrInfinity(numSize),
+    max(toIntegerOrInfinity(numSize), 0),
     aCallable(obj.has),
     aCallable(obj.keys)
   );
