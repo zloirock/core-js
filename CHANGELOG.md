@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added `URLSearchParams.prototype.size` getter, [url/734](https://github.com/whatwg/url/pull/734)
 - Allowed cloning resizable `ArrayBuffer`s in the `structuredClone` polyfill
 - Fixed wrong export in `/(stable|actual|full)/instance/unshift` entries, [#1207](https://github.com/zloirock/core-js/issues/1207)
 - Compat data improvements:

@@ -826,3 +826,20 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
 
   if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
+
+QUnit.test('URLSearchParams#size', assert => {
+  const params = new URLSearchParams('a=1&b=2&b=3');
+  assert.true('size' in params);
+  assert.same(params.size, 3);
+
+  if (DESCRIPTORS) {
+    assert.true('size' in URLSearchParams.prototype);
+
+    const { enumerable, configurable, get } = getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
+
+    assert.true(enumerable, 'enumerable');
+    assert.true(configurable, 'configurable');
+
+    assert.throws(() => get.call([]));
+  }
+});
