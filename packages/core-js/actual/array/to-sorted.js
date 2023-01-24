@@ -1,5 +1,5 @@
-require('../../modules/es.array.sort');
+var parent = require('../../stable/array/to-sorted');
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.array.to-sorted');
-var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = entryUnbind('Array', 'toSorted');
+module.exports = parent;

@@ -26,9 +26,13 @@ require('../../../modules/es.array.some');
 require('../../../modules/es.array.sort');
 require('../../../modules/es.array.species');
 require('../../../modules/es.array.splice');
+require('../../../modules/es.array.to-reversed');
+require('../../../modules/es.array.to-sorted');
+require('../../../modules/es.array.to-spliced');
 require('../../../modules/es.array.unscopables.flat');
 require('../../../modules/es.array.unscopables.flat-map');
 require('../../../modules/es.array.unshift');
+require('../../../modules/es.array.with');
 require('../../../modules/es.object.to-string');
 var entryVirtual = require('../../../internals/entry-virtual');
 

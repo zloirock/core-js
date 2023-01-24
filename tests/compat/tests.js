@@ -527,6 +527,15 @@ GLOBAL.tests = {
     };
     return array.splice().foo === 1;
   },
+  'es.array.to-reversed': function () {
+    return [].toReversed;
+  },
+  'es.array.to-sorted': function () {
+    return [].toSorted;
+  },
+  'es.array.to-spliced': function () {
+    return [].toSpliced;
+  },
   'es.array.unscopables.flat': function () {
     return Array.prototype[Symbol.unscopables].flat;
   },
@@ -540,6 +549,9 @@ GLOBAL.tests = {
     } catch (error) {
       return error instanceof TypeError;
     }
+  },
+  'es.array.with': function () {
+    return []['with'];
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
@@ -1359,6 +1371,19 @@ GLOBAL.tests = {
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.toString == Array.prototype.toString;
   }],
+  'es.typed-array.to-reversed': function () {
+    return Int8Array.prototype.toReversed;
+  },
+  'es.typed-array.to-sorted': function () {
+    return Int8Array.prototype.toSorted;
+  },
+  'es.typed-array.with': function () {
+    try {
+      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
+    } catch (error) {
+      return error === 8;
+    }
+  },
   'es.unescape': function () {
     return unescape;
   },
@@ -1429,20 +1454,8 @@ GLOBAL.tests = {
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
-  'esnext.array.to-reversed': function () {
-    return [].toReversed;
-  },
-  'esnext.array.to-sorted': function () {
-    return [].toSorted;
-  },
-  'esnext.array.to-spliced': function () {
-    return [].toSpliced;
-  },
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
-  },
-  'esnext.array.with': function () {
-    return []['with'];
   },
   'esnext.async-disposable-stack.constructor': function () {
     return typeof AsyncDisposableStack == 'function';
@@ -1752,21 +1765,8 @@ GLOBAL.tests = {
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
   },
-  'esnext.typed-array.to-reversed': function () {
-    return Int8Array.prototype.toReversed;
-  },
-  'esnext.typed-array.to-sorted': function () {
-    return Int8Array.prototype.toSorted;
-  },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
-  },
-  'esnext.typed-array.with': function () {
-    try {
-      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
-    } catch (error) {
-      return error === 8;
-    }
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

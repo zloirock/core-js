@@ -1,4 +1,5 @@
+var parent = require('../../../stable/array/virtual/to-reversed');
+// TODO: Remove from `core-js@4`
 require('../../../modules/esnext.array.to-reversed');
-var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = entryVirtual('Array').toReversed;
+module.exports = parent;

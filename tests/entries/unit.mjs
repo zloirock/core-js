@@ -92,6 +92,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'array/values')([]));
     ok(load(NS, 'array/includes')([1, 2, 3], 2));
     ok('next' in load(NS, 'array/iterator')([]));
+    ok(load(NS, 'array/with')([1, 2, 3], 1, 4));
+    ok(load(NS, 'array/to-reversed')([1, 2, 3])[0] === 3);
+    ok(load(NS, 'array/to-sorted')([3, 2, 1])[0] === 1);
+    ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(load(NS, 'array/virtual/at').call([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/virtual/join').call('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/virtual/slice').call('qwe', 1)[1] === 'e');
@@ -123,6 +127,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'array/virtual/values').call([]));
     ok(load(NS, 'array/virtual/includes').call([1, 2, 3], 2));
     ok('next' in load(NS, 'array/virtual/iterator').call([]));
+    ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
+    ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
+    ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
+    ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok('map' in load(NS, 'array/virtual'));
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
@@ -532,6 +540,24 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceStartsWith('') == 'function');
     ok(instanceStartsWith('').call('qwe', 'qw'));
 
+    const instanceToReversed = load(NS, 'instance/to-reversed');
+    ok(typeof instanceToReversed == 'function');
+    ok(instanceToReversed({}) === undefined);
+    ok(typeof instanceToReversed([]) == 'function');
+    ok(instanceToReversed([]).call([1, 2, 3])[0] === 3);
+
+    const instanceToSorted = load(NS, 'instance/to-sorted');
+    ok(typeof instanceToSorted == 'function');
+    ok(instanceToSorted({}) === undefined);
+    ok(typeof instanceToSorted([]) == 'function');
+    ok(instanceToSorted([]).call([3, 2, 1])[0] === 1);
+
+    const instanceToSpliced = load(NS, 'instance/to-spliced');
+    ok(typeof instanceToSpliced == 'function');
+    ok(instanceToSpliced({}) === undefined);
+    ok(typeof instanceToSpliced([]) == 'function');
+    ok(instanceToSpliced([]).call([3, 2, 1], 1, 1, 4, 5).length === 4);
+
     const instanceTrimEnd = load(NS, 'instance/trim-end');
     ok(typeof instanceTrimEnd == 'function');
     ok(instanceTrimEnd({}) === undefined);
@@ -573,6 +599,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceValues({}) === undefined);
     ok(typeof instanceValues([]) == 'function');
     ok(instanceValues([]).call([1, 2, 3]).next().value === 1);
+
+    const instanceWith = load(NS, 'instance/with');
+    ok(typeof instanceWith == 'function');
+    ok(instanceWith({}) === undefined);
+    ok(typeof instanceWith([]) == 'function');
+    ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
   }
 
   for (const NS of ['stable', 'actual', 'full', 'features']) {
@@ -602,18 +634,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/group-to-map') == 'function');
     ok(typeof load(NS, 'array/group-by') == 'function');
     ok(typeof load(NS, 'array/group-by-to-map') == 'function');
-    ok(load(NS, 'array/with')([1, 2, 3], 1, 4));
-    ok(load(NS, 'array/to-reversed')([1, 2, 3])[0] === 3);
-    ok(load(NS, 'array/to-sorted')([3, 2, 1])[0] === 1);
-    ok(load(NS, 'array/to-spliced')([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'array/virtual/group') == 'function');
     ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
-    ok(load(NS, 'array/virtual/with').call([1, 2, 3], 1, 4));
-    ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
-    ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
-    ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/every') == 'function');
@@ -681,30 +705,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceGroupByToMap({}) === undefined);
     ok(typeof instanceGroupByToMap([]) == 'function');
     ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
-
-    const instanceToReversed = load(NS, 'instance/to-reversed');
-    ok(typeof instanceToReversed == 'function');
-    ok(instanceToReversed({}) === undefined);
-    ok(typeof instanceToReversed([]) == 'function');
-    ok(instanceToReversed([]).call([1, 2, 3])[0] === 3);
-
-    const instanceToSorted = load(NS, 'instance/to-sorted');
-    ok(typeof instanceToSorted == 'function');
-    ok(instanceToSorted({}) === undefined);
-    ok(typeof instanceToSorted([]) == 'function');
-    ok(instanceToSorted([]).call([3, 2, 1])[0] === 1);
-
-    const instanceToSpliced = load(NS, 'instance/to-spliced');
-    ok(typeof instanceToSpliced == 'function');
-    ok(instanceToSpliced({}) === undefined);
-    ok(typeof instanceToSpliced([]) == 'function');
-    ok(instanceToSpliced([]).call([3, 2, 1], 1, 1, 4, 5).length === 4);
-
-    const instanceWith = load(NS, 'instance/with');
-    ok(typeof instanceWith == 'function');
-    ok(instanceWith({}) === undefined);
-    ok(typeof instanceWith([]) == 'function');
-    ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
 
     const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
     ok(typeof instanceIsWellFormed == 'function');
@@ -879,6 +879,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/change-array-by-copy');
+  load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/decorator-metadata');
@@ -1008,17 +1009,17 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/sort');
   load(NS, 'typed-array/subarray');
   load(NS, 'typed-array/to-locale-string');
+  load(NS, 'typed-array/to-reversed');
+  load(NS, 'typed-array/to-sorted');
   load(NS, 'typed-array/to-string');
   load(NS, 'typed-array/values');
+  load(NS, 'typed-array/with');
   load(NS, 'typed-array/methods');
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
 for (const NS of ['actual', 'full', 'features']) {
-  load(NS, 'typed-array/to-reversed');
-  load(NS, 'typed-array/to-sorted');
   load(NS, 'typed-array/to-spliced');
-  load(NS, 'typed-array/with');
 }
 
 for (const NS of ['full', 'features']) {

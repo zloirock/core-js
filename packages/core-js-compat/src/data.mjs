@@ -373,6 +373,21 @@ export const data = {
     firefox: '49',
     safari: '10.0',
   },
+  'es.array.to-reversed': {
+    chrome: '110',
+    deno: '1.27',
+    safari: '16.0',
+  },
+  'es.array.to-sorted': {
+    chrome: '110',
+    deno: '1.27',
+    safari: '16.0',
+  },
+  'es.array.to-spliced': {
+    chrome: '110',
+    deno: '1.27',
+    safari: '16.0',
+  },
   'es.array.unscopables.flat': {
     chrome: '73',
     firefox: '67',
@@ -389,6 +404,11 @@ export const data = {
     hermes: '0.1',
     ie: '9',
     // bug with setting length fixed only in Safari 16
+    safari: '16.0',
+  },
+  'es.array.with': {
+    chrome: '110',
+    deno: '1.27',
     safari: '16.0',
   },
   'es.array-buffer.constructor': {
@@ -1771,12 +1791,27 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  'es.typed-array.to-reversed': {
+    chrome: '110',
+    deno: '1.27',
+    safari: '16.0',
+  },
+  'es.typed-array.to-sorted': {
+    chrome: '110',
+    deno: '1.27',
+    safari: '16.0',
+  },
   'es.typed-array.to-string': {
     chrome: '51',
     edge: '13',
     firefox: '51',
     hermes: '0.1',
     safari: '10.0',
+  },
+  'es.typed-array.with': {
+    bun: '0.1.9',
+    chrome: '110',
+    deno: '1.27',
   },
   'es.unescape': {
     chrome: '1',
@@ -1848,28 +1883,16 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.last-item': {
   },
-  'esnext.array.to-reversed': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
-  'esnext.array.to-sorted': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
-  'esnext.array.to-spliced': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array.to-reversed': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.array.to-sorted': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.array.to-spliced': null,
   'esnext.array.unique-by': {
   },
-  'esnext.array.with': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array.with': null,
   'esnext.async-disposable-stack.constructor': {
   },
   'esnext.async-iterator.constructor': {
@@ -2201,26 +2224,17 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.group-by': {
   },
-  'esnext.typed-array.to-reversed': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
-  'esnext.typed-array.to-sorted': {
-    chrome: '110',
-    deno: '1.27',
-    safari: '16.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.to-reversed': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.to-sorted': null,
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.to-spliced': {
   },
   'esnext.typed-array.unique-by': {
   },
-  'esnext.typed-array.with': {
-    bun: '0.1.9',
-    chrome: '110',
-    deno: '1.27',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.typed-array.with': null,
   'esnext.weak-map.delete-all': {
   },
   'esnext.weak-map.from': {
@@ -2436,6 +2450,10 @@ export const renamed = new Map([
   ['esnext.array.at', 'es.array.at'],
   ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
+  ['esnext.array.to-reversed', 'es.array.to-reversed'],
+  ['esnext.array.to-sorted', 'es.array.to-sorted'],
+  ['esnext.array.to-spliced', 'es.array.to-spliced'],
+  ['esnext.array.with', 'es.array.with'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.object.has-own', 'es.object.has-own'],
@@ -2446,6 +2464,9 @@ export const renamed = new Map([
   ['esnext.typed-array.at', 'es.typed-array.at'],
   ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
   ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
+  ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],
+  ['esnext.typed-array.to-sorted', 'es.typed-array.to-sorted'],
+  ['esnext.typed-array.with', 'es.typed-array.with'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
