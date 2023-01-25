@@ -29,6 +29,8 @@ QUnit.test('String#toWellFormed', assert => {
     },
   }), 'abc', 'conversion #1');
 
+  assert.same(toWellFormed.call(1), '1', 'conversion #2');
+
   if (STRICT) {
     assert.throws(() => toWellFormed.call(null), TypeError, 'coercible #1');
     assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');

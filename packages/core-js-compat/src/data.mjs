@@ -2161,7 +2161,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
   'esnext.string.to-well-formed': {
-    bun: '0.4.0',
+    // Safari ToString conversion bug
+    // bun: '0.4.0',
   },
   'esnext.symbol.async-dispose': {
   },

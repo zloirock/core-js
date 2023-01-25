@@ -26,6 +26,12 @@ QUnit.test('String#isWellFormed', assert => {
     },
   }), 'conversion #1');
 
+  assert.true(!isWellFormed.call({
+    toString() {
+      return '\uD83D';
+    },
+  }), 'conversion #2');
+
   if (STRICT) {
     assert.throws(() => isWellFormed.call(null), TypeError, 'coercible #1');
     assert.throws(() => isWellFormed.call(undefined), TypeError, 'coercible #2');

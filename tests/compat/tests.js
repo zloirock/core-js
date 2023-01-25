@@ -1730,7 +1730,8 @@ GLOBAL.tests = {
     return String.prototype.isWellFormed;
   },
   'esnext.string.to-well-formed': function () {
-    return String.prototype.toWellFormed;
+    // Safari ToString conversion bug
+    return String.prototype.toWellFormed.call(1) === '1';
   },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;

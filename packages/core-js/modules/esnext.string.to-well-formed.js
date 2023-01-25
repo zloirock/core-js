@@ -1,20 +1,29 @@
 'use strict';
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toString = require('../internals/to-string');
+var fails = require('../internals/fails');
 
 var $Array = Array;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var join = uncurryThis([].join);
+var $toWellFormed = ''.toWellFormed;
 var REPLACEMENT_CHARACTER = '\uFFFD';
+
+// Safari bug
+var TO_STRING_CONVERSION_BUG = $toWellFormed && fails(function () {
+  return call($toWellFormed, 1) !== '1';
+});
 
 // `String.prototype.toWellFormed` method
 // https://github.com/tc39/proposal-is-usv-string
-$({ target: 'String', proto: true }, {
+$({ target: 'String', proto: true, forced: TO_STRING_CONVERSION_BUG }, {
   toWellFormed: function toWellFormed() {
     var S = toString(requireObjectCoercible(this));
+    if (TO_STRING_CONVERSION_BUG) return call($toWellFormed, S);
     var length = S.length;
     var result = $Array(length);
     for (var i = 0; i < length; i++) {
