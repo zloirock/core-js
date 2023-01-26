@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed Safari `String.prototype.toWellFormed` `ToString` conversion bug
+- Added Opera Android 73 compat data mapping
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) updates:
