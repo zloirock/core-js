@@ -2897,81 +2897,6 @@ class Symbol {
 core-js/proposals/pattern-matching
 core-js(-pure)/full/symbol/matcher
 ```
-##### [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)[⬆](#index)
-**API of this proposal has been changed. This proposal will be removed from the next major `core-js` version and will be added back after adding and stabilization of the spec text.**
-
-Module [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.seeded-prng.js)
-```js
-class Math {
-  seededPRNG({ seed: number }): Iterator<number>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/seeded-random
-core-js(-pure)/full/math/seeded-prng
-```
-[*Example*](https://goo.gl/oj3WgQ):
-```js
-for (let x of Math.seededPRNG({ seed: 42 })) {
-  console.log(x); // => 0.16461519912315087, 0.2203933906000046, 0.8249682894209105
-  if (x > .8) break;
-}
-```
-##### [Object iteration](https://github.com/tc39/proposal-object-iteration)[⬆](#index)
-**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
-
-Modules [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-keys.js), [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-values.js), [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-entries.js).
-```js
-class Object {
-  iterateKeys(object: any): Iterator<string>;
-  iterateValues(object: any): Iterator<any>;
-  iterateEntries(object: any): Iterator<[string, any]>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/object-iteration
-core-js(-pure)/full/object/iterate-keys
-core-js(-pure)/full/object/iterate-values
-core-js(-pure)/full/object/iterate-entries
-```
-[*Example*](https://is.gd/Wnm2tD):
-```js
-const obj = { foo: 'bar', baz: 'blah' };
-
-for (const [key, value] of Object.iterateEntries(obj)) {
-  console.log(`${key} -> ${value}`);
-}
-
-for (const key of Object.iterateKeys(obj)) {
-  console.log(key);
-}
-
-for (const value of Object.iterateValues(obj)) {
-  console.log(value);
-}
-```
-##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)[⬆](#index)
-**This proposal is dead and will be removed from the next major `core-js` version.**
-
-Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
-```js
-class Promise {
-  static try(callbackfn: Function): promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-try
-core-js(-pure)/full/promise/try
-```
-[*Examples*](https://goo.gl/k5GGRo):
-```js
-Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
-
-Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
-```
 
 #### Stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -3028,47 +2953,6 @@ Function.isConstructor(class {});       // => true
 ```
 ##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
 See more info [in web standards namespace](#url-and-urlsearchparams)
-
-##### [`String#at`](https://github.com/mathiasbynens/String.prototype.at)[⬆](#index)
-**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
-
-Module [`esnext.string.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.at.js)
-```js
-class String {
-  at(index: number): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/string-at
-core-js(-pure)/full/string/at
-core-js(-pure)/full/string/virtual/at
-```
-[*Examples*](https://goo.gl/XluXI8):
-```js
-'a𠮷b'.at(1);        // => '𠮷'
-'a𠮷b'.at(1).length; // => 2
-```
-##### [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)[⬆](#index)
-**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
-
-Modules [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.umulh.js)
-```js
-namespace Math {
-  iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
-  imulh(a: number, b: number): number;
-  umulh(a: number, b: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/efficient-64-bit-arithmetic
-core-js(-pure)/full/math/iaddh
-core-js(-pure)/full/math/isubh
-core-js(-pure)/full/math/imulh
-core-js(-pure)/full/math/umulh
-```
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
