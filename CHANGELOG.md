@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed Safari `String.prototype.toWellFormed` `ToString` conversion bug
+- Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
 - Added Opera Android 73 compat data mapping
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)

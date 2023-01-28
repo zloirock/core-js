@@ -16,11 +16,15 @@ var getDisposeMethod = function (V, hint) {
   } return getMethod(V, DISPOSE);
 };
 
+// `CreateDisposableResource` abstract operation
+// https://tc39.es/proposal-explicit-resource-management/#sec-createdisposableresource
 var createDisposableResource = function (V, hint, method) {
   return bind(method || getDisposeMethod(V, hint), V);
 };
 
-var addDisposableResource = function (disposable, V, hint, method) {
+// `AddDisposableResource` abstract operation
+// https://tc39.es/proposal-explicit-resource-management/#sec-adddisposableresource-disposable-v-hint-disposemethod
+module.exports = function (disposable, V, hint, method) {
   var resource;
   if (!method) {
     if (isNullOrUndefined(V)) return;
@@ -32,9 +36,4 @@ var addDisposableResource = function (disposable, V, hint, method) {
   }
 
   push(disposable.stack, resource);
-};
-
-module.exports = {
-  getDisposeMethod: getDisposeMethod,
-  addDisposableResource: addDisposableResource
 };

@@ -4,15 +4,13 @@ var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
 var getBuiltIn = require('../internals/get-built-in');
 var aCallable = require('../internals/a-callable');
-var anObject = require('../internals/an-object');
 var anInstance = require('../internals/an-instance');
-var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltIns = require('../internals/define-built-ins');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
-var DisposableStackHelpers = require('../internals/disposable-stack-helpers');
+var addDisposableResource = require('../internals/add-disposable-resource');
 
 var Promise = getBuiltIn('Promise');
 var SuppressedError = getBuiltIn('SuppressedError');
@@ -20,9 +18,6 @@ var $ReferenceError = ReferenceError;
 
 var ASYNC_DISPOSE = wellKnownSymbol('asyncDispose');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
-
-var getDisposeMethod = DisposableStackHelpers.getDisposeMethod;
-var addDisposableResource = DisposableStackHelpers.addDisposableResource;
 
 var ASYNC_DISPOSABLE_STACK = 'AsyncDisposableStack';
 var setInternalState = InternalStateModule.set;
@@ -91,11 +86,8 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
   use: function use(value) {
     var internalState = getAsyncDisposableStackInternalState(this);
     if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
-    if (!isNullOrUndefined(value)) {
-      anObject(value);
-      var method = aCallable(getDisposeMethod(value, HINT));
-      addDisposableResource(internalState, value, HINT, method);
-    } return value;
+    addDisposableResource(internalState, value, HINT);
+    return value;
   },
   adopt: function adopt(value, onDispose) {
     var internalState = getAsyncDisposableStackInternalState(this);
