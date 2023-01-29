@@ -1579,6 +1579,14 @@ GLOBAL.tests = {
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
   },
+  'esnext.json.parse': function () {
+    var unsafeInt = '9007199254740993';
+    var source;
+    JSON.parse(unsafeInt, function (key, value, context) {
+      source = context.source;
+    });
+    return source === unsafeInt;
+  },
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },

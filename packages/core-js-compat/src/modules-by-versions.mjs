@@ -187,6 +187,7 @@ export default {
     'es.typed-array.with',
     'esnext.function.demethodize',
     'esnext.iterator.range',
+    'esnext.json.parse',
     'esnext.symbol.is-registered',
     'esnext.symbol.is-well-known',
   ],
