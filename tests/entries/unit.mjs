@@ -707,6 +707,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
     load(NS, 'iterator/dispose');
+    ok(load(NS, 'symbol/async-dispose'));
+    load(NS, 'async-iterator/async-dispose');
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');
@@ -845,10 +849,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
-    ok(load(NS, 'symbol/async-dispose'));
-    load(NS, 'async-iterator/async-dispose');
-    ok(typeof load(NS, 'async-disposable-stack') == 'function');
-    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints == 'function');
