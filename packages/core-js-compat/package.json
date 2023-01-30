@@ -20,6 +20,6 @@
   "sideEffects": false,
   "main": "index.js",
   "dependencies": {
-    "browserslist": "^4.21.4"
+    "browserslist": "^4.21.5"
   }
 }
