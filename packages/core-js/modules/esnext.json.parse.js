@@ -13,39 +13,24 @@ var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var fails = require('../internals/fails');
+var parseJSONString = require('../internals/parse-json-string');
 
 var JSON = global.JSON;
 var Number = global.Number;
 var SyntaxError = global.SyntaxError;
-var parseInt = global.parseInt;
 var nativeParse = JSON && JSON.parse;
 var enumerableOwnProperties = getBuiltIn('Object', 'keys');
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var fromCharCode = String.fromCharCode;
 var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
 
-var codePoints = {
-  '\\"': '"',
-  '\\\\': '\\',
-  '\\/': '/',
-  '\\b': '\b',
-  '\\f': '\f',
-  '\\n': '\n',
-  '\\r': '\r',
-  '\\t': '\t'
-};
-
 var IS_DIGIT = /^\d$/;
 var IS_NON_ZERO_DIGIT = /^[1-9]$/;
 var IS_NUMBER_START = /^(-|\d)$/;
-var IS_4_HEX_DIGITS = /^[\da-f]{4}$/i;
 var IS_WHITESPACE = /^[\t\n\r ]$/;
-// eslint-disable-next-line regexp/no-control-character -- safe
-var IS_C0_CONTROL_CODE = /^[\u0000-\u001F]$/;
 
 var PRIMITIVE = 0;
 var OBJECT = 1;
@@ -65,7 +50,7 @@ var $parse = function (source, reviver) {
 var internalize = function (holder, name, reviver, node) {
   var val = holder[name];
   var unmodified = node && val === node.value;
-  var context = unmodified && !node.type ? { source: node.source } : {};
+  var context = unmodified && typeof node.source == 'string' ? { source: node.source } : {};
   var elementRecordsLen, keys, len, i, P;
   if (isObject(val)) {
     var nodeIsArray = isArray(val);
@@ -97,8 +82,7 @@ var internalizeProperty = function (object, key, value) {
   else createProperty(object, key, value);
 };
 
-var Node = function (type, value, end, source, nodes) {
-  this.type = type;
+var Node = function (value, end, source, nodes) {
   this.value = value;
   this.end = end;
   this.source = source;
@@ -147,7 +131,7 @@ Context.prototype = {
     return result;
   },
   node: function (type, value, start, end, nodes) {
-    return new Node(type, value, end, type ? null : slice(this.source, start, end), nodes);
+    return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
   },
   object: function () {
     var source = this.source;
@@ -210,36 +194,9 @@ Context.prototype = {
     return this.node(OBJECT, array, this.index, i, nodes);
   },
   string: function () {
-    var source = this.source;
-    var i = this.index + 1;
-    var unterminated = true;
-    var value = '';
-    while (i < source.length) {
-      var chr = at(source, i);
-      if (chr == '\\') {
-        var twoChars = slice(source, i, i + 2);
-        if (hasOwn(codePoints, twoChars)) {
-          value += codePoints[twoChars];
-          i += 2;
-        } else if (twoChars == '\\u') {
-          i += 2;
-          var fourHexDigits = slice(source, i, i + 4);
-          if (!exec(IS_4_HEX_DIGITS, fourHexDigits)) throw SyntaxError('Bad Unicode escape at: ' + i);
-          value += fromCharCode(parseInt(fourHexDigits, 16));
-          i += 4;
-        } else throw SyntaxError('Unknown escape sequence: "' + twoChars + '"');
-      } else if (chr == '"') {
-        unterminated = false;
-        i++;
-        break;
-      } else {
-        if (exec(IS_C0_CONTROL_CODE, chr)) throw SyntaxError('Bad control character in string literal at: ' + i);
-        value += chr;
-        i++;
-      }
-    }
-    if (unterminated) throw SyntaxError('Unterminated string at: ' + i);
-    return this.node(PRIMITIVE, value, this.index, i);
+    var index = this.index;
+    var parsed = parseJSONString(this.source, this.index + 1);
+    return this.node(PRIMITIVE, parsed.value, index, parsed.end);
   },
   number: function () {
     var source = this.source;
@@ -282,7 +239,6 @@ Context.prototype = {
 var NO_SOURCE_SUPPORT = fails(function () {
   var unsafeInt = '9007199254740993';
   var source;
-  // eslint-disable-next-line es/no-json -- required for testing
   JSON.parse(unsafeInt, function (key, value, context) {
     source = context.source;
   });
