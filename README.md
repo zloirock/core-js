@@ -2735,7 +2735,7 @@ core-js/full/typed-array/unique-by
   { id: 1, uid: 10000 },
   { id: 2, uid: 10000 },
   { id: 3, uid: 10001 }
-].uniqueBy(it => it.id);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
+].uniqueBy(it => it.uid);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
 ```
 ##### [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)[⬆](#index)
 Modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-index.js)
