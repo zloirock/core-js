@@ -2358,7 +2358,7 @@ class DisposableStack {
 }
 
 class SuppressedError extends Error {
-  constructor(error: any, suppressed: any, message?: string, { cause: any }?): SuppressedError;
+  constructor(error: any, suppressed: any, message?: string): SuppressedError;
   error: any;
   suppressed: any;
   message: string;
