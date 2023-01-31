@@ -12,7 +12,10 @@ var createProperty = require('../internals/create-property');
 var parseJSONString = require('../internals/parse-json-string');
 var getReplacerFunction = require('../internals/get-json-replacer-function');
 var uid = require('../internals/uid');
-var setInternalState = require('../internals/internal-state').set;
+var InternalStateModule = require('../internals/internal-state');
+
+var getInternalState = InternalStateModule.get;
+var setInternalState = InternalStateModule.set;
 
 var $SyntaxError = SyntaxError;
 var parse = getBuiltIn('JSON', 'parse');
@@ -38,9 +41,14 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
       throw $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
-    if (typeof parsed == 'object' && parsed !== null) throw $SyntaxError(ERROR_MESSAGE);
+    var dataType = typeof parsed;
+    if (dataType == 'object' && parsed !== null) throw $SyntaxError(ERROR_MESSAGE);
     var obj = create(null);
-    setInternalState(obj, { type: 'RawJSON' });
+    setInternalState(obj, {
+      type: 'RawJSON',
+      dataType: dataType,
+      data: dataType == 'string' ? parsed : jsonString
+    });
     createProperty(obj, 'rawJSON', jsonString);
     return FREEZING ? freeze(obj) : obj;
   }
@@ -53,26 +61,26 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);
 
-    var raw = $stringify(text, function (key, value) {
+    var json = $stringify(text, function (key, value) {
       if (isCallable(replacerFunction)) value = apply(replacerFunction, this, arguments);
-      return isRawJSON(value) ? MARK + ':' + value.rawJSON : value;
+      if (!isRawJSON(value)) return value;
+      var state = getInternalState(value);
+      return state.dataType == 'string' ? state.data : MARK + state.data;
     }, space);
 
-    if (typeof raw != 'string') return raw;
+    if (typeof json != 'string') return json;
 
     var result = '';
-    var length = raw.length;
+    var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = at(raw, i);
+      var chr = at(json, i);
       if (chr === '"') {
-        var end = parseJSONString(raw, ++i).end - 1;
-        var string = slice(raw, i, end);
-        if (slice(string, 0, MARK_LENGTH) === MARK) {
-          result += slice(string, MARK_LENGTH + 1);
-        } else {
-          result += '"' + string + '"';
-        }
+        var end = parseJSONString(json, ++i).end - 1;
+        var string = slice(json, i, end);
+        result += slice(string, 0, MARK_LENGTH) == MARK
+          ? slice(string, MARK_LENGTH)
+          : '"' + string + '"';
         i = end;
       } else result += chr;
     }
