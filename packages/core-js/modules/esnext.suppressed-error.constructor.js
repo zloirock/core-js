@@ -7,7 +7,6 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var installErrorCause = require('../internals/install-error-cause');
 var installErrorStack = require('../internals/error-stack-install');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -15,7 +14,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 
-var $SuppressedError = function SuppressedError(error, suppressed, message /* , options */) {
+var $SuppressedError = function SuppressedError(error, suppressed, message) {
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
   var that;
   if (setPrototypeOf) {
@@ -26,7 +25,6 @@ var $SuppressedError = function SuppressedError(error, suppressed, message /* , 
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
   installErrorStack(that, $SuppressedError, that.stack, 1);
-  if (arguments.length > 3) installErrorCause(that, arguments[3]);
   createNonEnumerableProperty(that, 'error', error);
   createNonEnumerableProperty(that, 'suppressed', suppressed);
   return that;

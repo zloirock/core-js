@@ -27,7 +27,8 @@ QUnit.test('SuppressedError', assert => {
   assert.same(error1.error, 1);
   assert.same(error1.suppressed, 2);
   assert.same(error1.message, '3');
-  assert.same(error1.cause, 4);
+  assert.same(error1.cause, undefined);
+  assert.false('cause' in error1);
   assert.same(error1.name, 'SuppressedError');
 
   const error2 = new SuppressedError(1, 2, 3, { cause: 4 });
@@ -35,7 +36,8 @@ QUnit.test('SuppressedError', assert => {
   assert.same(error2.error, 1);
   assert.same(error2.suppressed, 2);
   assert.same(error2.message, '3');
-  assert.same(error2.cause, 4);
+  assert.same(error2.cause, undefined);
+  assert.false('cause' in error2);
   assert.same(error2.name, 'SuppressedError');
 
   assert.throws(() => SuppressedError(1, 2, Symbol()), 'throws on symbol as a message');
