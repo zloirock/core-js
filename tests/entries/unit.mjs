@@ -878,6 +878,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-unique');
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
+  load('proposals/async-iterator-helpers');
   load('proposals/change-array-by-copy');
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
@@ -892,6 +893,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/global-this');
   load('proposals/iterator-helpers');
   load('proposals/iterator-helpers-stage-3');
+  load('proposals/iterator-helpers-stage-3-2');
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');
   load('proposals/map-upsert');
