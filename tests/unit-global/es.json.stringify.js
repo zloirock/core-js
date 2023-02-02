@@ -1,11 +1,12 @@
-// Some tests from Test262 project and governed by the BSD license.
-// Copyright (c) 2012 Ecma International.  All rights reserved.
+// Some tests adopted from Test262 project and governed by the BSD license.
+// Copyright (c) 2012 Ecma International. All rights reserved.
+/* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
 
 if (GLOBAL.JSON?.stringify) {
   QUnit.test('JSON.stringify', assert => {
     const { stringify } = JSON;
-    const { defineProperty } = Object;
+    const { defineProperty, keys, values } = Object;
 
     assert.isFunction(stringify);
     assert.arity(stringify, 3);
@@ -16,14 +17,14 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify({ a: 1, b: { c: 2 } }, []), '{}', 'replacer-array-empty-2');
     assert.same(stringify([1, { a: 2 }], []), '[1,{}]', 'replacer-array-empty-3');
 
-    const num = new Number(10);
-    num.toString = () => 'toString';
-    num.valueOf = () => { throw EvalError('should not be called'); };
+    const num1 = new Number(10);
+    num1.toString = () => 'toString';
+    num1.valueOf = () => { throw EvalError('should not be called'); };
     assert.same(JSON.stringify({
       10: 1,
       toString: 2,
       valueOf: 3,
-    }, [num]), '{"toString":2}', 'replacer-array-number-object');
+    }, [num1]), '{"toString":2}', 'replacer-array-number-object');
 
     const obj1 = {
       0: 0,
@@ -42,14 +43,14 @@ if (GLOBAL.JSON?.stringify) {
       NaN,
     ]), stringify(obj1), 'replacer-array-number');
 
-    const str = new String('str');
-    str.toString = () => 'toString';
-    str.valueOf = () => { throw EvalError('should not be called'); };
+    const str1 = new String('str');
+    str1.toString = () => 'toString';
+    str1.valueOf = () => { throw EvalError('should not be called'); };
     assert.same(stringify({
       str: 1,
       toString: 2,
       valueOf: 3,
-    }, [str]), '{"toString":2}', 'replacer-array-string-object');
+    }, [str1]), '{"toString":2}', 'replacer-array-string-object');
 
     assert.same(stringify({ undefined: 1 }, [undefined]), '{}', 'replacer-array-undefined-1');
     // eslint-disable-next-line no-sparse-arrays -- testing
@@ -86,10 +87,10 @@ if (GLOBAL.JSON?.stringify) {
     const circular = [{}];
     assert.throws(() => stringify(circular, () => circular), TypeError, 'replacer-function-array-circular');
 
-    const direct = { prop: {} };
-    assert.throws(() => stringify(direct, () => direct), TypeError, 'replacer-function-object-circular-1');
-    const indirect = { p1: { p2: {} } };
-    assert.throws(() => stringify(indirect, (key, value) => key === 'p2' ? indirect : value), TypeError, 'replacer-function-object-circular-2');
+    const direct1 = { prop: {} };
+    assert.throws(() => stringify(direct1, () => direct1), TypeError, 'replacer-function-object-circular-1');
+    const indirect1 = { p1: { p2: {} } };
+    assert.throws(() => stringify(indirect1, (key, value) => key === 'p2' ? indirect1 : value), TypeError, 'replacer-function-object-circular-2');
 
     assert.same(stringify(1, () => { /* empty */ }), undefined, 'replacer-function-result-undefined-1');
     assert.same(stringify([1], () => { /* empty */ }), undefined, 'replacer-function-result-undefined-2');
@@ -110,7 +111,7 @@ if (GLOBAL.JSON?.stringify) {
         case '1': return 2;
         case 'c1': return true;
         case 'c2': return false;
-      } throw new EvalError('unreachable');
+      } throw EvalError('unreachable');
     }), stringify({
       a1: {
         b1: [1, 2],
@@ -154,9 +155,194 @@ if (GLOBAL.JSON?.stringify) {
       },
       a2: 'a2',
     };
+
     assert.same(stringify(obj5, null, -1.99999), stringify(obj5, null, -1), 'space-number-float-1');
     assert.same(stringify(obj5, null, new Number(5.11111)), stringify(obj5, null, 5), 'space-number-float-2');
     assert.same(stringify(obj5, null, 6.99999), stringify(obj5, null, 6), 'space-number-float-3');
+
+    assert.same(stringify(obj5, null, new Number(1)), stringify(obj5, null, 1), 'space-number-object-1');
+    const num2 = new Number(1);
+    num2.toString = () => { throw EvalError('should not be called'); };
+    num2.valueOf = () => 3;
+    assert.same(stringify(obj5, null, num2), stringify(obj5, null, 3), 'space-number-object-2');
+    const abrupt1 = new Number(4);
+    abrupt1.toString = () => { throw EvalError('t262'); };
+    abrupt1.valueOf = () => { throw EvalError('t262'); };
+    assert.throws(() => stringify(obj5, null, abrupt1), EvalError, 'space-number-object-3');
+
+    assert.same(stringify(obj5, null, new Number(-5)), stringify(obj5, null, 0), 'space-number-range-1');
+    assert.same(stringify(obj5, null, 10), stringify(obj5, null, 100), 'space-number-range-2');
+
+    assert.same(stringify(obj5, null, 0), stringify(obj5, null, ''), 'space-number-1');
+    assert.same(stringify(obj5, null, 4), stringify(obj5, null, '    '), 'space-number-2');
+
+    assert.same(stringify(obj5, null, new String('xxx')), stringify(obj5, null, 'xxx'), 'space-string-object-1');
+    const str2 = new String('xxx');
+    str2.toString = () => '---';
+    str2.valueOf = () => { throw EvalError('should not be called'); };
+    assert.same(stringify(obj5, null, str2), stringify(obj5, null, '---'), 'space-string-object-2');
+    const abrupt2 = new String('xxx');
+    abrupt2.toString = () => { throw EvalError('t262'); };
+    abrupt2.valueOf = () => { throw EvalError('t262'); };
+    assert.throws(() => stringify(obj5, null, abrupt2), EvalError, 'space-string-object-3');
+
+    assert.same(stringify(obj5, null, '0123456789xxxxxxxxx'), stringify(obj5, null, '0123456789'), 'space-string-range');
+
+    assert.same(stringify(obj5, null, ''), stringify(obj5), 'space-string-1');
+    assert.same(stringify(obj5, null, '  '), `{
+  "a1": {
+    "b1": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "b2": {
+      "c1": 1,
+      "c2": 2
+    }
+  },
+  "a2": "a2"
+}`, 'space-string-2');
+
+    assert.same(stringify(obj5), stringify(obj5, null, null), 'space-wrong-type-1');
+    assert.same(stringify(obj5), stringify(obj5, null, true), 'space-wrong-type-2');
+    assert.same(stringify(obj5), stringify(obj5, null, new Boolean(false)), 'space-wrong-type-3');
+    assert.same(stringify(obj5), stringify(obj5, null, Symbol()), 'space-wrong-type-4');
+    assert.same(stringify(obj5), stringify(obj5, null, {}), 'space-wrong-type-5');
+
+    const direct2 = [];
+    direct2.push(direct2);
+    assert.throws(() => stringify(direct2), TypeError, 'value-array-circular-1');
+    const indirect2 = [];
+    indirect2.push([[indirect2]]);
+    assert.throws(() => stringify(indirect2), TypeError, 'value-array-circular-2');
+
+    if (typeof BigInt == 'function') {
+      assert.same(stringify(BigInt(0), (k, v) => typeof v === 'bigint' ? 'bigint' : v), '"bigint"', 'value-bigint-replacer-1');
+      assert.same(stringify({ x: BigInt(0) }, (k, v) => typeof v === 'bigint' ? 'bigint' : v), '{"x":"bigint"}', 'value-bigint-replacer-2');
+      assert.throws(() => stringify(BigInt(0)), TypeError, 'value-bigint-1');
+      assert.throws(() => stringify(Object(BigInt(0))), TypeError, 'value-bigint-2');
+      assert.throws(() => stringify({ x: BigInt(0) }), TypeError, 'value-bigint-3');
+    }
+
+    assert.same(stringify(new Boolean(true)), 'true', 'value-boolean-object-1');
+    assert.same(stringify({
+      toJSON() {
+        return { key: new Boolean(false) };
+      },
+    }), '{"key":false}', 'value-boolean-object-2');
+    assert.same(stringify([1], (k, v) => v === 1 ? new Boolean(true) : v), '[true]', 'value-boolean-object-3');
+
+    assert.same(stringify(() => { /* empty */ }), undefined, 'value-function-1');
+    assert.same(stringify([() => { /* empty */ }]), '[null]', 'value-function-2');
+    assert.same(stringify({ key() { /* empty */ } }), '{}', 'value-function-3');
+
+    assert.same(stringify(-0), '0', 'value-number-negative-zero-1');
+    assert.same(stringify(['-0', 0, -0]), '["-0",0,0]', 'value-number-negative-zero-2');
+    assert.same(stringify({ key: -0 }), '{"key":0}', 'value-number-negative-zero-3');
+
+    assert.same(stringify(Infinity), 'null', 'value-number-non-finite-1');
+    assert.same(stringify({ key: -Infinity }), '{"key":null}', 'value-number-non-finite-2');
+    assert.same(stringify([NaN]), '[null]', 'value-number-non-finite-3');
+
+    assert.same(stringify(new Number(8.5)), '8.5', 'value-number-object-1');
+    assert.same(stringify(['str'], (key, value) => {
+      if (value === 'str') {
+        const num = new Number(42);
+        num.toString = () => { throw EvalError('should not be called'); };
+        num.valueOf = () => 2;
+        return num;
+      } return value;
+    }), '[2]', 'value-number-object-2');
+    assert.throws(() => stringify({
+      key: {
+        toJSON() {
+          const num = new Number(3.14);
+          num.toString = () => { throw EvalError('t262'); };
+          num.valueOf = () => { throw EvalError('t262'); };
+          return num;
+        },
+      },
+    }), EvalError, 'value-number-object-3');
+
+    const direct3 = { prop: null };
+    direct3.prop = direct3;
+    assert.throws(() => stringify(direct3), TypeError, 'value-object-circular-1');
+    const indirect3 = { p1: { p2: {} } };
+    indirect3.p1.p2.p3 = indirect3;
+    assert.throws(() => stringify(indirect3), TypeError, 'value-object-circular-2');
+
+    assert.same(stringify(null), 'null', 'null');
+    assert.same(stringify(true), 'true', 'true');
+    assert.same(stringify(false), 'false', 'false');
+    assert.same(stringify('str'), '"str"', '"str"');
+    assert.same(stringify(123), '123', '123');
+    assert.same(stringify(undefined), undefined, 'undefined');
+
+    const charToJson = {
+      '"': '\\"',
+      '\\': '\\\\',
+      '\x00': '\\u0000',
+      '\x01': '\\u0001',
+      '\x02': '\\u0002',
+      '\x03': '\\u0003',
+      '\x04': '\\u0004',
+      '\x05': '\\u0005',
+      '\x06': '\\u0006',
+      '\x07': '\\u0007',
+      '\x08': '\\b',
+      '\x09': '\\t',
+      '\x0A': '\\n',
+      '\x0B': '\\u000b',
+      '\x0C': '\\f',
+      '\x0D': '\\r',
+      '\x0E': '\\u000e',
+      '\x0F': '\\u000f',
+      '\x10': '\\u0010',
+      '\x11': '\\u0011',
+      '\x12': '\\u0012',
+      '\x13': '\\u0013',
+      '\x14': '\\u0014',
+      '\x15': '\\u0015',
+      '\x16': '\\u0016',
+      '\x17': '\\u0017',
+      '\x18': '\\u0018',
+      '\x19': '\\u0019',
+      '\x1A': '\\u001a',
+      '\x1B': '\\u001b',
+      '\x1C': '\\u001c',
+      '\x1D': '\\u001d',
+      '\x1E': '\\u001e',
+      '\x1F': '\\u001f',
+    };
+    const chars = keys(charToJson).join('');
+    const charsReversed = keys(charToJson).reverse().join('');
+    const jsonChars = values(charToJson).join('');
+    const jsonCharsReversed = values(charToJson).reverse().join('');
+    const json = stringify({ [`name${ chars }${ charsReversed }`]: `${ charsReversed }${ chars }value` });
+    for (const chr in charToJson) {
+      const count = json.split(charToJson[chr]).length - 1;
+      assert.same(count, 4, `Every ASCII 0x${ chr.charCodeAt(0).toString(16) } serializes to ${ charToJson[chr] }`);
+    }
+    assert.same(
+      json,
+      `{"name${ jsonChars }${ jsonCharsReversed }":"${ jsonCharsReversed }${ jsonChars }value"}`,
+      'JSON.stringify(objectUsingControlCharacters)',
+    );
+
+    assert.same(stringify('\uD834'), '"\\ud834"', 'JSON.stringify("\\uD834")');
+    assert.same(stringify('\uDF06'), '"\\udf06"', 'JSON.stringify("\\uDF06")');
+    assert.same(stringify('\uD834\uDF06'), '"𝌆"', 'JSON.stringify("\\uD834\\uDF06")');
+    assert.same(stringify('\uD834\uD834\uDF06\uD834'), '"\\ud834𝌆\\ud834"', 'JSON.stringify("\\uD834\\uD834\\uDF06\\uD834")');
+    assert.same(stringify('\uD834\uD834\uDF06\uDF06'), '"\\ud834𝌆\\udf06"', 'JSON.stringify("\\uD834\\uD834\\uDF06\\uDF06")');
+    assert.same(stringify('\uDF06\uD834\uDF06\uD834'), '"\\udf06𝌆\\ud834"', 'JSON.stringify("\\uDF06\\uD834\\uDF06\\uD834")');
+    assert.same(stringify('\uDF06\uD834\uDF06\uDF06'), '"\\udf06𝌆\\udf06"', 'JSON.stringify("\\uDF06\\uD834\\uDF06\\uDF06")');
+    assert.same(stringify('\uDF06\uD834'), '"\\udf06\\ud834"', 'JSON.stringify("\\uDF06\\uD834")');
+    assert.same(stringify('\uD834\uDF06\uD834\uD834'), '"𝌆\\ud834\\ud834"', 'JSON.stringify("\\uD834\\uDF06\\uD834\\uD834")');
+    assert.same(stringify('\uD834\uDF06\uD834\uDF06'), '"𝌆𝌆"', 'JSON.stringify("\\uD834\\uDF06\\uD834\\uDF06")');
+    assert.same(stringify('\uDF06\uDF06\uD834\uD834'), '"\\udf06\\udf06\\ud834\\ud834"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uD834")');
+    assert.same(stringify('\uDF06\uDF06\uD834\uDF06'), '"\\udf06\\udf06𝌆"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uDF06")');
 
     if (DESCRIPTORS) {
       // This getter will be triggered during enumeration, but the property it adds should not be enumerated.
@@ -206,6 +392,15 @@ if (GLOBAL.JSON?.stringify) {
         } return value;
       }), '{"a":1,"b":"<replaced>"}', 'replacer-function-object-deleted-property-2');
       */
+
+      assert.throws(() => stringify({ key: defineProperty(Array(1), '0', {
+        get() { throw new EvalError('t262'); },
+      }) }), EvalError, 'value-array-abrupt');
+
+      assert.throws(() => stringify(defineProperty({}, 'key', {
+        enumerable: true,
+        get() { throw new EvalError('t262'); },
+      })), EvalError, 'value-object-abrupt');
     }
   });
 

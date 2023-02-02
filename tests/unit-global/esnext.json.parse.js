@@ -1,5 +1,5 @@
-// Some tests from Test262 project and governed by the BSD license.
-// Copyright (c) 2012 Ecma International.  All rights reserved.
+// Some tests adopted from Test262 project and governed by the BSD license.
+// Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
 import { DESCRIPTORS, PROTO } from '../helpers/constants';
 
