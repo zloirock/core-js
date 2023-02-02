@@ -17,6 +17,7 @@ var InternalStateModule = require('../internals/internal-state');
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
 
+var $String = String;
 var $SyntaxError = SyntaxError;
 var parse = getBuiltIn('JSON', 'parse');
 var $stringify = getBuiltIn('JSON', 'stringify');
@@ -62,7 +63,8 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
     var replacerFunction = getReplacerFunction(replacer);
 
     var json = $stringify(text, function (key, value) {
-      if (isCallable(replacerFunction)) value = call(replacerFunction, this, key, value);
+      // some old implementations (like WebKit) could pass numbers as keys
+      if (isCallable(replacerFunction)) value = call(replacerFunction, this, $String(key), value);
       if (!isRawJSON(value)) return value;
       var state = getInternalState(value);
       return state.dataType == 'string' ? state.data : MARK + state.data;

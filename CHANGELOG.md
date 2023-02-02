@@ -30,6 +30,7 @@
 - `Number.range` Stage 1 proposal and method [renamed to `Iterator.range`](https://github.com/tc39/proposal-Number.range)
 - `Function.prototype.unThis` Stage 0 proposal and method [renamed to `Function.prototype.demethodize`](https://github.com/js-choi/proposal-function-demethodize)
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
+- Fixed many other old `JSON.{ parse, stringify }` bugs (numbers instead of strings as keys in replacer, handling negative zeroes, some more handling symbols cases, etc.)
 - Fixed configurability and `ToString` conversion of some accessors
 - Added Opera Android 73 compat data mapping
 - Added TypeScript definitions to `core-js-builder`
