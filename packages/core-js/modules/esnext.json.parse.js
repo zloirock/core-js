@@ -14,6 +14,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var fails = require('../internals/fails');
 var parseJSONString = require('../internals/parse-json-string');
+var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
 var JSON = global.JSON;
 var Number = global.Number;
@@ -250,6 +251,6 @@ var NO_SOURCE_SUPPORT = fails(function () {
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
   parse: function parse(text, reviver) {
-    return nativeParse && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
+    return NATIVE_SYMBOL && nativeParse && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
   }
 });

@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var FREEZING = require('../internals/freezing');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 var getBuiltIn = require('../internals/get-built-in');
-var apply = require('../internals/function-apply');
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var isRawJSON = require('../internals/is-raw-json');
@@ -62,7 +62,7 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
     var replacerFunction = getReplacerFunction(replacer);
 
     var json = $stringify(text, function (key, value) {
-      if (isCallable(replacerFunction)) value = apply(replacerFunction, this, arguments);
+      if (isCallable(replacerFunction)) value = call(replacerFunction, this, key, value);
       if (!isRawJSON(value)) return value;
       var state = getInternalState(value);
       return state.dataType == 'string' ? state.data : MARK + state.data;
