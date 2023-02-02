@@ -154,6 +154,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array.fromAsync`](#arrayfromasync)
       - [`Array` grouping](#array-grouping)
       - [New `Set` methods](#new-set-methods)
+      - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [Explicit resource management](#explicit-resource-management)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -1829,7 +1830,7 @@ Since `JSON` object is missed only in very old engines like IE7-, `core-js` does
 Module [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
 ```js
 namespace JSON {
-  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+  stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string | number): string | void;
   @@toStringTag: 'JSON';
 }
 ```
@@ -2269,6 +2270,45 @@ new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
 new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
+##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
+Modules [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
+```js
+namespace JSON {
+  isRawJSON(O: any): boolean;
+  // patched for source support
+  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
+  rawJSON(text: any): RawJSON;
+  // patched for `JSON.rawJSON` support
+  stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string | number): string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/json-parse-with-source
+core-js(-pure)/actual|full/json/is-raw-json
+core-js(-pure)/actual|full/json/parse
+core-js(-pure)/actual|full/json/raw-json
+core-js(-pure)/actual|full/json/stringify
+```
+[*Examples*](https://tinyurl.com/22phm569):
+```js
+function digitsToBigInt(key, val, { source }) {
+  return /^[0-9]+$/.test(source) ? BigInt(source) : val;
+}
+
+function bigIntToRawJSON(key, val) {
+  return typeof val === "bigint" ? JSON.rawJSON(String(val)) : val;
+}
+
+const tooBigForNumber = BigInt(Number.MAX_SAFE_INTEGER) + 2n;
+JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // true
+
+const wayTooBig = BigInt("1" + "0".repeat(1000));
+JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
+
+const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
+embedded === '{"tooBigForNumber":9007199254740993}'; // true
+```
 ##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
 Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**
 
@@ -2303,10 +2343,10 @@ class Iterator {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/explicit-resource-management
-core-js(-pure)/full/symbol/dispose
-core-js(-pure)/full/disposable-stack
-core-js(-pure)/full/suppressed-error
-core-js(-pure)/full/iterator/dispose
+core-js(-pure)/actual|full/symbol/dispose
+core-js(-pure)/actual|full/disposable-stack
+core-js(-pure)/actual|full/suppressed-error
+core-js(-pure)/actual|full/iterator/dispose
 ```
 ##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
 Modules [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js) and [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
