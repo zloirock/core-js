@@ -84,8 +84,8 @@ if (GLOBAL.JSON?.stringify) {
     assert.arrayEqual(calls[6], [b2, 'c2', false], 'replacer-function-arguments-8');
     assert.arrayEqual(calls[7], [obj2, 'a2', 'a2'], 'replacer-function-arguments-9');
 
-    const circular = [{}];
-    assert.throws(() => stringify(circular, () => circular), TypeError, 'replacer-function-array-circular');
+    const circular1 = [{}];
+    assert.throws(() => stringify(circular1, () => circular1), TypeError, 'replacer-function-array-circular');
 
     const direct1 = { prop: {} };
     assert.throws(() => stringify(direct1, () => direct1), TypeError, 'replacer-function-object-circular-1');
@@ -344,6 +344,79 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify('\uDF06\uDF06\uD834\uD834'), '"\\udf06\\udf06\\ud834\\ud834"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uD834")');
     assert.same(stringify('\uDF06\uDF06\uD834\uDF06'), '"\\udf06\\udf06𝌆"', 'JSON.stringify("\\uDF06\\uDF06\\uD834\\uDF06")');
 
+    assert.same(stringify(new String('str')), '"str"', 'value-string-object-1');
+    assert.same(stringify({
+      key: {
+        toJSON() {
+          const str = new String('str');
+          str.toString = () => 'toString';
+          str.valueOf = () => { throw EvalError('should not be called'); };
+          return str;
+        },
+      },
+    }), '{"key":"toString"}', 'value-string-object-2');
+    assert.throws(() => stringify([true], (key, value) => {
+      if (value === true) {
+        const str = new String('str');
+        str.toString = () => { throw EvalError('t262'); };
+        str.valueOf = () => { throw EvalError('t262'); };
+        return str;
+      } return value;
+    }), 'value-string-object-3');
+
+    assert.throws(() => stringify({
+      toJSON() { throw EvalError('t262'); },
+    }), EvalError, 'value-tojson-abrupt-1');
+
+    let callCount = 0;
+    let _this, _key;
+    const obj6 = {
+      toJSON(key) {
+        callCount += 1;
+        _this = this;
+        _key = key;
+      },
+    };
+    assert.same(stringify(obj6), undefined, 'value-tojson-arguments-1');
+    assert.same(callCount, 1, 'value-tojson-arguments-2');
+    assert.same(_this, obj6, 'value-tojson-arguments-3');
+    assert.same(_key, '', 'value-tojson-arguments-4');
+    assert.same(stringify([1, obj6, 3]), '[1,null,3]', 'value-tojson-arguments-5');
+    assert.same(callCount, 2, 'value-tojson-arguments-6');
+    assert.same(_this, obj6, 'value-tojson-arguments-7');
+    // some old implementations (like WebKit) could pass numbers as keys
+    // assert.same(_key, '1', 'value-tojson-arguments-8');
+    assert.same(stringify({ key: obj6 }), '{}', 'value-tojson-arguments-9');
+    assert.same(callCount, 3, 'value-tojson-arguments-10');
+    assert.same(_this, obj6, 'value-tojson-arguments-11');
+    assert.same(_key, 'key', 'value-tojson-arguments-12');
+
+    const arr1 = [];
+    const circular2 = [arr1];
+    arr1.toJSON = () => circular2;
+    assert.throws(() => stringify(circular2), TypeError, 'value-tojson-array-circular');
+
+    assert.same(stringify({ toJSON: null }), '{"toJSON":null}', 'value-tojson-not-function-1');
+    assert.same(stringify({ toJSON: false }), '{"toJSON":false}', 'value-tojson-not-function-2');
+    assert.same(stringify({ toJSON: [] }), '{"toJSON":[]}', 'value-tojson-not-function-3');
+    assert.same(stringify({ toJSON: /re/ }), '{"toJSON":{}}', 'value-tojson-not-function-4');
+
+    const obj7 = {};
+    const circular3 = { prop: obj7 };
+    obj7.toJSON = () => circular3;
+    assert.throws(() => stringify(circular3), TypeError, 'value-tojson-object-circular');
+
+    assert.same(stringify({ toJSON() { return [false]; } }), '[false]', 'value-tojson-result-1');
+    const arr2 = [true];
+    arr2.toJSON = () => { /* empty */ };
+    assert.same(stringify(arr2), undefined, 'value-tojson-result-2');
+    const str3 = new String('str');
+    str3.toJSON = () => null;
+    assert.same(stringify({ key: str3 }), '{"key":null}', 'value-tojson-result-3');
+    const num3 = new Number(14);
+    num3.toJSON = () => ({ key: 7 });
+    assert.same(stringify([num3]), '[{"key":7}]', 'value-tojson-result-4');
+
     if (DESCRIPTORS) {
       // This getter will be triggered during enumeration, but the property it adds should not be enumerated.
       const o = defineProperty({
@@ -401,6 +474,10 @@ if (GLOBAL.JSON?.stringify) {
         enumerable: true,
         get() { throw new EvalError('t262'); },
       })), EvalError, 'value-object-abrupt');
+
+      assert.throws(() => stringify(defineProperty({}, 'toJSON', {
+        get() { throw new EvalError('t262'); },
+      })), EvalError, 'value-tojson-abrupt-2');
     }
   });
 
