@@ -2,14 +2,15 @@
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
 import { DESCRIPTORS, PROTO } from '../helpers/constants';
+import parse from 'core-js-pure/actual/json/parse';
+import defineProperty from 'core-js-pure/es/object/define-property';
+import hasOwn from 'core-js-pure/es/object/has-own';
+import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('JSON.parse', assert => {
-  const { parse } = JSON;
-  const { defineProperty, hasOwn } = Object;
   assert.isFunction(parse);
   assert.arity(parse, 2);
   assert.name(parse, 'parse');
-  assert.looksNative(parse);
 
   for (const [reviver, note] of [[undefined, 'without reviver'], [(key, value) => value, 'with reviver']]) {
     assert.throws(() => parse('12\t\r\n 34', reviver), SyntaxError, `15.12.1.1-0-1 ${ note }`); // should produce a syntax error as whitespace results in two tokens
@@ -233,7 +234,6 @@ QUnit.test('JSON.parse', assert => {
 });
 
 QUnit.test('JSON.parse source access', assert => {
-  const { parse } = JSON;
   let spy;
   parse('1234', (k, v, { source }) => spy = source);
   assert.same(spy, '1234', '1234');

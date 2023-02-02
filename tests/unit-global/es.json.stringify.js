@@ -20,7 +20,7 @@ if (GLOBAL.JSON?.stringify) {
     const num1 = new Number(10);
     num1.toString = () => 'toString';
     num1.valueOf = () => { throw EvalError('should not be called'); };
-    assert.same(JSON.stringify({
+    assert.same(stringify({
       10: 1,
       toString: 2,
       valueOf: 3,
