@@ -12,10 +12,7 @@ var createProperty = require('../internals/create-property');
 var parseJSONString = require('../internals/parse-json-string');
 var getReplacerFunction = require('../internals/get-json-replacer-function');
 var uid = require('../internals/uid');
-var InternalStateModule = require('../internals/internal-state');
-
-var getInternalState = InternalStateModule.get;
-var setInternalState = InternalStateModule.set;
+var setInternalState = require('../internals/internal-state').set;
 
 var $String = String;
 var $SyntaxError = SyntaxError;
@@ -26,6 +23,7 @@ var freeze = getBuiltIn('Object', 'freeze');
 var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
+var push = uncurryThis([].push);
 
 var MARK = uid();
 var MARK_LENGTH = MARK.length;
@@ -42,14 +40,9 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
       throw $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
-    var dataType = typeof parsed;
-    if (dataType == 'object' && parsed !== null) throw $SyntaxError(ERROR_MESSAGE);
+    if (typeof parsed == 'object' && parsed !== null) throw $SyntaxError(ERROR_MESSAGE);
     var obj = create(null);
-    setInternalState(obj, {
-      type: 'RawJSON',
-      dataType: dataType,
-      data: dataType == 'string' ? parsed : jsonString
-    });
+    setInternalState(obj, { type: 'RawJSON' });
     createProperty(obj, 'rawJSON', jsonString);
     return FREEZING ? freeze(obj) : obj;
   }
@@ -61,13 +54,12 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
 if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);
+    var rawStrings = [];
 
     var json = $stringify(text, function (key, value) {
       // some old implementations (like WebKit) could pass numbers as keys
-      if (isCallable(replacerFunction)) value = call(replacerFunction, this, $String(key), value);
-      if (!isRawJSON(value)) return value;
-      var state = getInternalState(value);
-      return state.dataType == 'string' ? state.data : MARK + state.data;
+      var v = isCallable(replacerFunction) ? call(replacerFunction, this, $String(key), value) : value;
+      return isRawJSON(v) ? MARK + (push(rawStrings, v.rawJSON) - 1) : v;
     }, space);
 
     if (typeof json != 'string') return json;
@@ -77,15 +69,16 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
 
     for (var i = 0; i < length; i++) {
       var chr = at(json, i);
-      if (chr === '"') {
+      if (chr == '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         result += slice(string, 0, MARK_LENGTH) == MARK
-          ? slice(string, MARK_LENGTH)
+          ? rawStrings[slice(string, MARK_LENGTH)]
           : '"' + string + '"';
         i = end;
       } else result += chr;
     }
+
     return result;
   }
 });
