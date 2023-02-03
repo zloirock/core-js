@@ -1,9 +1,10 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import jszip from 'jszip';
 
 const { cyan, green, gray, red } = chalk;
 const agents = [
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.80 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
   'Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko',
 ];
 const protocols = ['http', 'https'];
@@ -23,6 +24,8 @@ echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) /
 function timeout(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(Error('timeout')), time))]);
 }
+
+chromium.use(StealthPlugin());
 
 // run in parallel
 await Promise.all(Array(Math.ceil(os.cpus().length / 2)).fill().map(async () => {

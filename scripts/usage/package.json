@@ -2,6 +2,8 @@
   "name": "scripts/usage",
   "devDependencies": {
     "jszip": "^3.10.1",
-    "playwright": "^1.29.2"
+    "playwright": "^1.30.0",
+    "playwright-extra": "^4.3.5",
+    "puppeteer-extra-plugin-stealth": "^2.11.1"
   }
 }
