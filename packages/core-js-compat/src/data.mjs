@@ -1893,6 +1893,12 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.with': null,
+  'esnext.array-buffer.detached': {
+  },
+  'esnext.array-buffer.transfer': {
+  },
+  'esnext.array-buffer.transfer-to-fixed-length': {
+  },
   'esnext.async-disposable-stack.constructor': {
   },
   'esnext.async-iterator.constructor': {

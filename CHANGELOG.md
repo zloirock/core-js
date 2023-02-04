@@ -17,6 +17,12 @@
     - `JSON.rawJSON`
     - `JSON.isRawJSON`
     - `JSON.stringify` patched for support `JSON.rawJSON`
+- Added [`ArrayBuffer.prototype.transfer` and friends Stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
+  - Built-ins:
+    - `ArrayBuffer.prototype.detached`
+    - `ArrayBuffer.prototype.transfer` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
+    - `ArrayBuffer.prototype.transferToFixedLength` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
+  - In backwards, in runtimes with native `ArrayBuffer.prototype.transfer`, but without proper `structuredClone`, added `ArrayBuffer` transfer support to `structuredClone` polyfill
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
   - Splitted into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals, async version moved back to Stage 2, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410926068)
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)

@@ -1463,6 +1463,15 @@ GLOBAL.tests = {
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },
+  'esnext.array-buffer.detached': function () {
+    return 'detached' in ArrayBuffer.prototype;
+  },
+  'esnext.array-buffer.transfer': function () {
+    return ArrayBuffer.prototype.transfer;
+  },
+  'esnext.array-buffer.transfer-to-fixed-length': function () {
+    return ArrayBuffer.prototype.transferToFixedLength;
+  },
   'esnext.async-disposable-stack.constructor': function () {
     return typeof AsyncDisposableStack == 'function';
   },

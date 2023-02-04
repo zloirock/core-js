@@ -159,3 +159,22 @@ export function fromSource(source) {
     return Function(`return ${ source }`)();
   } catch { /* empty */ }
 }
+
+export function arrayToBuffer(array) {
+  const { length } = array;
+  const buffer = new ArrayBuffer(length);
+  const view = new DataView(buffer);
+  for (let i = 0; i < length; ++i) {
+    view.setUint8(i, array[i]);
+  }
+  return buffer;
+}
+
+export function bufferToArray(buffer) {
+  const array = [];
+  const view = new DataView(buffer);
+  for (let i = 0, { byteLength } = view; i < byteLength; ++i) {
+    array.push(view.getUint8(i));
+  }
+  return array;
+}
