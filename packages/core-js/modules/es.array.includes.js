@@ -6,6 +6,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 
 // FF99+ bug
 var BROKEN_ON_SPARSE = fails(function () {
+  // eslint-disable-next-line es/no-array-prototype-includes -- detection
   return !Array(1).includes();
 });
 

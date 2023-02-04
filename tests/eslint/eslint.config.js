@@ -885,23 +885,66 @@ const forbidES2020BuiltIns = {
   'es/no-bigint': ERROR,
   'es/no-global-this': ERROR,
   'es/no-promise-all-settled': ERROR,
+  'es/no-regexp-unicode-property-escapes-2020': ERROR,
   'es/no-string-prototype-matchall': ERROR,
 };
 
 const forbidES2021BuiltIns = {
   'es/no-promise-any': ERROR,
+  'es/no-regexp-unicode-property-escapes-2021': ERROR,
   'es/no-string-prototype-replaceall': ERROR,
   'es/no-weakrefs': ERROR,
 };
 
 const forbidES2022BuiltIns = {
   'es/no-array-string-prototype-at': ERROR,
+  'es/no-error-cause': ERROR,
   'es/no-object-hasown': ERROR,
   'es/no-regexp-d-flag': ERROR,
+  'es/no-regexp-unicode-property-escapes-2022': ERROR,
 };
 
 const forbidES2023BuiltIns = {
   'es/no-array-prototype-findlast-findlastindex': ERROR,
+  'es/no-array-prototype-toreversed': ERROR,
+  'es/no-array-prototype-tosorted': ERROR,
+  'es/no-array-prototype-tospliced': ERROR,
+  'es/no-array-prototype-with': ERROR,
+};
+
+const forbidES2016IntlBuiltIns = {
+  'es/no-intl-getcanonicallocales': ERROR,
+};
+
+const forbidES2017IntlBuiltIns = {
+  'es/no-intl-datetimeformat-prototype-formattoparts': ERROR,
+};
+
+const forbidES2018IntlBuiltIns = {
+  'es/no-intl-numberformat-prototype-formattoparts': ERROR,
+  'es/no-intl-pluralrules': ERROR,
+};
+
+const forbidES2020IntlBuiltIns = {
+  'es/no-intl-locale': ERROR,
+  'es/no-intl-relativetimeformat': ERROR,
+};
+
+const forbidES2021IntlBuiltIns = {
+  'es/no-intl-datetimeformat-prototype-formatrange': ERROR,
+  'es/no-intl-displaynames': ERROR,
+  'es/no-intl-listformat': ERROR,
+};
+
+const forbidES2022IntlBuiltIns = {
+  'es/no-intl-segmenter': ERROR,
+  'es/no-intl-supportedvaluesof': ERROR,
+};
+
+const forbidES2023IntlBuiltIns = {
+  'es/no-intl-numberformat-prototype-formatrange': ERROR,
+  'es/no-intl-numberformat-prototype-formatrangetoparts': ERROR,
+  'es/no-intl-pluralrules-prototype-selectrange': ERROR,
 };
 
 const forbidModernESBuiltIns = {
@@ -916,6 +959,13 @@ const forbidModernESBuiltIns = {
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  ...forbidES2016IntlBuiltIns,
+  ...forbidES2017IntlBuiltIns,
+  ...forbidES2018IntlBuiltIns,
+  ...forbidES2020IntlBuiltIns,
+  ...forbidES2021IntlBuiltIns,
+  ...forbidES2022IntlBuiltIns,
+  ...forbidES2023IntlBuiltIns,
 };
 
 const asyncAwait = {
@@ -975,6 +1025,13 @@ const nodePackages = {
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  ...disable(forbidES2016IntlBuiltIns),
+  ...disable(forbidES2017IntlBuiltIns),
+  ...forbidES2018IntlBuiltIns,
+  ...forbidES2020IntlBuiltIns,
+  ...forbidES2021IntlBuiltIns,
+  ...forbidES2022IntlBuiltIns,
+  ...forbidES2023IntlBuiltIns,
 };
 
 const nodeDev = {
@@ -982,8 +1039,10 @@ const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
-  'es/no-array-string-prototype-at': ERROR,
+  'es/no-regexp-d-flag': ERROR,
   ...forbidES2023BuiltIns,
+  'es/no-intl-supportedvaluesof': ERROR,
+  ...forbidES2023IntlBuiltIns,
 };
 
 const tests = {
