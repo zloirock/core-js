@@ -5,6 +5,7 @@ var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var FunctionName = require('../internals/function-name');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var defineBuiltIns = require('../internals/define-built-ins');
 var fails = require('../internals/fails');
 var anInstance = require('../internals/an-instance');
@@ -15,7 +16,6 @@ var IEEE754 = require('../internals/ieee754');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
-var defineProperty = require('../internals/object-define-property').f;
 var arrayFill = require('../internals/array-fill');
 var arraySlice = require('../internals/array-slice-simple');
 var setToStringTag = require('../internals/set-to-string-tag');
@@ -69,7 +69,12 @@ var packFloat64 = function (number) {
 };
 
 var addGetter = function (Constructor, key) {
-  defineProperty(Constructor[PROTOTYPE], key, { get: function () { return getInternalState(this)[key]; } });
+  defineBuiltInAccessor(Constructor[PROTOTYPE], key, {
+    configurable: true,
+    get: function () {
+      return getInternalState(this)[key];
+    }
+  });
 };
 
 var get = function (view, count, index, isLittleEndian) {

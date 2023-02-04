@@ -4,6 +4,7 @@
 - Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
 - `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
+- Fixed configurability and `ToString` conversion of some accessors
 - Added Opera Android 73 compat data mapping
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)

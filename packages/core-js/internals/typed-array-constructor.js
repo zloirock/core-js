@@ -25,6 +25,7 @@ var getOwnPropertyNames = require('../internals/object-get-own-property-names').
 var typedArrayFrom = require('../internals/typed-array-from');
 var forEach = require('../internals/array-iteration').forEach;
 var setSpecies = require('../internals/set-species');
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var InternalStateModule = require('../internals/internal-state');
@@ -59,9 +60,12 @@ var fromList = function (C, list) {
 };
 
 var addGetter = function (it, key) {
-  nativeDefineProperty(it, key, { get: function () {
-    return getInternalState(this)[key];
-  } });
+  defineBuiltInAccessor(it, key, {
+    configurable: true,
+    get: function () {
+      return getInternalState(this)[key];
+    }
+  });
 };
 
 var isArrayBuffer = function (it) {
