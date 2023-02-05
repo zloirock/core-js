@@ -12,7 +12,7 @@ var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
 // `AsyncIterator.prototype.reduce` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     var record = getIteratorDirect(this);

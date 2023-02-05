@@ -54,7 +54,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 });
 
 // `AsyncIterator.prototype.filter` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(predicate) {
     return new AsyncIteratorProxy(getIteratorDirect(this), {

@@ -5,7 +5,7 @@ var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.toAsync` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(this))));
