@@ -13,7 +13,7 @@ if (transfer) QUnit.test('ArrayBuffer#transfer', assert => {
 
   const DETACHED = 'detached' in ArrayBuffer.prototype;
 
-  const array = [1, 2, 3, 4, 5, 6, 7, 8];
+  const array = [0, 1, 2, 3, 4, 5, 6, 7];
 
   let buffer = arrayToBuffer(array);
   let transferred = buffer.transfer();
@@ -31,7 +31,7 @@ if (transfer) QUnit.test('ArrayBuffer#transfer', assert => {
   assert.same(buffer.byteLength, 0, 'original array length 2');
   if (DETACHED) assert.true(buffer.detached, 'original array detached 2');
   assert.same(transferred.byteLength, 5, 'proper transferred byteLength 2');
-  assert.arrayEqual(bufferToArray(transferred), [1, 2, 3, 4, 5], 'properly copied 2');
+  assert.arrayEqual(bufferToArray(transferred), array.slice(0, 5), 'properly copied 2');
 
   buffer = arrayToBuffer(array);
   transferred = buffer.transfer(16.7);
@@ -46,5 +46,22 @@ if (transfer) QUnit.test('ArrayBuffer#transfer', assert => {
   assert.throws(() => transfer.call({}), TypeError, 'non-generic-1');
   if (typeof SharedArrayBuffer == 'function') {
     assert.throws(() => transfer.call(new SharedArrayBuffer(8)), TypeError, 'non-generic-2');
+  }
+
+  if ('resizable' in ArrayBuffer.prototype) {
+    assert.false(arrayToBuffer(array).transfer().resizable, 'non-resizable-1');
+    assert.false(arrayToBuffer(array).transfer(5).resizable, 'non-resizable-2');
+
+    buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+    new Int8Array(buffer).set(array);
+    transferred = buffer.transfer();
+    assert.arrayEqual(bufferToArray(transferred), array, 'resizable-1');
+    assert.true(transferred.resizable, 'resizable-2');
+
+    buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+    new Int8Array(buffer).set(array);
+    transferred = buffer.transfer(5);
+    assert.arrayEqual(bufferToArray(transferred), array.slice(0, 5), 'resizable-3');
+    assert.true(transferred.resizable, 'resizable-4');
   }
 });

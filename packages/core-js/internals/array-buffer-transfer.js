@@ -10,6 +10,7 @@ var TypeError = global.TypeError;
 var structuredClone = global.structuredClone;
 var ArrayBuffer = global.ArrayBuffer;
 var DataView = global.DataView;
+var min = Math.min;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataViewPrototype = DataView.prototype;
 var slice = uncurryThis(ArrayBufferPrototype.slice);
@@ -20,11 +21,12 @@ var setInt8 = uncurryThis(DataViewPrototype.setInt8);
 
 module.exports = PROPER_TRANSFER && function (arrayBuffer, newLength, preserveResizability) {
   var byteLength = arrayBufferByteLength(arrayBuffer);
-  var newByteLength = newLength === undefined ? byteLength : toIndex(newLength);
+  var newByteLength = newLength === undefined ? byteLength : min(toIndex(newLength), byteLength);
+  var fixedLength = !isResizable || !isResizable(arrayBuffer);
   if (isDetached(arrayBuffer)) throw TypeError('ArrayBuffer is detached');
   var newBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
-  if (byteLength <= newByteLength) return newBuffer;
-  if (!preserveResizability || !isResizable || !isResizable(newBuffer)) return slice(newBuffer, 0, newByteLength);
+  if (byteLength == newByteLength && (preserveResizability || fixedLength)) return newBuffer;
+  if (!preserveResizability || fixedLength) return slice(newBuffer, 0, newByteLength);
   var newNewBuffer = new ArrayBuffer(newByteLength, maxByteLength && { maxByteLength: maxByteLength(newBuffer) });
   var a = new DataView(newBuffer);
   var b = new DataView(newNewBuffer);
