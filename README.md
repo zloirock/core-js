@@ -162,6 +162,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
       - [Async explicit resource management](#async-explicit-resource-management)
+      - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
@@ -2496,6 +2497,29 @@ core-js/proposals/async-explicit-resource-management
 core-js(-pure)/full/symbol/async-dispose
 core-js(-pure)/full/async-disposable-stack
 core-js(-pure)/full/async-iterator/async-dispose
+```
+##### [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)[⬆](#index)
+Modules [`esnext.symbol.is-registered`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered.js), [`esnext.symbol.is-well-known`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known.js).
+```js
+class Symbol {
+  static isRegistered(value: any): boolean;
+  static isWellKnown(value: any): boolean;
+}
+```
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/symbol-predicates
+core-js(-pure)/full/symbol/is-registered
+core-js(-pure)/full/symbol/is-well-known
+```
+[*Example*](https://tinyurl.com/2cuwpu8d):
+```js
+Symbol.isRegistered(Symbol.for('key')); // => true
+Symbol.isRegistered(Symbol('key')); // => false
+
+Symbol.isWellKnown(Symbol.iterator); // => true
+Symbol.isWellKnown(Symbol('key')); // => false
 ```
 ##### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Module [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js).

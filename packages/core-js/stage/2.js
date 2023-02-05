@@ -6,6 +6,7 @@ require('../proposals/async-iterator-helpers');
 require('../proposals/decorator-metadata');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/string-dedent');
+require('../proposals/symbol-predicates');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping');
 require('../proposals/decorators');

@@ -2199,6 +2199,10 @@ export const data = {
   },
   'esnext.symbol.dispose': {
   },
+  'esnext.symbol.is-registered': {
+  },
+  'esnext.symbol.is-well-known': {
+  },
   'esnext.symbol.matcher': {
   },
   // TODO: Remove from `core-js@4`

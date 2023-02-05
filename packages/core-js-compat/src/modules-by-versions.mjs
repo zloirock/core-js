@@ -187,5 +187,7 @@ export default {
     'es.typed-array.with',
     'esnext.function.demethodize',
     'esnext.iterator.range',
+    'esnext.symbol.is-registered',
+    'esnext.symbol.is-well-known',
   ],
 };
