@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Fixed Safari `String.prototype.toWellFormed` `ToString` conversion bug
+- Fixed [Safari `String.prototype.toWellFormed` `ToString` conversion bug](https://bugs.webkit.org/show_bug.cgi?id=251757)
 - Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
 - `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix

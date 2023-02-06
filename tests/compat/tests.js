@@ -1731,6 +1731,7 @@ GLOBAL.tests = {
   },
   'esnext.string.to-well-formed': function () {
     // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
     return String.prototype.toWellFormed.call(1) === '1';
   },
   'esnext.symbol.async-dispose': function () {

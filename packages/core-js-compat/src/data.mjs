@@ -2162,6 +2162,7 @@ export const data = {
   'esnext.string.replace-all': null,
   'esnext.string.to-well-formed': {
     // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
     // bun: '0.4.0',
   },
   'esnext.symbol.async-dispose': {
