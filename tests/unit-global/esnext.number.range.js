@@ -58,7 +58,7 @@ QUnit.test('Number.range', assert => {
   assert.true(iterator.inclusive);
 
   iterator = range(0, 5);
-  assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').call({}), TypeError);
+  assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').get.call({}), TypeError);
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);
   assert.throws(() => range(-Infinity, 10, 0), RangeError);

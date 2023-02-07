@@ -1928,6 +1928,7 @@ export const data = {
   },
   'esnext.async-iterator.to-array': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.bigint.range': {
   },
   'esnext.composite-key': {
@@ -1971,6 +1972,8 @@ export const data = {
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.map': {
+  },
+  'esnext.iterator.range': {
   },
   'esnext.iterator.reduce': {
   },
@@ -2057,6 +2060,7 @@ export const data = {
   },
   'esnext.number.from-string': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.number.range': {
   },
   // TODO: Remove from `core-js@4`
