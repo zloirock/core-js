@@ -438,7 +438,7 @@ However, I have no possibility to test `core-js` absolutely everywhere - for exa
 
 `core-js` project provides (as [`core-js-compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools for work with it - it's useful for integration with tools like `babel` or `swc`. If you wanna help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/compat/), the example:
 
-![compat-table](https://user-images.githubusercontent.com/2213682/202867481-69d28cd6-9e1a-453b-8875-39a5bf92eac3.png)
+![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)
 
 ## Features:[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
