@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants';
 
 import Symbol from 'core-js-pure/es/symbol';
-import toReversed from 'core-js-pure/actual/array/to-reversed';
+import toReversed from 'core-js-pure/es/array/to-reversed';
 
 QUnit.test('Array#toReversed', assert => {
   assert.isFunction(toReversed);

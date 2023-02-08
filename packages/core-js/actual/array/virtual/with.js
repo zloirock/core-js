@@ -1,4 +1,5 @@
+var parent = require('../../../stable/array/virtual/with');
+// TODO: Remove from `core-js@4`
 require('../../../modules/esnext.array.with');
-var entryVirtual = require('../../../internals/entry-virtual');
 
-module.exports = entryVirtual('Array')['with'];
+module.exports = parent;

@@ -177,4 +177,13 @@ export default {
     'esnext.set.union.v2',
     'esnext.string.dedent',
   ],
+  3.28: [
+    'es.array.to-reversed',
+    'es.array.to-sorted',
+    'es.array.to-spliced',
+    'es.array.with',
+    'es.typed-array.to-reversed',
+    'es.typed-array.to-sorted',
+    'es.typed-array.with',
+  ],
 };
