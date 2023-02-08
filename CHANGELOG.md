@@ -17,6 +17,7 @@
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
 - Fixed configurability and `ToString` conversion of some accessors
 - Added Opera Android 73 compat data mapping
+- Added TypeScript definitions to `core-js-builder`
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) updates:
