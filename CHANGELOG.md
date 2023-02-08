@@ -12,7 +12,7 @@
   - Moved to stable ES, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1409261397)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
-  - [Splitted into 2 (sync and async) proposals](https://github.com/babel/proposals/issues/86#issuecomment-1410926068), async version moved back to Stage 2
+  - [Splitted into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals](https://github.com/babel/proposals/issues/86#issuecomment-1410926068), async version moved back to Stage 2
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)
 - Fixed [Safari `String.prototype.toWellFormed` `ToString` conversion bug](https://bugs.webkit.org/show_bug.cgi?id=251757)
 - Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
