@@ -179,7 +179,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
-      - [`Function.prototype.unThis`](#functionprototypeunthis)
+      - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
       - [`URL`](#url)
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
@@ -2898,22 +2898,22 @@ core-js(-pure)/full/symbol/matcher
 ```js
 core-js(-pure)/stage/0
 ```
-##### [`Function.prototype.unThis`](https://github.com/js-choi/proposal-function-un-this)[⬆](#index)
-Module [`esnext.function.un-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.un-this.js)
+##### [`Function.prototype.demethodize`](https://github.com/js-choi/proposal-function-demethodize)[⬆](#index)
+Module [`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
 ```js
 class Function {
-  unThis(): Function;
+  demethodize(): Function;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/function-un-this
-core-js(-pure)/full/function/un-this
-core-js(-pure)/full/function/virtual/un-this
+core-js/proposals/function-demethodize
+core-js(-pure)/full/function/demethodize
+core-js(-pure)/full/function/virtual/demethodize
 ```
-[*Examples*](https://is.gd/t1Bvhn):
+[*Examples*](https://tinyurl.com/2ltmohgl):
 ```js
-const slice = Array.prototype.slice.unThis();
+const slice = Array.prototype.slice.demethodize();
 
 slice([1, 2, 3], 1); // => [2, 3]
 ```

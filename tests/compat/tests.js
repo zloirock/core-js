@@ -1517,14 +1517,14 @@ GLOBAL.tests = {
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },
+  'esnext.function.demethodize': function () {
+    return Function.prototype.demethodize;
+  },
   'esnext.function.is-callable': function () {
     return Function.isCallable;
   },
   'esnext.function.is-constructor': function () {
     return Function.isConstructor;
-  },
-  'esnext.function.un-this': function () {
-    return Function.prototype.unThis;
   },
   'esnext.iterator.constructor': function () {
     try {

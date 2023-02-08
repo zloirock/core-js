@@ -1936,10 +1936,13 @@ export const data = {
   },
   'esnext.disposable-stack.constructor': {
   },
+  'esnext.function.demethodize': {
+  },
   'esnext.function.is-callable': {
   },
   'esnext.function.is-constructor': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.function.un-this': {
   },
   // TODO: Remove from `core-js@4`
