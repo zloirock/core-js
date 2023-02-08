@@ -2,6 +2,7 @@ var parent = require('./3');
 
 require('../proposals/array-is-template-object');
 require('../proposals/async-explicit-resource-management');
+require('../proposals/async-iterator-helpers');
 require('../proposals/decorator-metadata');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/string-dedent');

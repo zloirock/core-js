@@ -6,7 +6,7 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 
 // `AsyncIterator.from` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', stat: true }, {
   from: function from(O) {
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
