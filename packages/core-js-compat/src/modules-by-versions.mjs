@@ -186,5 +186,6 @@ export default {
     'es.typed-array.to-sorted',
     'es.typed-array.with',
     'esnext.function.demethodize',
+    'esnext.iterator.range',
   ],
 };

@@ -1505,9 +1505,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.to-array': function () {
     return AsyncIterator.prototype.toArray;
   },
-  'esnext.bigint.range': function () {
-    return BigInt.range;
-  },
   'esnext.composite-key': function () {
     return compositeKey;
   },
@@ -1563,6 +1560,9 @@ GLOBAL.tests = {
   },
   'esnext.iterator.map': function () {
     return Iterator.prototype.map;
+  },
+  'esnext.iterator.range': function () {
+    return Iterator.range;
   },
   'esnext.iterator.reduce': function () {
     return Iterator.prototype.reduce;
@@ -1659,9 +1659,6 @@ GLOBAL.tests = {
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
-  },
-  'esnext.number.range': function () {
-    return Number.range;
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': function () {

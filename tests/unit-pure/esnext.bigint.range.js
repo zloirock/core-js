@@ -49,7 +49,7 @@ if (typeof BigInt == 'function') QUnit.test('BigInt.range', assert => {
 
   iterator = range(BigInt(0), BigInt(5));
   // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-  assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').call({}), TypeError);
+  assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').get.call({}), TypeError);
 
   assert.throws(() => range(Infinity, BigInt(10), BigInt(0)), TypeError);
   assert.throws(() => range(-Infinity, BigInt(10), BigInt(0)), TypeError);
