@@ -1750,6 +1750,12 @@ GLOBAL.tests = {
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
+  'esnext.symbol.is-registered': function () {
+    return Symbol.isRegistered;
+  },
+  'esnext.symbol.is-well-known': function () {
+    return Symbol.isWellKnown;
+  },
   'esnext.symbol.matcher': function () {
     return Symbol.matcher;
   },
