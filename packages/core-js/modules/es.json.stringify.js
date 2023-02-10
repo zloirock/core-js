@@ -10,6 +10,7 @@ var arraySlice = require('../internals/array-slice');
 var getReplacerFunction = require('../internals/get-json-replacer-function');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
+var $String = String;
 var $stringify = getBuiltIn('JSON', 'stringify');
 var exec = uncurryThis(/./.exec);
 var charAt = uncurryThis(''.charAt);
@@ -42,7 +43,8 @@ var stringifyWithSymbolsFix = function (it, replacer) {
   var $replacer = getReplacerFunction(replacer);
   if (!isCallable($replacer) && (it === undefined || isSymbol(it))) return; // IE8 returns string on undefined
   args[1] = function (key, value) {
-    if (isCallable($replacer)) value = call($replacer, this, key, value);
+    // some old implementations (like WebKit) could pass numbers as keys
+    if (isCallable($replacer)) value = call($replacer, this, $String(key), value);
     if (!isSymbol(value)) return value;
   };
   return apply($stringify, null, args);

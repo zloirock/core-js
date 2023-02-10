@@ -665,6 +665,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
+    ok(load(NS, 'json/is-raw-json')({}) === false);
+    ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
+    ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
     ok(load(NS, 'set/intersection')(new Set([1, 2, 3]), new Set([1, 3, 4])).size === 2);
     ok(load(NS, 'set/is-disjoint-from')(new Set([1, 2, 3]), new Set([4, 5, 6])));
@@ -907,6 +910,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-helpers-stage-3');
   load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
+  load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');
   load('proposals/map-upsert');

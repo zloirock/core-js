@@ -1985,6 +1985,12 @@ export const data = {
   },
   'esnext.iterator.to-async': {
   },
+  'esnext.json.is-raw-json': {
+  },
+  'esnext.json.parse': {
+  },
+  'esnext.json.raw-json': {
+  },
   'esnext.map.delete-all': {
   },
   'esnext.map.emplace': {
