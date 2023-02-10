@@ -38,6 +38,8 @@
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
 - Fixed many other old `JSON.{ parse, stringify }` bugs (numbers instead of strings as keys in replacer, handling negative zeroes, spaces, some more handling symbols cases, etc.)
 - Fixed configurability and `ToString` conversion of some accessors
+- Added throwing proper errors on an incorrect context in some `ArrayBuffer` and `DataView` methods
+- Some minor `DataView` polyfill optimizations
 - `RegExp.prototype.flags` marked as fixed from V8 ~ Chrome 111
 - Added Opera Android 73 compat data mapping
 - Added TypeScript definitions to `core-js-builder`
