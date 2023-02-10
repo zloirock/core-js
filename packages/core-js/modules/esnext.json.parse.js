@@ -240,10 +240,15 @@ Context.prototype = {
 var NO_SOURCE_SUPPORT = fails(function () {
   var unsafeInt = '9007199254740993';
   var source;
-  JSON.parse(unsafeInt, function (key, value, context) {
+  nativeParse(unsafeInt, function (key, value, context) {
     source = context.source;
   });
   return source !== unsafeInt;
+});
+
+var PROPER_BASE_PARSE = NATIVE_SYMBOL && !fails(function () {
+  // Safari 9 bug
+  return 1 / nativeParse('-0 \t') !== -Infinity;
 });
 
 // `JSON.parse` method
@@ -251,6 +256,6 @@ var NO_SOURCE_SUPPORT = fails(function () {
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
   parse: function parse(text, reviver) {
-    return NATIVE_SYMBOL && nativeParse && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
+    return PROPER_BASE_PARSE && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
   }
 });
