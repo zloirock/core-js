@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
-import { DESCRIPTORS, PROTO } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants';
 import parse from 'core-js-pure/actual/json/parse';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import hasOwn from 'core-js-pure/es/object/has-own';
@@ -99,7 +99,15 @@ QUnit.test('JSON.parse', assert => {
       assert.throws(() => parse(`{ "name" : Jo${ nullChars[i] }hn }`, reviver), SyntaxError, `15.12.2-2-10-${ i } ${ note }`);
     }
 
-    if (PROTO) {
+    let REDEFINABLE_PROTO = false;
+
+    try {
+      // Chrome 27- bug, also a bug for native `JSON.parse`
+      defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
+      REDEFINABLE_PROTO = true;
+    } catch (error) { /* empty */ }
+
+    if (REDEFINABLE_PROTO) {
       // eslint-disable-next-line no-proto -- testing
       assert.same(parse('{ "__proto__": 1, "__proto__": 2 }', reviver).__proto__, 2, `duplicate proto ${ note }`);
     }
