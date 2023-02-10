@@ -1830,7 +1830,7 @@ Since `JSON` object is missed only in very old engines like IE7-, `core-js` does
 Module [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
 ```js
 namespace JSON {
-  stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string | number): string | void;
+  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
   @@toStringTag: 'JSON';
 }
 ```
@@ -2279,7 +2279,7 @@ namespace JSON {
   parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
   rawJSON(text: any): RawJSON;
   // patched for `JSON.rawJSON` support
-  stringify(value: any, replacer?: (this: any, key: string, value: any) => any, space?: string | number): string | void;
+  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
