@@ -1,6 +1,8 @@
+import defineProperty from 'core-js-pure/es/object/define-property';
+
 export const DESCRIPTORS = !!(() => {
   try {
-    return Object.defineProperty({}, 'a', {
+    return defineProperty({}, 'a', {
       get() {
         return 7;
       },
@@ -55,6 +57,14 @@ export const LITTLE_ENDIAN = (() => {
 
 export const PROTO = !!Object.setPrototypeOf || '__proto__' in Object.prototype;
 
+export let REDEFINABLE_PROTO = false;
+
+try {
+  // Chrome 27- bug, also a bug for native `JSON.parse`
+  defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
+  REDEFINABLE_PROTO = true;
+} catch (error) { /* empty */ }
+
 export const STRICT = !function () {
   return this;
 }();
@@ -84,7 +94,7 @@ export const CORRECT_PROTOTYPE_GETTER = !function () {
 // FF < 23 bug
 export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = DESCRIPTORS && !function () {
   try {
-    Object.defineProperty([], 'length', { writable: false });
+    defineProperty([], 'length', { writable: false });
   } catch {
     return true;
   }

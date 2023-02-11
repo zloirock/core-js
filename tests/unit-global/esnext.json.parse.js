@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants';
 
 QUnit.test('JSON.parse', assert => {
   const { parse } = JSON;
@@ -97,14 +97,6 @@ QUnit.test('JSON.parse', assert => {
       assert.throws(() => parse(`{ "name" : ${ nullChars[i] }John${ nullChars[i] } }`, reviver), SyntaxError, `15.12.2-2-9-${ i } ${ note }`);
       assert.throws(() => parse(`{ "name" : Jo${ nullChars[i] }hn }`, reviver), SyntaxError, `15.12.2-2-10-${ i } ${ note }`);
     }
-
-    let REDEFINABLE_PROTO = false;
-
-    try {
-      // Chrome 27- bug, also a bug for native `JSON.parse`
-      defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
-      REDEFINABLE_PROTO = true;
-    } catch (error) { /* empty */ }
 
     if (REDEFINABLE_PROTO) {
       // eslint-disable-next-line no-proto -- testing
@@ -242,21 +234,22 @@ QUnit.test('JSON.parse', assert => {
 
 QUnit.test('JSON.parse source access', assert => {
   const { parse } = JSON;
-  let spy;
-  parse('1234', (k, v, { source }) => spy = source);
-  assert.same(spy, '1234', '1234');
-  parse('"1234"', (k, v, { source }) => spy = source);
-  assert.same(spy, '"1234"', '"1234"');
-  parse('null', (k, v, { source }) => spy = source);
-  assert.same(spy, 'null', 'null');
-  parse('true', (k, v, { source }) => spy = source);
-  assert.same(spy, 'true', 'true');
-  parse('false', (k, v, { source }) => spy = source);
-  assert.same(spy, 'false', 'false');
-  parse('{}', (k, v, { source }) => spy = source);
-  assert.same(spy, undefined, '{}');
-  parse('[]', (k, v, { source }) => spy = source);
-  assert.same(spy, undefined, '[]');
-  parse('9007199254740993', (k, v, { source }) => spy = source);
-  assert.same(spy, '9007199254740993', '9007199254740993');
+  const spy = (k, v, { source: $source }) => source = $source;
+  let source;
+  parse('1234', spy);
+  assert.same(source, '1234', '1234');
+  parse('"1234"', spy);
+  assert.same(source, '"1234"', '"1234"');
+  parse('null', spy);
+  assert.same(source, 'null', 'null');
+  parse('true', spy);
+  assert.same(source, 'true', 'true');
+  parse('false', spy);
+  assert.same(source, 'false', 'false');
+  parse('{}', spy);
+  assert.same(source, undefined, '{}');
+  parse('[]', spy);
+  assert.same(source, undefined, '[]');
+  parse('9007199254740993', spy);
+  assert.same(source, '9007199254740993', '9007199254740993');
 });
