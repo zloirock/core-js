@@ -5,7 +5,7 @@ import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants';
 
 QUnit.test('JSON.parse', assert => {
   const { parse } = JSON;
-  const { defineProperty, hasOwn } = Object;
+  const { defineProperty, hasOwn, keys } = Object;
   assert.isFunction(parse);
   assert.arity(parse, 2);
   assert.name(parse, 'parse');
@@ -221,13 +221,16 @@ QUnit.test('JSON.parse', assert => {
 
   assert.throws(() => parse('0', () => { throw EvalError('t262'); }), EvalError, 'reviver-call-err');
 
-  const calls = [];
-  parse('{"p1":0,"p2":0,"p1":0,"2":0,"1":0}', (name, val) => {
-    calls.push(name);
-    return val;
-  });
-  // The empty string is the _rootName_ in JSON.parse
-  assert.arrayEqual(calls, ['1', '2', 'p1', 'p2', ''], 'reviver-call-order');
+  // FF20- enumeration order issue
+  if (keys({ k: 1, 2: 3 })[0] === '2') {
+    const calls = [];
+    parse('{"p1":0,"p2":0,"p1":0,"2":0,"1":0}', (name, val) => {
+      calls.push(name);
+      return val;
+    });
+    // The empty string is the _rootName_ in JSON.parse
+    assert.arrayEqual(calls, ['1', '2', 'p1', 'p2', ''], 'reviver-call-order');
+  }
 
   assert.throws(() => parse(), SyntaxError, 'no args');
 });
