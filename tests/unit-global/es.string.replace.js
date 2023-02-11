@@ -1,4 +1,4 @@
-/* eslint-disable regexp/no-super-linear-backtracking, regexp/no-unused-capturing-group -- required for testing */
+/* eslint-disable regexp/no-unused-capturing-group -- required for testing */
 import { GLOBAL, NATIVE, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 

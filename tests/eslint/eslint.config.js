@@ -10,6 +10,7 @@ const pluginJSONC = require('eslint-plugin-jsonc');
 const pluginN = require('eslint-plugin-n');
 const pluginPromise = require('eslint-plugin-promise');
 const pluginQUnit = require('eslint-plugin-qunit');
+const pluginReDoS = require('eslint-plugin-redos');
 const pluginRegExp = require('eslint-plugin-regexp');
 const pluginSonarJS = require('eslint-plugin-sonarjs');
 const pluginUnicorn = require('eslint-plugin-unicorn');
@@ -625,8 +626,6 @@ const base = {
   'regexp/no-potentially-useless-backreference': ERROR,
   // disallow standalone backslashes
   'regexp/no-standalone-backslash': ERROR,
-  // disallow exponential and polynomial backtracking
-  'regexp/no-super-linear-backtracking': ERROR,
   // disallow trivially nested assertions
   'regexp/no-trivially-nested-assertion': ERROR,
   // disallow nested quantifiers that can be rewritten as one quantifier
@@ -701,6 +700,8 @@ const base = {
   'regexp/unicode-escape': ERROR,
   // use the `i` flag if it simplifies the pattern
   'regexp/use-ignore-case': ERROR,
+  // ReDoS vulnerability check
+  'redos/no-vulnerable': [ERROR, { timeout: 1e3 }],
 
   // disallow function declarations in if statement clauses without using blocks
   'es/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
@@ -1043,6 +1044,8 @@ const nodeDev = {
   ...forbidES2023BuiltIns,
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
+  // ReDoS vulnerability check
+  'redos/no-vulnerable': OFF,
 };
 
 const tests = {
@@ -1071,6 +1074,8 @@ const tests = {
   'unicorn/error-message': OFF,
   // functions should not have identical implementations
   'sonarjs/no-identical-functions': OFF,
+  // ReDoS vulnerability check
+  'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
   ...disable(forbidESAnnexBBuiltIns),
 };
@@ -1270,6 +1275,7 @@ module.exports = [
       node: pluginN,
       promise: pluginPromise,
       qunit: pluginQUnit,
+      redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,

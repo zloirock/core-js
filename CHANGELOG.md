@@ -34,6 +34,8 @@
 - Fixed configurability and `ToString` conversion of some accessors
 - Added Opera Android 73 compat data mapping
 - Added TypeScript definitions to `core-js-builder`
+- Added proper error on the excess number of trailing `=` in the `atob` polyfill
+- Fixed theoretically possible ReDoS vulnerabilities in `String.prototype.{ trim, trimEnd, trimRight }`, `atob`, and `URL` polyfills in some ancient engines
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) updates:

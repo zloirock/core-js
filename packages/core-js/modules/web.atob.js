@@ -11,7 +11,7 @@ var ctoi = require('../internals/base64-map').ctoi;
 
 var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
-var finalEq = /[=]+$/;
+var finalEq = /[=]{1,2}$/;
 
 var $atob = getBuiltIn('atob');
 var fromCharCode = String.fromCharCode;
