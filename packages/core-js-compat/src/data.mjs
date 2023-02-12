@@ -1267,7 +1267,7 @@ export const data = {
   },
   'es.regexp.flags': {
     // modern V8 has a bug with the order getting of flags
-    // chrome: '62',
+    chrome: '111', // '62',
     firefox: '78',
     hermes: '0.4',
     safari: '11.1',
