@@ -2,6 +2,7 @@ var parent = require('./4');
 
 require('../proposals/array-from-async-stage-2');
 require('../proposals/array-grouping-stage-3-2');
+require('../proposals/array-buffer-transfer');
 require('../proposals/explicit-resource-management');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/json-parse-with-source');

@@ -638,6 +638,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
+    load(NS, 'array-buffer/detached');
+    load(NS, 'array-buffer/transfer');
+    load(NS, 'array-buffer/transfer-to-fixed-length');
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/every') == 'function');
@@ -890,6 +893,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/array-buffer-transfer');
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');

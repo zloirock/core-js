@@ -17,6 +17,12 @@
     - `JSON.rawJSON`
     - `JSON.isRawJSON`
     - `JSON.stringify` patched for support `JSON.rawJSON`
+- Added [`ArrayBuffer.prototype.transfer` and friends Stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
+  - Built-ins:
+    - `ArrayBuffer.prototype.detached`
+    - `ArrayBuffer.prototype.transfer` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
+    - `ArrayBuffer.prototype.transferToFixedLength` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
+  - In backwards, in runtimes with native `ArrayBuffer.prototype.transfer`, but without proper `structuredClone`, added `ArrayBuffer` transfer support to `structuredClone` polyfill
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
   - Splitted into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals, async version moved back to Stage 2, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410926068)
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)
@@ -32,6 +38,8 @@
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
 - Fixed many other old `JSON.{ parse, stringify }` bugs (numbers instead of strings as keys in replacer, handling negative zeroes, spaces, some more handling symbols cases, etc.)
 - Fixed configurability and `ToString` conversion of some accessors
+- Added throwing proper errors on an incorrect context in some `ArrayBuffer` and `DataView` methods
+- Some minor `DataView` polyfill optimizations
 - `RegExp.prototype.flags` marked as fixed from V8 ~ Chrome 111
 - Added Opera Android 73 compat data mapping
 - Added TypeScript definitions to `core-js-builder`
