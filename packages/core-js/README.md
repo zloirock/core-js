@@ -6,11 +6,10 @@
 
 </div>
 
+**I highly recommend reading this: [What's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
+---
+
 > Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2023](https://github.com/zloirock/core-js#ecmascript): [promises](https://github.com/zloirock/core-js#ecmascript-promise), [symbols](https://github.com/zloirock/core-js#ecmascript-symbol), [collections](https://github.com/zloirock/core-js#ecmascript-collections), iterators, [typed arrays](https://github.com/zloirock/core-js#ecmascript-typed-arrays), many other features, [ECMAScript proposals](https://github.com/zloirock/core-js#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](https://github.com/zloirock/core-js#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
-
-## As advertising: the author is looking for a good job -)
-
-## [core-js@3, babel and a look into the future](https://github.com/zloirock/core-js/tree/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
 
 ## Raising funds
 
