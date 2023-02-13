@@ -154,13 +154,21 @@ So, thousands of developers attacked me with insults and claimed that I have no 
 **What about companies for whom `core-js` helped and helps to make big money? It's almost all big companies. Let's rephrase [this old tweet](https://twitter.com/AdamRackis/status/931195056479965185):**
 
 > Company: "We'd like to use SQL Server Enterprise"
+>
 > MS: "That'll be a quarter million dollars + $20K/month"
+>
 > Company: "Ok!"
+>
 > ...
+>
 > Company: "We'd like to use core-js"
+>
 > core-js: "Ok! npm i core-js"
+>
 > Company: "Cool"
+>
 > core-js: "Would you like to help contribute financially?"
+>
 > Company: "lol no"
 
 A few months later, tired of user complaints, NPM presented [`npm fund`](https://docs.npmjs.com/cli/v6/commands/npm-fund) - it was not a problem solution, it was just a way to get rid of those complaints. How often did you call `npm fund`? How often did you pay donations to someone who you saw in `npm fund`? Who did you see and support at first - `core-js` or one who maintains a dozen of one-line libraries dependent on each other? It also provided NPM a perfect justification for the future step (read below). 
