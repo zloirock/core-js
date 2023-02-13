@@ -20,31 +20,33 @@
 - Added [`ArrayBuffer.prototype.transfer` and friends Stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
   - Built-ins:
     - `ArrayBuffer.prototype.detached`
-    - `ArrayBuffer.prototype.transfer` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
-    - `ArrayBuffer.prototype.transferToFixedLength` (only in runtime with native `structuredClone` with `ArrayBuffer` transfer support)
+    - `ArrayBuffer.prototype.transfer` (only in runtimes with native `structuredClone` with `ArrayBuffer` transfer support)
+    - `ArrayBuffer.prototype.transferToFixedLength` (only in runtimes with native `structuredClone` with `ArrayBuffer` transfer support)
   - In backwards, in runtimes with native `ArrayBuffer.prototype.transfer`, but without proper `structuredClone`, added `ArrayBuffer` transfer support to `structuredClone` polyfill
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
   - Splitted into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals, async version moved back to Stage 2, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410926068)
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)
+- [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 and [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management/) Stage 2 proposals:
+  - `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
+  - Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
 - Added [`Symbol` predicates Stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates)
   - Methods:
     - `Symbol.isRegistered`
     - `Symbol.isWellKnown`
-- Fixed [Safari `String.prototype.toWellFormed` `ToString` conversion bug](https://bugs.webkit.org/show_bug.cgi?id=251757)
-- Simplified internal behaviour of `{ AsyncDisposableStack, DisposableStack }.prototype.use`, [proposal-explicit-resource-management/143](https://github.com/tc39/proposal-explicit-resource-management/pull/143)
-- `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
 - `Number.range` Stage 1 proposal and method [renamed to `Iterator.range`](https://github.com/tc39/proposal-Number.range)
 - `Function.prototype.unThis` Stage 0 proposal and method [renamed to `Function.prototype.demethodize`](https://github.com/js-choi/proposal-function-demethodize)
+- Fixed [Safari `String.prototype.toWellFormed` `ToString` conversion bug](https://bugs.webkit.org/show_bug.cgi?id=251757)
 - Improved some cases handling of array-replacer in `JSON.stringify` symbols handling fix
 - Fixed many other old `JSON.{ parse, stringify }` bugs (numbers instead of strings as keys in replacer, handling negative zeroes, spaces, some more handling symbols cases, etc.)
 - Fixed configurability and `ToString` conversion of some accessors
 - Added throwing proper errors on an incorrect context in some `ArrayBuffer` and `DataView` methods
-- Some minor `DataView` polyfill optimizations
-- `RegExp.prototype.flags` marked as fixed from V8 ~ Chrome 111
-- Added Opera Android 73 compat data mapping
-- Added TypeScript definitions to `core-js-builder`
+- Some minor `DataView` and `%TypedArray%` polyfills optimizations
 - Added proper error on the excess number of trailing `=` in the `atob` polyfill
-- Fixed theoretically possible ReDoS vulnerabilities in `String.prototype.{ trim, trimEnd, trimRight }`, `atob`, and `URL` polyfills in some ancient engines
+- Fixed theoretically possible ReDoS vulnerabilities in `String.prototype.{ trim, trimEnd, trimRight }`, `parse(Int|Float)`, `Number`, `atob`, and `URL` polyfills in some ancient engines
+- Compat data improvements:
+  - `RegExp.prototype.flags` marked as fixed from V8 ~ Chrome 111
+  - Added Opera Android 73 compat data mapping
+- Added TypeScript definitions to `core-js-builder`
 
 ##### [3.27.2 - 2023.01.19](https://github.com/zloirock/core-js/releases/tag/v3.27.2)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) updates:
