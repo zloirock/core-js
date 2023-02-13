@@ -1171,6 +1171,42 @@
     "safari": "10.0",
     "samsung": "5.0"
   },
+  "es.array.to-reversed": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
+  },
+  "es.array.to-sorted": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
+  },
+  "es.array.to-spliced": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
+  },
   "es.array.unscopables.flat": {
     "android": "73",
     "bun": "0.1.1",
@@ -1233,6 +1269,18 @@
     "react-native": "0.69",
     "safari": "16.0",
     "samsung": "10.0"
+  },
+  "es.array.with": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
   },
   "es.array-buffer.constructor": {
     "android": "4.4",
@@ -3736,11 +3784,17 @@
     "samsung": "9.0"
   },
   "es.regexp.flags": {
+    "android": "111",
     "bun": "0.1.1",
+    "chrome": "111",
+    "chrome-android": "111",
+    "edge": "111",
+    "electron": "24.0",
     "firefox": "78",
     "firefox-android": "78",
     "hermes": "0.4",
     "ios": "11.3",
+    "opera": "97",
     "react-native": "0.69",
     "safari": "11.1"
   },
@@ -5417,6 +5471,30 @@
     "safari": "10.0",
     "samsung": "5.0"
   },
+  "es.typed-array.to-reversed": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
+  },
+  "es.typed-array.to-sorted": {
+    "android": "110",
+    "bun": "0.1.1",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "ios": "16.0",
+    "opera": "96",
+    "safari": "16.0"
+  },
   "es.typed-array.to-string": {
     "android": "51",
     "bun": "0.1.1",
@@ -5438,6 +5516,16 @@
     "react-native": "0.69",
     "safari": "10.0",
     "samsung": "5.0"
+  },
+  "es.typed-array.with": {
+    "android": "110",
+    "bun": "0.1.9",
+    "chrome": "110",
+    "chrome-android": "110",
+    "deno": "1.27",
+    "edge": "110",
+    "electron": "23.0",
+    "opera": "96"
   },
   "es.unescape": {
     "android": "3.0",
@@ -5699,6 +5787,9 @@
     "opera": "96",
     "safari": "16.0"
   },
+  "esnext.array-buffer.detached": {},
+  "esnext.array-buffer.transfer": {},
+  "esnext.array-buffer.transfer-to-fixed-length": {},
   "esnext.async-disposable-stack.constructor": {},
   "esnext.async-iterator.constructor": {},
   "esnext.async-iterator.as-indexed-pairs": {},
@@ -5720,6 +5811,7 @@
   "esnext.composite-key": {},
   "esnext.composite-symbol": {},
   "esnext.disposable-stack.constructor": {},
+  "esnext.function.demethodize": {},
   "esnext.function.is-callable": {},
   "esnext.function.is-constructor": {},
   "esnext.function.un-this": {},
@@ -5758,11 +5850,15 @@
   "esnext.iterator.from": {},
   "esnext.iterator.indexed": {},
   "esnext.iterator.map": {},
+  "esnext.iterator.range": {},
   "esnext.iterator.reduce": {},
   "esnext.iterator.some": {},
   "esnext.iterator.take": {},
   "esnext.iterator.to-array": {},
   "esnext.iterator.to-async": {},
+  "esnext.json.is-raw-json": {},
+  "esnext.json.parse": {},
+  "esnext.json.raw-json": {},
   "esnext.map.delete-all": {},
   "esnext.map.emplace": {},
   "esnext.map.every": {},
@@ -5953,11 +6049,11 @@
     "safari": "13.1",
     "samsung": "14.0"
   },
-  "esnext.string.to-well-formed": {
-    "bun": "0.4.0"
-  },
+  "esnext.string.to-well-formed": {},
   "esnext.symbol.async-dispose": {},
   "esnext.symbol.dispose": {},
+  "esnext.symbol.is-registered": {},
+  "esnext.symbol.is-well-known": {},
   "esnext.symbol.matcher": {},
   "esnext.symbol.metadata": {},
   "esnext.symbol.metadata-key": {},

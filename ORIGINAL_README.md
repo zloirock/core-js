@@ -208,11 +208,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ### Installation:[⬆](#index)
 ```sh
 // global version
-npm install --save core-js@3.27.2
+npm install --save core-js@3.28.0
 // version without global namespace pollution
-npm install --save core-js-pure@3.27.2
+npm install --save core-js-pure@3.28.0
 // bundled global version
-npm install --save core-js-bundle@3.27.2
+npm install --save core-js-bundle@3.28.0
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
@@ -309,9 +309,9 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.27'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.28'`.
 
-> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.27'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.28'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -366,7 +366,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.27', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.28', proposals: true }`.
 
 > **Warning!** In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 
@@ -402,7 +402,7 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
   "env": {
     "targets": "> 0.25%, not dead",
     "mode": "entry",
-    "coreJs": "3.27"
+    "coreJs": "3.28"
   }
 }
 ```

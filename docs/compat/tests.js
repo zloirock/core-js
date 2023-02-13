@@ -222,6 +222,12 @@ function createStringTrimMethodTest(METHOD_NAME) {
   };
 }
 
+function NATIVE_RAW_JSON() {
+  var unsafeInt = '9007199254740993';
+  var raw = JSON.rawJSON(unsafeInt);
+  return JSON.isRawJSON(raw) && JSON.stringify(raw) === unsafeInt;
+}
+
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
     var version = global.Bun.version.split('.');
@@ -527,6 +533,15 @@ GLOBAL.tests = {
     };
     return array.splice().foo === 1;
   },
+  'es.array.to-reversed': function () {
+    return [].toReversed;
+  },
+  'es.array.to-sorted': function () {
+    return [].toSorted;
+  },
+  'es.array.to-spliced': function () {
+    return [].toSpliced;
+  },
   'es.array.unscopables.flat': function () {
     return Array.prototype[Symbol.unscopables].flat;
   },
@@ -540,6 +555,9 @@ GLOBAL.tests = {
     } catch (error) {
       return error instanceof TypeError;
     }
+  },
+  'es.array.with': function () {
+    return []['with'];
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
@@ -1359,6 +1377,19 @@ GLOBAL.tests = {
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.toString == Array.prototype.toString;
   }],
+  'es.typed-array.to-reversed': function () {
+    return Int8Array.prototype.toReversed;
+  },
+  'es.typed-array.to-sorted': function () {
+    return Int8Array.prototype.toSorted;
+  },
+  'es.typed-array.with': function () {
+    try {
+      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
+    } catch (error) {
+      return error === 8;
+    }
+  },
   'es.unescape': function () {
     return unescape;
   },
@@ -1429,20 +1460,17 @@ GLOBAL.tests = {
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
-  'esnext.array.to-reversed': function () {
-    return [].toReversed;
-  },
-  'esnext.array.to-sorted': function () {
-    return [].toSorted;
-  },
-  'esnext.array.to-spliced': function () {
-    return [].toSpliced;
-  },
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },
-  'esnext.array.with': function () {
-    return []['with'];
+  'esnext.array-buffer.detached': function () {
+    return 'detached' in ArrayBuffer.prototype;
+  },
+  'esnext.array-buffer.transfer': function () {
+    return ArrayBuffer.prototype.transfer;
+  },
+  'esnext.array-buffer.transfer-to-fixed-length': function () {
+    return ArrayBuffer.prototype.transferToFixedLength;
   },
   'esnext.async-disposable-stack.constructor': function () {
     return typeof AsyncDisposableStack == 'function';
@@ -1492,9 +1520,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.to-array': function () {
     return AsyncIterator.prototype.toArray;
   },
-  'esnext.bigint.range': function () {
-    return BigInt.range;
-  },
   'esnext.composite-key': function () {
     return compositeKey;
   },
@@ -1504,14 +1529,14 @@ GLOBAL.tests = {
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },
+  'esnext.function.demethodize': function () {
+    return Function.prototype.demethodize;
+  },
   'esnext.function.is-callable': function () {
     return Function.isCallable;
   },
   'esnext.function.is-constructor': function () {
     return Function.isConstructor;
-  },
-  'esnext.function.un-this': function () {
-    return Function.prototype.unThis;
   },
   'esnext.iterator.constructor': function () {
     try {
@@ -1551,6 +1576,9 @@ GLOBAL.tests = {
   'esnext.iterator.map': function () {
     return Iterator.prototype.map;
   },
+  'esnext.iterator.range': function () {
+    return Iterator.range;
+  },
   'esnext.iterator.reduce': function () {
     return Iterator.prototype.reduce;
   },
@@ -1566,6 +1594,16 @@ GLOBAL.tests = {
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
   },
+  'esnext.json.is-raw-json': NATIVE_RAW_JSON,
+  'esnext.json.parse': function () {
+    var unsafeInt = '9007199254740993';
+    var source;
+    JSON.parse(unsafeInt, function (key, value, context) {
+      source = context.source;
+    });
+    return source === unsafeInt;
+  },
+  'esnext.json.raw-json': NATIVE_RAW_JSON,
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },
@@ -1647,9 +1685,6 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
-  'esnext.number.range': function () {
-    return Number.range;
-  },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': function () {
     return Observable;
@@ -1730,13 +1765,21 @@ GLOBAL.tests = {
     return String.prototype.isWellFormed;
   },
   'esnext.string.to-well-formed': function () {
-    return String.prototype.toWellFormed;
+    // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
+    return String.prototype.toWellFormed.call(1) === '1';
   },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;
   },
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
+  },
+  'esnext.symbol.is-registered': function () {
+    return Symbol.isRegistered;
+  },
+  'esnext.symbol.is-well-known': function () {
+    return Symbol.isWellKnown;
   },
   'esnext.symbol.matcher': function () {
     return Symbol.matcher;
@@ -1750,21 +1793,8 @@ GLOBAL.tests = {
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
   },
-  'esnext.typed-array.to-reversed': function () {
-    return Int8Array.prototype.toReversed;
-  },
-  'esnext.typed-array.to-sorted': function () {
-    return Int8Array.prototype.toSorted;
-  },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
-  },
-  'esnext.typed-array.with': function () {
-    try {
-      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
-    } catch (error) {
-      return error === 8;
-    }
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
