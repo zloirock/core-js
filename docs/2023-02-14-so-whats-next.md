@@ -227,7 +227,7 @@ The endless stream of hatred decreased slightly over time but continued. However
 
 **Open-source should be out of politics.**
 
-I don't want to choose between two kinds of evil. I will not comment on this in more detail, since there are people close to me on both sides of the border who may suffer because of this.
+I'm just too stupid and gutless to declare my country is making genocide against another. I will not comment on this in more detail, since there are people close to me on both sides of the border who may suffer because of this.
 
 Let me remind you what I wrote about above - I returned to Russia because it was a place where it was possible to have a decent standard of living for relatively small money and concentrate on FOSS instead of making money. Now I cannot leave Russia, because after the accident I have outstanding lawsuits in the amount of tens of thousands of dollars and I am forbidden to leave the country until they are paid off.
 
