@@ -95,7 +95,7 @@ However, it was just the start of the required work. Many years of hard work fol
 
 ![github](https://user-images.githubusercontent.com/2213682/218516268-6ec765a5-50df-4d45-971f-3c3fc4aba7a1.png)
 
-`core-js` is not a several lines library that you can write and forget about it. Unlike the vast majority of libraries, it's bound to the state of the Web. It should react to any change of JavaScript standards or proposals, to any new JS engine release, to any detection of a bug in JS engines, etc. After ECMAScript ~~6~~ 2015 followed new proposals, new versions of ECMAScript, new non-ECMAScript web standards, new engines and tools, etc. The evolution, the improvement of the project, and the adaptation to the current state of the Web have never stopped - and almost all of this work remains not visible to the average user. 
+`core-js` is not a several lines library that you can write and forget about it. Unlike the vast majority of libraries, it's bound to the state of the Web. It should react to any change of JavaScript standards or proposals, to any new JS engine release, to any detection of a bug in JS engines, etc. After ECMAScript ~~6~~ 2015 followed new proposals, new versions of ECMAScript, new non-ECMAScript web standards, new engines and tools, etc. The evolution, the improvement of the project, and the adaptation to the current state of the Web have never stopped - and almost all of this work remains not visible to the average user.
 
 The scale of required work was constantly growing.
 
@@ -161,7 +161,7 @@ So, thousands of developers attacked me with insults and claimed that I have no 
 >
 > Company: "lol no"
 
-A few months later, tired of user complaints, NPM presented [`npm fund`](https://docs.npmjs.com/cli/v6/commands/npm-fund) - it was not a problem solution, it was just a way to get rid of those complaints. How often did you call `npm fund`? How often did you pay donations to someone who you saw in `npm fund`? Who did you see and support at first - `core-js` or one who maintains a dozen of one-line libraries dependent on each other? It also provided NPM a perfect justification for the future step (read below). 
+A few months later, tired of user complaints, NPM presented [`npm fund`](https://docs.npmjs.com/cli/v6/commands/npm-fund) - it was not a problem solution, it was just a way to get rid of those complaints. How often did you call `npm fund`? How often did you pay donations to someone who you saw in `npm fund`? Who did you see and support at first - `core-js` or one who maintains a dozen of one-line libraries dependent on each other? It also provided NPM a perfect justification for the future step (read below).
 
 Within 9 months many thousands of developers, including developers of projects fundamentally dependent on `core-js`, knew about the situation - but no one offered to maintain `core-js`. Within many months I talked with maintainers of some significant projects dependent on `core-js`, but without any success - they hadn't required time resources. So I was forced to ask some of my friends who were not related to FOSS community (at first **[@slowcheetah](https://github.com/slowcheetah)**, thanks him for his help) to cover me and at least try to fix significant issues until I get free.
 
@@ -274,7 +274,7 @@ I think you understand well how much senior software engineers in key IT compani
 ---
 
 Among the regular threats, accusations, demands, and insults, I often get something like "Stop begging and go to work, idler. Remove your beggarly messages immediately - I don't wanna see them." The funny thing is that at least some of these people get over $300,000 a year (which I know for sure because I talk to their colleagues), and (because of the nature of their work) `core-js` save them many hours of work each month.
- 
+
 ### Everything changes
 
 When I started working on `core-js`, I was alone. Now I have a family. A few over a year ago, I became a father of son. Now I have to provide him with a decent standard of living.
