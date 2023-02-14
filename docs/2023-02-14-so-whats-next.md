@@ -11,7 +11,7 @@ Hi. I am (**[@zloirock](https://github.com/zloirock)**) a full-time open-source 
 - It is maximally modular — you can easily (or even automatically) choose to load only the features you will be using. It can be used without polluting the global namespace (someone calls such a use case "ponyfill").
 - It is designed for integration with tools and provides all that's required for this — for example, `@babel/preset-env`, `@babel/transform-runtime`, and similar SWC features are based on `core-js`.
 - It is one of the main reasons why developers can use modern ECMAScript features in their development process each day for many years, but most developers just don't know that they have this possibility because of `core-js` since they use `core-js` indirectly as it's provided by their transpilers / frameworks / intermediate packages like `babel-polyfill` / etc.
-- It is not a framework or a library, which usage require the developer to know their API, periodically look at the documentation, or at least remember that he or she is using it. Even if developers use `core-js` directly — it’s just some lines of import or some lines in the configuration (in most cases — with mistakes, since almost no one read the documentation), after that, they forget about `core-js` and just use provided by `core-js` features from web-standards — but sometimes this is the most of JS standard library that they use.
+- It is not a framework or a library, which usage require the developer to know their API, periodically look at the documentation, or at least remember that he or she is using it. Even if developers use `core-js` directly — it's just some lines of import or some lines in the configuration (in most cases — with mistakes, since almost no one read the documentation), after that, they forget about `core-js` and just use provided by `core-js` features from web-standards — but sometimes this is the most of JS standard library that they use.
 
 [About 9 billion NPM downloads / 250 million NPM downloads for a month](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-bundle&from=2014-11-18), 19 million dependent GitHub repositories ([global](https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00ODk5NjgyNDU%3D) ⋃ [pure](https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00MjYyOTI0Ng%3D%3D)) — big numbers, however, they do not show the real spread of `core-js`. Let's check it.
 
@@ -19,7 +19,7 @@ I wrote [a simple script](https://github.com/zloirock/core-js/blob/master/script
 
 <p align="center"><img alt="usage" src="https://user-images.githubusercontent.com/2213682/218452738-859e7420-6376-44ec-addd-e91e4bcdec1d.png" /></p>
 
-At this moment, this script running on the TOP 1000 websites **detects usage of `core-js` on [52%](https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6) of tested websites**. Depending on the phase of the moon (the list, websites, etc. are not constants), results may vary by a few percent. However, it’s just a naive detection on initial pages using a modern browser that loses many cases, **manual check shows that it’s additional dozens of percent**. For example, let's leave the initial pages of some websites from the screenshot above where `core-js` was **not** found by this script, without repetition of each company (at first — MS that's already on the screenshot) websites (be patient, after the series of screenshots the number of pictures will decrease):
+At this moment, this script running on the TOP 1000 websites **detects usage of `core-js` on [52%](https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6) of tested websites**. Depending on the phase of the moon (the list, websites, etc. are not constants), results may vary by a few percent. However, it's just a naive detection on initial pages using a modern browser that loses many cases, **manual check shows that it's additional dozens of percent**. For example, let's leave the initial pages of some websites from the screenshot above where `core-js` was **not** found by this script, without repetition of each company (at first — MS that's already on the screenshot) websites (be patient, after the series of screenshots the number of pictures will decrease):
 
 <p align="center"><img alt="whatsapp" width="720" src="https://user-images.githubusercontent.com/2213682/153953087-8e3891aa-f00a-4882-a338-f4cc7496581b.png" /></p>
 
@@ -59,7 +59,7 @@ At this moment, this script running on the TOP 1000 websites **detects usage of 
 
 Anyway, we can say with confidence that **`core-js` is used by most of the popular websites**. Even if `core-js` is not used on the main site of any large corporation, it's definitely used in some of their projects.
 
-What JS libraries are more widespread on websites? It’s not [React](https://trends.builtwith.com/javascript/React), [Lodash](https://trends.builtwith.com/javascript/lodash), or any other most talked-about library or framework, I am pretty sure only about ["good old" jQuery](https://trends.builtwith.com/javascript/jQuery).
+What JS libraries are more widespread on websites? It's not [React](https://trends.builtwith.com/javascript/React), [Lodash](https://trends.builtwith.com/javascript/lodash), or any other most talked-about library or framework, I am pretty sure only about ["good old" jQuery](https://trends.builtwith.com/javascript/jQuery).
 
 And `core-js` is not only about websites frontend — it's used almost everywhere where JavaScript is used — but I think that's more than enough statistics.
 
@@ -119,7 +119,7 @@ Maybe it's not inconceivable much money for a good software engineer, but, as I 
 
 ### Fundraising
 
-By that time `core-js` already was used almost as widely as it's now. As I wrote above, for a long time I looked for contributors for `core-js` without any success. However, `core-js` is a project that should be actively maintained and it can’t stay just frozen. My long-term imprisonment would have caused problems not only for me — but it's also the death of `core-js` and problems for all who use it — for half of the Web. The notorious [bus factor](https://en.wikipedia.org/wiki/Bus_factor).
+By that time `core-js` already was used almost as widely as it's now. As I wrote above, for a long time I looked for contributors for `core-js` without any success. However, `core-js` is a project that should be actively maintained and it can't stay just frozen. My long-term imprisonment would have caused problems not only for me — but it's also the death of `core-js` and problems for all who use it — for half of the Web. The notorious [bus factor](https://en.wikipedia.org/wiki/Bus_factor).
 
 Some months before that, I started raising funds to support the `core-js` development (mainly it was posted READMEs on GitHub and NPM). The result was... \$57 / month. Fair pay for full-time work on ensuring compatibility for the whole web 😂
 
@@ -137,7 +137,7 @@ Of course, I expected that someone would not like to see a request for help in t
 
 This is far from the funniest thing I've seen — if I wanted to, I could collect a huge selection of statements in the style [collected here](https://github.com/samdark/opensource-hate) — but why? I already have enough negativity in my life.
 
-**Developers love to use free open-source software — it’s free and works great, they are not interested in that many and many thousands of hours of development, and real people with their own problems and needs are behind it. They consider any mention of this as an invasion of their personal space or even a personal affront. For them, these are just gears that should automatically change without any noise and their participation.**
+**Developers love to use free open-source software — it's free and works great, they are not interested in that many and many thousands of hours of development, and real people with their own problems and needs are behind it. They consider any mention of this as an invasion of their personal space or even a personal affront. For them, these are just gears that should automatically change without any noise and their participation.**
 
 So, thousands of developers attacked me with insults and claimed that I have no right to ask them for any kind of help. My request for help offended them so much that they began to demand restricting my access to the repository and packages and move them to someone else like it was done with [`left-pad`](https://arstechnica.com/information-technology/2016/03/rage-quit-coder-unpublished-17-lines-of-javascript-and-broke-the-internet/). Almost no one of them understood what `core-js` does, the scale of the project, and, of course, no one of them wanted to maintain it — it should do "the community", someone else. Seeing all this hatred, in order not to be led by the haters, I did not delete the help-asking message, that initially planned to add only for a couple of weeks, just out of principle.
 
@@ -175,7 +175,7 @@ In January 2020 I ended up in prison.
 
 ### Release
 
-I don’t wanna say many words about prison and I have no great desire remembering this. It was slave labor at a chemical factory where my health was significantly ruined and where I 24/7 had a great time in a company of drug dealers, thieves, and killers (from other regimes), without access to the Internet and computers.
+I don't wanna say many words about prison and I have no great desire remembering this. It was slave labor at a chemical factory where my health was significantly ruined and where I 24/7 had a great time in a company of drug dealers, thieves, and killers (from other regimes), without access to the Internet and computers.
 
 After about 10 months, I was released early.
 
@@ -201,7 +201,7 @@ As you can see above, `core-js` is present in most of the popular websites, prov
 
 During work on `core-js`, I am the first implementor of almost all modern and future JavaScript standard library features, almost all of them have my feedback and they have been fixed according to it. `core-js` is the best playground for experimentation with ECMAScript proposals. In too many cases, proposals have feedback from other users after they play with experimental `core-js` implementations of proposals.
 
-The best way forward for JavaScript would be for TC39 and `core-js` to work together on the future of JavaScript. For example, TC39 invites members of projects like Babel and others as experts. But seems not in the `core-js` case. Instead of this, too often, I see ignore of my or `core-js` issues or even making roadblocks by TC39 members and they even don’t hide it:
+The best way forward for JavaScript would be for TC39 and `core-js` to work together on the future of JavaScript. For example, TC39 invites members of projects like Babel and others as experts. But seems not in the `core-js` case. Instead of this, too often, I see ignore of my or `core-js` issues or even making roadblocks by TC39 members and they even don't hide it:
 
 <p align="center"><img alt="shu" width="600" src="https://user-images.githubusercontent.com/2213682/140033052-46e53b0c-e1bc-4c84-a1f4-3511d7de604a.png" /></p>
 
@@ -321,9 +321,9 @@ Ok guys, if you want it — let's use such an approach.
 
 - **Appropriate financial backing**
 
-  I hope that at least after reading this post corporations, small companies, and developers will finally think about the sustainability of their development stack and will properly back `core-js` development. In this case, `core-js` will be appropriately maintained and I’ll be able to concentrate on adding [a new level of functionality](#roadmap).
+  I hope that at least after reading this post corporations, small companies, and developers will finally think about the sustainability of their development stack and will properly back `core-js` development. In this case, `core-js` will be appropriately maintained and I'll be able to concentrate on adding [a new level of functionality](#roadmap).
 
-  The scale of the necessary work goes through the roof, one of me is no longer enough — I can't work more physically. Some work, for example, improving test coverage or documentation, is simple enough and takes a lot of time, but it’s not the kind of work that volunteers want to do — I don’t remember any PRs with improving test coverage of existent features. So it makes sense to attract at least one or two developers (at least students, better — higher level) on a paid basis.
+  The scale of the necessary work goes through the roof, one of me is no longer enough — I can't work more physically. Some work, for example, improving test coverage or documentation, is simple enough and takes a lot of time, but it's not the kind of work that volunteers want to do — I don't remember any PRs with improving test coverage of existent features. So it makes sense to attract at least one or two developers (at least students, better — higher level) on a paid basis.
 
   Taking into account the involvement of additional maintainers and other expenses, I think that at this moment about 30 thousand dollars for a month could be enough. More money — better product and faster development. A couple times less — it makes sense to resume the work on `core-js` full-time alone — sure, not as productive as it could be with a team.
 
@@ -345,7 +345,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
 - **"Not a problem, we will just pin the `core-js` dependency."**
 
-  Unlike most projects, `core-js` should be on the bleeding edge since `core-js` allows you to be on the bleeding edge of JavaScript — use the most recent JavaScript features and don’t think about engines compatibility and bugs. However, the library has a good safety margin for the future. Maybe for a year or a couple, you will not have serious problems. After that, they will appear — polyfills will be obsolete, but still will be present in your bundles and will be just useless ballast. You will not be able to use new features of the language and will face new bugs in JS engines.
+  Unlike most projects, `core-js` should be on the bleeding edge since `core-js` allows you to be on the bleeding edge of JavaScript — use the most recent JavaScript features and don't think about engines compatibility and bugs. However, the library has a good safety margin for the future. Maybe for a year or a couple, you will not have serious problems. After that, they will appear — polyfills will be obsolete, but still will be present in your bundles and will be just useless ballast. You will not be able to use new features of the language and will face new bugs in JS engines.
 
 - **"It's open-source, we will fork it, fuck off."**
 
@@ -355,7 +355,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
 - **"We don't need `core-js`, many alternative projects are available."**
 
-  Nobody is holding you. But where are those alternatives in real life? Sure, `core-js` is not the only polyfill of the JavaScript standard library. But all other projects are [tens](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18) [times](https://user-images.githubusercontent.com/2213682/205467964-2dfcce78-5cdf-4f4f-b0d6-e37c02e1bf01.png) less popular than `core-js`, and it's not unreasonable — all of them provide only a little part of `core-js` functionality, they are not enough proper and complex, the number of cases where they can be used is significantly limited, they can’t be properly integrated into your project in such simple way and have other significant problems. In case of the existence of proper alternatives, I would stop working on `core-js` a long time ago.
+  Nobody is holding you. But where are those alternatives in real life? Sure, `core-js` is not the only polyfill of the JavaScript standard library. But all other projects are [tens](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18) [times](https://user-images.githubusercontent.com/2213682/205467964-2dfcce78-5cdf-4f4f-b0d6-e37c02e1bf01.png) less popular than `core-js`, and it's not unreasonable — all of them provide only a little part of `core-js` functionality, they are not enough proper and complex, the number of cases where they can be used is significantly limited, they can't be properly integrated into your project in such simple way and have other significant problems. In case of the existence of proper alternatives, I would stop working on `core-js` a long time ago.
 
 - **"We can drop IE support, so we no longer need polyfills."**
 
@@ -363,7 +363,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
 - **"You are an asshole, we will expel you from the FOSS community."**
 
-  Yes, you're right. I'm such an asshole that gives you a chance to use modern JavaScript features in the real life, have been solving your cross-engine compatibility issues for many years, and had sacrificed for this more than anyone else. I’m such an asshole that just wants his son to be well-fed, wants his family has money to pay bills and does not need anything. Some options above suppose my leaving FOSS in favor of commercial software, so will see.
+  Yes, you're right. I'm such an asshole that gives you a chance to use modern JavaScript features in the real life, have been solving your cross-engine compatibility issues for many years, and had sacrificed for this more than anyone else. I'm such an asshole that just wants his son to be well-fed, wants his family has money to pay bills and does not need anything. Some options above suppose my leaving FOSS in favor of commercial software, so will see.
 
 ---
 
@@ -423,7 +423,7 @@ The IE9-10 segment of browsers already is also small — at this moment, the sam
 
 ### ECMAScript modules and modern syntax
 
-At this moment, `core-js` uses CommonJS modules. For a long time, it was the most popular JavaScript modules format, but now ECMAScript provides its own modules format and it's already very popular and supported *almost* everywhere. For example, Deno, like browsers, doesn’t support CommonJS, but supports ES modules. `core-js` should get an ECMAScript modules version in the near future. But, for example, on NodeJS, ECMAScript modules are supported only in the modern versions — but on NodeJS `core-js` should work without transpiling / bundling even in ancient versions, [Electron still does not support it](https://github.com/electron/electron/issues/21457), etc., so it's problematically to get rid of the CommonJS version immediately.
+At this moment, `core-js` uses CommonJS modules. For a long time, it was the most popular JavaScript modules format, but now ECMAScript provides its own modules format and it's already very popular and supported *almost* everywhere. For example, Deno, like browsers, doesn't support CommonJS, but supports ES modules. `core-js` should get an ECMAScript modules version in the near future. But, for example, on NodeJS, ECMAScript modules are supported only in the modern versions — but on NodeJS `core-js` should work without transpiling / bundling even in ancient versions, [Electron still does not support it](https://github.com/electron/electron/issues/21457), etc., so it's problematically to get rid of the CommonJS version immediately.
 
 The situation with the rest of modern syntax is not so obvious. At this moment, `core-js` uses ES3 syntax. Initially, it was for maximal optimization since anyway it should be pre-transpiled to old syntax. But it was only initially. Now, `core-js` just can't be properly transpiled in userland and should be ignored in transpiler configs. Why? Let's take a look, for example, at Babel transforms:
 
@@ -463,7 +463,7 @@ Babel is only one of many transpilers. TypeScript is another popular option. Oth
 
 One of the main problems with statical analysis-based automatic polyfilling on the transpiler layer is that usually not all files from the bundle are transpiled — for example, dependencies. If some of your dependencies need a polyfill of a modern built-in feature, but you don't use this built-in in your userland code, this polyfill will not be added to the bundle. Unnecessary polyfills import also will not be removed from your dependencies (see below). Moving automatic polyfilling to the bundlers layer fixes this problem.
 
-Sure, writing or using such plugins in many places is difficult compared to Babel. For example, [without some extra tools now you can’t use plugins for custom transforms in TypeScript](https://github.com/microsoft/TypeScript/issues/14419). However, there are always options and there would be a desire.
+Sure, writing or using such plugins in many places is difficult compared to Babel. For example, [without some extra tools now you can't use plugins for custom transforms in TypeScript](https://github.com/microsoft/TypeScript/issues/14419). However, there are always options and there would be a desire.
 
 Automatic polyfilling / optimization of `core-js` should be available not only in Babel. It's almost impossible to write and maintain plugins for all transpilers and bundlers in the scope of the `core-js` project, but it's possible to do those things:
 
@@ -491,7 +491,7 @@ Let's call a tool for this `@core-js/collector`. This tool should take an entry 
 
 Now it's typical to see, for example, a dozen copies of `Promise` polyfills with the same functionality on a website — you load only one `Promise` polyfill from `core-js`, but some of your dependencies load `Promise` polyfills by themself — `Promise` polyfill from one more `core-js` copy, `es6-promise`, `promise-polyfill`, `es6-promise-polyfill`, `native-promise-only`, etc. But it's just ES6 `Promise` which is already completely covered by `core-js` — and available in most browsers without polyfills. Sometimes, due to this, the size of all polyfills in the bundle swells to several megabytes.
 
-It’s not an ideal illustration for this issue, many other examples would have been better, but since above we started to talk about the Bloomberg website, let’s take a look at this site one more time. We have no access to the source code, however, we have, for example, such an awesome tool as [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) (I hope that the Bloomberg team will fix it ASAP, so the result could be outdated).
+It's not an ideal illustration for this issue, many other examples would have been better, but since above we started to talk about the Bloomberg website, let's take a look at this site one more time. We have no access to the source code, however, we have, for example, such an awesome tool as [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) (I hope that the Bloomberg team will fix it ASAP, so the result could be outdated).
 
 <p align="center"><img alt="bundlescanner" width="720" src="https://user-images.githubusercontent.com/2213682/181242201-ec16dd17-f4dd-4706-abf5-36e764c72e22.png" /></p>
 
@@ -507,7 +507,7 @@ The same approach could be applied to rid dependencies from old `core-js` versio
 
 One more popular and similar issue is a duplication of polyfills from global and pure `core-js` versions. The pure version of `core-js` / `babel-runtime` is intended for usage in libraries code, so it's a normal situation if you use a global version of `core-js` and your dependencies also load some copies of `core-js` without global namespace pollution. They use different internals and it's problematic to share similar code between them.
 
-I’m thinking about resolving this issue on the transpiler or bundler plugins side similarly to the previous one (but, sure, a little more complex) — we could replace imports from the pure version with imports from the global version and remove polyfills unnecessary for the target engines.
+I'm thinking about resolving this issue on the transpiler or bundler plugins side similarly to the previous one (but, sure, a little more complex) — we could replace imports from the pure version with imports from the global version and remove polyfills unnecessary for the target engines.
 
 That also could be applied to third-party ponyfills or obsolete libraries that implement something already available in the JS standard library. For example, usage of `has` package can be replaced by `Object.hasOwn`, `left-pad` by `String.prototype.padStart`, some `lodash` methods by related modern built-in JS methods, etc.
 
@@ -521,7 +521,7 @@ Lighthouse shows just about 200KB in all resources, 0.56s. Let's remember that t
 
 From the very beginning of work on `core-js`, I'm thinking about creating a web service that gives only the polyfills that are needed for the requesting browser.
 
-The availability of a such service is the only moment in which `core-js` have lagged behind another project. [`polyfill-service`](https://polyfill.io) project from Financial Times is based on this conception and it's a great service. The main problem with this project — it's a great service that uses bad polyfills. This project polyfill only a little part of ECMAScript features that `core-js` provides, the main part of polyfills are third-party and are not designed to work together, too many don’t properly follow specs, too raw or just dangerous for usage (for example, [`WeakMap` looks like a step-by-step implementation of the spec text](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/polyfill.js), but the absence of some non-spec magic cause memory leaking and linear access time that makes it harmful, more other — instead of patching, fixing and reusage of native implementation in engines like IE11 where it's available, but does not accept an iterable argument, [`WeakMap` will be completely replaced](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/detect.js)). Some good developers try to fix this from time to time, but polyfills themselves are given unforgivably little time, so it's still too far from something that could be recommended for usage.
+The availability of a such service is the only moment in which `core-js` have lagged behind another project. [`polyfill-service`](https://polyfill.io) project from Financial Times is based on this conception and it's a great service. The main problem with this project — it's a great service that uses bad polyfills. This project polyfill only a little part of ECMAScript features that `core-js` provides, the main part of polyfills are third-party and are not designed to work together, too many don't properly follow specs, too raw or just dangerous for usage (for example, [`WeakMap` looks like a step-by-step implementation of the spec text](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/polyfill.js), but the absence of some non-spec magic cause memory leaking and linear access time that makes it harmful, more other — instead of patching, fixing and reusage of native implementation in engines like IE11 where it's available, but does not accept an iterable argument, [`WeakMap` will be completely replaced](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/detect.js)). Some good developers try to fix this from time to time, but polyfills themselves are given unforgivably little time, so it's still too far from something that could be recommended for usage.
 
 Creating such a service in the proper form requires the creation and maintenance of many new components. I work on `core-js` alone, the project does not have the necessary support from any company, and the development is carried out with pure enthusiasm, I need to look for funds to feed myself and my family, so I have no time and other resources required for that. However, in the scope of other tasks, I already made some required components, and discussions with some users convinced me that creating a maximally simplified service that you could start on your own server could be enough.
 
