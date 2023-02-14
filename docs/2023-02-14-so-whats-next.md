@@ -263,7 +263,7 @@ I wonder how the companies that support their dependencies chain through them wi
 
 At the same day, on OpenCollective I saw that the monthly repeat was reduced from about \$600 to about \$300. Apparently, the financial reserves of `Bower` have come to an end. That means that **for this month I'll get about \$400 at all**.
 
-In the previous months, I measured how much time takes the work on `core-js`. It turned out about... **250 hours a month** — significantly more than a full day without any days off, which makes it impossible to have “real” (as many say) full-time work or work any significant contracts. $400 for 250 hours... It will be less than **\$2 per hour of work, for the previous year a little more — $4 per hour**. Yes, in some months, I spend less time working on the project — however it does not change much.
+In the previous months, I measured how much time takes the work on `core-js`. It turned out about... **250 hours a month** — significantly more than a full day without any days off, which makes it impossible to have "real" (as many say) full-time work or work any significant contracts. $400 for 250 hours... It will be less than **\$2 per hour of work, for the previous year a little more — $4 per hour**. Yes, in some months, I spend less time working on the project — however it does not change much.
 
 So much willing to pay for ensuring compatibility for the whole Web. And no insurance or social security.
 
