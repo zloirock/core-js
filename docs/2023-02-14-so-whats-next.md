@@ -10,6 +10,7 @@ Hi. I am (**[@zloirock](https://github.com/zloirock)**) a full-time open-source 
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)
+- [**Boosty**](https://boosty.to/zloirock)
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
@@ -557,6 +558,7 @@ This was the last attempt to keep `core-js` as a free open-source project with a
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)
+- [**Boosty**](https://boosty.to/zloirock)
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
