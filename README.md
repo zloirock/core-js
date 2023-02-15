@@ -14,9 +14,8 @@
 
 Hi. I am (**[@zloirock](https://github.com/zloirock)**) a full-time open-source developer. I don't like to write long posts, but it seems this is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](#roadmap)), however, due to recent events, became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
 
-## TL;DR
-
-This was the last attempt to keep `core-js` as a free open-source project with a proper quality and functionality level. It was the last attempt to convey that there are real people on the other side of open-source with families to feed and problems to solve.
+<details>
+<summary><b>:heart: Click to see how you can help :heart:</b></summary>
 
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
 - [**Open Collective**](https://opencollective.com/core-js)
@@ -24,6 +23,7 @@ If you or your company use `core-js` in one way or another and are interested in
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
+</details>
 
 ## What is [`core-js`](https://github.com/zloirock/core-js)?
 
