@@ -560,6 +560,17 @@ So, with this complex of tools, modern browsers will not load polyfills at all i
 
 Most of the above are about minimizing the size of polyfills sent to the client - but these are just a little subset of the concepts that it would be good to implement in the scope of `core-js`, however, I think that it's enough for understanding that still required a huge work and this work could significantly improve web development. Whether it will be implemented in practice and whether it will be available as FOSS or as a commercial project is up to you.
 
+# Conclusion
+
+This was the last attempt to keep `core-js` as a free open-source project with a proper quality and functionality level. It was the last attempt to convey that there are real people on the other side of open-source with families to feed and problems to solve.
+
+If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
+- [**Open Collective**](https://opencollective.com/core-js)
+- [**Patreon**](https://patreon.com/zloirock)
+- **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
+
+**Write me if you want to offer a good job on Web-standards and open-source.**
+
 ---
 
 **Feel free to add comments to this post [here.](https://github.com/zloirock/core-js/issues/1179)**
