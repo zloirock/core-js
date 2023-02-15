@@ -4,6 +4,17 @@
 
 Hi. I am (**[@zloirock](https://github.com/zloirock)**) a full-time open-source developer. I don't like to write long posts, but it seems this is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](#roadmap)), however, due to recent events, became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
 
+<details>
+<summary><b>🔻 Click to see how you can help 🔻</b></summary>
+
+If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
+- [**Open Collective**](https://opencollective.com/core-js)
+- [**Patreon**](https://patreon.com/zloirock)
+- **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
+
+**Write me if you want to offer a good job on Web-standards and open-source.**
+</details>
+
 ## What is [`core-js`](https://github.com/zloirock/core-js)?
 
 - It is the most popular and the most universal polyfill of the JavaScript standard library, which provides support for the latest ECMAScript standard and proposals, from ancient ES5 features to bleeding edge features like [iterator helpers](https://github.com/tc39/proposal-iterator-helpers), and web platform features closely related to ECMAScript, like `structuredClone`.
