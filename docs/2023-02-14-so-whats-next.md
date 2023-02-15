@@ -1,8 +1,29 @@
-<p align="center"><img alt="core-js" src="https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png" /></p>
+![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
+
+<div align="center">
+
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/core-js-bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/core-js-bundle)
+
+</div>
+
+> If you are looking for `core-js` documentation, it's temporarily moved [here](https://github.com/zloirock/core-js/blob/master/ORIGINAL_README.md).
+>
+> Later, this post will be available [by this link](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md).
 
 # So, what's next?
 
 Hi. I am (**[@zloirock](https://github.com/zloirock)**) a full-time open-source developer. I don't like to write long posts, but it seems this is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](#roadmap)), however, due to recent events, became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
+
+<details>
+<summary><b>:heart: Click to see how you can help :heart:</b></summary>
+
+If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
+- [**Open Collective**](https://opencollective.com/core-js)
+- [**Patreon**](https://patreon.com/zloirock)
+- **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
+
+**Write me if you want to offer a good job on Web-standards and open-source.**
+</details>
 
 ## What is [`core-js`](https://github.com/zloirock/core-js)?
 
@@ -111,7 +132,7 @@ Until April 2019, for about one and a half years as a whole and about a half-yea
 
 ### Accident
 
-Shit happened 3 weeks after the `core-js@3` release. One April night, at 3 AM, I was driving home. Two deadly drunk 18-years-old girls in dark clothes decided somehow *to crawl* across a poorly lit highway - one of them lay down on the road, another sat down and dragged the first, but not from the road - directly under my wheels. That's what the witnesses said. I had absolutely no chance to see them. One more witness said that before the accident they were just jokingly fighting on the road. Nothing unusual, it's Russia. One of them died and another girl went to a hospital. However, even in this case, according to Russian arbitrage practice, if the driver is not a son of a deputy or someone like that, he almost always will be found guilty - he should see and anticipate everything, and a pedestrian owes nothing to anyone. I could end up in prison for a long time, IIRC later the prosecutor requested 7 years.
+Shit happened 3 weeks after the `core-js@3` release. One April night, at 3 AM, I was driving home. Two deadly drunk 18-years-old girls in dark clothes decided somehow *to crawl* across a poorly lit highway - one of them lay down on the road, another sat down and dragged the first, but not from the road - directly under my wheels. That's what the witnesses said. I had no any chance to see them. One more witness said that before the accident they were just jokingly fighting on the road. Nothing unusual, it's Russia. One of them died and another girl went to a hospital. However, even in this case, according to Russian arbitrage practice, if the driver is not a son of a deputy or someone like that, he almost always will be found guilty - he should see and anticipate everything, and a pedestrian owes nothing to anyone. I could end up in prison for a long time, IIRC later the prosecutor requested 7 years.
 
 The only way not to end up in prison was reconciliation with "victims" - a standard practice after such accidents - and a good lawyer. Within a few weeks after the accident, I received financial claims totaling about 80 thousand dollars at the exchange rate at that time from "victims'" relatives. A significant amount of money was also needed for a lawyer.
 
