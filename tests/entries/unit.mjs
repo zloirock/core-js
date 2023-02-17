@@ -592,7 +592,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceUnshift == 'function');
     ok(instanceUnshift({}) === undefined);
     ok(typeof instanceUnshift([]) == 'function');
-    ok(instanceUnshift([]).call([1], 8) === 2);
+    const instanceUnshiftTestArray = [1];
+    ok(instanceUnshift([]).call(instanceUnshiftTestArray, 8));
+    ok(instanceUnshiftTestArray[0] === 8);
 
     const instanceValues = load(NS, 'instance/values');
     ok(typeof instanceValues == 'function');

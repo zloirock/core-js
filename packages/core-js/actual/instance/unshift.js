@@ -1,3 +1,3 @@
-var parent = require('../../stable/instance/push');
+var parent = require('../../stable/instance/unshift');
 
 module.exports = parent;
