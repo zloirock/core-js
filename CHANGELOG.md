@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Fixed wrong export in `/(stable|actual/full)/instance/unshift` entries
+- Fixed wrong export in `/(stable|actual|full)/instance/unshift` entries
 
 ##### [3.28.0 - 2023.02.14](https://github.com/zloirock/core-js/releases/tag/v3.28.0)
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
