@@ -2154,14 +2154,14 @@ Modules [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
   drop(limit: uint): Iterator<any>;
-  every(callbackfn: (value: any, couner: uint) => boolean): boolean;
-  filter(callbackfn: (value: any, couner: uint) => boolean): Iterator<any>;
-  find(callbackfn: (value: any, couner: uint) => boolean)): any;
-  flatMap(callbackfn: (value: any, couner: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
-  forEach(callbackfn: (value: any, couner: uint) => void): void;
-  map(callbackfn: (value: any, couner: uint) => any): Iterator<any>;
-  reduce(callbackfn: (memo: any, value: any, couner: uint) => any, initialValue: any): any;
-  some(callbackfn: (value: any, couner: uint) => boolean): boolean;
+  every(callbackfn: (value: any, counter: uint) => boolean): boolean;
+  filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
+  find(callbackfn: (value: any, counter: uint) => boolean)): any;
+  flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
+  forEach(callbackfn: (value: any, counter: uint) => void): void;
+  map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
+  reduce(callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): any;
+  some(callbackfn: (value: any, counter: uint) => boolean): boolean;
   take(limit: uint): Iterator<any>;
   toArray(): Array<any>;
   @@toStringTag: 'Iterator'
@@ -2418,14 +2418,14 @@ class Iterator {
 class AsyncIterator {
   static from(iterable: AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
   drop(limit: uint): AsyncIterator<any>;
-  every(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
-  filter(async callbackfn: (value: any, couner: uint) => boolean): AsyncIterator<any>;
-  find(async callbackfn: (value: any, couner: uint) => boolean)): Promise<any>;
-  flatMap(async callbackfn: (value: any, couner: uint) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  forEach(async callbackfn: (value: any, couner: uint) => void): Promise<void>;
-  map(async callbackfn: (value: any, couner: uint) => any): AsyncIterator<any>;
-  reduce(async callbackfn: (memo: any, value: any, couner: uint) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
+  every(async callbackfn: (value: any, counter: uint) => boolean): Promise<boolean>;
+  filter(async callbackfn: (value: any, counter: uint) => boolean): AsyncIterator<any>;
+  find(async callbackfn: (value: any, counter: uint) => boolean)): Promise<any>;
+  flatMap(async callbackfn: (value: any, counter: uint) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
+  forEach(async callbackfn: (value: any, counter: uint) => void): Promise<void>;
+  map(async callbackfn: (value: any, counter: uint) => any): AsyncIterator<any>;
+  reduce(async callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): Promise<any>;
+  some(async callbackfn: (value: any, counter: uint) => boolean): Promise<boolean>;
   take(limit: uint): AsyncIterator<any>;
   toArray(): Promise<Array>;
   @@toStringTag: 'AsyncIterator'
@@ -2618,7 +2618,7 @@ class Observable {
   constructor(subscriber: Function): Observable;
   subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
   @@observable(): this;
-  static of(...items: Aray<mixed>): Observable;
+  static of(...items: Array<mixed>): Observable;
   static from(x: Observable | Iterable): Observable;
   static readonly attribute @@species: this;
 }
