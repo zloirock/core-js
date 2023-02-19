@@ -11,7 +11,7 @@ What is `core-js`?
 - It can be used without polluting the global namespace.
 - It is [tightly integrated with `babel`](#Babel): this allows many optimizations of `core-js` import.
 
-It's the most universal and [the most popular](https://www.npmtrends.com/core-js-vs-es5-shim-vs-es6-shim-vs-airbnb-js-shims-vs-polyfill-library-vs-polyfill-service-vs-js-polyfills) way to polyfill JavaScript standard library, but a big part of developers just don't know that they use `core-js` indirectly 🙂
+It's the most universal and [the most popular](https://npmtrends.com/airbnb-js-shims-vs-core-js-vs-es5-shim-vs-es6-shim-vs-js-polyfills-vs-polyfill-library-vs-polyfill-service) way to polyfill JavaScript standard library, but a big part of developers just don't know that they use `core-js` indirectly 🙂
 
 ## Contributing
 
@@ -182,7 +182,7 @@ If a feature can't be implemented following the specification in every detail, `
 
 No more LiveScript! When I started the `core-js` project, I mainly used [LiveScript](http://livescript.net/); after some time, I rewrote all the polyfills in JavaScript. Tests and helper tools in `core-js@2` still used LiveScript: it is a very interesting CoffeeScript-like language with powerful syntax sugar which allows writing very compact code, but now it's almost dead. Other than that, it was an additional barrier for contributing to `core-js` because most `core-js` users do not know this language. `core-js@3` tests and tools use modern ES syntax: it could be a good moment to start contributing to `core-js` 🙂
 
-For almost all users, for optimization of `core-js` import, I recommend using [`babel`](#Babel). However, [`core-js-builder`](http://npmjs.com/package/core-js-builder) is still useful in some cases. Now it supports the `targets` argument which takes a [`browserslist`](https://github.com/browserslist/browserslist) query with target engines - you can create a bundle which contains only required for target engines polyfills. For cases like this, I made the [`core-js-compat`](http://npmjs.com/package/core-js-compat) package, more info about it you could find in [`@babel/preset-env` part of this article](#babelpreset-env).
+For almost all users, for optimization of `core-js` import, I recommend using [`babel`](#Babel). However, [`core-js-builder`](https://npmjs.com/package/core-js-builder) is still useful in some cases. Now it supports the `targets` argument which takes a [`browserslist`](https://github.com/browserslist/browserslist) query with target engines - you can create a bundle which contains only required for target engines polyfills. For cases like this, I made the [`core-js-compat`](https://www.npmjs.com/package/core-js-compat) package, more info about it you could find in [`@babel/preset-env` part of this article](#babelpreset-env).
 
 ---
 

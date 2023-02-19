@@ -1299,7 +1299,7 @@
   - `Math.RAD_PER_DEG`
   - `Math.radians`
   - `Math.scale`
-- Added `Math.signbit` [stage 1 proposal](http://jfbastien.github.io/papers/Math.signbit.html)
+- Added `Math.signbit` [stage 1 proposal](https://github.com/tc39/proposal-Math.signbit)
 - Updated `global` [stage 3 proposal](https://github.com/tc39/proposal-global) - added `global` global object, `System.global` deprecated
 - Updated `Object.getOwnPropertyDescriptors` to the [final version](https://tc39.es/ecma262/2017/#sec-object.getownpropertydescriptors) - it should not create properties if descriptors are `undefined`
 - Updated the list of iterable DOM collections, [#249](https://github.com/zloirock/core-js/issues/249), added:
@@ -1332,8 +1332,8 @@
 - Updated stages of proposals:
   - [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors) to [stage 4 (ES2017)](https://tc39.es/ecma262/2017/#sec-object.getownpropertydescriptors)
   - [String padding](https://github.com/tc39/proposal-string-pad-start-end) to [stage 4 (ES2017)](https://tc39.es/ecma262/2017/#sec-string.prototype.padend)
-  - [`global`](https://github.com/tc39/proposal-global) to [stage 3](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-09/sept-28.md#revisit-systemglobal--global)
-  - [String trimming](https://github.com/tc39/proposal-string-left-right-trim) to [stage 2](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-07/jul-27.md#10iic-trimstarttrimend)
+  - [`global`](https://github.com/tc39/proposal-global) to [stage 3](https://github.com/tc39/notes/blob/main/meetings/2016-09/sept-28.md#revisit-systemglobal--global)
+  - [String trimming](https://github.com/tc39/proposal-string-left-right-trim) to [stage 2](https://github.com/tc39/notes/blob/main/meetings/2016-07/jul-27.md#10iic-trimstarttrimend)
 - Updated typed arrays to the modern (ES2016+) arguments validation,
 [#293](https://github.com/zloirock/core-js/pull/293)
 - Fixed `%TypedArray%.from` Safari bug, [#285](https://github.com/zloirock/core-js/issues/285)
@@ -1364,14 +1364,14 @@
 - `Reflect.construct` and `Reflect.apply` should throw an error if `argumentsList` argument is not an object, [#194](https://github.com/zloirock/core-js/issues/194)
 
 ##### [2.3.0 - 2016.04.24](https://github.com/zloirock/core-js/releases/tag/v2.3.0)
-- Added `asap` for enqueuing microtasks, [stage 0 proposal](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask)
+- Added `asap` for enqueuing microtasks, [stage 0 proposal](https://github.com/tc39/notes/blob/main/meetings/2014-09/sept-25.md#510-globalasap-for-enqueuing-a-microtask)
 - Added well-known symbol `Symbol.asyncIterator` for [stage 2 async iteration proposal](https://github.com/tc39/proposal-async-iteration)
 - Added well-known symbol `Symbol.observable` for [stage 1 observables proposal](https://github.com/zenparsing/es-observable)
-- `String#{padStart, padEnd}` returns original string if filler is empty string, [TC39 meeting notes](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-03/march-29.md#stringprototypepadstartpadend)
-- `Object.values` and `Object.entries` moved to stage 4 from 3, [TC39 meeting notes](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-03/march-29.md#objectvalues--objectentries)
-- `System.global` moved to stage 2 from 1, [TC39 meeting notes](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-03/march-29.md#systemglobal)
-- `Map#toJSON` and `Set#toJSON` rejected and will be removed from the next major release, [TC39 meeting notes](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-03/march-31.md#mapprototypetojsonsetprototypetojson)
-- `Error.isError` withdrawn and will be removed from the next major release, [TC39 meeting notes](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-03/march-29.md#erroriserror)
+- `String#{padStart, padEnd}` returns original string if filler is empty string, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#stringprototypepadstartpadend)
+- `Object.values` and `Object.entries` moved to stage 4 from 3, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#objectvalues--objectentries)
+- `System.global` moved to stage 2 from 1, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#systemglobal)
+- `Map#toJSON` and `Set#toJSON` rejected and will be removed from the next major release, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-31.md#mapprototypetojsonsetprototypetojson)
+- `Error.isError` withdrawn and will be removed from the next major release, [TC39 meeting notes](https://github.com/tc39/notes/blob/main/meetings/2016-03/march-29.md#erroriserror)
 - Added fallback for `Function#name` on non-extensible functions and functions with broken `toString` conversion, [#193](https://github.com/zloirock/core-js/issues/193)
 
 ##### [2.2.2 - 2016.04.06](https://github.com/zloirock/core-js/releases/tag/v2.2.2)
@@ -1427,13 +1427,13 @@
         - Should not be changed only several features like `Array.isArray` and `Date.now`
       - Some ES5 polyfills required for modern engines
     - All old entry points should work fine, but in the next major release API can be changed
-  - `Object.getOwnPropertyDescriptors` moved to the stage 3, [January TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-01/2016-01-28.md#objectgetownpropertydescriptors-to-stage-3-jordan-harband-low-priority-but-super-quick)
+  - `Object.getOwnPropertyDescriptors` moved to the stage 3, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/2016-01-28.md#objectgetownpropertydescriptors-to-stage-3-jordan-harband-low-priority-but-super-quick)
   - Added `umd` option for [custom build process](https://github.com/zloirock/core-js#custom-build-from-external-scripts), [#169](https://github.com/zloirock/core-js/issues/169)
   - Returned entry points for `Array` statics, removed in `2.0`, for compatibility with `babel` `6` and for future fixes
 - **Deprecated**:
-  - `Reflect.enumerate` deprecated and will be removed from the next major release, [January TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2016-01/2016-01-28.md#5xix-revisit-proxy-enumerate---revisit-decision-to-exhaust-iterator)
+  - `Reflect.enumerate` deprecated and will be removed from the next major release, [January TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2016-01/2016-01-28.md#5xix-revisit-proxy-enumerate---revisit-decision-to-exhaust-iterator)
 - **New Features**:
-  - Added [`Reflect` metadata API](https://github.com/jonathandturner/decorators/blob/master/specs/metadata.md) as a pre-strawman feature, [#152](https://github.com/zloirock/core-js/issues/152):
+  - Added [`Reflect` metadata API](https://rbuckton.github.io/reflect-metadata/) as a pre-strawman feature, [#152](https://github.com/zloirock/core-js/issues/152):
     - `Reflect.defineMetadata`
     - `Reflect.deleteMetadata`
     - `Reflect.getMetadata`
@@ -1475,21 +1475,21 @@
   - `DataView` with all getter / setter methods
   - `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array` and `Float64Array` constructors
   - `%TypedArray%.{for, of}`, `%TypedArray%#{copyWithin, every, fill, filter, find, findIndex, forEach, indexOf, includes, join, lastIndexOf, map, reduce, reduceRight, reverse, set, slice, some, sort, subarray, values, keys, entries, @@iterator, ...}`
-- Added [`System.global`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-19.md#systemglobal-jhd)
-- Added [`Error.isError`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/ljharb/proposal-is-error), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-19.md#jhd-erroriserror)
+- Added [`System.global`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-global), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#systemglobal-jhd)
+- Added [`Error.isError`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/ljharb/proposal-is-error), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-19.md#jhd-erroriserror)
 - Added [`Math.{iaddh, isubh, imulh, umulh}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
-- `RegExp.escape` moved from the `es7` to the non-standard `core` namespace, [July TC39 meeting](https://github.com/rwaldron/tc39-notes/blob/master/es7/2015-07/july-28.md#62-regexpescape) - too slow, but it's condition of stability, [#116](https://github.com/zloirock/core-js/issues/116)
+- `RegExp.escape` moved from the `es7` to the non-standard `core` namespace, [July TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-07/july-28.md#62-regexpescape) - too slow, but it's condition of stability, [#116](https://github.com/zloirock/core-js/issues/116)
 - [`Promise`](https://github.com/zloirock/core-js#ecmascript-6-promise)
   - Some performance optimisations
   - Added basic support [`rejectionHandled` event / `onrejectionhandled` handler](https://github.com/zloirock/core-js#unhandled-rejection-tracking) to the polyfill
-  - Removed usage `@@species` from `Promise.{all, race}`, [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-18.md#conclusionresolution-2)
+  - Removed usage `@@species` from `Promise.{all, race}`, [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-18.md#conclusionresolution-2)
 - Some improvements [collections polyfills](https://github.com/zloirock/core-js#ecmascript-6-collections)
   - `O(1)` and preventing possible leaks with frozen keys, [#134](https://github.com/zloirock/core-js/issues/134)
   - Correct observable state object keys
-- Renamed `String#{padLeft, padRight}` -> [`String#{padStart, padEnd}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-pad-start-end), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-17.md#conclusionresolution-2) (they want to rename it on each meeting?O_o), [#132](https://github.com/zloirock/core-js/issues/132)
-- Added [`String#{trimStart, trimEnd}` as aliases for `String#{trimLeft, trimRight}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), [November TC39 meeting](https://github.com/rwaldron/tc39-notes/tree/master/es7/2015-11/nov-17.md#conclusionresolution-2)
-- Added [annex B HTML methods](https://github.com/zloirock/core-js#ecmascript-6-string) - ugly, but also [the part of the spec](http://www.ecma-international.org/ecma-262/6.0/#sec-string.prototype.anchor)
-- Added little fix for [`Date#toString`](https://github.com/zloirock/core-js#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](http://www.ecma-international.org/ecma-262/6.0/#sec-todatestring)
+- Renamed `String#{padLeft, padRight}` -> [`String#{padStart, padEnd}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/tc39/proposal-string-pad-start-end), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2) (they want to rename it on each meeting?O_o), [#132](https://github.com/zloirock/core-js/issues/132)
+- Added [`String#{trimStart, trimEnd}` as aliases for `String#{trimLeft, trimRight}`](https://github.com/zloirock/core-js#ecmascript-7-proposals), [proposal](https://github.com/sebmarkbage/ecmascript-string-left-right-trim), [November TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2015-11/nov-17.md#conclusionresolution-2)
+- Added [annex B HTML methods](https://github.com/zloirock/core-js#ecmascript-6-string) - ugly, but also [the part of the spec](https://262.ecma-international.org/6.0/#sec-string.prototype.anchor)
+- Added little fix for [`Date#toString`](https://github.com/zloirock/core-js#ecmascript-6-date) - `new Date(NaN).toString()` [should be `'Invalid Date'`](https://262.ecma-international.org/6.0/#sec-todatestring)
 - Added [`{keys, values, entries, @@iterator}` methods to DOM collections](https://github.com/zloirock/core-js#iterable-dom-collections) which should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass) - `NodeList`, `DOMTokenList`, `MediaList`, `StyleSheetList`, `CSSRuleList`.
 - Removed Mozilla `Array` generics - [deprecated and will be removed from FF](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#Array_generic_methods), [looks like strawman is dead](https://web.archive.org/web/20160805230354/http://wiki.ecmascript.org/doku.php?id=strawman:array_statics), available [alternative shim](https://github.com/plusdude/array-generics)
 - Removed `core.log` module
@@ -1540,9 +1540,9 @@
 
 ##### [1.2.0 - 2015.09.27](https://github.com/zloirock/core-js/releases/tag/v1.2.0)
 - Added browser [`Promise` rejection hook](#unhandled-rejection-tracking), [#106](https://github.com/zloirock/core-js/issues/106)
-- Added correct [`IsRegExp`](http://www.ecma-international.org/ecma-262/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
+- Added correct [`IsRegExp`](https://262.ecma-international.org/6.0/#sec-isregexp) logic to [`String#{includes, startsWith, endsWith}`](https://github.com/zloirock/core-js/#ecmascript-6-string) and [`RegExp` constructor](https://github.com/zloirock/core-js/#ecmascript-6-regexp), `@@match` case, [example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/match#Disabling_the_isRegExp_check)
 - Updated [`String#leftPad`](https://github.com/zloirock/core-js/#ecmascript-7-proposals) [with proposal](https://github.com/ljharb/proposal-string-pad-left-right/issues/6): string filler truncated from the right side
-- Replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/#ecmascript-6-object) - its properties order not only [incorrect](https://github.com/sindresorhus/object-assign/issues/22), it is non-deterministic and it causes some problems
+- Replaced V8 [`Object.assign`](https://github.com/zloirock/core-js/#ecmascript-6-object) - its properties order not only incorrect, it is non-deterministic and it causes some problems
 - Fixed behavior with deleted in getters properties for `Object.{`[`assign`](https://github.com/zloirock/core-js/#ecmascript-6-object)`, `[`entries, values`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)`}`, [example](http://goo.gl/iQE01c)
 - Fixed [`Math.sinh`](https://github.com/zloirock/core-js/#ecmascript-6-math) with very small numbers in V8 near Chromium 38
 - Some other fixes and optimizations
@@ -1700,7 +1700,7 @@
   - Fixed behavior `Object.{assign, create, defineProperty, defineProperties, getOwnPropertyDescriptor, getOwnPropertyDescriptors}` with symbols
   - Added [single entry points](https://github.com/zloirock/core-js/#commonjs) for `Object.{create, defineProperty, defineProperties}`
 - Added [`Map#toJSON`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
-- Removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](http://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
+- Removed non-standard methods `Object#[_]` and `Function#only` - they solves syntax problems, but now in compilers available arrows and ~~in near future will be available~~ [available](https://babeljs.io/blog/2015/05/14/function-bind/) [bind syntax](https://github.com/zenparsing/es-function-bind)
 - Removed non-standard undocumented methods `Symbol.{pure, set}`
 - Some fixes and internal changes
 
@@ -1897,13 +1897,13 @@
 - Added [`Dict.mapPairs`](https://github.com/zloirock/core-js/#dict)
 
 ##### [0.1.3 - 2014.11.20](https://github.com/zloirock/core-js/releases/tag/v0.1.3)
-- [TC39 November meeting](https://github.com/rwaldron/tc39-notes/tree/master/es6/2014-11):
-  - [`.contains` -> `.includes`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
+- [TC39 November meeting](https://github.com/tc39/notes/blob/main/meetings/2014-11):
+  - [`.contains` -> `.includes`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-18.md#51--44-arrayprototypecontains-and-stringprototypecontains)
     - `String#contains` -> [`String#includes`](https://github.com/zloirock/core-js/#ecmascript-6-string)
     - `Array#contains` -> [`Array#includes`](https://github.com/zloirock/core-js/#ecmascript-7-proposals)
     - `Dict.contains` -> [`Dict.includes`](https://github.com/zloirock/core-js/#dict)
-  - [Removed `WeakMap#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
-  - [Removed `WeakSet#clear`](https://github.com/rwaldron/tc39-notes/blob/master/es6/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
+  - [Removed `WeakMap#clear`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
+  - [Removed `WeakSet#clear`](https://github.com/tc39/notes/blob/main/meetings/2014-11/nov-19.md#412-should-weakmapweakset-have-a-clear-method-markm)
 
 ##### [0.1.2 - 2014.11.19](https://github.com/zloirock/core-js/releases/tag/v0.1.2)
 - `Map` & `Set` bug fix
