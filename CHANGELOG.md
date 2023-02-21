@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Allowed cloning resizable `ArrayBuffer`s in the `structuredClone` polyfill
 - Fixed wrong export in `/(stable|actual|full)/instance/unshift` entries, [#1207](https://github.com/zloirock/core-js/issues/1207)
 
 ##### [3.28.0 - 2023.02.14](https://github.com/zloirock/core-js/releases/tag/v3.28.0)
