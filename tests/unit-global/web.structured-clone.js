@@ -1,7 +1,7 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 import { GLOBAL, NODE } from '../helpers/constants';
-import { fromSource } from '../helpers/helpers';
+import { bufferToArray, fromSource } from '../helpers/helpers';
 
 const { from } = Array;
 const { assign, getPrototypeOf, keys } = Object;
@@ -176,6 +176,38 @@ QUnit.module('structuredClone', () => {
           assert.same(orig.byteOffset, clone.byteOffset);
           assert.arrayEqual(new Int8Array(view.buffer), array);
         });
+      });
+    }
+
+    if ('resizable' in ArrayBuffer.prototype) {
+      QUnit.test('Resizable ArrayBuffer', assert => {
+        const array = [1, 2, 3, 4, 5, 6, 7, 8];
+
+        let buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+        new Int8Array(buffer).set(array);
+        let copy = structuredClone(buffer);
+        assert.arrayEqual(bufferToArray(copy), array, 'resizable-ab-1');
+        assert.true(copy.resizable, 'resizable-ab-1');
+
+        buffer = new ArrayBuffer(8);
+        new Int8Array(buffer).set(array);
+        copy = structuredClone(buffer);
+        assert.arrayEqual(bufferToArray(copy), array, 'non-resizable-ab-1');
+        assert.false(copy.resizable, 'non-resizable-ab-1');
+
+        buffer = new ArrayBuffer(8, { maxByteLength: 16 });
+        let tarray = new Int8Array(buffer);
+        tarray.set(array);
+        copy = structuredClone(tarray).buffer;
+        assert.arrayEqual(bufferToArray(copy), array, 'resizable-ab-2');
+        assert.true(copy.resizable, 'resizable-ab-2');
+
+        buffer = new ArrayBuffer(8);
+        tarray = new Int8Array(buffer);
+        tarray.set(array);
+        copy = structuredClone(tarray).buffer;
+        assert.arrayEqual(bufferToArray(copy), array, 'non-resizable-ab-2');
+        assert.false(copy.resizable, 'non-resizable-ab-2');
       });
     }
   }
