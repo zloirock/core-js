@@ -15,7 +15,7 @@ jobs:
           node-version: 19
           cache: npm
       - run: npm ci
-      - run: npm run lint
+      - run: npm run lint-raw
 
   karma:
     runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
           node-version: 19
           cache: npm
       - run: npm ci
-      - run: npx run-s init bundle test-unit-karma
+      - run: npx run-s bundle test-unit-karma
 
   promises-and-observables:
     strategy:
@@ -43,7 +43,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npx run-s init test-promises test-observables
+      - run: npx run-s test-promises test-observables
 
   tests:
     strategy:
@@ -64,4 +64,4 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npx run-s init bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
+      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder

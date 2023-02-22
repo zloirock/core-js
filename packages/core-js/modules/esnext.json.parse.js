@@ -105,31 +105,21 @@ Context.prototype = {
     var i = this.skip(IS_WHITESPACE, this.index);
     var fork = this.fork(i);
     var chr = at(source, i);
-    var result;
-    if (exec(IS_NUMBER_START, chr)) result = fork.number();
-    else switch (chr) {
+    if (exec(IS_NUMBER_START, chr)) return fork.number();
+    switch (chr) {
       case '{':
-        result = fork.object();
-        break;
+        return fork.object();
       case '[':
-        result = fork.array();
-        break;
+        return fork.array();
       case '"':
-        result = fork.string();
-        break;
+        return fork.string();
       case 't':
-        result = fork.keyword(true);
-        break;
+        return fork.keyword(true);
       case 'f':
-        result = fork.keyword(false);
-        break;
+        return fork.keyword(false);
       case 'n':
-        result = fork.keyword(null);
-        break;
-      default:
-        throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
-    }
-    return result;
+        return fork.keyword(null);
+    } throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   },
   node: function (type, value, start, end, nodes) {
     return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
