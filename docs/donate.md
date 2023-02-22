@@ -12,4 +12,5 @@ If you or your company use `core-js` in one way or another and are interested in
 - Bitcoin:
   `bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz`
 - Alipay:
+  
   ![Alipay-code](https://user-images.githubusercontent.com/2213682/219464783-c17ad329-17ce-4795-82a7-f609493345ed.png)
