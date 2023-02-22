@@ -11,7 +11,7 @@ actions:
     type: primary
 
   - text: Sponsor🧡
-    link: /sponsor
+    link: /donate
 
 features:
   - title: Modularization
