@@ -2,23 +2,31 @@
 home: true
 icon: home
 title: Home
-heroImage: /logo.svg
+heroImage: /logo.png
 heroText: Core-JS
-tagline: Use the latest ECMAScript features before they are widely supported by browsers
+tagline: Use the latest ECMAScript features before they are widely supported
 actions:
   - text: How to Use💡
     link: /guide/
     type: primary
 
-  - text: Sponsor
-    link: /sponsor/
+  - text: Sponsor🧡
+    link: /sponsor
 
 features:
   - title: Modularization
     icon: module
-    details: You can load only required features or use it without global namespace pollution.
+    details: On-demand loading and no global namespace pollution
 
   - title: Widely used
-    icon: storage
-    details: More than half of modern websites use Core-JS.
+    icon: ability
+    details: Most popular polyfill of the JavaScript. 250 million downloads per month on NPM
+    
+  - title: Easy to use
+    icon: tool
+    details: Most people don't need to use core-js on its own, it is already integrated in compilers such as Babel and automatically enabled when needed
+
+  - title: Powerful functionality
+    icon: strong
+    details: Covering from ES5 to the latest ECMAScript proposals
 ---
