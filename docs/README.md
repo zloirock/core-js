@@ -28,5 +28,5 @@ features:
 
   - title: Powerful functionality
     icon: strong
-    details: Covering from ES5 to the latest ECMAScript proposals
+    details: Implemented new APIs from ES5 to the latest ECMAScript proposal
 ---
