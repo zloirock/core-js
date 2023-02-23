@@ -1,0 +1,9 @@
+#table .true {
+  color: #00882c;
+}
+#table .false {
+  color: #e11;
+}
+#table .nodata {
+  color: grey;
+}
