@@ -3213,7 +3213,7 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 #### `URL` and `URLSearchParams`[⬆](#index)
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 ```js
 class URL {
   constructor(url: string, base?: string);
@@ -3248,6 +3248,7 @@ class URLSearchParams {
   keys(): Iterator<key>;
   values(): Iterator<value>;
   @@iterator(): Iterator<[key, value]>;
+  readonly attribute size: number;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3257,7 +3258,7 @@ core-js(-pure)/stable|actual|full/url
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
-[*Examples*](https://is.gd/AfIwve):
+[*Examples*](https://tinyurl.com/2fccy7sb):
 ```js
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
@@ -3291,6 +3292,8 @@ const params = new URLSearchParams('?a=1&b=2&a=3');
 params.append('c', 4);
 params.append('a', 2);
 params.sort();
+
+console.log(params.size); // => 5
 
 for (let [key, value] of params) {
   console.log(key);   // => 'a', 'a', 'a', 'b', 'c'
