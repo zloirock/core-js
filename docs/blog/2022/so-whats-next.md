@@ -1,4 +1,8 @@
-<p align="center"><img alt="core-js" src="https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png" /></p>
+---
+title: What's next?
+author: zloirock
+date: 2023-02-14
+---
 
 # So, what's next?
 

@@ -11,6 +11,7 @@
     "url": "http://zloirock.ru"
   },
   "workspaces": [
+    "./docs/",
     "./packages/*"
   ],
   "scripts": {
@@ -29,8 +30,8 @@
     "compat-deno": "deno run --allow-read tests/compat/deno-runner.mjs",
     "compat-hermes": "zx tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
-    "docs:dev": "vuepress dev docs",
-    "docs:build": "vuepress build docs",
+    "docs:dev": "npm run --workspace=docs dev",
+    "docs:build": "npm run --workspace=docs build",
     "compat-rhino": "zx tests/compat/rhino-adapter.mjs --version=1.7.14",
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
@@ -95,8 +96,6 @@
     "konan": "^2.1.1",
     "npm-run-all2": "^6.0.4",
     "semver": "^7.3.8",
-    "vuepress": "^2.0.0-beta.60",
-    "vuepress-theme-hope": "^2.0.0-beta.179",
     "zx": "^7.1.1"
   }
 }
