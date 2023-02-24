@@ -195,6 +195,8 @@ export default {
     'esnext.json.raw-json',
     'esnext.symbol.is-registered',
     'esnext.symbol.is-well-known',
+  ],
+  3.29: [
     'web.url-search-params.size',
   ],
 };
