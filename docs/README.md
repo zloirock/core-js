@@ -7,7 +7,7 @@ heroText: Core-JS
 tagline: Use the latest ECMAScript features before they are widely supported
 actions:
   - text: How to Use💡
-    link: /guide/
+    link: /guide/README.md
     type: primary
 
   - text: Sponsor🧡

@@ -13,17 +13,17 @@ export default defineUserConfig({
     navbar: [
       {
         text: "Guide",
-        link: "/guide/",
+        link: "/guide/README.md",
         icon: "creative",
       },
       {
         text: "Develope",
-        link: "/dev/",
+        link: "/dev/README.md",
         icon: "guide",
       },
       {
         text: "Compat Data",
-        link: "/compat/",
+        link: "/compat.md",
         icon: "form",
       },
       {

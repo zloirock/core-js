@@ -1,5 +1,5 @@
 ---
-title: Compat form
+title: Compat Data
 head:
   - - link
     - rel: stylesheet
