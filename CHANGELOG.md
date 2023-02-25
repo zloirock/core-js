@@ -6,6 +6,7 @@
 - Compat data improvements:
   - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) marked as supported from Bun 0.5.7
   - `String.prototype.toWellFormed` marked as fixed from Bun 0.5.7
+  - Added Deno 1.31 compat data mapping
 
 ##### [3.28.0 - 2023.02.14](https://github.com/zloirock/core-js/releases/tag/v3.28.0)
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
