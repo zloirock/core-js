@@ -1,7 +1,7 @@
 /**
- * core-js 3.28.0
+ * core-js 3.29.0
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.28.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.29.0/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -277,7 +277,8 @@ __webpack_require__(433);
 __webpack_require__(434);
 __webpack_require__(435);
 __webpack_require__(440);
-module.exports = __webpack_require__(441);
+__webpack_require__(441);
+module.exports = __webpack_require__(442);
 
 
 /***/ }),
@@ -942,10 +943,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.28.0',
+  version: '3.29.0',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.28.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.29.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -9435,31 +9436,21 @@ Context.prototype = {
     var i = this.skip(IS_WHITESPACE, this.index);
     var fork = this.fork(i);
     var chr = at(source, i);
-    var result;
-    if (exec(IS_NUMBER_START, chr)) result = fork.number();
-    else switch (chr) {
+    if (exec(IS_NUMBER_START, chr)) return fork.number();
+    switch (chr) {
       case '{':
-        result = fork.object();
-        break;
+        return fork.object();
       case '[':
-        result = fork.array();
-        break;
+        return fork.array();
       case '"':
-        result = fork.string();
-        break;
+        return fork.string();
       case 't':
-        result = fork.keyword(true);
-        break;
+        return fork.keyword(true);
       case 'f':
-        result = fork.keyword(false);
-        break;
+        return fork.keyword(false);
       case 'n':
-        result = fork.keyword(null);
-        break;
-      default:
-        throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
-    }
-    return result;
+        return fork.keyword(null);
+    } throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   },
   node: function (type, value, start, end, nodes) {
     return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
@@ -13951,7 +13942,7 @@ var structuredCloneInternal = function (value, map) {
 
   var type = classof(value);
   var deep = false;
-  var C, name, cloned, dataTransfer, i, length, keys, key, source, target;
+  var C, name, cloned, dataTransfer, i, length, keys, key, source, target, options;
 
   switch (type) {
     case 'Array':
@@ -14106,11 +14097,12 @@ var structuredCloneInternal = function (value, map) {
           if (!C && typeof value.slice != 'function') throwUnpolyfillable(type);
           // detached buffers throws in `DataView` and `.slice`
           try {
-            if (typeof value.slice == 'function') {
+            if (typeof value.slice == 'function' && !value.resizable) {
               cloned = value.slice(0);
             } else {
               length = value.byteLength;
-              cloned = new ArrayBuffer(length);
+              options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
+              cloned = new ArrayBuffer(length, options);
               source = new C(value);
               target = new C(cloned);
               for (i = 0; i < length; i++) {
@@ -14303,6 +14295,34 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
     return structuredCloneInternal(value, map);
   }
 });
+
+
+/***/ }),
+/* 442 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var DESCRIPTORS = __webpack_require__(5);
+var uncurryThis = __webpack_require__(13);
+var defineBuiltInAccessor = __webpack_require__(119);
+
+var URLSearchParamsPrototype = URLSearchParams.prototype;
+var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
+
+// `URLSearchParams.prototype.size` getter
+// https://github.com/whatwg/url/pull/734
+if (DESCRIPTORS && !('size' in URLSearchParamsPrototype)) {
+  defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
+    get: function size() {
+      var count = 0;
+      forEach(this, function () { count++; });
+      return count;
+    },
+    configurable: true,
+    enumerable: true
+  });
+}
 
 
 /***/ })

@@ -5981,22 +5981,34 @@
   "esnext.set.filter": {},
   "esnext.set.find": {},
   "esnext.set.from": {},
-  "esnext.set.intersection.v2": {},
+  "esnext.set.intersection.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.intersection": {},
-  "esnext.set.is-disjoint-from.v2": {},
+  "esnext.set.is-disjoint-from.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.is-disjoint-from": {},
-  "esnext.set.is-subset-of.v2": {},
+  "esnext.set.is-subset-of.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.is-subset-of": {},
-  "esnext.set.is-superset-of.v2": {},
+  "esnext.set.is-superset-of.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.is-superset-of": {},
   "esnext.set.join": {},
   "esnext.set.map": {},
   "esnext.set.of": {},
   "esnext.set.reduce": {},
   "esnext.set.some": {},
-  "esnext.set.symmetric-difference.v2": {},
+  "esnext.set.symmetric-difference.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.symmetric-difference": {},
-  "esnext.set.union.v2": {},
+  "esnext.set.union.v2": {
+    "bun": "0.5.7"
+  },
   "esnext.set.union": {},
   "esnext.string.at": {},
   "esnext.string.cooked": {},
@@ -6049,7 +6061,9 @@
     "safari": "13.1",
     "samsung": "14.0"
   },
-  "esnext.string.to-well-formed": {},
+  "esnext.string.to-well-formed": {
+    "bun": "0.5.7"
+  },
   "esnext.symbol.async-dispose": {},
   "esnext.symbol.dispose": {},
   "esnext.symbol.is-registered": {},
@@ -6535,5 +6549,6 @@
     "quest": "6.0",
     "safari": "14.0",
     "samsung": "9.0"
-  }
+  },
+  "web.url-search-params.size": {}
 }

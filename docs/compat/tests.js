@@ -1945,5 +1945,8 @@ GLOBAL.tests = {
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],
-  'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT
+  'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    return 'size' in URLSearchParams.prototype;
+  }]
 };

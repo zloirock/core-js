@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.29.0 - 2023.02.27](https://github.com/zloirock/core-js/releases/tag/v3.29.0)
 - Added `URLSearchParams.prototype.size` getter, [url/734](https://github.com/whatwg/url/pull/734)
 - Allowed cloning resizable `ArrayBuffer`s in the `structuredClone` polyfill
 - Fixed wrong export in `/(stable|actual|full)/instance/unshift` entries, [#1207](https://github.com/zloirock/core-js/issues/1207)
