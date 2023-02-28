@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 //@ts-expect-error ts2307
+import CommonWrapper from "@theme-hope/components/CommonWrapper"
+//@ts-expect-error ts2307
 import NormalPage from "@theme-hope/components/NormalPage"
 import { onMounted, ref } from "vue";
 import _compatData from "core-js-compat/data.json";
@@ -96,24 +98,26 @@ onMounted(async () => {
 </style>
 
 <template>
-  <NormalPage>
-    <template #content-after>
-      <table class="theme-hope-content compat">
-        <tr>
-          <th>module</th>
-          <th v-for="env in environments" v-html="env.replace(/-/g, '<br />')" :key="env"></th>
-        </tr>
-        <tr v-for="(moduleData, moduleName) in compatData" :key="moduleName">
-          <td><a
-              :href="`https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='${moduleName.replace(/-/g, '%2D')}'`"
-              target="_blank">{{
-                moduleName }}</a></td>
-          <template v-for="env in environments" :key="env">
-            <td :class="calcClass(env, moduleData[env])">{{
-              calcValue(env, moduleData[env]) }}</td>
-          </template>
-        </tr>
-      </table>
-    </template>
-  </NormalPage>
+  <CommonWrapper>
+    <NormalPage>
+      <template #content-after>
+        <table class="theme-hope-content compat">
+          <tr>
+            <th>module</th>
+            <th v-for="env in environments" v-html="env.replace(/-/g, '<br />')" :key="env"></th>
+          </tr>
+          <tr v-for="(moduleData, moduleName) in compatData" :key="moduleName">
+            <td><a
+                :href="`https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='${moduleName.replace(/-/g, '%2D')}'`"
+                target="_blank">{{
+                  moduleName }}</a></td>
+            <template v-for="env in environments" :key="env">
+              <td :class="calcClass(env, moduleData[env])">{{
+                calcValue(env, moduleData[env]) }}</td>
+            </template>
+          </tr>
+        </table>
+      </template>
+    </NormalPage>
+  </CommonWrapper>
 </template>
