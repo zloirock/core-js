@@ -2,6 +2,10 @@
 
 Contributions are always welcome. If you don't know how you can help, you can check [issues](https://github.com/zloirock/core-js/issues) or ask [**@zloirock**](https://github.com/zloirock).
 
+## I want to help with code, but I don't know how
+
+There is always some ["help wanted" issues](https://github.com/zloirock/core-js/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3A%22help+wanted%22). You can look at them first.
+
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
