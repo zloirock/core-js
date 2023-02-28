@@ -1,11 +1,17 @@
 ---
+title: What's next?
+author: zloirock
+category:
+  - blog
 date: 2019-03-19
 ---
+
 # core-js@3, babel and a look into the future
 
 After more than 1.5 years of development, dozens of pre-releases, many sleepless nights, **[`core-js@3`](https://github.com/zloirock/core-js)** is finally released. It's the largest set of changes in `core-js` and polyfilling-related **[`babel`](https://babeljs.io)** features of all time.
 
 What is `core-js`?
+
 - It is a polyfill of the JavaScript standard library, which supports:
   - The latest ECMAScript standard.
   - ECMAScript standard library proposals.
@@ -31,18 +37,21 @@ Or you can contribute in another way: you can help improve code, tests or docume
 ### Changes in JavaScript standard library content
 
 Because of the following two reasons, this release is rich with new JavaScript polyfills:
+
 - `core-js` only has breaking changes in major releases, even if it is needed to reflect a change in a proposal.
 - `core-js@2` entered feature freeze 1.5 years ago; all new features were added only to the `core-js@3` branch.
 
 #### Stable ECMAScript features
 
 Stable ECMAScript features had already been almost completely supported by `core-js` for a long time, however, `core-js@3` introduced some new features:
+
 - Added support of [`@@isConcatSpreadable`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/isConcatSpreadable) and [`@@species`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/species) well-known symbols, introduced in ECMAScript 2015, to all the methods which use them.
 - Added [`Array.prototype.flat`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flat) and [`Array.prototype.flatMap`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flatMap) methods from ECMAScript 2018 (`core-js@2` provided a polyfill for an old version of this proposal with `Array.prototype.flatten`).
 - Added [`Object.fromEntries`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/fromEntries) method, introduced in ECMAScript 2019.
 - Added [`Symbol.prototype.description`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/description) accessor, introduced ECMAScript 2019.
 
 Some features that have already been available for a long time as proposals have been accepted in ES2016-ES2019 and are now marked as stable:
+
 - [`Array.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes) and [`%TypedArray%.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray/includes) methods (ECMAScript 2016)
 - [`Object.values`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/values) and [`Object.entries`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/entries) methods (ECMAScript 2017)
 - [`Object.getOwnPropertyDescriptors`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/getOwnPropertyDescriptors) method (ECMAScript 2017)
@@ -57,6 +66,7 @@ Added many fixes for browsers bugs/issues. For example, [Safari 12.0 `Array.prot
 #### ECMAScript proposals
 
 In addition to supported before, `core-js@3` now supports the following ECMAScript proposals:
+
 - [`globalThis`](https://github.com/tc39/proposal-global) stage 3 proposal - before, we had `global` and `System.global`
 - [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled) stage 2 proposal
 - [New `Set` methods](https://github.com/tc39/proposal-set-methods) stage 2 proposal:
@@ -104,6 +114,7 @@ In addition to supported before, `core-js@3` now supports the following ECMAScri
 - [`Promise.any` (with `AggregateError`)](https://github.com/tc39/proposal-promise-any) stage 0 proposal
 
 Some proposals have been largely changed, and `core-js` was updated accordingly:
+
 - [`String.prototype.matchAll`](https://github.com/tc39/proposal-string-matchall) stage 3 proposal
 - [`Observable`](https://github.com/tc39/proposal-observable) stage 1 proposal
 
@@ -113,7 +124,7 @@ Many useful features have been added to this category.
 
 The most important one is support for [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL) and [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams). It was [one of the most popular feature requests](https://github.com/zloirock/core-js/issues/117). Adding `URL` and `URLSearchParams`, making maximally spec-compliant, supporting any environment keeping their source code small compact was [one of the hardest tasks](https://github.com/zloirock/core-js/pull/454/files) in the `core-js@3` development.
 
-`core-js@3` includes *a standard* method to create microtasks in JavaScript: [`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing). `core-js@2` provided the `asap` function which did the same thing and was an old ECMAScript proposal. `queueMicrotask` is defined in the HTML standard and it is already available in modern engines like Chromium or NodeJS.
+`core-js@3` includes _a standard_ method to create microtasks in JavaScript: [`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing). `core-js@2` provided the `asap` function which did the same thing and was an old ECMAScript proposal. `queueMicrotask` is defined in the HTML standard and it is already available in modern engines like Chromium or NodeJS.
 
 Another popular feature request was support for the [`.forEach` method on DOM collection](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach). Since `core-js` already polyfilled iterators of DOM collections, why not add also `.forEach` to `NodeList` and `DOMTokenList`?
 
@@ -128,7 +139,6 @@ Another popular feature request was support for the [`.forEach` method on DOM co
 - `Map.prototype.toJSON` and `Set.prototype.toJSON` also rejected a long time ago
 - Unnecessary `CSSRuleList`, `MediaList`, `StyleSheetList` iteration methods which were added mistakenly
 
-
 #### No more non-standard non-proposed features
 
 Many years ago, I started writing a library which I needed as the core of my JavaScript applications: this library contained polyfills and some utilities for common needs. After some time, it was published as `core-js`. I think that at this moment most `core-js` users do not use non-standard `core-js` features. Almost all of them were removed in previous releases, and it's time to remove all the remaining ones from `core-js`. Starting from this release, `core-js` can be finally called a polyfill.
@@ -136,6 +146,7 @@ Many years ago, I started writing a library which I needed as the core of my Jav
 ### Packages, entry points and modules names
 
 A popular issue was a big size (~2MB) of the `core-js` package and duplication of many of its files. For this reason, `core-js` was split into three packages:
+
 - [`core-js`](https://www.npmjs.com/package/core-js), which defines global polyfills. (~500KB, [40KB minified and gzipped](https://bundlephobia.com/result?p=core-js@3.0.0-beta.20))
 - [`core-js-pure`](https://www.npmjs.com/package/core-js-pure), which provides polyfills without pollution the global environment. It's the equivalent of `core-js/library` from `core-js@2`. (~440KB)
 - [`core-js-bundle`](https://www.npmjs.com/package/core-js-bundle): a bundled version of `core-js` which defines global polyfills.
@@ -145,6 +156,7 @@ In previous versions of `core-js`, modules with polyfills for stable ECMAScript 
 Almost all CommonJS entry points were changed. In `core-js@3` there are many more entry points than there were in `core-js@2`: they bring maximum flexibility, making it possible to include only the polyfills needed by your application.
 
 Here are some examples of how the new entry points can be used:
+
 ```js
 // polyfill all `core-js` features:
 import "core-js";
@@ -200,10 +212,13 @@ As mentioned above, `babel` and `core-js` are tightly integrated: `babel` gives 
 [`@babel/polyfill`](https://babeljs.io/docs/en/next/babel-polyfill.html) is a wrapper package which only includes imports of stable `core-js` features (in Babel 6 it also included proposals) and `regenerator-runtime/runtime`, needed by transpiled generators and async functions. This package doesn't make it possible to provide a smooth migration path from `core-js@2` to `core-js@3`: for this reason, it was decided to deprecate `@babel/polyfill` in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime`.
 
 Instead of
+
 ```js
 import "@babel/polyfill";
 ```
+
 you should use those 2 lines:
+
 ```js
 import "core-js/stable";
 import "regenerator-runtime/runtime";
@@ -226,6 +241,7 @@ Since `@babel/preset-env` now supports `core-js@2` and `core-js@3`, `useBuiltIns
 To make it possible for Babel to support new `core-js` features introduced in future minor versions, you also can specify the minor `core-js` version used in your project. For example, if you want to use `core-js@3.1` and take advantage of new features added in that version, you can set the `corejs` option to `3.1`: `corejs: '3.1'` or `corejs: { version: '3.1' }`.
 
 One of the most important parts of `@babel/preset-env` was the source providing data about the features supported by different target engines, to understand whether something needs to be polyfilled by `core-js` or not. [`caniuse`](https://caniuse.com/), [`mdn`](https://developer.mozilla.org/en-US/) and [`compat-table`](http://kangax.github.io/compat-table/es6/) are good educational resources but aren't really meant to be used as data sources for developer tools: only the `compat-table` contains a good set of ES-related data and it is used by `@babel/preset-env`, but it has some limitations:
+
 - it contains data only about ECMAScript features and proposals, but not about web platform features like `setImmediate` or DOM collections iterators. So, up to now, `@babel/preset-env` added all web platform features from `core-js` even for targets where they are supported.
 - it does not contain any information about (even serious) bugs in engines: for example, already mentioned `Array#reverse` broken in Safari 12 but it isn't marked as unsupported by `compat-table`. On the other hand, `core-js` correctly fixes broken implementations, but with `compat-table` this capability wasn't taken advantage of.
 - it contains only some basic and naive tests, which do not check that features work as they should in real-world cases. For example, old Safari has broken iterators without `.next` method, but `compat-table` shows them as supported because it just checks that `typeof` of methods which should return iterators is `"function"`. Some features like typed arrays are almost completely not covered.
@@ -244,12 +260,14 @@ Before those changes, `@babel/preset-env` replaced only `import '@babel/polyfill
 Since `@babel/polyfill` is now deprecated, `@babel/preset-env` doesn't transpile it when `corejs` is set to `3`.
 
 An equivalent replacement for `@babel/polyfill` with `core-js@3` is
+
 ```js
 import "core-js/stable";
 import "regenerator-runtime/runtime";
 ```
 
 When targeting `chrome 72`, it will be transformed by `@babel/preset-env` to
+
 ```js
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
@@ -258,6 +276,7 @@ import "core-js/modules/web.immediate";
 ```
 
 when targeting `chrome 73` (which completely support ES2019 standard library), it will just become a single smaller import:
+
 ```js
 import "core-js/modules/web.immediate";
 ```
@@ -267,12 +286,15 @@ Since now `@babel/polyfill` is deprecated in favor of separate `core-js` and `re
 Now, `@babel/preset-env` in `useBuiltIns: entry` mode transpile **all available** `core-js` entry points and their combinations. This means that you can customize it as much as you want, by using different `core-js` entry points, and it will be optimized for your target environment.
 
 For example, when targeting `chrome 72`,
+
 ```js
 import "core-js/es";
 import "core-js/proposals/set-methods";
 import "core-js/features/set/map";
 ```
+
 will be replaced with
+
 ```js
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
@@ -292,12 +314,14 @@ import "core-js/modules/esnext.set.union";
 When using this option, `@babel/preset-env` adds at the top of each file imports of polyfills only for features used in the current and not supported by target environments.
 
 For example,
+
 ```js
 const set = new Set([1, 2, 3]);
 [1, 2, 3].includes(2);
 ```
 
 when targeting an old browser like `ie 11`, will be transformed to
+
 ```js
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.array.iterator";
@@ -309,6 +333,7 @@ const set = new Set([1, 2, 3]);
 ```
 
 when targeting, for example, `chrome 72` no imports will be injected, since those polyfills not required for this target:
+
 ```js
 const set = new Set([1, 2, 3]);
 [1, 2, 3].includes(2);
@@ -329,10 +354,13 @@ When used with `core-js@3`, [`@babel/transform-runtime`](https://babeljs.io/docs
 `core-js@3` and `@babel/runtime` have been integrated together by adding a `corejs: 3` option to `@babel/transform-runtime` and creating the `@babel/runtime-corejs3` package. But what advantages did this bring?
 
 One of the most popular issue with `@babel/runtime` was that it did not support instance methods. Starting from `@babel/runtime-corejs3`, this problem has resolved. For example,
+
 ```js
 array.includes(something);
 ```
+
 will be transpiled to
+
 ```js
 import _includesInstanceProperty from "@babel/runtime-corejs3/core-js-stable/instance/includes";
 
@@ -342,18 +370,23 @@ _includesInstanceProperty(array).call(array, something);
 Another notable change is the support of ECMAScript proposals. By default, `@babel/plugin-transform-runtime` does not inject polyfills for proposals and use entry points which do not include them but, exactly as you can do in `@babel/preset-env`, you can set the `proposals` flag to enable them: `corejs: { version: 3, proposals: true }`.
 
 Without `proposals` flag,
+
 ```js
 new Set([1, 2, 3, 2, 1]);
 string.matchAll(/something/g);
 ```
+
 is transpiled to:
+
 ```js
 import _Set from "@babel/runtime-corejs3/core-js-stable/set";
 
 new _Set([1, 2, 3, 2, 1]);
 string.matchAll(/something/g);
 ```
+
 when proposals are enabled, it becomes:
+
 ```js
 import _Set from "@babel/runtime-corejs3/core-js/set";
 import _matchAllInstanceProperty from "@babel/runtime-corejs3/core-js/instance/match-all";
@@ -367,6 +400,7 @@ Some other old issues have been fixed. For example, this quite popular pattern d
 ```js
 myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 ```
+
 Although previous versions of `@babel/runtime` did not work with instance methods, iterables (both `[Symbol.iterator]()` calls and its presence) were supported using some custom helper functions. Extracting the `[Symbol.iterator]` method was not supported, but now it works.
 
 As a cheap bonus, `@babel/runtime` now supports IE8-, with some limitations. For example, since IE8- does not support accessors, modules transform should be used in loose mode and `regenerator-runtime` (which internally uses some ES5+ built-ins) needs to be transpiled by this plugin.
@@ -415,7 +449,7 @@ As explained above, Babel plugins give us different ways of optimizing `core-js`
 
 Another issue of `useBuiltIns: usage` is the duplication of polyfills import. `useBuiltIns: usage` can inject dozens of `core-js` imports in each file. But what if our project has thousands of files or even tenths of thousands? In this case, we will have more lines of code with `import "core-js/..."` than lines of code in `core-js` itself: we need a way to collect all imports to one file so that they can be deduplicated.
 
-Almost every `@babel/preset-env` user which targets old engines like IE11 uses a single bundle for every browser. That means that even modern engines with full ES2019 support will be loading the unnecessary polyfills only required by IE11. Sure, we can create different bundles for different targets and use, for example, the `type=module` / `nomodules`  attributes: one bundle for modern engines with modules support, another for legacy engines. Unfortunately, it’s not a complete solution to this problem: a service that bundles polyfills for the required target based on the user agent would be really useful. And we already have one - [`polyfill-service`](https://github.com/Financial-Times/polyfill-service). Although it is an interesting and popular service, polyfills quality leaves much to be desired. It’s not as bad as it was some years ago: the team of this project is actively working to improve it, but I wouldn't recommend using polyfills from this project if you want them to match native implementations. Some years ago was an attempt to use `core-js` as a polyfills source for this project, but it hadn't been possible because `polyfill-service` relies on files concatenation instead of modules (like `core-js` in the first few months after it was published 😊).
+Almost every `@babel/preset-env` user which targets old engines like IE11 uses a single bundle for every browser. That means that even modern engines with full ES2019 support will be loading the unnecessary polyfills only required by IE11. Sure, we can create different bundles for different targets and use, for example, the `type=module` / `nomodules` attributes: one bundle for modern engines with modules support, another for legacy engines. Unfortunately, it’s not a complete solution to this problem: a service that bundles polyfills for the required target based on the user agent would be really useful. And we already have one - [`polyfill-service`](https://github.com/Financial-Times/polyfill-service). Although it is an interesting and popular service, polyfills quality leaves much to be desired. It’s not as bad as it was some years ago: the team of this project is actively working to improve it, but I wouldn't recommend using polyfills from this project if you want them to match native implementations. Some years ago was an attempt to use `core-js` as a polyfills source for this project, but it hadn't been possible because `polyfill-service` relies on files concatenation instead of modules (like `core-js` in the first few months after it was published 😊).
 
 A service like this one integrated with a good polyfills source like `core-js`, which only loads the needed polyfills by statically analyzing the source like Babel's `useBuiltIns: usage` option does could cause a revolution in the way we think about polyfills.
 
@@ -436,6 +470,7 @@ More other, it will work asynchronously. It's a critical problem for feature det
 [The first implementation of built-in modules without a proper way of transpiling / polyfilling already available](https://developers.google.com/web/updates/2019/03/kv-storage). If it will not be revised, built-in modules will not be able to be polyfilled in the current `core-js` format. The proposed way of polyfilling will seriously complicate the lives of developers.
 
 The issue with the standard library can be solved by adding a new global (maybe it will be the last one?): a registry of built-in modules which will allow getting and setting them synchronously, like
+
 ```js
 StandardLibraryRegistry.get(moduleName);
 StandardLibraryRegistry.set(moduleName, value);
@@ -467,4 +502,4 @@ If you are interested in the `core-js` project or use it in your day-to-day work
 
 **Feel free to add comments to this article [here](https://github.com/zloirock/core-js/discussions/963).**
 
-**[Denis Pushkarev](https://github.com/zloirock)**, **19-03-2019**, *thanks [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) for redaction*
+**[Denis Pushkarev](https://github.com/zloirock)**, **19-03-2019**, _thanks [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) for redaction_

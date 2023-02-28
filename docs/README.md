@@ -21,10 +21,6 @@ features:
   - title: Widely used
     icon: ability
     details: Most popular polyfill of the JavaScript. 250 million downloads per month on NPM
-    
-  - title: Easy to use
-    icon: tool
-    details: Most people don't need to use core-js on its own, it is already integrated in compilers such as Babel and automatically enabled when needed
 
   - title: Powerful functionality
     icon: strong

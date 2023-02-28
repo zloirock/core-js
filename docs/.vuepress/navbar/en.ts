@@ -7,7 +7,7 @@ export const navbarEn = navbar([
     icon: "creative",
   },
   {
-    text: "Develope",
+    text: "Develop",
     link: "/dev/",
     icon: "debug",
   },
@@ -18,8 +18,25 @@ export const navbarEn = navbar([
   },
   {
     text: "About",
-    link: "/about/",
-    icon: "info",
+    prefix: "/about/",
+    icon: "more",
+    children: [
+      {
+        text: "This project",
+        icon: "info",
+        link: "README.md",
+      },
+      {
+        text: "Changelog",
+        icon: "time",
+        link: "changelog.md",
+      },
+    ],
+  },
+  {
+    text: "Blog",
+    link: "/blog/",
+    icon: "blog",
   },
   {
     text: "Sponsor",

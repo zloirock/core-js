@@ -2,7 +2,7 @@
 title: Donation
 description: Support this project
 icon: like
-index: false
+sidebar: false
 ---
 
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:

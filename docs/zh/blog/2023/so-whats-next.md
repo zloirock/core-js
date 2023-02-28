@@ -1,8 +1,14 @@
 ---
 title: What's next?
 author: zloirock
+category:
+  - blog
 date: 2023-02-14
 ---
+
+::: info
+待翻译
+:::
 
 # So, what's next?
 
@@ -12,6 +18,7 @@ Hi. I am (**[@zloirock](https://github.com/zloirock)**), a full-time open-source
 <summary><b>🔻 Click to see how you can help 🔻</b></summary>
 
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
+
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)
 - [**Boosty**](https://boosty.to/zloirock)
@@ -19,6 +26,7 @@ If you or your company use `core-js` in one way or another and are interested in
 - [**Alipay**](https://user-images.githubusercontent.com/2213682/219464783-c17ad329-17ce-4795-82a7-f609493345ed.png)
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
+
 </details>
 
 ## What is [`core-js`](https://github.com/zloirock/core-js)?
@@ -41,33 +49,43 @@ At this moment, this script running on the TOP 1000 websites **detects usage of 
 <p align="center"><img alt="whatsapp" width="720" src="https://user-images.githubusercontent.com/2213682/153953087-8e3891aa-f00a-4882-a338-f4cc7496581b.png" /></p>
 
 ---
+
 <p align="center"><img alt="linkedin" width="720" src="https://user-images.githubusercontent.com/2213682/190879234-30c15dbb-cd5e-4056-8f32-2eac67ef9e89.png" /></p>
 
 ---
+
 <p align="center"><img alt="netflix" width="720" src="https://user-images.githubusercontent.com/2213682/213377001-2af36bac-0577-4e34-a4fc-a49ca06e9f04.png" /></p>
 
 ---
+
 <p align="center"><img alt="qq" width="720" src="https://user-images.githubusercontent.com/2213682/213378031-57496cb0-b6b6-4cc8-9656-f126820db26f.png" /></p>
 
 ---
+
 <p align="center"><img alt="ebay" width="720" src="https://user-images.githubusercontent.com/2213682/213379258-eba54efb-1c65-451a-91af-9f9978ece5a7.png" /></p>
 
 ---
+
 <p align="center"><img alt="apple" width="720" src="https://user-images.githubusercontent.com/2213682/161145359-812efe4c-33c9-4905-96b9-fef23d2d969e.png" /></p>
 
 ---
+
 <p align="center"><img alt="fandom" width="720" src="https://user-images.githubusercontent.com/2213682/218451581-5cae922c-f782-4e44-8385-a443ef0f8232.png" /></p>
 
 ---
+
 <p align="center"><img alt="pornhub" width="720" src="https://user-images.githubusercontent.com/2213682/174662177-5767c34b-f347-4045-96da-5b0783a1345b.png" /></p>
 
 ---
+
 <p align="center"><img alt="paypal" width="720" src="https://user-images.githubusercontent.com/2213682/218453759-d15fc6c4-4246-479d-aea6-b9123ecb59a2.png" /></p>
 
 ---
+
 <p align="center"><img alt="binance" width="720" src="https://user-images.githubusercontent.com/2213682/213380797-70a61338-2152-4642-b0e7-affebe2c3b71.png" /></p>
 
 ---
+
 <p align="center"><img alt="spotify" width="720" src="https://user-images.githubusercontent.com/2213682/213381068-fb73821f-3cfa-4f37-9096-305587c16ef8.png" /></p>
 
 **With such a manual check, you can find `core-js` on about 75-80% of the top 100 websites** while the script found it on about 55-60%. On a larger sample the percentage, of course, decreases.
@@ -100,13 +118,13 @@ Given the prevalence of old JavaScript engines and the fact that users were in n
 
 It was a time when ECMAScript transpilers started to become popular and develop actively. However, at the same time, polyfills have barely evolved according to users' and real-life projects' needs. They were not modular. They could not be used without global namespace pollution — so they were not suitable for libraries. They weren't a single complex — it was required to use multiple different polyfill libraries from different authors and somehow make them work together — but in some cases, it was almost impossible. Too many necessary fundamental language features were just missing.
 
-To fix these problems, at the end of 2012, initially for my own projects, I started to work on a project that was later called `core-js`. I wanted to make the life of all JS developers easier and in November 2014, I published `core-js` as an open-source project. *Maybe it was the biggest mistake in my life.*
+To fix these problems, at the end of 2012, initially for my own projects, I started to work on a project that was later called `core-js`. I wanted to make the life of all JS developers easier and in November 2014, I published `core-js` as an open-source project. _Maybe it was the biggest mistake in my life._
 
 Since I was not the only one who faced these issues, after a few months, `core-js` has already become the de facto standard of polyfill for JavaScript standard library features. `core-js` was integrated into Babel (`6to5` at that moment) which appeared a couple of months before `core-js` was published — some of the aforementioned issues were critical for that project too. `core-js` began to be distributed as `6to5/polyfill`; and after rebranding as `babel-polyfill`. After a few months of collaboration, a tool has appeared, which became `babel-runtime` after rebranding and evolution. A few months later `core-js` was integrated into the key frameworks.
 
 ### Ensuring compatibility for the whole Web
 
-I didn't promote myself or the project. *This is the second mistake.* `core-js` didn't have a website or social media accounts, only GitHub. I did not show up at conferences to talk about it. I wrote almost no posts about it. I was just making a really useful and wanted part of the modern development stack, and I was happy about that. I gave developers a chance to use the most modern and really necessary JavaScript features without waiting for years until they are implemented in all required engines, without thinking about compatibility and bugs — and they started to use it. The spread of the project had grown exponentially — very soon it was already used on dozens of percent of popular websites.
+I didn't promote myself or the project. _This is the second mistake._ `core-js` didn't have a website or social media accounts, only GitHub. I did not show up at conferences to talk about it. I wrote almost no posts about it. I was just making a really useful and wanted part of the modern development stack, and I was happy about that. I gave developers a chance to use the most modern and really necessary JavaScript features without waiting for years until they are implemented in all required engines, without thinking about compatibility and bugs — and they started to use it. The spread of the project had grown exponentially — very soon it was already used on dozens of percent of popular websites.
 
 However, it was just the start of the required work. Many years of hard work followed. Almost every day I spent some hours on `core-js` and maintenance of related projects (mainly Babel and [`compat-table`](https://kangax.github.io/compat-table/es2016plus/)).
 
@@ -120,7 +138,7 @@ I tried to find other maintainers or at least constant contributors for `core-js
 
 After a few years combining full-time work and FOSS became almost impossible — no one wanted to pay money for the working time devoted to FOSS, non-working hours were not enough, and sometimes `core-js` required complete immersion for weeks. I thought that proper polyfilling is required for the community and money was not my priority.
 
-I left a high-paying job and did not accept some very good options because in those positions I would not have had the opportunity to devote enough time to work on open-source. I started to work on open-source full-time. No one paid me for it. I hoped sooner or later to find a job where I could fully dedicate myself to open-source and web standards. Periodically, I earned the money required for living and work on FOSS, on short-term contracts. I returned to Russia, where it was possible to have a decent standard of living with relatively little money. *One more mistake — as you will see below, money matters.*
+I left a high-paying job and did not accept some very good options because in those positions I would not have had the opportunity to devote enough time to work on open-source. I started to work on open-source full-time. No one paid me for it. I hoped sooner or later to find a job where I could fully dedicate myself to open-source and web standards. Periodically, I earned the money required for living and work on FOSS, on short-term contracts. I returned to Russia, where it was possible to have a decent standard of living with relatively little money. _One more mistake — as you will see below, money matters._
 
 ---
 
@@ -128,7 +146,7 @@ Until April 2019, for about one and a half years as a whole and about a half-yea
 
 ### Accident
 
-Shit happened 3 weeks after the `core-js@3` release. One April night, at 3 AM, I was driving home. Two deadly drunk 18-years-old girls in dark clothes decided somehow *to crawl* across a poorly lit highway — one of them laid down on the road, another sat down and dragged the first, but not from the road — directly under my wheels. That's what the witnesses said. I had absolutely no chance to see them. One more witness said that before the accident they were just jokingly fighting on the road. Nothing unusual, it's Russia. One of them died and another girl went to the hospital. However, even in this case, according to Russian arbitrage practice, if the driver is not a son of a deputy or someone like that, he would almost always be found guilty — he has to see and anticipate everything, and a pedestrian owes nothing to anyone. I could end up in prison for a long time, IIRC later the prosecutor requested 7 years.
+Shit happened 3 weeks after the `core-js@3` release. One April night, at 3 AM, I was driving home. Two deadly drunk 18-years-old girls in dark clothes decided somehow _to crawl_ across a poorly lit highway — one of them laid down on the road, another sat down and dragged the first, but not from the road — directly under my wheels. That's what the witnesses said. I had absolutely no chance to see them. One more witness said that before the accident they were just jokingly fighting on the road. Nothing unusual, it's Russia. One of them died and another girl went to the hospital. However, even in this case, according to Russian arbitrage practice, if the driver is not a son of a deputy or someone like that, he would almost always be found guilty — he has to see and anticipate everything, and a pedestrian owes nothing to anyone. I could end up in prison for a long time, IIRC later the prosecutor requested 7 years.
 
 The only way not to end up in prison was reconciliation with "victims" — a standard practice after such accidents — and a good lawyer. Within a few weeks after the accident, I received financial claims totaling about 80 thousand dollars at the exchange rate at that time from "victims'" relatives. A significant amount of money was also needed for a lawyer.
 
@@ -202,7 +220,7 @@ I saw dozens of articles, hundreds of posts, and thousands of comments the essen
 
 <p align="center"><img alt="reddit" width="720" src="https://user-images.githubusercontent.com/2213682/218419779-d61c9e39-c8c1-412b-83aa-eb1b12d2e760.png" /></p>
 
-What do you think I did? *Of course, I made the same mistake.* I saw some people who supported the development of `core-js`, many issues, questions, and messages — sure, not as many as angry comments. `core-js` became even more popular and was already used by almost the same percentage of websites as it is now.
+What do you think I did? _Of course, I made the same mistake._ I saw some people who supported the development of `core-js`, many issues, questions, and messages — sure, not as many as angry comments. `core-js` became even more popular and was already used by almost the same percentage of websites as it is now.
 
 ### Ensuring compatibility for the whole Web again
 
@@ -252,7 +270,7 @@ Let me remind you what I wrote about above: I returned to Russia because it was 
 
 When I started to maintain `core-js` full-time, without being distracted by contracts and any other work, **it was about \$2500 per month — it was about 4-5 times less than I usually had on full-time contracts**. Remember, a kind of down-shifting, to make the Web better. Temporarily. Reduce issues and bugs to zero, make the highest quality product, which is used by almost everyone... and the project will be sufficiently supported, right? Right?
 
-After a few months, the reoccurring monthly income **decreased to about \$1700** *(at least that's what I thought)*, \$1000 via Tidelift, \$600 via Open Collective, and \$100 via Patreon. In addition to the reoccurring monthly, one-time donations came periodically (on average it was maybe \$100 per month).
+After a few months, the reoccurring monthly income **decreased to about \$1700** _(at least that's what I thought)_, \$1000 via Tidelift, \$600 via Open Collective, and \$100 via Patreon. In addition to the reoccurring monthly, one-time donations came periodically (on average it was maybe \$100 per month).
 
 Crypto? Adding a crypto wallet for donations was a very popular request. However, for all the time, only 2 transfers for a total amount of about \$200 have been received on crypto wallets, the last one was more than a year ago. GitHub sponsors? It's not available in Russia and never was. PayPal? It's banned for Russians. When it was available, `core-js` received about \$60 in all that time. Grants? I applied for a lot of grants — all applications were ignored.
 
@@ -266,7 +284,7 @@ If someone says that they don't know that `core-js` requires funding... Come on,
 
 ---
 
-A year ago, Tidelift stopped sending me money. They said that because of the political situation, the Hyperwallet, that they used, is no longer available to Russians (but it was available to me till last month when I tried to update some personal data), and for safety, they will store my money on their side. Over the previous couple of months, I tried to get this money to a bank or a Hyperwallet account, but only received replies that they will try to do something (*sounds great, doesn't it?*). Since the end of the last year, they have just stopped responding to emails. And now, I've got this:
+A year ago, Tidelift stopped sending me money. They said that because of the political situation, the Hyperwallet, that they used, is no longer available to Russians (but it was available to me till last month when I tried to update some personal data), and for safety, they will store my money on their side. Over the previous couple of months, I tried to get this money to a bank or a Hyperwallet account, but only received replies that they will try to do something (_sounds great, doesn't it?_). Since the end of the last year, they have just stopped responding to emails. And now, I've got this:
 
 ![tidelift](https://user-images.githubusercontent.com/2213682/217650273-548d123d-4ee4-4beb-ad5b-631c55e612a6.png)
 
@@ -388,7 +406,7 @@ Now let's move away from the negative to the second half of this post where we w
 
 # Roadmap
 
-JavaScript, browsers, and web development are evolving at an amazing speed. The time when almost all of the `core-js` modules were required for all browsers is gone. The latest browsers have good standards support and, in the common use cases, they need only some percentage of the `core-js` modules for the most recent language features and bug fixes. Some companies are already dropping support for IE11 which was recently  "buried" once more. However, even without IE, old browsers will always be there, bugs will happen in modern browsers too, and new language features will appear regularly and they will appear in browsers with a delay anyway; so, if we want to use modern JS in development and minimize possible problems, polyfills stay with us for a long time, but they should continue to evolve.
+JavaScript, browsers, and web development are evolving at an amazing speed. The time when almost all of the `core-js` modules were required for all browsers is gone. The latest browsers have good standards support and, in the common use cases, they need only some percentage of the `core-js` modules for the most recent language features and bug fixes. Some companies are already dropping support for IE11 which was recently "buried" once more. However, even without IE, old browsers will always be there, bugs will happen in modern browsers too, and new language features will appear regularly and they will appear in browsers with a delay anyway; so, if we want to use modern JS in development and minimize possible problems, polyfills stay with us for a long time, but they should continue to evolve.
 
 Here I will write (almost) nothing about adding new or improving existing specific polyfills (but, sure, it's one of the main parts of `core-js` development), let's talk about some other crucial moments without focusing on minor things. If it is decided to make a commercial project from `core-js`, the roadmap will be adapted to this outcome.
 
@@ -440,7 +458,7 @@ The IE9-10 segment of browsers already is also small — at this moment, the sam
 
 ### ECMAScript modules and modern syntax
 
-At this moment, `core-js` uses CommonJS modules. For a long time, it was the most popular JavaScript modules format, but now ECMAScript provides its own modules format and it's already very popular and supported *almost* everywhere. For example, Deno, like browsers, doesn't support CommonJS, but supports ES modules. `core-js` should get an ECMAScript modules version in the near future. But, for example, on NodeJS, ECMAScript modules are supported only in the modern versions — but on NodeJS `core-js` should work without transpiling / bundling even in ancient versions, [Electron still does not support it](https://github.com/electron/electron/issues/21457), etc., so it's problematic to get rid of the CommonJS version immediately.
+At this moment, `core-js` uses CommonJS modules. For a long time, it was the most popular JavaScript modules format, but now ECMAScript provides its own modules format and it's already very popular and supported _almost_ everywhere. For example, Deno, like browsers, doesn't support CommonJS, but supports ES modules. `core-js` should get an ECMAScript modules version in the near future. But, for example, on NodeJS, ECMAScript modules are supported only in the modern versions — but on NodeJS `core-js` should work without transpiling / bundling even in ancient versions, [Electron still does not support it](https://github.com/electron/electron/issues/21457), etc., so it's problematic to get rid of the CommonJS version immediately.
 
 The situation with the rest of modern syntax is not so obvious. At this moment, `core-js` uses ES3 syntax. Initially, it was for maximal optimization since it should be pre-transpiled to old syntax anyway. But it was true only initially. Now, `core-js` just can't be properly transpiled in userland and should be ignored in transpiler configs. Why? Let's take a look, for example, at Babel transforms:
 
@@ -512,9 +530,9 @@ It's not an ideal illustration for this issue, many other examples would have be
 
 <p align="center"><img alt="bundlescanner" width="720" src="https://user-images.githubusercontent.com/2213682/181242201-ec16dd17-f4dd-4706-abf5-36e764c72e22.png" /></p>
 
-As shown in the practice, since such analysis it's not a simple work, this tool detects only about half of libraries' code. However, in addition to 450 kilobytes of `core-js`, we see hundreds of kilobytes of other polyfills — many copies of `es6-promise`, `promise-polyfill`, `whatwg-fetch` ([for the above reason](#web-standards-polyfills), `core-js` *still* does not polyfill it), `string.prototype.codepointat`, `object-assign` (it's a *ponyfill* and the next section is about them), `array-find-index`, etc.
+As shown in the practice, since such analysis it's not a simple work, this tool detects only about half of libraries' code. However, in addition to 450 kilobytes of `core-js`, we see hundreds of kilobytes of other polyfills — many copies of `es6-promise`, `promise-polyfill`, `whatwg-fetch` ([for the above reason](#web-standards-polyfills), `core-js` _still_ does not polyfill it), `string.prototype.codepointat`, `object-assign` (it's a _ponyfill_ and the next section is about them), `array-find-index`, etc.
 
-But how many polyfills were not detected? What's the size of all polyfills that this website loads? It seems a couple of megabytes. However, even for *very* old browsers, at most a hundred kilobytes are more than be enough... And this situation is not something unique — it's a too common problem.
+But how many polyfills were not detected? What's the size of all polyfills that this website loads? It seems a couple of megabytes. However, even for _very_ old browsers, at most a hundred kilobytes are more than be enough... And this situation is not something unique — it's a too common problem.
 
 Since many of those polyfills contain just a subset of `core-js` functionality, in the scope of `@core-js/compat`, we could collect data that will show if a module is an unnecessary third-party polyfill or not and, if this functionality is contained in `core-js`, a transpiler or bundler plugin will remove the import of this module or will replace it to the import of suitable `core-js` modules.
 
@@ -561,6 +579,7 @@ Most of the above is about minimizing the size of polyfills sent to the client �
 This was the last attempt to keep `core-js` as a free open-source project with a proper quality and functionality level. It was the last attempt to convey that there are real people on the other side of open-source with families to feed and problems to solve.
 
 If you or your company use `core-js` in one way or another and are interested in the quality of your supply chain, support the project:
+
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)
 - [**Boosty**](https://boosty.to/zloirock)

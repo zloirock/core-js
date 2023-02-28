@@ -1,9 +1,11 @@
 import { defineUserConfig } from "vuepress";
+import { getDirname, path } from "@vuepress/utils";
 import { hopeTheme } from "vuepress-theme-hope";
 import searchPlugin from "@vuepress/plugin-search";
 import { navbarEn, navbarZh } from "./navbar/index.js";
 import { sidebarEn, sidebarZh } from "./sidebar/index.js";
 
+const __dirname = getDirname(import.meta.url);
 export default defineUserConfig({
   lang: "en-US",
   title: "Core-JS",
@@ -30,13 +32,23 @@ export default defineUserConfig({
         sidebar: sidebarZh,
       },
     },
-    copyright: "&copy 2014-2023 zloirock and contributors",
+    copyright: `&copy 2014-${new Date().getFullYear()} zloirock and contributors`,
+    displayFooter: true,
     plugins: {
+      blog: {
+        article: "/blog/",
+        filter: (page) => /^((\/zh)?\/blog\/(.+))/.test(page.path),
+      },
       mdEnhance: {
+        attrs: true,
         imgLazyload: true,
         tasklist: true,
       },
     },
   }),
-  plugins: [searchPlugin()],
+  alias: {
+    "@compat-tests": () =>
+      path.resolve(__dirname, "..", "..", "tests", "compat", "tests.js"),
+  },
+  plugins: [searchPlugin],
 });

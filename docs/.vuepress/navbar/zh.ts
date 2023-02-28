@@ -18,8 +18,25 @@ export const navbarZh = navbar([
   },
   {
     text: "关于",
-    link: "/zh/about/",
-    icon: "info",
+    prefix: "/zh/about/",
+    icon: "more",
+    children: [
+      {
+        text: "本项目",
+        icon: "info",
+        link: "README.md",
+      },
+      {
+        text: "变更日志",
+        icon: "time",
+        link: "changelog.md",
+      },
+    ],
+  },
+  {
+    text: "博客",
+    link: "/zh/blog",
+    icon: "blog",
   },
   {
     text: "赞助",

@@ -16,6 +16,13 @@ export const sidebarZh = sidebar({
       collapsible: true,
     },
     {
+      text: "关于",
+      icon: "about",
+      prefix: "about/",
+      children: "structure",
+      collapsible: true,
+    },
+    {
       text: "赞助",
       icon: "like",
       link: "donate.md",

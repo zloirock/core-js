@@ -13,7 +13,7 @@ Contributions are always welcome. If you don't know how you can help, you can ch
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
-- Document it in [README.md](./README.md) and [CHANGELOG.md](./CHANGELOG.md).
+- Document it in [README.md](./README.md) and [CHANGELOG.md](/about/changelog.md).
 
 ## How to update `core-js-compat` data
 

@@ -1,4 +1,6 @@
 {
+  "name": "core-js",
+  "private": true,
   "version": "3.28.0",
   "repository": {
     "type": "git",
@@ -92,7 +94,6 @@
     "@babel/plugin-transform-spread": "^7.20.7",
     "@babel/plugin-transform-template-literals": "^7.18.9",
     "@babel/plugin-transform-unicode-regex": "^7.18.6",
-    "@vuepress/plugin-search": "^2.0.0-beta.60",
     "konan": "^2.1.1",
     "npm-run-all2": "^6.0.4",
     "semver": "^7.3.8",
