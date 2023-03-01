@@ -78,30 +78,37 @@ onMounted(async () => {
 </script>
 
 <style lang="scss">
+.page-reading-time-info {
+  display: none !important;
+}
+
 .compat {
-  .nodata {
-    color: grey;
-  }
+  max-width: 80%;
+  margin: 0 auto;
+}
 
-  .testing {
-    color: #eecc11;
-  }
+.nodata {
+  color: grey;
+}
 
-  .true {
-    color: #00882c;
-  }
+.testing {
+  color: #eecc11;
+}
 
-  .false {
-    color: #e11;
-  }
+.true {
+  color: #00882c;
+}
+
+.false {
+  color: #e11;
 }
 </style>
 
 <template>
   <CommonWrapper>
     <NormalPage>
-      <template #content-after>
-        <table class="theme-hope-content compat">
+      <template #content-after> <!-- Use contentAfter when upgrade to >= 2.0.0-beta.184 -->
+        <table class="compat">
           <tr>
             <th>module</th>
             <th v-for="env in environments" v-html="env.replace(/-/g, '<br />')" :key="env"></th>

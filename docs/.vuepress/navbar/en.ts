@@ -12,7 +12,7 @@ export const navbarEn = navbar([
     icon: "debug",
   },
   {
-    text: "Compat Data",
+    text: "Compatibility",
     link: "/compat.md",
     icon: "form",
   },
