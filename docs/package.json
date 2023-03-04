@@ -1,6 +1,7 @@
 {
   "name": "corejs-doc",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vuepress dev",
     "build": "vuepress build"

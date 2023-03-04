@@ -9,7 +9,39 @@ export const sidebarEn = sidebar({
       collapsible: true,
     },
     {
-      text: "Develop",
+      text: "Features",
+      icon: "object",
+      prefix: "features/",
+      children: [
+        {
+          text: "ES Standards",
+          prefix: "es-standard/",
+          children: "structure",
+          collapsible: true,
+        },
+        {
+          text: "ES Proposals",
+          prefix: "es-proposal/",
+          children: "structure",
+          collapsible: true,
+        },
+        {
+          text: "Web Standards",
+          prefix: "web-standard/",
+          children: "structure",
+          collapsible: true,
+        },
+        {
+          text: "Helpers",
+          prefix: "helper/",
+          children: "structure",
+          collapsible: true,
+        },
+      ],
+      collapsible: true,
+    },
+    {
+      text: "Development",
       icon: "debug",
       prefix: "dev/",
       children: "structure",

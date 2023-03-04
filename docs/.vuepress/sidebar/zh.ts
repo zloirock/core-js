@@ -9,6 +9,13 @@ export const sidebarZh = sidebar({
       children: "structure",
     },
     {
+      text: "功能",
+      icon: "object",
+      prefix: "features/",
+      children: "structure",
+      collapsible: true,
+    },
+    {
       text: "开发",
       icon: "debug",
       prefix: "dev/",

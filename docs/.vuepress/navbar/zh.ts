@@ -17,12 +17,12 @@ export const navbarZh = navbar([
     icon: "form",
   },
   {
-    text: "关于",
+    text: "项目",
     prefix: "/zh/about/",
     icon: "more",
     children: [
       {
-        text: "本项目",
+        text: "关于",
         icon: "info",
         link: "README.md",
       },

@@ -7,7 +7,30 @@ export const navbarEn = navbar([
     icon: "creative",
   },
   {
-    text: "Develop",
+    text: "Features",
+    icon: "object",
+    prefix: "features/",
+    children: [
+      {
+        text: "ES Standards",
+        link: "es-standard/README.md",
+      },
+      {
+        text: "ES Proposals",
+        link: "es-proposal/README.md",
+      },
+      {
+        text: "Web Standards",
+        link: "web-standard/README.md",
+      },
+      {
+        text: "Helpers",
+        link: "helper/README.md",
+      },
+    ],
+  },
+  {
+    text: "Development",
     link: "/dev/",
     icon: "debug",
   },
@@ -17,12 +40,12 @@ export const navbarEn = navbar([
     icon: "form",
   },
   {
-    text: "About",
+    text: "Project",
     prefix: "/about/",
     icon: "more",
     children: [
       {
-        text: "This project",
+        text: "About",
         icon: "info",
         link: "README.md",
       },

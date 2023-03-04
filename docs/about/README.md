@@ -1,7 +1,9 @@
 ---
 title: About Core-JS
 ---
+
 # What is core-js?
+
 - It is a polyfill of the JavaScript standard library, which supports:
   - The latest ECMAScript standard.
   - ECMAScript standard library proposals.
