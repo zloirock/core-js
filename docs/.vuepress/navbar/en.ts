@@ -9,7 +9,7 @@ export const navbarEn = navbar([
   {
     text: "Features",
     icon: "object",
-    prefix: "features/",
+    prefix: "/features/",
     children: [
       {
         text: "ES Standards",
@@ -30,7 +30,7 @@ export const navbarEn = navbar([
     ],
   },
   {
-    text: "Development",
+    text: "Contributing",
     link: "/dev/",
     icon: "debug",
   },
@@ -41,25 +41,24 @@ export const navbarEn = navbar([
   },
   {
     text: "Project",
-    prefix: "/about/",
     icon: "more",
     children: [
       {
         text: "About",
         icon: "info",
-        link: "README.md",
+        link: "/about/README.md",
       },
       {
         text: "Changelog",
         icon: "time",
-        link: "changelog.md",
+        link: "/about/changelog.md",
+      },
+      {
+        text: "Blog",
+        link: "/blog/",
+        icon: "blog",
       },
     ],
-  },
-  {
-    text: "Blog",
-    link: "/blog/",
-    icon: "blog",
   },
   {
     text: "Sponsor",
