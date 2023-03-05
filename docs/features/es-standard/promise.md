@@ -1,6 +1,11 @@
 # `Promise`
 
-Modules [`es.promise`](/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](/packages/core-js/modules/es.promise.finally.js).
+## Modules
+
+- [`es.promise`](/packages/core-js/modules/es.promise.js)
+- [`es.promise.all-settled`](/packages/core-js/modules/es.promise.all-settled.js)
+- [`es.promise.any`](/packages/core-js/modules/es.promise.any.js)
+- [`es.promise.finally`](/packages/core-js/modules/es.promise.finally.js).
 
 ## Types
 

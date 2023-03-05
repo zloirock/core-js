@@ -2,8 +2,7 @@
 
 ## Modules
 
-[`es.symbol`](/packages/core-js/modules/es.symbol.js)
-
+- [`es.symbol`](/packages/core-js/modules/es.symbol.js)
 - [`es.symbol.async-iterator`](/packages/core-js/modules/es.symbol.async-iterator.js)
 - [`es.symbol.description`](/packages/core-js/modules/es.symbol.description.js)
 - [`es.symbol.has-instance`](/packages/core-js/modules/es.symbol.has-instance.js)

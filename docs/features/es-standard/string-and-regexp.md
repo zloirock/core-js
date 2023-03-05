@@ -1,12 +1,60 @@
 # `String` and `RegExp`
 
-The main part of `String` features: modules [`es.string.from-code-point`](/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](/packages/core-js/modules/es.string.replace-all.js), [`es.string.at-alternative`](/packages/core-js/modules/es.string.at-alternative.js).
+## Modules
 
-Adding support of well-known [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](/packages/core-js/modules/es.string.match.js), [`es.string.replace`](/packages/core-js/modules/es.string.replace.js), [`es.string.search`](/packages/core-js/modules/es.string.search.js) and [`es.string.split`](/packages/core-js/modules/es.string.split.js).
+The main part of `String` features:
 
-Annex B methods. Modules [`es.string.anchor`](/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](/packages/core-js/modules/es.string.big.js), [`es.string.blink`](/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](/packages/core-js/modules/es.string.italics.js), [`es.string.link`](/packages/core-js/modules/es.string.link.js), [`es.string.small`](/packages/core-js/modules/es.string.small.js), [`es.string.strike`](/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](/packages/core-js/modules/es.string.sub.js), [`es.string.sup`](/packages/core-js/modules/es.string.sup.js), [`es.string.substr`](/packages/core-js/modules/es.string.substr.js), [`es.escape`](/packages/core-js/modules/es.escape.js) and [`es.unescape`](/packages/core-js/modules/es.unescape.js).
+- [`es.string.from-code-point`](/packages/core-js/modules/es.string.from-code-point.js)
+- [`es.string.raw`](/packages/core-js/modules/es.string.raw.js)
+- [`es.string.iterator`](/packages/core-js/modules/es.string.iterator.js)
+- [`es.string.split`](/packages/core-js/modules/es.string.split.js)
+- [`es.string.code-point-at`](/packages/core-js/modules/es.string.code-point-at.js)
+- [`es.string.ends-with`](/packages/core-js/modules/es.string.ends-with.js)
+- [`es.string.includes`](/packages/core-js/modules/es.string.includes.js)
+- [`es.string.repeat`](/packages/core-js/modules/es.string.repeat.js)
+- [`es.string.pad-start`](/packages/core-js/modules/es.string.pad-start.js)
+- [`es.string.pad-end`](/packages/core-js/modules/es.string.pad-end.js)
+- [`es.string.starts-with`](/packages/core-js/modules/es.string.starts-with.js)
+- [`es.string.trim`](/packages/core-js/modules/es.string.trim.js)
+- [`es.string.trim-start`](/packages/core-js/modules/es.string.trim-start.js)
+- [`es.string.trim-end`](/packages/core-js/modules/es.string.trim-end.js)
+- [`es.string.match-all`](/packages/core-js/modules/es.string.match-all.js)
+- [`es.string.replace-all`](/packages/core-js/modules/es.string.replace-all.js)
+- [`es.string.at-alternative`](/packages/core-js/modules/es.string.at-alternative.js)
 
-`RegExp` features: modules [`es.regexp.constructor`](/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](/packages/core-js/modules/es.regexp.test.js).
+Adding support of well-known [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods:
+
+- [`es.string.match`](/packages/core-js/modules/es.string.match.js)
+- [`es.string.replace`](/packages/core-js/modules/es.string.replace.js)
+- [`es.string.search`](/packages/core-js/modules/es.string.search.js)
+- [`es.string.split`](/packages/core-js/modules/es.string.split.js)
+
+Annex B methods:
+
+- [`es.string.anchor`](/packages/core-js/modules/es.string.anchor.js)
+- [`es.string.big`](/packages/core-js/modules/es.string.big.js)
+- [`es.string.blink`](/packages/core-js/modules/es.string.blink.js)
+- [`es.string.bold`](/packages/core-js/modules/es.string.bold.js)
+- [`es.string.fixed`](/packages/core-js/modules/es.string.fixed.js)
+- [`es.string.fontcolor`](/packages/core-js/modules/es.string.fontcolor.js)
+- [`es.string.fontsize`](/packages/core-js/modules/es.string.fontsize.js)
+- [`es.string.italics`](/packages/core-js/modules/es.string.italics.js)
+- [`es.string.link`](/packages/core-js/modules/es.string.link.js)
+- [`es.string.small`](/packages/core-js/modules/es.string.small.js)
+- [`es.string.strike`](/packages/core-js/modules/es.string.strike.js)
+- [`es.string.sub`](/packages/core-js/modules/es.string.sub.js)
+- [`es.string.sup`](/packages/core-js/modules/es.string.sup.js)
+- [`es.string.substr`](/packages/core-js/modules/es.string.substr.js)
+- [`es.escape`](/packages/core-js/modules/es.escape.js)
+- [`es.unescape`](/packages/core-js/modules/es.unescape.js)
+
+`RegExp` features:
+
+- [`es.regexp.constructor`](/packages/core-js/modules/es.regexp.constructor.js)
+- [`es.regexp.dot-all`](/packages/core-js/modules/es.regexp.dot-all.js)
+- [`es.regexp.flags`](/packages/core-js/modules/es.regexp.flags.js)
+- [`es.regexp.sticky`](/packages/core-js/modules/es.regexp.sticky.js)
+- [`es.regexp.test`](/packages/core-js/modules/es.regexp.test.js)
 
 ## Types
 
@@ -72,8 +120,6 @@ function unescape(string: string): string;
 
 ## Entry points
 
-
-
 ```
 core-js(-pure)/es|stable|actual|full/string
 core-js(-pure)/es|stable|actual|full/string/from-code-point
@@ -123,7 +169,9 @@ core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
 
-[_Examples_](https://is.gd/Q8eRhG):
+## Example
+
+[_Example_](https://is.gd/Q8eRhG):
 
 ```js
 for (let value of "a𠮷b") {
