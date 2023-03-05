@@ -2203,6 +2203,7 @@ export const data = {
   },
   'esnext.string.is-well-formed': {
     bun: '0.4.0',
+    chrome: '111',
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
@@ -2212,6 +2213,7 @@ export const data = {
     // Safari ToString conversion bug
     // https://bugs.webkit.org/show_bug.cgi?id=251757
     bun: '0.5.7', // '0.4.0',
+    chrome: '111',
   },
   'esnext.symbol.async-dispose': {
   },
