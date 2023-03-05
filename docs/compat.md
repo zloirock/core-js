@@ -3,6 +3,16 @@ title: Compatibility data
 icon: form
 sidebar: false
 layout: CompatPage
+head:
+  - - script
+    - nomodule: ""
+      src: /compat/compat-data.js
+  - - script
+    - nomodule: ""
+      src: /compat/tests.js
+  - - script
+    - nomodule: ""
+      src: /compat/browsers-runner.js
 ---
 
 ## About
