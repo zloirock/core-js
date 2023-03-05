@@ -90,8 +90,7 @@ onMounted(async () => {
 <template>
   <CommonWrapper>
     <NormalPage>
-      <template #content-after>
-        <!-- Use contentAfter when upgrade to >= 2.0.0-beta.184 -->
+      <template #contentAfter>
         <table class="theme-hope-content compat">
           <tr>
             <th>module</th>

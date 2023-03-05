@@ -10,6 +10,6 @@
     "@vuepress/plugin-search": "2.0.0-beta.61",
     "core-js-compat": "^3.28.0",
     "vuepress": "2.0.0-beta.61",
-    "vuepress-theme-hope": "2.0.0-beta.183"
+    "vuepress-theme-hope": "2.0.0-beta.189"
   }
 }
