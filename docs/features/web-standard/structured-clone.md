@@ -1,6 +1,10 @@
 # `structuredClone`
 
-[Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone), module [`web.structured-clone`](/packages/core-js/modules/web.structured-clone.js)
+[Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)
+
+## Module
+
+[`web.structured-clone`](/packages/core-js/modules/web.structured-clone.js)
 
 ## Types
 
@@ -10,13 +14,13 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 
 ## Entry points
 
-
-
 ```
 core-js(-pure)/stable|actual|full/structured-clone
 ```
 
-[_Examples_](https://is.gd/RhK7TW):
+## Example
+
+[_Example_](https://is.gd/RhK7TW):
 
 ```js
 const structured = [{ a: 42 }];
@@ -53,7 +57,7 @@ structuredClone(new ImageData(8, 8)); // => new ImageData(8, 8)
 structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
 
-## Caveats when using `structuredClone` polyfill:[⬆](#index)
+## Caveats when using `structuredClone` polyfill
 
 - `ArrayBuffer` instances and many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
 - Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.

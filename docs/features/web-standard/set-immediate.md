@@ -1,6 +1,9 @@
 # `setImmediate`
 
-Module [`web.immediate`](/packages/core-js/modules/web.immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
+## Modules
+
+- [`web.immediate`](/packages/core-js/modules/web.immediate.js)
+- [`setImmediate`](https://w3c.github.io/setImmediate/)
 
 ## Types
 
@@ -11,14 +14,14 @@ function clearImmediate(id: number): void;
 
 ## Entry points
 
-
-
 ```
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```
 
-[_Examples_](https://goo.gl/6nXGrx):
+## Example
+
+[_Example_](https://goo.gl/6nXGrx):
 
 ```js
 setImmediate(

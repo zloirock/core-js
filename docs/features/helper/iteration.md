@@ -12,15 +12,15 @@ function getIteratorMethod(value: any): Function | void;
 
 ## Entry points
 
-
-
 ```
 core-js-pure/es|stable|actual|full/is-iterable
 core-js-pure/es|stable|actual|full/get-iterator
 core-js-pure/es|stable|actual|full/get-iterator-method
 ```
 
-[_Examples_](https://goo.gl/SXsM6D):
+## Example
+
+[_Example_](https://goo.gl/SXsM6D):
 
 ```js
 import isIterable from "core-js-pure/actual/is-iterable";

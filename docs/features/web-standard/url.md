@@ -1,6 +1,12 @@
 # `URL` and `URLSearchParams`
 
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](/packages/core-js/modules/web.url.js), [`web.url.to-json`](/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](/packages/core-js/modules/web.url-search-params.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation.
+
+## Modules
+
+- [`web.url`](/packages/core-js/modules/web.url.js)
+- [`web.url.to-json`](/packages/core-js/modules/web.url.to-json.js)
+- [`web.url-search-params`](/packages/core-js/modules/web.url-search-params.js).
 
 ## Types
 
@@ -43,8 +49,6 @@ class URLSearchParams {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
@@ -52,7 +56,9 @@ core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
 
-[_Examples_](https://is.gd/AfIwve):
+## Example
+
+[_Example_](https://is.gd/AfIwve):
 
 ```js
 const url = new URL(

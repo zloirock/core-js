@@ -1,6 +1,11 @@
 # Iterable DOM collections
 
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. Modules [`web.dom-collections.iterator`](/packages/core-js/modules/web.dom-collections.iterator.js) and [`web.dom-collections.for-each`](/packages/core-js/modules/web.dom-collections.for-each.js).
+Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them.
+
+## Modules
+
+- [`web.dom-collections.iterator`](/packages/core-js/modules/web.dom-collections.iterator.js)
+- [`web.dom-collections.for-each`](/packages/core-js/modules/web.dom-collections.for-each.js)
 
 ## Types
 
@@ -50,14 +55,14 @@ class [DOMTokenList, NodeList] {
 
 ## Entry points
 
-
-
 ```
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```
 
-[_Examples_](https://goo.gl/lfXVFl):
+## Example
+
+[_Example_](https://goo.gl/lfXVFl):
 
 ```js
 for (let { id } of document.querySelectorAll("*")) {
