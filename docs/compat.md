@@ -12,12 +12,12 @@ head:
       src: /compat/tests.js
   - - script
     - nomodule: ""
-      src: /compat/browsers-runner.js
+      src: /compat/legacy-runner.js
 ---
 
 ## About
 
-`core-js` project provides (as [`core-js-compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools for work with it - it's useful for integration with tools like `babel` or `swc`. If you wanna help, you could take a look at the related section of [`CONTRIBUTING.md`](/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available below
+`core-js` project provides (as [`core-js-compat`](/packages/core-js-compat) package) all required data about the necessity of `core-js` modules, entry points, and tools for work with it - it's useful for integration with tools like `babel` or `swc`. If you wanna help, you could take a look at the related section of [`CONTRIBUTING.md`](/dev/README.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available below
 
 Supported engines:
 ::: details

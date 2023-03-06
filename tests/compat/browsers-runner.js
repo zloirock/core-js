@@ -4,7 +4,7 @@ function createElement(name, props) {
   return element;
 }
 
-var table = document.getElementsByClassName('table')[0];
+var table = document.getElementById('table');
 var tests = window.tests;
 var data = window.data;
 

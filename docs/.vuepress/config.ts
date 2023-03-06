@@ -32,7 +32,7 @@ export default defineUserConfig({
         sidebar: sidebarZh,
       },
     },
-    copyright: `&copy 2014-${new Date().getFullYear()} zloirock and contributors`,
+    copyright: `&copy; 2014-${new Date().getFullYear()} zloirock and contributors`,
     displayFooter: true,
     plugins: {
       blog: {

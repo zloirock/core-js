@@ -91,7 +91,7 @@ onMounted(async () => {
   <CommonWrapper>
     <NormalPage>
       <template #contentAfter>
-        <table class="theme-hope-content compat">
+        <table class="theme-hope-content compat" id="table">
           <tr>
             <th>module</th>
             <th

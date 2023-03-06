@@ -1,5 +1,5 @@
 await Promise.all(
-  ["browsers-runner.js", "compat-data.js", "tests.js"].map((file) =>
+  ["compat-data.js", "tests.js"].map((file) =>
     fs.copy(`tests/compat/${file}`, `docs/.vuepress/public/compat/${file}`)
   )
 );
