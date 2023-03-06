@@ -8,24 +8,24 @@ window.onload = function () {
 
     var moduleName = element.firstChild.firstChild.innerHTML;
     var test = tests[moduleName];
-    var result;
+    var result = true;
     try {
       if (typeof test == "function") {
         result = !!test();
-      } else if (t !== undefined) {
+      } else {
         for (var t = 0; t < test.length; t++)
-          result = !!result && !!test[t].call(undefined);
+          result = result && !!test[t].call(undefined);
       }
     } catch (error) {
       result = false;
     }
 
     element.childNodes[2].innerHTML =
-      result === undefined
+      t === undefined
         ? "no available test"
         : result
         ? "not required"
         : "required";
-    element.childNodes[2].className = result === undefined ? "nodata" : result;
+    element.childNodes[2].className = t === undefined ? "nodata" : result;
   }
 };
