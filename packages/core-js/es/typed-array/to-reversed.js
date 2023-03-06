@@ -1,1 +1,1 @@
-require('../../modules/esnext.typed-array.to-reversed');
+require('../../modules/es.typed-array.to-reversed');
