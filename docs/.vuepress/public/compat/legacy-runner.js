@@ -26,6 +26,6 @@ window.onload = function () {
         : result
         ? "not required"
         : "required";
-    element.childNodes[2].className = t === undefined ? "nodata" : result;
+    element.childNodes[2].className = test === undefined ? "nodata" : result;
   }
 };
