@@ -21,7 +21,7 @@ window.onload = function () {
     }
 
     element.childNodes[2].innerHTML =
-      t === undefined
+      test === undefined
         ? "no available test"
         : result
         ? "not required"
