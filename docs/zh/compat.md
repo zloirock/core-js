@@ -2,7 +2,7 @@
 title: 兼容性信息
 icon: form
 sidebar: false
-layout: Compat
+layout: CompatPage
 Pagehead:
   - - script
     - nomodule: ""
@@ -17,8 +17,8 @@ Pagehead:
 
 ## 关于
 
-`core-js`项目提供（作为[`core-js-compat`](/packages/core-js-compat)包）所有关于`core-js`模块的必要性、入口点和所需的工具的数据————这对`babel`或`swc`等工具的集成很有用。如果你想帮忙，可以看看[贡献一章](/dev/README.md#how-to-update core-js-compat-data)的相关部分
-兼容性数据的可视化和浏览器测试运行器可在下面找到
+`core-js`项目提供（[`core-js-compat`](/packages/core-js-compat)包）所有关于`core-js`模块的必要性、入口点和所需的工具的数据————这对`babel`或`swc`等工具的集成很有用。如果你想帮忙，可以看看[贡献一章](/dev/README.md#how-to-update core-js-compat-data)的相关部分
+兼容性信息的表格和本地测试可以在下方找到
 
 支持的环境:
 ::: details
