@@ -22,7 +22,11 @@ features:
     icon: ability
     details: Most popular polyfill of the JavaScript. 250 million downloads per month on NPM
 
-  - title: Powerful functionality
+  - title: Easy to use
+    icon: light
+    details: Integration with tools like Babel and SWC
+
+  - title: Powerful features
     icon: strong
-    details: Implemented new APIs from ES5 to the latest ECMAScript proposal
+    details: Implemented new APIs from ES5 to ongoing ECMAScript proposal
 ---

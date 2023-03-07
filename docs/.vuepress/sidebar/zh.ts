@@ -62,9 +62,9 @@ export const sidebarZh = sidebar({
       collapsible: true,
     },
     {
-      text: "关于",
-      icon: "about",
-      prefix: "about/",
+      text: "项目",
+      icon: "more",
+      prefix: "project/",
       children: "structure",
       collapsible: true,
     },

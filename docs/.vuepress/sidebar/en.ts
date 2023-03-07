@@ -62,9 +62,9 @@ export const sidebarEn = sidebar({
       collapsible: true,
     },
     {
-      text: "About",
+      text: "Project",
       icon: "more",
-      prefix: "about/",
+      prefix: "project/",
       children: "structure",
       collapsible: true,
     },

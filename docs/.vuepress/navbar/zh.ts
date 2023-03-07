@@ -51,12 +51,17 @@ export const navbarZh = navbar([
       {
         text: "关于",
         icon: "info",
-        link: "about/README.md",
+        link: "project/README.md",
       },
       {
         text: "变更日志",
         icon: "time",
-        link: "about/changelog.md",
+        link: "project/changelog.md",
+      },
+      {
+        text: "路线图",
+        icon: "state",
+        link: "project/roadmap.md",
       },
       {
         text: "博客",

@@ -20,9 +20,13 @@ features:
 
   - title: 广泛使用
     icon: ability
-    details: 最受欢迎的JavaScript polyfill, NPM月下载量超过2.5亿次
+    details: 最受欢迎的 JavaScript polyfill，NPM 月下载量超过 2.5 亿次
+
+  - title: 轻松上手
+    icon: light
+    details: 与 Babel 和 SWC 等工具集成
 
   - title: 功能强大
     icon: strong
-    details: Implemented new APIs from ES5 to the latest ECMAScript proposal
+    details: 包括对从 ES5 到进行中的 ECMAScript 提案的 polyfill
 ---
