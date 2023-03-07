@@ -55,8 +55,8 @@ export const sidebarZh = sidebar({
       collapsible: true,
     },
     {
-      text: "开发",
-      icon: "debug",
+      text: "贡献",
+      icon: "tree",
       prefix: "dev/",
       children: "structure",
       collapsible: true,
