@@ -14,6 +14,16 @@ export const sidebarEn = sidebar({
       prefix: "features/",
       children: [
         {
+          text: "Overview",
+          icon: "info",
+          link: "README.md",
+        },
+        {
+          text: "Missing Polyfills",
+          icon: "notice",
+          link: "missing-polyfills.md",
+        },
+        {
           text: "ES Standards",
           icon: "javascript",
           prefix: "es-standard/",

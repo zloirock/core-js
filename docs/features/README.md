@@ -1,5 +1,5 @@
 ---
-icon: function
+icon: object
 ---
 
 # Features
