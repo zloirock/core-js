@@ -1,1 +1,1 @@
-module.exports = require('./features');
+module.exports = require('./full');
