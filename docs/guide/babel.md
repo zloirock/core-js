@@ -1,5 +1,6 @@
 ---
 icon: light
+category: guide
 ---
 
 # Babel Integration

@@ -1,5 +1,6 @@
 ---
 icon: tool
+category: guide
 ---
 
 # SWC Integration

@@ -45,22 +45,22 @@ export const navbarZh = navbar([
   },
   {
     text: "项目",
-    prefix: "/zh/about/",
+    prefix: "/zh/",
     icon: "more",
     children: [
       {
         text: "关于",
         icon: "info",
-        link: "README.md",
+        link: "about/README.md",
       },
       {
         text: "变更日志",
         icon: "time",
-        link: "changelog.md",
+        link: "about/changelog.md",
       },
       {
         text: "博客",
-        link: "/zh/category/blog",
+        link: "category/blog",
         icon: "blog",
       },
     ],

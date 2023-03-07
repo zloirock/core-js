@@ -1,5 +1,6 @@
 ---
 icon: launch
+category: guide
 ---
 
 # Quick Start
