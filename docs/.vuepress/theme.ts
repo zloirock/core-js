@@ -19,6 +19,13 @@ export default hopeTheme({
   copyright: `&copy; 2014-${new Date().getFullYear()} zloirock and contributors`,
   displayFooter: true,
   plugins: {
+    autoCatalog: {
+      index: true,
+      locales: {
+        "/": { title: "Index" },
+        "/zh/": { title: "索引" },
+      },
+    },
     blog: true,
     mdEnhance: {
       attrs: true,

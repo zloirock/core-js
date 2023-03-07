@@ -34,7 +34,7 @@ export const navbarEn = navbar([
     ],
   },
   {
-    text: "Contributing",
+    text: "Contribution",
     link: "/dev/",
     icon: "tree",
   },
