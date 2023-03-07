@@ -4,8 +4,8 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
 
 ## Modules
 
-- [`web.dom-collections.iterator`](/packages/core-js/modules/web.dom-collections.iterator.js)
-- [`web.dom-collections.for-each`](/packages/core-js/modules/web.dom-collections.for-each.js)
+- [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js)
+- [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js)
 
 ## Types
 

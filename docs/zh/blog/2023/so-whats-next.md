@@ -1,14 +1,10 @@
 ---
-title: What's next?
 author: zloirock
-category:
-  - blog
+category: blog
+tag:
+  - waiting-for-translation
 date: 2023-02-14
 ---
-
-::: info
-待翻译
-:::
 
 # So, what's next?
 

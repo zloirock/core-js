@@ -1,6 +1,8 @@
 # [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)
 
-Module [`esnext.math.signbit`](/packages/core-js/modules/esnext.math.signbit.js)
+## Module
+
+[`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.signbit.js)
 
 ## Types
 
@@ -11,8 +13,6 @@ namespace Math {
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/math-signbit

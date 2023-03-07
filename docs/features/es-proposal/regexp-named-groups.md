@@ -13,8 +13,6 @@ class RegExp {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/regexp-named-groups
 ```

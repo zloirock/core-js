@@ -1,6 +1,9 @@
 # [`Symbol.{ asyncDispose, dispose }` for `using` statement](https://github.com/tc39/proposal-using-statement)
 
-Modules [`esnext.symbol.dispose`](/packages/core-js/modules/esnext.symbol.dispose.js) and [`esnext.symbol.async-dispose`](/packages/core-js/modules/esnext.symbol.async-dispose.js).
+## Modules
+
+- [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js)
+- [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js)
 
 ## Types
 
@@ -12,8 +15,6 @@ class Symbol {
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/using-statement

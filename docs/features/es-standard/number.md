@@ -2,7 +2,7 @@
 
 ## Modules
 
-- [`es.number.constructor`](/packages/core-js/modules/es.number.constructor.js)
+- [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js)
   ::: tip
   `Number` constructor support binary and octal literals, [_example_](https://goo.gl/jRd6b3):
 
@@ -13,20 +13,20 @@
 
   :::
 
-- [`es.number.epsilon`](/packages/core-js/modules/es.number.epsilon.js)
-- [`es.number.is-finite`](/packages/core-js/modules/es.number.is-finite.js)
-- [`es.number.is-integer`](/packages/core-js/modules/es.number.is-integer.js)
-- [`es.number.is-nan`](/packages/core-js/modules/es.number.is-nan.js)
-- [`es.number.is-safe-integer`](/packages/core-js/modules/es.number.is-safe-integer.js)
-- [`es.number.max-safe-integer`](/packages/core-js/modules/es.number.max-safe-integer.js)
-- [`es.number.min-safe-integer`](/packages/core-js/modules/es.number.min-safe-integer.js)
-- [`es.number.parse-float`](/packages/core-js/modules/es.number.parse-float.js)
-- [`es.number.parse-int`](/packages/core-js/modules/es.number.parse-int.js)
-- [`es.number.to-exponential`](/packages/core-js/modules/es.number.to-exponential.js)
-- [`es.number.to-fixed`](/packages/core-js/modules/es.number.to-fixed.js)
-- [`es.number.to-precision`](/packages/core-js/modules/es.number.to-precision.js)
-- [`es.parse-int`](/packages/core-js/modules/es.parse-int.js)
-- [`es.parse-float`](/packages/core-js/modules/es.parse-float.js)
+- [`es.number.epsilon`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.epsilon.js)
+- [`es.number.is-finite`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-finite.js)
+- [`es.number.is-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-integer.js)
+- [`es.number.is-nan`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-nan.js)
+- [`es.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-safe-integer.js)
+- [`es.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.max-safe-integer.js)
+- [`es.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.min-safe-integer.js)
+- [`es.number.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-float.js)
+- [`es.number.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-int.js)
+- [`es.number.to-exponential`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-exponential.js)
+- [`es.number.to-fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-fixed.js)
+- [`es.number.to-precision`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-precision.js)
+- [`es.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-int.js)
+- [`es.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-float.js)
 
 ## Types
 

@@ -15,24 +15,28 @@ export const sidebarEn = sidebar({
       children: [
         {
           text: "ES Standards",
+          icon: "javascript",
           prefix: "es-standard/",
           children: "structure",
           collapsible: true,
         },
         {
           text: "ES Proposals",
+          icon: "proposal",
           prefix: "es-proposal/",
           children: "structure",
           collapsible: true,
         },
         {
           text: "Web Standards",
+          icon: "link",
           prefix: "web-standard/",
           children: "structure",
           collapsible: true,
         },
         {
           text: "Helpers",
+          icon: "function",
           prefix: "helper/",
           children: "structure",
           collapsible: true,

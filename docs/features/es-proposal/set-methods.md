@@ -1,6 +1,14 @@
 # [New `Set` methods](https://github.com/tc39/proposal-set-methods)
 
-Modules [`esnext.set.difference`](/packages/core-js/modules/esnext.set.difference.js), [`esnext.set.intersection`](/packages/core-js/modules/esnext.set.intersection.js), [`esnext.set.is-disjoint-from`](/packages/core-js/modules/esnext.set.is-disjoint-from.js), [`esnext.set.is-subset-of`](/packages/core-js/modules/esnext.set.is-subset-of.js), [`esnext.set.is-superset-of`](/packages/core-js/modules/esnext.set.is-superset-of.js), [`esnext.set.symmetric-difference`](/packages/core-js/modules/esnext.set.symmetric-difference.js), [`esnext.set.union`](/packages/core-js/modules/esnext.set.union.js)
+##Modules
+
+- [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js)
+- [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js)
+- [`esnext.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.js)
+- [`esnext.set.is-subset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.js)
+- [`esnext.set.is-superset-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.js)
+- [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js)
+- [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 
 ## Types
 
@@ -18,8 +26,6 @@ class Set {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/set-methods
 core-js(-pure)/full/set/difference
@@ -31,7 +37,9 @@ core-js(-pure)/full/set/symmetric-difference
 core-js(-pure)/full/set/union
 ```
 
-[_Examples_](https://goo.gl/QMQdaJ):
+## Example
+
+[_Example_](https://goo.gl/QMQdaJ):
 
 ```js
 new Set([1, 2, 3]).union([3, 4, 5]); // => Set {1, 2, 3, 4, 5}

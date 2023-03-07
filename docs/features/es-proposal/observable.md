@@ -1,6 +1,9 @@
 # [`Observable`](https://github.com/zenparsing/es-observable)
 
-Modules [`esnext.observable`](/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](/packages/core-js/modules/esnext.symbol.observable.js)
+## Modules
+
+- [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js)
+- [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 
 ## Types
 
@@ -21,15 +24,15 @@ class Symbol {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/observable
 core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
 
-[_Examples_](https://goo.gl/1LDywi):
+## Example
+
+[_Example_](https://goo.gl/1LDywi):
 
 ```js
 new Observable((observer) => {

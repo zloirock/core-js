@@ -2,7 +2,7 @@
 
 ## Modules
 
-- [`web.immediate`](/packages/core-js/modules/web.immediate.js)
+- [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js)
 - [`setImmediate`](https://w3c.github.io/setImmediate/)
 
 ## Types

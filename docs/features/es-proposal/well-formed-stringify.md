@@ -10,8 +10,6 @@ namespace JSON {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/well-formed-stringify
 ```

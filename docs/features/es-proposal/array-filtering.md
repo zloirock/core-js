@@ -1,6 +1,9 @@
 # [Array filtering](https://github.com/tc39/proposal-array-filtering)
 
-Modules [`esnext.array.filter-reject`](/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](/packages/core-js/modules/esnext.typed-array.filter-reject.js).
+## Modules
+
+- [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js)
+- [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js)
 
 ## Types
 
@@ -16,15 +19,15 @@ class %TypedArray% {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-filtering-stage-1
 core-js(-pure)/full/array(/virtual)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
 
-[_Examples_](https://is.gd/jJcoWw):
+## Example
+
+[_Example_](https://is.gd/jJcoWw):
 
 ```js
 [1, 2, 3, 4, 5].filterReject((it) => it % 2); // => [2, 4]

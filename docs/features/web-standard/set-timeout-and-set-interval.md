@@ -11,7 +11,7 @@ setTimeout(log, 1000, 42);
 
 ## Module
 
-- [`web.timers`](/packages/core-js/modules/web.timers.js).
+- [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js).
 
 ## Types
 

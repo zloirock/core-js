@@ -18,8 +18,6 @@ class %TypedArray% {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/relative-indexing-method
 ```

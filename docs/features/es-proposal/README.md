@@ -61,7 +61,7 @@ Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, t
 
 `core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
 
-Entry points: 
+Entry points:
 
 ```
 core-js(-pure)/stage/3

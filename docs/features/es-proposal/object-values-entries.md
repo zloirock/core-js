@@ -11,8 +11,6 @@ class Object {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/object-values-entries
 ```

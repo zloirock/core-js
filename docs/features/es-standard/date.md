@@ -2,20 +2,20 @@
 
 ## Modules
 
-- [`es.date.to-string`](/packages/core-js/modules/es.date.to-string.js)
+- [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js)
 
 _ES5 features with fixes:_
 
-- [`es.date.now`](/packages/core-js/modules/es.date.now.js)
-- [`es.date.to-iso-string`](/packages/core-js/modules/es.date.to-iso-string.js)
-- [`es.date.to-json`](/packages/core-js/modules/es.date.to-json.js)
-- [`es.date.to-primitive`](/packages/core-js/modules/es.date.to-primitive.js)
+- [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js)
+- [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js)
+- [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js)
+- [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js)
 
 _Annex B methods modules:_
 
-- [`es.date.get-year`](/packages/core-js/modules/es.date.get-year.js)
-- [`es.date.set-year`](/packages/core-js/modules/es.date.set-year.js)
-- [`es.date.to-gmt-string`](/packages/core-js/modules/es.date.to-gmt-string.js).
+- [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js)
+- [`es.date.set-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.set-year.js)
+- [`es.date.to-gmt-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-gmt-string.js)
 
 ## Types
 

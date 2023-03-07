@@ -1,14 +1,39 @@
 # [New collections methods](https://github.com/tc39/proposal-collection-methods)
 
-Modules [`esnext.set.add-all`](/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](/packages/core-js/modules/esnext.set.filter.js),
-[`esnext.set.find`](/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](/packages/core-js/modules/esnext.weak-map.delete-all.js), [`esnext.set.of`](/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](/packages/core-js/modules/esnext.weak-map.from.js)
+## Modules
+
+- [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js)
+- [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js)
+- [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js)
+- [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js)
+- [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js)
+- [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js)
+- [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js)
+- [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js)
+- [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js)
+- [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.delete-all.js)
+- [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js)
+- [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js)
+- [`esnext.map.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find.js)
+- [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find-key.js)
+- [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js)
+- [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js)
+- [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js)
+- [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-of.js)
+- [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js)
+- [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js)
+- [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js)
+- [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.reduce.js)
+- [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js)
+- [`esnext.map.update`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.update.js)
+- [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js)
+- [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js)
+- [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
 
 ## Types
 
 ```ts
 class Set {
-  static of(...args: Array<mixed>): Set;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => any, thisArg?: any): Set;
   addAll(...args: Array<mixed>): this;
   deleteAll(...args: Array<mixed>): boolean;
   every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
@@ -22,8 +47,6 @@ class Set {
 
 class Map {
   static groupBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
-  static of(...args: Array<[key, value]>): Map;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
   static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
   deleteAll(...args: Array<mixed>): boolean;
   every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
@@ -41,22 +64,16 @@ class Map {
 }
 
 class WeakSet {
-  static of(...args: Array<mixed>): WeakSet;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => Object, thisArg?: any): WeakSet;
   addAll(...args: Array<mixed>): this;
   deleteAll(...args: Array<mixed>): boolean;
 }
 
 class WeakMap {
-  static of(...args: Array<[key, value]>): WeakMap;
-  static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: Object, value: any], thisArg?: any): WeakMap;
   deleteAll(...args: Array<mixed>): boolean;
 }
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/collection-methods
@@ -96,18 +113,4 @@ core-js(-pure)/full/weak-set/from
 core-js(-pure)/full/weak-map/delete-all
 core-js(-pure)/full/weak-map/of
 core-js(-pure)/full/weak-map/from
-```
-
-`.of` / `.from` [_examples_](https://goo.gl/mSC7eU):
-
-```js
-Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
-
-Map.from(
-  [
-    [1, 2],
-    [3, 4],
-  ],
-  ([key, value]) => [key ** 2, value ** 2]
-); // => Map { 1: 4, 9: 16 }
 ```

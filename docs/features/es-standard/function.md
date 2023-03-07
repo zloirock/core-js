@@ -2,12 +2,12 @@
 
 ## Modules
 
-- [`es.function.name`](/packages/core-js/modules/es.function.name.js)
-- [`es.function.has-instance`](/packages/core-js/modules/es.function.has-instance.js)
+- [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js)
+- [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js)
 
 _Just ES5:_
 
-- [`es.function.bind`](/packages/core-js/modules/es.function.bind.js).
+- [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js)
 
 ## Types
 

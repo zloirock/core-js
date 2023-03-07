@@ -1,6 +1,9 @@
 # [`Number.range`](https://github.com/tc39/proposal-Number.range)
 
-Module [`esnext.number.range`](/packages/core-js/modules/esnext.number.range.js) and [`esnext.bigint.range`](/packages/core-js/modules/esnext.bigint.range.js)
+## Modules
+
+- [`esnext.number.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.range.js)
+- [`esnext.bigint.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.bigint.range.js)
 
 ## Types
 
@@ -16,13 +19,13 @@ class BigInt {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/number-range
 core-js(-pure)/full/bigint/range
 core-js(-pure)/full/number/range
 ```
+
+## Example
 
 [_Example_](https://is.gd/caCKSb):
 

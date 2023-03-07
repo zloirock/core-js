@@ -1,6 +1,9 @@
 # [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)
 
-Modules [`esnext.array.last-item`](/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](/packages/core-js/modules/esnext.array.last-index.js)
+## Modules
+
+- [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-item.js)
+- [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-index.js)
 
 ## Types
 
@@ -13,15 +16,15 @@ class Array {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-last
 core-js/full/array/last-item
 core-js/full/array/last-index
 ```
 
-[_Examples_](https://goo.gl/2TmcMT):
+## Example
+
+[_Example_](https://goo.gl/2TmcMT):
 
 ```js
 [1, 2, 3].lastItem; // => 3

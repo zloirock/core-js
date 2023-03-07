@@ -1,8 +1,12 @@
 # [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)
 
+::: warming
 **API of this proposal has been changed. This proposal will be removed from the next major `core-js` version and will be added back after adding and stabilization of the spec text.**
+:::
 
-Module [`esnext.math.seeded-prng`](/packages/core-js/modules/esnext.math.seeded-prng.js)
+## Module
+
+- [`esnext.math.seeded-prng`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.seeded-prng.js)
 
 ## Types
 
@@ -14,12 +18,12 @@ class Math {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/seeded-random
 core-js(-pure)/full/math/seeded-prng
 ```
+
+## Example
 
 [_Example_](https://goo.gl/oj3WgQ):
 

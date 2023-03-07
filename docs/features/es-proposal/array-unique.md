@@ -1,6 +1,9 @@
 # [`Array` deduplication](https://github.com/tc39/proposal-array-unique)
 
-Modules [`esnext.array.unique-by`](/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](/packages/core-js/modules/esnext.typed-array.unique-by.js)
+## Modules
+
+- [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js)
+- [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
 
 ## Types
 
@@ -16,15 +19,15 @@ class %TypedArray% {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-unique
 core-js(-pure)/full/array(/virtual)/unique-by
 core-js/full/typed-array/unique-by
 ```
 
-[_Examples_](https://is.gd/lilNPu):
+## Example
+
+[_Example_](https://is.gd/lilNPu):
 
 ```js
 [1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]

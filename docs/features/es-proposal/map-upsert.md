@@ -1,6 +1,9 @@
 # [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)
 
-Modules [`esnext.map.emplace`](/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](/packages/core-js/modules/esnext.weak-map.emplace.js)
+## Modules
+
+- [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js)
+- [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 
 ## Types
 
@@ -16,15 +19,15 @@ class WeakMap {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/map-upsert-stage-2
 core-js(-pure)/full/map/emplace
 core-js(-pure)/full/weak-map/emplace
 ```
 
-[_Examples_](https://is.gd/ty5I2v):
+## Example
+
+[_Example_](https://is.gd/ty5I2v):
 
 ```js
 const map = new Map([["a", 2]]);

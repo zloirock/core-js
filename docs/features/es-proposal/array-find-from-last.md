@@ -16,8 +16,6 @@ class %TypedArray% {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-find-from-last
 ```

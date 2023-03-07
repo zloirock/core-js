@@ -1,6 +1,9 @@
 # [`Function.{ isCallable, isConstructor }`](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)
 
-Modules [`esnext.function.is-callable`](/packages/core-js/modules/esnext.function.is-callable.js), [`esnext.function.is-constructor`](/packages/core-js/modules/esnext.function.is-constructor.js)
+## Modules
+
+- [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js)
+- [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js)
 
 ## Types
 
@@ -13,15 +16,15 @@ class Function {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable
 core-js(-pure)/full/function/is-constructor
 ```
 
-[_Examples_](https://is.gd/Kof1he):
+## Example
+
+[_Example_](https://is.gd/Kof1he):
 
 ```js
 Function.isCallable(null); // => false

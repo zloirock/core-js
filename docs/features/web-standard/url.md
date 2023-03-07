@@ -4,9 +4,9 @@
 
 ## Modules
 
-- [`web.url`](/packages/core-js/modules/web.url.js)
-- [`web.url.to-json`](/packages/core-js/modules/web.url.to-json.js)
-- [`web.url-search-params`](/packages/core-js/modules/web.url-search-params.js).
+- [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js)
+- [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js)
+- [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js)
 
 ## Types
 

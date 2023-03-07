@@ -1,8 +1,12 @@
 # [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 
+::: warning
 **This proposal is dead and will be removed from the next major `core-js` version.**
+:::
 
-Module [`esnext.promise.try`](/packages/core-js/modules/esnext.promise.try.js)
+## Module
+
+[`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 
 ## Types
 
@@ -14,14 +18,14 @@ class Promise {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/promise-try
 core-js(-pure)/full/promise/try
 ```
 
-[_Examples_](https://goo.gl/k5GGRo):
+## Example
+
+[_Example_](https://goo.gl/k5GGRo):
 
 ```js
 Promise.try(() => 42).then((it) => console.log(`Promise, resolved as ${it}`));

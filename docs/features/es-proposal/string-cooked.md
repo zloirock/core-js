@@ -1,6 +1,8 @@
 # [`String.cooked`](https://github.com/tc39/proposal-string-cooked)
 
-Module [`esnext.string.cooked`](/packages/core-js/modules/esnext.string.cooked.js)
+## Module
+
+[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 
 ## Types
 
@@ -15,12 +17,12 @@ class String {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
+
+## Example
 
 [_Example_](https://is.gd/7QPnss):
 

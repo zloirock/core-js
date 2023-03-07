@@ -4,8 +4,8 @@
 
 ## Modules
 
-- [`web.atob`](/packages/core-js/modules/web.atob.js)
-- [`web.btoa`](/packages/core-js/modules/web.btoa.js)
+- [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js)
+- [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js)
 
 ## Types
 

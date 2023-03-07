@@ -4,7 +4,7 @@
 
 ## Module
 
-[`web.queue-microtask`](/packages/core-js/modules/web.queue-microtask.js)
+[`web.queue-microtask`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.queue-microtask.js)
 
 ## Types
 

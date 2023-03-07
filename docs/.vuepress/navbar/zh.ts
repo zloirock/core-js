@@ -7,9 +7,9 @@ export const navbarZh = navbar([
     icon: "creative",
   },
   {
-    text: "开发",
+    text: "贡献",
     link: "/zh/dev/",
-    icon: "debug",
+    icon: "tree",
   },
   {
     text: "兼容性",
@@ -31,12 +31,12 @@ export const navbarZh = navbar([
         icon: "time",
         link: "changelog.md",
       },
+      {
+        text: "博客",
+        link: "/zh/category/blog",
+        icon: "blog",
+      },
     ],
-  },
-  {
-    text: "博客",
-    link: "/zh/blog",
-    icon: "blog",
   },
   {
     text: "赞助",

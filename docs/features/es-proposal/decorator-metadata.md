@@ -1,6 +1,8 @@
 # [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)
 
-Module [`esnext.symbol.metadata-key`](/packages/core-js/modules/esnext.symbol.metadata-key.js).
+## Module
+
+[`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js)
 
 ## Types
 
@@ -11,8 +13,6 @@ class Symbol {
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/decorator-metadata

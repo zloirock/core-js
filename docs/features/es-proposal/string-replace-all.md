@@ -10,8 +10,6 @@ class String {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/string-replace-all-stage-4
 ```

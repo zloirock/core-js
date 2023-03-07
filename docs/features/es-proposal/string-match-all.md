@@ -10,8 +10,6 @@ class String {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/string-match-all
 ```

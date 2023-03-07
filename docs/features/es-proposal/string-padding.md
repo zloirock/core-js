@@ -11,8 +11,6 @@ class String {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/string-padding
 ```

@@ -10,8 +10,6 @@ class Object {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/accessible-object-hasownproperty
 ```

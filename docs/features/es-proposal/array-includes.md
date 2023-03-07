@@ -14,8 +14,6 @@ class %TypedArray% {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-includes
 ```

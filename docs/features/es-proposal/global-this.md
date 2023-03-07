@@ -8,8 +8,6 @@ let globalThis: Object;
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/global-this
 ```

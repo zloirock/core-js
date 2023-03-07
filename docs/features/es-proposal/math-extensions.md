@@ -1,6 +1,14 @@
 # [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)
 
-Modules [`esnext.math.clamp`](/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.deg-per-rad`](/packages/core-js/modules/esnext.math.deg-per-rad.js), [`esnext.math.degrees`](/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.rad-per-deg`](/packages/core-js/modules/esnext.math.rad-per-deg.js), [`esnext.math.radians`](/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](/packages/core-js/modules/esnext.math.scale.js)
+## Modules
+
+- [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js)
+- [`esnext.math.deg-per-rad`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.deg-per-rad.js)
+- [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.degrees.js)
+- [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.fscale.js)
+- [`esnext.math.rad-per-deg`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.rad-per-deg.js)
+- [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.radians.js)
+- [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.scale.js)
 
 ## Types
 
@@ -17,8 +25,6 @@ namespace Math {
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/math-extensions

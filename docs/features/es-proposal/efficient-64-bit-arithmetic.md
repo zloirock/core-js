@@ -1,8 +1,15 @@
 # [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
 
+::: warning
 **This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+:::
 
-Modules [`esnext.math.iaddh`](/packages/core-js/modules/esnext.math.iaddh.js), [`esnext.math.isubh`](/packages/core-js/modules/esnext.math.isubh.js), [`esnext.math.imulh`](/packages/core-js/modules/esnext.math.imulh.js) and [`esnext.math.umulh`](/packages/core-js/modules/esnext.math.umulh.js)
+## Modules
+
+- [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.iaddh.js)
+- [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.isubh.js)
+- [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.imulh.js)
+- [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.umulh.js)
 
 ## Types
 
@@ -16,8 +23,6 @@ namespace Math {
 ```
 
 ## Entry points
-
-
 
 ```
 core-js/proposals/efficient-64-bit-arithmetic

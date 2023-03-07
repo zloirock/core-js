@@ -14,25 +14,29 @@ export const navbarEn = navbar([
       {
         text: "ES Standards",
         link: "es-standard/README.md",
+        icon: "javascript",
       },
       {
         text: "ES Proposals",
         link: "es-proposal/README.md",
+        icon: "proposal",
       },
       {
         text: "Web Standards",
         link: "web-standard/README.md",
+        icon: "link",
       },
       {
         text: "Helpers",
         link: "helper/README.md",
+        icon: "function",
       },
     ],
   },
   {
     text: "Contributing",
     link: "/dev/",
-    icon: "debug",
+    icon: "tree",
   },
   {
     text: "Compatibility",
@@ -55,7 +59,7 @@ export const navbarEn = navbar([
       },
       {
         text: "Blog",
-        link: "/blog/",
+        link: "/category/blog/",
         icon: "blog",
       },
     ],

@@ -10,8 +10,6 @@ class Symbol {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/symbol-description
 ```

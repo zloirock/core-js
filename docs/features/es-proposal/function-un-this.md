@@ -1,6 +1,8 @@
 # [`Function.prototype.unThis`](https://github.com/js-choi/proposal-function-un-this)
 
-Module [`esnext.function.un-this`](/packages/core-js/modules/esnext.function.un-this.js)
+## Module
+
+[`esnext.function.un-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.un-this.js)
 
 ## Types
 
@@ -12,15 +14,15 @@ class Function {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/function-un-this
 core-js(-pure)/full/function/un-this
 core-js(-pure)/full/function/virtual/un-this
 ```
 
-[_Examples_](https://is.gd/t1Bvhn):
+## Example
+
+[_Example_](https://is.gd/t1Bvhn):
 
 ```js
 const slice = Array.prototype.slice.unThis();

@@ -16,8 +16,6 @@ class Promise {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/promise-any
 ```

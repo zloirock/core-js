@@ -14,8 +14,6 @@ class Array {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-flat-map
 ```

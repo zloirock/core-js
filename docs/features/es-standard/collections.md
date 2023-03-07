@@ -11,7 +11,7 @@
 
 ### Module
 
-- [`es.map`](/packages/core-js/modules/es.map.js).
+[`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js)
 
 ### Types
 
@@ -86,7 +86,7 @@ for (let [key, value] of map.entries()) {
 
 ### Module
 
-- [`es.set`](/packages/core-js/modules/es.set.js).
+[`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js)
 
 ### Types
 
@@ -144,7 +144,7 @@ for (let [key, value] of set.entries()) {
 
 ### Module
 
-- [`es.weak-map`](/packages/core-js/modules/es.weak-map.js).
+[`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js)
 
 ### Types
 
@@ -206,7 +206,7 @@ for (let key in person) console.log(key); // => only 'getName'
 
 ### Module
 
-- [`es.weak-set`](/packages/core-js/modules/es.weak-set.js).
+[`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js)
 
 ### Types
 
@@ -242,6 +242,6 @@ weakset.delete(b);
 console.log(weakset.has(b)); // => false
 ```
 
-## Caveats when using collections polyfill:
+## Caveats when using collections polyfill
 
 - Weak-collections polyfill stores values as hidden properties of keys. It works correctly and doesn't leak in most cases. However, it is desirable to store a collection longer than its keys.

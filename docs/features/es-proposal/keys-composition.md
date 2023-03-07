@@ -1,6 +1,9 @@
 # [`compositeKey` and `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
 
-Modules [`esnext.composite-key`](/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](/packages/core-js/modules/esnext.composite-symbol.js)
+## Modules
+
+- [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js)
+- [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
 
 ## Types
 
@@ -11,15 +14,15 @@ function compositeSymbol(...args: Array<mixed>): symbol;
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol
 ```
 
-[_Examples_](https://goo.gl/2oPAH7):
+## Example
+
+[_Example_](https://goo.gl/2oPAH7):
 
 ```js
 // returns a symbol

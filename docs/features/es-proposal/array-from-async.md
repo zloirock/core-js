@@ -1,6 +1,8 @@
 # [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)
 
-Modules [`esnext.array.from-async`](/packages/core-js/modules/esnext.array.from-async.js).
+## Module
+
+[`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js)
 
 ## Types
 
@@ -16,12 +18,12 @@ class Array {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/array-from-async-stage-2
 core-js(-pure)/full/array/from-async
 ```
+
+## Example
 
 [_Example_](https://goo.gl/Jt7SsD):
 

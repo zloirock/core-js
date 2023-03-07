@@ -13,8 +13,6 @@ class String {
 
 ## Entry points
 
-
-
 ```
 core-js/proposals/string-left-right-trim
 ```

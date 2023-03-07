@@ -4,8 +4,8 @@ Since `JSON` object is missed only in very old engines like IE7-, `core-js` does
 
 ## Modules
 
-- [`es.json.to-string-tag`](/packages/core-js/modules/es.json.to-string-tag.js)
-- [`es.json.stringify`](/packages/core-js/modules/es.json.stringify.js).
+- [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js)
+- [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js)
 
 ## Types
 
