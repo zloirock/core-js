@@ -1,9 +1,11 @@
 ---
 category: development
 icon: form
+tag:
+  - waiting-for-translation
 ---
 
-# Update `core-js-compat`
+# 更新`core-js-compat`
 
 ::: tip
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).

@@ -39,11 +39,6 @@ export const navbarZh = navbar([
     icon: "tree",
   },
   {
-    text: "兼容性",
-    link: "/zh/compat.md",
-    icon: "form",
-  },
-  {
     text: "项目",
     prefix: "/zh/",
     icon: "more",
@@ -69,6 +64,11 @@ export const navbarZh = navbar([
         icon: "blog",
       },
     ],
+  },
+  {
+    text: "兼容性",
+    link: "/zh/compat.md",
+    icon: "form",
   },
   {
     text: "赞助",

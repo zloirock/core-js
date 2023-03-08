@@ -1,3 +1,7 @@
+---
+title: 关于Core-JS
+icon: info
+---
 # 什么是 core-js?
 
 - 它是 JavaScript 标准库的 polyfill，它支持

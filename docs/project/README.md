@@ -1,5 +1,6 @@
 ---
 title: About Core-JS
+icon: info
 ---
 
 # What is core-js?

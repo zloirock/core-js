@@ -39,11 +39,6 @@ export const navbarEn = navbar([
     icon: "tree",
   },
   {
-    text: "Compatibility",
-    link: "/compat.md",
-    icon: "form",
-  },
-  {
     text: "Project",
     icon: "more",
     children: [
@@ -68,6 +63,11 @@ export const navbarEn = navbar([
         icon: "blog",
       },
     ],
+  },
+  {
+    text: "Compatibility",
+    link: "/compat.md",
+    icon: "form",
   },
   {
     text: "Sponsor",

@@ -1,4 +1,5 @@
 ---
+icon: state
 tag:
   - waiting-for-translation
 ---

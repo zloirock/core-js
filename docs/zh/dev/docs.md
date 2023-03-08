@@ -1,15 +1,17 @@
 ---
 category: development
 icon: article
+tag:
+  - waiting-for-translation
 ---
 
-# Writing documents
+# 撰写文档
+
 The documentation is under active construction. If you want to help, you can start with the following:
 
 - Refining examples of polyfill (find pages with missing examples [here]())
 - Writing tutorials (e.g. integration with a tool)
 - Help with translations (see the Chinese article to be translated [here](/zh/tag/waiting-for-translation/), or submit a new language :smile:)
-
 
 ## How to
 
@@ -66,31 +68,31 @@ To ensure consistency in the format of the document, some of the requirements ar
 1. Copy all documents in `/` to `/lang/`
 2. Add localised configuration:
 
-   1. Copy `.vuepress/navbar/en.ts` and name it `.vuepress/navbar/lang.ts`, translate the contents of `text`:
+   1. Copy `.vuepress/navbar/en.ts` and name it `.vuepress/navbar/lang.ts`, add prefix to `link` and translate the contents of `text`:
       :::details Example
       :::tabs#example
       @tab en.ts
-      @[code ts](../.vuepress/navbar/en.ts)
+      @[code ts](../../.vuepress/navbar/en.ts)
       @tab zh.ts
-      @[code ts](../.vuepress/navbar/zh.ts)
+      @[code ts](../../.vuepress/navbar/zh.ts)
       :::
 
-   2. Copy `.vuepress/sidebar/en.ts` and name it `.vuepress/sidebar/lang.ts`, translate the contents of `text`:
+   2. Copy `.vuepress/sidebar/en.ts` and name it `.vuepress/sidebar/lang.ts`, update the prefix and translate the contents of `text`:
       :::details Example
       :::tabs#example
       @tab en.ts
-      @[code ts](../.vuepress/sidebar/en.ts)
+      @[code ts](../../.vuepress/sidebar/en.ts)
       @tab zh.ts
-      @[code ts](../.vuepress/sidebar/zh.ts)
+      @[code ts](../../.vuepress/sidebar/zh.ts)
       :::
 
    3. Add the language to `locales` field in `.vuepress/config.ts`:
       :::details Example
-      @[code ts{15-17}](../.vuepress/config.ts)
+      @[code ts{15-17}](../../.vuepress/config.ts)
       :::
    4. Import the navbar&sidebar and add the language to `locales` field in `.vuepress/theme.ts`:
       :::details Example
-      @[code ts{2-3,14-17}](../.vuepress/theme.ts)
+      @[code ts{2-3,14-17}](../../.vuepress/theme.ts)
       :::
 
 3. Translate the content of the document

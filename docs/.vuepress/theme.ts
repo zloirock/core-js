@@ -20,7 +20,6 @@ export default hopeTheme({
   displayFooter: true,
   plugins: {
     autoCatalog: {
-      index: true,
       locales: {
         "/": { title: "Index" },
         "/zh/": { title: "索引" },
@@ -29,8 +28,11 @@ export default hopeTheme({
     blog: true,
     mdEnhance: {
       attrs: true,
+      tabs: true,
       imgLazyload: true,
+      include: true,
       tasklist: true,
     },
+    prismjs: false,
   },
 });

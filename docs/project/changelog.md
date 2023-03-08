@@ -1,6 +1,6 @@
 ---
 title: Changelog
-icon: clock
+icon: time
 ---
 
 @include(../../CHANGELOG.md)
