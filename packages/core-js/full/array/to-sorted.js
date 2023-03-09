@@ -1,5 +1,3 @@
-require('../../modules/es.array.sort');
-require('../../modules/esnext.array.to-sorted');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/array/to-sorted');
 
-module.exports = entryUnbind('Array', 'toSorted');
+module.exports = parent;

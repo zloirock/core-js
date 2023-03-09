@@ -1,4 +1,3 @@
-require('../../modules/esnext.array.to-reversed');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/array/to-reversed');
 
-module.exports = entryUnbind('Array', 'toReversed');
+module.exports = parent;
