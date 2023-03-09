@@ -1,7 +1,8 @@
 ## Changelog
 ##### Unreleased
-- [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as supported from V8 ~ Chrome 111
+- Fixed dependencies of some entries
 - Fixed `ToString` conversion / built-ins nature of some accessors
+- [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as supported from V8 ~ Chrome 111
 - Added Opera Android 74 compat data mapping
 
 ##### [3.29.0 - 2023.02.27](https://github.com/zloirock/core-js/releases/tag/v3.29.0)
