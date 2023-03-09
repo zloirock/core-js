@@ -35,8 +35,30 @@ export const navbarZh = navbar([
   },
   {
     text: "贡献",
-    link: "/zh/dev/",
+    prefix: "/zh/dev/",
     icon: "tree",
+    children: [
+      {
+        text: "指南",
+        icon: "question",
+        link: "README.md",
+      },
+      {
+        text: "Polyfill",
+        icon: "code",
+        link: "polyfill.md",
+      },
+      {
+        text: "兼容性数据",
+        icon: "form",
+        link: "compat.md",
+      },
+      {
+        text: "文档",
+        icon: "article",
+        link: "docs/README.md",
+      },
+    ],
   },
   {
     text: "项目",
