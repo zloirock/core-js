@@ -1,8 +1,6 @@
 ---
 category: development
 icon: article
-tag:
-  - untranslated
 ---
 
 # 撰写文档
