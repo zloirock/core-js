@@ -2,16 +2,16 @@
 category: development
 icon: form
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # 更新`core-js-compat`
 
 ::: tip
-If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
+如果你没有设备运行对应的浏览器，可以使用 [Sauce Labs](https://saucelabs.com/)、[BrowserStack](https://www.browserstack.com/) 以及[Cloud Browser](https://ieonchrome.com/)。
 :::
 
-## Update existing data
+## 更新现有数据
 
 For updating `core-js-compat` data:
 
@@ -26,7 +26,7 @@ For updating `core-js-compat` data:
 - If you want to add new data for Hermes (incl. shipped with React Native), run `npm run compat-hermes YOR_PATH_TO_HERMES` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](https://github.com/zloirock/core-js/blob/master/packages/core-js-compat/src/data.mjs).
 
-## Add a new mapping
+## 创建新的版本映射
 
 If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](https://github.com/zloirock/core-js/blob/master/packages/core-js-compat/src/mapping.mjs).
 

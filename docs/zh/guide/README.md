@@ -2,7 +2,7 @@
 icon: launch
 category: guide
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # 快速上手

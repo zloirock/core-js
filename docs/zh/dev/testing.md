@@ -2,7 +2,7 @@
 category: development
 icon: check
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # 测试

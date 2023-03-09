@@ -35,8 +35,30 @@ export const navbarEn = navbar([
   },
   {
     text: "Contribution",
-    link: "/dev/",
+    prefix: "/dev/",
     icon: "tree",
+    children: [
+      {
+        text: "Guide",
+        icon: "question",
+        link: "README.md",
+      },
+      {
+        text: "Polyfill",
+        icon: "code",
+        link: "polyfill.md",
+      },
+      {
+        text: "Compat Data",
+        icon: "form",
+        link: "compat.md",
+      },
+      {
+        text: "Documents",
+        icon: "article",
+        link: "docs/README.md",
+      },
+    ],
   },
   {
     text: "Project",

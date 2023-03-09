@@ -2,20 +2,20 @@
 icon: light
 category: guide
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # Babel 集成
 
-`core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
+`core-js`被集成到 `babel` 中，也是`babel` polyfill 相关功能的基础。
 
 ## `@babel/polyfill`
 
-[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
+[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**只**导入`core-js` 中正式版的功能和 `regenerator-runtime` ](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) 用于 Generator 和异步函数，所以使用`@babel/polyfill`就相当于导入了全局版本的`core-js`（不包括 ES 提案）
 
-Now it's deprecated in favour of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
+目前此 package 已经废弃，并为了包含`core-js`和`regenerator-runtime`所需的部分，以及防止兼容性问题，此 package 仍停留在`core-js@2`上。
 
-As a full equal of `@babel/polyfill`, you can use this:
+你可以使用下面这段代码的作为`@babel/polyfill`等价替代品：
 
 ```js
 import "core-js/stable";
@@ -24,10 +24,10 @@ import "regenerator-runtime/runtime";
 
 ## `@babel/preset-env`
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.25'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) 有一个 `useBuiltIns` 选项, which optimizes working with global version of `core-js`。使用 `useBuiltIns` 的时候，你应该同时设置选项 `corejs` 来指定要使用的 `core-js`版本（例如`corejs: '3.25'`）。
 
-:::warning Warning
-Recommended to specify used minor `core-js` version, like `corejs: '3.25'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+:::warning
+建议指定 `core-js` 的次要版本（如 `corejs: '3.25'` 而不是 `corejs: 3`），因为 `corejs: 3` 并不会包含次要版本中添加的 API
 :::
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,

@@ -2,7 +2,7 @@
 icon: tool
 category: guide
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # SWC 集成

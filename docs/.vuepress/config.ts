@@ -22,6 +22,12 @@ export default defineUserConfig({
     "@compat-tests": () =>
       path.resolve(__dirname, "..", "..", "tests", "compat", "tests.js"),
   },
+  markdown: {
+    importCode: {
+      handleImportPath: (str) =>
+        str.replace(/^@docs-root/, path.resolve(__dirname, "..")),
+    },
+  },
   plugins: [
     searchPlugin(),
     shikiPlugin({

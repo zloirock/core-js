@@ -5,10 +5,6 @@ icon: code
 
 # Add a new polyfill
 
-::: tip
-You should complete the appropriate tests before submitting a pull request, see [Testing](./testing.md) for more details
-:::
-
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
 - For export the polyfill, in all common cases use `internals/export` helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.

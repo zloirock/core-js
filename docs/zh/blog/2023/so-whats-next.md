@@ -2,7 +2,7 @@
 author: zloirock
 category: blog
 tag:
-  - waiting-for-translation
+  - untranslated
 date: 2023-02-14
 ---
 

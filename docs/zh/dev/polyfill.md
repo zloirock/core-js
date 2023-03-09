@@ -2,14 +2,10 @@
 category: development
 icon: code
 tag:
-  - waiting-for-translation
+  - untranslated
 ---
 
 # 添加新的 polyfill
-
-::: tip
-You should complete the appropriate tests before submitting a pull request, see [Testing](./testing.md) for more details
-:::
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
@@ -27,9 +23,9 @@ You should complete the appropriate tests before submitting a pull request, see 
 - Add unit tests to [`tests/unit-global`](https://github.com/zloirock/core-js/blob/master/tests/unit-global) and [`tests/unit-pure`](https://github.com/zloirock/core-js/blob/master/tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](https://github.com/zloirock/core-js/blob/master/tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards).
-- Document it in [README.md](https://github.com/zloirock/core-js/blob/master/README.md), [CHANGELOG.md](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md) and [docs](./docs.md#add-doc-for-polyfill)
+- Document it in [README.md](https://github.com/zloirock/core-js/blob/master/README.md), [CHANGELOG.md](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md) and [docs](./docs/polyfill.md)
 
-## Style and standards
+## 风格指南
 
 The coding style should follow our [ESlint configuration](https://github.com/zloirock/core-js/blob/master/tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](./testing.md). Different places have different syntax and standard library limitations:
 
