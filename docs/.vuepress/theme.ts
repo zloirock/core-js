@@ -5,8 +5,8 @@ import { sidebarEn, sidebarZh } from "./sidebar/index.js";
 export default hopeTheme({
   favicon: "logo.png",
   repo: "https://github.com/zloirock/core-js",
-  docsRepo: "https://github.com/zloirock/core-js/docs",
   docsBranch: "master",
+  docsDir: "docs",
   iconAssets: "iconfont",
   locales: {
     "/": {
