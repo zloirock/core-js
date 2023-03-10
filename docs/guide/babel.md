@@ -93,7 +93,7 @@ var array = Array.of(1, 2, 3);
 
 By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.25', proposals: true }`.
 
-:::waring Warning
+:::warning
 In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 :::
 
@@ -122,6 +122,6 @@ Promise.resolve(32).then((x) => console.log(x));
 
 By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
-::: warn
+:::warning
 If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 :::

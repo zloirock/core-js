@@ -1,13 +1,13 @@
 ---
 icon: tool
 category: guide
-tag:
-  - untranslated
 ---
 
 # SWC 集成
 
-Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so good like in `babel`. Example of configuration in `.swcrc`:
+高速 JavaScript 转译器 `SWC` [内建了对 `core-js` 的集成](https://swc.rs/docs/configuration/supported-browsers), 可以简化全局版本的 `core-js` 的使用。
+类似于[ `@babel/preset-env`](babel.md#babelpreset-env)，SWC 支持两种模式，`usage` 和 `entry`。不过目前 `usage` 模式的表现相对于 `babel` 仍旧不那么尽如人意。
+以下为一个在 `.swcrc` 中使用 core-js 的简单示例：
 
 ```json
 {

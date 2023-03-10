@@ -2,7 +2,7 @@
 
 对全局对象的属性的 Polyfill
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es

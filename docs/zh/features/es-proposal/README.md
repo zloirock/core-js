@@ -61,7 +61,7 @@ Finished (stage 4) 提案已经在`core-js`中标记为稳定的 ECMAScript，�
 
 `core-js/stage/3` 只包含 Stage 3 的提案，而`core-js/stage/2`则包含 Stage 2 到 Stage 3 的提案，以此类推……
 
-Entry points:
+入口点:
 
 ```
 core-js(-pure)/stage/3
@@ -73,7 +73,7 @@ core-js(-pure)/stage/3
 
 ## Stage 2
 
-Entry points:
+入口点:
 
 ```
 core-js(-pure)/stage/2
@@ -95,7 +95,7 @@ core-js(-pure)/stage/2
 
 ## Stage 1
 
-Entry points:
+入口点:
 
 ```
 core-js(-pure)/stage/1
@@ -133,7 +133,7 @@ core-js(-pure)/stage/1
 
 ## Stage 0
 
-Entry points:
+入口点:
 
 ```
 core-js(-pure)/stage/0
@@ -147,7 +147,7 @@ core-js(-pure)/stage/0
 
 ## Pre-stage 0
 
-Entry points:
+入口点:
 
 ```
 core-js(-pure)/stage/pre
