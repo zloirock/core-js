@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [ES Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)
 
 ## Types

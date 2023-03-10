@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)
 
 ## Module

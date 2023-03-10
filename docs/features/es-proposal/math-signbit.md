@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)
 
 ## Module

@@ -1,3 +1,7 @@
+---
+category: feature
+---
+
 # ECMAScript Standards
 
 Polyfills for properties of global object namespaces.

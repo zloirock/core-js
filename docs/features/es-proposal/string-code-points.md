@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)
 
 ## Module

@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors)
 
 ## Types

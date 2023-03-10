@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - web-standard
+  - missing-example
+  - untranslated
+---
+
 # `setTimeout` and `setInterval`
 
 Additional arguments fix for IE9-:

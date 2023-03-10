@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-standard
+  - untranslated
+---
+
 # Collections
 
 `core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in old environments uses fast polyfill (O(1) lookup).

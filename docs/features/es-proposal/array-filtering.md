@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [Array filtering](https://github.com/tc39/proposal-array-filtering)
 
 ## Modules

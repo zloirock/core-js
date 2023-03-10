@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-standard
+---
+
 # `String` and `RegExp`
 
 ## Modules

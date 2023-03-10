@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Array.prototype.flat` & `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)
 
 ## Types

@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)
 
 ## Modules

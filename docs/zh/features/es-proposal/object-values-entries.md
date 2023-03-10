@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)
 
 ## Types

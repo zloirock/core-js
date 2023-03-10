@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Array` grouping](https://github.com/tc39/proposal-array-grouping)
 
 ## Modules

@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)
 
 ## Types

@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Symbol.matcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)
 
 ## Module

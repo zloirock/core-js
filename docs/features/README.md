@@ -1,5 +1,6 @@
 ---
 icon: object
+category: feature
 ---
 
 # Features

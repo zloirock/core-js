@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-standard
+  - untranslated
+---
+
 # `TypedArray`s
 
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.

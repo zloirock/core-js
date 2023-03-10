@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 
 ::: warning

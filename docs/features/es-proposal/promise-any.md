@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Promise.any`](https://github.com/tc39/proposal-promise-any)
 
 ## Types

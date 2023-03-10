@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-standard
+  - missing-example
+  - untranslated
+---
+
 # `Math`
 
 ## Modules

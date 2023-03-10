@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata)
 
 ## Modules

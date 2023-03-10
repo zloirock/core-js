@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - web-standard
+  - untranslated
+---
+
 # `setImmediate`
 
 ## Modules

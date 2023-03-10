@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - helper
+  - untranslated
+---
+
 # Iteration helpers
 
 Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:

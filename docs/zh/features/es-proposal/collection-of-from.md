@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)
 
 ## Modules

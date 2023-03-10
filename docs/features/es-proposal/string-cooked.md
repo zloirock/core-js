@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`String.cooked`](https://github.com/tc39/proposal-string-cooked)
 
 ## Module

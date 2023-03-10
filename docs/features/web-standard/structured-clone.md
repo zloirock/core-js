@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - web-standard
+---
+
 # `structuredClone`
 
 [Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)

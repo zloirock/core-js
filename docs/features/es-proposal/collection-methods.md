@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [New collections methods](https://github.com/tc39/proposal-collection-methods)
 
 ## Modules

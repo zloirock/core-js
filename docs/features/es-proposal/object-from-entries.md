@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)
 
 ## Types

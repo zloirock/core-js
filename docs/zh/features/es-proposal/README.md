@@ -1,3 +1,7 @@
+---
+category: feature
+---
+
 # ECMAScript 提案
 
 [The TC39 process.](https://tc39.github.io/process-document/)

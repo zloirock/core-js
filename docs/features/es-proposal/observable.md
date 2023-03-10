@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`Observable`](https://github.com/zenparsing/es-observable)
 
 ## Modules

@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [Seeded pseudo-random numbers](https://github.com/tc39/proposal-seeded-random)
 
 ::: warming

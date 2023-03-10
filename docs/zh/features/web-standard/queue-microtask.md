@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - web-standard
+  - untranslated
+---
+
 # `queueMicrotask`
 
 [Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask)

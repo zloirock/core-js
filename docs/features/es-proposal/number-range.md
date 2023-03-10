@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`Number.range`](https://github.com/tc39/proposal-Number.range)
 
 ## Modules

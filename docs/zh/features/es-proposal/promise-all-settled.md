@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
 
 ## Types

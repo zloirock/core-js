@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)
 
 ## Modules

@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`String` padding](https://github.com/tc39/proposal-string-pad-start-end)
 
 ## Types

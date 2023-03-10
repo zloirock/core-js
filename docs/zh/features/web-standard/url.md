@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - web-standard
+  - untranslated
+---
+
 # `URL` and `URLSearchParams`
 
 [`URL` standard](https://url.spec.whatwg.org/) implementation.

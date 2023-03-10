@@ -1,5 +1,7 @@
 ---
-title: Array
+category: feature
+tag:
+  - es-standard
 ---
 
 # `Array`
@@ -153,8 +155,8 @@ core-js(-pure)/es|stable|actual|full/array/virtual/unshift
 core-js(-pure)/es|stable|actual|full/array/virtual/values
 ```
 
-## Examples
-[_Examples_](https://tinyurl.com/2br28bgj):
+## Example
+[_Example_](https://tinyurl.com/2br28bgj):
 
 ```js
 Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]

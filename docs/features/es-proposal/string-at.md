@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`String#at`](https://github.com/mathiasbynens/String.prototype.at)
 
 ::: warning

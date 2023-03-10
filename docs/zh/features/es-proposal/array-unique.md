@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Array` deduplication](https://github.com/tc39/proposal-array-unique)
 
 ## Modules

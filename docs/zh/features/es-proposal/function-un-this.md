@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Function.prototype.unThis`](https://github.com/js-choi/proposal-function-un-this)
 
 ## Module

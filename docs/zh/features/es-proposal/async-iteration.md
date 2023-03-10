@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)
 
 ## Types

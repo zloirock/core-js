@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)
 
 ## Types

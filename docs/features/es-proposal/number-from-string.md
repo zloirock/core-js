@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 
 ## Module

@@ -7,9 +7,9 @@ icon: article
 
 The documentation is under active construction. If you want to help, you can start with the following:
 
-- Refining examples of polyfill (find pages with missing examples [here]())
+- Refining examples of polyfill (find pages with missing examples [here](/tag/missing-example))
 - Writing tutorials (e.g. integration with a tool)
-- Help with translations (see the Chinese article to be translated [here](/zh/tag/untranslated/), or submit a new language :smile:)
+- Help with translations (see [Translate](./translate.md) page)
 
 ## How to
 

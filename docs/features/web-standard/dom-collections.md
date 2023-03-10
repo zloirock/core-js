@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - web-standard
+---
+
 # Iterable DOM collections
 
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them.

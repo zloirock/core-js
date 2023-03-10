@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)
 
 ## Types

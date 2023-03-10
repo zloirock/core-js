@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`String#matchAll`](https://github.com/tc39/proposal-string-matchall).
 
 ## Types

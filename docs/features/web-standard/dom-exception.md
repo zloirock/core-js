@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - web-standard
+---
+
 # `DOMException`
 
 [The specification.](https://webidl.spec.whatwg.org/#idl-DOMException)

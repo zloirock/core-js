@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [Object iteration](https://github.com/tc39/proposal-object-iteration)
 
 ::: warning

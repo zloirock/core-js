@@ -1,4 +1,15 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [Iterator helpers](https://github.com/tc39/proposal-iterator-helpers)
+
+:::note
+This is an ECMAScript proposal, please do not confuse it with the Helper function provided by Core-JS
+:::
 
 ## Modules
 

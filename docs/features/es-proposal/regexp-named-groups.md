@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+---
+
 # [`RegExp` named capture groups](https://github.com/tc39/proposal-regexp-named-groups)
 
 ## Types

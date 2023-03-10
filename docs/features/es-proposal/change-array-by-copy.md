@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [Change `Array` by copy](https://github.com/tc39/proposal-change-array-by-copy)
 
 ## Modules

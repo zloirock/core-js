@@ -1,6 +1,13 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [New `Set` methods](https://github.com/tc39/proposal-set-methods)
 
-##Modules
+## Modules
 
 - [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js)
 - [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js)

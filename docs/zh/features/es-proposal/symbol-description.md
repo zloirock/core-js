@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [`Symbol.prototype.description`](https://github.com/tc39/proposal-Symbol-description)
 
 ## Types

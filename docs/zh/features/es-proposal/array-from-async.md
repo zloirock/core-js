@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)
 
 ## Module

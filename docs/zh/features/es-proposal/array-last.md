@@ -1,3 +1,10 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - untranslated
+---
+
 # [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)
 
 ## Modules

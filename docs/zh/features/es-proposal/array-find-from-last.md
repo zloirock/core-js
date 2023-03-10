@@ -1,3 +1,11 @@
+---
+category: feature
+tag:
+  - es-proposal
+  - missing-example
+  - untranslated
+---
+
 # [Array find from last](https://github.com/tc39/proposal-array-find-from-last)
 
 ## Types
