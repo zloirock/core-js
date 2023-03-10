@@ -89,8 +89,7 @@ export default {
     [107, '1.26'],
     [108, '1.27'],
     [109, '1.28'],
-    [109, '1.29'],
-    [109, '1.30'],
+    [110, '1.31'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
@@ -217,6 +216,7 @@ export default {
     [104, 71],
     [106, 72],
     [108, 73],
+    [109, 74],
   ],
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.

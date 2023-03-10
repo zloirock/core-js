@@ -1,7 +1,18 @@
 ## Changelog
 ##### Unreleased
+- Fixed dependencies of some entries
+- Fixed `ToString` conversion / built-ins nature of some accessors
+- [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as supported from V8 ~ Chrome 111
+- Added Opera Android 74 compat data mapping
+
+##### [3.29.0 - 2023.02.27](https://github.com/zloirock/core-js/releases/tag/v3.29.0)
+- Added `URLSearchParams.prototype.size` getter, [url/734](https://github.com/whatwg/url/pull/734)
 - Allowed cloning resizable `ArrayBuffer`s in the `structuredClone` polyfill
 - Fixed wrong export in `/(stable|actual|full)/instance/unshift` entries, [#1207](https://github.com/zloirock/core-js/issues/1207)
+- Compat data improvements:
+  - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) marked as supported from Bun 0.5.7
+  - `String.prototype.toWellFormed` marked as fixed from Bun 0.5.7
+  - Added Deno 1.31 compat data mapping
 
 ##### [3.28.0 - 2023.02.14](https://github.com/zloirock/core-js/releases/tag/v3.28.0)
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**

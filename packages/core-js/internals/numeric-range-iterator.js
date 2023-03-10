@@ -4,7 +4,7 @@ var createIteratorConstructor = require('../internals/iterator-create-constructo
 var createIterResultObject = require('../internals/create-iter-result-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
-var defineProperties = require('../internals/object-define-properties').f;
+var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var DESCRIPTORS = require('../internals/descriptors');
 
 var INCORRECT_RANGE = 'Incorrect Iterator.range arguments';
@@ -53,7 +53,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     start: start,
     end: end,
     step: step,
-    inclusiveEnd: inclusiveEnd,
+    inclusive: inclusiveEnd,
     hitsEnd: hitsEnd,
     currentCount: zero,
     zero: zero
@@ -72,7 +72,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   var step = state.step;
   var currentYieldingValue = start + (step * state.currentCount++);
   if (currentYieldingValue === end) state.hitsEnd = true;
-  var inclusiveEnd = state.inclusiveEnd;
+  var inclusiveEnd = state.inclusive;
   var endCondition;
   if (end > start) {
     endCondition = inclusiveEnd ? currentYieldingValue > end : currentYieldingValue >= end;
@@ -85,25 +85,22 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   } return createIterResultObject(currentYieldingValue, false);
 });
 
-var getter = function (fn) {
-  return { get: fn, set: function () { /* empty */ }, configurable: true, enumerable: false };
+var addGetter = function (key) {
+  defineBuiltInAccessor($RangeIterator.prototype, key, {
+    get: function () {
+      return getInternalState(this)[key];
+    },
+    set: function () { /* empty */ },
+    configurable: true,
+    enumerable: false
+  });
 };
 
 if (DESCRIPTORS) {
-  defineProperties($RangeIterator.prototype, {
-    start: getter(function () {
-      return getInternalState(this).start;
-    }),
-    end: getter(function () {
-      return getInternalState(this).end;
-    }),
-    inclusive: getter(function () {
-      return getInternalState(this).inclusiveEnd;
-    }),
-    step: getter(function () {
-      return getInternalState(this).step;
-    })
-  });
+  addGetter('start');
+  addGetter('end');
+  addGetter('inclusive');
+  addGetter('step');
 }
 
 module.exports = $RangeIterator;

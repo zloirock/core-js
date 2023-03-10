@@ -1,1 +1,1 @@
-require('../../modules/esnext.typed-array.with');
+require('../../modules/es.typed-array.with');

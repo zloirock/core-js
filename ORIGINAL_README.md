@@ -208,11 +208,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ### Installation:[⬆](#index)
 ```sh
 // global version
-npm install --save core-js@3.28.0
+npm install --save core-js@3.29.0
 // version without global namespace pollution
-npm install --save core-js-pure@3.28.0
+npm install --save core-js-pure@3.29.0
 // bundled global version
-npm install --save core-js-bundle@3.28.0
+npm install --save core-js-bundle@3.29.0
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
@@ -309,9 +309,9 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.28'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.29'`.
 
-> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.28'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.29'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -366,7 +366,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.28', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.29', proposals: true }`.
 
 > **Warning!** In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 
@@ -402,7 +402,7 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
   "env": {
     "targets": "> 0.25%, not dead",
     "mode": "entry",
-    "coreJs": "3.28"
+    "coreJs": "3.29"
   }
 }
 ```
@@ -3213,7 +3213,7 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 #### `URL` and `URLSearchParams`[⬆](#index)
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 ```js
 class URL {
   constructor(url: string, base?: string);
@@ -3248,6 +3248,7 @@ class URLSearchParams {
   keys(): Iterator<key>;
   values(): Iterator<value>;
   @@iterator(): Iterator<[key, value]>;
+  readonly attribute size: number;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3257,7 +3258,7 @@ core-js(-pure)/stable|actual|full/url
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
-[*Examples*](https://is.gd/AfIwve):
+[*Examples*](https://tinyurl.com/2fccy7sb):
 ```js
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
@@ -3291,6 +3292,8 @@ const params = new URLSearchParams('?a=1&b=2&a=3');
 params.append('c', 4);
 params.append('a', 2);
 params.sort();
+
+console.log(params.size); // => 5
 
 for (let [key, value] of params) {
   console.log(key);   // => 'a', 'a', 'a', 'b', 'c'

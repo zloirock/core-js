@@ -2147,21 +2147,25 @@ export const data = {
   'esnext.set.from': {
   },
   'esnext.set.intersection.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
   'esnext.set.is-superset-of.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
@@ -2177,11 +2181,13 @@ export const data = {
   'esnext.set.some': {
   },
   'esnext.set.symmetric-difference.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
   'esnext.set.union.v2': {
+    bun: '0.5.7',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
@@ -2197,6 +2203,7 @@ export const data = {
   },
   'esnext.string.is-well-formed': {
     bun: '0.4.0',
+    chrome: '111',
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
@@ -2205,7 +2212,8 @@ export const data = {
   'esnext.string.to-well-formed': {
     // Safari ToString conversion bug
     // https://bugs.webkit.org/show_bug.cgi?id=251757
-    // bun: '0.4.0',
+    bun: '0.5.7', // '0.4.0',
+    chrome: '111',
   },
   'esnext.symbol.async-dispose': {
   },
@@ -2459,6 +2467,8 @@ export const data = {
     firefox: '57',
     node: '10.0',
     safari: '14.0',
+  },
+  'web.url-search-params.size': {
   },
 };
 
