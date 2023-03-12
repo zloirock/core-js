@@ -1502,9 +1502,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.from': function () {
     return AsyncIterator.from;
   },
-  'esnext.async-iterator.indexed': function () {
-    return AsyncIterator.prototype.indexed;
-  },
   'esnext.async-iterator.map': function () {
     return AsyncIterator.prototype.map;
   },
@@ -1569,9 +1566,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.from': function () {
     return Iterator.from;
-  },
-  'esnext.iterator.indexed': function () {
-    return Iterator.prototype.indexed;
   },
   'esnext.iterator.map': function () {
     return Iterator.prototype.map;

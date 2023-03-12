@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.29.1 - 2023.03.13](https://github.com/zloirock/core-js/releases/tag/v3.29.1)
 - Fixed dependencies of some entries
 - Fixed `ToString` conversion / built-ins nature of some accessors
 - [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as supported from V8 ~ Chrome 111

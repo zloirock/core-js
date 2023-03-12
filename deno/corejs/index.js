@@ -1,7 +1,7 @@
 /**
- * core-js 3.29.0
+ * core-js 3.29.1
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.29.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.29.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -943,10 +943,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.29.0',
+  version: '3.29.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.29.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.29.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -7175,7 +7175,7 @@ var createIteratorConstructor = __webpack_require__(240);
 var createIterResultObject = __webpack_require__(183);
 var isNullOrUndefined = __webpack_require__(16);
 var isObject = __webpack_require__(19);
-var defineProperties = __webpack_require__(88).f;
+var defineBuiltInAccessor = __webpack_require__(119);
 var DESCRIPTORS = __webpack_require__(5);
 
 var INCORRECT_RANGE = 'Incorrect Iterator.range arguments';
@@ -7224,7 +7224,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     start: start,
     end: end,
     step: step,
-    inclusiveEnd: inclusiveEnd,
+    inclusive: inclusiveEnd,
     hitsEnd: hitsEnd,
     currentCount: zero,
     zero: zero
@@ -7243,7 +7243,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   var step = state.step;
   var currentYieldingValue = start + (step * state.currentCount++);
   if (currentYieldingValue === end) state.hitsEnd = true;
-  var inclusiveEnd = state.inclusiveEnd;
+  var inclusiveEnd = state.inclusive;
   var endCondition;
   if (end > start) {
     endCondition = inclusiveEnd ? currentYieldingValue > end : currentYieldingValue >= end;
@@ -7256,25 +7256,22 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   } return createIterResultObject(currentYieldingValue, false);
 });
 
-var getter = function (fn) {
-  return { get: fn, set: function () { /* empty */ }, configurable: true, enumerable: false };
+var addGetter = function (key) {
+  defineBuiltInAccessor($RangeIterator.prototype, key, {
+    get: function () {
+      return getInternalState(this)[key];
+    },
+    set: function () { /* empty */ },
+    configurable: true,
+    enumerable: false
+  });
 };
 
 if (DESCRIPTORS) {
-  defineProperties($RangeIterator.prototype, {
-    start: getter(function () {
-      return getInternalState(this).start;
-    }),
-    end: getter(function () {
-      return getInternalState(this).end;
-    }),
-    inclusive: getter(function () {
-      return getInternalState(this).inclusiveEnd;
-    }),
-    step: getter(function () {
-      return getInternalState(this).step;
-    })
-  });
+  addGetter('start');
+  addGetter('end');
+  addGetter('inclusive');
+  addGetter('step');
 }
 
 module.exports = $RangeIterator;
@@ -11580,7 +11577,7 @@ var isSetLike = function (it) {
 // fallback old -> new set methods proposal arguments
 module.exports = function (it) {
   if (isSetLike(it)) return it;
-  if (isIterable(it)) return new Set(it);
+  return isIterable(it) ? new Set(it) : it;
 };
 
 
