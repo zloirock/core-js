@@ -4,7 +4,7 @@ tag:
   - es-proposal
 ---
 
-# [Iterator helpers](https://github.com/tc39/proposal-iterator-helpers)
+# [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)
 
 :::note
 This is an ECMAScript proposal, please do not confuse it with the Helper function provided by Core-JS
@@ -12,20 +12,6 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 
 ## Modules
 
-- [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.constructor.js)
-- [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.drop.js)
-- [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.every.js)
-- [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.filter.js)
-- [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.find.js)
-- [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.flat-map.js)
-- [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.for-each.js)
-- [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.from.js)
-- [`esnext.async-iterator.indexed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.indexed.js)
-- [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.map.js)
-- [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.reduce.js)
-- [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.some.js)
-- [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.take.js)
-- [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.to-array.js)
 - [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.constructor.js)
 - [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.drop.js)
 - [`esnext.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.every.js)
@@ -40,18 +26,17 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 - [`esnext.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.some.js)
 - [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.take.js)
 - [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-array.js)
-- [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-async.js)
 
 ## Types
 
 ```ts
 class Iterator {
-  static from(iterable: Iterable<mixed>): Iterator<any>;
+  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
   drop(limit: uint): Iterator<any>;
   every(callbackfn: value: any => boolean): boolean;
   filter(callbackfn: value: any => boolean): Iterator<any>;
-  find(callbackfn: value: any => boolean)): any;
-  flatMap(callbackfn: value => any: Iterable): Iterator<any>;
+  find(callbackfn: value: any => boolean): any;
+  flatMap(callbackfn: (value: any, couner: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
   forEach(callbackfn: value => void): void;
   indexed(): Iterator<[index, any]>;
   map(callbackfn: value => any): Iterator<any>;
@@ -59,25 +44,7 @@ class Iterator {
   some(callbackfn: value: any => boolean): boolean;
   take(limit: uint): Iterator<any>;
   toArray(): Array<any>;
-  toAsync(): AsyncIterator<any>;
   @@toStringTag: 'Iterator'
-}
-
-class AsyncIterator {
-  static from(iterable: Iterable<mixed>): AsyncIterator<any>;
-  drop(limit: uint): AsyncIterator<any>;
-  every(async callbackfn: value: any => boolean): Promise<boolean>;
-  filter(async callbackfn: value: any => boolean): AsyncIterator<any>;
-  find(async callbackfn: value: any => boolean)): Promise<any>;
-  flatMap(async callbackfn: value => any: Iterable): AsyncIterator<any>;
-  forEach(async callbackfn: value => void): Promise<void>;
-  indexed(): Iterator<[index, any]>;
-  map(async callbackfn: value => any): AsyncIterator<any>;
-  reduce(async callbackfn: (memo: any, value: any) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: value: any => boolean): Promise<boolean>;
-  take(limit: uint): AsyncIterator<any>;
-  toArray(): Promise<Array>;
-  @@toStringTag: 'AsyncIterator'
 }
 ```
 
@@ -113,7 +80,6 @@ core-js(-pure)/full/iterator/reduce
 core-js(-pure)/full/iterator/some
 core-js(-pure)/full/iterator/take
 core-js(-pure)/full/iterator/to-array
-core-js(-pure)/full/iterator/to-async
 ```
 
 ## Example
@@ -150,16 +116,3 @@ await [1, 2, 3]
 ## Caveats
 
 - For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
-- Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
-
-```js
-const configurator = require("core-js/configurator");
-
-configurator({ USE_FUNCTION_CONSTRUCTOR: true });
-
-require("core-js/full/async-iterator");
-
-(async function* () {
-  /* empty */
-})() instanceof AsyncIterator; // => true
-```

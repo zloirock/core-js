@@ -50,6 +50,9 @@ Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructo
 - [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-locale-string.js)
 - [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-string.js)
 - [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js)
+- [`esnext.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-reversed.js)
+- [`esnext.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-sorted.js)
+- [`esnext.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.with.js)
 
 ## Types
 
@@ -103,6 +106,7 @@ class [
 class %TypedArray% {
   at(index: int): number;
   copyWithin(target: number, start: number, end?: number): this;
+  entries(): Iterator<[index, value]>;
   every(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
   fill(value: number, start?: number, end?: number): this;
   filter(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
@@ -114,6 +118,7 @@ class %TypedArray% {
   includes(searchElement: any, from?: number): boolean;
   indexOf(searchElement: any, from?: number): number;
   join(separator: string = ','): string;
+  keys(): Iterator<index>;
   lastIndexOf(searchElement: any, from?: number): number;
   map(mapFn: (value: number, index: number, target: %TypedArray%) => number, thisArg?: any): %TypedArray%;
   reduce(callbackfn: (memo: any, value: number, index: number, target: %TypedArray%) => any, initialValue?: any): any;
@@ -124,11 +129,12 @@ class %TypedArray% {
   some(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): boolean;
   sort(comparefn?: (a: number, b: number) => number): this; // with modern behavior like stable sort
   subarray(begin?: number, end?: number): %TypedArray%;
+  toReversed(): %TypedArray%;
+  toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
   toString(): string;
   toLocaleString(): string;
   values(): Iterator<value>;
-  keys(): Iterator<index>;
-  entries(): Iterator<[index, value]>;
+  with(index: includes, value: any): %TypedArray%;
   @@iterator(): Iterator<value>;
   readonly attribute buffer: ArrayBuffer;
   readonly attribute byteLength: number;
@@ -188,8 +194,11 @@ core-js/es|stable|actual|full/typed-array/some
 core-js/es|stable|actual|full/typed-array/sort
 core-js/es|stable|actual|full/typed-array/subarray
 core-js/es|stable|actual|full/typed-array/to-locale-string
+core-js/es|stable|actual|full/typed-array/to-reversed
+core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/to-string
 core-js/es|stable|actual|full/typed-array/values
+core-js/es|stable|actual|full/typed-array/with
 ```
 
 ## Example

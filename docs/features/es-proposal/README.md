@@ -29,6 +29,8 @@ Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, t
 
 ### [`Array` find from last](array-find-from-last.md)
 
+### [Change `Array` by copy](change-array-by-copy.md)
+
 ### [`Object.values` / `Object.entries`](object-values-entries.md)
 
 ### [`Object.fromEntries`](object-from-entries.md)
@@ -71,9 +73,21 @@ Entry points:
 core-js(-pure)/stage/3
 ```
 
+### [`Iterator` helpers](iterator-helpers.md)
+
+### [`Array.fromAsync`](array-from-async.md)
+
 ### [`Array` grouping](array-grouping.md)
 
-### [Change `Array` by copy](change-array-by-copy.md)
+### [`ArrayBuffer.prototype.transfer` and friends](array-buffer-transfer.md)
+
+### [New `Set` methods](new-set-methods.md)
+
+### [`JSON.parse` source text access](jsonparse-source-text-access.md)
+
+### [Explicit resource management](explicit-resource-management.md)
+
+### [Well-formed unicode strings](well-formed-unicode-strings.md)
 
 ## Stage 2
 
@@ -83,17 +97,17 @@ Entry points:
 core-js(-pure)/stage/2
 ```
 
-### [`Iterator` helpers](iterator-helpers.md)
-
-### [New `Set` methods](set-methods.md)
+### [`AsyncIterator` helpers](async-iterator-helpers.md)
 
 ### [`Map.prototype.emplace`](map-upsert.md)
 
-### [`Array.fromAsync`](array-from-async.md)
-
 ### [`Array.isTemplateObject`](array-is-template-object.md)
 
-### [`Symbol.{ asyncDispose, dispose }` for `using` statement](using-statement.md)
+### [`String.dedent`](stringdedent.md)
+
+### [Async explicit resource management](async-explicit-resource-management.md)
+
+### [`Symbol` predicates](symbol-predicates.md)
 
 ### [`Symbol.metadataKey` for decorators metadata proposal](decorator-metadata.md)
 
@@ -119,7 +133,7 @@ core-js(-pure)/stage/1
 
 ### [Getting last item from `Array`](array-find-from-last.md)
 
-### [`Number.range`](number-range.md)
+### [`Iterator.range`](iterator-range.md)
 
 ### [`Number.fromString`](number-from-string.md)
 
@@ -133,8 +147,6 @@ core-js(-pure)/stage/1
 
 ### [`Symbol.matcher` for pattern matching](pattern-matching.md)
 
-### [Seeded pseudo-random numbers](seeded-random.md)
-
 ## Stage 0
 
 Entry points:
@@ -143,7 +155,7 @@ Entry points:
 core-js(-pure)/stage/0
 ```
 
-### [`Function.prototype.unThis`](function-un-this.md)
+### [`Function.prototype.demethodize`](function-prototype-demethodize.md)
 
 ### [`Function.{ isCallable, isConstructor }`](function-is-callable-is-constructor.md)
 

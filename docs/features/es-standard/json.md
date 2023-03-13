@@ -17,7 +17,7 @@ Since `JSON` object is missed only in very old engines like IE7-, `core-js` does
 
 ```ts
 namespace JSON {
-  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
   @@toStringTag: 'JSON';
 }
 ```

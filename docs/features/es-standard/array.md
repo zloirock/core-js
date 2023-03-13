@@ -7,6 +7,7 @@ tag:
 # `Array`
 
 ## Modules
+
 - [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js)
 - [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js)
 - [`es.array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.of.js)
@@ -38,8 +39,13 @@ tag:
 - [`es.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat.js)
 - [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat-map.js)
 - [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js)
+- [`esnext.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-reversed.js)
+- [`esnext.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-sorted.js)
+- [`esnext.array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-spliced.js)
+- [`esnext.array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.with.js)
 
 ## Types
+
 ```ts
 class Array {
   at(index: int): any;
@@ -70,8 +76,12 @@ class Array {
   splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // with adding support of @@species
   some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
   sort(comparefn?: (a: any, b: any) => number): this; // with modern behavior like stable sort
+  toReversed(): Array<mixed>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
+  toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
   unshift(...args: Array<mixed>): uint;
   values(): Iterator<value>;
+  with(index: includes, value: any): Array<mixed>;
   @@iterator(): Iterator<value>;
   @@unscopables: { [newMethodNames: string]: true };
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
@@ -91,84 +101,55 @@ core-js(-pure)/es|stable|actual|full/array
 core-js(-pure)/es|stable|actual|full/array/from
 core-js(-pure)/es|stable|actual|full/array/of
 core-js(-pure)/es|stable|actual|full/array/is-array
-core-js(-pure)/es|stable|actual|full/array/at
-core-js(-pure)/es|stable|actual|full/array/concat
-core-js(-pure)/es|stable|actual|full/array/entries
-core-js(-pure)/es|stable|actual|full/array/every
-core-js(-pure)/es|stable|actual|full/array/copy-within
-core-js(-pure)/es|stable|actual|full/array/fill
-core-js(-pure)/es|stable|actual|full/array/filter
-core-js(-pure)/es|stable|actual|full/array/find
-core-js(-pure)/es|stable|actual|full/array/find-index
-core-js(-pure)/es|stable|actual|full/array/find-last
-core-js(-pure)/es|stable|actual|full/array/find-last-index
-core-js(-pure)/es|stable|actual|full/array/flat
-core-js(-pure)/es|stable|actual|full/array/flat-map
-core-js(-pure)/es|stable|actual|full/array/for-each
-core-js(-pure)/es|stable|actual|full/array/includes
-core-js(-pure)/es|stable|actual|full/array/index-of
-core-js(-pure)/es|stable|actual|full/array/iterator
-core-js(-pure)/es|stable|actual|full/array/join
-core-js(-pure)/es|stable|actual|full/array/keys
-core-js(-pure)/es|stable|actual|full/array/last-index-of
-core-js(-pure)/es|stable|actual|full/array/map
-core-js(-pure)/es|stable|actual|full/array/push
-core-js(-pure)/es|stable|actual|full/array/reduce
-core-js(-pure)/es|stable|actual|full/array/reduce-right
-core-js(-pure)/es|stable|actual|full/array/reverse
-core-js(-pure)/es|stable|actual|full/array/slice
-core-js(-pure)/es|stable|actual|full/array/splice
-core-js(-pure)/es|stable|actual|full/array/some
-core-js(-pure)/es|stable|actual|full/array/sort
-core-js(-pure)/es|stable|actual|full/array/unshift
-core-js(-pure)/es|stable|actual|full/array/values
-core-js(-pure)/es|stable|actual|full/array/virtual/at
-core-js(-pure)/es|stable|actual|full/array/virtual/concat
-core-js(-pure)/es|stable|actual|full/array/virtual/copy-within
-core-js(-pure)/es|stable|actual|full/array/virtual/entries
-core-js(-pure)/es|stable|actual|full/array/virtual/every
-core-js(-pure)/es|stable|actual|full/array/virtual/fill
-core-js(-pure)/es|stable|actual|full/array/virtual/filter
-core-js(-pure)/es|stable|actual|full/array/virtual/find
-core-js(-pure)/es|stable|actual|full/array/virtual/find-index
-core-js(-pure)/es|stable|actual|full/array/virtual/find-last
-core-js(-pure)/es|stable|actual|full/array/virtual/find-last-index
-core-js(-pure)/es|stable|actual|full/array/virtual/flat
-core-js(-pure)/es|stable|actual|full/array/virtual/flat-map
-core-js(-pure)/es|stable|actual|full/array/virtual/for-each
-core-js(-pure)/es|stable|actual|full/array/virtual/includes
-core-js(-pure)/es|stable|actual|full/array/virtual/index-of
-core-js(-pure)/es|stable|actual|full/array/virtual/iterator
-core-js(-pure)/es|stable|actual|full/array/virtual/join
-core-js(-pure)/es|stable|actual|full/array/virtual/keys
-core-js(-pure)/es|stable|actual|full/array/virtual/last-index-of
-core-js(-pure)/es|stable|actual|full/array/virtual/map
-core-js(-pure)/es|stable|actual|full/array/virtual/push
-core-js(-pure)/es|stable|actual|full/array/virtual/reduce
-core-js(-pure)/es|stable|actual|full/array/virtual/reduce-right
-core-js(-pure)/es|stable|actual|full/array/virtual/reverse
-core-js(-pure)/es|stable|actual|full/array/virtual/slice
-core-js(-pure)/es|stable|actual|full/array/virtual/some
-core-js(-pure)/es|stable|actual|full/array/virtual/sort
-core-js(-pure)/es|stable|actual|full/array/virtual/splice
-core-js(-pure)/es|stable|actual|full/array/virtual/unshift
-core-js(-pure)/es|stable|actual|full/array/virtual/values
+core-js(-pure)/es|stable|actual|full/array(/virtual)/at
+core-js(-pure)/es|stable|actual|full/array(/virtual)/concat
+core-js(-pure)/es|stable|actual|full/array(/virtual)/copy-within
+core-js(-pure)/es|stable|actual|full/array(/virtual)/entries
+core-js(-pure)/es|stable|actual|full/array(/virtual)/every
+core-js(-pure)/es|stable|actual|full/array(/virtual)/fill
+core-js(-pure)/es|stable|actual|full/array(/virtual)/filter
+core-js(-pure)/es|stable|actual|full/array(/virtual)/find
+core-js(-pure)/es|stable|actual|full/array(/virtual)/find-index
+core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last
+core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last-index
+core-js(-pure)/es|stable|actual|full/array(/virtual)/flat
+core-js(-pure)/es|stable|actual|full/array(/virtual)/flat-map
+core-js(-pure)/es|stable|actual|full/array(/virtual)/for-each
+core-js(-pure)/es|stable|actual|full/array(/virtual)/includes
+core-js(-pure)/es|stable|actual|full/array(/virtual)/index-of
+core-js(-pure)/es|stable|actual|full/array(/virtual)/iterator
+core-js(-pure)/es|stable|actual|full/array(/virtual)/join
+core-js(-pure)/es|stable|actual|full/array(/virtual)/keys
+core-js(-pure)/es|stable|actual|full/array(/virtual)/last-index-of
+core-js(-pure)/es|stable|actual|full/array(/virtual)/map
+core-js(-pure)/es|stable|actual|full/array(/virtual)/push
+core-js(-pure)/es|stable|actual|full/array(/virtual)/reduce
+core-js(-pure)/es|stable|actual|full/array(/virtual)/reduce-right
+core-js(-pure)/es|stable|actual|full/array(/virtual)/reverse
+core-js(-pure)/es|stable|actual|full/array(/virtual)/slice
+core-js(-pure)/es|stable|actual|full/array(/virtual)/some
+core-js(-pure)/es|stable|actual|full/array(/virtual)/sort
+core-js(-pure)/es|stable|actual|full/array(/virtual)/splice
+core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
+core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
+core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
+core-js(-pure)/es|stable|actual|full/array(/virtual)/unshift
+core-js(-pure)/es|stable|actual|full/array(/virtual)/values
+core-js(-pure)/es|stable|actual|full/array(/virtual)/with
 ```
 
 ## Example
-[_Example_](https://tinyurl.com/2br28bgj):
+
+[_Example_](https://tinyurl.com/2oaa8x2x):
 
 ```js
 Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]
 Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
 Array.from("123", Number); // => [1, 2, 3]
 Array.from("123", (it) => it * it); // => [1, 4, 9]
-
 Array.of(1); // => [1]
 Array.of(1, 2, 3); // => [1, 2, 3]
-
 let array = ["a", "b", "c"];
-
 for (let value of array) console.log(value); // => 'a', 'b', 'c'
 for (let value of array.values()) console.log(value); // => 'a', 'b', 'c'
 for (let key of array.keys()) console.log(key); // => 0, 1, 2
@@ -176,7 +157,6 @@ for (let [key, value] of array.entries()) {
   console.log(key); // => 0, 1, 2
   console.log(value); // => 'a', 'b', 'c'
 }
-
 function isOdd(value) {
   return value % 2;
 }
@@ -184,30 +164,35 @@ function isOdd(value) {
 [4, 8, 15, 16, 23, 42].findIndex(isOdd); // => 2
 [1, 2, 3, 4].findLast(isOdd); // => 3
 [1, 2, 3, 4].findLastIndex(isOdd); // => 2
-
 Array(5).fill(42); // => [42, 42, 42, 42, 42]
-
 [1, 2, 3, 4, 5].copyWithin(0, 3); // => [4, 5, 3, 4, 5]
-
 [1, 2, 3].includes(2); // => true
 [1, 2, 3].includes(4); // => false
 [1, 2, 3].includes(2, 2); // => false
-
 [NaN].indexOf(NaN); // => -1
 [NaN].includes(NaN); // => true
 Array(1).indexOf(undefined); // => -1
 Array(1).includes(undefined); // => true
-
 [1, [2, 3], [4, 5]].flat(); // => [1, 2, 3, 4, 5]
 [1, [2, [3, [4]]], 5].flat(); // => [1, 2, [3, [4]], 5]
 [1, [2, [3, [4]]], 5].flat(3); // => [1, 2, 3, 4, 5]
-
 [
   { a: 1, b: 2 },
   { a: 3, b: 4 },
   { a: 5, b: 6 },
 ].flatMap((it) => [it.a, it.b]); // => [1, 2, 3, 4, 5, 6]
-
 [1, 2, 3].at(1); // => 2
 [1, 2, 3].at(-1); // => 3
+const sequence = [1, 2, 3];
+sequence.toReversed(); // => [3, 2, 1]
+sequence; // => [1, 2, 3]
+const array = [1, 2, 3, 4];
+array.toSpliced(1, 2, 5, 6, 7); // => [1, 5, 6, 7, 4]
+array; // => [1, 2, 3, 4]
+const outOfOrder = [3, 1, 2];
+outOfOrder.toSorted(); // => [1, 2, 3]
+outOfOrder; // => [3, 1, 2]
+const correctionNeeded = [1, 1, 3];
+correctionNeeded.with(1, 2); // => [1, 2, 3]
+correctionNeeded; // => [1, 1, 3]
 ```

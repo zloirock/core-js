@@ -21,7 +21,7 @@ icon: code
 - Add unit tests to [`tests/unit-global`](https://github.com/zloirock/core-js/blob/master/tests/unit-global) and [`tests/unit-pure`](https://github.com/zloirock/core-js/blob/master/tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](https://github.com/zloirock/core-js/blob/master/tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards).
-- Document it in [README.md](https://github.com/zloirock/core-js/blob/master/README.md), [CHANGELOG.md](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md) and [docs](./docs.md#add-doc-for-polyfill)
+- Document it in [README.md](https://github.com/zloirock/core-js/blob/master/README.md), [CHANGELOG.md](https://github.com/zloirock/core-js/blob/master/CHANGELOG.md) and [docs](./docs/polyfill.md)
 
 ## Style and standards
 

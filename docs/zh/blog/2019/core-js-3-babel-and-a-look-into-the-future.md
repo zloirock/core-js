@@ -191,7 +191,7 @@ import "core-js/stage/2";
 
 如果无法安装规范的每个细节实现某个功能，`core-js` 增加了一个 `.sham` 属性，例如，IE11 中 `Symbol.sham` 是 `true`。
 
-不再有 LiveScript! 当我开始写 `core-js` 时，我主要使用的是 [LiveScript](http://livescript.net/) ；一段时间后，我用 JavaScript 重写了全部的 polyfills 。在 `core-js@2` 中测试和帮助的工具函数仍然使用 LiveScript ：它是非常有趣的像 CoffeeScript 一样的语言，有强大的语法糖使你能够写非常紧凑的代码，但是它几乎已经死了。除此之外，它也是为 `core-js` 贡献的屏障，因为大多数 `core-js` 用户不知道这个语言。`core-js@3` 测试和工具函数使用现代 ES 语法：它将成为为 `core-js` 贡献的好时机 🙂。
+不再有 LiveScript! 当我开始写 `core-js` 时，我主要使用的是 [LiveScript](https://livescript.net/) ；一段时间后，我用 JavaScript 重写了全部的 polyfills 。在 `core-js@2` 中测试和帮助的工具函数仍然使用 LiveScript ：它是非常有趣的像 CoffeeScript 一样的语言，有强大的语法糖使你能够写非常紧凑的代码，但是它几乎已经死了。除此之外，它也是为 `core-js` 贡献的屏障，因为大多数 `core-js` 用户不知道这个语言。`core-js@3` 测试和工具函数使用现代 ES 语法：它将成为为 `core-js` 贡献的好时机 🙂。
 
 对于大多数用户，为了优化 `core-js` 导入，我建议使用 [babel](#Babel)。当然，有些情况下 [`core-js-builder`](http://npmjs.com/package/core-js-builder) 仍然有用。现在它支持 `target` 参数，使用带有目标引擎的[`browserslist`](https://github.com/browserslist/browserslist) 查询 - 你能够创建一个 bundle，仅仅包含目标引擎需要的 polyfills。对于这种情况，我做了 [`core-js-compat`](https://www.npmjs.com/package/core-js-compat)，更多关于它的信息，你能够从 [这篇文章的 `@babel/preset-env` 部分](#babelpreset-env)了解到。
 
@@ -236,7 +236,7 @@ Babel 7.4.0 引入了两种模式的共同更改，以及每种模式的特定�
 
 为了使 babel 支持将来的次要版本中引入的 `core-js` 的新功能，你可以在项目中定义明确的次要版本号。例如，你想使用 `core-js@3.1` 使用这个版本的新特性，你可以设置 `corejs` 选项为 `3.1`：`corejs: '3.1'` 或者 `corejs: {version: '3.1'}`。
 
-`@babel/preset-env` 最重要的一个功能就是提供不同浏览器支持特性的数据来源，用来确定是否需要 `core-js` 填充某些内容。 [`caniuse`](https://caniuse.com/)，[`mdn`](https://developer.mozilla.org/en-US/) 和 [`compat-table`](http://kangax.github.io/compat-table/es6/) 是很好的教育资源，但是并不意味着他们能够作为数据源被开发者使用：只有 `compat-table` 包函好的 ES 相关数据集，它被 `@babel/preset-env` 使用，但是仍有些限制：
+`@babel/preset-env` 最重要的一个功能就是提供不同浏览器支持特性的数据来源，用来确定是否需要 `core-js` 填充某些内容。 [`caniuse`](https://caniuse.com/)，[`mdn`](https://developer.mozilla.org/en-US/) 和 [`compat-table`](https://kangax.github.io/compat-table/es6/) 是很好的教育资源，但是并不意味着他们能够作为数据源被开发者使用：只有 `compat-table` 包函好的 ES 相关数据集，它被 `@babel/preset-env` 使用，但是仍有些限制：
 
 - 它包含的数据仅仅关于 ECMAScript 特性和提案，和 web 平台特性例如 `setImmediate` 或者 DOM 集合迭代器没有关系。所以直到现在，`@babel/preset-env` 仍然通过 `core-js` 添加全部的 web 平台特性即使他们已经支持了。
 - 它不包含任何浏览器（甚至是严重的）bug 信息：例如，上文提到的在 Safari 12 中 `Array#reverse`，但是 `compat-table` 并没有将它标记为不支持。另一方面，`core-js` 已经修复了这个错误实现，但是因为 `compat-table` 关系，并不能使用它。

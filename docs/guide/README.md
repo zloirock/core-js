@@ -18,11 +18,11 @@ If you do need to use Core-JS manually, please continue reading the following se
 
 ```shell
 # global version
-npm install --save core-js@3.25.1
+npm install --save core-js@3.29.0
 # version without global namespace pollution
-npm install --save core-js-pure@3.25.1
+npm install --save core-js-pure@3.29.0
 # bundled global version
-npm install --save core-js-bundle@3.25.1
+npm install --save core-js-bundle@3.29.0
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).

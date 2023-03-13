@@ -15,31 +15,16 @@ Pagehead:
       src: /compat/legacy-runner.js
 ---
 
-## 关于
+## 支持的环境
 
-`core-js`项目提供（[`core-js-compat`](/packages/core-js-compat)包）所有关于`core-js`模块的必要性、入口点和所需的工具的数据————这对`babel`或`swc`等工具的集成很有用。如果你想帮忙，可以看看[贡献一章](/dev/README.md#how-to-update core-js-compat-data)的相关部分
-兼容性信息的表格和本地测试可以在下方找到
+`core-js`试图支持所有可能的 JS 引擎和支持 ES3 的环境。某些特性有更高的下限，例如，_一些_ 访问器只能从 ES5 开始正常工作，承诺需要用于设置 microtask 或者 task 的方法……
 
-支持的环境:
-::: details
+然而，我不可能在所有地方测试`core-js`，例如在 IE7- 等古老设备上的测试已经停止。你可以通过下面的兼容性表格中看到通过充分测试的环境列表。如果你对任何环境的支持有疑问，请提出[issue](https://github.com/zloirock/core-js/issues)
 
-- Chrome 26+
-- Firefox 4+
-- Safari 5+
-- Opera 12+
-- Internet Explorer 8+ (sure, IE8 with ES3 limitations; IE7- 也应该可用, 但不在测试)
-- Edge
-- Android Browser 2.3+
-- iOS Safari 5.1+
-- PhantomJS 1.9+
-- NodeJS 0.8+
-- Deno 1.0+
-- Rhino 1.7.14+
+## 关于`core-js-compat`
 
-……
-:::
-
-但这并不意味着 `core-js` 不能在其它环境下工作, 仅仅是没有进行测试而已.
+Core-JS 项目在[`core-js-compat`](/packages/core-js-compat)包中提供了所有关于`core-js`模块的必要性、入口点和所需的工具的数据——这对`babel`或`swc`等工具的集成很有用。
+如果你愿意帮忙，可以看看[贡献一章](/dev/compat.md)中的相关部分
 
 ## 兼容性表格
 
