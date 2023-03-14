@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added Quest Browser 26 compat data mapping
 - Updated Opera Android 74 compat data
 
 ##### [3.29.1 - 2023.03.13](https://github.com/zloirock/core-js/releases/tag/v3.29.1)
