@@ -28,7 +28,7 @@ class ArrayBuffer {
 
 ## Entry points
 
-```js
+```
 core-js/proposals/array-buffer-transfer
 core-js/actual|full/array-buffer
 core-js/actual|full/array-buffer/detached

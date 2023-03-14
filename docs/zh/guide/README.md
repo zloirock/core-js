@@ -6,7 +6,7 @@ category: guide
 # 快速上手
 
 ::: tip
-Core-JS被集成到许多构建工具中，你可以用它们快速实现polyfill：
+Core-JS 被集成到许多构建工具中，你可以用它们快速实现 polyfill：
 
 - [Babel](./babel.md)
 - [SWC](./swc.md)
@@ -25,7 +25,7 @@ npm install --save core-js-pure@3.29.0
 npm install --save core-js-bundle@3.29.0
 ```
 
-或者你可以通过 [CDN](https://www.jsdelivr.com/package/npm/core-js-bundle) 来引入 Core-JS 。
+或者你可以通过 [CDN](https://www.jsdelivr.com/package/npm/core-js-bundle) 来引入 Core-JS。
 
 ### `postinstall` 信息
 

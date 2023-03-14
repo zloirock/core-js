@@ -11,7 +11,11 @@ tag:
 
 ```ts
 class AggregateError extends Error {
-  constructor(errors: Iterable, message?: string, { cause: any }?): AggregateError;
+  constructor(
+    errors: Iterable,
+    message?: string,
+    { cause: any }?
+  ): AggregateError;
   errors: Array<any>;
   message: string;
   cause: any;

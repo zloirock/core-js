@@ -8,6 +8,7 @@ tag:
 # `Array`
 
 ## Modules
+
 - [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js)
 - [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js)
 - [`es.array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.of.js)
@@ -41,6 +42,7 @@ tag:
 - [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js)
 
 ## Types
+
 ```ts
 class Array {
   at(index: int): any;
@@ -157,6 +159,7 @@ core-js(-pure)/es|stable|actual|full/array/virtual/values
 ```
 
 ## Example
+
 [_Example_](https://tinyurl.com/2br28bgj):
 
 ```js
