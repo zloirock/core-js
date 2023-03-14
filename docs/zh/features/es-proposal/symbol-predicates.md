@@ -1,13 +1,11 @@
-# [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)
-
 ---
-
 category: feature
 tag:
-
-- es-proposal
-
+  - es-proposal
+  - untranslated
 ---
+
+# [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)
 
 ## Modules
 

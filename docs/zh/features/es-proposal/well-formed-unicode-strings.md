@@ -2,9 +2,10 @@
 category: feature
 tag:
   - es-proposal
+  - untranslated
 ---
 
-# [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)
+s# [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)
 
 ## Modules
 

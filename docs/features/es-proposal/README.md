@@ -83,7 +83,7 @@ core-js(-pure)/stage/3
 
 ### [New `Set` methods](new-set-methods.md)
 
-### [`JSON.parse` source text access](jsonparse-source-text-access.md)
+### [`JSON.parse` source text access](json-parse-with-source.md)
 
 ### [Explicit resource management](explicit-resource-management.md)
 
@@ -103,7 +103,7 @@ core-js(-pure)/stage/2
 
 ### [`Array.isTemplateObject`](array-is-template-object.md)
 
-### [`String.dedent`](stringdedent.md)
+### [`String.dedent`](string-dedent.md)
 
 ### [Async explicit resource management](async-explicit-resource-management.md)
 

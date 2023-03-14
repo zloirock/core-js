@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
