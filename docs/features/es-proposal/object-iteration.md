@@ -7,7 +7,7 @@ tag:
 # [Object iteration](https://github.com/tc39/proposal-object-iteration)
 
 ::: warning
-**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+**This proposal has been withdrawn and will be removed from the next major Core-JS version.**
 :::
 
 ## Modules

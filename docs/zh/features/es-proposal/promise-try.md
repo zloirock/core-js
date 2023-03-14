@@ -8,7 +8,7 @@ tag:
 # [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 
 ::: warning
-**This proposal is dead and will be removed from the next major `core-js` version.**
+**This proposal is dead and will be removed from the next major Core-JS version.**
 :::
 
 ## Module

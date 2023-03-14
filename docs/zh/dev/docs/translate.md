@@ -6,14 +6,14 @@ icon: language
 
 ## 翻译现有文章
 
-:::warning
+::: warning
 请不要直接使用机翻！
 :::
 你可以通过对应语言下的 tag `untranslated` 来查找需要翻译的文章:
 
 - [中文](/zh/tag/untranslated)
 
-## 规范
+## 翻译规范
 
 为保证文档格式的一致性，下面列出了一些规范：
 

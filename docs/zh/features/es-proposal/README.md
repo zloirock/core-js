@@ -17,7 +17,7 @@ category: feature
 
 ## Finished
 
-Finished (stage 4) 提案已经在`core-js`中标记为稳定的 ECMAScript，可以在`core-js/stable`和`core-js/es`命名空间中找到（参见相关部分的文档）。但`core-js`仍旧提供了一种只引入特定提案的功能的方法，如`core-js/proposals/proposal-name`
+Finished (stage 4) 提案已经在Core-JS中标记为稳定的 ECMAScript，可以在`core-js/stable`和`core-js/es`命名空间中找到（参见相关部分的文档）。但Core-JS仍旧提供了一种只引入特定提案的功能的方法，如`core-js/proposals/proposal-name`
 
 ### [`globalThis`](global-this.md)
 

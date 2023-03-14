@@ -8,7 +8,7 @@ tag:
 # [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
 
 ::: warning
-**This proposal has been withdrawn and will be removed from the next major `core-js` version.**
+**This proposal has been withdrawn and will be removed from the next major Core-JS version.**
 :::
 
 ## Modules

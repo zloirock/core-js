@@ -25,11 +25,11 @@ npm install --save core-js-pure@3.29.0
 npm install --save core-js-bundle@3.29.0
 ```
 
-Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
+Or you can use Core-JS [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
 
 ### `postinstall` message
 
-The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
+The Core-JS project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
 
 ```shell
 ADBLOCK=true npm install
@@ -44,7 +44,7 @@ npm install --loglevel silent
 You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
-// polyfill all `core-js` features, including early-stage proposals:
+// polyfill all Core-JS features, including early-stage proposals:
 import "core-js";
 // or:
 import "core-js/full";
@@ -83,17 +83,17 @@ import "core-js/proposals/iterator-helpers";
 import "core-js/stage/2";
 ```
 
-:::tip Note
+:::tip
 The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
 :::
 
-### Caveats when using CommonJS API:
+### Caveats when using CommonJS API
 
 - `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
-- If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
-  - For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and/or something else from `core-js`, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
-  - Such conflicts also resolvable by discovering and manual adding each conflicting entry from `core-js`.
-- `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
+- If you use Core-JS with the extension of native objects, recommended load all Core-JS modules at the top of the entry point of your application, otherwise, you can have conflicts.
+  - For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and/or something else from Core-JS, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
+  - Such conflicts also resolvable by discovering and manual adding each conflicting entry from Core-JS.
+- Core-JS is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up Core-JS instead of usage loader for each file, otherwise, you will have hundreds of requests.
 
 ### Use without global namespace pollution
 
@@ -109,17 +109,17 @@ Array(10)
   ::findIndex((it) => it && !(it % 8)); // => 4
 ```
 
-::: warning Warning
+::: warning
 The bind operator is an early-stage ECMAScript proposal and usage of this syntax can be dangerous.
 :::
 
 ## Configurable level of aggressiveness
 
-By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` use native implementation.
+By default, Core-JS sets polyfills only when they are required. That means that Core-JS checks if a feature is available and works correctly or not and if it has no problems, Core-JS use native implementation.
 
-But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
+But sometimes Core-JS feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
 
-Sometimes we could have inverse problem - knowingly broken environment with problems not covered by `core-js` feature detection.
+Sometimes we could have inverse problem - knowingly broken environment with problems not covered by Core-JS feature detection.
 
 For those cases, we could redefine this behaviour for certain polyfills:
 
@@ -135,8 +135,8 @@ configurator({
 require("core-js/actual");
 ```
 
-It does not work with some features. Also, if you change the default behaviour, even `core-js` internals may not work correctly.
+It does not work with some features. Also, if you change the default behaviour, even Core-JS internals may not work correctly.
 
 ## Custom build
 
-For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+For some cases could be useful to exclude some Core-JS features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.

@@ -6,7 +6,7 @@ icon: translate
 
 ## Translate articals
 
-:::warning
+::: warning
 Don't use the machine translation directly!
 :::
 You can find the pending translate pages by tag `untranslated` in each language:

@@ -162,5 +162,5 @@ object2[symbol2] = true;
 for (let key in object2) console.log(key); // nothing
 ```
 
-- Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+- Currently, Core-JS not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
 - Some problems possible with environment exotic objects (for example, IE `localStorage`).

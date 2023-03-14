@@ -13,7 +13,7 @@ If you have no access to all required browsers / versions of browsers, use [Sauc
 
 For updating `core-js-compat` data:
 
-- If you want to add a new data for a browser, run `tests/compat/index.html` in this browser (tests and results for the actual release are available at [`Compat Form`](/compat.md)) and you will see what `core-js` modules are required for this browser.
+- If you want to add a new data for a browser, run `tests/compat/index.html` in this browser (tests and results for the actual release are available at [`Compat Form`](/compat.md)) and you will see what Core-JS modules are required for this browser.
 
 ![compat-table](/compat/screenshot.png)
 
