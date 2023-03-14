@@ -2,6 +2,7 @@
 category: feature
 tag:
   - es-proposal
+  - untranslated
 ---
 
 # [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)

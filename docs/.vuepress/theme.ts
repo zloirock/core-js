@@ -18,7 +18,7 @@ export default hopeTheme({
       sidebar: sidebarZh,
     },
   },
-  copyright: `&copy; 2014-${new Date().getFullYear()} zloirock and contributors`,
+  copyright: `&copy; 2014-${new Date().getFullYear()} Core-JS contributors`,
   displayFooter: true,
   plugins: {
     autoCatalog: {

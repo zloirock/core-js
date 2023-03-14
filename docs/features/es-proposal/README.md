@@ -155,7 +155,7 @@ Entry points:
 core-js(-pure)/stage/0
 ```
 
-### [`Function.prototype.demethodize`](function-prototype-demethodize.md)
+### [`Function.prototype.demethodize`](function-demethodize.md)
 
 ### [`Function.{ isCallable, isConstructor }`](function-is-callable-is-constructor.md)
 

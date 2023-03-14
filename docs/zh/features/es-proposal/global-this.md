@@ -11,7 +11,7 @@ tag:
 ## Types
 
 ```ts
-let globalThis: Object;
+let globalThis: GlobalThisValue;
 ```
 
 ## Entry points
