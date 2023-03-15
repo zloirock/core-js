@@ -10,8 +10,8 @@ tag:
 ## Types
 
 ```ts
-class Object {
-  static hasOwn(object: object, key: PropertyKey): boolean;
+interface ObjectConstructor {
+  hasOwn(object: object, key: PropertyKey): boolean;
 }
 ```
 

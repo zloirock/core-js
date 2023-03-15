@@ -4,7 +4,7 @@ tag:
   - es-proposal
 ---
 
-# [`ArrayBuffer.prototype.transfer` and friends](#https://github.com/tc39/proposal-arraybuffer-transfer)
+# [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer)
 
 :::note
 `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer support.
@@ -19,8 +19,8 @@ tag:
 ## Types
 
 ```js
-class ArrayBuffer {
-  readonly attribute detached: boolean;
+interface ArrayBuffer {
+  get detached(): boolean;
   transfer(newLength?: number): ArrayBuffer;
   transferToFixedLength(newLength?: number): ArrayBuffer;
 }

@@ -10,14 +10,14 @@ tag:
 ## Types
 
 ```ts
-class Array {
-  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
+interface Array<T> {
+  findLast(callbackfn: (value: T, index: number, target: Array<T>) => boolean, thisArg?: any): T;
+  findLastIndex(callbackfn: (value: T, index: number, target: Array<T>) => boolean, thisArg?: any): number;
 }
 
-class %TypedArray% {
+interface %TypedArray% {
   findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
+  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
 }
 ```
 

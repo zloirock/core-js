@@ -10,11 +10,11 @@ tag:
 ## Types
 
 ```ts
-class Array {
-  includes(searchElement: any, from?: number): boolean;
+interface Array<T> {
+  includes(searchElement: T, from?: number): boolean;
 }
 
-class %TypedArray% {
+interface %TypedArray% {
   includes(searchElement: any, from?: number): boolean;
 }
 ```

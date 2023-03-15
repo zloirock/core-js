@@ -14,15 +14,15 @@ tag:
 ## Types
 
 ```ts
-class Array {
+interface Array<T> {
   group(
-    callbackfn: (value: any, index: number, target: any) => key,
+    callbackfn: (value: T, index: number, target: Array<T>) => string | number,
     thisArg?: any
-  ): { [key]: Array<mixed> };
+  ): { [index: string]: Array<T> };
   groupToMap(
-    callbackfn: (value: any, index: number, target: any) => key,
+    callbackfn: (value: T, index: number, target: Array<T>) => string | number,
     thisArg?: any
-  ): Map<key, Array<mixed>>;
+  ): Map<string | number, Array<T>>;
 }
 ```
 
