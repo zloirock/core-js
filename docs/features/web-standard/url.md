@@ -50,7 +50,7 @@ class URLSearchParams {
   entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;
-  @@iterator(): Iterator<[key, value]>;
+  [Symbol.iterator](): Iterator<[key, value]>;
   readonly attribute size: number;
 }
 ```

@@ -102,7 +102,7 @@ class String {
   sub(): string;
   substr(start: int, length?: int): string;
   sup(): string;
-  @@iterator(): Iterator<characters>;
+  [Symbol.iterator](): Iterator<characters>;
 }
 
 class RegExp {

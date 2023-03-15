@@ -19,17 +19,17 @@ tag:
 ## Types
 
 ```ts
-class Array {
-  toReversed(): Array<mixed>;
-  toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
-  toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
-  with(index: includes, value: any): Array<mixed>;
+interface Array<T> {
+  toReversed(): Array<T>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>;
+  toSorted(comparefn?: (a: any, b: any) => number): Array<T>;
+  with(index: number, value: T): Array<T>;
 }
 
-class %TypedArray% {
+interface %TypedArray% {
   toReversed(): %TypedArray%;
   toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
-  with(index: includes, value: any): %TypedArray%;
+  with(index: number, value: any): %TypedArray%;
 }
 ```
 

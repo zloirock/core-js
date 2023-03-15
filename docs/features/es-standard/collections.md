@@ -22,19 +22,22 @@ Core-JS uses native collections in most cases, just fixes methods / constructor,
 ### Types
 
 ```ts
-class Map {
-  constructor(iterable?: Iterable<[key, value]>): Map;
+class Map<K, V> {
+  constructor(iterable?: Iterable<[K, V]>);
   clear(): void;
   delete(key: any): boolean;
-  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(
+    callbackfn: (value: any, key: any, target: any) => void,
+    thisArg: any
+  ): void;
   get(key: any): any;
   has(key: any): boolean;
   set(key: any, val: any): this;
-  values(): Iterator<value>;
-  keys(): Iterator<key>;
-  entries(): Iterator<[key, value]>;
-  @@iterator(): Iterator<[key, value]>;
-  readonly attribute size: number;
+  values(): Iterator<V>;
+  keys(): Iterator<K>;
+  entries(): Iterator<[K, V]>;
+  [Symbol.iterator](): Iterator<[K, V]>;
+  readonly size: number;
 }
 ```
 
@@ -97,18 +100,21 @@ for (let [key, value] of map.entries()) {
 ### Types
 
 ```ts
-class Set {
-  constructor(iterable?: Iterable<value>): Set;
+class Set<T> {
+  constructor(iterable?: Iterable<T>);
+  readonly size: number;
   add(key: any): this;
   clear(): void;
   delete(key: any): boolean;
-  forEach((value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(
+    callbackfn: (value: any, key: any, target: any) => void,
+    thisArg: any
+  ): void;
   has(key: any): boolean;
-  values(): Iterator<value>;
-  keys(): Iterator<value>;
-  entries(): Iterator<[value, value]>;
-  @@iterator(): Iterator<value>;
-  readonly attribute size: number;
+  values(): Iterator<T>;
+  keys(): Iterator<T>;
+  entries(): Iterator<[T, T]>;
+  [Symbol.iterator](): Iterator<T>;
 }
 ```
 
@@ -155,12 +161,12 @@ for (let [key, value] of set.entries()) {
 ### Types
 
 ```ts
-class WeakMap {
-  constructor(iterable?: Iterable<[key, value]>): WeakMap;
-  delete(key: Object): boolean;
-  get(key: Object): any;
-  has(key: Object): boolean;
-  set(key: Object, val: any): this;
+class WeakMap<K extends object, V> {
+  constructor(iterable?: Iterable<[K, V]>);
+  delete(key: K): boolean;
+  get(key: K): V;
+  has(key: K): boolean;
+  set(key: K, val: V): WeakMap<K, V>;
 }
 ```
 
@@ -217,11 +223,11 @@ for (let key in person) console.log(key); // => only 'getName'
 ### Types
 
 ```ts
-class WeakSet {
-  constructor(iterable?: Iterable<value>): WeakSet;
-  add(key: Object): this;
-  delete(key: Object): boolean;
-  has(key: Object): boolean;
+class WeakSet<T extends object> {
+  constructor(iterable?: Iterable<T>);
+  add(key: T): WeakSet<K>;
+  delete(key: T): boolean;
+  has(key: T): boolean;
 }
 ```
 

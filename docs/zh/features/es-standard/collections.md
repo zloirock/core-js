@@ -34,7 +34,7 @@ class Map {
   values(): Iterator<value>;
   keys(): Iterator<key>;
   entries(): Iterator<[key, value]>;
-  @@iterator(): Iterator<[key, value]>;
+  [Symbol.iterator](): Iterator<[key, value]>;
   readonly attribute size: number;
 }
 ```
@@ -108,7 +108,7 @@ class Set {
   values(): Iterator<value>;
   keys(): Iterator<value>;
   entries(): Iterator<[value, value]>;
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
   readonly attribute size: number;
 }
 ```

@@ -75,7 +75,7 @@ class Array {
   sort(comparefn?: (a: any, b: any) => number): this; // with modern behavior like stable sort
   unshift(...args: Array<mixed>): uint;
   values(): Iterator<value>;
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
   @@unscopables: { [newMethodNames: string]: true };
   static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
   static isArray(value: any): boolean;
@@ -83,7 +83,7 @@ class Array {
 }
 
 class Arguments {
-  @@iterator(): Iterator<value>; // available only in core-js methods
+  [Symbol.iterator](): Iterator<value>; // available only in core-js methods
 }
 ```
 

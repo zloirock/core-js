@@ -135,7 +135,7 @@ class %TypedArray% {
   toLocaleString(): string;
   values(): Iterator<value>;
   with(index: includes, value: any): %TypedArray%;
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
   readonly attribute buffer: ArrayBuffer;
   readonly attribute byteLength: number;
   readonly attribute byteOffset: number;

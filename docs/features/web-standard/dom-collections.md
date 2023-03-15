@@ -47,7 +47,7 @@ class [
   TextTrackList,
   TouchList,
 ] {
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
 }
 
 class [DOMTokenList, NodeList] {
@@ -55,7 +55,7 @@ class [DOMTokenList, NodeList] {
   entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
 }
 ```
 

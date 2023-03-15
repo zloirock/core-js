@@ -130,7 +130,7 @@ class %TypedArray% {
   values(): Iterator<value>;
   keys(): Iterator<index>;
   entries(): Iterator<[index, value]>;
-  @@iterator(): Iterator<value>;
+  [Symbol.iterator](): Iterator<value>;
   readonly attribute buffer: ArrayBuffer;
   readonly attribute byteLength: number;
   readonly attribute byteOffset: number;
