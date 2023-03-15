@@ -2469,6 +2469,8 @@ export const data = {
     safari: '14.0',
   },
   'web.url-search-params.size': {
+    firefox: '112',
+    node: '19.8.0',
   },
 };
 
