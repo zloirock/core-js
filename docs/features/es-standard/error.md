@@ -15,29 +15,47 @@ tag:
 ## Types
 
 ```ts
-class [
-  Error,
-  EvalError,
-  RangeError,
-  ReferenceError,
-  SyntaxError,
-  TypeError,
-  URIError,
-  WebAssembly.CompileError,
-  WebAssembly.LinkError,
-  WebAssembly.RuntimeError,
-] {
-  constructor(message: string, { cause: any }): %Error%;
+interface Error {
+  toString(): string; // different fixes
+}
+interface ErrorConstructor {
+  new (message: string, { cause: any }): Error;
+}
+interface EvalErrorConstructor {
+  new (message: string, { cause: any }): EvalError;
+}
+interface RangeErrorConstructor {
+  new (message: string, { cause: any }): RangeError;
+}
+interface ReferenceErrorConstructor {
+  new (message: string, { cause: any }): ReferenceError;
+}
+interface SyntaxErrorConstructor {
+  new (message: string, { cause: any }): SyntaxError;
+}
+interface TypeErrorConstructor {
+  new (message: string, { cause: any }): TypeError;
+}
+interface URIErrorConstructor {
+  new (message: string, { cause: any }): URIError;
+}
+
+namespace WebAssembly {
+  interface CompileErrorConstructor {
+    new (message: string, { cause: any }): CompileError;
+  }
+  interface LinkErrorConstructor {
+    new (message: string, { cause: any }): LinkError;
+  }
+  interface RuntimeErrorConstructor {
+    new (message: string, { cause: any }): RuntimeError;
+  }
 }
 
 class AggregateError {
-  constructor(errors: Iterable, message: string, { cause: any }): AggregateError;
+  constructor(errors: Iterable<Error>, message: string, { cause: any });
   errors: Array<any>;
   message: string;
-}
-
-class Error {
-  toString(): string; // different fixes
 }
 ```
 
