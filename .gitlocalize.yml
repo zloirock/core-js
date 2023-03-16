@@ -1,0 +1,9 @@
+pretranslate:
+  segments:
+    ignore_frontmatter_keys:
+      - category
+      - date
+      - head
+      - icon
+      - layout
+      - tag
