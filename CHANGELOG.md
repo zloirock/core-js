@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112 and NodeJS 19.8 
+- [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112 and NodeJS 19.8
+- Added Electron 25 and updated 24 compat data mapping
 - Added Quest Browser 26 compat data mapping
 - Updated Opera Android 74 compat data
 
