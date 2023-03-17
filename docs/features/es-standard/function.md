@@ -18,10 +18,10 @@ _Just ES5:_
 ## Types
 
 ```ts
-class Function {
+interface Function {
   name: string;
-  bind(thisArg: any, ...args: Array<mixed>): Function;
-  @@hasInstance(value: any): boolean;
+  bind(thisArg: any, ...args: Array<any>): Function;
+  [Symbol.hasInstance](value: any): boolean;
 }
 ```
 

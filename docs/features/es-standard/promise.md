@@ -16,17 +16,17 @@ tag:
 ## Types
 
 ```ts
-class Promise {
-  constructor(executor: (resolve: Function, reject: Function) => void): Promise;
-  then(onFulfilled: Function, onRejected: Function): Promise;
-  catch(onRejected: Function): Promise;
-  finally(onFinally: Function): Promise;
-  static resolve(x: any): Promise;
-  static reject(r: any): Promise;
-  static all(iterable: Iterable): Promise;
-  static allSettled(iterable: Iterable): Promise;
-  static any(promises: Iterable): Promise<any>;
-  static race(iterable: Iterable): Promise;
+class Promise<T> {
+  constructor(executor: (resolve: (value:T)=>void, reject: (reason:any)=>void) => void);
+  then(onFulfilled: Function, onRejected: Function): Promise<T>;
+  catch(onRejected: Function): Promise<T>;
+  finally(onFinally: Function): Promise<T>;
+  static resolve<U>(x: U): Promise<U>;
+  static reject<U>(r: U): Promise<U>;
+  static all<U>(iterable: Iterable<Promise<U>>): Promise<Array<U>>;
+  static allSettled<U>(iterable: Iterable<Promise<U>>): Promise<Array<U>>;
+  static any<U>(promises: Iterable<U>): Promise<U>;
+  static race<U>(iterable: Iterable<U>): Promise<U>;
 }
 ```
 

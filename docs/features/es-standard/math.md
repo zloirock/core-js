@@ -30,7 +30,7 @@ tag:
 ## Types
 
 ```ts
-namespace Math {
+interface Math {
   acosh(number: number): number;
   asinh(number: number): number;
   atanh(number: number): number;
@@ -44,7 +44,8 @@ namespace Math {
   log1p(number: number): number;
   log10(number: number): number;
   log2(number: number): number;
-  sign(number: number): 1 | -1 | 0 | -0 | NaN;
+  /** @returns 1 | -1 | 0 | -0 | NaN */
+  sign(number: number): number;
   sinh(number: number): number;
   tanh(number: number): number;
   trunc(number: number): number;

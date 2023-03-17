@@ -33,16 +33,16 @@ class Iterator {
 
 class AsyncIterator {
   static from(iterable: AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  drop(limit: uint): AsyncIterator<any>;
-  every(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
-  filter(async callbackfn: (value: any, couner: uint) => boolean): AsyncIterator<any>;
-  find(async callbackfn: (value: any, couner: uint) => boolean)): Promise<any>;
-  flatMap(async callbackfn: (value: any, couner: uint) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  forEach(async callbackfn: (value: any, couner: uint) => void): Promise<void>;
-  map(async callbackfn: (value: any, couner: uint) => any): AsyncIterator<any>;
-  reduce(async callbackfn: (memo: any, value: any, couner: uint) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
-  take(limit: uint): AsyncIterator<any>;
+  drop(limit: number): AsyncIterator<any>;
+  every(async callbackfn: (value: any, couner: number) => boolean): Promise<boolean>;
+  filter(async callbackfn: (value: any, couner: number) => boolean): AsyncIterator<any>;
+  find(async callbackfn: (value: any, couner: number) => boolean)): Promise<any>;
+  flatMap(async callbackfn: (value: any, couner: number) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
+  forEach(async callbackfn: (value: any, couner: number) => void): Promise<void>;
+  map(async callbackfn: (value: any, couner: number) => any): AsyncIterator<any>;
+  reduce(async callbackfn: (memo: any, value: any, couner: number) => any, initialValue: any): Promise<any>;
+  some(async callbackfn: (value: any, couner: number) => boolean): Promise<boolean>;
+  take(limit: number): AsyncIterator<any>;
   toArray(): Promise<Array>;
   @@toStringTag: 'AsyncIterator'
 }

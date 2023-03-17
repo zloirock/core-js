@@ -17,10 +17,10 @@ tag:
 class Observable {
   constructor(subscriber: Function): Observable;
   subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
-  @@observable(): this;
+  [Symbol.observable](): this;
   static of(...items: Aray<mixed>): Observable;
   static from(x: Observable | Iterable): Observable;
-  static readonly attribute @@species: this;
+  static readonly [Symbol.species]: this;
 }
 
 class Symbol {

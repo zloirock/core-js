@@ -16,9 +16,9 @@ Since `JSON` object is missed only in very old engines like IE7-, Core-JS does n
 ## Types
 
 ```ts
-namespace JSON {
+interface JSON {
   stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
-  @@toStringTag: 'JSON';
+  [Symbol.toStringTag]: 'JSON';
 }
 ```
 

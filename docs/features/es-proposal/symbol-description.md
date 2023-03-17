@@ -11,7 +11,7 @@ tag:
 
 ```ts
 class Symbol {
-  readonly attribute description: string | void;
+  readonly description: string | undefined;
 }
 ```
 

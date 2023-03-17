@@ -32,17 +32,17 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 ```ts
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
-  drop(limit: uint): Iterator<any>;
+  drop(limit: number): Iterator<any>;
   every(callbackfn: value: any => boolean): boolean;
   filter(callbackfn: value: any => boolean): Iterator<any>;
   find(callbackfn: value: any => boolean): any;
-  flatMap(callbackfn: (value: any, couner: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
+  flatMap(callbackfn: (value: any, couner: number) => Iterable<any> | Iterator<any>): Iterator<any>;
   forEach(callbackfn: value => void): void;
   indexed(): Iterator<[index, any]>;
   map(callbackfn: value => any): Iterator<any>;
   reduce(callbackfn: (memo: any, value: any) => any, initialValue: any): any;
   some(callbackfn: value: any => boolean): boolean;
-  take(limit: uint): Iterator<any>;
+  take(limit: number): Iterator<any>;
   toArray(): Array<any>;
   @@toStringTag: 'Iterator'
 }
