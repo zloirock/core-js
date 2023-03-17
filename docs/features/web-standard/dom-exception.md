@@ -19,11 +19,11 @@ tag:
 ```ts
 class DOMException {
   constructor(message: string, name?: string);
-  readonly attribute name: string;
-  readonly attribute message: string;
-  readonly attribute code: string;
-  attribute stack: string; // in engines that should have it
-  @@toStringTag: 'DOMException';
+  readonly name: string;
+  readonly message: string;
+  readonly code: string;
+  stack: string; // in engines that should have it
+  [Symbol.toStringTag]: 'DOMException';
 }
 ```
 

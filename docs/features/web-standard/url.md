@@ -20,18 +20,18 @@ tag:
 ```ts
 class URL {
   constructor(url: string, base?: string);
-  attribute href: string;
-  readonly attribute origin: string;
-  attribute protocol: string;
-  attribute username: string;
-  attribute password: string;
-  attribute host: string;
-  attribute hostname: string;
-  attribute port: string;
-  attribute pathname: string;
-  attribute search: string;
-  readonly attribute searchParams: URLSearchParams;
-  attribute hash: string;
+  href: string;
+  readonly origin: string;
+  protocol: string;
+  username: string;
+  password: string;
+  host: string;
+  hostname: string;
+  port: string;
+  pathname: string;
+  search: string;
+  readonly searchParams: URLSearchParams;
+  hash: string;
   toJSON(): string;
   toString(): string;
 }
@@ -51,7 +51,7 @@ class URLSearchParams {
   keys(): Iterator<key>;
   values(): Iterator<value>;
   [Symbol.iterator](): Iterator<[key, value]>;
-  readonly attribute size: number;
+  readonly size: number;
 }
 ```
 

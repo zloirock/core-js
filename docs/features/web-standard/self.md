@@ -15,7 +15,9 @@ tag:
 ## Types
 
 ```ts
-getter self: GlobalThisValue;
+interface Window {
+  get self(): typeof globalThis;
+}
 ```
 
 ## Entry points
