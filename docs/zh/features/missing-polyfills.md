@@ -1,5 +1,5 @@
 ---
-icon: notice
+icon: warn
 category: feature
 ---
 
