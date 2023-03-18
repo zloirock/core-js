@@ -7,6 +7,7 @@ export const sidebarZh = sidebar({
       icon: "creative",
       prefix: "guide/",
       children: "structure",
+      collapsible: true,
     },
     {
       text: "功能",
