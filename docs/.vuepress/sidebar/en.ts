@@ -61,7 +61,7 @@ export const sidebarEn = sidebar({
       prefix: "dev/",
       children: [
         {
-          text: "How to contribution",
+          text: "How to contribute",
           icon: "question",
           link: "README.md"
         },
