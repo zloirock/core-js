@@ -57,7 +57,7 @@ var isThenable = function (it) {
 
 var callReaction = function (reaction, state) {
   var value = state.value;
-  var ok = state.state == FULFILLED;
+  var ok = state.state === FULFILLED;
   var handler = ok ? reaction.ok : reaction.fail;
   var resolve = reaction.resolve;
   var reject = reaction.reject;
