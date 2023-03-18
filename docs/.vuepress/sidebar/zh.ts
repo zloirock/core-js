@@ -59,7 +59,51 @@ export const sidebarZh = sidebar({
       text: "贡献",
       icon: "tree",
       prefix: "dev/",
-      children: "structure",
+      children: [
+        {
+          text: "如何贡献",
+          icon: "question",
+          link: "README.md"
+        },
+        {
+          text: "添加新的 polyfill",
+          icon: "code",
+          link: "polyfill.md"
+        },
+        {
+          text: "测试",
+          icon: "check",
+          link: "testing.md"
+        },
+        {
+          text: "更新core-js-compat",
+          icon: "form",
+          link: "compat.md"
+        },
+        {
+          text: "撰写文档",
+          icon: "form",
+          prefix: "docs/",
+          children: [
+            {
+              text: "撰写文档",
+              icon: "form",
+              link: "README.md"
+            },
+            {
+              text: "为 polyfill 创建文档",
+              icon: "code",
+              link: "polyfill.md"
+            },
+            {
+              text: "翻译",
+              icon: "language",
+              link: "translate.md"
+            }
+          ],
+          collapsible: true
+        }
+      ],
       collapsible: true,
     },
     {
