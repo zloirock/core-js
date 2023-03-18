@@ -5,7 +5,7 @@ tag:
   - untranslated
 ---
 
-s# [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)
+# [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)
 
 ## Modules
 

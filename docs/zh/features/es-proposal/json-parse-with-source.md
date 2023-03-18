@@ -5,7 +5,7 @@ tag:
   - untranslated
 ---
 
-s# [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)
+# [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
 
