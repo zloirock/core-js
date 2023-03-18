@@ -2,14 +2,13 @@
 category: feature
 tag:
   - helper
-  - untranslated
 ---
 
 # Iteration helpers
 
-Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
+在`纯净`版本或者例如 `arguments` 等对象中用于检查是否可以迭代或者获取迭代器的 helper：
 
-## Types
+## 类型
 
 ```ts
 function isIterable(value: any): boolean;
@@ -17,7 +16,7 @@ function getIterator(value: any): Object;
 function getIteratorMethod(value: any): Function | void;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js-pure/es|stable|actual|full/is-iterable
@@ -25,9 +24,9 @@ core-js-pure/es|stable|actual|full/get-iterator
 core-js-pure/es|stable|actual|full/get-iterator-method
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/SXsM6D):
+[_示例_](https://goo.gl/SXsM6D):
 
 ```js
 import isIterable from "core-js-pure/actual/is-iterable";
