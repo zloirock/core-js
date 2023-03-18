@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Array`
 
-## Modules
+## 模块
 
 - [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js)
 - [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js)
@@ -41,17 +40,17 @@ tag:
 - [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat-map.js)
 - [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js)
 
-## Types
+## 类型
 
 ```ts
 class Array {
   at(index: int): any;
-  concat(...args: Array<mixed>): Array<mixed>; // with adding support of @@isConcatSpreadable and @@species
+  concat(...args: Array<mixed>): Array<mixed>; // 额外支持 @@isConcatSpreadable 和 @@species
   copyWithin(target: number, start: number, end?: number): this;
   entries(): Iterator<[index, value]>;
   every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
   fill(value: any, start?: number, end?: number): this;
-  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>; // with adding support of @@species
+  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>; // 额外支持 @@species
   find(callbackfn: (value: any, index: number, target: any) => boolean), thisArg?: any): any;
   findIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
   findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
@@ -64,15 +63,15 @@ class Array {
   join(separator: string = ','): string;
   keys(): Iterator<index>;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>; // with adding support of @@species
+  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>; // 额外支持 @@species
   push(...args: Array<mixed>): uint;
   reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
   reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
-  reverse(): this; // Safari 12.0 bug fix
-  slice(start?: number, end?: number): Array<mixed>; // with adding support of @@species
-  splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // with adding support of @@species
+  reverse(): this; // Safari 12.0 漏斗修复
+  slice(start?: number, end?: number): Array<mixed>; // 额外支持 @@species
+  splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // 额外支持 @@species
   some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: any, b: any) => number): this; // with modern behavior like stable sort
+  sort(comparefn?: (a: any, b: any) => number): this; // 类似稳定排序的现代行为
   unshift(...args: Array<mixed>): uint;
   values(): Iterator<value>;
   [Symbol.iterator](): Iterator<value>;
@@ -83,11 +82,11 @@ class Array {
 }
 
 class Arguments {
-  [Symbol.iterator](): Iterator<value>; // available only in core-js methods
+  [Symbol.iterator](): Iterator<value>; // 只在 core-js 方法内提供支持
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/array
@@ -158,9 +157,9 @@ core-js(-pure)/es|stable|actual|full/array/virtual/unshift
 core-js(-pure)/es|stable|actual|full/array/virtual/values
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2br28bgj):
+[_示例_](https://tinyurl.com/2br28bgj):
 
 ```js
 Array.from(new Set([1, 2, 3, 2, 1])); // => [1, 2, 3]

@@ -3,16 +3,15 @@ category: feature
 tag:
   - es-standard
   - missing-example
-  - untranslated
 ---
 
 # `Number`
 
-## Modules
+## 模块
 
 - [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js)
   ::: tip
-  `Number` constructor support binary and octal literals, [_example_](https://goo.gl/jRd6b3):
+  `Number` 构造函数支持二进制和八进制，[_示例_](https://goo.gl/jRd6b3):
 
   ```js
   Number("0b1010101"); // => 85
@@ -36,7 +35,7 @@ tag:
 - [`es.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-int.js)
 - [`es.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-float.js)
 
-## Types
+## 类型
 
 ```ts
 class Number {
@@ -59,7 +58,7 @@ function parseFloat(string: string): number;
 function parseInt(string: string, radix?: number = 10): number;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/number

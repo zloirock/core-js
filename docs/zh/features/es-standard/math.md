@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-standard
   - missing-example
-  - untranslated
 ---
 
 # `Math`
 
-## Modules
+## 模块
 
 - [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js)
 - [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js)
@@ -28,7 +27,7 @@ tag:
 - [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js)
 - [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js)
 
-## Types
+## 类型
 
 ```ts
 namespace Math {
@@ -52,7 +51,7 @@ namespace Math {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/math

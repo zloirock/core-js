@@ -2,21 +2,20 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Function`
 
-## Modules
+## 模块
 
 - [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js)
 - [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js)
 
-_Just ES5:_
+_仅 ES5:_
 
 - [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js)
 
-## Types
+## 类型
 
 ```ts
 class Function {
@@ -26,7 +25,7 @@ class Function {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/es|stable|actual|full/function
@@ -36,9 +35,9 @@ core-js(-pure)/es|stable|actual|full/function/bind
 core-js(-pure)/es|stable|actual|full/function/virtual/bind
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/zqu3Wp):
+[_示例_](https://goo.gl/zqu3Wp):
 
 ```js
 (function foo() {}.name); // => 'foo'

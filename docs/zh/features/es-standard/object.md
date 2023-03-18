@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Object`
 
-## Modules
+## 模块
 
 - [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js)
 - [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js)
@@ -37,16 +36,16 @@ tag:
 - [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js)
 - [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js).
 
-## Types
+## 类型
 
 ```ts
 class Object {
-  toString(): string; // ES2015+ fix: @@toStringTag support
+  toString(): string; // ES2015+ 修复：对 @@toStringTag 的支持
   __defineGetter__(property: PropertyKey, getter: Function): void;
   __defineSetter__(property: PropertyKey, setter: Function): void;
   __lookupGetter__(property: PropertyKey): Function | void;
   __lookupSetter__(property: PropertyKey): Function | void;
-  __proto__: Object | null; // required a way setting of prototype - will not in IE10-, it's for modern engines like Deno
+  __proto__: Object | null; // 需要一种方式设置原型——不是在 IE10-，而是像 Deno 这样的现代引擎
   static assign(target: Object, ...sources: Array<Object>): Object;
   static create(
     prototype: Object | null,
@@ -81,12 +80,12 @@ class Object {
   static keys(object: any): Array<string>;
   static preventExtensions(object: any): any;
   static seal(object: any): any;
-  static setPrototypeOf(target: any, prototype: Object | null): any; // required __proto__ - IE11+
+  static setPrototypeOf(target: any, prototype: Object | null): any; // 需要 __proto__ - IE11+
   static values(object: any): Array<mixed>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/object
@@ -119,9 +118,9 @@ core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/udzZq0):
+[_示例_](https://is.gd/udzZq0):
 
 ```js
 let foo = { q: 1, w: 2 };
@@ -157,7 +156,7 @@ for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
   console.log(value); // => 1, 2, 3
 }
 
-// Shallow object cloning with prototype and descriptors:
+// 对原型和解释器浅拷贝：
 let copy = Object.create(
   Object.getPrototypeOf(object),
   Object.getOwnPropertyDescriptors(object)

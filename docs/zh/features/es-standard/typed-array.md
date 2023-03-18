@@ -2,14 +2,13 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `TypedArray`s
 
-Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
+针对 `ArrayBuffer`、`DataView`、Typed Array 构造函数、静态和圆形方法的实现和修复。Typed arrays 只在支持解释器的环境（IE9+）中工作，`ArrayBuffer` 和 `DataView` 支持所有环境。
 
-## Modules
+## 模块
 
 - [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.constructor.js)
 - [`es.array-buffer.is-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.is-view.js)
@@ -52,7 +51,7 @@ Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructo
 - [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-string.js)
 - [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js)
 
-## Types
+## 类型
 
 ```ts
 class ArrayBuffer {
@@ -142,7 +141,7 @@ class %TypedArray% {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/es|stable|actual|full/array-buffer
@@ -193,9 +192,9 @@ core-js/es|stable|actual|full/typed-array/to-string
 core-js/es|stable|actual|full/typed-array/values
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/Eo7ltU):
+[_示例_](https://is.gd/Eo7ltU):
 
 ```js
 new Int32Array(4); // => [0, 0, 0, 0]
@@ -232,6 +231,6 @@ new Int32Array([1, 2, 3]).at(1); // => 2
 new Int32Array([1, 2, 3]).at(-1); // => 3
 ```
 
-## Caveats when using typed arrays polyfills:
+## 使用typed arrays polyfills 时的注意事项：
 
-- Polyfills of Typed Arrays constructors work completely how should work by the spec, but because of internal usage of getters / setters on each instance, are slow and consumes significant memory. However, polyfills of Typed Arrays constructors required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
+- Typed Arrays 构造函数的 polyfill 完全按照规范预期的方式工作，但是很慢而且显著消耗内存，因为每个实例内部使用的 getter 和 setter。但是 Typed Arrays 构造函数的 polyfill 主要用于老 IE，所有现代引擎有原生的 Typed Arrays 构造函数，只需要针对构造函数的修复和针对方法的 polyfill。

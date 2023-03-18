@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Reflect`
 
-## Modules
+## 模块
 
 - [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.apply.js)
 - [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.construct.js)
@@ -23,7 +22,7 @@ tag:
 - [`es.reflect.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set.js)
 - [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set-prototype-of.js)
 
-## Types
+## 类型
 
 ```ts
 namespace Reflect {
@@ -39,11 +38,11 @@ namespace Reflect {
   ownKeys(target: Object): Array<string | symbol>;
   preventExtensions(target: Object): boolean;
   set(target: Object, propertyKey: PropertyKey, V: any, receiver?: any): boolean;
-  setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
+  setPrototypeOf(target: Object, proto: Object | null): boolean; // 需要 __proto__ - IE11+
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/reflect
@@ -62,9 +61,9 @@ core-js(-pure)/es|stable|actual|full/reflect/set
 core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/gVT0cH):
+[_示例_](https://goo.gl/gVT0cH):
 
 ```js
 let object = { a: 1 };

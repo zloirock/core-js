@@ -2,14 +2,13 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
-# `String` and `RegExp`
+# `String` 和 `RegExp`
 
-## Modules
+## 模块
 
-The main part of `String` features:
+`String` 特性的主要部分：
 
 - [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js)
 - [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js)
@@ -29,14 +28,14 @@ The main part of `String` features:
 - [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
 - [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js)
 
-Adding support of well-known [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods:
+支持著名的 [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` 和 `@@split`，并把 `.exec` 调用定向至 `String` 相关的方法：
 
 - [`es.string.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match.js)
 - [`es.string.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace.js)
 - [`es.string.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.search.js)
 - [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js)
 
-Annex B methods:
+Annex B 方法：
 
 - [`es.string.anchor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.anchor.js)
 - [`es.string.big`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.big.js)
@@ -55,7 +54,7 @@ Annex B methods:
 - [`es.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.escape.js)
 - [`es.unescape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.unescape.js)
 
-`RegExp` features:
+`RegExp` 特性：
 
 - [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js)
 - [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js)
@@ -63,7 +62,7 @@ Annex B methods:
 - [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js)
 - [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js)
 
-## Types
+## 类型
 
 ```ts
 class String {
@@ -77,12 +76,12 @@ class String {
   padStart(length: number, fillStr?: string = ' '): string;
   padEnd(length: number, fillStr?: string = ' '): string;
   codePointAt(pos: number): number | void;
-  match(template: any): any; // ES2015+ fix for support @@match
+  match(template: any): any; // 针对 ES2015+ 的修复，支持 @@match
   matchAll(regexp: RegExp): Iterator;
-  replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
+  replace(template: any, replacer: any): any; // 针对 ES2015+ 的修复，支持 @@replace
   replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-  search(template: any): any; // ES2015+ fix for support @@search
-  split(template: any, limit?: int): Array<string>;; // ES2015+ fix for support @@split, some fixes for old engines
+  search(template: any): any; // 针对 ES2015+ 的修复，支持 @@search
+  split(template: any, limit?: int): Array<string>;; // 针对 ES2015+ 的修复，支持 @@split，一些针对老引擎的修复
   trim(): string;
   trimLeft(): string;
   trimRight(): string;
@@ -108,7 +107,7 @@ class String {
 class RegExp {
   // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null; // IE8 fixes
+  exec(): Array<string | undefined> | null; // IE8 修复
   test(string: string): boolean; // delegation to `.exec`
   toString(): string; // ES2015+ fix - generic
   @@match(string: string): Array | null;
@@ -125,7 +124,7 @@ function escape(string: string): string;
 function unescape(string: string): string;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/string
@@ -176,9 +175,9 @@ core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
 
-## Example
+## E示例
 
-[_Example_](https://is.gd/Q8eRhG):
+[_示例_](https://is.gd/Q8eRhG):
 
 ```js
 for (let value of "a𠮷b") {
@@ -203,7 +202,7 @@ for (let value of "a𠮷b") {
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 
 let name = "Bob";
-String.raw`Hi\n${name}!`; // => 'Hi\\nBob!' (ES2015 template string syntax)
+String.raw`Hi\n${name}!`; // => 'Hi\\nBob!' (ES2015 模板字符串语法)
 String.raw({ raw: "test" }, 0, 1, 2); // => 't0e1s2t'
 
 "foo".bold(); // => '<b>foo</b>'

@@ -2,29 +2,28 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Date`
 
-## Modules
+## 模块
 
 - [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js)
 
-_ES5 features with fixes:_
+_修复的 ES5 特性：_
 
 - [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js)
 - [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js)
 - [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js)
 - [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js)
 
-_Annex B methods modules:_
+_Annex B 方法模块：_
 
 - [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js)
 - [`es.date.set-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.set-year.js)
 - [`es.date.to-gmt-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-gmt-string.js)
 
-## Types
+## 类型
 
 ```ts
 class Date {
@@ -39,7 +38,7 @@ class Date {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/es|stable|actual|full/date
@@ -53,9 +52,9 @@ core-js(-pure)/es|stable|actual|full/date/to-json
 core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/haeHLR):
+[_示例_](https://goo.gl/haeHLR):
 
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'

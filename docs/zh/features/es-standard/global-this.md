@@ -2,30 +2,29 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `globalThis`
 
-## Module
+## 模块
 
 [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js)
 
-## Type
+## 类型
 
 ```ts
 let globalThis: Object;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/global-this
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/LAifsc):
+[_示例_](https://goo.gl/LAifsc):
 
 ```js
 globalThis.Array === Array; // => true

@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Symbol`
 
-## Modules
+## 模块
 
 - [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js)
 - [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js)
@@ -25,7 +24,7 @@ tag:
 - [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js)
 - [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js)
 
-## Types
+## 类型
 
 ```ts
 class Symbol {
@@ -54,7 +53,7 @@ class Object {
 }
 ```
 
-Also wrapped some methods for correct work with `Symbol` polyfill.
+也包装了一些正确使用 `Symbol` polyfill 的方法。
 
 ```ts
 class Object {
@@ -67,7 +66,7 @@ class Object {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/symbol
@@ -90,9 +89,9 @@ core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
 core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 
-## Examples
+## 示例
 
-[_Basic example_](https://goo.gl/BbvWFc):
+[_基础示例_](https://goo.gl/BbvWFc):
 
 ```js
 let Person = (() => {
@@ -122,7 +121,7 @@ symbol === Symbol.for("key"); // true
 Symbol.keyFor(symbol); // 'key'
 ```
 
-[_Example_](https://goo.gl/mKVOQJ) with methods for getting own object keys:
+含有获取自身对象键的方法的[_示例_](https://goo.gl/mKVOQJ)：
 
 ```js
 let object = { a: 1 };
@@ -141,13 +140,13 @@ Symbol("foo").description; // => 'foo'
 Symbol().description; // => undefined
 ```
 
-## Caveats when using `Symbol` polyfill:
+## 使用 `Symbol` polyfill 时的注意事项：
 
-- We can't add new primitive type, `Symbol` returns object.
-- `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-- By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+- 我们无法添加新的原始类型，`Symbol` 返回的是对象。
+- `Symbol.for` 和 `Symbol.keyFor` 不能被跨域 polyfill。
+- 默认情况下，`Symbol` polyfill 在 `Object.prototype` 中定义了 setter 来隐藏键。因此，不受控制的 symbol 创建可能导致内存泄漏，并且 `in` 操作符目前对 `Symbol` polyfill 无效（例如 `Symbol() in {}` 返回true）。
 
-You can disable defining setters in `Object.prototype`. [Example](https://goo.gl/N5UD7J):
+你可以在 `Object.prototype` 中禁止定义 setter。[示例](https://goo.gl/N5UD7J)：
 
 ```js
 Symbol.useSimple();
@@ -160,8 +159,8 @@ Symbol.useSetter();
 let symbol2 = Symbol("symbol2");
 let object2 = {};
 object2[symbol2] = true;
-for (let key in object2) console.log(key); // nothing
+for (let key in object2) console.log(key); // 什么都没有
 ```
 
-- Currently, Core-JS not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
-- Some problems possible with environment exotic objects (for example, IE `localStorage`).
+- 目前 Core-JS 没有为了使像 `Symbol.iterator in foo` 这样的 `Object.prototype` 著名 symbol 正常工作而加入 setter。它们可枚举的特性可能造成问题。
+- 环境外的对象可能有问题（比如 IE 的 `localStorage`）。

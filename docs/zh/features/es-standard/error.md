@@ -2,18 +2,17 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # ES Error
 
-## Modules
+## 模块
 
 - [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js)
 - [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js)
 - [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js)
 
-## Types
+## 类型
 
 ```ts
 class [
@@ -38,11 +37,11 @@ class AggregateError {
 }
 
 class Error {
-  toString(): string; // different fixes
+  toString(): string; // 不同的修复
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/aggregate-error
@@ -51,9 +50,9 @@ core-js/es|stable|actual|full/error/constructor
 core-js/es|stable|actual|full/error/to-string
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/1SufcH):
+[_示例_](https://is.gd/1SufcH):
 
 ```js
 const error1 = new TypeError("Error 1");

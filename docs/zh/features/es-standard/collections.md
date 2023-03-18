@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # Collections
 
-Core-JS uses native collections in most cases, just fixes methods / constructor, if it's required, and in old environments uses fast polyfill (O(1) lookup).
+在大多数情况下 Core-JS 使用原生的 collections，只是修复了一些方法和构造函数，如果有需要的话，在老环境中使用快速的 polyfill（O(1)查找）。
 
 - [Map](#map)
 - [Set](#set)
@@ -16,11 +15,11 @@ Core-JS uses native collections in most cases, just fixes methods / constructor,
 
 ## `Map`
 
-### Module
+### 模块
 
 [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js)
 
-### Types
+### 类型
 
 ```ts
 class Map {
@@ -39,15 +38,15 @@ class Map {
 }
 ```
 
-### Entry points
+### 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/map
 ```
 
-### Example
+### 示例
 
-[_Example_](https://goo.gl/GWR7NI):
+[_示例_](https://goo.gl/GWR7NI):
 
 ```js
 let array = [1];
@@ -91,11 +90,11 @@ for (let [key, value] of map.entries()) {
 
 ## `Set`
 
-### Module
+### 模块
 
 [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js)
 
-### Types
+### 类型
 
 ```ts
 class Set {
@@ -113,15 +112,15 @@ class Set {
 }
 ```
 
-### Entry points
+### 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/set
 ```
 
-### Example
+### 示例
 
-[_Example_](https://goo.gl/bmhLwg):
+[_示例_](https://goo.gl/bmhLwg):
 
 ```js
 let set = new Set(["a", "b", "a", "c"]);
@@ -149,11 +148,11 @@ for (let [key, value] of set.entries()) {
 
 ## `WeakMap`
 
-### Module
+### 模块
 
 [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js)
 
-### Types
+### 类型
 
 ```ts
 class WeakMap {
@@ -165,15 +164,15 @@ class WeakMap {
 }
 ```
 
-### Entry points
+### 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
 
-### Example
+### 示例
 
-[_Example_](https://goo.gl/SILXyw):
+[_示例_](https://goo.gl/SILXyw):
 
 ```js
 let a = [1];
@@ -211,11 +210,11 @@ for (let key in person) console.log(key); // => only 'getName'
 
 ## `WeakSet`
 
-### Module
+### 模块
 
 [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js)
 
-### Types
+### 类型
 
 ```ts
 class WeakSet {
@@ -226,15 +225,15 @@ class WeakSet {
 }
 ```
 
-### Entry points
+### 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```
 
-### Example
+### 示例
 
-[_Example_](https://goo.gl/TdFbEx):
+[_示例_](https://goo.gl/TdFbEx):
 
 ```js
 let a = [1];
@@ -249,6 +248,6 @@ weakset.delete(b);
 console.log(weakset.has(b)); // => false
 ```
 
-## Caveats when using collections polyfill
+## 使用 collections polyfill 时的注意事项
 
-- Weak-collections polyfill stores values as hidden properties of keys. It works correctly and doesn't leak in most cases. However, it is desirable to store a collection longer than its keys.
+- Weak-collections polyfill 把值作为键的隐藏属性储存。大多数情况下可以正常工作而且不会泄露。但储存比键更长的 collection 也是可以的。
