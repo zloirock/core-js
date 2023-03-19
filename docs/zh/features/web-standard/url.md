@@ -118,4 +118,4 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 
 - IE8 不支持 setter，所以 setter 在 `URL` 实例中不生效。但是 `URL` 构造函数可以用于基本的 `URL` 解析。
 - 我们不支持搜索查询中的旧编码。而且 Core-JS 的实现有一些其他与编码相关的问题。
-- 所有其他流行浏览器的 `URL` 实现相比 Core-JS 有更多问题，但是把它们全部换掉看起来不是个好主意。你可以[根据你的需求](#configurable-level-of-aggressiveness)自定义使用 polyfill 的级别。
+- 所有其他流行浏览器的 `URL` 实现相比 Core-JS 有更多问题，但是把它们全部换掉看起来不是个好主意。你可以[根据你的需求](../../guide/#自定义-polyfill-的启用行为)自定义使用 polyfill 的启用行为。
