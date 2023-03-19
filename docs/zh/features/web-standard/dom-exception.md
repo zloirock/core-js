@@ -35,7 +35,7 @@ core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag
 ```
 
-# 示例
+## 示例
 
 [_示例_](https://is.gd/pI6oTN):
 

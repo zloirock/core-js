@@ -4,9 +4,9 @@ tag:
   - web-standard
 ---
 
-# Base64 公告方法
+# Base64 公共方法
 
-[规范](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64).
+[规范](https://html.spec.whatwg.org/multipage/webappapis.html#atob)、 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)。
 
 ## 模块
 

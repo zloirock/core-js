@@ -66,4 +66,4 @@ structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ## 使用 `structuredClone` polyfill 时的注意事项：
 
 - `ArrayBuffer` 实例和很多平台类型不能被转移到大多数引擎中，因为我们无法 polyfill 这个行为，但是 `.transfer` 选项在一些平台类型中可以工作。我建议避开这个选项。
-- 一些特定的平台类型不能被复制到老引擎中。主要是非常特别的类型或者非常老的引擎，但是也有一些例外。比如我们无法同步复制 `ImageBitmap` 到 Safari 14.0- 或者 Firefox 83- 中，所以如果你想复制一些东西到特定平台的话，建议看看 [polyfill 源](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)。
+- 一些特定的平台类型不能被复制到老引擎中。主要是非常特别的类型或者非常老的引擎，但是也有一些例外。例如我们无法同步复制 `ImageBitmap` 到 Safari 14.0- 或者 Firefox 83- 中，所以如果你想复制一些东西到特定平台的话，建议看看 [polyfill 源码](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)。
