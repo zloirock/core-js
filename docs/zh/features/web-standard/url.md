@@ -2,21 +2,20 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
-# `URL` and `URLSearchParams`
+# `URL` 和 `URLSearchParams`
 
-[`URL` standard](https://url.spec.whatwg.org/) implementation.
+[`URL` 标准](https://url.spec.whatwg.org/)实现。
 
-## Modules
+## 模块
 
 - [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js)
 - [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js)
 - [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js)
 - [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 
-## Types
+## 类型
 
 ```ts
 class URL {
@@ -56,7 +55,7 @@ class URLSearchParams {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/url
@@ -65,9 +64,9 @@ core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2fccy7sb):
+[_示例_](https://tinyurl.com/2fccy7sb):
 
 ```js
 const url = new URL(
@@ -115,8 +114,8 @@ for (let [key, value] of params) {
 console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 ```
 
-## Caveats when using `URL` and `URLSearchParams`:
+## 使用 `URL` 和 `URLSearchParams` 时的注意事项：
 
-- IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
-- Legacy encodings in a search query are not supported. Also, Core-JS implementation has some other encoding-related issues.
-- `URL` implementations from all of the popular browsers have much more problems than Core-JS, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+- IE8 不支持 setter，所以 setter 在 `URL` 实例中不生效。但是 `URL` 构造函数可以用于基本的 `URL` 解析。
+- 我们不支持搜索查询中的旧编码。而且 Core-JS 的实现有一些其他与编码相关的问题。
+- 所有其他流行浏览器的 `URL` 实现相比 Core-JS 有更多问题，但是把它们全部换掉看起来不是个好主意。你可以[根据你的需求](#configurable-level-of-aggressiveness)自定义使用 polyfill 的级别。

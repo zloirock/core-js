@@ -2,19 +2,18 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
-# Iterable DOM collections
+# 可迭代的 DOM 集合
 
-Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them.
+一些 DOM 集合包含[可迭代的接口](https://heycam.github.io/webidl/#idl-iterable)或者[继承自 `Array`](https://heycam.github.io/webidl/#LegacyArrayClass)。这意味着它们有用于迭代的 `forEach`、`keys`、`values`、`entries` 和 `@@iterator` 方法。
 
-## Modules
+## 模块
 
 - [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js)
 - [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js)
 
-## Types
+## 类型
 
 ```ts
 class [
@@ -60,16 +59,16 @@ class [DOMTokenList, NodeList] {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/lfXVFl):
+[_示例_](https://goo.gl/lfXVFl):
 
 ```js
 for (let { id } of document.querySelectorAll("*")) {
