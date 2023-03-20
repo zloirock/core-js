@@ -26,6 +26,8 @@ core-js/proposals/math-signbit
 core-js(-pure)/full/math/signbit
 ```
 
+## Example
+
 [_Examples_](https://goo.gl/rPWbzZ):
 
 ```js
