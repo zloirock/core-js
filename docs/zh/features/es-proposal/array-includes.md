@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -20,7 +19,7 @@ class %TypedArray% {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-includes

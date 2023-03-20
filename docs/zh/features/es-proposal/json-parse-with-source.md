@@ -2,18 +2,17 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)
+# [`JSON.parse` 源文本访问](https://github.com/tc39/proposal-json-parse-with-source)
 
-## Modules
+## 模块
 
 - [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js)
 - [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js)
 - [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js)
 
-## Types
+## 类型
 
 ```ts
 namespace JSON {
@@ -26,7 +25,7 @@ namespace JSON {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/json-parse-with-source
@@ -36,9 +35,9 @@ core-js(-pure)/actual|full/json/raw-json
 core-js(-pure)/actual|full/json/stringify
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/22phm569):
+[_示例_](https://tinyurl.com/22phm569):
 
 ```js
 function digitsToBigInt(key, val, { source }) {

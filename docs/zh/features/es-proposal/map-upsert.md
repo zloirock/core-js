@@ -2,17 +2,16 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)
 
-## Modules
+## 模块
 
 - [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js)
 - [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 
-## Types
+## 类型
 
 ```ts
 class Map {
@@ -24,7 +23,7 @@ class WeakMap {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/map-upsert-stage-2
@@ -32,9 +31,9 @@ core-js(-pure)/full/map/emplace
 core-js(-pure)/full/weak-map/emplace
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/ty5I2v):
+[_示例_](https://is.gd/ty5I2v):
 
 ```js
 const map = new Map([["a", 2]]);

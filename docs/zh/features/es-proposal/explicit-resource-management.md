@@ -5,20 +5,20 @@ tag:
   - missing-example
 ---
 
-# [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)
+# [显式资源管理](https://github.com/tc39/proposal-explicit-resource-management)
 
 :::note
-This is only built-ins for this proposal, `using` syntax support requires transpiler support.
+只包含提案中内建的，`using` 语法需要转译支持。
 :::
 
-## Modules
+## 模块
 
 - [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js)
 - [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js)
 - [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js)
 - [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js)
 
-## Types
+## 类型
 
 ```ts
 class Symbol {
@@ -45,7 +45,7 @@ class Iterator {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/explicit-resource-management

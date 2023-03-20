@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`RegExp` named capture groups](https://github.com/tc39/proposal-regexp-named-groups)
+# [`RegExp` 命名捕获组](https://github.com/tc39/proposal-regexp-named-groups)
 
-## Types
+## 类型
 
 ```ts
 // patched for support `RegExp` named capture groups:
@@ -19,7 +18,7 @@ class RegExp {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/regexp-named-groups

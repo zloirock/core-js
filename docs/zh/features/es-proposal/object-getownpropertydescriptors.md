@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Object.getOwnPropertyDescriptors`](https://github.com/tc39/proposal-object-getownpropertydescriptors)
 
-## Types
+## 类型
 
 ```ts
 class Object {
@@ -18,7 +17,7 @@ class Object {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/object-getownpropertydescriptors

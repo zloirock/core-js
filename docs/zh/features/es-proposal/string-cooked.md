@@ -2,16 +2,15 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`String.cooked`](https://github.com/tc39/proposal-string-cooked)
 
-## Module
+## 模块
 
 [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 
-## Types
+## 类型
 
 ```ts
 class String {
@@ -22,16 +21,16 @@ class String {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/7QPnss):
+[_示例_](https://is.gd/7QPnss):
 
 ```js
 function safePath(strings, ...subs) {

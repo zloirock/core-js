@@ -2,16 +2,15 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)
+# [`Iterator` helper 函数](https://github.com/tc39/proposal-iterator-helpers)
 
 :::note
-This is an ECMAScript proposal, please do not confuse it with the Helper function provided by Core-JS
+这是一个 ECMAScript 提案，请不要把它与 Core-JS 提供的 helper 函数混淆。
 :::
 
-## Modules
+## 模块
 
 - [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.constructor.js)
 - [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.drop.js)
@@ -28,7 +27,7 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 - [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.take.js)
 - [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-array.js)
 
-## Types
+## 类型
 
 ```ts
 class Iterator {
@@ -49,7 +48,7 @@ class Iterator {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/iterator-helpers
@@ -83,9 +82,9 @@ core-js(-pure)/full/iterator/take
 core-js(-pure)/full/iterator/to-array
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/P7YLCq):
+[_示例_](https://is.gd/P7YLCq):
 
 ```js
 [1, 2, 3, 4, 5, 6, 7]
@@ -114,6 +113,6 @@ await [1, 2, 3]
   .toArray(); // => [1, 4, 9]
 ```
 
-## Caveats
+## 注意事项
 
-- For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
+- 为了避免污染原型，在 `pure` 版本中，新的 `%IteratorPrototype%` 方法没有被加入到真正的 `%IteratorPrototype%` 中，它们只在 wrapper 中可用——使用 `AIterator.from([]).map(fn)` 代替 `[].values().map(fn)`。

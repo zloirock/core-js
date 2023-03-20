@@ -2,22 +2,21 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [Object iteration](https://github.com/tc39/proposal-object-iteration)
+# [对象迭代](https://github.com/tc39/proposal-object-iteration)
 
 ::: warning
-**This proposal has been withdrawn and will be removed from the next major Core-JS version.**
+**该提案已被撤回，并将从下一个主要的 Core-JS 版本中删除。**
 :::
 
-## Modules
+## 模块
 
 - [`esnext.object.iterate-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-keys.js)
 - [`esnext.object.iterate-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-values.js)
 - [`esnext.object.iterate-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.iterate-entries.js).
 
-## Types
+## 类型
 
 ```ts
 class Object {
@@ -27,7 +26,7 @@ class Object {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/object-iteration
@@ -36,9 +35,9 @@ core-js(-pure)/full/object/iterate-values
 core-js(-pure)/full/object/iterate-entries
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/Wnm2tD):
+[_示例_](https://is.gd/Wnm2tD):
 
 ```js
 const obj = { foo: "bar", baz: "blah" };

@@ -2,9 +2,9 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`URL`](https://github.com/jasnell/proposal-url)
 
-See more info [in web standards namespace](/features/web-standard/README.md#url-and-urlsearchparams)
+
+[在 Web 标准中](../web-standard/url.md)查看更多信息

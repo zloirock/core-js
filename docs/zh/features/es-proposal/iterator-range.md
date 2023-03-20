@@ -2,16 +2,15 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Iterator.range`](https://github.com/tc39/proposal-Number.range)
 
-## Module
+## 模块
 
 [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.range.js)
 
-## Types
+## 类型
 
 ```ts
 class Iterator {
@@ -20,16 +19,16 @@ class Iterator {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2gobe777):
+[_示例_](https://tinyurl.com/2gobe777):
 
 ```js
 for (const i of Iterator.range(1, 10)) {

@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [Array find from last](https://github.com/tc39/proposal-array-find-from-last)
+# [从最后开始查找 Array](https://github.com/tc39/proposal-array-find-from-last)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -22,7 +21,7 @@ class %TypedArray% {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-find-from-last

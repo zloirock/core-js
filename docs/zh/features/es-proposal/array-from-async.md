@@ -2,16 +2,15 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)
 
-## Module
+## 模块
 
 [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -23,16 +22,16 @@ class Array {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-from-async-stage-2
 core-js(-pure)/full/array/from-async
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/Jt7SsD):
+[_示例_](https://goo.gl/Jt7SsD):
 
 ```js
 await Array.fromAsync(

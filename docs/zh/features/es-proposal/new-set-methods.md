@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [New `Set` methods](https://github.com/tc39/proposal-set-methods)
+# [新的 `Set` 方法](https://github.com/tc39/proposal-set-methods)
 
-## Modules
+## 模块
 
 - [`esnext.set.difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.js)
 - [`esnext.set.intersection`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.js)
@@ -17,7 +16,7 @@ tag:
 - [`esnext.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.js)
 - [`esnext.set.union`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.js)
 
-## Types
+## 类型
 
 ```ts
 class Set {
@@ -31,7 +30,7 @@ class Set {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/set-methods-v2
@@ -44,9 +43,9 @@ core-js(-pure)/actual|full/set/symmetric-difference
 core-js(-pure)/actual|full/set/union
 ```
 
-## Example
+## 示例
 
-[_Examples_](https://tinyurl.com/2henaoac):
+[_示例_](https://tinyurl.com/2henaoac):
 
 ```js
 new Set([1, 2, 3]).union(new Set([3, 4, 5])); // => Set {1, 2, 3, 4, 5}

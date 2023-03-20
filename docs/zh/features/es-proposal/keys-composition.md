@@ -2,24 +2,23 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`compositeKey` and `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
+# [`compositeKey` 和 `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
 
-## Modules
+## 模块
 
 - [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js)
 - [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
 
-## Types
+## 类型
 
 ```ts
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/keys-composition
@@ -27,16 +26,16 @@ core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/2oPAH7):
+[_示例_](https://goo.gl/2oPAH7):
 
 ```js
-// returns a symbol
+// 返回 symbol
 const symbol = compositeSymbol({});
 console.log(typeof symbol); // => 'symbol'
 
-// works the same, but returns a plain frozen object without a prototype
+// 效果相同，但是返回一个没有原型的普通冻结对象
 const key = compositeKey({});
 console.log(typeof key); // => 'object'
 console.log({}.toString.call(key)); // => '[object Object]'

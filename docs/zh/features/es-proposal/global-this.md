@@ -3,18 +3,17 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [ES `globalThis`](https://github.com/tc39/proposal-global)
 
-## Types
+## 类型
 
 ```ts
 let globalThis: GlobalThisValue;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/global-this

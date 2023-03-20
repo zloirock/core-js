@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)
+# [集合构造器的 `.of` 和 `.from` 方法](https://github.com/tc39/proposal-setmap-offrom)
 
-## Modules
+## 模块
 
 - [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js)
 - [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js)
@@ -18,7 +17,7 @@ tag:
 - [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js)
 - [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
 
-## Types
+## 类型
 
 ```ts
 class Set {
@@ -58,7 +57,7 @@ class WeakMap {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/collection-methods
@@ -73,9 +72,9 @@ core-js(-pure)/full/weak-map/of
 core-js(-pure)/full/weak-map/from
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/mSC7eU):
+[_示例_](https://goo.gl/mSC7eU):
 
 ```js
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}

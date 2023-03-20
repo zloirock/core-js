@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [New collections methods](https://github.com/tc39/proposal-collection-methods)
+# [新的集合方法](https://github.com/tc39/proposal-collection-methods)
 
-## Modules
+## 模块
 
 - [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js)
 - [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js)
@@ -38,7 +37,7 @@ tag:
 - [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js)
 - [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
 
-## Types
+## 类型
 
 ```ts
 class Set {
@@ -81,7 +80,7 @@ class WeakMap {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/collection-methods

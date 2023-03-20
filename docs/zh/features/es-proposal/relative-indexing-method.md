@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [ES Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)
+# [ES 相关的索引方法](https://github.com/tc39/proposal-relative-indexing-method)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -24,7 +23,7 @@ class %TypedArray% {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/relative-indexing-method

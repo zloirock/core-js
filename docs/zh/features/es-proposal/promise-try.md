@@ -2,20 +2,19 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 
 ::: warning
-**This proposal is dead and will be removed from the next major Core-JS version.**
+**该提案已被撤回，并将从下一个主要的 Core-JS 版本中删除。**
 :::
 
-## Module
+## 模块
 
 [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 
-## Types
+## 类型
 
 ```ts
 class Promise {
@@ -23,16 +22,16 @@ class Promise {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/promise-try
 core-js(-pure)/full/promise/try
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/k5GGRo):
+[_示例_](https://goo.gl/k5GGRo):
 
 ```js
 Promise.try(() => 42).then((it) => console.log(`Promise, resolved as ${it}`));

@@ -2,22 +2,21 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer)
+# [`ArrayBuffer.prototype.transfer` 和相关的](https://github.com/tc39/proposal-arraybuffer-transfer)
 
 :::note
-`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer support.
+`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` 只在原生支持 `ArrayBuffer` 的 `structuredClone` 转换运行时中被polyfill。
 :::
 
-## Modules
+## 模块
 
 - [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js)
 - [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js)
 - [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js)
 
-## Types
+## 类型
 
 ```js
 class ArrayBuffer {
@@ -27,7 +26,7 @@ class ArrayBuffer {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-buffer-transfer
@@ -37,9 +36,9 @@ core-js/actual|full/array-buffer/transfer
 core-js/actual|full/array-buffer/transfer-to-fixed-length
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2y99jj9k):
+[_示例_](https://tinyurl.com/2y99jj9k):
 
 ```js
 const buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;

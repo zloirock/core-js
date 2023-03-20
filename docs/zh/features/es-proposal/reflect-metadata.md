@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata)
+# [`Reflect` 元数据](https://github.com/rbuckton/reflect-metadata)
 
-## Modules
+## 模块
 
 - [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.define-metadata.js)
 - [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.delete-metadata.js)
@@ -19,7 +18,7 @@ tag:
 - [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.has-own-metadata.js)
 - [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.metadata.js)
 
-## Types
+## 类型
 
 ```ts
 namespace Reflect {
@@ -35,7 +34,7 @@ namespace Reflect {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/reflect-metadata
@@ -50,9 +49,9 @@ core-js(-pure)/full/reflect/has-own-metadata
 core-js(-pure)/full/reflect/metadata
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/KCo3PS):
+[_示例_](https://goo.gl/KCo3PS):
 
 ```js
 let object = {};

@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Promise.prototype.finally`](https://github.com/tc39/proposal-promise-finally)
 
-## Types
+## 类型
 
 ```ts
 class Promise {
@@ -16,7 +15,7 @@ class Promise {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/promise-finally

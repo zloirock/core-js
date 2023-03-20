@@ -4,7 +4,7 @@ category: feature
 
 # ECMAScript 提案
 
-[The TC39 process.](https://tc39.github.io/process-document/)
+[TC39 流程。](https://tc39.github.io/process-document/)
 
 # 索引
 

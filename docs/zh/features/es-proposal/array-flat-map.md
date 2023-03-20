@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Array.prototype.flat` & `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)
+# [`Array.prototype.flat` 和 `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -20,7 +19,7 @@ class Array {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-flat-map

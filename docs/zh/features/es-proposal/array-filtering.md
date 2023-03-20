@@ -2,17 +2,16 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [Array filtering](https://github.com/tc39/proposal-array-filtering)
+# [Array 过滤器](https://github.com/tc39/proposal-array-filtering)
 
-## Modules
+## 模块
 
 - [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js)
 - [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -24,7 +23,7 @@ class %TypedArray% {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-filtering-stage-1
@@ -32,9 +31,9 @@ core-js(-pure)/full/array(/virtual)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/jJcoWw):
+[_示例_](https://is.gd/jJcoWw):
 
 ```js
 [1, 2, 3, 4, 5].filterReject((it) => it % 2); // => [2, 4]

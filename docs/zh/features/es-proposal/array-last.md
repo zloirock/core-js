@@ -2,17 +2,16 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)
+# [获取 `Array` 的最后一项](https://github.com/keithamus/proposal-array-last)
 
-## Modules
+## 模块
 
 - [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-item.js)
 - [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-index.js)
 
-## Types
+## 类型
 
 ```ts
 class Array {
@@ -21,7 +20,7 @@ class Array {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-last
@@ -29,9 +28,9 @@ core-js/full/array/last-item
 core-js/full/array/last-index
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/2TmcMT):
+[_示例_](https://goo.gl/2TmcMT):
 
 ```js
 [1, 2, 3].lastItem; // => 3

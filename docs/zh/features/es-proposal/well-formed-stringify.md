@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)
+# [结构良好的 `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)
 
-## Types
+## 类型
 
 ```ts
 namespace JSON {
@@ -16,7 +15,7 @@ namespace JSON {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/well-formed-stringify

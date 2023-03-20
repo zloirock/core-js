@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`String` padding](https://github.com/tc39/proposal-string-pad-start-end)
+# [`String` 填充](https://github.com/tc39/proposal-string-pad-start-end)
 
-## Types
+## 类型
 
 ```ts
 class String {
@@ -17,7 +16,7 @@ class String {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-padding

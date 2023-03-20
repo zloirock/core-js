@@ -3,23 +3,22 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [Efficient 64 bit arithmetic](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
+# [高效的 64 bit 算法](https://gist.github.com/BrendanEich/4294d5c212a6d2254703)
 
 ::: warning
-**This proposal has been withdrawn and will be removed from the next major Core-JS version.**
+**该提案已被撤回，将从下一个主要的 Core-JS 版本中删除。**
 :::
 
-## Modules
+## 模块
 
 - [`esnext.math.iaddh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.iaddh.js)
 - [`esnext.math.isubh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.isubh.js)
 - [`esnext.math.imulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.imulh.js)
 - [`esnext.math.umulh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.umulh.js)
 
-## Types
+## 类型
 
 ```ts
 namespace Math {
@@ -30,7 +29,7 @@ namespace Math {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/efficient-64-bit-arithmetic

@@ -3,16 +3,15 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)
+# [装饰器元数据的 `Symbol.metadataKey` 提案](https://github.com/tc39/proposal-decorator-metadata)
 
-## Module
+## 模块
 
 [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js)
 
-## Types
+## 类型
 
 ```ts
 class Symbol {
@@ -20,7 +19,7 @@ class Symbol {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/decorator-metadata

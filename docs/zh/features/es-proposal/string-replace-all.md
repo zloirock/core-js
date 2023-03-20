@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`String#replaceAll`](https://github.com/tc39/proposal-string-replace-all)
 
-## Types
+## 类型
 
 ```ts
 class String {
@@ -16,7 +15,7 @@ class String {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-replace-all-stage-4

@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [Accessible `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)
+# [可访问的 `Object.prototype.hasOwnProperty`](https://github.com/tc39/proposal-accessible-object-hasownproperty)
 
-## Types
+## 类型
 
 ```ts
 class Object {
@@ -16,7 +15,7 @@ class Object {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/accessible-object-hasownproperty

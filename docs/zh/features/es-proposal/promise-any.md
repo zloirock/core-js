@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Promise.any`](https://github.com/tc39/proposal-promise-any)
 
-## Types
+## 类型
 
 ```ts
 class AggregateError extends Error {
@@ -23,7 +22,7 @@ class AggregateError extends Error {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/promise-any
