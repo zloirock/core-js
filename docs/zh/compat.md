@@ -23,8 +23,8 @@ Pagehead:
 
 ## 关于 `core-js-compat`
 
-Core-JS 项目在 [`core-js-compat`](/packages/core-js-compat) 包中提供了所有关于 `core-js` 模块的必要性、入口点和所需的工具的数据——这对`babel`或`swc`等工具的集成很有用。
-如果你愿意帮忙，可以看看[贡献章节](/dev/compat.md)中的相关部分
+Core-JS 项目在 [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) 包中提供了所有关于 `core-js` 模块的必要性、入口点和所需的工具的数据——这对`babel`或`swc`等工具的集成很有用。
+如果你愿意帮忙，可以看看[贡献章节](dev/compat.md)中的相关部分
 
 ## 兼容性表格
 
