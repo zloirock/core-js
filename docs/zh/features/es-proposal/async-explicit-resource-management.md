@@ -5,7 +5,7 @@ tag:
   - missing-example
 ---
 
-# [显式资源管理](https://github.com/tc39/proposal-async-explicit-resource-management)
+# [异步显式资源管理](https://github.com/tc39/proposal-async-explicit-resource-management)
 
 :::note
 只包含提案中内建的，`using` 语法需要转译支持。
