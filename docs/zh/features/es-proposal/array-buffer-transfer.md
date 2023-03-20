@@ -5,7 +5,7 @@ tag:
   - untranslated
 ---
 
-# [`ArrayBuffer.prototype.transfer` and friends](#https://github.com/tc39/proposal-arraybuffer-transfer)
+# [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer)
 
 :::note
 `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer support.
