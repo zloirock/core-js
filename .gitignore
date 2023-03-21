@@ -46,3 +46,4 @@ node_modules/
 # VuePress
 .temp
 .cache
+dist
