@@ -1,10 +1,11 @@
 ## Changelog
 ##### Unreleased
-- [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32
-- Added Deno 1.32 compat data mapping
-- Added Electron 25 and updated 24 compat data mapping
-- Added Quest Browser 26 compat data mapping
-- Updated Opera Android 74 compat data
+- Compat data improvements:
+  - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32
+  - Added Deno 1.32 compat data mapping
+  - Added Electron 25 and updated 24 compat data mapping
+  - Added Quest Browser 26 compat data mapping
+  - Updated Opera Android 74 compat data
 
 ##### [3.29.1 - 2023.03.13](https://github.com/zloirock/core-js/releases/tag/v3.29.1)
 - Fixed dependencies of some entries
