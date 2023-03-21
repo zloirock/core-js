@@ -12,9 +12,13 @@ export default defineUserConfig({
   locales: {
     "/": {
       lang: "en-US",
+      title: "Core-JS Documentation",
+      description: "Modular standard library for JavaScript",
     },
     "/zh/": {
       lang: "zh-CN",
+      title: "Core-JS 文档",
+      description: "模块化 JavaScript 标准库",
     },
   },
   theme,
