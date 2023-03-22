@@ -2,6 +2,7 @@ import { defineUserConfig } from "vuepress";
 import { getDirname, path } from "@vuepress/utils";
 import searchPlugin from "@vuepress/plugin-search";
 import shikiPlugin from "@vuepress/plugin-shiki";
+import {redirectPlugin} from "vuepress-plugin-redirect";
 import theme from "./theme.js";
 
 const __dirname = getDirname(import.meta.url);
@@ -10,7 +11,7 @@ export default defineUserConfig({
   title: "Core-JS",
   description: "Modular standard library for JavaScript",
   locales: {
-    "/": {
+    "/en/": {
       lang: "en-US",
       title: "Core-JS Documentation",
       description: "Modular standard library for JavaScript",
@@ -37,5 +38,12 @@ export default defineUserConfig({
     shikiPlugin({
       theme: "one-dark-pro",
     }),
+    redirectPlugin({
+      autoLocale: true,
+      localeConfig: {
+        "/en/": ["en-US", "en-UK", "en"],
+        "/zh/": ["zh-CN", "zh-TW", "zh"]
+      }
+    })
   ],
 });

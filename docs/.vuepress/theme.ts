@@ -9,7 +9,7 @@ export default hopeTheme({
   docsDir: "docs",
   iconAssets: "iconfont",
   locales: {
-    "/": {
+    "/en/": {
       navbar: navbarEn,
       sidebar: sidebarEn,
     },
@@ -23,7 +23,7 @@ export default hopeTheme({
   plugins: {
     autoCatalog: {
       locales: {
-        "/": { title: "Index" },
+        "/en/": { title: "Index" },
         "/zh/": { title: "索引" },
       },
     },

@@ -3,4 +3,4 @@ title: Changelog
 icon: time
 ---
 
-@include(../../CHANGELOG.md)
+@include(../../../CHANGELOG.md)
