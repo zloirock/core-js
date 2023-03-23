@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator.range` proposal](https://github.com/tc39/proposal-Number.range) moved to Stage 2, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1480266760)
 - `(Async)DisposableStack.prototype.move` marks the original stack as disposed, [#1226](https://github.com/zloirock/core-js/issues/1226)
 - Compat data improvements:
   - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32

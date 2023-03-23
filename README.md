@@ -161,6 +161,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
+      - [`Iterator.range`](#iteratorrange)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
@@ -175,7 +176,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [Getting last item from `Array`](#getting-last-item-from-array)
-      - [`Iterator.range`](#iteratorrange)
       - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
       - [`Math.signbit`](#mathsignbit)
@@ -2473,6 +2473,29 @@ require('core-js/actual/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
+##### [`Iterator.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
+Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+```js
+class Iterator {
+  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
+  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/number-range
+core-js(-pure)/full/iterator/range
+```
+[*Example*](https://tinyurl.com/2gobe777):
+```js
+for (const i of Iterator.range(1, 10)) {
+  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
+}
+
+for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
+  console.log(i); // => 1, 4, 7, 10
+}
+```
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 ```js
@@ -2851,29 +2874,6 @@ const array = [1, 2, 3];
 array.lastItem = 4;
 
 array; // => [1, 2, 4]
-```
-##### [`Iterator.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
-Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
-```js
-class Iterator {
-  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/number-range
-core-js(-pure)/full/iterator/range
-```
-[*Example*](https://tinyurl.com/2gobe777):
-```js
-for (const i of Iterator.range(1, 10)) {
-  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
-}
-
-for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
-  console.log(i); // => 1, 4, 7, 10
-}
 ```
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
 Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
