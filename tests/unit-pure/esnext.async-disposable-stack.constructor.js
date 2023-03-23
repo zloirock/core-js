@@ -105,15 +105,9 @@ QUnit.test('AsyncDisposableStack#move', assert => {
 
   const stack2 = stack1.move();
 
-  assert.false(stack1.disposed);
+  assert.true(stack1.disposed);
 
-  return stack1.disposeAsync().then(() => {
-    assert.same(result, '');
-
-    assert.true(stack1.disposed);
-
-    return stack2.disposeAsync();
-  }).then(() => {
+  return stack2.disposeAsync().then(() => {
     assert.same(result, '12');
   });
 });

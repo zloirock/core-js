@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- `(Async)DisposableStack.prototype.move` marks the original stack as disposed, [#1226](https://github.com/zloirock/core-js/issues/1226)
 - Compat data improvements:
   - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32
   - Added Deno 1.32 compat data mapping

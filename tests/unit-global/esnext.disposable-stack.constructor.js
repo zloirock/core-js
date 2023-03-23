@@ -99,12 +99,6 @@ QUnit.test('DisposableStack#move', assert => {
 
   const stack2 = stack.move();
 
-  assert.false(stack.disposed);
-
-  stack.dispose();
-
-  assert.same(result, '');
-
   assert.true(stack.disposed);
 
   stack2.dispose();

@@ -110,6 +110,8 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     var newAsyncDisposableStack = new $AsyncDisposableStack();
     getAsyncDisposableStackInternalState(newAsyncDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newAsyncDisposableStack;
   }
 });

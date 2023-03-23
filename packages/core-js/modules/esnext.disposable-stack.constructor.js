@@ -94,6 +94,8 @@ defineBuiltIns(DisposableStackPrototype, {
     var newDisposableStack = new $DisposableStack();
     getDisposableStackInternalState(newDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newDisposableStack;
   }
 });
