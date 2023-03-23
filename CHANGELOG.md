@@ -10,6 +10,9 @@
   - Added Electron 25 and updated 24 compat data mapping
   - Added Quest Browser 26 compat data mapping
   - Updated Opera Android 74 compat data
+- `core-js-builder`
+  - Webpack dependency now allows to use webpack 5
+  - Increase minimum node version to 12.x and modernized code
 
 ##### [3.29.1 - 2023.03.13](https://github.com/zloirock/core-js/releases/tag/v3.29.1)
 - Fixed dependencies of some entries
