@@ -28,11 +28,9 @@ module.exports = function (disposable, V, hint, method) {
   var resource;
   if (!method) {
     if (isNullOrUndefined(V)) return;
-    resource = createDisposableResource(V, hint);
-  } else if (isNullOrUndefined(V)) {
-    resource = createDisposableResource(undefined, hint, method);
+    resource = createDisposableResource(anObject(V), hint);
   } else {
-    resource = createDisposableResource(anObject(V), hint, method);
+    resource = createDisposableResource(undefined, hint, method);
   }
 
   push(disposable.stack, resource);
