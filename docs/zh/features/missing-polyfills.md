@@ -3,7 +3,7 @@ icon: warn
 category: feature
 ---
 
-# 缺失的 Ployfill
+# 缺失的 polyfill
 
 出于一些原因，Core-JS 并未包含对以下提案的 polyfill：
 

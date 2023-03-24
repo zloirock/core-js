@@ -41,7 +41,7 @@ npm install --loglevel silent
 
 ## CommonJS API
 
-You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+You can import only-required-for-you polyfills, like in examples at the landing page. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
 // polyfill all Core-JS features, including early-stage proposals:

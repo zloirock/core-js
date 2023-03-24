@@ -5,7 +5,7 @@ icon: check
 
 # 测试
 
-在测试之前，请先安装 dependence：
+在测试之前，请先安装依赖：
 
 ```sh
 npm i
@@ -35,7 +35,7 @@ npm t
   ```sh
   npx run-s init bundle test-unit-bun
   ```
-- 运行 [Test262](https://github.com/tc39/test262) 测试（并未包含在默认测试在）：
+- 运行 [Test262](https://github.com/tc39/test262) 测试（并未包含在默认测试中）：
   ```sh
   npx run-s init bundle-package test262
   ```
@@ -43,7 +43,7 @@ npm t
   ```sh
   npx run-s init test-promises
   ```
-- [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable)：
+- [ECMAScript `Observable` 测试用例](https://github.com/tc39/proposal-observable)：
   ```sh
   npx run-s init test-observables
   ```
