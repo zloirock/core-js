@@ -24,7 +24,7 @@ The size of `core-js` is constantly growing because of the addition of new or im
 
 One of the main `core-js` killer features is that it can be optimized with the usage of Babel, SWC, or manually, however, current approaches solve only a part of the problem. To properly solve them, the modern web requires a new generation of the toolkit that could be simply integrated into the current development stack. And in some cases, as you will see below, this toolkit could help to make the size of your web pages even less than just without `core-js`.
 
-I already wrote about some of this in [**`core-js@3`, Babel and a look into the future** post](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#look-into-the-future), but those were just raw ideas. Now they're in the stage of experimentation or even implementation.
+I already wrote about some of this in [**`core-js@3`, Babel and a look into the future** post](../blog/2019/core-js-3-babel-and-a-look-into-the-future.html#look-into-the-future), but those were just raw ideas. Now they're in the stage of experimentation or even implementation.
 
 Since the future of the project is uncertain, it makes no sense to write any specific dates here, I do not promise that all of this will be done shortly, but this is what should be strived for.
 
