@@ -13,6 +13,10 @@ icon: form
 
 对于更新 `core-js-compat` 数据：
 
+- 如果你想添加浏览器的数据，在浏览器里打开 `tests/compat/index.html`（实际发行版的测试和结果可以在[`兼容性表格`](../compat.md)中查到），然后你会看到这个浏览器需要哪些 Core-JS模块。
+
+![compat-table](/compat/screenshot.png)
+
 - 如果你想添加关于 NodeJS 的数据，使用已安装的需要的 NodeJS 版本运行 `npm run compat-node`，然后你会在控制台里看到结果。如果你想要 JSON 格式的结果，使用 `npm run compat-node json` 。
 - 如果你想添加关于 Deno 的数据，使用已安装的需要的 Deno 版本运行 `npm run compat-deno`，然后你会在控制台里看到结果。如果你想要 JSON 格式的结果，使用 `npm run compat-deno json` 。
 - 如果你想添加关于 Bun 的数据，使用已安装的需要的 Bun 版本运行 `npm run compat-bun`，然后你会在控制台里看到结果。
