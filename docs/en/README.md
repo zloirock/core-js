@@ -31,8 +31,10 @@ features:
     details: Implemented new APIs from ES5 to ongoing ECMAScript proposal
 ---
 
+## Examples
+
 ::: code-tabs#js
-@tab example
+@tab basic usage
 ```js
 //https://tinyurl.com/2mknex43
 import 'core-js/actual';

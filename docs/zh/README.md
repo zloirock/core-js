@@ -31,9 +31,11 @@ features:
     details: 包括对从 ES5 到进行中的 ECMAScript 提案的 polyfill
 ---
 
+## 使用示例
+
 ::: code-tabs#js
 
-@tab 使用示例
+@tab 基础用法
 ```js
 //https://tinyurl.com/2mknex43
 import 'core-js/actual';
