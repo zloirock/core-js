@@ -1,7 +1,7 @@
 ---
 home: true
 icon: home
-title: Home
+title: 主页
 heroImage: /logo.png
 heroText: Core-JS
 tagline: 在开发中使用最新的ECMAScript特性, 无需担心浏览器兼容性
