@@ -30,7 +30,8 @@ features:
     icon: strong
     details: 包括对从 ES5 到进行中的 ECMAScript 提案的 polyfill
 ---
-[*Example of usage*](https://tinyurl.com/2mknex43):
+
+[*使用示例*](https://tinyurl.com/2mknex43):
 ```js
 import 'core-js/actual';
 Promise.resolve(42).then(it => console.log(it)); // => 42
@@ -44,7 +45,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*You can load only required features*:
+*按需加载*:
 ```js
 import 'core-js/actual/promise';
 import 'core-js/actual/set';
@@ -63,7 +64,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*Or use it without global namespace pollution*:
+*不污染全局命名空间*:
 ```js
 import Promise from 'core-js-pure/actual/promise';
 import Set from 'core-js-pure/actual/set';
