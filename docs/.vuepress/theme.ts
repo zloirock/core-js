@@ -34,6 +34,7 @@ export default hopeTheme({
       imgLazyload: true,
       include: true,
       tasklist: true,
+      codetabs: true,
     },
     prismjs: false,
   },

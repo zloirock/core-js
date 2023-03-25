@@ -31,8 +31,11 @@ features:
     details: 包括对从 ES5 到进行中的 ECMAScript 提案的 polyfill
 ---
 
-[*使用示例*](https://tinyurl.com/2mknex43):
+::: code-tabs#js
+
+@tab 使用示例
 ```js
+//https://tinyurl.com/2mknex43
 import 'core-js/actual';
 Promise.resolve(42).then(it => console.log(it)); // => 42
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
@@ -45,7 +48,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*按需加载*:
+@tab 按需加载
 ```js
 import 'core-js/actual/promise';
 import 'core-js/actual/set';
@@ -64,7 +67,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*不污染全局命名空间*:
+@tab 无全局污染
 ```js
 import Promise from 'core-js-pure/actual/promise';
 import Set from 'core-js-pure/actual/set';
@@ -82,3 +85,4 @@ Iterator.from(function * (i) { while (true) yield i++; }(1))
   .toArray(); // => [9, 25]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
+:::

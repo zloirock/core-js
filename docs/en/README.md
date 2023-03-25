@@ -31,8 +31,10 @@ features:
     details: Implemented new APIs from ES5 to ongoing ECMAScript proposal
 ---
 
-[*Example of usage*](https://tinyurl.com/2mknex43):
+::: code-tabs#js
+@tab example
 ```js
+//https://tinyurl.com/2mknex43
 import 'core-js/actual';
 Promise.resolve(42).then(it => console.log(it)); // => 42
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
@@ -45,7 +47,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*You can load only required features*:
+@tab on-demand load
 ```js
 import 'core-js/actual/promise';
 import 'core-js/actual/set';
@@ -64,7 +66,7 @@ Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-*Or use it without global namespace pollution*:
+@tab avoid global pollution
 ```js
 import Promise from 'core-js-pure/actual/promise';
 import Set from 'core-js-pure/actual/set';
@@ -82,3 +84,4 @@ Iterator.from(function * (i) { while (true) yield i++; }(1))
   .toArray(); // => [9, 25]
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
+:::
