@@ -8,6 +8,7 @@
   - Some simplifications like [proposal-explicit-resource-management/150](https://github.com/tc39/proposal-explicit-resource-management/pull/150)
 - Compat data improvements:
   - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32
+  - Added Safari 16.4 compat data
   - Added Deno 1.32 compat data mapping
   - Added Electron 25 and updated 24 compat data mapping
   - Added Quest Browser 26 compat data mapping
