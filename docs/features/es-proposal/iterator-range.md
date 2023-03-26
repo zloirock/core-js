@@ -13,9 +13,19 @@ tag:
 ## Types
 
 ```ts
-class Iterator {
-  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+interface Iterator<T> {
+  /** @param options  @default {step: 1, inclusive: false}*/
+  range(
+    start: number,
+    end: number,
+    options: { step?: number; inclusive?: boolean }
+  ): Iterator<number>;
+  /** @param options  @default {step: 1n, inclusive: false}*/
+  range(
+    start: bigint,
+    end: bigint | number,
+    options: { step?: bigint; inclusive?: boolean }
+  ): Iterator<bigint>;
 }
 ```
 

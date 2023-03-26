@@ -44,5 +44,6 @@ node_modules/
 /tests/unit-pure/index.js
 
 # VuePress
-.temp
-.cache
+docs/.vuepress/.temp
+docs/.vuepress/.cache
+docs/.vuepress/dist

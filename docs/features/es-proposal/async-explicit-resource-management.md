@@ -25,7 +25,7 @@ interface SymbolConstructor {
 }
 class AsyncDisposableStack {
   constructor();
-  disposeAsync(): Promise<undefined>;
+  disposeAsync(): Promise<void>;
   use<T = AsyncDisposable | Disposable>(value: T): T;
   adopt<T>(value: T, onDispose: (value: T) => void | Promise<void>): T;
   defer(onDispose: Function): void;

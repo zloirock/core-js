@@ -15,13 +15,27 @@ tag:
 ## Types
 
 ```ts
-namespace JSON {
+interface JSON {
   isRawJSON(O: any): boolean;
   // patched for source support
-  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
-  rawJSON(text: any): RawJSON;
+  parse(
+    text: string,
+    reviver?: (
+      this: any,
+      key: string,
+      value: any,
+      context: { source?: string }
+    ) => any
+  ): any;
+  rawJSON(text: any): { rawJSON: string };
   // patched for `JSON.rawJSON` support
-  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
+  stringify(
+    value: any,
+    replacer?:
+      | Array<string | number>
+      | ((this: any, key: string, value: any) => any),
+    space?: string | number
+  ): string | void;
 }
 ```
 

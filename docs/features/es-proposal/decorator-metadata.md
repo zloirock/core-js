@@ -14,8 +14,8 @@ tag:
 ## Types
 
 ```ts
-class Symbol {
-  static metadataKey: @@metadataKey;
+interface SymbolConstructor {
+  readonly metadataKey: unique symbol;
 }
 ```
 

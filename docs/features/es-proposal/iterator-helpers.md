@@ -7,7 +7,7 @@ tag:
 # [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)
 
 :::note
-This is an ECMAScript proposal, please do not confuse it with the Helper function provided by Core-JS
+This is an ECMAScript proposal, please do not confuse it with the helper function provided by Core-JS
 :::
 
 ## Modules
@@ -30,21 +30,25 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 ## Types
 
 ```ts
-class Iterator {
-  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
-  drop(limit: number): Iterator<any>;
-  every(callbackfn: value: any => boolean): boolean;
-  filter(callbackfn: value: any => boolean): Iterator<any>;
-  find(callbackfn: value: any => boolean): any;
-  flatMap(callbackfn: (value: any, couner: number) => Iterable<any> | Iterator<any>): Iterator<any>;
-  forEach(callbackfn: value => void): void;
-  indexed(): Iterator<[index, any]>;
-  map(callbackfn: value => any): Iterator<any>;
-  reduce(callbackfn: (memo: any, value: any) => any, initialValue: any): any;
-  some(callbackfn: value: any => boolean): boolean;
-  take(limit: number): Iterator<any>;
-  toArray(): Array<any>;
-  @@toStringTag: 'Iterator'
+interface Iterator<T> {
+  drop(limit: number): Iterator<T>;
+  every(callbackfn: (value: T) => boolean): boolean;
+  filter(callbackfn: (value: T) => boolean): Iterator<T>;
+  find(callbackfn: (value: T) => boolean): T;
+  flatMap<U>(
+    callbackfn: (value: T, couner: number) => Iterable<U> | Iterator<U>
+  ): Iterator<U>;
+  forEach(callbackfn: (value: T) => void): void;
+  indexed(): Iterator<[number, T]>;
+  map<U>(callbackfn: (value: T) => U): Iterator<U>;
+  reduce<U>(callbackfn: (memo: U, value: T) => U, initialValue: U): U;
+  some(callbackfn: (value: T) => boolean): boolean;
+  take(limit: number): Iterator<T>;
+  toArray(): Array<T>;
+  [Symbol.toStringTag]: "Iterator";
+}
+interface IteratorConstructor {
+  from<T>(iterable: Iterable<T> | Iterator<T>): Iterator<T>;
 }
 ```
 
