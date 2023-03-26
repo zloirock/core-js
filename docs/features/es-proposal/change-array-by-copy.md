@@ -22,14 +22,14 @@ tag:
 interface Array<T> {
   toReversed(): Array<T>;
   toSpliced(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>;
-  toSorted(comparefn?: (a: any, b: any) => number): Array<T>;
+  toSorted(comparefn?: (a: T, b: T) => number): Array<T>;
   with(index: number, value: T): Array<T>;
 }
 
-interface %TypedArray% {
-  toReversed(): %TypedArray%;
-  toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
-  with(index: number, value: any): %TypedArray%;
+interface TypedArray {
+  toReversed(): TypedArray;
+  toSorted(comparefn?: (a: number, b: number) => number): TypedArray;
+  with(index: number, value: number): TypedArray;
 }
 ```
 

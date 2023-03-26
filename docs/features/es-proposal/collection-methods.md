@@ -40,43 +40,96 @@ tag:
 ## Types
 
 ```ts
-class Set {
-  addAll(...args: Array<mixed>): this;
-  deleteAll(...args: Array<mixed>): boolean;
-  every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
-  filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Set;
-  find(callbackfn: (value: any, key: any, target: any) => boolean), thisArg?: any): any;
-  join(separator: string = ','): string;
-  map(callbackfn: (value: any, key: any, target: any) => any, thisArg?: any): Set;
-  reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
-  some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
+interface Set<T> {
+  addAll(...args: Array<T>): this;
+  deleteAll(...args: Array<T>): boolean;
+  every(
+    callbackfn: (value: T, key: T, target: Set<T>) => boolean,
+    thisArg?: any
+  ): boolean;
+  filter(
+    callbackfn: (value: T, key: T, target: Set<T>) => boolean,
+    thisArg?: any
+  ): Set<T>;
+  find(
+    callbackfn: (value: T, key: T, target: Set<T>) => boolean,
+    thisArg?: any
+  ): T;
+  /**@param separator @default "," */
+  join(separator: string): string;
+  map<U>(
+    callbackfn: (value: T, key: T, target: Set<T>) => U,
+    thisArg?: any
+  ): Set<U>;
+  reduce<U>(
+    callbackfn: (memo: U, value: T, key: T, target: Set<T>) => U,
+    initialValue?: U
+  ): U;
+  some(
+    callbackfn: (value: T, key: T, target: Set<T>) => boolean,
+    thisArg?: any
+  ): boolean;
 }
 
-class Map {
-  static groupBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
-  static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
-  deleteAll(...args: Array<mixed>): boolean;
-  every(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
-  filter(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): Map;
-  find(callbackfn: (value: any, key: any, target: any) => boolean), thisArg?: any): any;
-  findKey(callbackfn: (value: any, key: any, target: any) => boolean), thisArg?: any): any;
-  includes(searchElement: any): boolean;
-  keyOf(searchElement: any): any;
-  mapKeys(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
-  mapValues(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Map;
-  merge(...iterables: Array<Iterable>): this;
-  reduce(callbackfn: (memo: any, value: any, key: any, target: any) => any, initialValue?: any): any;
-  some(callbackfn: (value: any, key: any, target: any) => boolean, thisArg?: any): boolean;
-  update(key: any, callbackfn: (value: any, key: any, target: any) => any, thunk?: (key: any, target: any) => any): this;
+interface Map<K, V> {
+  deleteAll(...args: Array<K>): boolean;
+  every(
+    callbackfn: (value: V, key: K, target: Map<K, V>) => boolean,
+    thisArg?: any
+  ): boolean;
+  filter(
+    callbackfn: (value: V, key: K, target: Map<K, V>) => boolean,
+    thisArg?: any
+  ): Map<K, V>;
+  find(
+    callbackfn: (value: V, key: K, target: Map<K, V>) => boolean,
+    thisArg?: any
+  ): V;
+  findKey(
+    callbackfn: (value: V, key: K, target: Map<K, V>) => boolean,
+    thisArg?: any
+  ): K;
+  includes(searchElement: V): boolean;
+  keyOf(searchElement: V): K;
+  mapKeys<L>(
+    mapFn: (value: V, index: K, target: Map<K, V>) => L,
+    thisArg?: any
+  ): Map<L, V>;
+  mapValues<W>(
+    mapFn: (value: V, index: K, target: Map<K, V>) => W,
+    thisArg?: any
+  ): Map<K, W>;
+  merge(...iterables: Array<Iterable<[K, V]>>): this;
+  reduce<T>(
+    callbackfn: (memo: T, value: V, key: K, target: Map<K, V>) => T,
+    initialValue?: T
+  ): T;
+  some(
+    callbackfn: (value: V, key: K, target: Map<K, V>) => boolean,
+    thisArg?: any
+  ): boolean;
+  update(
+    key: K,
+    callbackfn: (value: V, key: K, target: Map<K, V>) => V,
+    thunk?: (key: K, target: Map<K, V>) => V
+  ): this;
 }
 
-class WeakSet {
-  addAll(...args: Array<mixed>): this;
-  deleteAll(...args: Array<mixed>): boolean;
+interface MapConstructor {
+  groupBy<K, V>(
+    iterable: Iterable<V>,
+    callbackfn?: (value: V) => K
+  ): Map<K, Array<V>>;
+  keyBy<K, V>(iterable: Iterable<V>, callbackfn?: (value: V) => K): Map<K, V>;
 }
 
-class WeakMap {
-  deleteAll(...args: Array<mixed>): boolean;
+interface WeakSet<T extends object> {
+  addAll(...args: Array<T>): this;
+  deleteAll(...args: Array<T>): boolean;
+}
+
+interface WeakMap<K extends object, V> {
+  deleteAll(...args: Array<K>): boolean;
 }
 ```
 
