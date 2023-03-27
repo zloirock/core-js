@@ -14,7 +14,7 @@ export default defineUserConfig({
   locales: {
     "/en/": {
       lang: "en-US",
-      title: "Core-JS Documentation",
+      title: "Core-JS Document",
       description: "Modular standard library for JavaScript",
     },
     "/zh/": {
