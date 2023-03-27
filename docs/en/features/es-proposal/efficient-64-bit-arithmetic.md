@@ -21,7 +21,7 @@ tag:
 ## Types
 
 ```ts
-namespace Math {
+interface Math {
   iaddh(lo0: number, hi0: number, lo1: number, hi1: number): number;
   isubh(lo0: number, hi0: number, lo1: number, hi1: number): number;
   imulh(a: number, b: number): number;

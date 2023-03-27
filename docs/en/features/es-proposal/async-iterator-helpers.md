@@ -27,24 +27,42 @@ tag:
 ## types
 
 ```ts
-class Iterator {
-  toAsync(): AsyncIterator<any>;
+class Iterator<T> {
+  toAsync(): AsyncIterator<T>;
 }
 
-class AsyncIterator {
-  static from(iterable: AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  drop(limit: number): AsyncIterator<any>;
-  every(async callbackfn: (value: any, couner: number) => boolean): Promise<boolean>;
-  filter(async callbackfn: (value: any, couner: number) => boolean): AsyncIterator<any>;
-  find(async callbackfn: (value: any, couner: number) => boolean)): Promise<any>;
-  flatMap(async callbackfn: (value: any, couner: number) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  forEach(async callbackfn: (value: any, couner: number) => void): Promise<void>;
-  map(async callbackfn: (value: any, couner: number) => any): AsyncIterator<any>;
-  reduce(async callbackfn: (memo: any, value: any, couner: number) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: (value: any, couner: number) => boolean): Promise<boolean>;
-  take(limit: number): AsyncIterator<any>;
-  toArray(): Promise<Array>;
-  @@toStringTag: 'AsyncIterator'
+class AsyncIterator<T> {
+  static from<U>(
+    iterable: AsyncIterable<U> | Iterable<U> | AsyncIterator<U>
+  ): AsyncIterator<U>;
+  drop(limit: number): AsyncIterator<T>;
+  every(
+    callbackfn: (value: T, couner: number) => Promise<boolean>
+  ): Promise<boolean>;
+  filter(
+    callbackfn: (value: T, couner: number) => Promise<boolean>
+  ): AsyncIterator<T>;
+  find(callbackfn: (value: T, couner: number) => Promise<boolean>): Promise<T>;
+  flatMap<U>(
+    callbackfn: (
+      value: T,
+      couner: number
+    ) => AsyncIterable<U> | Iterable<U> | AsyncIterator<U>
+  ): AsyncIterator<U>;
+  forEach(
+    callbackfn: (value: T, couner: number) => Promise<void>
+  ): Promise<void>;
+  map<U>(
+    callbackfn: (value: T, couner: number) => Promise<U>
+  ): AsyncIterator<U>;
+  reduce<U>(
+    callbackfn: (memo: U, value: T, couner: Promise<number>) => U,
+    initialValue: U
+  ): Promise<U>;
+  some(callbackfn: (value: T, couner: number) => boolean): Promise<boolean>;
+  take(limit: number): AsyncIterator<T>;
+  toArray(): Promise<Array<T>>;
+  [Symbol.toStringTag]: "AsyncIterator";
 }
 ```
 

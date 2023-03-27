@@ -13,7 +13,7 @@ tag:
 ## Types
 
 ```ts
-class Function {
+interface Function {
   demethodize(): Function;
 }
 ```

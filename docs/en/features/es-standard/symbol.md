@@ -28,22 +28,22 @@ tag:
 
 ```ts
 class Symbol {
-  constructor(description?:string);
+  constructor(description?: string);
   readonly description: string | void;
-  static asyncIterator: Symbol;
-  static hasInstance: Symbol;
-  static isConcatSpreadable: Symbol;
-  static iterator: Symbol;
-  static match: Symbol;
-  static replace: Symbol;
-  static search: Symbol;
-  static species: Symbol;
-  static split: Symbol;
-  static toPrimitive: Symbol;
-  static toStringTag: Symbol;
-  static unscopables: Symbol;
+  static readonly asyncIterator: unique symbol;
+  static readonly hasInstance: unique symbol;
+  static readonly isConcatSpreadable: unique symbol;
+  static readonly iterator: unique symbol;
+  static readonly match: unique symbol;
+  static readonly replace: unique symbol;
+  static readonly search: unique symbol;
+  static readonly species: unique symbol;
+  static readonly split: unique symbol;
+  static readonly toPrimitive: unique symbol;
+  static readonly toStringTag: unique symbol;
+  static readonly unscopables: unique symbol;
   static for(key: string): symbol;
-  static keyFor(sym: symbol): string;
+  static keyFor(sym: symbol): string | undefined;
   static useSimple(): void;
   static useSetter(): void;
 }

@@ -14,7 +14,7 @@ tag:
 ## Types
 
 ```ts
-class Number {
+interface Number {
   fromString(string: string, radix: number): number;
 }
 ```

@@ -14,8 +14,8 @@ tag:
 ## Types
 
 ```ts
-class Symbol {
-  static matcher: @@matcher;
+interface SymbolConstructor {
+  readonly matcher: unique symbol;
 }
 ```
 

@@ -2,7 +2,8 @@
 home: true
 icon: home
 title: Home
-heroImage: /logo.png
+heroImage: /logo.svg
+heroImageDark: /logo-dark.svg
 heroText: Core-JS
 tagline: Use the latest ECMAScript features before they are widely supported
 actions:

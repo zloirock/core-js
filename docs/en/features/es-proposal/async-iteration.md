@@ -10,8 +10,8 @@ tag:
 ## Types
 
 ```ts
-class Symbol {
-  static asyncIterator: @@asyncIterator;
+interface SymbolConstructor {
+  readonly asyncIterator: unique symbol;
 }
 ```
 

@@ -12,13 +12,14 @@ export default hopeTheme({
     "/en/": {
       navbar: navbarEn,
       sidebar: sidebarEn,
+      copyright: `&copy; 2014-${new Date().getFullYear()} Core-JS contributors`,
     },
     "/zh/": {
       navbar: navbarZh,
       sidebar: sidebarZh,
+      copyright: `&copy; 2014-${new Date().getFullYear()} Core-JS 贡献者`,
     },
   },
-  copyright: `&copy; 2014-${new Date().getFullYear()} Core-JS contributors`,
   displayFooter: true,
   plugins: {
     autoCatalog: {
@@ -38,4 +39,5 @@ export default hopeTheme({
     },
     prismjs: false,
   },
+  hotReload: true,
 });

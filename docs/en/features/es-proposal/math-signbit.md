@@ -14,7 +14,7 @@ tag:
 ## Types
 
 ```ts
-namespace Math {
+interface Math {
   signbit(x: number): boolean;
 }
 ```

@@ -10,8 +10,8 @@ tag:
 ## Types
 
 ```ts
-class Promise {
-  finally(onFinally: Function): Promise;
+interface Promise<T> {
+  finally(onFinally: () => void): Promise<T>;
 }
 ```
 

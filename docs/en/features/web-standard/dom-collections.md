@@ -16,46 +16,113 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
 ## Types
 
 ```ts
-class [
-  CSSRuleList,
-  CSSStyleDeclaration,
-  CSSValueList,
-  ClientRectList,
-  DOMRectList,
-  DOMStringList,
-  DataTransferItemList,
-  FileList,
-  HTMLAllCollection,
-  HTMLCollection,
-  HTMLFormElement,
-  HTMLSelectElement,
-  MediaList,
-  MimeTypeArray,
-  NamedNodeMap,
-  PaintRequestList,
-  Plugin,
-  PluginArray,
-  SVGLengthList,
-  SVGNumberList,
-  SVGPathSegList,
-  SVGPointList,
-  SVGStringList,
-  SVGTransformList,
-  SourceBufferList,
-  StyleSheetList,
-  TextTrackCueList,
-  TextTrackList,
-  TouchList,
-] {
-  [Symbol.iterator](): Iterator<value>;
+interface CSSRuleList {
+  [Symbol.iterator](): Iterator<CSSRule>;
+}
+interface CSSStyleDeclaration {
+  [Symbol.iterator](): Iterator<string>;
+}
+interface CSSValueList {
+  [Symbol.iterator](): Iterator<CSSValue>;
+}
+interface ClientRectList {
+  [Symbol.iterator](): Iterator<ClientRect>;
+}
+interface DOMRectList {
+  [Symbol.iterator](): Iterator<DOMRect>;
+}
+interface DOMStringList {
+  [Symbol.iterator](): Iterator<string>;
+}
+interface DataTransferItemList {
+  [Symbol.iterator](): Iterator<DataTransferItem>;
+}
+interface FileList {
+  [Symbol.iterator](): Iterator<File>;
+}
+interface HTMLAllCollection {
+  [Symbol.iterator](): Iterator<HTMLAllCollection>;
+}
+interface HTMLCollection {
+  [Symbol.iterator](): Iterator<HTMLCollection>;
+}
+interface HTMLFormElement {
+  [Symbol.iterator](): Iterator<HTMLFormElement>;
+}
+interface HTMLSelectElement {
+  [Symbol.iterator](): Iterator<HTMLSelectElement>;
+}
+interface MediaList {
+  [Symbol.iterator](): Iterator<string>;
+}
+interface MimeTypeArray {
+  [Symbol.iterator](): Iterator<MimeTypeArray>;
+}
+interface NamedNodeMap {
+  [Symbol.iterator](): Iterator<NamedNodeMap>;
+}
+interface PaintRequestList {
+  [Symbol.iterator](): Iterator<PaintRequest>;
+}
+interface Plugin {
+  [Symbol.iterator](): Iterator<MimeType>;
+}
+interface PluginArray {
+  [Symbol.iterator](): Iterator<Plugin>;
+}
+interface SVGLengthList {
+  [Symbol.iterator](): Iterator<SVGLength>;
+}
+interface SVGNumberList {
+  [Symbol.iterator](): Iterator<SVGNumber>;
+}
+interface SVGPathSegList {
+  [Symbol.iterator](): Iterator<SVGPathSeg>;
+}
+interface SVGPointList {
+  [Symbol.iterator](): Iterator<SVGPoint>;
+}
+interface SVGStringList {
+  [Symbol.iterator](): Iterator<string>;
+}
+interface SVGTransformList {
+  [Symbol.iterator](): Iterator<SVGTransform>;
+}
+interface SourceBufferList {
+  [Symbol.iterator](): Iterator<SourceBuffer>;
+}
+interface StyleSheetList {
+  [Symbol.iterator](): Iterator<StyleSheet>;
+}
+interface TextTrackCueList {
+  [Symbol.iterator](): Iterator<TextTrackCue>;
+}
+interface TextTrackList {
+  [Symbol.iterator](): Iterator<TextTrack>;
+}
+interface TouchList {
+  [Symbol.iterator](): Iterator<Touch>;
 }
 
-class [DOMTokenList, NodeList] {
-  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
-  entries(): Iterator<[key, value]>;
-  keys(): Iterator<key>;
-  values(): Iterator<value>;
-  [Symbol.iterator](): Iterator<value>;
+interface DOMTokenList {
+  forEach(
+    callbackfn: (value: any, index: number, target: any) => void,
+    thisArg: any
+  ): void;
+  entries(): Iterator<[number, string]>;
+  keys(): Iterator<number>;
+  values(): Iterator<string>;
+  [Symbol.iterator](): Iterator<string>;
+}
+interface NodeList {
+  forEach(
+    callbackfn: (value: Node, index: number, target: NodeList) => void,
+    thisArg: any
+  ): void;
+  entries(): Iterator<[number, Node]>;
+  keys(): Iterator<number>;
+  values(): Iterator<Node>;
+  [Symbol.iterator](): Iterator<Node>;
 }
 ```
 

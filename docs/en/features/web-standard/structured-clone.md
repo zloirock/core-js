@@ -15,7 +15,10 @@ tag:
 ## Types
 
 ```ts
-function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
+function structuredClone<T extends Transferable>(
+  value: T,
+  options: { transfer?: Sequence<Transferable> }
+): T;
 ```
 
 ## Entry points

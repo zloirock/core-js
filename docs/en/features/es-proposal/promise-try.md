@@ -17,8 +17,8 @@ tag:
 ## Types
 
 ```ts
-class Promise {
-  static try(callbackfn: Function): promise;
+interface PromiseConstructor {
+  try<T>(callbackfn: () => T | Promise<T>): Promise<T>;
 }
 ```
 

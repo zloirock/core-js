@@ -14,8 +14,8 @@ tag:
 ## Types
 
 ```ts
-function compositeKey(...args: Array<mixed>): object;
-function compositeSymbol(...args: Array<mixed>): symbol;
+function compositeKey(...args: Array<any>): object;
+function compositeSymbol(...args: Array<any>): symbol;
 ```
 
 ## Entry points
