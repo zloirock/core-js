@@ -14,14 +14,19 @@ tag:
 ## Types
 
 ```ts
-declare class Observable {
+class Observable {
   constructor(subscriber: SubscriberFunction);
   static of<T>(...items: Array<T>): SubscriptionObserver<T>;
   static from<T>(
     x: SubscriptionObserver<T> | Iterable<T>
   ): SubscriptionObserver<T>;
   static readonly [Symbol.species]: Observable;
-  subscribe<T>(observer: Function | SubscriptionObserver<T>): Subscription;
+  subscribe<T>(observer: Observer<T>): Subscription;
+  subscribe<T>(
+    onNext: (value: T) => void,
+    onError?: (errorValue: Error) => void,
+    onComplete?: () => void
+  ): Subscription;
   [Symbol.observable](): this;
 }
 
@@ -30,9 +35,9 @@ interface Subscription {
   get closed(): boolean;
 }
 
-interface Observer {
+interface Observer<T> {
   start(subscription: Subscription): void;
-  next(value: any): void;
+  next(value: T): void;
   error(errorValue: Error): void;
   complete(): void;
 }

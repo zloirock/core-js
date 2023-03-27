@@ -11,18 +11,14 @@ tag:
 
 ```ts
 class AggregateError extends Error {
-  constructor(
-    errors: Iterable,
-    message?: string,
-    { cause: any }?
-  ): AggregateError;
-  errors: Array<any>;
+  constructor(errors: Iterable<Error>, message?: string, { cause: any }?);
+  errors: Array<Error>;
   message: string;
   cause: any;
 }
 
-class Promise {
-  static any(promises: Iterable): Promise<any>;
+interface PromiseConstructor {
+  any<T>(promises: Iterable<Promise<T>>): Promise<T>;
 }
 ```
 
