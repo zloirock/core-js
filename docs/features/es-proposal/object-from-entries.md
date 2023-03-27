@@ -10,8 +10,10 @@ tag:
 ## Types
 
 ```ts
-class Object {
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
+interface ObjectConstructor {
+  fromEntries<T = any>(
+    iterable: Iterable<[PropertyKey, T]>
+  ): { [k: string]: T };
 }
 ```
 

@@ -19,10 +19,10 @@ tag:
 ## Types
 
 ```ts
-class Object {
-  iterateKeys(object: any): Iterator<string>;
-  iterateValues(object: any): Iterator<any>;
-  iterateEntries(object: any): Iterator<[string, any]>;
+interface Object {
+  iterateKeys(object: { [k: PropertyKey]: any }): Iterator<string>;
+  iterateValues<T>(object: { [k: PropertyKey]: T }): Iterator<T>;
+  iterateEntries<T>(object: { [k: PropertyKey]: T }): Iterator<[string, T]>;
 }
 ```
 

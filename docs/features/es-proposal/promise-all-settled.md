@@ -10,9 +10,24 @@ tag:
 ## Types
 
 ```ts
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
+interface PromiseConstructor {
+  allSettled<T>(
+    iterable: Iterable<Promise<T>>
+  ): Promise<PromiseSettledResult<T>>;
 }
+
+type PromiseSettledFulfilledResult<T> = {
+  status: "fulfilled";
+  value: T;
+};
+type PromiseSettledRejectedResult = {
+  status: "rejected";
+  reason: any;
+};
+
+type PromiseSettledResult<T> =
+  | PromiseSettledFulfilledResult<T>
+  | PromiseSettledRejectedResult;
 ```
 
 ## Entry points

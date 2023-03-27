@@ -14,12 +14,24 @@ tag:
 ## Types
 
 ```ts
-class Map {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+interface Map<K, V> {
+  emplace<T, U>(
+    key: any,
+    handler: {
+      update: (value: V, key: K, target: Map<K, V>) => T;
+      insert: (key: K, target: Map<K, V>) => U;
+    }
+  ): T | U;
 }
 
-class WeakMap {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+interface WeakMap<K extends object, V> {
+  emplace<T, U>(
+    key: any,
+    handler: {
+      update: (value: V, key: K, target: WeakMap<K, V>) => T;
+      insert: (key: K, target: WeakMap<K, V>) => U;
+    }
+  ): T | U;
 }
 ```
 

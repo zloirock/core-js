@@ -14,17 +14,40 @@ tag:
 ## Types
 
 ```ts
-class Observable {
-  constructor(subscriber: Function): Observable;
-  subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
+declare class Observable {
+  constructor(subscriber: SubscriberFunction);
+  static of<T>(...items: Array<T>): SubscriptionObserver<T>;
+  static from<T>(
+    x: SubscriptionObserver<T> | Iterable<T>
+  ): SubscriptionObserver<T>;
+  static readonly [Symbol.species]: Observable;
+  subscribe<T>(observer: Function | SubscriptionObserver<T>): Subscription;
   [Symbol.observable](): this;
-  static of(...items: Aray<mixed>): Observable;
-  static from(x: Observable | Iterable): Observable;
-  static readonly [Symbol.species]: this;
 }
 
-class Symbol {
-  static observable: @@observable;
+interface Subscription {
+  unsubscribe(): void;
+  get closed(): boolean;
+}
+
+interface Observer {
+  start(subscription: Subscription): void;
+  next(value: any): void;
+  error(errorValue: Error): void;
+  complete(): void;
+}
+
+interface SubscriptionObserver<T> {
+  next(value: T): void;
+  error(errorValue: Error): void;
+  complete(): void;
+  get closed(): Boolean;
+}
+
+type SubscriberFunction = (observer: Observer) => (() => void) | Subscription;
+
+interface SymbolConstructor {
+  readonly observable: unique symbol;
 }
 ```
 

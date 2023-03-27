@@ -20,14 +20,26 @@ tag:
 ## Types
 
 ```ts
-namespace Math {
+interface Math {
   DEG_PER_RAD: number;
   RAD_PER_DEG: number;
   clamp(x: number, lower: number, upper: number): number;
   degrees(radians: number): number;
-  fscale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+  fscale(
+    x: number,
+    inLow: number,
+    inHigh: number,
+    outLow: number,
+    outHigh: number
+  ): number;
   radians(degrees: number): number;
-  scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+  scale(
+    x: number,
+    inLow: number,
+    inHigh: number,
+    outLow: number,
+    outHigh: number
+  ): number;
 }
 ```
 

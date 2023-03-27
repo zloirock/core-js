@@ -10,8 +10,8 @@ tag:
 ## Types
 
 ```ts
-class Object {
-  static getOwnPropertyDescriptors(object: any): {
+interface ObjectConstructor {
+  getOwnPropertyDescriptors(object: any): {
     [property: PropertyKey]: PropertyDescriptor;
   };
 }
