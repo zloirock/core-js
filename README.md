@@ -167,7 +167,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [Async explicit resource management](#async-explicit-resource-management)
       - [`Symbol` predicates](#symbol-predicates)
-      - [`Symbol.metadataKey` for decorators metadata proposal](#symbolmetadatakey-for-decorators-metadata-proposal)
+      - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -2616,17 +2616,17 @@ Symbol.isRegistered(Symbol('key')); // => false
 Symbol.isWellKnown(Symbol.iterator); // => true
 Symbol.isWellKnown(Symbol('key')); // => false
 ```
-##### [`Symbol.metadataKey` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
-Module [`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js).
+##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
+Module [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js).
 ```js
 class Symbol {
-  static metadataKey: @@metadataKey;
+  static metadata: @@metadata;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/decorator-metadata
-core-js(-pure)/full/symbol/metadata-key
+core-js/proposals/decorator-metadata-v2
+core-js(-pure)/full/symbol/metadata
 ```
 
 #### Stage 1 proposals[⬆](#index)
