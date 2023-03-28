@@ -19,14 +19,20 @@ tag:
 ## 类型
 
 ```ts
-class Set {
-  difference(other: SetLike<mixed>): Set;
-  intersection(other: SetLike<mixed>): Set;
-  isDisjointFrom(other: SetLike<mixed>): boolean;
-  isSubsetOf(other: SetLike<mixed>): boolean;
-  isSupersetOf(other: SetLike<mixed>): boolean;
-  symmetricDifference(other: SetLike<mixed>): Set;
-  union(other: SetLike<mixed>): Set;
+interface Set<T> {
+  difference(other: SetLike<T>): Set<T>;
+  intersection(other: SetLike<T>): Set<T>;
+  isDisjointFrom<U>(other: SetLike<U>): boolean;
+  isSubsetOf<U>(other: SetLike<U>): boolean;
+  isSupersetOf<U>(other: SetLike<U>): boolean;
+  symmetricDifference(other: SetLike<T>): Set<T>;
+  union(other: SetLike<T>): Set<T>;
+}
+
+interface SetLike<T> {
+  has(value: T): boolean;
+  keys(): IterableIterator<T>;
+  readonly size: number;
 }
 ```
 

@@ -14,9 +14,10 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  attribute lastItem: any;
-  readonly attribute lastIndex: uint;
+interface Array<T> {
+  get lastItem(): T;
+  set lastItem(value: T);
+  get lastIndex(): number;
 }
 ```
 

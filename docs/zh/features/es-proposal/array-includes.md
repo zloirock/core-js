@@ -10,12 +10,12 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  includes(searchElement: any, from?: number): boolean;
+interface Array<T> {
+  includes(searchElement: T, from?: number): boolean;
 }
 
-class %TypedArray% {
-  includes(searchElement: any, from?: number): boolean;
+abstract class TypedArray {
+  abstract includes(searchElement: number, from?: number): boolean;
 }
 ```
 

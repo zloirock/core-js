@@ -21,27 +21,27 @@ tag:
 ## 类型
 
 ```ts
-class Symbol {
-  static dispose: @@dispose;
+interface SymbolConstructor {
+  readonly dispose: unique symbol;
 }
 class DisposableStack {
-  constructor(): DisposableStack;
-  dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  constructor();
+  dispose(): void;
+  use<T = Disposable>(value: T): T;
+  adopt<T>(value: T, onDispose: (value: T) => void): T;
   defer(onDispose: Function): undefined;
-  @@dispose(): undefined;
-  @@toStringTag: 'DisposableStack';
+  [Symbol.dispose](): undefined;
+  [Symbol.toStringTag]: 'DisposableStack';
 }
 class SuppressedError extends Error {
-  constructor(error: any, suppressed: any, message?: string): SuppressedError;
+  constructor(error: any, suppressed: any, message?: string);
   error: any;
   suppressed: any;
   message: string;
   cause: any;
 }
-class Iterator {
-  @@dispose(): undefined;
+interface Iterator<T> {
+  [Symbol.dispose](): void;
 }
 ```
 

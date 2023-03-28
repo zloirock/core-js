@@ -19,8 +19,8 @@ tag:
 ## 类型
 
 ```js
-class ArrayBuffer {
-  readonly attribute detached: boolean;
+interface ArrayBuffer {
+  get detached(): boolean;
   transfer(newLength?: number): ArrayBuffer;
   transferToFixedLength(newLength?: number): ArrayBuffer;
 }

@@ -13,13 +13,14 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  static fromAsync(
-    asyncItems: AsyncIterable | Iterable | ArrayLike,
-    mapfn?: (value: any, index: number) => any,
+interface ArrayConstructor {
+  fromAsync<T, U>(
+    asyncItems: AsyncIterable<T> | Iterable<T> | ArrayLike<T>,
+    mapfn?: (value: T, index: number) => U,
     thisArg?: any
-  ): Array;
+  ): Array<T>;
 }
+
 ```
 
 ## 入口点

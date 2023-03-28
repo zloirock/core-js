@@ -10,11 +10,12 @@ tag:
 ## 类型
 
 ```ts
-class Object {
-  static getOwnPropertyDescriptors(object: any): {
+interface ObjectConstructor {
+  getOwnPropertyDescriptors(object: any): {
     [property: PropertyKey]: PropertyDescriptor;
   };
 }
+
 ```
 
 ## 入口点

@@ -14,11 +14,11 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  filterReject(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;
+interface Array<T> {
+  filterReject(callbackfn: (value: t, index: number, target: Array<T>) => boolean, thisArg?: any): Array<T>;
 }
 
-class %TypedArray% {
+interface %TypedArray% {
   filterReject(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
 }
 ```

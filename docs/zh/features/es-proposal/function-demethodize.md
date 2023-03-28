@@ -13,7 +13,7 @@ tag:
 ## 类型
 
 ```ts
-class Function {
+interface Function {
   demethodize(): Function;
 }
 ```

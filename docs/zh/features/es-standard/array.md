@@ -43,46 +43,92 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  at(index: int): any;
-  concat(...args: Array<mixed>): Array<mixed>; // 额外支持 @@isConcatSpreadable 和 @@species
-  copyWithin(target: number, start: number, end?: number): this;
-  entries(): Iterator<[index, value]>;
-  every(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
-  fill(value: any, start?: number, end?: number): this;
-  filter(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>; // 额外支持 @@species
-  find(callbackfn: (value: any, index: number, target: any) => boolean), thisArg?: any): any;
-  findIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
-  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
-  flat(depthArg?: number = 1): Array<mixed>;
-  flatMap(mapFn: (value: any, index: number, target: any) => any, thisArg: any): Array<mixed>;
-  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg?: any): void;
-  includes(searchElement: any, from?: number): boolean;
-  indexOf(searchElement: any, from?: number): number;
-  join(separator: string = ','): string;
-  keys(): Iterator<index>;
+interface Array<T> {
+  at(index: number): T;
+  concat(...args: Array<T>): Array<T>; // with adding support of @@isConcatSpreadable and @@species
+  copyWithin(target: number, start: number, end?: number): Array<T>;
+  entries(): Iterator<[[index: number], T]>;
+  every(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): boolean;
+  fill(value: T, start?: number, end?: number): Array<T>;
+  filter(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): Array<T>; // with adding support of @@species
+  find(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): any;
+  findIndex(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): number;
+  findLast(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): T;
+  findLastIndex(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): number;
+  flat<A, D extends number = 1>(this: A, depth?: D): Array<T>;
+  flatMap(
+    mapFn: (value: T, index: number, target: Array<T>) => any,
+    thisArg: any
+  ): Array<T>;
+  forEach(
+    callbackfn: (value: T, index: number, target: Array<T>) => void,
+    thisArg?: any
+  ): void;
+  includes(searchElement: T, from?: number): boolean;
+  indexOf(searchElement: T, from?: number): number;
+  join(separator?: string): string;
+  keys(): Iterator<number>;
   lastIndexOf(searchElement: any, from?: number): number;
-  map(mapFn: (value: any, index: number, target: any) => any, thisArg?: any): Array<mixed>; // 额外支持 @@species
-  push(...args: Array<mixed>): uint;
-  reduce(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
-  reduceRight(callbackfn: (memo: any, value: any, index: number, target: any) => any, initialValue?: any): any;
-  reverse(): this; // Safari 12.0 漏斗修复
-  slice(start?: number, end?: number): Array<mixed>; // 额外支持 @@species
-  splice(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>; // 额外支持 @@species
-  some(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): boolean;
-  sort(comparefn?: (a: any, b: any) => number): this; // 类似稳定排序的现代行为
-  unshift(...args: Array<mixed>): uint;
-  values(): Iterator<value>;
-  [Symbol.iterator](): Iterator<value>;
-  @@unscopables: { [newMethodNames: string]: true };
-  static from(items: Iterable | ArrayLike, mapFn?: (value: any, index: number) => any, thisArg?: any): Array<mixed>;
-  static isArray(value: any): boolean;
-  static of(...args: Array<mixed>): Array<mixed>;
+  map(
+    mapFn: (value: T, index: number, target: Array<T>) => any,
+    thisArg?: any
+  ): Array<T>; // with adding support of @@species
+  push(...args: Array<T>): number;
+  reduce(
+    callbackfn: (memo: any, value: T, index: number, target: Array<T>) => any,
+    initialValue?: any
+  ): any;
+  reduceRight(
+    callbackfn: (memo: any, value: T, index: number, target: Array<T>) => any,
+    initialValue?: any
+  ): any;
+  reverse(): Array<T>; // Safari 12.0 bug fix
+  slice(start?: number, end?: number): Array<T>; // with adding support of @@species
+  splice(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>; // with adding support of @@species
+  some(
+    callbackfn: (value: T, index: number, target: Array<T>) => boolean,
+    thisArg?: any
+  ): boolean;
+  sort(comparefn?: (a: any, b: any) => number): Array<T>; // with modern behavior like stable sort
+  toReversed(): Array<T>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>;
+  toSorted(comparefn?: (a: any, b: any) => number): Array<T>;
+  unshift(...args: Array<T>): number;
+  values(): Iterator<T>;
+  with(index: number, value: T): Array<T>;
+  [Symbol.iterator]: Iterator<T>;
+  [Symbol.unscopables]: { [newMethodNames: string]: true };
+}
+interface ArrayConstructor {
+  from<T, U>(
+    items: Iterable<T> | ArrayLike<T>,
+    mapFn?: (value: T, index: number) => U,
+    thisArg?: any
+  ): Array<U>;
+  isArray(value: any): boolean;
+  of<T>(...args: Array<T>): Array<T>;
 }
 
-class Arguments {
-  [Symbol.iterator](): Iterator<value>; // 只在 core-js 方法内提供支持
+class Arguments<T> {
+  [Symbol.iterator](): Iterator<T>; // available only in core-js methods
 }
 ```
 

@@ -65,23 +65,32 @@ Annex B 方法：
 ## 类型
 
 ```ts
-class String {
-  static fromCodePoint(...codePoints: Array<number>): string;
-  static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
-  at(index: int): string;
+interface String {
+  at(index: number): string;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
   endsWith(searchString: string, position?: number): boolean;
   repeat(count: number): string;
-  padStart(length: number, fillStr?: string = ' '): string;
-  padEnd(length: number, fillStr?: string = ' '): string;
+  /**@param fillStr @default ' '' */
+  padStart(length: number, fillStr?: string): string;
+  /**@param fillStr @default ' '' */
+  padEnd(length: number, fillStr?: string): string;
   codePointAt(pos: number): number | void;
-  match(template: any): any; // 针对 ES2015+ 的修复，支持 @@match
-  matchAll(regexp: RegExp): Iterator;
+  match(template: any): RegExpMatchArray | null; // 针对 ES2015+ 的修复，支持 @@match
+  matchAll(regexp: RegExp): Iterator<RegExpMatchArray>;
   replace(template: any, replacer: any): any; // 针对 ES2015+ 的修复，支持 @@replace
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+  replaceAll(
+    searchValue: string | RegExp,
+    replaceString:
+      | string
+      | ((
+          searchValue: string,
+          ...groups: Array<{ [key: string]: string }>,
+          thisValue: ThisType<String>
+        ) => string)
+  ): string;
   search(template: any): any; // 针对 ES2015+ 的修复，支持 @@search
-  split(template: any, limit?: int): Array<string>;; // 针对 ES2015+ 的修复，支持 @@split，一些针对老引擎的修复
+  split(template: any, limit?: number): Array<string>; // 针对 ES2015+ 的修复，支持 @@split，一些针对老引擎的修复
   trim(): string;
   trimLeft(): string;
   trimRight(): string;
@@ -99,25 +108,30 @@ class String {
   small(): string;
   strike(): string;
   sub(): string;
-  substr(start: int, length?: int): string;
+  substr(start: number, length?: number): string;
   sup(): string;
-  [Symbol.iterator](): Iterator<characters>;
+  [Symbol.iterator]: Iterator<String>;
+}
+
+interface StringConstructor {
+  fromCodePoint(...codePoints: Array<number>): string;
+  raw({ ["raw"]: Array }, ...substitutions: Array<string>): string;
 }
 
 class RegExp {
-  // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
-  constructor(pattern: RegExp | string, flags?: string): RegExp;
+  // 支持 sticky (`y`) flag, dotAll (`s`) flag, 命名捕获组，可以改变 flag
+  constructor(pattern: RegExp | string, flags?: string);
   exec(): Array<string | undefined> | null; // IE8 修复
   test(string: string): boolean; // delegation to `.exec`
-  toString(): string; // ES2015+ fix - generic
-  @@match(string: string): Array | null;
-  @@matchAll(string: string): Iterator;
-  @@replace(string: string, replaceValue: Function | string): string;
-  @@search(string: string): number;
-  @@split(string: string, limit: number): Array<string>;
-  readonly attribute dotAll: boolean; // IE9+
-  readonly attribute flags: string;   // IE9+
-  readonly attribute sticky: boolean; // IE9+
+  toString(): string; // 通用的 ES2015+ 修复
+  [Symbol.match](string: string): RegExpMatchArray | null;
+  [Symbol.matchAll](string: string): Iterator<RegExpMatchArray>;
+  [Symbol.replace](string: string, replaceValue: Function | string): string;
+  [Symbol.search](string: string): number;
+  [Symbol.split](string: string, limit: number): Array<string>;
+  readonly dotAll: boolean; // IE9+
+  readonly flags: string;   // IE9+
+  readonly sticky: boolean; // IE9+
 }
 
 function escape(string: string): string;

@@ -10,8 +10,8 @@ tag:
 ## 类型
 
 ```ts
-class Promise {
-  finally(onFinally: Function): Promise;
+interface Promise<T> {
+  finally(onFinally: () => void): Promise<T>;
 }
 ```
 

@@ -11,15 +11,15 @@ tag:
 
 ```ts
 class Array {
-  at(index: int): any;
+  at(index: number): any;
 }
 
 class String {
-  at(index: int): string;
+  at(index: number): string;
 }
 
 class %TypedArray% {
-  at(index: int): number;
+  at(index: number): number;
 }
 ```
 

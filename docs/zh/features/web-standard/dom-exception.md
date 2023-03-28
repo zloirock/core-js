@@ -19,12 +19,13 @@ tag:
 ```ts
 class DOMException {
   constructor(message: string, name?: string);
-  readonly attribute name: string;
-  readonly attribute message: string;
-  readonly attribute code: string;
-  attribute stack: string; // 引擎中应该包含
-  @@toStringTag: 'DOMException';
+  readonly name: string;
+  readonly message: string;
+  readonly code: string;
+  stack: string; // 引擎中应该包含
+  [Symbol.toStringTag]: 'DOMException';
 }
+
 ```
 
 ## 入口点

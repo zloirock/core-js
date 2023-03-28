@@ -28,28 +28,28 @@ tag:
 
 ```ts
 class Symbol {
-  constructor(description?): symbol;
-  readonly attribute description: string | void;
-  static asyncIterator: @@asyncIterator;
-  static hasInstance: @@hasInstance;
-  static isConcatSpreadable: @@isConcatSpreadable;
-  static iterator: @@iterator;
-  static match: @@match;
-  static replace: @@replace;
-  static search: @@search;
-  static species: @@species;
-  static split: @@split;
-  static toPrimitive: @@toPrimitive;
-  static toStringTag: @@toStringTag;
-  static unscopables: @@unscopables;
+  constructor(description?: string);
+  readonly description: string | void;
+  static readonly asyncIterator: unique symbol;
+  static readonly hasInstance: unique symbol;
+  static readonly isConcatSpreadable: unique symbol;
+  static readonly iterator: unique symbol;
+  static readonly match: unique symbol;
+  static readonly replace: unique symbol;
+  static readonly search: unique symbol;
+  static readonly species: unique symbol;
+  static readonly split: unique symbol;
+  static readonly toPrimitive: unique symbol;
+  static readonly toStringTag: unique symbol;
+  static readonly unscopables: unique symbol;
   static for(key: string): symbol;
-  static keyFor(sym: symbol): string;
+  static keyFor(sym: symbol): string | undefined;
   static useSimple(): void;
   static useSetter(): void;
 }
 
-class Object {
-  static getOwnPropertySymbols(object: any): Array<symbol>;
+interface ObjectConstructor {
+  getOwnPropertySymbols(object: any): Array<symbol>;
 }
 ```
 

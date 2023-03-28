@@ -14,7 +14,7 @@ tag:
 ## 类型
 
 ```ts
-class Number {
+interface Number {
   fromString(string: string, radix: number): number;
 }
 ```

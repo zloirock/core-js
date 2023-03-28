@@ -20,20 +20,20 @@ tag:
 ## 类型
 
 ```ts
-class Symbol {
-  static asyncDispose: @@asyncDispose;
+interface SymbolConstructor {
+  readonly asyncDispose: unique symbol;
 }
 class AsyncDisposableStack {
-  constructor(): AsyncDisposableStack;
-  disposeAsync(): Promise<undefined>;
-  use(value: AsyncDisposable | Disposable): value;
-  adopt(value: object, onDispose: Function): value;
-  defer(onDispose: Function): undefined;
-  @@asyncDispose(): Promise<undefined>;
-  @@toStringTag: 'AsyncDisposableStack';
+  constructor();
+  disposeAsync(): Promise<void>;
+  use<T = AsyncDisposable | Disposable>(value: T): T;
+  adopt<T>(value: T, onDispose: (value: T) => void | Promise<void>): T;
+  defer(onDispose: Function): void;
+  [Symbol.asyncDispose](): Promise<void>;
+  [Symbol.toStringTag]: "AsyncDisposableStack";
 }
-class AsyncIterator {
-  @@asyncDispose(): Promise<undefined>;
+interface AsyncDisposable {
+  [Symbol.asyncDispose](): Promise<void>;
 }
 ```
 

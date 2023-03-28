@@ -22,19 +22,22 @@ tag:
 ### 类型
 
 ```ts
-class Map {
-  constructor(iterable?: Iterable<[key, value]>): Map;
+class Map<K, V> {
+  constructor(iterable?: Iterable<[K, V]>);
   clear(): void;
   delete(key: any): boolean;
-  forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
+  forEach(
+    callbackfn: (value: any, key: any, target: any) => void,
+    thisArg: any
+  ): void;
   get(key: any): any;
   has(key: any): boolean;
   set(key: any, val: any): this;
-  values(): Iterator<value>;
-  keys(): Iterator<key>;
-  entries(): Iterator<[key, value]>;
-  [Symbol.iterator](): Iterator<[key, value]>;
-  readonly attribute size: number;
+  values(): Iterator<V>;
+  keys(): Iterator<K>;
+  entries(): Iterator<[K, V]>;
+  [Symbol.iterator](): Iterator<[K, V]>;
+  readonly size: number;
 }
 ```
 

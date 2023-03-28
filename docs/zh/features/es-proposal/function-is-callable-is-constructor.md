@@ -14,9 +14,9 @@ tag:
 ## 类型
 
 ```ts
-class Function {
-  static isCallable(value: any): boolean;
-  static isConstructor(value: any): boolean;
+interface FunctionConstructor {
+  isCallable(value: any): boolean;
+  isConstructor(value: any): boolean;
 }
 ```
 

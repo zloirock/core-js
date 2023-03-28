@@ -26,15 +26,18 @@ _Annex B 方法模块：_
 ## 类型
 
 ```ts
-class Date {
-  getYear(): int;
-  setYear(year: int): number;
+interface Date {
+  getYear(): number;
+  setYear(year: number): number;
   toGMTString(): string;
   toISOString(): string;
   toJSON(): string;
   toString(): string;
-  @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
-  static now(): number;
+  [Symbol.toPrimitive](hint: "default" | "number" | "string"): string | number;
+}
+
+interface DateConstructor {
+  now(): number;
 }
 ```
 

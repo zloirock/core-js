@@ -16,9 +16,9 @@ tag:
 ## 类型
 
 ```ts
-namespace JSON {
-  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
-  @@toStringTag: 'JSON';
+interface JSON {
+  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
+  [Symbol.toStringTag]: 'JSON';
 }
 ```
 

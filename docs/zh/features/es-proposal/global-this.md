@@ -10,7 +10,7 @@ tag:
 ## 类型
 
 ```ts
-let globalThis: GlobalThisValue;
+let globalThis: Object;
 ```
 
 ## 入口点

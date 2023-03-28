@@ -19,17 +19,17 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  toReversed(): Array<mixed>;
-  toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
-  toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
-  with(index: includes, value: any): Array<mixed>;
+interface Array<T> {
+  toReversed(): Array<T>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>;
+  toSorted(comparefn?: (a: T, b: T) => number): Array<T>;
+  with(index: number, value: T): Array<T>;
 }
 
-class %TypedArray% {
-  toReversed(): %TypedArray%;
-  toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
-  with(index: includes, value: any): %TypedArray%;
+interface TypedArray {
+  toReversed(): TypedArray;
+  toSorted(comparefn?: (a: number, b: number) => number): TypedArray;
+  with(index: number, value: number): TypedArray;
 }
 ```
 

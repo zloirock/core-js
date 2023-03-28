@@ -10,12 +10,12 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  flat(depthArg?: number = 1): Array<mixed>;
-  flatMap(
-    mapFn: (value: any, index: number, target: any) => any,
+interface Array<T> {
+  flat(depthArg: number): Array<T>;
+  flatMap<U>(
+    mapFn: (value: T, index: number, target: Array<T>) => U | Array<U>,
     thisArg: any
-  ): Array<mixed>;
+  ): Array<U>;
 }
 ```
 

@@ -23,8 +23,16 @@ setTimeout(log, 1000, 42);
 ## 类型
 
 ```ts
-function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
-function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
+function setTimeout<A extends Array<any>>(
+  callback: (...args: A) => void,
+  time: number,
+  ...args: A
+): number;
+function setInterval<A extends Array<any>>(
+  callback: (...args: A) => void,
+  time: number,
+  ...args: A
+): number;
 ```
 
 ## 入口点

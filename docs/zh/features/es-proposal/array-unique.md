@@ -14,12 +14,12 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  uniqueBy(resolver?: (item: any) => any): Array<mixed>;
+interface Array<T> {
+  uniqueBy(resolver?: (item: any) => any): Array<T>;
 }
 
-class %TypedArray% {
-  uniqueBy(resolver?: (item: any) => any): %TypedArray%;;
+abstract class TypedArray {
+  abstract uniqueBy(resolver?: (item: any) => any): TypedArray;;
 }
 ```
 

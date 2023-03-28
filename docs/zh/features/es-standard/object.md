@@ -39,49 +39,54 @@ tag:
 ## 类型
 
 ```ts
-class Object {
+interface Object {
   toString(): string; // ES2015+ 修复：对 @@toStringTag 的支持
   __defineGetter__(property: PropertyKey, getter: Function): void;
   __defineSetter__(property: PropertyKey, setter: Function): void;
   __lookupGetter__(property: PropertyKey): Function | void;
   __lookupSetter__(property: PropertyKey): Function | void;
   __proto__: Object | null; // 需要一种方式设置原型——不是在 IE10-，而是像 Deno 这样的现代引擎
-  static assign(target: Object, ...sources: Array<Object>): Object;
-  static create(
+}
+
+interface ObjectConstructor {
+  assign(target: Object, ...sources: Array<Object>): Object;
+  create(
     prototype: Object | null,
     properties?: { [property: PropertyKey]: PropertyDescriptor }
   ): Object;
-  static defineProperties(
+  defineProperties(
     object: Object,
     properties: { [property: PropertyKey]: PropertyDescriptor }
   ): Object;
-  static defineProperty(
+  defineProperty(
     object: Object,
     property: PropertyKey,
     attributes: PropertyDescriptor
   ): Object;
-  static entries(object: Object): Array<[string, mixed]>;
-  static freeze(object: any): any;
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
-  static getOwnPropertyDescriptor(
+  entries<T>(object: { [key: string]: T }): Array<[string, T]>;
+  entries(object: Object): Array<[string, any]>;
+  freeze(object: any): any;
+  fromEntries<T>(iterable: Iterable<[PropertyKey, T]>): { [k: string]: T };
+  getOwnPropertyDescriptor(
     object: any,
     property: PropertyKey
   ): PropertyDescriptor | void;
-  static getOwnPropertyDescriptors(object: any): {
+  getOwnPropertyDescriptors(object: any): {
     [property: PropertyKey]: PropertyDescriptor;
   };
-  static getOwnPropertyNames(object: any): Array<string>;
-  static getPrototypeOf(object: any): Object | null;
-  static hasOwn(object: object, key: PropertyKey): boolean;
-  static is(value1: any, value2: any): boolean;
-  static isExtensible(object: any): boolean;
-  static isFrozen(object: any): boolean;
-  static isSealed(object: any): boolean;
-  static keys(object: any): Array<string>;
-  static preventExtensions(object: any): any;
-  static seal(object: any): any;
-  static setPrototypeOf(target: any, prototype: Object | null): any; // 需要 __proto__ - IE11+
-  static values(object: any): Array<mixed>;
+  getOwnPropertyNames(object: any): Array<string>;
+  getPrototypeOf(object: any): Object | null;
+  hasOwn(object: object, key: PropertyKey): boolean;
+  is(value1: any, value2: any): boolean;
+  isExtensible(object: any): boolean;
+  isFrozen(object: any): boolean;
+  isSealed(object: any): boolean;
+  keys(object: any): Array<string>;
+  preventExtensions(object: any): any;
+  seal(object: any): any;
+  setPrototypeOf(target: any, prototype: Object | null): any; // 需要 __proto__ - IE11+
+  values<T>(object: { [key: string]: T }): Array<T>;
+  values(object: any): Array<any>;
 }
 ```
 

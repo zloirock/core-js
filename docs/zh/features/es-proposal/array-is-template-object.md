@@ -13,8 +13,8 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  static isTemplateObject(value: any): boolean;
+interface ArrayConstructor {
+  isTemplateObject(value: any): boolean;
 }
 ```
 

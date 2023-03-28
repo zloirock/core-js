@@ -14,7 +14,10 @@ tag:
 ## 类型
 
 ```ts
-function setImmediate(callback: any, ...args: Array<mixed>): number;
+function setImmediate<A extends Array<any>>(
+  callback: (...args: A) => void,
+  ...args: A
+): number;
 function clearImmediate(id: number): void;
 ```
 

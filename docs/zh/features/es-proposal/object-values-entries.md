@@ -10,9 +10,9 @@ tag:
 ## 类型
 
 ```ts
-class Object {
-  static entries(object: Object): Array<[string, mixed]>;
-  static values(object: any): Array<mixed>;
+interface ObjectConstructor {
+  entries<T>(object: { [k: string]: string }): Array<[string, T]>;
+  values<T>(object: { [k: string]: string }): Array<T>;
 }
 ```
 

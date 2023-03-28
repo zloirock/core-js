@@ -20,40 +20,39 @@ tag:
 ## 类型
 
 ```ts
-class Set {
-  static of(...args: Array<mixed>): Set;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => any,
+interface SetConstructor {
+  of<T>(...args: Array<T>): Set<T>;
+  from<T, U>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => U,
     thisArg?: any
-  ): Set;
+  ): Set<U>;
+}
+interface MapConstructor {
+  of<K, V>(...args: Array<[K, B]>): Map<K, V>;
+  from<K, V, T>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => [key: K, value: V],
+    thisArg?: any
+  ): Map<K, V>;
 }
 
-class Map {
-  static of(...args: Array<[key, value]>): Map;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => [key: any, value: any],
+interface WeakSetConstructor {
+  of<T extends object>(...args: Array<T>): WeakSet<T>;
+  from<T, U extends object>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => U,
     thisArg?: any
-  ): Map;
+  ): WeakSet<U>;
 }
 
-class WeakSet {
-  static of(...args: Array<mixed>): WeakSet;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => Object,
+interface WeakMapConstructor {
+  of<K extends object, V>(...args: Array<[K, V]>): WeakMap<K, V>;
+  from<K extends object, V, T>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => [key: K, value: V],
     thisArg?: any
-  ): WeakSet;
-}
-
-class WeakMap {
-  static of(...args: Array<[key, value]>): WeakMap;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => [key: Object, value: any],
-    thisArg?: any
-  ): WeakMap;
+  ): WeakMap<K, V>;
 }
 ```
 

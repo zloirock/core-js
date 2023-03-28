@@ -38,24 +38,29 @@ tag:
 ## 类型
 
 ```ts
-class Number {
-  constructor(value: any): number;
+interface Number {
   toExponential(digits: number): string;
   toFixed(digits: number): string;
   toPrecision(precision: number): string;
-  static isFinite(number: any): boolean;
-  static isNaN(number: any): boolean;
-  static isInteger(number: any): boolean;
-  static isSafeInteger(number: any): boolean;
-  static parseFloat(string: string): number;
-  static parseInt(string: string, radix?: number = 10): number;
-  static EPSILON: number;
-  static MAX_SAFE_INTEGER: number;
-  static MIN_SAFE_INTEGER: number;
+  EPSILON: number;
+  MAX_SAFE_INTEGER: number;
+  MIN_SAFE_INTEGER: number;
+}
+
+interface numberConstructor {
+  new (value: any): number;
+  isFinite(number: any): boolean;
+  isNaN(number: any): boolean;
+  isInteger(number: any): boolean;
+  isSafeInteger(number: any): boolean;
+  parseFloat(string: string): number;
+  /** @param radix @default 10 */
+  parseInt(string: string, radix?: number): number;
 }
 
 function parseFloat(string: string): number;
-function parseInt(string: string, radix?: number = 10): number;
+/** @param radix @default 10 */
+function parseInt(string: string, radix?: number): number;
 ```
 
 ## 入口点
