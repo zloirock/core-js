@@ -10,8 +10,13 @@ tag:
 ## Types
 
 ```ts
-class String {
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
+interface String {
+  replaceAll(
+    searchValue: string | RegExp,
+    replaceString:
+      | string
+      | ((searchValue: string, index: number, thisStr: string) => string)
+  ): string;
 }
 ```
 

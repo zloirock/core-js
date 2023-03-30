@@ -13,7 +13,7 @@ tag:
 - [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
 
 ```ts
-class String {
+interface String {
   isWellFormed(): boolean;
   toWellFormed(): string;
 }

@@ -10,8 +10,15 @@ tag:
 ## Types
 
 ```ts
-namespace JSON {
-  stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
+interface JSON {
+  stringify(
+    target: any,
+    replacer?:
+      | Array<string | number>
+      | ((key: string, value: any) => any)
+      | null,
+    space?: string | number
+  ): string | void;
 }
 ```
 
