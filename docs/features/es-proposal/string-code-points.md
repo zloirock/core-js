@@ -13,8 +13,8 @@ tag:
 ## Types
 
 ```ts
-class String {
-  codePoints(): Iterator<{ codePoint; position }>;
+interface String {
+  codePoints(): Iterator<{ codePoint: number; position: number }>;
 }
 ```
 

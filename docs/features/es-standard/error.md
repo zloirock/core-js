@@ -54,7 +54,7 @@ namespace WebAssembly {
 
 class AggregateError {
   constructor(errors: Iterable<Error>, message: string, { cause: any });
-  errors: Array<any>;
+  errors: Array<Error>;
   message: string;
 }
 ```

@@ -7,11 +7,17 @@
 ## Types
 
 ```ts
-class String {
-  static dedent(
-    templateOrTag: { raw: Array<string> } | function,
-    ...substitutions: Array<string>
-  ): string | function;
+interface StringConstructor {
+  dedent(
+    template: { raw: Array<string> },
+    ...substitutions: Array<any>
+  ): string;
+  dedent<T>(
+    tagFunction: (
+      template: { raw: Array<string> },
+      ...substitutions: Array<any>
+    ) => T
+  ): T;
 }
 ```
 

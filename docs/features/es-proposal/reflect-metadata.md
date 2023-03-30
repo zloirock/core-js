@@ -22,15 +22,49 @@ tag:
 
 ```ts
 namespace Reflect {
-  defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
-  getMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
-  getOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
-  hasMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  hasOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  deleteMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  getMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
-  getOwnMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
-  metadata(metadataKey: any, metadataValue: any): decorator(target: Object, targetKey?: PropertyKey) => void;
+  function defineMetadata(
+    metadataKey: any,
+    metadataValue: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): void;
+  function getMetadata(
+    metadataKey: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): any;
+  function getOwnMetadata(
+    metadataKey: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): any;
+  function hasMetadata(
+    metadataKey: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): boolean;
+  function hasOwnMetadata(
+    metadataKey: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): boolean;
+  function deleteMetadata(
+    metadataKey: any,
+    target: Object,
+    propertyKey?: PropertyKey
+  ): boolean;
+  function getMetadataKeys(
+    target: Object,
+    propertyKey?: PropertyKey
+  ): Array<any>;
+  function getOwnMetadataKeys(
+    target: Object,
+    propertyKey?: PropertyKey
+  ): Array<any>;
+  function metadata(
+    metadataKey: any,
+    metadataValue: any
+  ): (target: Object, targetKey: string | symbol) => void;
 }
 ```
 

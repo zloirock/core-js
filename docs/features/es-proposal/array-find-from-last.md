@@ -16,8 +16,8 @@ interface Array<T> {
 }
 
 interface TypedArray {
-  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): number;
+  findLast(callbackfn: (value: any, index: number, target: ) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: ) => boolean, thisArg?: any): number;
 }
 ```
 
