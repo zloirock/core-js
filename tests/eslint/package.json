@@ -12,7 +12,7 @@
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^7.3.4",
     "eslint-plugin-redos": "^4.5.0-beta.3",
-    "eslint-plugin-regexp": "^1.13.0",
+    "eslint-plugin-regexp": "^1.14.0",
     "eslint-plugin-sonarjs": "~0.19.0",
     "eslint-plugin-unicorn": "^46.0.0",
     "globals": "^13.20.0",
