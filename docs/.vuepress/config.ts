@@ -37,7 +37,6 @@ export default defineUserConfig({
   },
   plugins: [
     i18nPlugin({ guideLink: "/dev/docs/translate.html" }),
-    redirectPlugin({ switchLocale: "modal" }),
     searchPlugin(),
     shikiPlugin({
       theme: "one-dark-pro",
@@ -47,7 +46,8 @@ export default defineUserConfig({
       localeConfig: {
         "/en/": ["en-US", "en-UK", "en"],
         "/zh/": ["zh-CN", "zh-TW", "zh"]
-      }
+      },
+      switchLocale: "modal"
     })
   ],
 });
