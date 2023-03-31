@@ -25,7 +25,7 @@ tag:
 ## 类型
 
 ```ts
-declare namespace Reflect {
+namespace Reflect {
   function apply(
     target: Function,
     thisArgument: any,

@@ -11,11 +11,16 @@ tag:
 
 ```ts
 // patched for support `RegExp` dotAll (`s`) flag:
-class RegExp {
-  constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
+interface RegExp {
+  new (pattern: RegExp | string, flags?: string): RegExp;
+  exec(): RegExpExecResult | null;
   readonly dotAll: boolean;
   readonly flags: string;
+}
+
+interface RegExpExecResult extends Array<string> {
+  index: number;
+  input: string;
 }
 ```
 

@@ -14,9 +14,9 @@ tag:
 ## 类型
 
 ```ts
-class Symbol {
-  static isRegistered(value: any): boolean;
-  static isWellKnown(value: any): boolean;
+interface SymbolConstructor {
+  isRegistered(value: symbol): boolean;
+  isWellKnown(value: symbol): boolean;
 }
 ```
 

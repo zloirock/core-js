@@ -25,7 +25,6 @@ class DOMException {
   stack: string; // 引擎中应该包含
   [Symbol.toStringTag]: 'DOMException';
 }
-
 ```
 
 ## 入口点

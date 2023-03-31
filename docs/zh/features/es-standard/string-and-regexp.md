@@ -81,13 +81,7 @@ interface String {
   replace(template: any, replacer: any): any; // 针对 ES2015+ 的修复，支持 @@replace
   replaceAll(
     searchValue: string | RegExp,
-    replaceString:
-      | string
-      | ((
-          searchValue: string,
-          ...groups: Array<{ [key: string]: string }>,
-          thisValue: ThisType<String>
-        ) => string)
+    replacer: string | ((searchValue: string, ...args: any[]) => string)
   ): string;
   search(template: any): any; // 针对 ES2015+ 的修复，支持 @@search
   split(template: any, limit?: number): Array<string>; // 针对 ES2015+ 的修复，支持 @@split，一些针对老引擎的修复

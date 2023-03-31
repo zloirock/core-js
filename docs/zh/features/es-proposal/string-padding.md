@@ -10,9 +10,11 @@ tag:
 ## 类型
 
 ```ts
-class String {
-  padStart(length: number, fillStr?: string = " "): string;
-  padEnd(length: number, fillStr?: string = " "): string;
+interface String {
+  /**@param fillStr @default " " */
+  padStart(length: number, fillStr?: string): string;
+  /**@param fillStr @default " " */
+  padEnd(length: number, fillStr?: string): string;
 }
 ```
 

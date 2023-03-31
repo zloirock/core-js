@@ -11,10 +11,18 @@ tag:
 
 ```ts
 // patched for support `RegExp` named capture groups:
-class RegExp {
-  constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
-  @@replace(string: string, replaceValue: Function | string): string;
+interface RegExp {
+  new (pattern: RegExp | string, flags?: string): RegExp;
+  exec(): RegExpExecResult | null;
+  [Symbol.replace](string: string, replaceValue: Function | string): string;
+}
+
+interface RegExpExecResult extends Array<string> {
+  groups?: {
+    [key: string]: string;
+  };
+  index: number;
+  input: string;
 }
 ```
 

@@ -14,8 +14,8 @@ interface Array<T> {
   includes(searchElement: T, from?: number): boolean;
 }
 
-abstract class TypedArray {
-  abstract includes(searchElement: number, from?: number): boolean;
+interface TypedArray {
+  includes(searchElement: number, from?: number): boolean;
 }
 ```
 

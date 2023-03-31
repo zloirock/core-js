@@ -10,7 +10,7 @@ tag:
 ## 类型
 
 ```ts
-class String {
+interface String {
   trimLeft(): string;
   trimRight(): string;
   trimStart(): string;

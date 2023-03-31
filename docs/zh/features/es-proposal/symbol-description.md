@@ -10,8 +10,8 @@ tag:
 ## 类型
 
 ```ts
-class Symbol {
-  readonly attribute description: string | void;
+interface Symbol {
+  readonly description: string | undefined;
 }
 ```
 

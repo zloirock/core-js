@@ -18,8 +18,8 @@ interface Array<T> {
   uniqueBy(resolver?: (item: any) => any): Array<T>;
 }
 
-abstract class TypedArray {
-  abstract uniqueBy(resolver?: (item: any) => any): TypedArray;;
+interface TypedArray {
+  uniqueBy(resolver?: (item: any) => any): TypedArray;;
 }
 ```
 

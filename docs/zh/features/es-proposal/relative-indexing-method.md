@@ -10,16 +10,16 @@ tag:
 ## 类型
 
 ```ts
-class Array {
-  at(index: number): any;
+interface Array<T> {
+  at(index: number): T | undefined;
 }
 
-class String {
-  at(index: number): string;
+interface String {
+  at(index: number): string | undefined;
 }
 
-class %TypedArray% {
-  at(index: number): number;
+interface TypedArray {
+  at(index: number): number | undefined;
 }
 ```
 
