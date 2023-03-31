@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions are always welcome. You could ask [**@zloirock**](https://github.com/zloirock) if you have some questions.
+Contributions are always welcome. Feel free to ask [**@zloirock**](https://github.com/zloirock) if you have some questions.
 
 ## I want to help with code, but I don't know how
 
