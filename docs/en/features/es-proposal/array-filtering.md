@@ -18,8 +18,8 @@ interface Array<T> {
   filterReject(callbackfn: (value: t, index: number, target: Array<T>) => boolean, thisArg?: any): Array<T>;
 }
 
-interface %TypedArray% {
-  filterReject(callbackfn: (value: number, index: number, target: %TypedArray%) => boolean, thisArg?: any): %TypedArray%;
+interface  {
+  filterReject(callbackfn: (value: number, index: number, target: ) => boolean, thisArg?: any): ;
 }
 ```
 

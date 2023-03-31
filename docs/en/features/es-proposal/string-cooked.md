@@ -13,11 +13,8 @@ tag:
 ## Types
 
 ```ts
-class String {
-  static cooked(
-    template: Array<string>,
-    ...substitutions: Array<string>
-  ): string;
+interface StringConstructor {
+  cooked(template: Array<string>, ...substitutions: Array<string>): string;
 }
 ```
 

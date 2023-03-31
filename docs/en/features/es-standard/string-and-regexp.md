@@ -81,13 +81,7 @@ interface String {
   replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
   replaceAll(
     searchValue: string | RegExp,
-    replaceString:
-      | string
-      | ((
-          searchValue: string,
-          ...groups: Array<{ [key: string]: string }>,
-          thisValue: ThisType<String>
-        ) => string)
+    replacer: string | ((searchValue: string, ...args: any[]) => string)
   ): string;
   search(template: any): any; // ES2015+ fix for support @@search
   split(template: any, limit?: number): Array<string>; // ES2015+ fix for support @@split, some fixes for old engines

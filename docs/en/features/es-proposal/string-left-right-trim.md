@@ -10,7 +10,7 @@ tag:
 ## Types
 
 ```ts
-class String {
+interface String {
   trimLeft(): string;
   trimRight(): string;
   trimStart(): string;

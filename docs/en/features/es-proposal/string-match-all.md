@@ -10,8 +10,8 @@ tag:
 ## Types
 
 ```ts
-class String {
-  matchAll(regexp: RegExp): Iterator;
+interface String {
+  matchAll(regexp: RegExp): IterableIterator<RegExpMatchArray>;
 }
 ```
 

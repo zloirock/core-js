@@ -1,6 +1,7 @@
 import { defineUserConfig } from "vuepress";
 import { getDirname, path } from "@vuepress/utils";
 import i18nPlugin from "vuepress-plugin-i18n";
+import { redirectPlugin } from "vuepress-plugin-redirect";
 import searchPlugin from "@vuepress/plugin-search";
 import shikiPlugin from "@vuepress/plugin-shiki";
 import {redirectPlugin} from "vuepress-plugin-redirect";
@@ -36,6 +37,7 @@ export default defineUserConfig({
   },
   plugins: [
     i18nPlugin({ guideLink: "/dev/docs/translate.html" }),
+    redirectPlugin({ switchLocale: "modal" }),
     searchPlugin(),
     shikiPlugin({
       theme: "one-dark-pro",
@@ -48,5 +50,4 @@ export default defineUserConfig({
       }
     })
   ],
-  //debug: true,
 });

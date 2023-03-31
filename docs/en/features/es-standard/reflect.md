@@ -25,7 +25,7 @@ tag:
 ## Types
 
 ```ts
-declare namespace Reflect {
+namespace Reflect {
   function apply(
     target: Function,
     thisArgument: any,
