@@ -62,27 +62,26 @@ export const navbarEn = navbar([
   },
   {
     text: "Project",
-    prefix: "/",
     icon: "more",
     children: [
       {
         text: "About",
         icon: "info",
-        link: "project/README.md",
+        link: "/project/README.md",
       },
       {
         text: "Changelog",
         icon: "time",
-        link: "project/changelog.md",
+        link: "/project/changelog.md",
       },
       {
         text: "Roadmap",
-        link: "project/roadmap.md",
+        link: "/project/roadmap.md",
         icon: "state",
       },
       {
         text: "Blog",
-        link: "category/blog/",
+        link: "/category/blog/",
         icon: "blog",
       },
     ],
