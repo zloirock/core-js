@@ -3,13 +3,13 @@ import { navbar } from "vuepress-theme-hope";
 export const navbarEn = navbar([
   {
     text: "Guide",
-    link: "/en/guide/",
+    link: "/guide/",
     icon: "creative",
   },
   {
     text: "Features",
     icon: "object",
-    prefix: "/en/features/",
+    prefix: "/features/",
     children: [
       {
         text: "ES Standards",
@@ -35,7 +35,7 @@ export const navbarEn = navbar([
   },
   {
     text: "Contribution",
-    prefix: "/en/dev/",
+    prefix: "/dev/",
     icon: "tree",
     children: [
       {
@@ -62,7 +62,7 @@ export const navbarEn = navbar([
   },
   {
     text: "Project",
-    prefix: "/en/",
+    prefix: "/",
     icon: "more",
     children: [
       {
@@ -89,12 +89,12 @@ export const navbarEn = navbar([
   },
   {
     text: "Compatibility",
-    link: "/en/compat.md",
+    link: "/compat.md",
     icon: "form",
   },
   {
     text: "Sponsor",
-    link: "/en/donate.md",
+    link: "/donate.md",
     icon: "like",
   },
 ]);
