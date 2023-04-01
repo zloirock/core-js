@@ -5,9 +5,9 @@
 - (Async) Explicit Resource Management proposals ([sync](https://github.com/tc39/proposal-explicit-resource-management), [async](https://github.com/tc39/proposal-async-explicit-resource-management)):
   - `(Async)DisposableStack.prototype.move` marks the original stack as disposed, [#1226](https://github.com/zloirock/core-js/issues/1226)
   - Some simplifications like [proposal-explicit-resource-management/150](https://github.com/tc39/proposal-explicit-resource-management/pull/150)
-- [`Iterator.range` proposal](https://github.com/tc39/proposal-Number.range)
+- [`Iterator.range` proposal](https://github.com/tc39/proposal-Number.range):
   - Moved to Stage 2, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1480266760)
-- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata)
+- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
   - Returned to usage `Symbol.metadata`, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1478790137), [proposal-decorator-metadata/12](https://github.com/tc39/proposal-decorator-metadata/pull/12)
 - Compat data improvements:
   - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from FF112, NodeJS 19.8 and Deno 1.32
