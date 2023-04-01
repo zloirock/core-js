@@ -5,47 +5,47 @@ tag:
   - missing-example
 ---
 
-# [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)
+# [显式资源管理](https://github.com/tc39/proposal-explicit-resource-management)
 
 :::note
-This is only built-ins for this proposal, `using` syntax support requires transpiler support.
+只包含提案中内建的，`using` 语法需要转译支持。
 :::
 
-## Modules
+## 模块
 
 - [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js)
 - [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js)
 - [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js)
 - [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js)
 
-## Types
+## 类型
 
 ```ts
-class Symbol {
-  static dispose: @@dispose;
+interface SymbolConstructor {
+  readonly dispose: unique symbol;
 }
 class DisposableStack {
-  constructor(): DisposableStack;
-  dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
+  constructor();
+  dispose(): void;
+  use<T = Disposable>(value: T): T;
+  adopt<T>(value: T, onDispose: (value: T) => void): T;
   defer(onDispose: Function): undefined;
-  @@dispose(): undefined;
-  @@toStringTag: 'DisposableStack';
+  [Symbol.dispose](): undefined;
+  [Symbol.toStringTag]: 'DisposableStack';
 }
 class SuppressedError extends Error {
-  constructor(error: any, suppressed: any, message?: string): SuppressedError;
+  constructor(error: any, suppressed: any, message?: string);
   error: any;
   suppressed: any;
   message: string;
   cause: any;
 }
-class Iterator {
-  @@dispose(): undefined;
+interface Iterator<T> {
+  [Symbol.dispose](): void;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/explicit-resource-management

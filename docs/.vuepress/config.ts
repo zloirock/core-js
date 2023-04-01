@@ -4,6 +4,7 @@ import i18nPlugin from "vuepress-plugin-i18n";
 import { redirectPlugin } from "vuepress-plugin-redirect";
 import searchPlugin from "@vuepress/plugin-search";
 import shikiPlugin from "@vuepress/plugin-shiki";
+import {redirectPlugin} from "vuepress-plugin-redirect";
 import theme from "./theme.js";
 
 const __dirname = getDirname(import.meta.url);
@@ -12,11 +13,15 @@ export default defineUserConfig({
   title: "Core-JS",
   description: "Modular standard library for JavaScript",
   locales: {
-    "/": {
+    "/en/": {
       lang: "en-US",
+      title: "Core-JS Document",
+      description: "Modular standard library for JavaScript",
     },
     "/zh/": {
       lang: "zh-CN",
+      title: "Core-JS 文档",
+      description: "模块化 JavaScript 标准库",
     },
   },
   theme,
@@ -32,10 +37,17 @@ export default defineUserConfig({
   },
   plugins: [
     i18nPlugin({ guideLink: "/dev/docs/translate.html" }),
-    redirectPlugin({ switchLocale: "modal" }),
     searchPlugin(),
     shikiPlugin({
       theme: "one-dark-pro",
     }),
+    redirectPlugin({
+      autoLocale: true,
+      localeConfig: {
+        "/en/": ["en-US", "en-UK", "en"],
+        "/zh/": ["zh-CN", "zh-TW", "zh"]
+      },
+      switchLocale: "modal"
+    })
   ],
 });

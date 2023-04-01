@@ -3,24 +3,28 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`RegExp` `s` (`dotAll`) flag](https://github.com/tc39/proposal-regexp-dotall-flag)
+# [`RegExp` `s` (`dotAll`) 标记](https://github.com/tc39/proposal-regexp-dotall-flag)
 
-## Types
+## 类型
 
 ```ts
 // patched for support `RegExp` dotAll (`s`) flag:
-class RegExp {
-  constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null;
-  readonly attribute dotAll: boolean;
-  readonly attribute flags: string;
+interface RegExp {
+  new (pattern: RegExp | string, flags?: string): RegExp;
+  exec(): RegExpExecResult | null;
+  readonly dotAll: boolean;
+  readonly flags: string;
+}
+
+interface RegExpExecResult extends Array<string> {
+  index: number;
+  input: string;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/regexp-dotall-flag

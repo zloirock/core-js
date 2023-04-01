@@ -3,16 +3,15 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Symbol.matcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)
+# [用于模式匹配的 `Symbol.matcher`](https://github.com/tc39/proposal-pattern-matching)
 
-## Module
+## 模块
 
 [`esnext.symbol.matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.matcher.js)
 
-## Types
+## 类型
 
 ```ts
 class Symbol {
@@ -20,7 +19,7 @@ class Symbol {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/pattern-matching

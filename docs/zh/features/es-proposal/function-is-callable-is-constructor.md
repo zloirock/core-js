@@ -2,26 +2,25 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Function.{ isCallable, isConstructor }`](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)
 
-## Modules
+## 模块
 
 - [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js)
 - [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js)
 
-## Types
+## 类型
 
 ```ts
-class Function {
-  static isCallable(value: any): boolean;
-  static isConstructor(value: any): boolean;
+interface FunctionConstructor {
+  isCallable(value: any): boolean;
+  isConstructor(value: any): boolean;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/function-is-callable-is-constructor
@@ -29,9 +28,9 @@ core-js(-pure)/full/function/is-callable
 core-js(-pure)/full/function/is-constructor
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/Kof1he):
+[_示例_](https://is.gd/Kof1he):
 
 ```js
 Function.isCallable(null); // => false

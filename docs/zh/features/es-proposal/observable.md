@@ -2,34 +2,61 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Observable`](https://github.com/zenparsing/es-observable)
 
-## Modules
+## 模块
 
 - [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js)
 - [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 
-## Types
+## 类型
 
 ```ts
 class Observable {
-  constructor(subscriber: Function): Observable;
-  subscribe(observer: Function | { next?: Function, error?: Function, complete?: Function }): Subscription;
-  @@observable(): this;
-  static of(...items: Aray<mixed>): Observable;
-  static from(x: Observable | Iterable): Observable;
-  static readonly attribute @@species: this;
+  constructor(subscriber: SubscriberFunction);
+  static of<T>(...items: Array<T>): SubscriptionObserver<T>;
+  static from<T>(
+    x: SubscriptionObserver<T> | Iterable<T>
+  ): SubscriptionObserver<T>;
+  static readonly [Symbol.species]: Observable;
+  subscribe<T>(observer: Observer<T>): Subscription;
+  subscribe<T>(
+    onNext: (value: T) => void,
+    onError?: (errorValue: Error) => void,
+    onComplete?: () => void
+  ): Subscription;
+  [Symbol.observable](): this;
 }
 
-class Symbol {
-  static observable: @@observable;
+interface Subscription {
+  unsubscribe(): void;
+  get closed(): boolean;
+}
+
+interface Observer<T> {
+  start(subscription: Subscription): void;
+  next(value: T): void;
+  error(errorValue: Error): void;
+  complete(): void;
+}
+
+interface SubscriptionObserver<T> {
+  next(value: T): void;
+  error(errorValue: Error): void;
+  complete(): void;
+  get closed(): Boolean;
+}
+
+type SubscriberFunction = (observer: Observer) => (() => void) | Subscription;
+
+interface SymbolConstructor {
+  readonly observable: unique symbol;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/observable
@@ -37,9 +64,9 @@ core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/1LDywi):
+[_示例_](https://goo.gl/1LDywi):
 
 ```js
 new Observable((observer) => {

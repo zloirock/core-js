@@ -3,20 +3,21 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)
+# [用于异步迭代的 `Symbol.asyncIterator`](https://github.com/tc39/proposal-async-iteration)
 
-## Types
+## 类型
 
 ```ts
-class Symbol {
-  static asyncIterator: @@asyncIterator;
+interface Object {
+  iterateKeys(object: { [k: PropertyKey]: any }): Iterator<string>;
+  iterateValues<T>(object: { [k: PropertyKey]: T }): Iterator<T>;
+  iterateEntries<T>(object: { [k: PropertyKey]: T }): Iterator<[string, T]>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/async-iteration

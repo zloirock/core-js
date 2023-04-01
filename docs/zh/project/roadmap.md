@@ -1,175 +1,173 @@
 ---
 icon: state
-tag:
-  - untranslated
 ---
 
 # 路线图
 
-JavaScript, browsers, and web development are evolving at an amazing speed. The time when almost all of the `core-js` modules were required for all browsers is gone. The latest browsers have good standards support and, in the common use cases, they need only some percentage of the `core-js` modules for the most recent language features and bug fixes. Some companies are already dropping support for IE11 which was recently "buried" once more. However, even without IE, old browsers will always be there, bugs will happen in modern browsers too, and new language features will appear regularly and they will appear in browsers with a delay anyway; so, if we want to use modern JS in development and minimize possible problems, polyfills stay with us for a long time, but they should continue to evolve.
+JavaScript、浏览器和 Web 开发正在以惊人的速度发展。所有浏览器都需要几乎所有 `core-js` 模块的时代已经一去不复返了。最新的浏览器有很好的标准支持，而且在常见的情况下它们只需要一些 `core-js` 模块来获得最新的语言特性和 bug 修复。一些公司已经放弃了对最近再次被“埋葬”的 IE11 的支持。但是，即使没有IE，旧的浏览器也会一直存在，现代浏览器也会出现 bug，新的语言特性会定期出现，而且稍后总会出现在浏览器中；所以，如果我们想在开发中使用现代 JS 并尽量减少可能出现的问题，polyfills 会伴随我们很长时间，但它们应该继续发展。
 
-Here I will write (almost) nothing about adding new or improving existing specific polyfills (but, sure, it's one of the main parts of `core-js` development), let's talk about some other crucial moments without focusing on minor things. If it is decided to make a commercial project from `core-js`, the roadmap will be adapted to this outcome.
+在这里我（几乎）不会写任何关于新增或优化现有的某个 polyfill 的内容（但是，它当然是 `core-js` 开发的主要部分之一），让我们谈谈其他一些关键时刻，而不是关注次要的事情。如果我决定用 `core-js` 做一个商业项目，路线图将适应这个结果。
 
-I am trying to keep `core-js` as compact as possible, but one of the main conceptions that it should follow is to be maximally useful in the modern web — the client should not load any unnecessary polyfills and polyfills should be maximally compact and optimized. Currently, a maximal `core-js` bundle size with early-stage proposals [is about 220KB minified, 70KB gzipped](https://bundlephobia.com/package/core-js) — it's not a tiny package, it's big enough — it's like jQuery, LoDash, and Axios together — the reason is that the package covers almost the entire standard library of the language. The individual weight of each component is several times less than the weight of quite correct alternatives. It's possible to load only the `core-js` features that you use and in minimal cases, the bundle size can be reduced to some kilobytes. When `core-js` is used correctly, this is usually a couple of tens of kilobytes — however, there is something to strive for. [Most pages contain pictures larger](https://almanac.httparchive.org/en/2022/media#bytesizes) than the entire `core-js` bundle, most users have Internet speed in dozens of Mbps, so why is this concept so significant?
+我试图让 `core-js` 尽可能简洁，但它应该遵循的主要概念之一是在现代 web 中最大限度地发挥作用——客户端不应该加载任何不必要的 polyfills，并且 polyfills 应该尽可能简洁并且经过优化。目前，带有早期提案的 `core-js` 最大的包[压缩后约为 220KB，gzip 后为 70KB](https://bundlephobia.com/package/core-js)——它不是一个小包，它已经够大了——相当于 jQuery、LoDash 和 Axios 的总和——因为这个包包含了 JS 的几乎整个标准库。每个组件的单独大小比替代品的大小小几倍。当然你可以只加载用到了的 `core-js` 功能，并且在极小的情况下，包的大小可以减少到几 KB。正确使用 `core-js` 时，这通常是几十 KB——但是，有一些东西需要努力。[大多数页面包含的图片](https://almanac.httparchive.org/en/2022/media#bytesizes)比整个 `core-js` 包大，大多数用户的网速都在几十 Mbps，所以为什么会这个概念那么重要？
 
-I don't want to repeat old posts about [the cost of JavaScript](https://medium.com/dev-channel/the-cost-of-javascript-84009f51e99e) in detail where you can read why adding JS increases the time when the user can start interacting with the page much more than adding a similar size picture — it's not only downloading, it's also parsing, compiling, evaluating the script, it blocks the page rendering.
+我不想详细重复有关 [JavaScript 的性能开销](https://medium.com/dev-channel/the-cost-of-javascript-84009f51e99e) 的旧帖子，你其中督导为什么添加 JS 会增加用户可以开始与页面交互的时间远远超过添加类似大小的图片的时间——它不只是下载，还有解析、编译、评估脚本，它会阻塞页面渲染。
 
-In too many places the mobile Internet is not perfect and is still 3G or even 2G. In the case of 3G, the download of one full copy of `core-js` can take a couple of seconds. However, pages contain more than one copy of `core-js` and many other duplicated polyfills too often. Some (mainly mobile) Internet providers have very limited "unlimited" data plans and after a few gigabytes reduce the speed to a few Kbps. The connection speed is often limited for many other reasons too.
+在太多地方移动互联网还不完善，还在用 3G 甚至 2G。在 3G 的情况下，完全下载 `core-js` 可能需要几秒钟。但是，页面经常包含多个 `core-js` 副本和许多其他重复的 polyfill。一些（主要是移动）互联网提供商的“无限”流量套餐非常有限，使用几 GB 后将速度降低到几 Kbps。连接速度通常也受到许多其他原因限制的。
 
-The speed of the page load equals revenue.
+页面加载速度等于收入。
 
 ![conversion](/project/roadmap/conversion.png)
 
-> Illustration is from a [random post](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a) by googling
+> 插图来自谷歌搜索的[随机帖子](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a)
 
-The size of `core-js` is constantly growing because of the addition of new or improvements to the existing polyfills. This issue also is a blocker for some big polyfills — the addition of `Intl`, `Temporal`, and some other features to `core-js` could increase the maximal bundle size by a dozen times up to a few megabytes.
+`core-js` 的大小随着新增的或优化现有的 polyfill 持续增长。这个问题也阻碍了添加一些大型 polyfill 的障碍——向 core-js 添加 `Intl`、`Temporal` 等功能可能会使最大的包大小增加十几倍，到达几 MB。
 
-One of the main `core-js` killer features is that it can be optimized with the usage of Babel, SWC, or manually, however, current approaches solve only a part of the problem. To properly solve them, the modern web requires a new generation of the toolkit that could be simply integrated into the current development stack. And in some cases, as you will see below, this toolkit could help to make the size of your web pages even less than just without `core-js`.
+`core-js` 的主要杀手级功能之一是它可以使用 Babel、SWC 或手动进行优化，但是，当前的方法只能解决部分问题。为了妥善解决这些问题，现代 web 需要可以简单地集成到当前技术栈中的新一代工具。在某些情况下，比如下面的，这个工具包可以帮助您缩小网页的大小，甚至比没有 `core-js` 时还要小。
 
-I already wrote about some of this in [**`core-js@3`, Babel and a look into the future** post](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#look-into-the-future), but those were just raw ideas. Now they're in the stage of experimentation or even implementation.
+我已经在 [**core-js@3, Babel 和展望未来**](../blog/2019/core-js-3-babel-and-a-look-into-the-future.html#展望未来)里写了一些相关的内容，但这些只是原始想法。现在他们正处于试验甚至实现阶段。
 
-Since the future of the project is uncertain, it makes no sense to write any specific dates here, I do not promise that all of this will be done shortly, but this is what should be strived for.
-
----
-
-### New major version
-
-`core-js@3` was released about 4 years ago — it's been a long time. It's not a big problem for me to add some breaking changes (rather ensuring backward compatibility is often a challenge) and to mark a new version as a major release — it's a big problem for the users.
-
-At this moment, about 25% of `core-js` downloads are critically obsolete `core-js@2`. Many users wanna update it to `core-js@3`, but because their dependencies use `core-js@2` they still use the obsolete version to avoid multiple copies (I saw such issues on GitHub in too many projects). Too frequent major updates would worsen such cases even more.
-
-However, it's better not to get too obsessed with compatibility with older versions. The library contains too much that's not removed only for compatibility reasons. The absence of some long-needed breaking changes for someone will negatively affect the future. Judging by how the standards, the ecosystem, and the Web change, and how legacy accumulates, it's better to release a new major version each 2-3 years.
-
-The addition of all the new things that we would like to see in the new major version would take many years, which is unacceptable. However, `core-js` follows [SemVer](https://semver.org/) and it makes sense to release a new major release at first with breaking changes (some of them below), most of the new features can be added in minor releases. In this case, such a release can take just about 2-3 months of full-time work and it can be the first `core-js` version that reduced the size compared to the previous -)
-
-### `core-js` package directly
-
-### Drop critically obsolete engines support
-
-IE is dead. However, not for all — for many different reasons, someone is still forced to make or maintain websites that should work in IE. `core-js` is one of the main tools that makes life easier for them.
-
-At this moment, `core-js` tries to support all possible engines and platforms, even ES3 — IE8-. But only a small part of developers using `core-js` needs support of ES3 engines — at this moment, the IE8- segment of browsers is about 0.1%. For many other users, it causes problems — bigger bundle size and slower runtime execution.
-
-The main problem comes from supporting ES3 engines: most modern ES features are based on ES5 features, which aren't available in those old engines. Some features (like getters / setters) can't be polyfilled, so some polyfills (like typed arrays) can't work in IE8- at all. Some others require heavy workarounds. In cases where you need to polyfill only some simple features, the main part of the `core-js` size in the bundle is the implementation of ES5 methods (in the case of polyfilling a lot of features, it's only some percent, so this problem is related mainly to minimalistic bundles).
-
-Even the simple replacement of internal fallbacks of ES5 features to implementations to direct usage of those native features reduces minimalistic `core-js` bundle size by 2+ times. After reworking the architecture, it will be reduced even more.
-
-The IE9-10 segment of browsers already is also small — at this moment, the same 0.1%. But it makes no sense to consider dropping their support without dropping support of some other obsolete engines with similar or even greater restrictions, for example, Android 4.4.4 — in total, it's about 1%. Raising the lower bar higher than ES5 is a more difficult decision at least because of some non-browser engines. However, even dropping IE11 support in the future will not give as many benefits as dropping IE8- support would now.
-
-### ECMAScript modules and modern syntax
-
-At this moment, `core-js` uses CommonJS modules. For a long time, it was the most popular JavaScript modules format, but now ECMAScript provides its own modules format and it's already very popular and supported _almost_ everywhere. For example, Deno, like browsers, doesn't support CommonJS, but supports ES modules. `core-js` should get an ECMAScript modules version in the near future. But, for example, on NodeJS, ECMAScript modules are supported only in the modern versions — but on NodeJS `core-js` should work without transpiling / bundling even in ancient versions, [Electron still does not support it](https://github.com/electron/electron/issues/21457), etc., so it's problematic to get rid of the CommonJS version immediately.
-
-The situation with the rest of modern syntax is not so obvious. At this moment, `core-js` uses ES3 syntax. Initially, it was for maximal optimization since it should be pre-transpiled to old syntax anyway. But it was true only initially. Now, `core-js` just can't be properly transpiled in userland and should be ignored in transpiler configs. Why? Let's take a look, for example, at Babel transforms:
-
-- A big part of transforms rely on modern built-ins, for example, transforms which use `@@iterator` protocol — yet `Symbol.iterator`, iterators, and all other related built-ins are implemented in `core-js` and absent before `core-js` loading.
-- Another problem is transpiling `core-js` with transforms that inject `core-js` polyfills. Obviously, we can't inject polyfills into the place where they are implemented since it is circular dependencies.
-- Some other transforms applied on `core-js` just break its internals — for example, [the `typeof` transform](https://babeljs.io/docs/en/babel-plugin-transform-typeof-symbol) (that should help with support of polyfilled symbols) breaks the `Symbol` polyfill.
-
-However, the usage of modern syntax in polyfills code could significantly improve the readability of the source code, reduce the size and in some cases improve performance if polyfill is bundled for a modern engine, so it's time to think about rewriting `core-js` to modern syntax, making it transpilable by getting around those problems and publishing versions with different syntax for different use cases.
-
-### Web standards polyfills
-
-I've been thinking about adding the most possible web standards (not only ECMAScript and closely related features) support to `core-js` for a long time. First of all, about the remaining features from the [Minimum Common Web Platform API](https://common-min-api.proposal.wintercg.org/#index) ([what is it?](https://blog.cloudflare.com/introducing-the-wintercg/)), but not only about them. It could be good to have one bulletproof polyfills project for all possible web development cases, not only for ECMAScript. At the moment, the situation with the support of web standards in browsers is much worse than with the support of modern ECMAScript features.
-
-One of the barriers preventing the addition of web standards polyfills to `core-js` was a significant increase of bundles' size, but I think that with current techniques of loading only the required polyfills and techniques which you can see below, we could add polyfills of web standards to `core-js`.
-
-But the main problem is that it should not be naive polyfills. As I wrote above, today the correctness of ECMAScript features is not in a very bad shape almost universally, but we can't say this about web platform features. For example, [a `structuredClone` polyfill](https://github.com/zloirock/core-js#structuredclone) was relatively recently added. When working on it, taking into account the dependencies, I faced **hundreds** of different JavaScript engines bugs — I don't remember when I saw something like that when I added new ECMAScript features — for this reason, the work on this simple method, that naively could be implemented within a couple hours, including resolving all issues and adding required features, lasted for several months. In the case of polyfills, better to do nothing than to do bad. The proper testing, polyfilling, and ensuring cross-platform compatibility web platform features require even more significant resources than what I spend on ECMAScript polyfills. So adding the maximum possible web standards support to `core-js` will be started only in case if I have such resources.
+由于项目的未来是不确定的，所以在这里写任何具体的日期是没有意义的，我不承诺所有这些都会很快完成，但这是应该争取的目标。
 
 ---
 
-### New approaches to tooling are more interesting
+### 新的主要版本
 
-Someone will ask why it's here. What do tools, like transpilers, have to do with the `core-js` project? `core-js` is just a polyfill, and those tools are written and maintained by other people. Once I also thought that it is enough to write a great project with a good API, explain its possibilities, and when it becomes popular, it will acquire an ecosystem with proper third-party tools. However, over the years, I realized that this will not happen if you do not do, or at least not control, it yourself.
+`core-js@3` 大约在 4 年前发布——已经过去很久了。对我来说在新版本中添加一些破坏性更改（确保向后兼容性通常有挑战性）并标记为主要版本不是个大问题——但这对用户来说是个大问题。
 
-For example, for many years, instance methods were not able to be polyfilled through Babel `runtime`, but I explained how to do it too many times. Polyfilling via `preset-env` could not be used in real-life projects because of incomplete detection of required polyfills and a bad source of compatibility data, which I explained from the beginning. Because of such problems, I was forced [to almost completely rewrite those tools in 2018-2019, for the `core-js@3` release](https://github.com/babel/babel/pull/7646), after that we got the current state of statically analysis-based tools for polyfills injecting.
+目前，大约 25% 的 `core-js` 下载是严重过时的 `core-js@2`。很多用户想更新到 `core-js@3`，但是因为他们的依赖使用 `core-js@2`，他们仍然使用过时的版本来避免重复复制（我在 GitHub 上的太多项目中看到了这个问题）。过于频繁的重大更新会使这种情况更加恶化。
 
-I am sure that if the approaches below are not implemented in the scope of `core-js`, they will not be properly implemented at all.
+但是，最好不要过于执着于兼容过时版本。这个库包含了太多仅出于兼容性而保留的内容。缺少一些长期需要的破坏性更改会对未来产生负面影响。从标准、生态系统和 Web 的变化以及历史遗留如何积累来判断，最好每隔两三年发布一个新的主要版本。
+
+添加我们希望在新的主要版本中看到的所有新内容将花费很多年，这是不可接受的。然而 `core-js` 遵循[语义化版本](https://semver.org/)并且首先发布具有破坏性更改的新主要版本是有意义的（其中一些在下面）是有意义的，大多数新功能都可以添加在次要版本中。在这种情况下，这样的发布可能只需要大约 2-3 个月的全职工作，并且它可能是第一个大小比以前小的 `core-js` 版本 -)
+
+### 直接的 `core-js` 包
+
+### 放弃严重过时的引擎支持
+
+IE 已死。然而，并不是对所有人来说——由于许多不同的原因，仍然有人被迫制作或维护可以在 IE 中运行的网站。`core-js` 是让他们的生活更轻松的主要工具之一。
+
+目前，`core-js` 试图支持所有可能的引擎和平台，甚至包括 ES3 — IE8-。但只有一小部分使用 core-js 的开发者需要 ES3 引擎的支持——目前，IE8- 部分的浏览器大约为 0.1%。对于许多其他用户来说，它会导致问题——更大的包大小和更慢的运行速度。
+
+主要问题来自支持 ES3 引擎：大多数现代 ES 功能都基于 ES5 功能，这些功能在那些老的引擎中不可用。一些功能（比如 getters / setters）不能被 polyfill，所以一些 polyfill（比如 typed array）根本不能在 IE8- 中工作。其他一些需要繁重的解决方法。在你只需要 polyfill 一些简单特性的情况下，包中 `core-js` 大小的主要部分是 ES5 方法的实现（在 polyfill 很多特性的情况下只有百分之几，所以这个问题主要与最小化包有关）。
+
+即使是简单地将 ES5 功能的内部回落替换为直接使用这些原生功能的实现，也可以将最小化的 `core-js` 包大小减少 2 倍以上。重新设计架构后，它将进一步减少。
+
+IE9-10 浏览器部分的市场也已经很小了——目前也是 0.1%。但是考虑放弃他们的支持而不放弃对其他一些具有类似甚至更大限制的过时引擎的支持是没有意义的，例如，Android 4.4.4——总共大约是 1%。将较低的标准提高到比 ES5 更高是一个更困难的决定，至少因为一些非浏览器的引擎。然而，即使在未来放弃对 IE11 的支持也不会像现在放弃对 IE8- 的支持那样带来那么多好处。
+
+### ECMAScript 模块和现代语法
+
+目前 `core-js` 使用 CommonJS 模块。在很长一段时间里它都是最流行的 JavaScript 模块格式，但现在 ECMAScript 提供了自己的模块格式，并且它已经非常流行并且 _几乎_ 无处不在。比如 Deno 和浏览器一样，不支持 CommonJS，但是支持 ES 模块。`core-js` 应该在不久的将来有 ECMAScript 模块版本。但是，例如，在 NodeJS 上，ECMAScript 模块仅在现代版本中受支持——但即使在古老的 NodeJS 版本上，`core-js` 应该可以在没有转译/打包的情况下工作，[Electron 仍然不支持它](https://github.com/electron/electron/issues/21457)等，所以立即摆脱 CommonJS 版本是有问题的。
+
+其他现代语法的情况并不那么明显。目前 `core-js` 使用 ES3 语法。最初是为了最大程度地优化，因为无论如何都应该将其预编译为旧语法。但这只是最初。现在，`core-js` 无法在用户空间中正确转译，应该在转译器配置中被忽略。为什么？例如，让我们看一下 Babel 转换：
+
+- 很大一部分转换依赖于现代内置函数，例如，使用 `@@iterator` 协议的转换——然而`Symbol.iterator`、迭代器和所有其他相关的内置函数都是在 `core-js` 中实现的，并且在 `core-js` 加载之前不存在。
+- 另一个问题是使用注入 `core-js` polyfill 的转换来转译 `core-js`。显然，我们不能将 polyfill 注入到它们实现的地方，因为它是循环依赖。
+- 其他一些应用于 `core-js` 的变换只是破坏了它的内部——例如，[`typeof` 变换](https://babeljs.io/docs/en/babel-plugin-transform-typeof-symbol)（应该有助于支持被 polyfill 的 symbol）破坏了 `Symbol` polyfill。
+
+然而如果现代引擎捆绑了 polyfill，在 polyfill 代码中使用现代语法可以显着提高源代码的可读性、减小大小并在某些情况下提高性能，因此是时候考虑使用现代语法重写 `core-js` ，通过解决这些问题并针对不同用例发布具有不同语法的版本，使其可转换。
+
+### Web 标准的 polyfill
+
+长期以来，我一直在考虑为 `core-js` 添加最可能的 Web 标准（不仅是 ECMAScript 和密切相关的功能）支持。首先，关于[最小化常用 Web 平台 API](https://common-min-api.proposal.wintercg.org/#index) 的剩余功能（[它是什么？](https://blog.cloudflare.com/introducing-the-wintercg/)），但不仅仅是关于它们。对于所有可能的 Web 开发案例，而不仅仅是 ECMAScript，最好有一个保障性的 polyfill 项目。目前，浏览器支持 Web 标准的情况比支持现代 ECMAScript 特性的情况要糟糕得多。
+
+阻止将 Web 标准 polyfill 添加到 `core-js` 的障碍之一是打包大小的显着增加，但我认为使用当前按需加载 polyfill 的技术和下面写到的技术，我们可以添加 Web 标准的 polyfills 到 `core-js`。
+
+但主要问题是它不应该是简单的 polyfill。正如我在上面所写的，今天 ECMAScript 功能的正确性几乎普遍都不是很糟糕，但我们不能对 web 平台功能这么说。例如，[一个 `structuredClone` polyfill](https://github.com/zloirock/core-js#structuredclone) 是最近添加的。在处理它时，考虑到依赖性，我遇到了 **数百个** 不同的 JavaScript 引擎 bug——我不记得我在添加新的 ECMAScript 功能时看到过类似的错误——出于这个原因，这个我天真地以为可以在几个小时内完成的工作持续了几个月，包括解决所有问题和添加所需的功能。对于 polyfill，与其做坏事，不如什么都不做。适当的测试、polyfill 和确保跨平台兼容性的 web 平台功能需要我花费比 ECMAScript polyfill 更多的资源。因此只有在我有这样的资源的情况下，才会开始向 `core-js` 添加尽可能多的 Web 标准支持。
 
 ---
 
-To avoid some questions related to the following text: `core-js` tools will be moved to scoped packages — tools like `core-js-builder` and `core-js-compat` will become `@core-js/builder` and `@core-js/compat` respectively.
+### 新的工具方法更有趣
 
-### Not only Babel: plugins for transpilers and module bundlers
+有人会问为什么它会在这里。转译器等工具与 core-js 项目有什么关系？`core-js` 只是一个 polyfill，这些工具是由其他人编写和维护的。曾经我也认为用一个好的 API 写一个伟大的项目就足够了，只需要解释它的可能性，当它流行起来时，会有一个包含合适第三方工具的生态系统。然而，多年来，我意识到，如果你自己不去做，或者至少不去控制，这就不会发生。
 
-At this moment, some users are forced to use Babel only due to the need to automatically inject / optimize required polyfills. At this moment, Babel's [`preset-env`](https://babeljs.io/docs/en/babel-preset-env#usebuiltins) and [`runtime`](https://babeljs.io/docs/en/babel-plugin-transform-runtime#core-js-aliasing) are the only good enough and well-known ways to optimize usage of `core-js` with statical analysis. Historically, it happened because I helped Babel with polyfills. It does not mean that it's the only or the best place where it could be done.
+例如，多年来，实例方法无法通过 Babel `runtime` 进行 polyfill，但我已经太多次解释了思路。通过 `preset-env` 进行的 polyfill 无法在实际项目中使用，因为对所需的 polyfill 的检测不完整以及兼容性数据的错误来源，我从一开始就解释了这一点。由于这些问题，我被迫[为了 `core-js@3` 在 2018-2019 年几乎完全重写了这些工具](https://github.com/babel/babel/pull/7646)，之后 我们了解了用于 polyfill 注入的基于静态分析的工具的当前状态。
 
-Babel is only one of many transpilers. TypeScript is another popular option. Other transpilers are gaining popularity now, for example, [SWC](https://swc.rs/) (that already contains [a tool for automatic polyfilling / `core-js` optimization](https://swc.rs/docs/configuration/supported-browsers), but it's still not perfect). However, why do we talk about the transpilers layer? The bundlers layer and tools like `webpack` or [`esbuild`](https://esbuild.github.io/) (that also contains an integrated transpiler) are more interesting for the optimization of polyfills. [Rome](https://rome.tools/) has been in development for several years and still is not ready, but its concept looks very promising.
+我敢肯定，如果下面的方法没有在 `core-js` 作用域内实现，它们将根本无法正确实现。
 
-One of the main problems with statical analysis-based automatic polyfilling on the transpiler layer is that usually not all files from the bundle are transpiled — for example, dependencies. If some of your dependencies need a polyfill of a modern built-in feature, but you don't use this built-in in your userland code, this polyfill will not be added to the bundle. Unnecessary polyfills import also will not be removed from your dependencies (see below). Moving automatic polyfilling to the bundlers layer fixes this problem.
+---
 
-Sure, writing or using such plugins in many places is difficult compared to Babel. For example, [now without some extra tools you can't use plugins for custom transforms in TypeScript](https://github.com/microsoft/TypeScript/issues/14419). However, where there's a will there's a way.
+为了避免一些与以下文本相关的问题：`core-js` 工具将被移动到作用域中——像 `core-js-builder` 和 `core-js-compat` 这样的工具将分别变成 `@core-js/builder` 和 `@core-js/compat。
 
-Automatic polyfilling / optimization of `core-js` should be available not only in Babel. It's almost impossible to write and maintain plugins for all transpilers and bundlers in the scope of the `core-js` project, but it's possible to do those things:
+### 不仅仅是 Babel：转译器和模块打包器的插件
 
-- Improve data provided by `core-js` (`@core-js/compat`) and tools for integration with third-party projects, they should be comprehensive. For example, "built-in definitions" are still on Babel's side that causing problems with their reuse in other projects.
-- Since some tools already provide `core-js` integration, it makes sense to help them too, not just Babel.
-- It makes sense to write and maintain plugins for some significant tools in the scope of the `core-js` project. Which? We will see.
+目前，一些用户由于需要自动注入或优化所需的 polyfill 而被迫仅使用 Babel。目前 Babel 的 [`preset-env`](https://babeljs.io/docs/en/babel-preset-env#usebuiltins) 和 [`runtime`](https://babeljs.io/docs/en/babel-plugin-transform-runtime#core-js-aliasing) 是通过静态分析优化 `core-js` 使用的唯一优秀、知名的方法。从历史上看，它发生是因为我用 polyfill 帮助 Babel。这并不意味着它是唯一或最好的地方。
 
-### Polyfills collector
+Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择。其他转移器现在越来越受欢迎，例如，[SWC](https://swc.rs/)（已经包含 [自动 polyfilling 和 `core-js` 优化工具](https://swc.rs/docs/configuration/supported-browsers)，但它仍然不完美）。但是，为什么我们要谈论转译器层呢？打包器层和工具，如 `webpack` 或 [`esbuild`](https://esbuild.github.io/)（也包含一个集成的转译器）对于 polyfill 的优化更有趣。[Rome](https://rome.tools/) 已经开发了好几年，还没有完成，但它的概念看起来很有前途。
 
-One of the problems of the statical analysis-based automatic polyfilling on the files layer (`usage` polyfilling mode of Babel `preset-env`) was explained above, but it's not the only problem. Let's talk about some others.
+转译器层上基于静态分析的自动 polyfilling 的主要问题之一是，通常并非捆绑包中的所有文件都被转译——例如，依赖项。如果您的某些依赖项需要一个现代内置功能的 polyfill，但您没有在您的用户空间代码中使用这个内置功能，那么这个 polyfill 将不会被添加到 bundle 中。不必要的 polyfills import 也不会从你的依赖项中移除（见下文）。将自动 polyfilling 移动到 bundlers 层解决了这个问题。
 
-Your dependencies could have their own `core-js` dependencies and they can be incompatible with the `core-js` version that you use at the root of your project, so injecting `core-js` imports to your dependencies directly could cause breakage.
+当然，与 Babel 相比，在很多地方编写或使用这样的插件是困难的。例如，[现在如果没有一些额外的工具，您将无法在 TypeScript 中使用插件进行自定义转换](https://github.com/microsoft/TypeScript/issues/14419)。然而，有志者事竟成。
 
-Projects often contain multiple entry points, multiple bundles, and, in some cases, the proper moving of all `core-js` modules to one chunk can be problematic and it could cause duplication of `core-js` in each bundle.
+`core-js` 的自动 polyfill 和优化应该不仅在 Babel 中可用。在 `core-js` 项目作用域为所有转译器和打包器编写维护插件几乎不可能，但是可以做这些事情：
 
-I already posted [the `core-js` usage statistics](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e) above. In many cases, you could see the duplication of `core-js` — and it's only on the first loaded page of the application. Sometimes it's even like what we see on the Bloomberg website:
+- 完善 `core-js` (`@core-js/compat`) 提供的数据和与第三方项目集成的工具，它们应该是全面的。例如，“内置定义”仍然在 Babel 一边，导致它们在其他项目中的重用出现问题。
+- 由于一些工具已经提供了 `core-js` 集成，所以帮助他们也是有意义的，而不仅仅是 Babel。
+- 为 `core-js` 项目范围内的一些重要工具编写和维护插件是有意义的。至于是哪个？ 我们会看到的。
+
+### polyfill 收集器
+
+上面解释了文件层上基于静态分析的自动填充的问题之一（Babel `preset-env` 的`usage` 填充模式），但这不是唯一的问题。让我们谈谈其他一些。
+
+您的依赖项可能有自己的 `core-js` 依赖项，并且它们可能与您在项目根目录中使用的 `core-js` 版本不兼容，因此直接将 `core-js` 导入注入到您的依赖项中可能会导致损坏.
+
+项目通常包含多个入口点、多个包，并且在某些情况下，将所有 `core-js` 模块正确移动到一个 chunk 中可能会出现问题，并且可能导致每个包中的 `core-js` 重复。
+
+我已经在上面发布了 [`core-js` 使用统计数据](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e)。在许多情况下，您会看到 `core-js` 的重复——它只出现在应用的第一个加载页面上。有时甚至就像我们在彭博社网站上看到的那样：
 
 ![bloomberg](/project/roadmap/bloomberg.png)
 
-[Some time ago this number was even higher.](/project/roadmap/bloomberg2.png) Of course, such a number of copies and various versions of `core-js` is not something typical, but a situation with several copies of `core-js` is too common as you saw above, affecting about half the websites with `core-js`. To prevent this **a new solution is required to collect all polyfills from all entry points, bundles and dependencies of the project in one place.**
+[前段时间这个数字更高。](/project/roadmap/bloomberg2.png) 当然，这样数量的重复和 `core-js` 的各种版本并不典型，但是正如上面那样，`core-js` 重复太常见了，影响了使用 `core-js` 的网站中的约一半。为了防止发生这种情况，**需要一个新的解决方案来从项目的所有入口点、捆绑包和依赖项中收集所有 polyfill。**
 
-Let's call a tool for this `@core-js/collector`. This tool should take an entry point or a list of entry points and should use the same statical analysis that's used in `preset-env`, however, this tool should not transform code or inject anything, should check full dependencies trees and should return a full list of required `core-js` modules. As a requirement, it should be simple to integrate into the current development stack. One possible way can be a new polyfilling mode in plugins, let's call it `collected` — that will allow loading all collected polyfills of the application in one place and remove the unnecessary (see below).
+让我们为这个 `@core-js/collector` 调用一个工具。这个工具应该有一个入口点或一个入口点列表，并且应该使用与 `preset-env` 中使用的相同的静态分析，但是，这个工具不应该转换代码或注入任何东西，而应该检查完整的依赖树并且返回一个所需 `core-js` 模块的完整列表。作为一个需求，它应该很容易集成到当前的技术栈中。一种可能的方法是在插件中使用新的 polyfill 模式，我们叫它`收集`——在一个地方加载应用的所有 polyfill 并删除不必要的（见下文）。
 
-### Removing unnecessary third-party polyfills
+### 删除不必要的第三方 polyfill
 
-Now it's typical to see, for example, a dozen copies of `Promise` polyfills with the same functionality on a website — you load only one `Promise` polyfill from `core-js`, but some of your dependencies load `Promise` polyfills by themself — `Promise` polyfill from one more `core-js` copy, `es6-promise`, `promise-polyfill`, `es6-promise-polyfill`, `native-promise-only`, etc. But it's just ES6 `Promise` which is already completely covered by `core-js` — and available in most browsers without polyfills. Sometimes, due to this, the size of all polyfills in the bundle swells to several megabytes.
+例如，现在通常会在一个网站上看到十几个具有相同功能的 `Promise` polyfill——您只从 `core-js` 加载一个 `Promise` polyfill，但是您的一些依赖项自身加载 `Promise` polyfill——来自另一个 `core-js` 副本的 `Promise` polyfill，`es6-promise`、`promise-polyfill`、`es6-promise-polyfill`、`native-promise-only` 等等。但这只是 ES6 `Promise` 已经完全被 `core-js` 涵盖——并且在大多数没有 polyfills 的浏览器中可用。有时，由于这个原因，打包后所有 polyfill 的大小都会膨胀到几 MB。
 
-It's not an ideal illustration for this issue, many other examples would have been better, but since above we started to talk about the Bloomberg website, let's take a look at this site one more time. We have no access to the source code, however, we have, for example, such an awesome tool as [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) (I hope that the Bloomberg team will fix it ASAP, so the result could be outdated).
+它不是这个问题的理想描述，许多其他例子会更好，但是既然上面我们开始谈论彭博社网站，让我们再看一次这个网站。我们无法访问源代码，但是，例如，我们拥有 [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) 这样一个很棒的工具（我希望彭博社的团队尽快修复它，这样结果可能会过时）。
 
 ![bundlescanner](/project/roadmap/bundlescanner.png)
 
-As shown in the practice, since such analysis it's not a simple work, this tool detects only about half of libraries' code. However, in addition to 450 kilobytes of `core-js`, we see hundreds of kilobytes of other polyfills — many copies of `es6-promise`, `promise-polyfill`, `whatwg-fetch` ([for the above reason](#web-standards-polyfills), `core-js` _still_ does not polyfill it), `string.prototype.codepointat`, `object-assign` (it's a _ponyfill_ and the next section is about them), `array-find-index`, etc.
+从实践中可以看出，由于这样的分析不是一项简单的工作，因此该工具只能检测到大约一半的库代码。然而，除了 450 KB 的 `core-js` 之外，我们还看到了数百 KB 的其他 polyfill——许多份 `es6-promise`、`promise-polyfill`、`whatwg-fetch`（[出于上述原因](#web-标准的-polyfill)、`core-js` _仍然_ 不 polyfill 它），`string.prototype.codepointat`、`object-assign`（这是一个_ponyfill_，下一节是关于它们的）、`array-find-index` 等。
 
-But how many polyfills were not detected? What's the size of all polyfills that this website loads? It seems a couple of megabytes. However, even for _very_ old browsers, at most a hundred kilobytes are more than be enough... And this situation is not something unique — it's a too common problem.
+但是有多少 polyfill 没有被检测到？ 该网站加载的所有 polyfill 的大小是多少？ 似乎有几兆字节。然而，即使对于_非常_旧的浏览器，最多 100 KB 也绰绰有余……而且这种情况并不是独一无二的——这是一个太普遍的问题。
 
-Since many of those polyfills contain just a subset of `core-js` functionality, in the scope of `@core-js/compat`, we could collect data that will show if a module is an unnecessary third-party polyfill or not and, if this functionality is contained in `core-js`, a transpiler or bundler plugin will remove the import of this module or will replace it to the import of suitable `core-js` modules.
+由于这些 polyfill 中的许多只包含 `core-js` 功能的一个子集，在 `@core-js/compat` 的范围内，我们可以收集数据来显示模块是否是不必要的第三方 polyfill，并且，如果此功能包含在 `core-js` 中，那么转译器或打包器插件将移除此模块或将其替换为合适的 `core-js` 模块。
 
-The same approach could be applied to get rid of dependencies from old `core-js` versions.
+相同的方法可以用来解决旧 `core-js` 版本的依赖。
 
-### Globalization of pure version polyfills / ponyfills
+### 纯净版本 polyfills/ponyfills 的全球化
 
-One more popular and similar issue is a duplication of polyfills from global and pure `core-js` versions. The pure version of `core-js` / `babel-runtime` is intended for usage in libraries' code, so it's a normal situation if you use a global version of `core-js` and your dependencies also load some copies of `core-js` without global namespace pollution. They use different internals and it's problematic to share similar code between them.
+一个更流行和相似的问题来自全局和纯净版本 `core-js` 的 polyfills 的重复。`core-js` 或 `babel-runtime` 的纯净版本是为了在库的代码中使用，所以如果你使用全局版本的 `core-js` 并且你的依赖项也加载一些没有全局命名空间污染的 `core-js` 副本是正常的情况。它们使用不同的内部结构，并且在它们之间共享相似的代码是有问题的。
 
-I'm thinking about resolving this issue on the transpiler or bundler plugins side similarly to the previous one (but, sure, a little more complex) — we could replace imports from the pure version with imports from the global version and remove polyfills unnecessary for the target engines.
+我正在考虑在转译器或打包器插件方面解决这个问题，类似于之前的问题（但是，当然，有点复杂）——我们可以用从全局版本导入代替从纯净版本导入，并删除不必要的 polyfill 目标引擎。
 
-That also could be applied to third-party ponyfills or obsolete libraries that implement something already available in the JS standard library. For example, the usage of `has` package can be replaced by `Object.hasOwn`, `left-pad` by `String.prototype.padStart`, some `lodash` methods by related modern built-in JS methods, etc.
+这也可以应用于第三方 ponyfill 或过时的库，它们实现了 JS 标准库中已经可用的东西。例如，`has` 包的用法可以替换为 `Object.hasOwn`，`left-pad` 可以替换为 `String.prototype.padStart`，一些 `lodash` 方法可以替换为相关的现代 JS 内置方法等。
 
-### Service
+### service
 
-Loading the same polyfills, for example, in IE11, iOS Safari 14.8, and the latest Firefox is wrong — too much dead code will be loaded in modern browsers. At this moment, a popular pattern is the use of 2 bundles — for "modern" browsers that will be loaded if native modules are supported, `<script type="module">`, and for obsolete browsers which do not support native modules, `<script nomodule>` (a little harder in a practice). For example, Lighthouse can detect some cases of polyfills that are not required with the `esmodules` target, [let's check the long-suffering Bloomberg website](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https%3A%2F%2Fwww.bloomberg.com%2Feurope&strategy=mobile&category=performance):
+加载相同的 polyfills 是错误的，比如在 IE11、iOS Safari 14.8 和最新的 Firefox 中——在现代浏览器中会加载太多不会运行的代码。目前，一种流行的模式是使用两个包——用于在支持原生模块加载的现代浏览器的 `<script type="module">`，以及用于不支持原生模块的过时浏览器的 `<script nomodule>`（在实践中有点难）。例如，Lighthouse 可以检测到一些 esmodules 目标不需要的 polyfill 案例，[让我们看看多灾多难的彭博社网站](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https%3A%2F%2Fwww.bloomberg.com%2Feurope&strategy=mobile&category=performance)：
 
 ![lighthouse](/project/roadmap/lighthouse.png)
 
-Lighthouse shows just about 200KB in all resources, 0.56s. Let's remember that the site contains about a couple of megabytes of polyfills. [Now Lighthouse detects less than half of the features that it should](https://github.com/GoogleChrome/lighthouse/issues/13440), but even with another half, it's only a little part of all loaded polyfills. Where are the rest? Are they really required for a modern browser? The problem is that the lower bar of native modules support is too low — "modern" browsers will, in this case, need most of the polyfills of stable JS features that are required for old IE, so a part of polyfills is shown in the "unused JavaScript" section that takes 6.41s, a part is not shown at all...
+Lighthouse 显示所有资源大约 200KB，0.56 秒。注意这个网站包含大约几 MB 的 polyfill。[现在 Lighthouse 检测不到它应有的一半功能](https://github.com/GoogleChrome/lighthouse/issues/13440)，但即使有另一半，它也只是所有加载的 polyfill 的一小部分。其余的在哪里？现代浏览器真的需要它们吗？问题是原生模块支持的下限太低——在这种情况下，“现代”浏览器需要旧 IE 所需的大部分稳定 JS 功能的 polyfill，因此部分 polyfill 显示在“未使用的 JavaScript”部分耗时 6.41 秒，有一部分根本没有显示……
 
-From the very beginning of work on `core-js`, I've been thinking about creating a web service that serves only the polyfills needed for the requesting browser.
+从 `core-js` 的非常早期起，我就一直在考虑创建一个 Web 服务，只提供请求浏览器所需的 polyfill。
 
-The availability of a such service is the only aspect in which `core-js` have lagged behind another project. [`polyfill-service`](https://polyfill.io) from Financial Times is based on this conception and it's a great service. The main problem with this project — it's a great service that uses poor polyfills. This project polyfills only a little part of the ECMAScript features that `core-js` provides, most of the polyfills are third-party and are not designed to work together, too many don't properly follow specs, too unpolished or just dangerous for usage (for example, [`WeakMap` looks like a step-by-step implementation of the spec text](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/polyfill.js), but the absence of some non-spec magic cause memory leaking and linear access time that makes it harmful, but here's more — instead of patching, fixing and reusing of native implementation in engines like IE11 where it's available, but does not accept an iterable argument, [`WeakMap` will be completely replaced](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/detect.js)). Some good developers try to fix this from time to time, but polyfills themselves are given unforgivably little time, so it's still too far from something that could be recommended for usage.
+此类服务的可用性是 `core-js` 落后于另一个项目的唯一方面。Financial Times 的 [`polyfill-service`](https://polyfill.io) 就是基于这个概念，它是一个很棒的服务。这个项目很伟大，但它的主要问题是它使用了糟糕的 polyfill。这个项目只 polyfill 了 `core-js` 提供的一小部分 ECMAScript 特性，大多数 polyfill 都是第三方的，并不是为了协同工作而设计的，太多的 polyfill 没有正确遵循规范，太粗糙或者使用起来很危险（例如，[`WeakMap` 看起来像一个循序渐进规范文本的实施](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/polyfill.js)，但一些非规范的魔法会导致内存泄漏和有害的线性访问时间，还有更多——不接受可迭代的参数而不是在 IE11 等引擎中修补、修复和重用原生实现，[`WeakMap` 将被完全替换](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfills/WeakMap/detect.js)。一些优秀的开发人员不时尝试修复此问题，但花在 polyfill 本身上的时间很傻搜，因此离推荐还差得很远。
 
-Creating such a service in the proper form requires the creation and maintenance of many new components. I work on `core-js` alone, the project does not have the necessary support from any company, and the development is carried out with pure enthusiasm, I need to look for funds to feed myself and my family, so I have no time and other resources required for that. However, in the scope of other tasks, I already made some required components, and discussions with some users convinced me that creating a maximally simplified service that you could start on your own server could be enough.
+以适当的形式创建这样的服务需要创建和维护许多新组件。我一个人做 `core-js`，这个项目没有任何公司的支持，只依靠纯粹的热情进行开发，我需要寻求捐款来养活自己和家人，所以我没有这个项目所需的时间和其他资源。然而，在其他任务范围内，我已经制作了一些必需的组件，并且与一些用户的讨论使我确信创建一个可以在自己的服务器上启动的最简化的服务就足够了。
 
-We already have the best set of polyfills, the proper compatibility data, and the builder which could already create a bundle for a target browser. The previously mentioned `@core-js/collector` could be used for optimization — getting only the required subset of modules, plugins for transpilers / bundlers — for removing unnecessary polyfills. Missing a tool for the normalization of the user agent and a service that will bind those components together. Let's call it `@core-js/service`.
+我们已经拥有最好的 polyfill 集、适当的兼容性数据以及已经可以为目标浏览器创建捆绑包的构建器。前面提到的 `@core-js/collector` 可以被用于优化——仅获取所需的模块子集、转译器或打包器的插件——用于删除不必要的 polyfill。缺少格式化 UA 的工具和将这些组件绑定在一起的服务。我们称它为 `@core-js/service`。
 
-#### What should it look like in a perfect world?
+#### 一个完美的世界应该是什么样子的？
 
-- You bundle your project. A plugin on the bundler's side removes all polyfill imports (including third-party, without global pollution, from your dependencies, etc.). Your bundles will not contain any polyfills.
-- You run `@core-js/service`. When you run it, `@core-js/collector` checks all your frontend codebase, all your entry points, including dependencies, and collects a list of all required polyfills.
-- A user loads a page and requests a polyfill bundle from the service. The service gives the client a bundle compiled for the target browser that contains the required subset of polyfills and uses allowed syntax.
+- 你打包你的项目。打包器端的插件会删除所有 polyfill 导入（包括第三方来自依赖项等的全局的污染）。您的包中没有任何 polyfill。
+- 你运行 `@core-js/service`。当您运行它时，`@core-js/collector` 会检查你的所有前端代码库、所有入口点（包括依赖项），并收集所有必需的 polyfill 的列表。
+- 用户加载页面并从服务请求 polyfill 包。该服务为客户端提供一个为目标浏览器编译的包，其中包含所需的 polyfill 子集并使用允许的语法。
 
-So, with this complex of tools, modern browsers will not load polyfills at all if they are not required, old browsers will load only the required and maximally optimized polyfills.
+因此，使用这种复杂的工具，如果不需要的话，现代浏览器根本不会加载 polyfill，而旧浏览器只会加载必需的和最大程度优化的 polyfill。
 
 ---
 
-Most of the above is about minimizing the size of polyfills sent to the client — but these are just a little subset of the concepts that it would be good to implement in the scope of `core-js`, however, I think that it's enough to understand that still requires a huge work and this work could significantly improve web development. Whether it will be implemented in practice and whether it will be available as FOSS or as a commercial project is up to you.
+上面的大部分内容都是关于最小化发送到客户端的 polyfill 的大小——但这些只是概念的一小部分，在 `core-js` 的范围内实现会很好，但是我认为理解这仍然需要大量的工作，而这项工作可以显著改善 Web 开发就足够了。它是否会被付诸实践以及它是 FOSS 还是商业项目取决于你。

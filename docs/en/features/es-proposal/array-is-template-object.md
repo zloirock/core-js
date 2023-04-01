@@ -16,7 +16,6 @@ tag:
 interface ArrayConstructor {
   isTemplateObject(value: any): boolean;
 }
-
 ```
 
 ## Entry points

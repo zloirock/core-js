@@ -2,14 +2,13 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
-# `String` and `RegExp`
+# `String` 和 `RegExp`
 
-## Modules
+## 模块
 
-The main part of `String` features:
+`String` 特性的主要部分：
 
 - [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js)
 - [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js)
@@ -29,14 +28,14 @@ The main part of `String` features:
 - [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
 - [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js)
 
-Adding support of well-known [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods:
+支持著名的 [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` 和 `@@split`，并把 `.exec` 调用定向至 `String` 相关的方法：
 
 - [`es.string.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match.js)
 - [`es.string.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace.js)
 - [`es.string.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.search.js)
 - [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js)
 
-Annex B methods:
+Annex B 方法：
 
 - [`es.string.anchor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.anchor.js)
 - [`es.string.big`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.big.js)
@@ -55,7 +54,7 @@ Annex B methods:
 - [`es.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.escape.js)
 - [`es.unescape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.unescape.js)
 
-`RegExp` features:
+`RegExp` 特性：
 
 - [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js)
 - [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js)
@@ -63,26 +62,29 @@ Annex B methods:
 - [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js)
 - [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js)
 
-## Types
+## 类型
 
 ```ts
-class String {
-  static fromCodePoint(...codePoints: Array<number>): string;
-  static raw({ raw: Array<string> }, ...substitutions: Array<string>): string;
-  at(index: int): string;
+interface String {
+  at(index: number): string;
   includes(searchString: string, position?: number): boolean;
   startsWith(searchString: string, position?: number): boolean;
   endsWith(searchString: string, position?: number): boolean;
   repeat(count: number): string;
-  padStart(length: number, fillStr?: string = ' '): string;
-  padEnd(length: number, fillStr?: string = ' '): string;
+  /**@param fillStr @default ' '' */
+  padStart(length: number, fillStr?: string): string;
+  /**@param fillStr @default ' '' */
+  padEnd(length: number, fillStr?: string): string;
   codePointAt(pos: number): number | void;
-  match(template: any): any; // ES2015+ fix for support @@match
-  matchAll(regexp: RegExp): Iterator;
-  replace(template: any, replacer: any): any; // ES2015+ fix for support @@replace
-  replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
-  search(template: any): any; // ES2015+ fix for support @@search
-  split(template: any, limit?: int): Array<string>;; // ES2015+ fix for support @@split, some fixes for old engines
+  match(template: any): RegExpMatchArray | null; // 针对 ES2015+ 的修复，支持 @@match
+  matchAll(regexp: RegExp): Iterator<RegExpMatchArray>;
+  replace(template: any, replacer: any): any; // 针对 ES2015+ 的修复，支持 @@replace
+  replaceAll(
+    searchValue: string | RegExp,
+    replacer: string | ((searchValue: string, ...args: any[]) => string)
+  ): string;
+  search(template: any): any; // 针对 ES2015+ 的修复，支持 @@search
+  split(template: any, limit?: number): Array<string>; // 针对 ES2015+ 的修复，支持 @@split，一些针对老引擎的修复
   trim(): string;
   trimLeft(): string;
   trimRight(): string;
@@ -100,32 +102,37 @@ class String {
   small(): string;
   strike(): string;
   sub(): string;
-  substr(start: int, length?: int): string;
+  substr(start: number, length?: number): string;
   sup(): string;
-  [Symbol.iterator](): Iterator<characters>;
+  [Symbol.iterator]: Iterator<String>;
+}
+
+interface StringConstructor {
+  fromCodePoint(...codePoints: Array<number>): string;
+  raw({ ["raw"]: Array }, ...substitutions: Array<string>): string;
 }
 
 class RegExp {
-  // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
-  constructor(pattern: RegExp | string, flags?: string): RegExp;
-  exec(): Array<string | undefined> | null; // IE8 fixes
+  // 支持 sticky (`y`) flag, dotAll (`s`) flag, 命名捕获组，可以改变 flag
+  constructor(pattern: RegExp | string, flags?: string);
+  exec(): Array<string | undefined> | null; // IE8 修复
   test(string: string): boolean; // delegation to `.exec`
-  toString(): string; // ES2015+ fix - generic
-  @@match(string: string): Array | null;
-  @@matchAll(string: string): Iterator;
-  @@replace(string: string, replaceValue: Function | string): string;
-  @@search(string: string): number;
-  @@split(string: string, limit: number): Array<string>;
-  readonly attribute dotAll: boolean; // IE9+
-  readonly attribute flags: string;   // IE9+
-  readonly attribute sticky: boolean; // IE9+
+  toString(): string; // 通用的 ES2015+ 修复
+  [Symbol.match](string: string): RegExpMatchArray | null;
+  [Symbol.matchAll](string: string): Iterator<RegExpMatchArray>;
+  [Symbol.replace](string: string, replaceValue: Function | string): string;
+  [Symbol.search](string: string): number;
+  [Symbol.split](string: string, limit: number): Array<string>;
+  readonly dotAll: boolean; // IE9+
+  readonly flags: string;   // IE9+
+  readonly sticky: boolean; // IE9+
 }
 
 function escape(string: string): string;
 function unescape(string: string): string;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/string
@@ -176,9 +183,9 @@ core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
 
-## Example
+## E示例
 
-[_Example_](https://is.gd/Q8eRhG):
+[_示例_](https://is.gd/Q8eRhG):
 
 ```js
 for (let value of "a𠮷b") {
@@ -203,7 +210,7 @@ for (let value of "a𠮷b") {
 String.fromCodePoint(97, 134071, 98); // => 'a𠮷b'
 
 let name = "Bob";
-String.raw`Hi\n${name}!`; // => 'Hi\\nBob!' (ES2015 template string syntax)
+String.raw`Hi\n${name}!`; // => 'Hi\\nBob!' (ES2015 模板字符串语法)
 String.raw({ raw: "test" }, 0, 1, 2); // => 't0e1s2t'
 
 "foo".bold(); // => '<b>foo</b>'

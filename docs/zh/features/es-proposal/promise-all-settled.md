@@ -3,20 +3,34 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
 
-## Types
+## 类型
 
 ```ts
-class Promise {
-  static allSettled(iterable: Iterable): Promise;
+interface PromiseConstructor {
+  allSettled<T>(
+    iterable: Iterable<Promise<T>>
+  ): Promise<PromiseSettledResult<T>>;
 }
+
+type PromiseSettledFulfilledResult<T> = {
+  status: "fulfilled";
+  value: T;
+};
+type PromiseSettledRejectedResult = {
+  status: "rejected";
+  reason: any;
+};
+
+type PromiseSettledResult<T> =
+  | PromiseSettledFulfilledResult<T>
+  | PromiseSettledRejectedResult;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/promise-all-settled

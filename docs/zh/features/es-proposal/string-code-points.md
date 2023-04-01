@@ -2,33 +2,32 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)
 
-## Module
+## 模块
 
 [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
 
-## Types
+## 类型
 
 ```ts
-class String {
-  codePoints(): Iterator<{ codePoint; position }>;
+interface String {
+  codePoints(): Iterator<{ codePoint: number; position: number }>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-code-points
 core-js(-pure)/full/string/code-points
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/Jt7SsD):
+[_示例_](https://goo.gl/Jt7SsD):
 
 ```js
 for (let { codePoint, position } of "qwe".codePoints()) {

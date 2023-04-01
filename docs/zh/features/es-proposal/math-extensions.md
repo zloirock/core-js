@@ -3,12 +3,11 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)
+# [`Math` 拓展](https://github.com/rwaldron/proposal-math-extensions)
 
-## Modules
+## 模块
 
 - [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js)
 - [`esnext.math.deg-per-rad`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.deg-per-rad.js)
@@ -18,21 +17,33 @@ tag:
 - [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.radians.js)
 - [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.scale.js)
 
-## Types
+## 类型
 
 ```ts
-namespace Math {
+interface Math {
   DEG_PER_RAD: number;
   RAD_PER_DEG: number;
   clamp(x: number, lower: number, upper: number): number;
   degrees(radians: number): number;
-  fscale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+  fscale(
+    x: number,
+    inLow: number,
+    inHigh: number,
+    outLow: number,
+    outHigh: number
+  ): number;
   radians(degrees: number): number;
-  scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
+  scale(
+    x: number,
+    inLow: number,
+    inHigh: number,
+    outLow: number,
+    outHigh: number
+  ): number;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/math-extensions

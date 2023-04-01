@@ -8,7 +8,7 @@ tag:
 
 ## Modules
 
--[`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js)
+- [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js)
 
 - [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
 

@@ -3,28 +3,27 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [ES Relative indexing method](https://github.com/tc39/proposal-relative-indexing-method)
+# [ES 相关的索引方法](https://github.com/tc39/proposal-relative-indexing-method)
 
-## Types
+## 类型
 
 ```ts
-class Array {
-  at(index: int): any;
+interface Array<T> {
+  at(index: number): T | undefined;
 }
 
-class String {
-  at(index: int): string;
+interface String {
+  at(index: number): string | undefined;
 }
 
-class %TypedArray% {
-  at(index: int): number;
+interface TypedArray {
+  at(index: number): number | undefined;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/relative-indexing-method

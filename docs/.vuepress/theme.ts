@@ -9,7 +9,7 @@ export default hopeTheme({
   docsDir: "docs",
   iconAssets: "iconfont",
   locales: {
-    "/": {
+    "/en/": {
       navbar: navbarEn,
       sidebar: sidebarEn,
       copyright: `&copy; 2014-${new Date().getFullYear()} Core-JS contributors`,
@@ -24,7 +24,7 @@ export default hopeTheme({
   plugins: {
     autoCatalog: {
       locales: {
-        "/": { title: "Index" },
+        "/en/": { title: "Index" },
         "/zh/": { title: "索引" },
       },
     },
@@ -35,6 +35,7 @@ export default hopeTheme({
       imgLazyload: true,
       include: true,
       tasklist: true,
+      codetabs: true,
     },
     prismjs: false,
   },

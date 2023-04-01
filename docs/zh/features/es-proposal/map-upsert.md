@@ -2,29 +2,40 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)
 
-## Modules
+## 模块
 
 - [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js)
 - [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 
-## Types
+## 类型
 
 ```ts
-class Map {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+interface Map<K, V> {
+  emplace<T, U>(
+    key: any,
+    handler: {
+      update: (value: V, key: K, target: Map<K, V>) => T;
+      insert: (key: K, target: Map<K, V>) => U;
+    }
+  ): T | U;
 }
 
-class WeakMap {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+interface WeakMap<K extends object, V> {
+  emplace<T, U>(
+    key: any,
+    handler: {
+      update: (value: V, key: K, target: WeakMap<K, V>) => T;
+      insert: (key: K, target: WeakMap<K, V>) => U;
+    }
+  ): T | U;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/map-upsert-stage-2
@@ -32,9 +43,9 @@ core-js(-pure)/full/map/emplace
 core-js(-pure)/full/weak-map/emplace
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/ty5I2v):
+[_示例_](https://is.gd/ty5I2v):
 
 ```js
 const map = new Map([["a", 2]]);

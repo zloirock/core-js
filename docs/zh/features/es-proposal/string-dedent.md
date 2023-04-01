@@ -1,30 +1,42 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`String.dedent`](https://github.com/tc39/proposal-string-dedent)
 
-## Module
+## 模块
 
 [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
 
-## Types
+## 类型
 
 ```ts
-class String {
-  static dedent(
-    templateOrTag: { raw: Array<string> } | function,
-    ...substitutions: Array<string>
-  ): string | function;
+interface StringConstructor {
+  dedent(
+    template: { raw: Array<string> },
+    ...substitutions: Array<any>
+  ): string;
+  dedent<T>(
+    tagFunction: (
+      template: { raw: Array<string> },
+      ...substitutions: Array<any>
+    ) => T
+  ): T;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2lbnofgo):
+[_示例_](https://tinyurl.com/2lbnofgo):
 
 ```js
 const message = 42;

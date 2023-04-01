@@ -11,7 +11,7 @@ Core-JS 被集成到许多构建工具中，你可以用它们快速实现 polyf
 - [Babel](./babel.md)
 - [SWC](./swc.md)
 
-如果你确定需要手动使用 Core-JS，请继续阅读以下部分
+如果你确定需要手动使用 Core-JS，请继续阅读以下部分。
 :::
 
 ## 安装
@@ -41,7 +41,7 @@ npm install --loglevel silent
 
 ## CommonJS API
 
-你可以只引用你需要的 polyfill，就像 `README.md` 顶部的示例那样。CommonJS 入口点适用于所有已被 polyfill 的方法、构造函数以及命名空间。以下为一些例子：
+你可以只引用你需要的 polyfill，就像首页的示例那样。CommonJS 入口点适用于所有已被 polyfill 的方法、构造函数以及命名空间。以下为一些例子：
 
 ```js
 // Polyfill 包括早期提案在内的所有 Core-JS 支持的特性：

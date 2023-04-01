@@ -2,35 +2,34 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)
+# [结构良好的 unicode 字符串](https://github.com/tc39/proposal-is-usv-string)
 
-## Modules
+## 模块
 
--[`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js)
+- [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js)
 
 - [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
 
 ```ts
-class String {
+interface String {
   isWellFormed(): boolean;
   toWellFormed(): string;
 }
+
 ```
 
-## Entry points
-
+## 入口点
 ```
 core-js/proposals/well-formed-unicode-strings
 core-js(-pure)/actual|full/string(/virtual)/is-well-formed
 core-js(-pure)/actual|full/string(/virtual)/to-well-formed
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2fulc2ak):
+[_示例_](https://tinyurl.com/2fulc2ak):
 
 ```js
 "a💩b".isWellFormed(); // => true

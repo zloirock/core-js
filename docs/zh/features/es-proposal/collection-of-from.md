@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)
+# [集合构造器的 `.of` 和 `.from` 方法](https://github.com/tc39/proposal-setmap-offrom)
 
-## Modules
+## 模块
 
 - [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js)
 - [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js)
@@ -18,47 +17,46 @@ tag:
 - [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js)
 - [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
 
-## Types
+## 类型
 
 ```ts
-class Set {
-  static of(...args: Array<mixed>): Set;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => any,
+interface SetConstructor {
+  of<T>(...args: Array<T>): Set<T>;
+  from<T, U>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => U,
     thisArg?: any
-  ): Set;
+  ): Set<U>;
+}
+interface MapConstructor {
+  of<K, V>(...args: Array<[K, B]>): Map<K, V>;
+  from<K, V, T>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => [key: K, value: V],
+    thisArg?: any
+  ): Map<K, V>;
 }
 
-class Map {
-  static of(...args: Array<[key, value]>): Map;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => [key: any, value: any],
+interface WeakSetConstructor {
+  of<T extends object>(...args: Array<T>): WeakSet<T>;
+  from<T, U extends object>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => U,
     thisArg?: any
-  ): Map;
+  ): WeakSet<U>;
 }
 
-class WeakSet {
-  static of(...args: Array<mixed>): WeakSet;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => Object,
+interface WeakMapConstructor {
+  of<K extends object, V>(...args: Array<[K, V]>): WeakMap<K, V>;
+  from<K extends object, V, T>(
+    iterable: Iterable<T>,
+    mapFn?: (value: T, index: number) => [key: K, value: V],
     thisArg?: any
-  ): WeakSet;
-}
-
-class WeakMap {
-  static of(...args: Array<[key, value]>): WeakMap;
-  static from(
-    iterable: Iterable<mixed>,
-    mapFn?: (value: any, index: number) => [key: Object, value: any],
-    thisArg?: any
-  ): WeakMap;
+  ): WeakMap<K, V>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/collection-methods
@@ -73,9 +71,9 @@ core-js(-pure)/full/weak-map/of
 core-js(-pure)/full/weak-map/from
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/mSC7eU):
+[_示例_](https://goo.gl/mSC7eU):
 
 ```js
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}

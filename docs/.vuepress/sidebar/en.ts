@@ -1,7 +1,7 @@
 import { sidebar } from "vuepress-theme-hope";
 
 export const sidebarEn = sidebar({
-  "/": [
+  "/en/": [
     {
       text: "Guide",
       icon: "creative",
@@ -59,7 +59,51 @@ export const sidebarEn = sidebar({
       text: "Contribution",
       icon: "tree",
       prefix: "dev/",
-      children: "structure",
+      children: [
+        {
+          text: "How to contribute",
+          icon: "question",
+          link: "README.md"
+        },
+        {
+          text: "Add a new polyfill",
+          icon: "code",
+          link: "polyfill.md"
+        },
+        {
+          text: "Testing",
+          icon: "check",
+          link: "testing.md"
+        },
+        {
+          text: "Update core-js-compat",
+          icon: "form",
+          link: "compat.md"
+        },
+        {
+          text: "Writing documents",
+          icon: "form",
+          prefix: "docs/",
+          children: [
+            {
+              text: "Writing documents",
+              icon: "form",
+              link: "README.md"
+            },
+            {
+              text: "Create doc for polyfill",
+              icon: "code",
+              link: "polyfill.md"
+            },
+            {
+              text: "Translate",
+              icon: "language",
+              link: "translate.md"
+            }
+          ],
+          collapsible: true
+        }
+      ],
       collapsible: true,
     },
     {

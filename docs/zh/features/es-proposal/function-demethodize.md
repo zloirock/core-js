@@ -2,24 +2,23 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
 # [`Function.prototype.demethodize`](https://github.com/js-choi/proposal-function-demethodize)
 
-## Module
+## 模块
 
 [`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
 
-## Types
+## 类型
 
 ```ts
-class Function {
+interface Function {
   demethodize(): Function;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/function-demethodize
@@ -27,9 +26,9 @@ core-js(-pure)/full/function/demethodize
 core-js(-pure)/full/function/virtual/demethodize
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2ltmohgl):
+[_示例_](https://tinyurl.com/2ltmohgl):
 
 ```js
 const slice = Array.prototype.slice.demethodize();

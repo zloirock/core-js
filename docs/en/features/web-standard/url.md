@@ -118,4 +118,4 @@ console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
 
 - IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
 - Legacy encodings in a search query are not supported. Also, Core-JS implementation has some other encoding-related issues.
-- `URL` implementations from all of the popular browsers have much more problems than Core-JS, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+- `URL` implementations from all of the popular browsers have much more problems than Core-JS, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](../../guide/#configurable-level-of-aggressiveness).

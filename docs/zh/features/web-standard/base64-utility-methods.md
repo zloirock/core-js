@@ -2,35 +2,34 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
-# Base64 utility methods
+# Base64 公共方法
 
-[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64).
+[规范](https://html.spec.whatwg.org/multipage/webappapis.html#atob)、 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)。
 
-## Modules
+## 模块
 
 - [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js)
 - [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js)
 
-## Types
+## 类型
 
 ```ts
 function atob(data: string): string;
 function btoa(data: string): string;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/4Nxmzn):
+[_示例_](https://is.gd/4Nxmzn):
 
 ```js
 btoa("hi, core-js"); // => 'aGksIGNvcmUtanM='

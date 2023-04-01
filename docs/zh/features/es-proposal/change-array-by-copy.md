@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [Change `Array` by copy](https://github.com/tc39/proposal-change-array-by-copy)
+# [通过复制来改变 `Array`](https://github.com/tc39/proposal-change-array-by-copy)
 
-## Modules
+## 模块
 
 - [`esnext.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-reversed.js)
 - [`esnext.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.to-sorted.js)
@@ -17,24 +16,24 @@ tag:
 - [`esnext.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.to-sorted.js)
 - [`esnext.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.with.js)
 
-## Types
+## 类型
 
 ```ts
-class Array {
-  toReversed(): Array<mixed>;
-  toSpliced(start?: number, deleteCount?: number, ...items: Array<mixed>): Array<mixed>;
-  toSorted(comparefn?: (a: any, b: any) => number): Array<mixed>;
-  with(index: includes, value: any): Array<mixed>;
+interface Array<T> {
+  toReversed(): Array<T>;
+  toSpliced(start?: number, deleteCount?: number, ...items: Array<T>): Array<T>;
+  toSorted(comparefn?: (a: T, b: T) => number): Array<T>;
+  with(index: number, value: T): Array<T>;
 }
 
-class %TypedArray% {
-  toReversed(): %TypedArray%;
-  toSorted(comparefn?: (a: any, b: any) => number): %TypedArray%;
-  with(index: includes, value: any): %TypedArray%;
+interface TypedArray {
+  toReversed(): TypedArray;
+  toSorted(comparefn?: (a: number, b: number) => number): TypedArray;
+  with(index: number, value: number): TypedArray;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/change-array-by-copy
@@ -47,9 +46,9 @@ core-js/actual|full/typed-array/to-sorted
 core-js/actual|full/typed-array/with
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/tVkbY3):
+[_示例_](https://is.gd/tVkbY3):
 
 ```js
 const sequence = [1, 2, 3];

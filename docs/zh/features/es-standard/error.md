@@ -2,47 +2,64 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # ES Error
 
-## Modules
+## 模块
 
 - [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js)
 - [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js)
 - [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js)
 
-## Types
+## 类型
 
 ```ts
-class [
-  Error,
-  EvalError,
-  RangeError,
-  ReferenceError,
-  SyntaxError,
-  TypeError,
-  URIError,
-  WebAssembly.CompileError,
-  WebAssembly.LinkError,
-  WebAssembly.RuntimeError,
-] {
-  constructor(message: string, { cause: any }): %Error%;
+interface Error {
+  toString(): string; // different fixes
+}
+interface ErrorConstructor {
+  new (message: string, { cause: any }): Error;
+}
+interface EvalErrorConstructor {
+  new (message: string, { cause: any }): EvalError;
+}
+interface RangeErrorConstructor {
+  new (message: string, { cause: any }): RangeError;
+}
+interface ReferenceErrorConstructor {
+  new (message: string, { cause: any }): ReferenceError;
+}
+interface SyntaxErrorConstructor {
+  new (message: string, { cause: any }): SyntaxError;
+}
+interface TypeErrorConstructor {
+  new (message: string, { cause: any }): TypeError;
+}
+interface URIErrorConstructor {
+  new (message: string, { cause: any }): URIError;
+}
+
+namespace WebAssembly {
+  interface CompileErrorConstructor {
+    new (message: string, { cause: any }): CompileError;
+  }
+  interface LinkErrorConstructor {
+    new (message: string, { cause: any }): LinkError;
+  }
+  interface RuntimeErrorConstructor {
+    new (message: string, { cause: any }): RuntimeError;
+  }
 }
 
 class AggregateError {
-  constructor(errors: Iterable, message: string, { cause: any }): AggregateError;
-  errors: Array<any>;
+  constructor(errors: Iterable<Error>, message: string, { cause: any });
+  errors: Array<Error>;
   message: string;
-}
-
-class Error {
-  toString(): string; // different fixes
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/aggregate-error
@@ -51,9 +68,9 @@ core-js/es|stable|actual|full/error/constructor
 core-js/es|stable|actual|full/error/to-string
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/1SufcH):
+[_示例_](https://is.gd/1SufcH):
 
 ```js
 const error1 = new TypeError("Error 1");

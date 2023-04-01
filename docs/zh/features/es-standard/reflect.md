@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Reflect`
 
-## Modules
+## 模块
 
 - [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.apply.js)
 - [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.construct.js)
@@ -23,27 +22,47 @@ tag:
 - [`es.reflect.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set.js)
 - [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set-prototype-of.js)
 
-## Types
+## 类型
 
 ```ts
 namespace Reflect {
-  apply(target: Function, thisArgument: any, argumentsList: Array<mixed>): any;
-  construct(target: Function, argumentsList: Array<mixed>, newTarget?: Function): Object;
-  defineProperty(target: Object, propertyKey: PropertyKey, attributes: PropertyDescriptor): boolean;
-  deleteProperty(target: Object, propertyKey: PropertyKey): boolean;
-  get(target: Object, propertyKey: PropertyKey, receiver?: any): any;
-  getOwnPropertyDescriptor(target: Object, propertyKey: PropertyKey): PropertyDescriptor | void;
-  getPrototypeOf(target: Object): Object | null;
-  has(target: Object, propertyKey: PropertyKey): boolean;
-  isExtensible(target: Object): boolean;
-  ownKeys(target: Object): Array<string | symbol>;
-  preventExtensions(target: Object): boolean;
-  set(target: Object, propertyKey: PropertyKey, V: any, receiver?: any): boolean;
-  setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
+  function apply(
+    target: Function,
+    thisArgument: any,
+    argumentsList: Array<any>
+  ): any;
+  function construct<A extends readonly any[], R>(
+    target: new (...args: A) => R,
+    argumentsList: A,
+    newTarget?: new (...args: any) => any
+  ): Object;
+  function defineProperty(
+    target: Object,
+    propertyKey: PropertyKey,
+    attributes: PropertyDescriptor
+  ): boolean;
+  function deleteProperty(target: Object, propertyKey: PropertyKey): boolean;
+  function get(target: Object, propertyKey: PropertyKey, receiver?: any): any;
+  function getOwnPropertyDescriptor(
+    target: Object,
+    propertyKey: PropertyKey
+  ): PropertyDescriptor | void;
+  function getPrototypeOf(target: Object): Object | null;
+  function has(target: Object, propertyKey: PropertyKey): boolean;
+  function isExtensible(target: Object): boolean;
+  function ownKeys(target: Object): Array<string | symbol>;
+  function preventExtensions(target: Object): boolean;
+  function set(
+    target: Object,
+    propertyKey: PropertyKey,
+    value: any,
+    receiver?: any
+  ): boolean;
+  function setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/reflect
@@ -62,9 +81,9 @@ core-js(-pure)/es|stable|actual|full/reflect/set
 core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/gVT0cH):
+[_示例_](https://goo.gl/gVT0cH):
 
 ```js
 let object = { a: 1 };

@@ -2,33 +2,32 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
 # `DOMException`
 
-[The specification.](https://webidl.spec.whatwg.org/#idl-DOMException)
+[规范](https://webidl.spec.whatwg.org/#idl-DOMException)
 
-## Modules
+## 模块
 
 - [`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.constructor.js)
 - [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.stack.js)
 - [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.to-string-tag.js)
 
-## Types
+## 类型
 
 ```ts
 class DOMException {
   constructor(message: string, name?: string);
-  readonly attribute name: string;
-  readonly attribute message: string;
-  readonly attribute code: string;
-  attribute stack: string; // in engines that should have it
-  @@toStringTag: 'DOMException';
+  readonly name: string;
+  readonly message: string;
+  readonly code: string;
+  stack: string; // 引擎中应该包含
+  [Symbol.toStringTag]: 'DOMException';
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/stable|actual|full/dom-exception
@@ -36,9 +35,9 @@ core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag
 ```
 
-# Example
+## 示例
 
-[_Example_](https://is.gd/pI6oTN):
+[_示例_](https://is.gd/pI6oTN):
 
 ```js
 const exception = new DOMException("error", "DataCloneError");

@@ -2,32 +2,34 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
 # `structuredClone`
 
-[Spec](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)
+[规范](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)
 
-## Module
+## 模块
 
 [`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
 
-## Types
+## 类型
 
 ```ts
-function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
+function structuredClone<T extends Transferable>(
+  value: T,
+  options: { transfer?: Sequence<Transferable> }
+): T;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/stable|actual|full/structured-clone
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/RhK7TW):
+[_示例_](https://is.gd/RhK7TW):
 
 ```js
 const structured = [{ a: 42 }];
@@ -64,7 +66,7 @@ structuredClone(new ImageData(8, 8)); // => new ImageData(8, 8)
 structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
 
-## Caveats when using `structuredClone` polyfill
+## 使用 `structuredClone` polyfill 时的注意事项：
 
-- `ArrayBuffer` instances and many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
-- Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
+- `ArrayBuffer` 实例和很多平台类型不能被转移到大多数引擎中，因为我们无法 polyfill 这个行为，但是 `.transfer` 选项在一些平台类型中可以工作。我建议避开这个选项。
+- 一些特定的平台类型不能被复制到老引擎中。主要是非常特别的类型或者非常老的引擎，但是也有一些例外。例如我们无法同步复制 `ImageBitmap` 到 Safari 14.0- 或者 Firefox 83- 中，所以如果你想复制一些东西到特定平台的话，建议看看 [polyfill 源码](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)。

@@ -3,24 +3,23 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [`Array.prototype.flat` & `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)
+# [`Array.prototype.flat` 和 `Array.prototype.flatMap`](https://github.com/tc39/proposal-flatMap)
 
-## Types
+## 类型
 
 ```ts
-class Array {
-  flat(depthArg?: number = 1): Array<mixed>;
-  flatMap(
-    mapFn: (value: any, index: number, target: any) => any,
+interface Array<T> {
+  flat(depthArg: number): Array<T>;
+  flatMap<U>(
+    mapFn: (value: T, index: number, target: Array<T>) => U | Array<U>,
     thisArg: any
-  ): Array<mixed>;
+  ): Array<U>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-flat-map

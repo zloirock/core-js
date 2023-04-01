@@ -2,16 +2,15 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)
+# [`Iterator` helper 函数](https://github.com/tc39/proposal-iterator-helpers)
 
 :::note
-This is an ECMAScript proposal, please do not confuse it with the Helper function provided by Core-JS
+这是一个 ECMAScript 提案，请不要把它与 Core-JS 提供的 helper 函数混淆。
 :::
 
-## Modules
+## 模块
 
 - [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.constructor.js)
 - [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.drop.js)
@@ -28,28 +27,32 @@ This is an ECMAScript proposal, please do not confuse it with the Helper functio
 - [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.take.js)
 - [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-array.js)
 
-## Types
+## 类型
 
 ```ts
-class Iterator {
-  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
-  drop(limit: uint): Iterator<any>;
-  every(callbackfn: value: any => boolean): boolean;
-  filter(callbackfn: value: any => boolean): Iterator<any>;
-  find(callbackfn: value: any => boolean): any;
-  flatMap(callbackfn: (value: any, couner: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
-  forEach(callbackfn: value => void): void;
-  indexed(): Iterator<[index, any]>;
-  map(callbackfn: value => any): Iterator<any>;
-  reduce(callbackfn: (memo: any, value: any) => any, initialValue: any): any;
-  some(callbackfn: value: any => boolean): boolean;
-  take(limit: uint): Iterator<any>;
-  toArray(): Array<any>;
-  @@toStringTag: 'Iterator'
+interface Iterator<T> {
+  drop(limit: number): Iterator<T>;
+  every(callbackfn: (value: T) => boolean): boolean;
+  filter(callbackfn: (value: T) => boolean): Iterator<T>;
+  find(callbackfn: (value: T) => boolean): T;
+  flatMap<U>(
+    callbackfn: (value: T, couner: number) => Iterable<U> | Iterator<U>
+  ): Iterator<U>;
+  forEach(callbackfn: (value: T) => void): void;
+  indexed(): Iterator<[number, T]>;
+  map<U>(callbackfn: (value: T) => U): Iterator<U>;
+  reduce<U>(callbackfn: (memo: U, value: T) => U, initialValue: U): U;
+  some(callbackfn: (value: T) => boolean): boolean;
+  take(limit: number): Iterator<T>;
+  toArray(): Array<T>;
+  [Symbol.toStringTag]: "Iterator";
+}
+interface IteratorConstructor {
+  from<T>(iterable: Iterable<T> | Iterator<T>): Iterator<T>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/iterator-helpers
@@ -83,9 +86,9 @@ core-js(-pure)/full/iterator/take
 core-js(-pure)/full/iterator/to-array
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/P7YLCq):
+[_示例_](https://is.gd/P7YLCq):
 
 ```js
 [1, 2, 3, 4, 5, 6, 7]
@@ -114,6 +117,6 @@ await [1, 2, 3]
   .toArray(); // => [1, 4, 9]
 ```
 
-## Caveats
+## 注意事项
 
-- For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
+- 为了避免污染原型，在 `pure` 版本中，新的 `%IteratorPrototype%` 方法没有被加入到真正的 `%IteratorPrototype%` 中，它们只在 wrapper 中可用——使用 `AIterator.from([]).map(fn)` 代替 `[].values().map(fn)`。

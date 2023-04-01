@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)
+# [`AsyncIterator` helper 函数](https://github.com/tc39/proposal-async-iterator-helpers)
 
-## Modules
+## 模块
 
 - [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.constructor.js)
 - [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.drop.js)
@@ -25,31 +24,49 @@ tag:
 - [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.to-array.js)
 - [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-async.js)
 
-## types
+## 类型
 
 ```ts
-class Iterator {
-  toAsync(): AsyncIterator<any>;
+class Iterator<T> {
+  toAsync(): AsyncIterator<T>;
 }
 
-class AsyncIterator {
-  static from(iterable: AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  drop(limit: uint): AsyncIterator<any>;
-  every(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
-  filter(async callbackfn: (value: any, couner: uint) => boolean): AsyncIterator<any>;
-  find(async callbackfn: (value: any, couner: uint) => boolean)): Promise<any>;
-  flatMap(async callbackfn: (value: any, couner: uint) => AsyncIterable<any> | Iterable<any> | AsyncIterator<any>): AsyncIterator<any>;
-  forEach(async callbackfn: (value: any, couner: uint) => void): Promise<void>;
-  map(async callbackfn: (value: any, couner: uint) => any): AsyncIterator<any>;
-  reduce(async callbackfn: (memo: any, value: any, couner: uint) => any, initialValue: any): Promise<any>;
-  some(async callbackfn: (value: any, couner: uint) => boolean): Promise<boolean>;
-  take(limit: uint): AsyncIterator<any>;
-  toArray(): Promise<Array>;
-  @@toStringTag: 'AsyncIterator'
+class AsyncIterator<T> {
+  static from<U>(
+    iterable: AsyncIterable<U> | Iterable<U> | AsyncIterator<U>
+  ): AsyncIterator<U>;
+  drop(limit: number): AsyncIterator<T>;
+  every(
+    callbackfn: (value: T, couner: number) => Promise<boolean>
+  ): Promise<boolean>;
+  filter(
+    callbackfn: (value: T, couner: number) => Promise<boolean>
+  ): AsyncIterator<T>;
+  find(callbackfn: (value: T, couner: number) => Promise<boolean>): Promise<T>;
+  flatMap<U>(
+    callbackfn: (
+      value: T,
+      couner: number
+    ) => AsyncIterable<U> | Iterable<U> | AsyncIterator<U>
+  ): AsyncIterator<U>;
+  forEach(
+    callbackfn: (value: T, couner: number) => Promise<void>
+  ): Promise<void>;
+  map<U>(
+    callbackfn: (value: T, couner: number) => Promise<U>
+  ): AsyncIterator<U>;
+  reduce<U>(
+    callbackfn: (memo: U, value: T, couner: Promise<number>) => U,
+    initialValue: U
+  ): Promise<U>;
+  some(callbackfn: (value: T, couner: number) => boolean): Promise<boolean>;
+  take(limit: number): AsyncIterator<T>;
+  toArray(): Promise<Array<T>>;
+  [Symbol.toStringTag]: "AsyncIterator";
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/async-iterator-helpers
@@ -69,9 +86,9 @@ core-js(-pure)/actual|full/async-iterator/take
 core-js(-pure)/actual|full/async-iterator/to-array
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/28tet4ek)
+[_示例_](https://tinyurl.com/28tet4ek)
 
 ```js
 await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
@@ -87,10 +104,10 @@ await [1, 2, 3]
   .toArray(); // => [1, 4, 9]
 ```
 
-## Caveats
+## 注意事项
 
-- For preventing prototypes pollution, in the `pure` version, new `%AsyncIteratorPrototype%` methods are not added to the real `%AsyncIteratorPrototype%`, they available only on wrappers - instead of `[].values().toAsync().map(fn)` use `AsyncIterator.from([]).map(fn)`.
-- Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
+- 为了避免污染原型，在 `pure` 版本中，新的 `%AsyncIteratorPrototype%` 方法没有被加入到真正的 `%AsyncIteratorPrototype%` 中，它们只在 wrapper 中可用——使用 `AsyncIterator.from([]).map(fn)` 代替 `[].values().toAsync().map(fn)`。
+- 现在我们只能在异步生成器语法中使用真正的 `%AsyncIteratorPrototype%`。所以为了库和老浏览器的兼容性，我们必须使用 `Function` 构造器。但是，这破坏了与 CSP 的兼容性。所以如果你想使用真正的 `%AsyncIteratorPrototype%`，请在 `core-js/configurator` 中把`USE_FUNCTION_CONSTRUCTOR` 选项设为 `true`：
 
 ```js
 const configurator = require("core-js/configurator");

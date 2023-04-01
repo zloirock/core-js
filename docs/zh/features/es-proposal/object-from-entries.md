@@ -3,20 +3,21 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)
 
-## Types
+## 类型
 
 ```ts
-class Object {
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
+interface ObjectConstructor {
+  fromEntries<T = any>(
+    iterable: Iterable<[PropertyKey, T]>
+  ): { [k: string]: T };
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/object-from-entries

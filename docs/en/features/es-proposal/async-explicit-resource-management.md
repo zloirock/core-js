@@ -5,7 +5,7 @@ tag:
   - missing-example
 ---
 
-# [Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management)
+# [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management)
 
 :::note
 This is only built-ins for this proposal, `using` syntax support requires transpiler support.

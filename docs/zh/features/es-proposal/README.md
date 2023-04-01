@@ -4,7 +4,7 @@ category: feature
 
 # ECMAScript 提案
 
-[The TC39 process.](https://tc39.github.io/process-document/)
+[TC39 流程。](https://tc39.github.io/process-document/)
 
 # 索引
 
@@ -21,15 +21,15 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 
 ### [`globalThis`](global-this.md)
 
-### [Relative indexing method](relative-indexing-method.md)
+### [ES 相关的索引方法](relative-indexing-method.md)
 
 ### [`Array.prototype.includes`](array-includes.md)
 
 ### [`Array.prototype.flat` / `Array.prototype.flatMap`](array-flat-map.md)
 
-### [`Array` find from last](array-find-from-last.md)
+### [从最后开始查找 `Array`](array-find-from-last.md)
 
-### [Change `Array` by copy](change-array-by-copy.md)
+### [通过复制来改变 `Array`](change-array-by-copy.md)
 
 ### [`Object.values` / `Object.entries`](object-values-entries.md)
 
@@ -37,9 +37,9 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 
 ### [`Object.getOwnPropertyDescriptors`](object-getownpropertydescriptors.md)
 
-### [Accessible `Object.prototype.hasOwnProperty`](accessible-object-hasownproperty.md)
+### [可访问的 `Object.prototype.hasOwnProperty`](accessible-object-hasownproperty.md)
 
-### [`String` padding](string-padding.md)
+### [`String` 填充](string-padding.md)
 
 ### [`String.prototype.matchAll`](string-match-all.md)
 
@@ -47,9 +47,9 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 
 ### [`String.prototype.trimStart` / `String.prototype.trimEnd`](string-left-right-trim.md)
 
-### [`RegExp` `s` (`dotAll`) flag](regexp-dotall-flag.md)
+### [`RegExp` `s` (`dotAll`) 标记](regexp-dotall-flag.md)
 
-### [`RegExp` named capture groups](regexp-named-groups.md)
+### [`RegExp` 命名捕获组](regexp-named-groups.md)
 
 ### [`Promise.allSettled`](promise-all-settled.md)
 
@@ -57,7 +57,7 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 
 ### [`Promise.prototype.finally`](promise-finally.md)
 
-### [`Symbol.asyncIterator` for asynchronous iteration](async-iteration.md)
+### [用于异步迭代的 `Symbol.asyncIterator`](async-iteration.md)
 
 ### [`Symbol.prototype.description`](symbol-description.md)
 
@@ -73,21 +73,21 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 core-js(-pure)/stage/3
 ```
 
-### [`Iterator` helpers](iterator-helpers.md)
+### [`Iterator` helper 函数](iterator-helpers.md)
 
 ### [`Array.fromAsync`](array-from-async.md)
 
-### [`Array` grouping](array-grouping.md)
+### [`Array` 分组](array-grouping.md)
 
-### [`ArrayBuffer.prototype.transfer` and friends](array-buffer-transfer.md)
+### [`ArrayBuffer.prototype.transfer` 和相关的](array-buffer-transfer.md)
 
-### [New `Set` methods](new-set-methods.md)
+### [新的 `Set` 方法](new-set-methods.md)
 
-### [`JSON.parse` source text access](json-parse-with-source.md)
+### [`JSON.parse` 源文本访问](json-parse-with-source.md)
 
-### [Explicit resource management](explicit-resource-management.md)
+### [显式资源管理](explicit-resource-management.md)
 
-### [Well-formed unicode strings](well-formed-unicode-strings.md)
+### [结构良好的 unicode 字符串](well-formed-unicode-strings.md)
 
 ## Stage 2
 
@@ -97,7 +97,7 @@ core-js(-pure)/stage/3
 core-js(-pure)/stage/2
 ```
 
-### [`AsyncIterator` helpers](async-iterator-helpers.md)
+### [`AsyncIterator` helper 函数](async-iterator-helpers.md)
 
 ### [`Map.prototype.emplace`](map-upsert.md)
 
@@ -105,11 +105,11 @@ core-js(-pure)/stage/2
 
 ### [`String.dedent`](string-dedent.md)
 
-### [Async explicit resource management](async-explicit-resource-management.md)
+### [异步显式资源管理](async-explicit-resource-management.md)
 
-### [`Symbol` predicates](symbol-predicates.md)
+### [`Symbol` 断言](symbol-predicates.md)
 
-### [`Symbol.metadataKey` for decorators metadata proposal](decorator-metadata.md)
+### [装饰器元数据的 `Symbol.metadataKey` 提案](decorator-metadata.md)
 
 ## Stage 1
 
@@ -121,23 +121,23 @@ core-js(-pure)/stage/1
 
 ### [`Observable`](observable.md)
 
-### [New collections methods](collection-methods.md)
+### [新的集合方法](collection-methods.md)
 
-### [`.of` and `.from` methods on collection constructors](collection-of-from.md)
+### [集合构造器的 `.of` 和 `.from` 方法](collection-of-from.md)
 
-### [`compositeKey` and `compositeSymbol`](keys-composition.md)
+### [`compositeKey` 和 `compositeSymbol`](keys-composition.md)
 
-### [`Array` filtering](array-filtering.md)
+### [`Array` 过滤器](array-filtering.md)
 
-### [`Array` deduplication](array-unique.md)
+### [`Array` 去重](array-unique.md)
 
-### [Getting last item from `Array`](array-find-from-last.md)
+### [从最后开始查找 `Array`](array-find-from-last.md)
 
 ### [`Iterator.range`](iterator-range.md)
 
 ### [`Number.fromString`](number-from-string.md)
 
-### [`Math` extensions](math-extensions.md)
+### [`Math` 拓展](math-extensions.md)
 
 ### [`Math.signbit`](math-signbit.md)
 
@@ -145,7 +145,7 @@ core-js(-pure)/stage/1
 
 ### [`String.prototype.codePoints`](string-code-points.md)
 
-### [`Symbol.matcher` for pattern matching](pattern-matching.md)
+### [用于模式匹配的 `Symbol.matcher`](pattern-matching.md)
 
 ## Stage 0
 
@@ -155,7 +155,7 @@ core-js(-pure)/stage/1
 core-js(-pure)/stage/0
 ```
 
-### ### [`Function.prototype.demethodize`](function-demethodize.md)
+### [`Function.prototype.demethodize`](function-demethodize.md)
 
 ### [`Function.{ isCallable, isConstructor }`](function-is-callable-is-constructor.md)
 
@@ -169,4 +169,4 @@ core-js(-pure)/stage/0
 core-js(-pure)/stage/pre
 ```
 
-### [`Reflect` metadata](reflect-metadata.md)
+### [`Reflect` 元数据](reflect-metadata.md)

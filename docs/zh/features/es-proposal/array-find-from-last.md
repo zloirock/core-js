@@ -3,26 +3,25 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
-# [Array find from last](https://github.com/tc39/proposal-array-find-from-last)
+# [从最后开始查找 Array](https://github.com/tc39/proposal-array-find-from-last)
 
-## Types
+## 类型
 
 ```ts
-class Array {
-  findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): uint;
+interface Array<T> {
+  findLast(callbackfn: (value: T, index: number, target: Array<T>) => boolean, thisArg?: any): T;
+  findLastIndex(callbackfn: (value: T, index: number, target: Array<T>) => boolean, thisArg?: any): number;
 }
 
-class %TypedArray% {
-  findLast(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): any;
-  findLastIndex(callbackfn: (value: any, index: number, target: %TypedArray%) => boolean, thisArg?: any): uint;
+interface TypedArray {
+  findLast(callbackfn: (value: any, index: number, target: ) => boolean, thisArg?: any): any;
+  findLastIndex(callbackfn: (value: any, index: number, target: ) => boolean, thisArg?: any): number;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-find-from-last

@@ -2,12 +2,11 @@
 category: feature
 tag:
   - es-standard
-  - untranslated
 ---
 
 # `Object`
 
-## Modules
+## 模块
 
 - [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js)
 - [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js)
@@ -37,56 +36,61 @@ tag:
 - [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js)
 - [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js).
 
-## Types
+## 类型
 
 ```ts
-class Object {
-  toString(): string; // ES2015+ fix: @@toStringTag support
+interface Object {
+  toString(): string; // ES2015+ 修复：对 @@toStringTag 的支持
   __defineGetter__(property: PropertyKey, getter: Function): void;
   __defineSetter__(property: PropertyKey, setter: Function): void;
   __lookupGetter__(property: PropertyKey): Function | void;
   __lookupSetter__(property: PropertyKey): Function | void;
-  __proto__: Object | null; // required a way setting of prototype - will not in IE10-, it's for modern engines like Deno
-  static assign(target: Object, ...sources: Array<Object>): Object;
-  static create(
+  __proto__: Object | null; // 需要一种方式设置原型——不是在 IE10-，而是像 Deno 这样的现代引擎
+}
+
+interface ObjectConstructor {
+  assign(target: Object, ...sources: Array<Object>): Object;
+  create(
     prototype: Object | null,
     properties?: { [property: PropertyKey]: PropertyDescriptor }
   ): Object;
-  static defineProperties(
+  defineProperties(
     object: Object,
     properties: { [property: PropertyKey]: PropertyDescriptor }
   ): Object;
-  static defineProperty(
+  defineProperty(
     object: Object,
     property: PropertyKey,
     attributes: PropertyDescriptor
   ): Object;
-  static entries(object: Object): Array<[string, mixed]>;
-  static freeze(object: any): any;
-  static fromEntries(iterable: Iterable<[key, value]>): Object;
-  static getOwnPropertyDescriptor(
+  entries<T>(object: { [key: string]: T }): Array<[string, T]>;
+  entries(object: Object): Array<[string, any]>;
+  freeze(object: any): any;
+  fromEntries<T>(iterable: Iterable<[PropertyKey, T]>): { [k: string]: T };
+  getOwnPropertyDescriptor(
     object: any,
     property: PropertyKey
   ): PropertyDescriptor | void;
-  static getOwnPropertyDescriptors(object: any): {
+  getOwnPropertyDescriptors(object: any): {
     [property: PropertyKey]: PropertyDescriptor;
   };
-  static getOwnPropertyNames(object: any): Array<string>;
-  static getPrototypeOf(object: any): Object | null;
-  static hasOwn(object: object, key: PropertyKey): boolean;
-  static is(value1: any, value2: any): boolean;
-  static isExtensible(object: any): boolean;
-  static isFrozen(object: any): boolean;
-  static isSealed(object: any): boolean;
-  static keys(object: any): Array<string>;
-  static preventExtensions(object: any): any;
-  static seal(object: any): any;
-  static setPrototypeOf(target: any, prototype: Object | null): any; // required __proto__ - IE11+
-  static values(object: any): Array<mixed>;
+  getOwnPropertyNames(object: any): Array<string>;
+  getPrototypeOf(object: any): Object | null;
+  hasOwn(object: object, key: PropertyKey): boolean;
+  is(value1: any, value2: any): boolean;
+  isExtensible(object: any): boolean;
+  isFrozen(object: any): boolean;
+  isSealed(object: any): boolean;
+  keys(object: any): Array<string>;
+  preventExtensions(object: any): any;
+  seal(object: any): any;
+  setPrototypeOf(target: any, prototype: Object | null): any; // 需要 __proto__ - IE11+
+  values<T>(object: { [key: string]: T }): Array<T>;
+  values(object: any): Array<any>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/es|stable|actual|full/object
@@ -119,9 +123,9 @@ core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
 
-## Example
+## 示例
 
-[_Example_](https://is.gd/udzZq0):
+[_示例_](https://is.gd/udzZq0):
 
 ```js
 let foo = { q: 1, w: 2 };
@@ -157,7 +161,7 @@ for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
   console.log(value); // => 1, 2, 3
 }
 
-// Shallow object cloning with prototype and descriptors:
+// 对原型和解释器浅拷贝：
 let copy = Object.create(
   Object.getPrototypeOf(object),
   Object.getOwnPropertyDescriptors(object)

@@ -2,38 +2,40 @@
 category: feature
 tag:
   - web-standard
-  - untranslated
 ---
 
 # `setImmediate`
 
-## Modules
+## 模块
 
 - [`web.immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.immediate.js)
 - [`setImmediate`](https://w3c.github.io/setImmediate/)
 
-## Types
+## 类型
 
 ```ts
-function setImmediate(callback: any, ...args: Array<mixed>): number;
+function setImmediate<A extends Array<any>>(
+  callback: (...args: A) => void,
+  ...args: A
+): number;
 function clearImmediate(id: number): void;
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```
 
-## Example
+## 示例
 
-[_Example_](https://goo.gl/6nXGrx):
+[_示例_](https://goo.gl/6nXGrx):
 
 ```js
 setImmediate(
   (arg1, arg2) => {
-    console.log(arg1, arg2); // => Message will be displayed with minimum delay
+    console.log(arg1, arg2); // => 消息会被尽快显示
   },
   "Message will be displayed",
   "with minimum delay"

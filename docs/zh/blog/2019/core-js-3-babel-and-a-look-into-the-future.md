@@ -2,7 +2,7 @@
 category: blog
 ---
 
-# core-js@3, Babel 展望未来
+# core-js@3, Babel 和展望未来
 
 经过一年半的开发，数十个版本，许多不眠之夜，**[`core-js@3`](https://github.com/zloirock/core-js)** 终于发布了。这是 `core-js` 和 **[babel](https://babeljs.io/)** 补丁相关的功能的最大的一次变化。
 
@@ -402,23 +402,23 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 作为意外收获，`@babel/runtime` 现在支持 IE8-，但是有些限制，例如，IE8- 不支持访问器、模块转换应该用松散的方式，`regenerator-runtime`（内部使用 ES5+ 实现）需要通过这个插件转译。
 
-## 畅享未来
+## 展望未来
 
-做了许多工作，但是 `core-js` 距离完美还很远。这个库和工具将来应该如何改进？语言的变化将会如何影响它？
+即使做了许多工作，但是 `core-js` 距离完美还很远。这个库和工具将来应该如何改进？语言的变化将会如何影响它？
 
-### 老的引擎支持
+### 支持老的引擎
 
-现在，`core-js` 试图去支持所有可能的引擎或者我们能够测试到的平台：甚至是 IE8-，或者例如，早期版本的 Firefox。虽然它对某些用户有用，但是仅有一小部分使用 `core-js` 的开发者需要它。对于大多数用户，它将引起像包体积过大或者执行缓慢的问题。
+现在 `core-js` 尽可能支持所有引擎和能够测试到的平台：甚至是 IE8-，或者如早期版本的 Firefox 等。虽然它对某些用户有用，但是仅有一小部分使用 `core-js` 的开发者需要它。对于大多数用户，这会导致包体积过大或运行缓慢。
 
-主要的问题源自于支持 ES3 引擎（首先是 IE8- ）：多数现代 ES 特性是基于 ES5，这些功能在老版本浏览器中均不可用。
+主要的问题源自于支持 ES3 引擎（首先是 IE8- ）：多数现代 ES 特性基于 ES5，这些功能在老版本浏览器中均不可用。
 
-最大的缺失特性是属性描述符：当它缺失时，一些功能不能 polyfill，因为他们要么是访问器（像 `RegExp.prototype.flags` 或 `URL` 属性的 setters ）要么就是基于访问器（像 typed array polyfill）。为了解决这个不足，我们需要使用不同的解决方法（例如，保持 `Set.prototype.size` 更新）。维护这些解决方法有时很痛苦，移除他们将极大的简化许多 polyfills。
+最大的缺失特性是属性描述符：当它缺失时，一些功能无法 polyfill，因为他们要么是访问器（像 `RegExp.prototype.flags` 或 `URL` 属性的 setter ）要么就是基于访问器（像 typed array polyfill）。为了解决这个问题，我们需要使用不同的解决方法（例如，保持更新 `Set.prototype.size`）。维护这些解决方法有时很痛苦，移除它们将极大的简化许多 polyfill。
 
-然而，描述符仅仅是问题的一部分。ES5 标准库包含了很多其他特性，他们被认为是现代 JavaScript 的基础：`Object.create`，`Object.getPrototypeOf`，`Array.prototype.forEach`，`Function.prototype.bind`，等等。和多数现代特性不同，`core-js` 内部依赖他们并且[为了实现一个简单的现代函数，`core-js` 需要加载其中一些"建筑模块"的实现](https://github.com/babel/babel/pull/7646#discussion_r179333093)。对于想要创建一个足够小的构建包和仅仅想要引入部分 `core-js` 的用户来说，这是个问题。
+然而，描述符仅仅是问题的一部分。ES5 标准库包含了很多其他特性，他们被认为是现代 JavaScript 的基础：`Object.create`、`Object.getPrototypeOf`、`Array.prototype.forEach`、`Function.prototype.bind` 等等。和多数现代特性不同，`core-js` 内部依赖他们，并且[为了实现一个简单的现代函数，`core-js` 需要加载其中一些"建筑模块"的实现](https://github.com/babel/babel/pull/7646#discussion_r179333093)。对于想要创建一个足够小的构建包和仅仅想要引入部分 `core-js` 的用户来说，这是个问题。
 
 在一些国家 IE8 仍很流行，但是为了让 web 向前发展，浏览器到了某些时候就应该消失了。 `IE8` 在 2009 年 3 月 19 日发布，到今天已经 10 年了。IE6 已经 18 岁了：几个月前新版的 `core-js` 已经不再测试 IE6 了。
 
-在 `core-js@4` 我们应该舍弃 IE8- 和其他不知道 ES5 的引擎。
+在 `core-js@4` 我们应该舍弃 IE8- 和其他不支持 ES5 的引擎。
 
 ### ECMAScript 模块
 
@@ -444,10 +444,10 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 通过 `useBuiltIns: usage` 选项，`@babe/preset-env` 能够做的比之前更好，但是针对一些不寻常的例子他们仍然会失败：当代码不能被静态分析。针对这个问题，我们需要为库开发者寻找一个方式去确定哪种 polyfill 是他们的库需要的，而不是直接载入他们：某种元数据 -- 将在创建最终构建包时注入 polyfill。
 
-另一个针对 `useBuiltIns: usage` 的问题是重复的 polyfills 导入。`useBuiltIns: usage` 能够在每个文件中注入许多 `core-js` 的导入。但如果我们的项目有数千个文件或者即使十分之一会怎么样呢？这种情况下，与导入 `core-js` 自身相比，导入 `core-js/...` 将有更多代码行：我们需要一种方式去收集所有的导入到一个文件中，这样才能够删除重复的。
+另一个针对 `useBuiltIns: usage` 的问题是重复的 polyfill 导入。`useBuiltIns: usage` 能够在每个文件中注入许多 `core-js` 的导入。但如果我们的项目有数千个文件或者即使十分之一会怎么样呢？这种情况下，与导入 `core-js` 自身相比，导入 `core-js/...` 将有更多代码行：我们需要一种方式去收集所有的导入到一个文件中，这样才能够删除重复的。
 
 几乎每一个需要支持像 `IE11` 浏览器的 `@babel/preset-env` 用户都为每个浏览器使用同一个构建包。这意味着完全支持 ES2019 的现代浏览器将加载不必要的、仅仅是 IE11 需要的 polyfills。当然，我们可以为不同的浏览器创建不同的构建包来使用，例如，`type=module` /
-`nomodules` 属性：一个构建包给支持模块化的现代浏览器，另一个给传统浏览器。不幸的是，这不是针对这个问题的完整的解决方案：基于用户代理打包目标浏览器需要的 polyfill 的服务非常有用。我们已经有了一个 - [`polyfill-service`](https://github.com/Financial-Times/polyfill-service)。尽管很有趣也很流行，但是 polyfill 的质量还有很多不足。它不像几年前那么差：项目团队积极工作去改变它，但是如果你想用他们匹配原生实现，我不建议你通过这个项目使用 polyfill。许多年前我尝试通过这个项目将 `core-js` 作为 polyfill 的源，但是这不可能。因为 `polyfill-service` 依赖文件嵌套而不是模块化（就像 `core-js` 发布后的前几个月 😊）。
+`nomodules` 属性：一个构建包给支持模块化的现代浏览器，另一个给传统浏览器。不幸的是，这不是针对这个问题的完整的解决方案：基于 UA 打包目标浏览器需要的 polyfill 的服务非常有用。比如现有的[`polyfill-service`](https://github.com/Financial-Times/polyfill-service)。尽管很有趣也很流行，但是它的 polyfill 的质量还有很多不足。它不像几年前那么差：项目团队积极工作去改变它，但是如果你想用他们匹配原生实现，我不建议你通过这个项目使用 polyfill。许多年前我尝试通过这个项目将 `core-js` 作为 polyfill 的源，但是这不可能。因为 `polyfill-service` 依赖文件嵌套而不是模块化（就像 `core-js` 发布后的前几个月😊）。
 
 像这样一个集成了一个很棒的 polyfill 源 -- `core-js` 的服务，通过像 Babel 的 `useBuiltIns: usage` 选项，静态分析源代码真的能够引起我们对于 polyfill 思考方式的革命。
 

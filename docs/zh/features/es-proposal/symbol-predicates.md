@@ -2,26 +2,25 @@
 category: feature
 tag:
   - es-proposal
-  - untranslated
 ---
 
-# [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)
+# [`Symbol` 断言](https://github.com/tc39/proposal-symbol-predicates)
 
-## Modules
+## 模块
 
 - [`esnext.symbol.is-registered`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered.js)
 - [`esnext.symbol.is-well-known`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known.js)
 
-## Types
+## 类型
 
 ```ts
-class Symbol {
-  static isRegistered(value: any): boolean;
-  static isWellKnown(value: any): boolean;
+interface SymbolConstructor {
+  isRegistered(value: symbol): boolean;
+  isWellKnown(value: symbol): boolean;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```js
 core - js / proposals / symbol - predicates;
@@ -29,9 +28,9 @@ core - js(-pure) / full / symbol / is - registered;
 core - js(-pure) / full / symbol / is - well - known;
 ```
 
-## Example
+## 示例
 
-[_Example_](https://tinyurl.com/2cuwpu8d)
+[_示例_](https://tinyurl.com/2cuwpu8d)
 
 ```js
 Symbol.isRegistered(Symbol.for("key")); // => true

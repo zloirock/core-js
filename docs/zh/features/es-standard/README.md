@@ -4,7 +4,7 @@ category: feature
 
 # ECMAScript 标准
 
-对全局对象的属性的 Polyfill
+对全局对象的属性的 polyfill
 
 ## 入口点
 

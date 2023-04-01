@@ -1,3 +1,9 @@
+---
+category: feature
+tag:
+  - es-proposal
+---
+
 # [`String.dedent`](https://github.com/tc39/proposal-string-dedent)
 
 ## Module

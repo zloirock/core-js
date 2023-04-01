@@ -3,27 +3,26 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Promise.any`](https://github.com/tc39/proposal-promise-any)
 
-## Types
+## 类型
 
 ```ts
 class AggregateError extends Error {
-  constructor(
-    errors: Iterable,
-    message?: string,
-    { cause: any }?
-  ): AggregateError;
-  errors: Array<any>;
+  constructor(errors: Iterable<Error>, message?: string, { cause: any }?);
+  errors: Array<Error>;
   message: string;
   cause: any;
 }
+
+interface PromiseConstructor {
+  any<T>(promises: Iterable<Promise<T>>): Promise<T>;
+}
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/promise-any

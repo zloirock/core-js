@@ -3,21 +3,20 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)
 
-## Types
+## 类型
 
 ```ts
-class Object {
-  static entries(object: Object): Array<[string, mixed]>;
-  static values(object: any): Array<mixed>;
+interface ObjectConstructor {
+  entries<T>(object: { [k: string]: string }): Array<[string, T]>;
+  values<T>(object: { [k: string]: string }): Array<T>;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/object-values-entries

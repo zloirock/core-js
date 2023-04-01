@@ -3,31 +3,32 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)
 
-## Module
+## 模块
 
 [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.signbit.js)
 
-## Types
+## 类型
 
 ```ts
-namespace Math {
+interface Math {
   signbit(x: number): boolean;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/math-signbit
 core-js(-pure)/full/math/signbit
 ```
 
-[_Examples_](https://goo.gl/rPWbzZ):
+## 示例
+
+[_示例_](https://goo.gl/rPWbzZ):
 
 ```js
 Math.signbit(NaN); // => false

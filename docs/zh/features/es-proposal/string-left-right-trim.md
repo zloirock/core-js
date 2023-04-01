@@ -3,15 +3,14 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)
 
-## Types
+## 类型
 
 ```ts
-class String {
+interface String {
   trimLeft(): string;
   trimRight(): string;
   trimStart(): string;
@@ -19,7 +18,7 @@ class String {
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/string-left-right-trim

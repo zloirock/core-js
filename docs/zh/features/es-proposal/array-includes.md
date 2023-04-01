@@ -3,24 +3,23 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Array.prototype.includes`](https://github.com/tc39/proposal-Array.prototype.includes)
 
-## Types
+## 类型
 
 ```ts
-class Array {
-  includes(searchElement: any, from?: number): boolean;
+interface Array<T> {
+  includes(searchElement: T, from?: number): boolean;
 }
 
-class %TypedArray% {
-  includes(searchElement: any, from?: number): boolean;
+interface TypedArray {
+  includes(searchElement: number, from?: number): boolean;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/array-includes

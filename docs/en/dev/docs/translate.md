@@ -1,5 +1,5 @@
 ---
-icon: translate
+icon: language
 ---
 
 # Translate

@@ -3,24 +3,23 @@ category: feature
 tag:
   - es-proposal
   - missing-example
-  - untranslated
 ---
 
 # [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 
-## Module
+## 模块
 
 [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
 
-## Types
+## 类型
 
 ```ts
-class Number {
+interface Number {
   fromString(string: string, radix: number): number;
 }
 ```
 
-## Entry points
+## 入口点
 
 ```
 core-js/proposals/number-from-string
