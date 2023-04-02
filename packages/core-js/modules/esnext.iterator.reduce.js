@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
+var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var $TypeError = TypeError;
@@ -10,8 +11,9 @@ var $TypeError = TypeError;
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
-    var record = getIteratorDirect(this);
+    anObject(this);
     aCallable(reducer);
+    var record = getIteratorDirect(this);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
     var counter = 0;

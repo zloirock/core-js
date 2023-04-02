@@ -23,8 +23,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   take: function take(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });

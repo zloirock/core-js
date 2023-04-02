@@ -77,8 +77,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
+    anObject(this);
+    aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      mapper: aCallable(mapper),
+      mapper: mapper,
       inner: null
     });
   }
