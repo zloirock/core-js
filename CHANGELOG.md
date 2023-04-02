@@ -16,6 +16,7 @@
   - Added Safari 16.4 compat data
   - Added Deno 1.32 compat data mapping
   - Added Electron 25 and updated 24 compat data mapping
+  - Added Samsung Internet 21 compat data mapping
   - Added Quest Browser 26 compat data mapping
   - Updated Opera Android 74 compat data
 
