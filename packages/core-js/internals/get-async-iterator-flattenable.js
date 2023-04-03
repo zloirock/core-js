@@ -18,7 +18,7 @@ module.exports = function from(obj) {
     method = getIteratorMethod(object);
     alreadyAsync = false;
   }
-  if (isCallable(method)) {
+  if (method !== undefined) {
     iterator = call(method, object);
   } else {
     iterator = object;

@@ -90,6 +90,7 @@ export default {
     [108, '1.27'],
     [109, '1.28'],
     [110, '1.31'],
+    [112, '1.32'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
@@ -134,7 +135,8 @@ export default {
     [106, '21.0'],
     [108, '22.0'],
     [110, '23.0'],
-    [111, '24.0'],
+    [112, '24.0'],
+    [114, '25.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {
@@ -182,6 +184,7 @@ export default {
     [99, '18.0'],
     [102, '19.0'],
     [106, '20.0'],
+    [110, '21.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   ChromeAndroidToOperaAndroid: [
@@ -216,7 +219,7 @@ export default {
     [104, 71],
     [106, 72],
     [108, 73],
-    [109, 74],
+    [110, 74],
   ],
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
@@ -246,6 +249,7 @@ export default {
     [104, '23.0'],
     [106, '24.0'],
     [108, '25.0'],
+    [110, '26.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/firefox_android.json
   FirefoxToFirefoxAndroid(firefox) {

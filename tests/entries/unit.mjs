@@ -626,6 +626,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'clear-immediate') == 'function');
     ok(typeof load(NS, 'queue-microtask') == 'function');
     ok(typeof load(NS, 'url') == 'function');
+    ok(load(NS, 'url/can-parse')('a:b'));
     load(NS, 'url/to-json');
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
@@ -904,6 +905,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/decorator-metadata');
+  load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');

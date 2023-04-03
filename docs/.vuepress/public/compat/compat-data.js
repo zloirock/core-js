@@ -6015,7 +6015,13 @@
   "esnext.string.code-points": {},
   "esnext.string.dedent": {},
   "esnext.string.is-well-formed": {
-    "bun": "0.4.0"
+    "android": "111",
+    "bun": "0.4.0",
+    "chrome": "111",
+    "chrome-android": "111",
+    "edge": "111",
+    "electron": "24.0",
+    "opera": "97"
   },
   "esnext.string.match-all": {
     "android": "80",
@@ -6062,7 +6068,13 @@
     "samsung": "14.0"
   },
   "esnext.string.to-well-formed": {
-    "bun": "0.5.7"
+    "android": "111",
+    "bun": "0.5.7",
+    "chrome": "111",
+    "chrome-android": "111",
+    "edge": "111",
+    "electron": "24.0",
+    "opera": "97"
   },
   "esnext.symbol.async-dispose": {},
   "esnext.symbol.dispose": {},

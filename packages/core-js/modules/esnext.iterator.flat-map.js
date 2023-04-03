@@ -34,8 +34,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
+    anObject(this);
+    aCallable(mapper);
     return new IteratorProxy(getIteratorDirect(this), {
-      mapper: aCallable(mapper),
+      mapper: mapper,
       inner: null
     });
   }

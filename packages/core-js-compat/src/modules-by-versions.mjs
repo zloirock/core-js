@@ -199,4 +199,7 @@ export default {
   3.29: [
     'web.url-search-params.size',
   ],
+  '3.30': [
+    'web.url.can-parse',
+  ],
 };

@@ -1812,6 +1812,7 @@ export const data = {
     bun: '0.1.9',
     chrome: '110',
     deno: '1.27',
+    safari: '16.4',
   },
   'es.unescape': {
     chrome: '1',
@@ -1847,6 +1848,7 @@ export const data = {
   },
   'esnext.array.from-async': {
     bun: '0.3.0',
+    safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,
@@ -1863,6 +1865,7 @@ export const data = {
     bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
+    safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -1874,6 +1877,7 @@ export const data = {
     bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
+    safari: '16.4',
   },
   'esnext.array.is-template-object': {
   },
@@ -2204,6 +2208,7 @@ export const data = {
   'esnext.string.is-well-formed': {
     bun: '0.4.0',
     chrome: '111',
+    safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
@@ -2214,6 +2219,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=251757
     bun: '0.5.7', // '0.4.0',
     chrome: '111',
+    safari: '16.4',
   },
   'esnext.symbol.async-dispose': {
   },
@@ -2450,6 +2456,8 @@ export const data = {
     node: '10.0',
     safari: '14.0',
   },
+  'web.url.can-parse': {
+  },
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',
@@ -2469,6 +2477,9 @@ export const data = {
     safari: '14.0',
   },
   'web.url-search-params.size': {
+    deno: '1.32',
+    firefox: '112',
+    node: '19.8.0',
   },
 };
 

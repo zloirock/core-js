@@ -911,6 +911,7 @@ const forbidES2023BuiltIns = {
   'es/no-array-prototype-tosorted': ERROR,
   'es/no-array-prototype-tospliced': ERROR,
   'es/no-array-prototype-with': ERROR,
+  'es/no-regexp-unicode-property-escapes-2023': ERROR,
 };
 
 const forbidES2016IntlBuiltIns = {

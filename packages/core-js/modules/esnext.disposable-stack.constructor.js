@@ -26,7 +26,11 @@ var HINT = 'sync-dispose';
 var DISPOSED = 'disposed';
 var PENDING = 'pending';
 
-var ALREADY_DISPOSED = DISPOSABLE_STACK + ' already disposed';
+var getPendingDisposableStackInternalState = function (stack) {
+  var internalState = getDisposableStackInternalState(stack);
+  if (internalState.state == DISPOSED) throw $ReferenceError(DISPOSABLE_STACK + ' already disposed');
+  return internalState;
+};
 
 var $DisposableStack = function DisposableStack() {
   setInternalState(anInstance(this, DisposableStackPrototype), {
@@ -68,14 +72,11 @@ defineBuiltIns(DisposableStackPrototype, {
     if (thrown) throw suppressed;
   },
   use: function use(value) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
-    addDisposableResource(internalState, value, HINT);
+    addDisposableResource(getPendingDisposableStackInternalState(this), value, HINT);
     return value;
   },
   adopt: function adopt(value, onDispose) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, function () {
       onDispose(value);
@@ -83,17 +84,17 @@ defineBuiltIns(DisposableStackPrototype, {
     return value;
   },
   defer: function defer(onDispose) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, onDispose);
   },
   move: function move() {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     var newDisposableStack = new $DisposableStack();
     getDisposableStackInternalState(newDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newDisposableStack;
   }
 });

@@ -57,8 +57,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(predicate) {
+    anObject(this);
+    aCallable(predicate);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      predicate: aCallable(predicate)
+      predicate: predicate
     });
   }
 });

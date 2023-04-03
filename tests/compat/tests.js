@@ -1714,7 +1714,7 @@ GLOBAL.tests = {
     return Set.from;
   },
   'esnext.set.intersection.v2': function () {
-    return Set.prototype.intersection;
+    return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) == '3,2';
   },
   'esnext.set.is-disjoint-from.v2': function () {
     return Set.prototype.isDisjointFrom;
@@ -1936,6 +1936,9 @@ GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.timers': TIMERS,
   'web.url.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url.can-parse': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    return URL.canParse;
+  }],
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],

@@ -16,7 +16,9 @@ var IteratorProxy = createIteratorProxy(function () {
 // `Iterator.prototype.map` method
 // https://github.com/tc39/proposal-iterator-helpers
 module.exports = function map(mapper) {
+  anObject(this);
+  aCallable(mapper);
   return new IteratorProxy(getIteratorDirect(this), {
-    mapper: aCallable(mapper)
+    mapper: mapper
   });
 };

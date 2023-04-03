@@ -38,8 +38,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   take: function take(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });

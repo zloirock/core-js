@@ -27,7 +27,11 @@ var HINT = 'async-dispose';
 var DISPOSED = 'disposed';
 var PENDING = 'pending';
 
-var ALREADY_DISPOSED = ASYNC_DISPOSABLE_STACK + ' already disposed';
+var getPendingAsyncDisposableStackInternalState = function (stack) {
+  var internalState = getAsyncDisposableStackInternalState(stack);
+  if (internalState.state == DISPOSED) throw $ReferenceError(ASYNC_DISPOSABLE_STACK + ' already disposed');
+  return internalState;
+};
 
 var $AsyncDisposableStack = function AsyncDisposableStack() {
   setInternalState(anInstance(this, AsyncDisposableStackPrototype), {
@@ -84,14 +88,11 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     });
   },
   use: function use(value) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
-    addDisposableResource(internalState, value, HINT);
+    addDisposableResource(getPendingAsyncDisposableStackInternalState(this), value, HINT);
     return value;
   },
   adopt: function adopt(value, onDispose) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, function () {
       onDispose(value);
@@ -99,17 +100,17 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     return value;
   },
   defer: function defer(onDispose) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, onDispose);
   },
   move: function move() {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     var newAsyncDisposableStack = new $AsyncDisposableStack();
     getAsyncDisposableStackInternalState(newAsyncDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newAsyncDisposableStack;
   }
 });
