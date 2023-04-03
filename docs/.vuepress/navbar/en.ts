@@ -62,38 +62,44 @@ export const navbarEn = navbar([
   },
   {
     text: "Project",
+    prefix: "/",
     icon: "more",
     children: [
       {
         text: "About",
         icon: "info",
-        link: "/project/README.md",
+        link: "project/README.md",
       },
       {
         text: "Changelog",
         icon: "time",
-        link: "/project/changelog.md",
+        link: "project/changelog.md",
+      },
+      {
+        text: "Security",
+        icon: "safe",
+        link: "project/security.md",
       },
       {
         text: "Roadmap",
-        link: "/project/roadmap.md",
         icon: "state",
+        link: "project/roadmap.md",
       },
       {
         text: "Blog",
-        link: "/category/blog/",
         icon: "blog",
+        link: "category/blog/",
       },
     ],
   },
   {
     text: "Compatibility",
-    link: "/compat.md",
     icon: "form",
+    link: "/compat.md",
   },
   {
     text: "Sponsor",
-    link: "/donate.md",
     icon: "like",
+    link: "/donate.md",
   },
 ]);

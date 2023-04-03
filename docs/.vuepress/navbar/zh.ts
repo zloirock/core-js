@@ -76,6 +76,11 @@ export const navbarZh = navbar([
         link: "project/changelog.md",
       },
       {
+        text: "安全策略",
+        icon: "safe",
+        link: "project/security.md",
+      },
+      {
         text: "路线图",
         icon: "state",
         link: "project/roadmap.md",
