@@ -1,12 +1,13 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.30.0 - 2023.04.04](https://github.com/zloirock/core-js/releases/tag/v3.30.0)
 - Added [`URL.canParse` method](https://url.spec.whatwg.org/#dom-url-canparse), [url/763](https://github.com/whatwg/url/pull/763)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
   - Removed sort from `Set.prototype.intersection`, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1478610425), [proposal-set-methods/94](https://github.com/tc39/proposal-set-methods/pull/94)
-- (Async) Iterator Helpers proposals ([sync](https://github.com/tc39/proposal-iterator-helpers), [async](https://github.com/tc39/proposal-async-iterator-helpers)):
 - Iterator Helpers proposals ([sync](https://github.com/tc39/proposal-iterator-helpers), [async](https://github.com/tc39/proposal-async-iterator-helpers)):
   - Validate arguments before opening iterator, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1478412430), [proposal-iterator-helpers/265](https://github.com/tc39/proposal-iterator-helpers/pull/265)
-- (Async) Explicit Resource Management proposals ([sync](https://github.com/tc39/proposal-explicit-resource-management), [async](https://github.com/tc39/proposal-async-explicit-resource-management)):
 - Explicit Resource Management proposals ([sync](https://github.com/tc39/proposal-explicit-resource-management), [async](https://github.com/tc39/proposal-async-explicit-resource-management)):
   - `(Async)DisposableStack.prototype.move` marks the original stack as disposed, [#1226](https://github.com/zloirock/core-js/issues/1226)
   - Some simplifications like [proposal-explicit-resource-management/150](https://github.com/tc39/proposal-explicit-resource-management/pull/150)
