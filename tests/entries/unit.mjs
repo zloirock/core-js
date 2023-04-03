@@ -904,6 +904,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/decorator-metadata');
+  load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
