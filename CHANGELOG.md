@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added [`URL.canParse` method](https://url.spec.whatwg.org/#dom-url-canparse), [url/763](https://github.com/whatwg/url/pull/763)
 - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods):
   - Removed sort from `Set.prototype.intersection`, [March 2023 TC39 meeting](https://github.com/babel/proposals/issues/87#issuecomment-1478610425), [proposal-set-methods/94](https://github.com/tc39/proposal-set-methods/pull/94)
 - (Async) Iterator Helpers proposals ([sync](https://github.com/tc39/proposal-iterator-helpers), [async](https://github.com/tc39/proposal-async-iterator-helpers)):

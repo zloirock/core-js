@@ -626,6 +626,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'clear-immediate') == 'function');
     ok(typeof load(NS, 'queue-microtask') == 'function');
     ok(typeof load(NS, 'url') == 'function');
+    ok(load(NS, 'url/can-parse')('a:b'));
     load(NS, 'url/to-json');
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
