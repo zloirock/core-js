@@ -1996,10 +1996,13 @@ export const data = {
   'esnext.iterator.to-async': {
   },
   'esnext.json.is-raw-json': {
+    chrome: '114',
   },
   'esnext.json.parse': {
+    chrome: '114',
   },
   'esnext.json.raw-json': {
+    chrome: '114',
   },
   'esnext.map.delete-all': {
   },
