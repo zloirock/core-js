@@ -11,6 +11,7 @@ tag:
 ## Modules
 
 - [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js)
+- [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js)
 - [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js)
 - [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js)
 - [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
@@ -34,6 +35,7 @@ class URL {
   hash: string;
   toJSON(): string;
   toString(): string;
+  static canParse(url: string, base?: string): boolean;
 }
 
 class URLSearchParams {
@@ -60,15 +62,18 @@ class URLSearchParams {
 ```
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
+core-js(-pure)/stable|actual|full/url/can-parse
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
 
 ## Example
 
-[_Example_](https://tinyurl.com/2fccy7sb):
+[_Examples_](https://tinyurl.com/2ovt23zn):
 
 ```js
+URL.canParse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => true
+URL.canParse('https'); // => false
 const url = new URL(
   "https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment"
 );

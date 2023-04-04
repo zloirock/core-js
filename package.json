@@ -1,7 +1,5 @@
 {
-  "name": "core-js",
-  "private": true,
-  "version": "3.29.1",
+  "version": "3.30.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"

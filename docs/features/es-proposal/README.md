@@ -99,6 +99,8 @@ core-js(-pure)/stage/2
 
 ### [`AsyncIterator` helpers](async-iterator-helpers.md)
 
+### [`Iterator.range`](iterator-range.md)
+
 ### [`Map.prototype.emplace`](map-upsert.md)
 
 ### [`Array.isTemplateObject`](array-is-template-object.md)
@@ -109,7 +111,7 @@ core-js(-pure)/stage/2
 
 ### [`Symbol` predicates](symbol-predicates.md)
 
-### [`Symbol.metadataKey` for decorators metadata proposal](decorator-metadata.md)
+### [`Symbol.metadata` for decorators metadata proposal](decorator-metadata.md)
 
 ## Stage 1
 
@@ -132,8 +134,6 @@ core-js(-pure)/stage/1
 ### [`Array` deduplication](array-unique.md)
 
 ### [Getting last item from `Array`](array-find-from-last.md)
-
-### [`Iterator.range`](iterator-range.md)
 
 ### [`Number.fromString`](number-from-string.md)
 

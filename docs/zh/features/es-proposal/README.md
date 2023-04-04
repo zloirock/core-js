@@ -99,6 +99,8 @@ core-js(-pure)/stage/2
 
 ### [`AsyncIterator` helper 函数](async-iterator-helpers.md)
 
+### [`Iterator.range`](iterator-range.md)
+
 ### [`Map.prototype.emplace`](map-upsert.md)
 
 ### [`Array.isTemplateObject`](array-is-template-object.md)
@@ -109,7 +111,7 @@ core-js(-pure)/stage/2
 
 ### [`Symbol` 断言](symbol-predicates.md)
 
-### [装饰器元数据的 `Symbol.metadataKey` 提案](decorator-metadata.md)
+### [装饰器元数据的 `Symbol.metadata` 提案](decorator-metadata.md)
 
 ## Stage 1
 
@@ -132,8 +134,6 @@ core-js(-pure)/stage/1
 ### [`Array` 去重](array-unique.md)
 
 ### [从最后开始查找 `Array`](array-find-from-last.md)
-
-### [`Iterator.range`](iterator-range.md)
 
 ### [`Number.fromString`](number-from-string.md)
 

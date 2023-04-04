@@ -1,7 +1,7 @@
 /**
- * core-js 3.29.1
+ * core-js 3.30.0
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.29.1/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.30.0/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -278,7 +278,8 @@ __webpack_require__(434);
 __webpack_require__(435);
 __webpack_require__(440);
 __webpack_require__(441);
-module.exports = __webpack_require__(442);
+__webpack_require__(442);
+module.exports = __webpack_require__(443);
 
 
 /***/ }),
@@ -943,10 +944,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.29.1',
+  version: '3.30.0',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.29.1/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.30.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -5289,12 +5290,11 @@ module.exports = function (value, done) {
 /***/ (function(module, exports, __webpack_require__) {
 
 var aCallable = __webpack_require__(30);
-var anObject = __webpack_require__(46);
 
 module.exports = function (obj) {
   return {
     iterator: obj,
-    next: aCallable(anObject(obj).next)
+    next: aCallable(obj.next)
   };
 };
 
@@ -5322,13 +5322,14 @@ var createMethod = function (TYPE) {
   var IS_EVERY = TYPE == 2;
   var IS_SOME = TYPE == 3;
   return function (object, fn, target) {
+    anObject(object);
+    var MAPPING = fn !== undefined;
+    if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
     var record = getIteratorDirect(object);
     var Promise = getBuiltIn('Promise');
     var iterator = record.iterator;
     var next = record.next;
     var counter = 0;
-    var MAPPING = fn !== undefined;
-    if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
 
     return new Promise(function (resolve, reject) {
       var ifAbruptCloseAsyncIterator = function (error) {
@@ -6172,7 +6173,11 @@ var HINT = 'async-dispose';
 var DISPOSED = 'disposed';
 var PENDING = 'pending';
 
-var ALREADY_DISPOSED = ASYNC_DISPOSABLE_STACK + ' already disposed';
+var getPendingAsyncDisposableStackInternalState = function (stack) {
+  var internalState = getAsyncDisposableStackInternalState(stack);
+  if (internalState.state == DISPOSED) throw $ReferenceError(ASYNC_DISPOSABLE_STACK + ' already disposed');
+  return internalState;
+};
 
 var $AsyncDisposableStack = function AsyncDisposableStack() {
   setInternalState(anInstance(this, AsyncDisposableStackPrototype), {
@@ -6229,14 +6234,11 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     });
   },
   use: function use(value) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
-    addDisposableResource(internalState, value, HINT);
+    addDisposableResource(getPendingAsyncDisposableStackInternalState(this), value, HINT);
     return value;
   },
   adopt: function adopt(value, onDispose) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, function () {
       onDispose(value);
@@ -6244,17 +6246,17 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     return value;
   },
   defer: function defer(onDispose) {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, onDispose);
   },
   move: function move() {
-    var internalState = getAsyncDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingAsyncDisposableStackInternalState(this);
     var newAsyncDisposableStack = new $AsyncDisposableStack();
     getAsyncDisposableStackInternalState(newAsyncDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newAsyncDisposableStack;
   }
 });
@@ -6308,11 +6310,9 @@ module.exports = function (disposable, V, hint, method) {
   var resource;
   if (!method) {
     if (isNullOrUndefined(V)) return;
-    resource = createDisposableResource(V, hint);
-  } else if (isNullOrUndefined(V)) {
-    resource = createDisposableResource(undefined, hint, method);
+    resource = createDisposableResource(anObject(V), hint);
   } else {
-    resource = createDisposableResource(anObject(V), hint, method);
+    resource = createDisposableResource(undefined, hint, method);
   }
 
   push(disposable.stack, resource);
@@ -6447,8 +6447,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // `AsyncIterator.prototype.map` method
 // https://github.com/tc39/proposal-iterator-helpers
 module.exports = function map(mapper) {
+  anObject(this);
+  aCallable(mapper);
   return new AsyncIteratorProxy(getIteratorDirect(this), {
-    mapper: aCallable(mapper)
+    mapper: mapper
   });
 };
 
@@ -6646,8 +6648,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   drop: function drop(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });
@@ -6748,8 +6752,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   filter: function filter(predicate) {
+    anObject(this);
+    aCallable(predicate);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      predicate: aCallable(predicate)
+      predicate: predicate
     });
   }
 });
@@ -6857,8 +6863,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
+    anObject(this);
+    aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      mapper: aCallable(mapper),
+      mapper: mapper,
       inner: null
     });
   }
@@ -6889,7 +6897,7 @@ module.exports = function from(obj) {
     method = getIteratorMethod(object);
     alreadyAsync = false;
   }
-  if (isCallable(method)) {
+  if (method !== undefined) {
     iterator = call(method, object);
   } else {
     iterator = object;
@@ -7005,13 +7013,14 @@ var $TypeError = TypeError;
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
+    anObject(this);
+    aCallable(reducer);
     var record = getIteratorDirect(this);
     var iterator = record.iterator;
     var next = record.next;
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
     var counter = 0;
-    aCallable(reducer);
 
     return new Promise(function (resolve, reject) {
       var ifAbruptCloseAsyncIterator = function (error) {
@@ -7117,8 +7126,10 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'AsyncIterator', proto: true, real: true }, {
   take: function take(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });
@@ -8419,7 +8430,11 @@ var HINT = 'sync-dispose';
 var DISPOSED = 'disposed';
 var PENDING = 'pending';
 
-var ALREADY_DISPOSED = DISPOSABLE_STACK + ' already disposed';
+var getPendingDisposableStackInternalState = function (stack) {
+  var internalState = getDisposableStackInternalState(stack);
+  if (internalState.state == DISPOSED) throw $ReferenceError(DISPOSABLE_STACK + ' already disposed');
+  return internalState;
+};
 
 var $DisposableStack = function DisposableStack() {
   setInternalState(anInstance(this, DisposableStackPrototype), {
@@ -8461,14 +8476,11 @@ defineBuiltIns(DisposableStackPrototype, {
     if (thrown) throw suppressed;
   },
   use: function use(value) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
-    addDisposableResource(internalState, value, HINT);
+    addDisposableResource(getPendingDisposableStackInternalState(this), value, HINT);
     return value;
   },
   adopt: function adopt(value, onDispose) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, function () {
       onDispose(value);
@@ -8476,17 +8488,17 @@ defineBuiltIns(DisposableStackPrototype, {
     return value;
   },
   defer: function defer(onDispose) {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, onDispose);
   },
   move: function move() {
-    var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) throw $ReferenceError(ALREADY_DISPOSED);
+    var internalState = getPendingDisposableStackInternalState(this);
     var newDisposableStack = new $DisposableStack();
     getDisposableStackInternalState(newDisposableStack).stack = internalState.stack;
     internalState.stack = [];
+    internalState.state = DISPOSED;
+    if (!DESCRIPTORS) this.disposed = true;
     return newDisposableStack;
   }
 });
@@ -8705,8 +8717,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // `Iterator.prototype.map` method
 // https://github.com/tc39/proposal-iterator-helpers
 module.exports = function map(mapper) {
+  anObject(this);
+  aCallable(mapper);
   return new IteratorProxy(getIteratorDirect(this), {
-    mapper: aCallable(mapper)
+    mapper: mapper
   });
 };
 
@@ -8868,8 +8882,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   drop: function drop(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });
@@ -8884,15 +8900,17 @@ $({ target: 'Iterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(30);
+var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 
 // `Iterator.prototype.every` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   every: function every(predicate) {
+    anObject(this);
+    aCallable(predicate);
     var record = getIteratorDirect(this);
     var counter = 0;
-    aCallable(predicate);
     return !iterate(record, function (value, stop) {
       if (!predicate(value, counter++)) return stop();
     }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
@@ -8932,8 +8950,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   filter: function filter(predicate) {
+    anObject(this);
+    aCallable(predicate);
     return new IteratorProxy(getIteratorDirect(this), {
-      predicate: aCallable(predicate)
+      predicate: predicate
     });
   }
 });
@@ -8948,15 +8968,17 @@ $({ target: 'Iterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(30);
+var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 
 // `Iterator.prototype.find` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   find: function find(predicate) {
+    anObject(this);
+    aCallable(predicate);
     var record = getIteratorDirect(this);
     var counter = 0;
-    aCallable(predicate);
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop(value);
     }, { IS_RECORD: true, INTERRUPTED: true }).result;
@@ -9005,8 +9027,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   flatMap: function flatMap(mapper) {
+    anObject(this);
+    aCallable(mapper);
     return new IteratorProxy(getIteratorDirect(this), {
-      mapper: aCallable(mapper),
+      mapper: mapper,
       inner: null
     });
   }
@@ -9018,7 +9042,6 @@ $({ target: 'Iterator', proto: true, real: true }, {
 /***/ (function(module, exports, __webpack_require__) {
 
 var call = __webpack_require__(7);
-var isCallable = __webpack_require__(20);
 var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 var getIteratorMethod = __webpack_require__(97);
@@ -9026,7 +9049,7 @@ var getIteratorMethod = __webpack_require__(97);
 module.exports = function (obj) {
   var object = anObject(obj);
   var method = getIteratorMethod(object);
-  return getIteratorDirect(anObject(isCallable(method) ? call(method, object) : object));
+  return getIteratorDirect(anObject(method !== undefined ? call(method, object) : object));
 };
 
 
@@ -9039,15 +9062,17 @@ module.exports = function (obj) {
 var $ = __webpack_require__(2);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(30);
+var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 
 // `Iterator.prototype.forEach` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   forEach: function forEach(fn) {
+    anObject(this);
+    aCallable(fn);
     var record = getIteratorDirect(this);
     var counter = 0;
-    aCallable(fn);
     iterate(record, function (value) {
       fn(value, counter++);
     }, { IS_RECORD: true });
@@ -9144,6 +9169,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
 var $ = __webpack_require__(2);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(30);
+var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 
 var $TypeError = TypeError;
@@ -9152,8 +9178,9 @@ var $TypeError = TypeError;
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
-    var record = getIteratorDirect(this);
+    anObject(this);
     aCallable(reducer);
+    var record = getIteratorDirect(this);
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
     var counter = 0;
@@ -9181,15 +9208,17 @@ $({ target: 'Iterator', proto: true, real: true }, {
 var $ = __webpack_require__(2);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(30);
+var anObject = __webpack_require__(46);
 var getIteratorDirect = __webpack_require__(184);
 
 // `Iterator.prototype.some` method
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   some: function some(predicate) {
+    anObject(this);
+    aCallable(predicate);
     var record = getIteratorDirect(this);
     var counter = 0;
-    aCallable(predicate);
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop();
     }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
@@ -9227,8 +9256,10 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   take: function take(limit) {
+    anObject(this);
+    var remaining = toPositiveInteger(notANaN(+limit));
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: toPositiveInteger(notANaN(+limit))
+      remaining: remaining
     });
   }
 });
@@ -9241,6 +9272,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
+var anObject = __webpack_require__(46);
 var iterate = __webpack_require__(91);
 var getIteratorDirect = __webpack_require__(184);
 
@@ -9251,7 +9283,7 @@ var push = [].push;
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
-    iterate(getIteratorDirect(this), push, { that: result, IS_RECORD: true });
+    iterate(getIteratorDirect(anObject(this)), push, { that: result, IS_RECORD: true });
     return result;
   }
 });
@@ -9264,6 +9296,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
+var anObject = __webpack_require__(46);
 var AsyncFromSyncIterator = __webpack_require__(180);
 var WrapAsyncIterator = __webpack_require__(231);
 var getIteratorDirect = __webpack_require__(184);
@@ -9272,7 +9305,7 @@ var getIteratorDirect = __webpack_require__(184);
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ target: 'Iterator', proto: true, real: true }, {
   toAsync: function toAsync() {
-    return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(this))));
+    return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(anObject(this)))));
   }
 });
 
@@ -11328,9 +11361,7 @@ module.exports = {
   add: uncurryThis(SetPrototype.add),
   has: uncurryThis(SetPrototype.has),
   remove: uncurryThis(SetPrototype['delete']),
-  proto: SetPrototype,
-  $has: SetPrototype.has,
-  $keys: SetPrototype.keys
+  proto: SetPrototype
 };
 
 
@@ -11701,12 +11732,18 @@ $({ target: 'Set', stat: true, forced: true }, {
 /***/ (function(module, exports, __webpack_require__) {
 
 var $ = __webpack_require__(2);
+var fails = __webpack_require__(6);
 var intersection = __webpack_require__(369);
 var setMethodAcceptSetLike = __webpack_require__(360);
 
+var INCORRECT = !setMethodAcceptSetLike('intersection') || fails(function () {
+  // eslint-disable-next-line es/no-array-from, es/no-set -- testing
+  return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) != '3,2';
+});
+
 // `Set.prototype.intersection` method
 // https://github.com/tc39/proposal-set-methods
-$({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('intersection') }, {
+$({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
   intersection: intersection
 });
 
@@ -11727,12 +11764,6 @@ var iterateSimple = __webpack_require__(205);
 var Set = SetHelpers.Set;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
-var nativeHas = SetHelpers.$has;
-var nativeKeys = SetHelpers.$keys;
-
-var isNativeSetRecord = function (record) {
-  return record.has === nativeHas && record.keys === nativeKeys;
-};
 
 // `Set.prototype.intersection` method
 // https://github.com/tc39/proposal-set-methods
@@ -11741,18 +11772,9 @@ module.exports = function intersection(other) {
   var otherRec = getSetRecord(other);
   var result = new Set();
 
-  // observable side effects
-  if (!isNativeSetRecord(otherRec) && size(O) > otherRec.size) {
+  if (size(O) > otherRec.size) {
     iterateSimple(otherRec.getIterator(), function (e) {
       if (has(O, e)) add(result, e);
-    });
-
-    if (size(result) < 2) return result;
-
-    var disordered = result;
-    result = new Set();
-    iterateSet(O, function (e) {
-      if (has(disordered, e)) add(result, e);
     });
   } else {
     iterateSet(O, function (e) {
@@ -14296,6 +14318,33 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
 
 /***/ }),
 /* 442 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var $ = __webpack_require__(2);
+var getBuiltIn = __webpack_require__(23);
+var validateArgumentsLength = __webpack_require__(131);
+var toString = __webpack_require__(76);
+
+var URL = getBuiltIn('URL');
+
+// `URL.canParse` method
+// https://url.spec.whatwg.org/#dom-url-canparse
+$({ target: 'URL', stat: true }, {
+  canParse: function canParse(url) {
+    var length = validateArgumentsLength(arguments.length, 1);
+    var urlString = toString(url);
+    var base = length < 2 || arguments[1] === undefined ? undefined : toString(arguments[1]);
+    try {
+      return !!new URL(urlString, base);
+    } catch (error) {
+      return false;
+    }
+  }
+});
+
+
+/***/ }),
+/* 443 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";

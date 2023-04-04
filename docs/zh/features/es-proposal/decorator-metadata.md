@@ -9,19 +9,19 @@ tag:
 
 ## 模块
 
-[`esnext.symbol.metadata-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata-key.js)
+[`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js)
 
 ## 类型
 
 ```ts
-class Symbol {
-  static metadataKey: @@metadataKey;
+interface SymbolConstructor {
+  readonly metadata: unique symbol;
 }
 ```
 
 ## 入口点
 
 ```
-core-js/proposals/decorator-metadata
-core-js(-pure)/full/symbol/metadata-key
+core-js/proposals/decorator-metadata-v2
+core-js(-pure)/full/symbol/metadata
 ```
