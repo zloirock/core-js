@@ -1,4 +1,6 @@
 {
+  "name": "core-js-root",
+  "private": true,
   "version": "3.30.0",
   "repository": {
     "type": "git",
