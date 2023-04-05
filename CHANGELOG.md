@@ -3,6 +3,7 @@
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported](https://chromestatus.com/feature/5121582673428480) from V8 ~ Chrome 114
   - [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer) features marked as [supported](https://chromestatus.com/feature/5073244152922112) from V8 ~ Chrome 114
+  - [`URLSearchParams.prototype.size`](https://github.com/whatwg/url/pull/734) marked as supported from V8 ~ Chrome 113
 
 ##### [3.30.0 - 2023.04.04](https://github.com/zloirock/core-js/releases/tag/v3.30.0)
 - Added [`URL.canParse` method](https://url.spec.whatwg.org/#dom-url-canparse), [url/763](https://github.com/whatwg/url/pull/763)
