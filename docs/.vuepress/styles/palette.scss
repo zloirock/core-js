@@ -1,1 +1,7 @@
 $theme-color: #278df3;
+
+a.no-ext-link-icon, div.no-ext-link-icon a {
+  span {
+    display: none;
+  }
+}
