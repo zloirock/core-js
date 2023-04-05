@@ -1,4 +1,4 @@
-![logo](./docs/.vuepress/public/logo.png)
+![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 
 <div align="center">
 
@@ -18,7 +18,9 @@
 
 `core-js` isn't backed by a company, so the future of this project depends on you. Become a sponsor or a backer if you are interested in `core-js`: - Open Collective:
 
-[![Open-collective-buttom](https://opencollective.com/core-js/donate/button@2x.png?color=blue)](https://opencollective.com/core-js/donate)
+- Open Collective:
+
+  [![Open-collective-buttom](https://opencollective.com/core-js/donate/button@2x.png?color=blue)](https://opencollective.com/core-js/donate)
 
 - [Patreon](https://patreon.com/zloirock)
 - [Boosty](https://boosty.to/zloirock)
