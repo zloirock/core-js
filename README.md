@@ -45,7 +45,7 @@
 [![sponsor11](https://opencollective.com/core-js/sponsor/10/avatar.svg)](https://opencollective.com/core-js/sponsor/10/website)
 [![sponsor12](https://opencollective.com/core-js/sponsor/11/avatar.svg)](https://opencollective.com/core-js/sponsor/11/website)
 
-[![backers](https://opencollective.com/core-js/backers.svg?width=1200)](https://opencollective.com/core-js#backers){ .no-ext-link-icon }
+[![backers](https://opencollective.com/core-js/backers.svg?width=1200)](https://opencollective.com/core-js#backers)
 
 ## Quick start
 
