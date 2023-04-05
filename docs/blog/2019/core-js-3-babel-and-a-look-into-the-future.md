@@ -1,5 +1,4 @@
 ---
-title: What's next?
 author: zloirock
 category:
   - blog

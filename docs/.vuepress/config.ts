@@ -9,7 +9,6 @@ import theme from "./theme.js";
 const __dirname = getDirname(import.meta.url);
 export default defineUserConfig({
   lang: "en-US",
-  title: "Core-JS",
   description: "Modular standard library for JavaScript",
   locales: {
     "/": {
