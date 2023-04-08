@@ -48,6 +48,8 @@ npm install --loglevel silent
 import "core-js";
 // 或者
 import "core-js/full";
+// 或者使用 Deno
+import "https://deno.land/x/corejs@v3.30.0/index.js";
 // Polyfill 所有 actual 特性 —— ES 标准、web 标准以及 stage3 阶段的 ES 提案：
 import "core-js/actual";
 // 只 polyfill 稳定特性 —— ES 和 web 标准：

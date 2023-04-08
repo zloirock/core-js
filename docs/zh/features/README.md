@@ -13,4 +13,4 @@ category: feature
 
 由于某些原因, 部分功能没有被 polyfill, 请参见 [缺失的 Ployfill](missing-polyfills.md)
 
-另外, Core-JS 还提供了一些 Helper 函数, 你可以在[此处](helper/README.md)找到
+另外, Core-JS 还提供了一些工具函数, 你可以在[此处](helper/README.md)找到

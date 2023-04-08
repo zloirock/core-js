@@ -64,7 +64,7 @@ features:
 @tab 基础用法
 
 ```js
-//https://tinyurl.com/2mknex43
+// https://tinyurl.com/2mknex43
 import "core-js/actual";
 Promise.resolve(42).then((it) => console.log(it)); // => 42
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
@@ -120,6 +120,24 @@ Iterator.from(
     while (true) yield i++;
   })(1)
 )
+  .drop(1)
+  .take(5)
+  .filter((it) => it % 2)
+  .map((it) => it ** 2)
+  .toArray(); // => [9, 25]
+structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
+```
+
+@tab Deno
+
+```js
+import "https://deno.land/x/corejs@v3.30.0/index.js"; // <- at the top of your entry point
+Promise.resolve(42).then((it) => console.log(it)); // => 42
+Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
+[1, 2].flatMap((it) => [it, it]); // => [1, 1, 2, 2]
+(function* (i) {
+  while (true) yield i++;
+})(1)
   .drop(1)
   .take(5)
   .filter((it) => it % 2)

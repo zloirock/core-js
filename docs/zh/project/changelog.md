@@ -1,5 +1,7 @@
 ---
 icon: time
+gitInclude:
+  - ../../../CHANGELOG.md
 ---
 
 # 更新日志
@@ -8,4 +10,4 @@ icon: time
 由于经常更新且内容较多，故不作翻译
 :::
 
-<!-- @include: ../../../CHANGELOG.md -->
+<!-- @include: ../../../CHANGELOG.md{2-} -->

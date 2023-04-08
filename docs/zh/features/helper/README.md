@@ -2,9 +2,9 @@
 category: feature
 ---
 
-# Helper 函数
+# 工具函数
 
-Core-JS 提供的 Helper 函数
+Core-JS 提供的工具函数
 
 # 索引
 

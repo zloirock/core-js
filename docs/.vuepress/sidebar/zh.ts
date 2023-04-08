@@ -46,7 +46,7 @@ export const sidebarZh = sidebar({
           collapsible: true,
         },
         {
-          text: "Helper函数",
+          text: "工具函数",
           icon: "function",
           prefix: "helper/",
           children: "structure",
@@ -63,22 +63,22 @@ export const sidebarZh = sidebar({
         {
           text: "如何贡献",
           icon: "question",
-          link: "README.md"
+          link: "README.md",
         },
         {
           text: "添加新的 polyfill",
           icon: "code",
-          link: "polyfill.md"
+          link: "polyfill.md",
         },
         {
           text: "测试",
           icon: "check",
-          link: "testing.md"
+          link: "testing.md",
         },
         {
           text: "更新core-js-compat",
           icon: "form",
-          link: "compat.md"
+          link: "compat.md",
         },
         {
           text: "撰写文档",
@@ -88,21 +88,21 @@ export const sidebarZh = sidebar({
             {
               text: "撰写文档",
               icon: "form",
-              link: "README.md"
+              link: "README.md",
             },
             {
               text: "为 polyfill 创建文档",
               icon: "code",
-              link: "polyfill.md"
+              link: "polyfill.md",
             },
             {
               text: "翻译",
               icon: "language",
-              link: "translate.md"
-            }
+              link: "translate.md",
+            },
           ],
-          collapsible: true
-        }
+          collapsible: true,
+        },
       ],
       collapsible: true,
     },

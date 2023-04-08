@@ -27,7 +27,7 @@ export const navbarZh = navbar([
         icon: "link",
       },
       {
-        text: "Helper函数",
+        text: "工具函数",
         link: "helper/README.md",
         icon: "function",
       },

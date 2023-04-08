@@ -26,28 +26,28 @@
 
 ---
 
-*Example*:
+_Example_:
+
 ```js
-import 'https://deno.land/x/corejs@v3.30.0/index.js'; // <- at the top of your entry point
+import "https://deno.land/x/corejs@v3.30.0/index.js"; // <- at the top of your entry point
 
-Object.hasOwn({ foo: 42 }, 'foo');   // => true
+Object.hasOwn({ foo: 42 }, "foo"); // => true
 
-[1, 2, 3, 4, 5, 6, 7].at(-3);        // => 5
+[1, 2, 3, 4, 5, 6, 7].at(-3); // => 5
 
-[1, 2, 3, 4, 5].group(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+[1, 2, 3, 4, 5].group((it) => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 
-Promise.any([
-  Promise.resolve(1),
-  Promise.reject(2),
-  Promise.resolve(3),
-]).then(console.log);                // => 1
+Promise.any([Promise.resolve(1), Promise.reject(2), Promise.resolve(3)]).then(
+  console.log
+); // => 1
 
-[1, 2, 3, 4, 5, 6, 7].values()
+[1, 2, 3, 4, 5, 6, 7]
+  .values()
   .drop(1)
   .take(5)
-  .filter(it => it % 2)
-  .map(it => it ** 2)
-  .toArray();                        // => [9, 25]
+  .filter((it) => it % 2)
+  .map((it) => it ** 2)
+  .toArray(); // => [9, 25]
 ```
 
-**It's a bundled global version for Deno 1.0+, for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/master/README.md).**
+**It's a bundled global version for Deno 1.0+, for more info see [`core-js` documentation](https://corejs-doc.netlify.app).**

@@ -48,6 +48,8 @@ You can import only-required-for-you polyfills, like in examples at the homepage
 import "core-js";
 // or:
 import "core-js/full";
+// or use Deno:
+import "https://deno.land/x/corejs@v3.30.0/index.js";
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
 import "core-js/actual";
 // polyfill only stable features - ES and web standards:

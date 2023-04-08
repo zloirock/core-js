@@ -7,7 +7,7 @@ tag:
 # [`Iterator` helper 函数](https://github.com/tc39/proposal-iterator-helpers)
 
 :::note
-这是一个 ECMAScript 提案，请不要把它与 Core-JS 提供的 helper 函数混淆。
+这是一个 ECMAScript 提案，请不要把它与 Core-JS 提供的工具函数混淆。
 :::
 
 ## 模块
