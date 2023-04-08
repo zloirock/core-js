@@ -1,40 +1,4 @@
-type StringOrRegExp = string | RegExp;
-
-type Modules = StringOrRegExp | readonly StringOrRegExp[];
-
-type Target =
-  | 'android'
-  | 'bun'
-  | 'chrome'
-  | 'chrome-android'
-  | 'deno'
-  | 'edge'
-  | 'electron'
-  | 'firefox'
-  | 'firefox-android'
-  | 'hermes'
-  | 'ie'
-  | 'ios'
-  | 'node'
-  | 'opera'
-  | 'opera-android'
-  | 'phantom'
-  | 'quest'
-  | 'react-native'
-  | 'rhino'
-  | 'safari'
-  | 'samsung';
-
-type BrowserslistQuery = string | ReadonlyArray<string>;
-
-type Environments = {
-  [target in Target]?: string | number;
-};
-
-type Targets = Environments & {
-  browsers?: Environments | BrowserslistQuery,
-  esmodules?: boolean,
-};
+import type compat from "core-js-compat";
 
 type Format = 'bundle' | 'esm' | 'cjs';
 
@@ -50,13 +14,9 @@ type Summary = {
   console?: SummaryEntry,
 };
 
-type Options = {
-  /** entry / module / namespace / an array of them, by default - all `core-js` modules */
-  modules?: Modules,
-  /** a blacklist, entry / module / namespace / an array of them, by default - empty list */
-  exclude?: Modules,
-  /** optional browserslist or core-js-compat format query */
-  targets?: Targets | BrowserslistQuery,
+type CompatOptions = Exclude<Parameters<typeof compat.compat>[0], undefined>;
+
+type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
   /** output format, 'bundle' by default, can be 'cjs' or 'esm', and in this case
    *  the result will not be bundled and will contain imports of required modules */
   format?: Format,
