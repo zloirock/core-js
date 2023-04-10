@@ -27,7 +27,6 @@ interface Iterator<T> {
     options: { step?: bigint; inclusive?: boolean }
   ): Iterator<bigint>;
 }
-
 ```
 
 ## 入口点

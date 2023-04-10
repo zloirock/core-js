@@ -17,7 +17,12 @@ tag:
 
 ```ts
 class Promise<T> {
-  constructor(executor: (resolve: (value:T)=>void, reject: (reason:any)=>void) => void);
+  constructor(
+    executor: (
+      resolve: (value: T) => void,
+      reject: (reason: any) => void
+    ) => void
+  );
   then(onFulfilled: Function, onRejected: Function): Promise<T>;
   catch(onRejected: Function): Promise<T>;
   finally(onFinally: Function): Promise<T>;
@@ -40,6 +45,7 @@ core-js(-pure)/es|stable|actual|full/promise/finally
 ```
 
 ## 示例
+
 [_基础示例_](https://goo.gl/vGrtUC):
 
 ```js
@@ -168,7 +174,7 @@ async function sleepError(time, msg) {
 
 ## 未处理的拒绝跟踪
 
-在 Node.js中，像原生实现一样，可用的事件 [`unhandledRejection`](https://nodejs.org/api/process.html#process_event_unhandledrejection) 和 [`rejectionHandled`](https://nodejs.org/api/process.html#process_event_rejectionhandled)：
+在 Node.js 中，像原生实现一样，可用的事件 [`unhandledRejection`](https://nodejs.org/api/process.html#process_event_unhandledrejection) 和 [`rejectionHandled`](https://nodejs.org/api/process.html#process_event_rejectionhandled)：
 
 ```js
 process.on("unhandledRejection", (reason, promise) =>

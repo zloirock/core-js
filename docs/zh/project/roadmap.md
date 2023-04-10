@@ -4,7 +4,7 @@ icon: state
 
 # 路线图
 
-JavaScript、浏览器和 Web 开发正在以惊人的速度发展。所有浏览器都需要几乎所有 `core-js` 模块的时代已经一去不复返了。最新的浏览器有很好的标准支持，而且在常见的情况下它们只需要一些 `core-js` 模块来获得最新的语言特性和 bug 修复。一些公司已经放弃了对最近再次被“埋葬”的 IE11 的支持。但是，即使没有IE，旧的浏览器也会一直存在，现代浏览器也会出现 bug，新的语言特性会定期出现，而且稍后总会出现在浏览器中；所以，如果我们想在开发中使用现代 JS 并尽量减少可能出现的问题，polyfills 会伴随我们很长时间，但它们应该继续发展。
+JavaScript、浏览器和 Web 开发正在以惊人的速度发展。所有浏览器都需要几乎所有 `core-js` 模块的时代已经一去不复返了。最新的浏览器有很好的标准支持，而且在常见的情况下它们只需要一些 `core-js` 模块来获得最新的语言特性和 bug 修复。一些公司已经放弃了对最近再次被“埋葬”的 IE11 的支持。但是，即使没有 IE，旧的浏览器也会一直存在，现代浏览器也会出现 bug，新的语言特性会定期出现，而且稍后总会出现在浏览器中；所以，如果我们想在开发中使用现代 JS 并尽量减少可能出现的问题，polyfills 会伴随我们很长时间，但它们应该继续发展。
 
 在这里我（几乎）不会写任何关于新增或优化现有的某个 polyfill 的内容（但是，它当然是 `core-js` 开发的主要部分之一），让我们谈谈其他一些关键时刻，而不是关注次要的事情。如果我决定用 `core-js` 做一个商业项目，路线图将适应这个结果。
 
@@ -128,9 +128,9 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 ![bundlescanner](/project/roadmap/bundlescanner.png)
 
-从实践中可以看出，由于这样的分析不是一项简单的工作，因此该工具只能检测到大约一半的库代码。然而，除了 450 KB 的 `core-js` 之外，我们还看到了数百 KB 的其他 polyfill——许多份 `es6-promise`、`promise-polyfill`、`whatwg-fetch`（[出于上述原因](#web-标准的-polyfill)、`core-js` _仍然_ 不 polyfill 它），`string.prototype.codepointat`、`object-assign`（这是一个_ponyfill_，下一节是关于它们的）、`array-find-index` 等。
+从实践中可以看出，由于这样的分析不是一项简单的工作，因此该工具只能检测到大约一半的库代码。然而，除了 450 KB 的 `core-js` 之外，我们还看到了数百 KB 的其他 polyfill——许多份 `es6-promise`、`promise-polyfill`、`whatwg-fetch`（[出于上述原因](#web-标准的-polyfill)、`core-js` _仍然_ 不 polyfill 它），`string.prototype.codepointat`、`object-assign`（这是一个*ponyfill*，下一节是关于它们的）、`array-find-index` 等。
 
-但是有多少 polyfill 没有被检测到？ 该网站加载的所有 polyfill 的大小是多少？ 似乎有几兆字节。然而，即使对于_非常_旧的浏览器，最多 100 KB 也绰绰有余……而且这种情况并不是独一无二的——这是一个太普遍的问题。
+但是有多少 polyfill 没有被检测到？ 该网站加载的所有 polyfill 的大小是多少？ 似乎有几兆字节。然而，即使对于*非常*旧的浏览器，最多 100 KB 也绰绰有余……而且这种情况并不是独一无二的——这是一个太普遍的问题。
 
 由于这些 polyfill 中的许多只包含 `core-js` 功能的一个子集，在 `@core-js/compat` 的范围内，我们可以收集数据来显示模块是否是不必要的第三方 polyfill，并且，如果此功能包含在 `core-js` 中，那么转译器或打包器插件将移除此模块或将其替换为合适的 `core-js` 模块。
 

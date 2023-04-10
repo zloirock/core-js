@@ -124,7 +124,7 @@ class RegExp {
   [Symbol.search](string: string): number;
   [Symbol.split](string: string, limit: number): Array<string>;
   readonly dotAll: boolean; // IE9+
-  readonly flags: string;   // IE9+
+  readonly flags: string; // IE9+
   readonly sticky: boolean; // IE9+
 }
 
@@ -183,7 +183,7 @@ core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
 
-## E示例
+## E 示例
 
 [_示例_](https://is.gd/Q8eRhG):
 

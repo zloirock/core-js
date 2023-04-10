@@ -40,7 +40,7 @@ core-js(-pure)/es|stable|actual|full/function/virtual/bind
 [_示例_](https://goo.gl/zqu3Wp):
 
 ```js
-(function foo() {}.name); // => 'foo'
+(function foo() {}).name; // => 'foo'
 
 console.log.bind(console, 42)(43); // => 42 43
 ```

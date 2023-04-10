@@ -17,10 +17,10 @@ interface String {
   isWellFormed(): boolean;
   toWellFormed(): string;
 }
-
 ```
 
 ## 入口点
+
 ```
 core-js/proposals/well-formed-unicode-strings
 core-js(-pure)/actual|full/string(/virtual)/is-well-formed

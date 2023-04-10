@@ -124,7 +124,7 @@ class RegExp {
   [Symbol.search](string: string): number;
   [Symbol.split](string: string, limit: number): Array<string>;
   readonly dotAll: boolean; // IE9+
-  readonly flags: string;   // IE9+
+  readonly flags: string; // IE9+
   readonly sticky: boolean; // IE9+
 }
 

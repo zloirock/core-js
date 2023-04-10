@@ -447,7 +447,7 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 另一个针对 `useBuiltIns: usage` 的问题是重复的 polyfill 导入。`useBuiltIns: usage` 能够在每个文件中注入许多 `core-js` 的导入。但如果我们的项目有数千个文件或者即使十分之一会怎么样呢？这种情况下，与导入 `core-js` 自身相比，导入 `core-js/...` 将有更多代码行：我们需要一种方式去收集所有的导入到一个文件中，这样才能够删除重复的。
 
 几乎每一个需要支持像 `IE11` 浏览器的 `@babel/preset-env` 用户都为每个浏览器使用同一个构建包。这意味着完全支持 ES2019 的现代浏览器将加载不必要的、仅仅是 IE11 需要的 polyfills。当然，我们可以为不同的浏览器创建不同的构建包来使用，例如，`type=module` /
-`nomodules` 属性：一个构建包给支持模块化的现代浏览器，另一个给传统浏览器。不幸的是，这不是针对这个问题的完整的解决方案：基于 UA 打包目标浏览器需要的 polyfill 的服务非常有用。比如现有的[`polyfill-service`](https://github.com/Financial-Times/polyfill-service)。尽管很有趣也很流行，但是它的 polyfill 的质量还有很多不足。它不像几年前那么差：项目团队积极工作去改变它，但是如果你想用他们匹配原生实现，我不建议你通过这个项目使用 polyfill。许多年前我尝试通过这个项目将 `core-js` 作为 polyfill 的源，但是这不可能。因为 `polyfill-service` 依赖文件嵌套而不是模块化（就像 `core-js` 发布后的前几个月😊）。
+`nomodules` 属性：一个构建包给支持模块化的现代浏览器，另一个给传统浏览器。不幸的是，这不是针对这个问题的完整的解决方案：基于 UA 打包目标浏览器需要的 polyfill 的服务非常有用。比如现有的[`polyfill-service`](https://github.com/Financial-Times/polyfill-service)。尽管很有趣也很流行，但是它的 polyfill 的质量还有很多不足。它不像几年前那么差：项目团队积极工作去改变它，但是如果你想用他们匹配原生实现，我不建议你通过这个项目使用 polyfill。许多年前我尝试通过这个项目将 `core-js` 作为 polyfill 的源，但是这不可能。因为 `polyfill-service` 依赖文件嵌套而不是模块化（就像 `core-js` 发布后的前几个月 😊）。
 
 像这样一个集成了一个很棒的 polyfill 源 -- `core-js` 的服务，通过像 Babel 的 `useBuiltIns: usage` 选项，静态分析源代码真的能够引起我们对于 polyfill 思考方式的革命。
 

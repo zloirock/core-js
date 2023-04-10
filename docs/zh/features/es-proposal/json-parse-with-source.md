@@ -37,7 +37,6 @@ interface JSON {
     space?: string | number
   ): string | void;
 }
-
 ```
 
 ## 入口点

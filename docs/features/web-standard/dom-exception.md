@@ -23,7 +23,7 @@ class DOMException {
   readonly message: string;
   readonly code: string;
   stack: string; // in engines that should have it
-  [Symbol.toStringTag]: 'DOMException';
+  [Symbol.toStringTag]: "DOMException";
 }
 ```
 

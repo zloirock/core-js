@@ -17,7 +17,12 @@ tag:
 
 ```ts
 class Promise<T> {
-  constructor(executor: (resolve: (value:T)=>void, reject: (reason:any)=>void) => void);
+  constructor(
+    executor: (
+      resolve: (value: T) => void,
+      reject: (reason: any) => void
+    ) => void
+  );
   then(onFulfilled: Function, onRejected: Function): Promise<T>;
   catch(onRejected: Function): Promise<T>;
   finally(onFinally: Function): Promise<T>;

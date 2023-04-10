@@ -144,7 +144,7 @@ Symbol().description; // => undefined
 
 - 我们无法添加新的原始类型，`Symbol` 返回的是对象。
 - `Symbol.for` 和 `Symbol.keyFor` 不能被跨域 polyfill。
-- 默认情况下，`Symbol` polyfill 在 `Object.prototype` 中定义了 setter 来隐藏键。因此，不受控制的 symbol 创建可能导致内存泄漏，并且 `in` 操作符目前对 `Symbol` polyfill 无效（例如 `Symbol() in {}` 返回true）。
+- 默认情况下，`Symbol` polyfill 在 `Object.prototype` 中定义了 setter 来隐藏键。因此，不受控制的 symbol 创建可能导致内存泄漏，并且 `in` 操作符目前对 `Symbol` polyfill 无效（例如 `Symbol() in {}` 返回 true）。
 
 你可以在 `Object.prototype` 中禁止定义 setter。[示例](https://goo.gl/N5UD7J)：
 

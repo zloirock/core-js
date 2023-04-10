@@ -20,7 +20,6 @@ interface ArrayConstructor {
     thisArg?: any
   ): Array<T>;
 }
-
 ```
 
 ## 入口点

@@ -15,7 +15,6 @@ interface ObjectConstructor {
     [property: PropertyKey]: PropertyDescriptor;
   };
 }
-
 ```
 
 ## 入口点

@@ -31,7 +31,7 @@ class DisposableStack {
   adopt<T>(value: T, onDispose: (value: T) => void): T;
   defer(onDispose: Function): undefined;
   [Symbol.dispose](): undefined;
-  [Symbol.toStringTag]: 'DisposableStack';
+  [Symbol.toStringTag]: "DisposableStack";
 }
 class SuppressedError extends Error {
   constructor(error: any, suppressed: any, message?: string);

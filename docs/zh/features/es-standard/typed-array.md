@@ -291,6 +291,6 @@ new Int32Array([1, 2, 3]).at(1); // => 2
 new Int32Array([1, 2, 3]).at(-1); // => 3
 ```
 
-## 使用typed arrays polyfills 时的注意事项：
+## 使用 typed arrays polyfills 时的注意事项：
 
 - Typed Arrays 构造函数的 polyfill 完全按照规范预期的方式工作，但是很慢而且显著消耗内存，因为每个实例内部使用的 getter 和 setter。但是 Typed Arrays 构造函数的 polyfill 主要用于老 IE，所有现代引擎有原生的 Typed Arrays 构造函数，只需要针对构造函数的修复和针对方法的 polyfill。

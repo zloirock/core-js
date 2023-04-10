@@ -48,7 +48,10 @@ class URLSearchParams {
   set(name: string, value: string): void;
   sort(): void;
   toString(): string;
-  forEach(callbackfn: (value: any, index: number, target: any) => void, thisArg: any): void;
+  forEach(
+    callbackfn: (value: any, index: number, target: any) => void,
+    thisArg: any
+  ): void;
   entries(): Iterator<[key, value]>;
   keys(): Iterator<key>;
   values(): Iterator<value>;
@@ -72,8 +75,10 @@ core-js(-pure)/stable|actual|full/url-search-params
 [_示例_](https://tinyurl.com/2ovt23zn):
 
 ```js
-URL.canParse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => true
-URL.canParse('https'); // => false
+URL.canParse(
+  "https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment"
+); // => true
+URL.canParse("https"); // => false
 const url = new URL(
   "https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment"
 );

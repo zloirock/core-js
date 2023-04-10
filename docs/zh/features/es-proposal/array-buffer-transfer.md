@@ -7,7 +7,7 @@ tag:
 # [`ArrayBuffer.prototype.transfer` 和相关的](https://github.com/tc39/proposal-arraybuffer-transfer)
 
 :::note
-`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` 只在原生支持 `ArrayBuffer` 的 `structuredClone` 转换运行时中被polyfill。
+`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` 只在原生支持 `ArrayBuffer` 的 `structuredClone` 转换运行时中被 polyfill。
 :::
 
 ## 模块

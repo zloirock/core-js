@@ -17,7 +17,7 @@ Pagehead:
 
 ## 支持的环境
 
-`core-js` 致力于支持所有 JS 引擎和支持 ES3 的环境。某些特性有更高的门槛，例如 _一些_ 访问器最低只支持 ES5，promise 需要设置 microtask 或者 task等。
+`core-js` 致力于支持所有 JS 引擎和支持 ES3 的环境。某些特性有更高的门槛，例如 _一些_ 访问器最低只支持 ES5，promise 需要设置 microtask 或者 task 等。
 
 然而，我们不可能在所有环境中测试 `core-js`，我们已经停止在古老的环境——比如 IE7——进行测试。下面的兼容性表格列举了经过充分测试的环境。如果你有任何关于环境支持的疑问，请提出[issue](https://github.com/zloirock/core-js/issues)。
 
