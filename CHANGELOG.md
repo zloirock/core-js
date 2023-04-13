@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.30.1 - 2023.04.14](https://github.com/zloirock/core-js/releases/tag/v3.30.1)
 - Added a fix for a NodeJS 19.9.0 `URL.canParse` [bug](https://github.com/nodejs/node/issues/47505)
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported](https://chromestatus.com/feature/5121582673428480) from V8 ~ Chrome 114
