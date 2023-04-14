@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added NodeJS 20.0 compat data mapping
 
 ##### [3.30.1 - 2023.04.14](https://github.com/zloirock/core-js/releases/tag/v3.30.1)
 - Added a fix for a NodeJS 19.9.0 `URL.canParse` [bug](https://github.com/nodejs/node/issues/47505)
