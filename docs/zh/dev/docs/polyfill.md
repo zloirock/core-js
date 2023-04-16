@@ -9,4 +9,4 @@ icon: code
 3. 为方便理解，最好再包含一个简单的示例
 4. 以下为一个典型示例:
 
-@[code markdown](../../features/es-standard/json.md)
+@[code markdown](@docs-root/zh/features/es-standard/json.md)

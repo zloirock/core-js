@@ -9,4 +9,4 @@ icon: code
 3. It is best to include a simple example to make it easier to understand
 4. The following is a typical example:
 
-@[code markdown](../../features/es-standard/json.md)
+@[code markdown](@docs-root/features/es-standard/json.md)

@@ -33,7 +33,7 @@ const environments = [
 ] as const;
 
 function calcValue(
-  env: (typeof environments)[number],
+  env: typeof environments[number],
   value: boolean | string | undefined
 ) {
   switch (value) {
@@ -49,7 +49,7 @@ function calcValue(
 }
 
 function calcClass(
-  env: (typeof environments)[number],
+  env: typeof environments[number],
   value: boolean | string | undefined
 ) {
   switch (value) {
@@ -69,7 +69,7 @@ onMounted(async () => {
     try {
       const test = (
         (window as any).tests as Record<
-          Partial<(typeof environments)[number]>,
+          Partial<typeof environments[number]>,
           Function | Array<Function>
         >
       )[moduleName];
