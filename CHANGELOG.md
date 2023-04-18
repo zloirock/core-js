@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`
 - Compat data improvements:
   - Added NodeJS 20.0 compat data mapping
 
