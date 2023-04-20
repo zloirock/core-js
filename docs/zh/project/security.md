@@ -8,7 +8,7 @@ gitInclude:
 
 ## 受支持的版本
 
-`core-js` 始终支持[最新的式版本](https://github.com/zloirock/core-js/releases)
+`core-js` 始终支持[最新的正式版本](https://github.com/zloirock/core-js/releases)
 
 ## 漏洞报告
 
