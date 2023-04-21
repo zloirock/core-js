@@ -1898,10 +1898,13 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.with': null,
   'esnext.array-buffer.detached': {
+    chrome: '114',
   },
   'esnext.array-buffer.transfer': {
+    chrome: '114',
   },
   'esnext.array-buffer.transfer-to-fixed-length': {
+    chrome: '114',
   },
   'esnext.async-disposable-stack.constructor': {
   },
@@ -1996,10 +1999,13 @@ export const data = {
   'esnext.iterator.to-async': {
   },
   'esnext.json.is-raw-json': {
+    chrome: '114',
   },
   'esnext.json.parse': {
+    chrome: '114',
   },
   'esnext.json.raw-json': {
+    chrome: '114',
   },
   'esnext.map.delete-all': {
   },
@@ -2477,6 +2483,7 @@ export const data = {
     safari: '14.0',
   },
   'web.url-search-params.size': {
+    chrome: '113',
     deno: '1.32',
     firefox: '112',
     node: '19.8.0',

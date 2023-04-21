@@ -1,7 +1,7 @@
 /**
- * core-js 3.30.0
+ * core-js 3.30.1
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.30.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.30.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -279,7 +279,7 @@ __webpack_require__(435);
 __webpack_require__(440);
 __webpack_require__(441);
 __webpack_require__(442);
-module.exports = __webpack_require__(443);
+module.exports = __webpack_require__(444);
 
 
 /***/ }),
@@ -944,10 +944,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.30.0',
+  version: '3.30.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.30.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.30.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -14322,14 +14322,21 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
 
 var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(23);
+var fails = __webpack_require__(6);
 var validateArgumentsLength = __webpack_require__(131);
 var toString = __webpack_require__(76);
+var USE_NATIVE_URL = __webpack_require__(443);
 
 var URL = getBuiltIn('URL');
 
+// https://github.com/nodejs/node/issues/47505
+var THROWS_WITHOUT_ARGUMENTS = USE_NATIVE_URL && fails(function () {
+  URL.canParse();
+});
+
 // `URL.canParse` method
 // https://url.spec.whatwg.org/#dom-url-canparse
-$({ target: 'URL', stat: true }, {
+$({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS }, {
   canParse: function canParse(url) {
     var length = validateArgumentsLength(arguments.length, 1);
     var urlString = toString(url);
@@ -14345,6 +14352,48 @@ $({ target: 'URL', stat: true }, {
 
 /***/ }),
 /* 443 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var fails = __webpack_require__(6);
+var wellKnownSymbol = __webpack_require__(33);
+var DESCRIPTORS = __webpack_require__(5);
+var IS_PURE = __webpack_require__(35);
+
+var ITERATOR = wellKnownSymbol('iterator');
+
+module.exports = !fails(function () {
+  // eslint-disable-next-line unicorn/relative-url-style -- required for testing
+  var url = new URL('b?a=1&b=2&c=3', 'http://a');
+  var searchParams = url.searchParams;
+  var result = '';
+  url.pathname = 'c%20d';
+  searchParams.forEach(function (value, key) {
+    searchParams['delete']('b');
+    result += key + value;
+  });
+  return (IS_PURE && !url.toJSON)
+    || (!searchParams.size && (IS_PURE || !DESCRIPTORS))
+    || !searchParams.sort
+    || url.href !== 'http://a/c%20d?a=1&c=3'
+    || searchParams.get('c') !== '3'
+    || String(new URLSearchParams('?a=1')) !== 'a=1'
+    || !searchParams[ITERATOR]
+    // throws in Edge
+    || new URL('https://a@b').username !== 'a'
+    || new URLSearchParams(new URLSearchParams('a=b')).get('a') !== 'b'
+    // not punycoded in Edge
+    || new URL('http://тест').host !== 'xn--e1aybc'
+    // not escaped in Chrome 62-
+    || new URL('http://a#б').hash !== '#%D0%B1'
+    // fails in Chrome 66-
+    || result !== 'a1c3'
+    // throws in Safari
+    || new URL('http://x', undefined).host !== 'x';
+});
+
+
+/***/ }),
+/* 444 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";

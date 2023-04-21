@@ -125,6 +125,11 @@ var throwUnpolyfillable = function (type, action) {
   throw new DOMException((action || 'Cloning') + ' of ' + type + ' cannot be properly polyfilled in this engine', DATA_CLONE_ERROR);
 };
 
+var tryNativeRestrictedStructuredClone = function (value, type) {
+  if (!nativeRestrictedStructuredClone) throwUnpolyfillable(type);
+  return nativeRestrictedStructuredClone(value);
+};
+
 var createDataTransfer = function () {
   var dataTransfer;
   try {
@@ -245,11 +250,16 @@ var structuredCloneInternal = function (value, map) {
           structuredCloneInternal(value.p4, map)
         );
       } catch (error) {
-        if (nativeRestrictedStructuredClone) {
-          cloned = nativeRestrictedStructuredClone(value);
-        } else throwUnpolyfillable(type);
+        cloned = tryNativeRestrictedStructuredClone(value, type);
       }
       break;
+    // NodeJS 20.0.0 bug, https://github.com/nodejs/node/issues/47612
+    case 'File':
+      try {
+        cloned = new File([value], value.name, value);
+      } catch (error) {
+        cloned = tryNativeRestrictedStructuredClone(value, type);
+      } break;
     case 'FileList':
       dataTransfer = createDataTransfer();
       if (dataTransfer) {
@@ -257,9 +267,7 @@ var structuredCloneInternal = function (value, map) {
           dataTransfer.items.add(structuredCloneInternal(value[i], map));
         }
         cloned = dataTransfer.files;
-      } else if (nativeRestrictedStructuredClone) {
-        cloned = nativeRestrictedStructuredClone(value);
-      } else throwUnpolyfillable(type);
+      } else cloned = tryNativeRestrictedStructuredClone(value, type);
       break;
     case 'ImageData':
       // Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
@@ -271,9 +279,7 @@ var structuredCloneInternal = function (value, map) {
           { colorSpace: value.colorSpace }
         );
       } catch (error) {
-        if (nativeRestrictedStructuredClone) {
-          cloned = nativeRestrictedStructuredClone(value);
-        } else throwUnpolyfillable(type);
+        cloned = tryNativeRestrictedStructuredClone(value, type);
       } break;
     default:
       if (nativeRestrictedStructuredClone) {
@@ -364,12 +370,6 @@ var structuredCloneInternal = function (value, map) {
             cloned = value.clone();
           } catch (error) {
             throwUncloneable(type);
-          } break;
-        case 'File':
-          try {
-            cloned = new File([value], value.name, value);
-          } catch (error) {
-            throwUnpolyfillable(type);
           } break;
         case 'CropTarget':
         case 'CryptoKey':
