@@ -49,7 +49,7 @@ import "core-js";
 // or:
 import "core-js/full";
 // or use Deno:
-import "https://deno.land/x/corejs@v3.30.0/index.js";
+import "https://deno.land/x/corejs@v3.30.1/index.js";
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
 import "core-js/actual";
 // polyfill only stable features - ES and web standards:
