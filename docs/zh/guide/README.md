@@ -18,11 +18,11 @@ Core-JS 被集成到许多构建工具中，你可以用它们快速实现 polyf
 
 ```sh
 # 全局版本
-npm install --save core-js@3.29.0
+npm install --save core-js@3.30.1
 # 无全局命名空间污染的版本
-npm install --save core-js-pure@3.29.0
+npm install --save core-js-pure@3.30.1
 # bundle 后的全局版本
-npm install --save core-js-bundle@3.29.0
+npm install --save core-js-bundle@3.30.1
 ```
 
 或者你可以通过 [CDN](https://www.jsdelivr.com/package/npm/core-js-bundle) 来引入 Core-JS。
