@@ -1,10 +1,12 @@
+import { NODE } from '../helpers/constants';
+
 QUnit.test('URL.canParse', assert => {
   const { canParse } = URL;
 
   assert.isFunction(canParse);
   assert.arity(canParse, 1);
   assert.name(canParse, 'canParse');
-  assert.looksNative(canParse);
+  if (!NODE) assert.looksNative(canParse);
 
   assert.false(canParse(undefined), 'undefined');
   assert.false(canParse(undefined, undefined), 'undefined, undefined');

@@ -1,5 +1,11 @@
 ## Changelog
 ##### Unreleased
+- Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`
+- Compat data improvements:
+  - Added NodeJS 20.0 compat data mapping
+
+##### [3.30.1 - 2023.04.14](https://github.com/zloirock/core-js/releases/tag/v3.30.1)
+- Added a fix for a NodeJS 19.9.0 `URL.canParse` [bug](https://github.com/nodejs/node/issues/47505)
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported](https://chromestatus.com/feature/5121582673428480) from V8 ~ Chrome 114
   - [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer) features marked as [supported](https://chromestatus.com/feature/5073244152922112) from V8 ~ Chrome 114
