@@ -34,7 +34,7 @@ export default defineUserConfig({
     },
   },
   plugins: [
-    i18nPlugin({ guideLink: "/dev/docs/translate.html" }),
+    i18nPlugin({ translationGuide: "/dev/docs/translate.html" }),
     searchPlugin(),
     shikiPlugin({
       theme: "one-dark-pro",
