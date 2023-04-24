@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`
+- Added a workaround for getting proper global object in Figma plugins, [#1231](https://github.com/zloirock/core-js/issues/1231)
 - Compat data improvements:
   - Added NodeJS 20.0 compat data mapping
 
