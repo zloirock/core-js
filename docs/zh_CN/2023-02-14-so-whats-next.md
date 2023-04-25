@@ -2,11 +2,9 @@
 
 # 那么，接下来是什么？（So, what's next?）
 
-嗨，我是@zloirock[^zlo]，一个全职开源开发者。我不喜欢写长帖子，但似乎是时候写了。
+##### 翻译：卫剑钒  (微信公众号:man-mind)
 
-[^zlo]: https://github.com/zloirock
-
-##### 翻译：卫剑钒  (文中我觉得需要说明的，都加了译者注)
+嗨，我是**[@zloirock](https://github.com/zloirock)**，一个全职开源开发者。我不喜欢写长帖子，但似乎是时候写了。
 
 最初，这篇文章应该是一篇关于开发core-js最新主要版本和关于其路线图的帖子（它被移到了后半部分），然而，由于最近的事件，它变成了一篇关于许多不同事情的长篇帖子......我他妈的累了（I'm fucking tired）。自由和开源软件从根本上被玩坏了。我可以默默地停止做这件事，但我想给开源最后一次机会。
 
@@ -25,13 +23,9 @@
 </details>
 
 
-## 什么是core-js[^core]？
+## 什么是[`core-js`](https://github.com/zloirock/core-js)？
 
-[^core]: https://github.com/zloirock/core-js
-
-- 它是JavaScript标准库中最受欢迎和最通用的polyfill，它支持最新的ECMAScript标准和提案，从古老的ES5功能到iterator helpers[^help]等前沿功能，以及与ECMAScript密切相关的Web平台功能，如structuredClone。
-
-[^help]: https://github.com/tc39/proposal-iterator-helpers)
+- 它是JavaScript标准库中最受欢迎和最通用的polyfill，它支持最新的ECMAScript标准和提案，从古老的ES5功能到[iterator helpers](https://github.com/tc39/proposal-iterator-helpers))等前沿功能，以及与ECMAScript密切相关的Web平台功能，如structuredClone。
 
 - 它是最复杂、最全面的polyfill项目。在发布这篇文章时，core-js包含大约5000个具有不同复杂程度的polyfill模块，从Object.hasOwn或Array.prototype.at到URL、Promise或Symbol，这些模块旨在协同工作。使用不同的架构，它们每个都可以是一个单独的包——虽然，可能有人并不喜欢这样。
 
@@ -46,22 +40,13 @@
 ##### 译者注：为了理解本文，读者需要知道`polyfill`的含义。polyfill是填充物的意思，是指在一种材料中填充另一种材料，比如用玻璃胶填充混凝土表面的裂缝，达到光滑平整的效果；再如填充在玩具或沙发中，让被填充物更温暖舒适。在JavaScript 语境中，polyfill意味着用于向旧版浏览器添加其并不支持的JavaScript 新版标准的功能。通常，polyfill 是一种 JavaScript 库或代码，它可以检测当前环境的功能支持，并在缺少的情况下提供相应的实现。
 
 
-core-js总共有90亿次NPM下载以及每月2.5亿次NPM下载[^90b], GitHub上有1900万个仓库依赖它(global[^glo]和pure[^pur]），这是很大的数字，但并不能直观展示core-js的真正传播。让我们用其他方式查看一下。
+[core-js总共有90亿次NPM下载以及每月2.5亿次NPM下载](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-bundle&from=2014-11-18), GitHub上有1900万个仓库依赖它([global](https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00ODk5NjgyNDU%3D)和[pure](https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00MjYyOTI0Ng%3D%3D)），这是很大的数字，但并不能直观展示core-js的真正传播。让我们用其他方式查看一下。
 
-[^90b]: https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-bundle&from=2014-11-18
-[^glo]: https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00ODk5NjgyNDU%3D
-[^pur]: https://github.com/zloirock/core-js/network/dependents?package_id=UGFja2FnZS00MjYyOTI0Ng%3D%3D
-
-
-我写了一个简单的脚本[^script]，通过Alexa顶级网站列表检查core-js的使用情况。我们可以知道core-js的应用情况（以及各网站所使用的版本）。
-
-[^script]: https://github.com/zloirock/core-js/blob/master/scripts/usage/usage.mjs
+我写了个[简单的脚本](https://github.com/zloirock/core-js/blob/master/scripts/usage/usage.mjs)，通过Alexa顶级网站列表检查core-js的使用情况。我们可以知道core-js的应用情况（以及各网站所使用的版本）。
 
 <p align="center"><img alt="usage" src="https://user-images.githubusercontent.com/2213682/218452738-859e7420-6376-44ec-addd-e91e4bcdec1d.png" /></p>
 
-在TOP 1000网站上运行这个脚本，**我检测到52%[^52p]的测试网站对core-js的使用情况**。由于每天情况并不太一样（列表、网站等不是常数），结果可能会有百分之几的差异。然而，这只是使用现代浏览器对网站主页的粗略检测，很多使用并没有测出来，**如果手动检查，会发现使用量增加百分之几十**。例如，上面截图中某些网站没有被脚本发现使用了core-js，但去他们主页手工看一下就会发现他们也用了（`请耐心点`，在下面的一系列屏幕截图之后，就没有这么多图片了）：
-
-[^52p]: https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6
+在TOP 1000网站上运行这个脚本，**我检测到[52%](https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6)的测试网站对core-js的使用情况**。由于每天情况并不太一样（列表、网站等不是常数），结果可能会有百分之几的差异。然而，这只是使用现代浏览器对网站主页的粗略检测，很多使用并没有测出来，**如果手动检查，会发现使用量增加百分之几十**。例如，上面截图中某些网站没有被脚本发现使用了core-js，但去他们主页手工看一下就会发现他们也用了（`请耐心点`，在下面的一系列屏幕截图之后，就没有这么多图片了）：
 
 <p align="center"><img alt="whatsapp" width="720" src="https://user-images.githubusercontent.com/2213682/153953087-8e3891aa-f00a-4882-a338-f4cc7496581b.png" /></p>
 
@@ -97,27 +82,17 @@ core-js总共有90亿次NPM下载以及每月2.5亿次NPM下载[^90b], GitHub上
 
 **通过这样的手动检查，你可以在前100个网站的75-80%的网站上找到core-js**，而检测脚本只在55-60%的网站上找到它。当然，在较大的样本中，百分比会下降。
 
-Wappalyzer[^wap]使用浏览器插件检测一个网站使用的技术（包括core-js），在他们之前的统计数据中，能够看到很有趣的结果，但现在他们的网站上，所有最受欢迎的技术的公开结果，最多也就只显示500万之多。基于Wappalyzer结果的统计数据[^here]，在800万个移动页面和500万个桌面页面中，有41%和44%显示使用了core-js。Built With[^built]显示前10000个网站中有54%使用了core-js（我不确定其检测的完整性）。
-
-[^wap]: https://www.wappalyzer.com/technologies/javascript-libraries/
-[^built]: https://trends.builtwith.com/javascript/core-js
-[^here]: https://almanac.httparchive.org/en/2022/javascript#library-usage
+[Wappalyzer](https://www.wappalyzer.com/technologies/javascript-libraries/)使用浏览器插件检测一个网站使用的技术（包括core-js），在他们之前的统计数据中，能够看到很有趣的结果，但现在他们的网站上，所有最受欢迎的技术的公开结果，最多也就只显示500万之多。基于Wappalyzer结果的统计[数据](https://almanac.httparchive.org/en/2022/javascript#library-usage)，在800万个移动页面和500万个桌面页面中，有41%和44%显示使用了core-js。[Built With显示前10000个网站中有54%使用了core-js](https://trends.builtwith.com/javascript/core-js)（我不确定其检测的完整性）。
 
 无论如何，我们可以自信地说，**大多数热门网站都在使用core-js**。即使core-js没有在大公司的主要网站上使用，肯定也用在了他们的其他项目上。
 
-还有什么JS库在网站更流行？不是React[^react]、Lodash[^lodash]或任何其他人们经常谈及的库或框架，我能确定的只有“又老又好”的jQuery[^jquery]。
-
-[^react]: https://trends.builtwith.com/javascript/React
-[^lodash]: https://trends.builtwith.com/javascript/lodash
-[^jquery]: https://trends.builtwith.com/javascript/jQuery
+还有什么JS库在网站更流行？不是[React](https://trends.builtwith.com/javascript/React)、[Lodash](https://trends.builtwith.com/javascript/lodash)或任何其他人们经常谈及的库或框架，我能确定的只有[“又老又好”的jQuery](https://trends.builtwith.com/javascript/jQuery)。
 
 core-js不仅仅是在网站的前端——它几乎在所有使用JavaScript的地方——我认为这从来没有被认真统计过。
 
 <p align="center"><img alt="github" src="https://user-images.githubusercontent.com/2213682/211223204-ec62ea94-1df8-4a91-a9b2-4e85aef24677.png" /></p>
 
-然而，由于上述原因，**几乎没有人记得他或她使用了core-js[^rem]**。
-
-[^rem]: https://2022.stateofjs.com/en-US/other-tools
+然而，由于上述原因，**[几乎没有人记得他或她使用了core-js](https://2022.stateofjs.com/en-US/other-tools)**。
 
 我为什么要发表此文？不是为了展示我有多酷，而是为了展示一切有多糟糕。请继续读。
 
@@ -147,11 +122,9 @@ core-js不仅仅是在网站的前端——它几乎在所有使用JavaScript的
 
 ##### `译者注：注意，上面这段是作者最后悔的部分。`
 
-然而，这只是所需工作的开始，之后跟随的是常年的辛勤工作。我几乎每天都花几个小时在core-js和相关项目（主要是Babel和compat-table[^com]）的维护上。
+然而，这只是所需工作的开始，之后跟随的是常年的辛勤工作。我几乎每天都花几个小时在core-js和相关项目（主要是Babel和[compat-table](https://kangax.github.io/compat-table/es2016plus/)）的维护上。
 
-[^com]: https://kangax.github.io/compat-table/es2016plus/
-
-<p align="center"><img alt="get-rid" width="720" src="https://user-images.githubusercontent.com/2213682/154875165-2b144651-5769-4f8e-9072-3a1a03bfe164.png" /></p>
+![github](https://user-images.githubusercontent.com/2213682/218516268-6ec765a5-50df-4d45-971f-3c3fc4aba7a1.png)
 
 core-js不是一个只有几十行代码的库，这种库你写完就可以忘掉它。与绝大多数库不同，它与Web的状态息息相关。它对JavaScript标准或提案的任何更改、任何JS引擎新发布、任何JS引擎中新的bug要做出反应。ECMAScript ~~6~~ 2015之后跟着的是新提案、新版本的ECMAScript、新的非ECMAScript Web标准、新引擎和新工具等。项目的演变、改进以及对Web当前状态的适配从未停止过——几乎所有这些工作，对普通用户来说，仍然是看不见的。
 
@@ -165,9 +138,7 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 ---
 
-直到2019年4月，大约一年半时间，我没有分心干任何别的，我把所有时间都致力于core-js@3，并从根本上改进了Babel的polyfill工具[^tool]，这是工具集（toolkit）生成的基础，现在几乎到处都在使用。
-
-[^tool]: https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md
+直到2019年4月，大约一年半时间，我没有分心干任何别的，我把所有时间都致力于core-js@3，[并从根本上改进了Babel的polyfill工具](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)，这是工具集（toolkit）生成的基础，现在几乎到处都在使用。
 
 ## 事故
 
@@ -179,9 +150,7 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 ## 筹钱
 
-那时，core-js的使用几乎和现在一样广泛。正如我上面所写，我为core-js寻找了很长时间的贡献者，但没有任何成功。然而，core-js是一个应该积极维护的项目，它不能一直冻结。我的长期监禁不仅会给我带来问题——而且也会给core-js带来死亡，给每个使用它的人带来问题——有一半的Web都在用它。考虑一下令人头疼的公交车因素[^bus]。
-
-[^bus]: https://en.wikipedia.org/wiki/Bus_factor
+那时，core-js的使用几乎和现在一样广泛。正如我上面所写，我为core-js寻找了很长时间的贡献者，但没有任何成功。然而，core-js是一个应该积极维护的项目，它不能一直冻结。我的长期监禁不仅会给我带来问题——而且也会给core-js带来死亡，给每个使用它的人带来问题——有一半的Web都在用它。考虑一下令人头疼的[公交车因素](https://en.wikipedia.org/wiki/Bus_factor)。
 
 ##### 译者注：`公交车因素`是指这样的问题：一个项目里的关键人员如果突然被公交车撞了，项目会怎么样？
 
@@ -203,19 +172,13 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 ##### 译者注：标题翻译：让这个SB zloirock和他的core-js库去死吧
 
-这远远不是我所见过的最搞笑的事——如果我愿意，我能收集到大量这种风格的“恨开源”评论[^hate]——但我不会这样，我的生活中已经足够多负面东西了。
-
-[^hate]: https://github.com/samdark/opensource-hate
+这远远不是我所见过的最搞笑的事——如果我愿意，我能收集到[大量这种风格的“恨开源”评论](https://github.com/samdark/opensource-hate)——但我不会这样，我的生活中已经足够多负面东西了。
 
 **开发人员喜欢使用免费的开源软件——免费，效果好。他们对背后数千小时的开发不感兴趣，他们对项目背后那个真人的问题和需求不感兴趣。他们认为，提及这些就是对他们个人空间的侵犯，甚至是对他们个人的冒犯。对他们来说，这些开源项目，就是一些齿轮，应该自动耦合，不应该有任何噪音，也不应该要他们参与。**
 
-因此，成千上万的开发人员侮辱我，并声称我无权向他们寻求任何形式的帮助。我的帮助请求如此冒犯了他们，以至于他们开始要求限制我对仓库和包的访问，并要求将它们转移到其他人那里，就像曾经对left-pad[^pad]那样。他们中几乎没有人了解core-js的作用和规模，当然，也没有人想维护它——它应该由“社区”和其他人来维护。我看到所有这些仇恨，为了不被他们影响，我没有删除安装包的请求帮助信息，本来我只想让它存在几周。
+因此，成千上万的开发人员侮辱我，并声称我无权向他们寻求任何形式的帮助。我的帮助请求如此冒犯了他们，以至于他们开始要求限制我对仓库和包的访问，并要求将它们转移到其他人那里，就像曾经对[left-pad](https://arstechnica.com/information-technology/2016/03/rage-quit-coder-unpublished-17-lines-of-javascript-and-broke-the-internet/)那样。他们中几乎没有人了解core-js的作用和规模，当然，也没有人想维护它——它应该由“社区”和其他人来维护。我看到所有这些仇恨，为了不被他们影响，我没有删除安装包的请求帮助信息，本来我只想让它存在几周。
 
-[^pad]: https://arstechnica.com/information-technology/2016/03/rage-quit-coder-unpublished-17-lines-of-javascript-and-broke-the-internet/
-
-求助于那些用core-js赚大钱的大公司？那可几乎是每家大公司。让我们稍微改一下这条旧推文[^twi]：
-
-[^twi]: https://twitter.com/AdamRackis/status/931195056479965185
+**求助于那些用core-js赚大钱的大公司？那可几乎是每家大公司。让我们稍微改一下这条[旧推文](https://twitter.com/AdamRackis/status/931195056479965185)：**
 
 > 公司：“我们想使用SQL Server 企业版”
 
@@ -237,13 +200,10 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 ##### 译者注：这条旧推文是@AdamRackis于2017年11月17日发布的，里面原先写的是Babel，在此文中改为core-js
 
-几个月后，厌倦了用户的投诉，NPM推出了npm fund[^fund]——这不是解决问题的办法，这只是摆脱这些投诉的一种方式。你多久会敲一下npm fund？你多久会向npm fund中的人捐款？你会先看到谁并支持他？是core-js还是维护着十几个单行库（并且相互依赖）的人？npm fund为NPM的未来步骤提供了完美的理由（请往下阅读）。
+几个月后，厌倦了用户的投诉，NPM推出了[npm fund](https://docs.npmjs.com/cli/v6/commands/npm-fund)——这不是解决问题的办法，这只是摆脱这些投诉的一种方式。你多久会敲一下npm fund？你多久会向npm fund中的人捐款？你会先看到谁并支持他？是core-js还是维护着十几个单行库（并且相互依赖）的人？npm fund为NPM的未来步骤提供了完美的理由（请往下阅读）。
 
-[^fund]: https://docs.npmjs.com/cli/v6/commands/npm-fund
+在9个月内，数千名开发人员，包括重度依赖core-js的项目开发人员，了解了我的状况——但没有人提出要维护core-js。几个月内，我与一些依赖core-js的重要项目的维护人员进行了交谈，但没有取得任何成功——他们没有必要的时间资源。因此，我不得不要求一些与FOSS社区无关的朋友（起初是[@slowcheetah](https://github.com/slowcheetah)，感谢他的帮助）替代我，至少尝试解决那些比较重大的issue，在我重获自由之前。
 
-在9个月内，数千名开发人员，包括重度依赖core-js的项目开发人员，了解了我的状况——但没有人提出要维护core-js。几个月内，我与一些依赖core-js的重要项目的维护人员进行了交谈，但没有取得任何成功——他们没有必要的时间资源。因此，我不得不要求一些与FOSS社区无关的朋友（起初是@slowcheetah[^slow]，感谢他的帮助）替代我，至少尝试解决那些比较重大的issue，在我重获自由之前。
-
-[^slow]: https://github.com/slowcheetah
 ---
 
 有个别用户和小公司支持了core-js——我非常感谢他们。然而，9个月内筹集的资金仅为所需资金的1/4左右，你们知道，我需要8万美元解决困境，而且应该是在几周之内。
@@ -254,7 +214,7 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 ### 出狱
 
-我不想说太多关于监狱的事，我也不想记住这个。这是在一家化工厂的奴隶般劳动，在那里我的健康严重受损，我24/7和毒贩、小偷和杀手们在一起，共渡那难忘时光，而且，还无法访问互联网和计算机。
+我不想说太多关于监狱的事，我也不想记住那些。那是在一家化工厂的奴隶般劳动，在那里我的健康严重受损，我24/7和毒贩、小偷和杀手们在一起，共渡了难忘的时光，而且，还无法访问互联网和计算机。
 
 大约10个月后，我被提前释放了。
 
@@ -272,9 +232,7 @@ core-js不是一个只有几十行代码的库，这种库你写完就可以忘�
 
 出狱后，我像以前一样回到了core-js维护。而且，我完全不再被合同和任何其他工作分散注意力，我只是在core-js上工作。core-js在融资平台上有一些钱——虽然不多，比我全职从事core-js之前收到的少很多倍——但对我来说，这足以维持生活。**这是一种降级。我全职开源，为了让世界变得更美好......**我不考虑事故遗留下来的数万美元的诉讼，我也不考虑我的未来，我只是想Web有更美好的未来。当然，我希望一些公司能给我提供一个职位，让我有机会从事Web标准工作，并赞助我在polyfill和FOSS方面的工作。
 
-在接下来的两年里，我在core-js工作方面取得了很多成就[^cj]，几乎和前8年一样多。仍然是core-js@3——但要好得多。然而，changelog以及之前的diff只反映了一小部分已完成的工作。**几乎所有的工作都在暗处，普通用户看不到。**
-
-[^cj]: https://github.com/zloirock/core-js/compare/0943d43e98aca9ea7b23cdd23ab8b7f3901d04f1...master
+在接下来的两年里，[我在core-js工作方面取得了很多成就](https://github.com/zloirock/core-js/compare/0943d43e98aca9ea7b23cdd23ab8b7f3901d04f1...master)，几乎和前8年一样多。仍然是core-js@3——但要好得多。然而，changelog以及之前的diff只反映了一小部分已完成的工作。**几乎所有的工作都在暗处，普通用户看不到。**
 
 这些工作包括JS标准和建议方面的基本工作，作为它的连带后果，考虑到我的辛勤工作，以及我反馈和建议后的变化，我认为一些ECMAScript提案——许多已成为语言一部分——是我的成就，也是提案拥护者的成就；这些工作包括core-js和引擎及其错误跟踪器的调错工作；这些工作包括在数百乃至数千个环境中持续自动或手动/构建/测试以确保标准库在任何地方的正常运行并收集兼容数据。core-js兼容数据，从一开始仅仅是几天内制作的原型，变成了一个具有外部和内部工具的详尽数据集；这些工作包括对项目中正在开发的许多功能的设计和原型制作；这些工作还有更多，更多。
 
@@ -313,9 +271,7 @@ core-js代码包含我的版权。正如你在这篇文章前面看到的，core
 
 美国和加拿大记者多次联系我，因为他们在美国新闻和政府网站上发现了core-js。当他们弄明白的时候，他们非常失望，失望于我不是一个干涉美国选举的邪恶的俄罗斯黑客。
 
-无休止的仇恨流随着时间的推移略有减少，但仍然有。大部分内容从GitHub issues或Twitter Threads转移到我的邮件或IM。今天，一位开发人员给我写了一条消息，他称我是开发人员社区的寄生虫，说我的core-js到处蔓延传播，没有一点屁用，但却赚了很多钱。他称我和Hans Reiser[^hans]是同样的杀人犯，买通了法官，逃脱了惩罚。他希望我和我所有的亲戚都死。这没有什么不寻常的，我每个月都会收到几条这样的消息。去年，又补充了一种，说我是一个“俄罗斯法西斯主义者”。
-
-[^hans]: https://en.wikipedia.org/wiki/Hans_Reiser
+无休止的仇恨流随着时间的推移略有减少，但仍然有。大部分内容从GitHub issues或Twitter Threads转移到我的邮件或IM。今天，一位开发人员给我写了一条消息，他称我是开发人员社区的寄生虫，说我的core-js到处蔓延传播，没有一点屁用，但却赚了很多钱。他称我和[Hans Reiser](https://en.wikipedia.org/wiki/Hans_Reiser)是同样的杀人犯，买通了法官，逃脱了惩罚。他希望我和我所有的亲戚都死。这没有什么不寻常的，我每个月都会收到几条这样的消息。去年，又补充了一种，说我是一个“俄罗斯法西斯主义者”。
 
 ### 关于战争说几句
 
@@ -334,14 +290,11 @@ core-js代码包含我的版权。正如你在这篇文章前面看到的，core
 
 Crypto？通过加密钱包请求捐款是很流行的。然而，一直以来，加密钱包上只收到了2笔总额约为200美元的转账，最后一次是在一年多前。GitHub赞助商？它在俄罗斯不可用，所以从来没有过。PayPal？这是禁止俄罗斯人使用的，当它可用时，core-js在这段时间里收到了大约60美元。补助金？我申请了很多补助金——所有申请都被忽略了。
 
-**在这些捐赠中，Bower[^bower]作为另一个FOSS社区，提供了主要部分：每月400美元。我也非常感谢其他赞助商[^other]：由于您的捐款，我仍在为这个项目工作。**
-
-[^bower]: https://bower.io/
-[^other]: https://opencollective.com/core-js#section-contributors
+**在这些捐赠中，[Bower](https://bower.io/)作为另一个FOSS社区，提供了主要部分：每月400美元。我也非常感谢[所有其他赞助商](https://opencollective.com/core-js#section-contributors)：由于您的捐款，我仍在为这个项目工作。**
 
 然而，在这个列表中，没有一家大公司，或者至少没有一家是前1000名网站列表中的公司。老实说，目前支持者名单上主要是个人，少数是小公司，他们每月支付几美元。
 
-如果有人说他们不知道core-js需要资金......拜托，我经常看到这样的表情包：
+如果有人说他们不知道core-js需要资金......拜托，我经常看到[这样的表情包](https://www.reddit.com/r/ProgrammerHumor/comments/fbfb2o/thank_you_for_using_corejs/)：
 
 <p align="center"><img alt="sanders" width="400" src="https://user-images.githubusercontent.com/2213682/218325687-08d58543-4b88-4a39-a0de-420bd325450f.png" /></p>
 
@@ -413,9 +366,7 @@ Crypto？通过加密钱包请求捐款是很流行的。然而，一直以来�
 
 **不管怎样，钱很重要。**我已经受够了以牺牲我和家人的福祉为代价而资助公司。我应该有能力确保我的家人、我的儿子有一个光明的未来。
 
-core-js的工作几乎占据了我所有的时间，超过了全职工作日的时间。这项工作确保了大多数热门网站的正常运行，这项工作应该得到适当的报酬。我不会继续免费工作，也不会以每小时2美元的价格工作。我愿意继续以每小时至少80美元的价格为项目工作。这正是eslint团队成员的收费标准[^stand]。如果开源工作需要，我准备还清我的诉讼并离开俄罗斯——虽然，这并不便宜。
-
-[^stand]: https://eslint.org/blog/2022/02/paying-contributors-sponsoring-projects/#paying-team-members-per-hour
+core-js的工作几乎占据了我所有的时间，超过了全职工作日的时间。这项工作确保了大多数热门网站的正常运行，这项工作应该得到适当的报酬。我不会继续免费工作，也不会以每小时2美元的价格工作。我愿意继续以每小时至少80美元的价格为项目工作。[这正是eslint团队成员的收费标准](https://eslint.org/blog/2022/02/paying-contributors-sponsoring-projects/#paying-team-members-per-hour)。如果开源工作需要，我准备还清我的诉讼并离开俄罗斯——虽然，这并不便宜。
 
 ---
 
@@ -470,7 +421,7 @@ core-js的工作几乎占据了我所有的时间，超过了全职工作日的�
 
 - **我们不需要core-js，有许多替代项目可用。**
 
-  我没有抱着你不放。你说的替代品在哪里？当然，core-js不是JavaScript标准库的唯一polyfill，但所有其他项目的使用率都比core-js少几十倍，这并不奇怪——所有这些项目都只提供了core-js功能的一小部分，它们不够合适和复杂，它们可使用的场景非常有限，它们不能以如此简单的方式正确集成到你的项目中，并且还存在很多严重问题。如果真的有合适的替代品，我早就停止在core-js上工作了。
+  我没有抱着你不放。你说的替代品在哪里？当然，core-js不是JavaScript标准库的唯一polyfill，但所有其他项目的使用率都比core-js少[几十](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18)[倍](https://user-images.githubusercontent.com/2213682/205467964-2dfcce78-5cdf-4f4f-b0d6-e37c02e1bf01.png)，这并不奇怪——所有这些项目都只提供了core-js功能的一小部分，它们不够合适和复杂，它们可使用的场景非常有限，它们不能以如此简单的方式正确集成到你的项目中，并且还存在很多严重问题。如果真的有合适的替代品，我早就停止在core-js上工作了。
 
 - **我们可以放弃IE支持，所以我们不再需要polyfill。**
 
@@ -490,17 +441,10 @@ JavaScript、浏览器和Web开发正在以惊人的速度发展。所有浏览�
 
 在这里，我将（几乎）不写任何关于添加新的或改进现有特定polyfill的内容（当然，这是core-js开发的主要部分之一），让我们谈谈其他一些关键事情，而不关注小事。如果决定将core-js做成商业项目，路线图是应该讨论的。
 
-我正试图保持core-js尽可能紧凑，它应该遵循的主要原则是在现代Web中发挥最大作用——客户端不应加载任何不必要的polyfill，polyfill应该最大限度地紧凑和优化。当前，最大的core-js（针对早期提案）捆绑大小约为220KB缩小，压缩后70KB[^zip]——它不是一个小包，它挺大——它就像jQuery、LoDash、Axios加起来一样大——原因是该包几乎涵盖了该语言的整个标准库。core-js每个组件的大小比同类可用替代品的大小少若干倍。你可以只加载所使用的core-js功能，在最小情况下，捆绑大小可以减少到几K；正确使用时，通常是几十K——然而，还有一些东西需要考虑，大多数页面包含比整个core-js捆绑包更大的图片[^image]，大多数用户的互联网速度为几十Mbps，那么为什么还要这么关注core-js的大小？
+我正试图保持core-js尽可能紧凑，它应该遵循的主要原则是在现代Web中发挥最大作用——客户端不应加载任何不必要的polyfill，polyfill应该最大限度地紧凑和优化。当前，最大的core-js（针对早期提案）捆绑大小[约为220KB缩小，压缩后70KB](https://bundlephobia.com/package/core-js)——它不是一个小包，它挺大——它就像jQuery、LoDash、Axios加起来一样大——原因是该包几乎涵盖了该语言的整个标准库。core-js每个组件的大小比同类可用替代品的大小少若干倍。你可以只加载所使用的core-js功能，在最小情况下，捆绑大小可以减少到几K；正确使用时，通常是几十K——然而，还有一些东西需要考虑，[大多数页面包含比整个core-js捆绑包更大的图片](https://almanac.httparchive.org/en/2022/media#bytesizes)，大多数用户的互联网速度为几十Mbps，那么为什么还要这么关注core-js的大小？
 
-[^zip]: https://bundlephobia.com/package/core-js
+我不想详细重复关于[“JavaScript的成本”](https://medium.com/dev-channel/the-cost-of-javascript-84009f51e99e)这种旧帖子，在那里你可以阅读为什么添加JS会增加用户开始与页面交互的时间，而不是添加类似大小的图片——它不仅是下载，它还解析、编译、评估脚本，它阻止了页面渲染。
 
-[^image]: https://almanac.httparchive.org/en/2022/media#bytesizes
-
-
-
-我不想详细重复关于“JavaScript的成本”[^cost]这种旧帖子，在那里你可以阅读为什么添加JS会增加用户开始与页面交互的时间，而不是添加类似大小的图片——它不仅是下载，它还解析、编译、评估脚本，它阻止了页面渲染。
-
-[^cost]: https://medium.com/dev-channel/the-cost-of-javascript-84009f51e99e
 
 在太多地方，移动互联网并不完美，它们还停留3G甚至2G。在3G的情况下，下载一个完整的core-js可能需要几秒钟。然而，页面经常包含多个core-js和许多其他重复的polyfill。一些（主要是移动互联网）互联网提供商的“无限”数据套餐非常有限，用户用了几G字节之后，网速就会降到几Kbps。连接速度还受很多其他因素受限。
 
@@ -508,18 +452,16 @@ JavaScript、浏览器和Web开发正在以惊人的速度发展。所有浏览�
 
 <p align="center"><img alt="conversion" width="600" src="https://user-images.githubusercontent.com/2213682/217910389-7320a726-890d-4f34-a941-f51a069f01a1.png" /></p>
 
-> 插图来自谷歌随机搜索的一个帖子[^tiezi]
-
-[^tiezi]: https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a
+> 插图来自谷歌[随机搜索的一个帖子](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a)
 
 由于polyfill的新增或改进，core-js的大小不断增长。这也是一些大型polyfill所遇到的问题，在core-js中添加Intl、Temporal和其他一些功能，捆绑的大小将增加十几倍，达到几兆字节。
 
 core-js的杀手级功能之一是，它可以通过使用Babel、SWC或手动方式进行优化，虽然，现在的方法只能解决部分问题。为了正确解决这些问题，现代Web需要新一代的工具包，该工具包可以简单地集成到当前的开发堆栈中。在某些情况下，正如你将在下面看到的，这个工具包可以帮助使你的网页变得甚至比没有core-js更小。
 
-我已经在“关于core-js@3、Babel和对未来的展望”[^zhanw]中写了其中一些内容，但这些只是原始的想法。现在他们正处于实验甚至实施阶段。
+我已经在[“**关于core-js@3、Babel和对未来的展望**”](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#look-into-the-future)中写了其中一些内容，但这些只是原始的想法。现在他们正处于实验甚至实施阶段。
 由于该项目的未来不确定，在这里写下任何具体日期是没有意义的，我不保证所有这些都会很快完成，但这值得我们努力去做。
 
-[^zhanw]: https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#look-into-the-future
+
 
 
 ---
@@ -532,9 +474,7 @@ core-js@3大约4年前发布——已经很久了。对我来说，添加一些�
 
 然而，最好不要痴迷于与旧版本的兼容性。core-js包含太多没有删掉的东西，仅仅是出于保持兼容性。**而缺乏一些长期需要的突破性变化将对未来产生负面影响。**从标准、生态系统和Web的变化以及遗留物（legacy）的积累情况来看，最好每2-3年发布一个新的major版本。
 
-如果需要好几年的开发，才能出来一个新版本让大家看到他们想要的一切，这对用户是不可接受的。core-js遵循SemVer[^semver]，首先发布一个新的major版本，内含一些突破性变化（部分叙述如下），大多数新功能在minor版本中添加。在这种情况下，新版本可能需要大约2-3个月的全职工作，它会比上一个版本小，这将是core-js第一次变小 :-)
-
-[^semver]: https://semver.org/
+如果需要好几年的开发，才能出来一个新版本让大家看到他们想要的一切，这对用户是不可接受的。core-js遵循[SemVer](https://semver.org/)，首先发布一个新的major版本，内含一些突破性变化（部分叙述如下），大多数新功能在minor版本中添加。在这种情况下，新版本可能需要大约2-3个月的全职工作，它会比上一个版本小，这将是core-js第一次变小 :-)
 
 ### 关于core-js包
 
@@ -552,9 +492,7 @@ IE9-10浏览器的占比也很小了——目前，同样的0.1%。但是，如�
 
 ### ECMAScript模块和现代语法
 
-目前，core-js使用CommonJS模块。长期以来，这是最受欢迎的JavaScript模块格式，但现在ECMAScript提供了自己的模块格式，它已经非常受欢迎，几乎在任何地方都支持。例如，Deno，像浏览器一样，它不支持CommonJS，但支持ES。core-js应该在不久的将来有一个ECMAScript模块版本。但是，ECMAScript模块仅在NodeJS的现代版本中受支持，core-js 应该可以在较老的NodeJS版本中工作，而无需转译或打包。Electron仍然不支持它[^elect]，因此现在立刻干掉core-js的CommonJS版本是有问题的。
-
-[^elect]: https://github.com/electron/electron/issues/21457
+目前，core-js使用CommonJS模块。长期以来，这是最受欢迎的JavaScript模块格式，但现在ECMAScript提供了自己的模块格式，它已经非常受欢迎，几乎在任何地方都支持。例如，Deno，像浏览器一样，它不支持CommonJS，但支持ES。core-js应该在不久的将来有一个ECMAScript模块版本。但是，ECMAScript模块仅在NodeJS的现代版本中受支持，core-js 应该可以在较老的NodeJS版本中工作，而无需转译或打包。[Electron仍然不支持它](https://github.com/electron/electron/issues/21457)，因此现在立刻干掉core-js的CommonJS版本是有问题的。
 
 现代语法的其他方面并不那么明显。目前，core-js使用ES3语法。最初，这是为了最大程度优化，因为它无论如何都应该预先转译为旧语法。但这只是最初的情况，现在，core-js 库无法在用户环境中正确转译，并且在转译器配置中应该被忽略。为什么？让我们以Babel转换为例看看：
 
@@ -562,24 +500,17 @@ IE9-10浏览器的占比也很小了——目前，同样的0.1%。但是，如�
 
 - 另一个问题是使用注入core-js polyfill的方式转译core-js。显然，我们无法将polyfill注入到它们实现的地方，因为这会导致循环依赖。
 
-- 对core-js的一些其他转换会破坏其内部结构 - 例如，typeof的转换[^typeof]（将有助于支持polyfill后的symbol）会破坏Symbol的polyfill。
-
-[^typeof]: https://babeljs.io/docs/en/babel-plugin-transform-typeof-symbol
+- 对core-js的一些其他转换会破坏其内部结构 - 例如，[typeof的转换](https://babeljs.io/docs/en/babel-plugin-transform-typeof-symbol)（将有助于支持polyfill后的symbol）会破坏Symbol的polyfill。
 
 然而，在polyfill代码中使用现代语法可以显著提高源代码的可读性，并且有助于减少大小，在某些情况下还可以提高性能（如果在现代引擎中捆绑polyfill）。所以，现在是时候考虑将core-js重写为现代语法了，为了让它能够正常转译，需要使用变通手法，并为不同用例发布不同语法的版本，以解决上述问题。
 
 ### Web标准的polyfill
 
-我已经考虑很长时间了，想为 core-js 添加尽可能多的 Web 标准支持(不仅仅是 ECMAScript 以及与其密切相关的特性)。首先，是关于最小通用 Web 平台 API[^api] （它是什么?[^what]）的尚未实现功能，但不仅限于此。最好是有一个牢靠的polyfill项目，可以用于尽可能多的开发案例，而不仅仅是ECMAScript。目前，浏览器中支持 Web 标准的情况比支持现代 ECMAScript 特性的情况要糟糕得多。
-
-[^api]: https://common-min-api.proposal.wintercg.org/#index
-[^what]: https://blog.cloudflare.com/introducing-the-wintercg/
+我已经考虑很长时间了，想为 core-js 添加尽可能多的 Web 标准支持(不仅仅是 ECMAScript 以及与其密切相关的特性)。首先，是关于[最小通用 Web 平台 API](https://common-min-api.proposal.wintercg.org/#index) （[它是什么?](https://blog.cloudflare.com/introducing-the-wintercg/)）的尚未实现功能，但不仅限于此。最好是有一个牢靠的polyfill项目，可以用于尽可能多的开发案例，而不仅仅是ECMAScript。目前，浏览器中支持 Web 标准的情况比支持现代 ECMAScript 特性的情况要糟糕得多。
 
 将Web标准polyfill添加到core-js的主要障碍之一，是捆绑包的大小显著增加，但我认为，使用目前仅加载所需polyfill的技术，以及下面我将描述的技术，我们可以将Web标准的polyfill添加到core-js中。
 
-但主要问题是它不应该是一个幼稚的polyfill，如我之前所述，现在，在绝大多数情况下，ECMAScript 功能的正确性并不算太差，但对于Web 平台的功能就没有这么好了。例如，最近添加的structuredClone polyfill[^clone]。在实现它时，考虑到依赖关系，我遇到了数百种不同的JavaScript引擎错误，但我不记得在添加新的ECMAScript功能时看到过这种情况。 因为这个原因，为了一个简单的方法，本应该可以在几个小时内完成的工作（包括解决所有issue和添加所需功能），却持续了几个月。对于polyfill，如果做得不好，还不如不做。适当的测试、polyfill填充和确保跨平台兼容性的 Web 平台功能，比我在 ECMAScript polyfill 上花费的资源更多。因此，仅在我有这样的资源时，才会开始向 core-js 添加尽可能多的 Web 标准支持。
-
-[^clone]: https://github.com/zloirock/core-js#structuredclone
+但主要问题是它不应该是一个幼稚的polyfill，如我之前所述，现在，在绝大多数情况下，ECMAScript 功能的正确性并不算太差，但对于Web 平台的功能就没有这么好了。例如，最近添加的[structuredClone polyfill](https://github.com/zloirock/core-js#structuredclone)。在实现它时，考虑到依赖关系，我遇到了数百种不同的JavaScript引擎错误，但我不记得在添加新的ECMAScript功能时看到过这种情况。 因为这个原因，为了一个简单的方法，本应该可以在几个小时内完成的工作（包括解决所有issue和添加所需功能），却持续了几个月。对于polyfill，如果做得不好，还不如不做。适当的测试、polyfill填充和确保跨平台兼容性的 Web 平台功能，比我在 ECMAScript polyfill 上花费的资源更多。因此，仅在我有这样的资源时，才会开始向 core-js 添加尽可能多的 Web 标准支持。
 
 ---
 
@@ -587,9 +518,7 @@ IE9-10浏览器的占比也很小了——目前，同样的0.1%。但是，如�
 
 有人会问它为什么处于这个位置。像转译器这样的工具与core-js项目有什么关系？core-js只是一个polyfill，转移器那些工具由其他人编写和维护的。有一次我也认为，用一个好的API编写一个伟大的项目，解释它的可能性就足够了，当它流行起来时，它将获得一个生态，并有着适当的第三方工具。然而，多年来，我意识到，如果你不这样做，或者不控制你自己，这种情况就不会发生。
 
-例如，多年来，实例方法无法通过Babel runtime进行polyfill，我解释了太多次如何操作。在实际的项目中，通过preset-env来polyfill是不可行的，因为所需的polyfill的检测不完整，以及兼容性数据来源不够好，我从一开始就解释了这一点。由于这些问题，我被迫在2018-2019年几乎完全重写这些工具，并发布在core-js@3版本中[^third]，之后我们获得了现在这种基于静态分析的polyfill注入工具。
-
-[^third]: https://github.com/babel/babel/pull/7646
+例如，多年来，实例方法无法通过Babel runtime进行polyfill，我解释了太多次如何操作。在实际的项目中，通过preset-env来polyfill是不可行的，因为所需的polyfill的检测不完整，以及兼容性数据来源不够好，我从一开始就解释了这一点。由于这些问题，我被迫[在2018-2019年几乎完全重写这些工具，并发布在core-js@3版本中](https://github.com/babel/babel/pull/7646)，之后我们获得了现在这种基于静态分析的polyfill注入工具。
 
 我相信，如果没有在core-js范围内使用如下的方法，它根本无法正常工作。
 
@@ -599,25 +528,13 @@ IE9-10浏览器的占比也很小了——目前，同样的0.1%。但是，如�
 
 ### 不仅仅是Babel：转译器和模块捆绑器的插件
 
-目前，一些用户被迫使用Babel，只是因为需要自动注入及优化所需的polyfill。Babel的preset-env[^preset]和runtime[^runtime]通过静态分析优化core-js的使用，这是唯一足够好且众所周知的方法。从历史上看，它之所以能这样，是因为我帮助Babel进行polyfill。但这并不意味着Babel是唯一或最好的干这事的地方。
+目前，一些用户被迫使用Babel，只是因为需要自动注入及优化所需的polyfill。Babel的[preset-env](https://babeljs.io/docs/en/babel-preset-env#usebuiltins)和[runtime](https://babeljs.io/docs/en/babel-plugin-transform-runtime#core-js-aliasing)通过静态分析优化core-js的使用，这是唯一足够好且众所周知的方法。从历史上看，它之所以能这样，是因为我帮助Babel进行polyfill。但这并不意味着Babel是唯一或最好的干这事的地方。
 
-[^preset]: https://babeljs.io/docs/en/babel-preset-env#usebuiltins
-[^runtime]: https://babeljs.io/docs/en/babel-plugin-transform-runtime#core-js-aliasing
-
-
-Babel只是众多转译器之一。TypeScript是另一个流行的选项。其他转译器现在越来越受欢迎，例如SWC[^swc]（它已经包含一个自动polyfill/core-js优化的工具[^auto]，但仍然不够完美）。然而，我们为什么要谈论转译器？捆绑器和webpack或esbuild[^esbuild]（也包含集成的转译器）等工具对polyfill的优化更有兴趣。rome[^rome]已经发展了几年，还没有准备好，但它的概念看起来很有希望。
-
-[^swc]: https://swc.rs/
-[^auto]: https://swc.rs/docs/configuration/supported-browsers
-[^esbuild]: https://esbuild.github.io/
-[^rome]: https://rome.tools/
-
+Babel只是众多转译器之一。TypeScript是另一个流行的选项。其他转译器现在越来越受欢迎，例如[SWC](https://swc.rs/)（它已经包含[一个自动polyfill/core-js优化的工具](https://swc.rs/docs/configuration/supported-browsers)，但仍然不够完美）。然而，我们为什么要谈论转译器？捆绑器和webpack或[esbuild](https://esbuild.github.io/)（也包含集成的转译器）等工具对polyfill的优化更有兴趣。[rome](https://rome.tools/)已经发展了几年，还没有准备好，但它的概念看起来很有希望。
 
 位于转译层的基于静态分析的自动polyfill有这么一个主要问题：不是捆绑包中的所有文件都会被转译——例如，依赖项。如果你的一些依赖项需要现代内置功能的polyfill，但你没有在用户空间代码中使用此内置功能，则polyfill不会被添加到捆绑包中。不必要的polyfill导入也不会从你的依赖项中删除（见下文）。将自动polyfill从转译层移动到捆绑器层，可以解决这个问题。
 
-当然，与Babel相比，编写或使用此类插件在很多地方是比较困难的。例如，如果没有一些额外的工具，你无法在TypeScript中使用插件进行自定义转换[^def]。然而，有意愿的地方就有办法(where there's a will there's a way)。
-
-[^def]: https://github.com/microsoft/TypeScript/issues/14419
+当然，与Babel相比，编写或使用此类插件在很多地方是比较困难的。例如，[如果没有一些额外的工具，你无法在TypeScript中使用插件进行自定义转换](https://github.com/microsoft/TypeScript/issues/14419)。然而，有意愿的地方就有办法(where there's a will there's a way)。
 
 core-js的自动polyfill/优化不应该仅在Babel中可用。虽然core-js项目也不可能为所有转译器和捆绑器编写和维护插件，但可以做这些事情：
 
@@ -635,15 +552,11 @@ core-js的自动polyfill/优化不应该仅在Babel中可用。虽然core-js项�
 
 项目通常包含多个入口点、多个捆绑包，在某些情况下，将所有core-js模块移动到一个块（chunk）可能会有问题，并可能导致每个捆绑包中core-js重复。
 
-我已经在前面发布了core-js使用统计数据[^stat]。在许多情况下，你可以看到core-js的重复——而且它只在应用程序的第一个加载页面上。有时它甚至像我们在彭博网站上看到的那样：
-
-[^stat]: https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e
+我已经在前面发布了[core-js使用统计数据](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e)。在许多情况下，你可以看到core-js的重复——而且它只在应用程序的第一个加载页面上。有时它甚至像我们在彭博网站上看到的那样：
 
 <p align="center"><img alt="bloomberg" width="720" src="https://user-images.githubusercontent.com/2213682/218467140-c475482c-24b0-4420-b510-32f6e2a15743.png" /></p>
 
-前段时间，这个数字甚至更高[^higher]。当然，通常的网站不会拥有这么多不同版本的core-js，但有多个core-js确实很常见，大约一半的用了core-js的网站都这样。为了防止这种情况，**需要一个新的解决方案，在一个地方从项目的所有入口点、捆绑包和依赖项收集所有的polyfill。**
-
-[^higher]: https://user-images.githubusercontent.com/2213682/115339234-87e1f700-a1ce-11eb-853c-8b93b7fc5657.png
+[前段时间，这个数字甚至更高](https://user-images.githubusercontent.com/2213682/115339234-87e1f700-a1ce-11eb-853c-8b93b7fc5657.png)。当然，通常的网站不会拥有这么多不同版本的core-js，但有多个core-js确实很常见，大约一半的用了core-js的网站都这样。为了防止这种情况，**需要一个新的解决方案，在一个地方从项目的所有入口点、捆绑包和依赖项收集所有的polyfill。**
 
 让我们称这个工具为 @core-js/collector。这个工具应该接收一个入口点或入口点列表，并使用 preset-env 中所使用的静态分析技术，但是，该工具不应该转换代码或注入任何内容，而是检查完整的依赖树，并返回所需的core-js模块的完整列表。作为一项需求，它应该可以很简单地集成到当前开发栈中。一种可能的方式是在插件中创建一个新的polyfill模式，称为“collected” - 它将允许在一个地方加载应用程序的所有收集的polyfill，并删除不必要的polyfill（见下文）。
 
@@ -653,9 +566,7 @@ core-js的自动polyfill/优化不应该仅在Babel中可用。虽然core-js项�
 
 ##### 译者注：Promise是一种用于处理异步操作的对象，它可以让异步的代码变得更加易于阅读和维护。
 
-这可能不是一个很好的例证，其他例子可能会更好，但既然上面我们开始谈论彭博网站，让我们再看看这个网站。我们无法访问源代码，但是我们有像bundlescanner.com[^bundle]这样很棒的工具（我希望彭博团队能尽快修复它，那时数据就不会是这样了）。
-
-[^bundle]: https://bundlescanner.com/website/bloomberg.com/europe/all
+这可能不是一个很好的例证，其他例子可能会更好，但既然上面我们开始谈论彭博网站，让我们再看看这个网站。我们无法访问源代码，但是我们有像[bundlescanner.com](https://bundlescanner.com/website/bloomberg.com/europe/all)这样很棒的工具（我希望彭博团队能尽快修复它，那时数据就不会是这样了）。
 
 <p align="center"><img alt="bundlescanner" width="720" src="https://user-images.githubusercontent.com/2213682/181242201-ec16dd17-f4dd-4706-abf5-36e764c72e22.png" /></p>
 
@@ -677,24 +588,16 @@ core-js的自动polyfill/优化不应该仅在Babel中可用。虽然core-js项�
 
 ### 服务
 
-在IE11、iOS Safari 14.8以及最新的Firefox中加载相同的polyfill是错误的——在现代浏览器中加载了太多的死代码。一个流行的模式是使用2个捆绑包：为“现代”浏览器加载支持本地模块的 \<script type="module"\> ，而对于不支持本地模块的过时浏览器，则加载 \<script nomodule\> （实践中有些困难）。例如，Lighthouse可以检测到一些不需要的polyfill案例，让我们检查一下长期受苦的彭博网站[^bloom]：
-
-[^bloom]: https://googlechrome.github.io/lighthouse/viewer/?psiurl=https://www.bloomberg.com/europe&strategy=mobile&category=performance
+在IE11、iOS Safari 14.8以及最新的Firefox中加载相同的polyfill是错误的——在现代浏览器中加载了太多的死代码。一个流行的模式是使用2个捆绑包：为“现代”浏览器加载支持本地模块的 \<script type="module"\> ，而对于不支持本地模块的过时浏览器，则加载 \<script nomodule\> （实践中有些困难）。例如，Lighthouse可以检测到一些不需要的polyfill案例，[让我们检查一下长期受苦的彭博网站](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https://www.bloomberg.com/europe&strategy=mobile&category=performance)：
 
 <p align="center"><img alt="lighthouse" width="720" src="https://user-images.githubusercontent.com/2213682/148652288-bd6e452a-f6ba-417d-8972-9d98d2f715a4.png" /></p>
 
-Lighthouse检测出所有资源仅约200KB，0.56秒。但该网站包含大约几兆字节的polyfill。Lighthouse只检测出不到一半的应检测内容[^half]，但即把它能检测的都检测出来，它也只是所有加载的polyfill的一小部分。其余的在哪里？现代浏览器真的需要它们吗？问题是，本地模块支持的下限太低——在这种情况下，“现代”浏览器仍将需要旧版IE所需的大多数polyfill，以提供稳定的JS功能。因此，部分polyfill显示在“未使用JavaScript”部分中，需要6.41s，另外的部分根本没有显示......
-
-[^half]: https://github.com/GoogleChrome/lighthouse/issues/13440
+Lighthouse检测出所有资源仅约200KB，0.56秒。但该网站包含大约几兆字节的polyfill。[Lighthouse只检测出不到一半的应检测内容](https://github.com/GoogleChrome/lighthouse/issues/13440)，但即把它能检测的都检测出来，它也只是所有加载的polyfill的一小部分。其余的在哪里？现代浏览器真的需要它们吗？问题是，本地模块支持的下限太低——在这种情况下，“现代”浏览器仍将需要旧版IE所需的大多数polyfill，以提供稳定的JS功能。因此，部分polyfill显示在“未使用JavaScript”部分中，需要6.41s，另外的部分根本没有显示......
 
 从我开始写core-js的一开始，我就一直在考虑创建一个Web服务，为浏览器提供所需的polyfill服务。
 
-未提供此类服务是core-js落后于另一个项目的唯一方面。英国《金融时报》的polyfill-service[^serv]就基于这一概念，这是一个很牛的服务。这个项目的主要问题是，服务很牛，但是用了糟糕的polyfill。这个项目只是polyfill了core-js提供的ECMAScript功能的一小部分，大多数polyfill是第三方的，他们并不是为一起工作而设计的，太多polyfill没有正确遵循规范，或者太粗糙，或者使用起来很危险（例如，WeakMap看样子是在一步步实现规范[^step]，但缺乏一些特别手段，使其导致内存泄漏和线性访问时间，这就不太好了，还有更多其他问题——它不是在IE11这类引擎中修补、修复和重用本地实现，而是不接受可迭代参数，这使得WeakMap将会被完全替换[^replace]）。一些优秀的开发人员时不时尝试修复这个问题，但是polyfill本身拥有的时间实在是太少了，因此它还远远达不到可被推荐的地步。
+未提供此类服务是core-js落后于另一个项目的唯一方面。英国《金融时报》的[polyfill-service](https://polyfill.io/)就基于这一概念，这是一个很牛的服务。这个项目的主要问题是，服务很牛，但是用了糟糕的polyfill。这个项目只是polyfill了core-js提供的ECMAScript功能的一小部分，大多数polyfill是第三方的，他们并不是为一起工作而设计的，太多polyfill没有正确遵循规范，或者太粗糙，或者使用起来很危险（例如，[WeakMap看样子是在一步步实现规范](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/polyfill.js)，但缺乏一些特别手段，使其导致内存泄漏和线性访问时间，这就不太好了，还有更多其他问题——它不是在IE11这类引擎中修补、修复和重用本地实现，而是不接受可迭代参数，[这使得WeakMap将会被完全替换](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/detect.js)）。一些优秀的开发人员时不时尝试修复这个问题，但是polyfill本身拥有的时间实在是太少了，因此它还远远达不到可被推荐的地步。
 
-
-[^serv]: https://polyfill.io/
-[^step]: https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/polyfill.js
-[^replace]: https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/detect.js
 
 以适当的形式创建这样的服务需要制作和维护许多新组件。我独自一人从事core-js开发，项目没有得到任何公司的必要支持，开发纯粹是建立在热情之上，我需要资金来养活自己和家人，所以我没有时间和其他资源去开发它。然而，在其他任务范围内，我已经制作了一些必需的组件，与一些用户的讨论让我相信，创建一个最大限度简化的服务，然后在你自己的服务器上运行它就足够了。
 
@@ -720,30 +623,21 @@ Lighthouse检测出所有资源仅约200KB，0.56秒。但该网站包含大约�
 
 如果你或你的公司以这样或那样的方式使用core-js，并且对你的供应链质量感兴趣，请支持本项目：
 
-- Open Collective[^open]
-- Patreon[^pat]
-- Boosty[^boosty]
-- Bitcoin （bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz）
-- 支付宝[^alipay] 
+- [**Open Collective**](https://opencollective.com/core-js)
+- [**Patreon**](https://patreon.com/zloirock)
+- [**Boosty**](https://boosty.to/zloirock)
+- **Bitcoin （bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz）**
+- [**支付宝**](https://user-images.githubusercontent.com/2213682/219464783-c17ad329-17ce-4795-82a7-f609493345ed.png)
 
 
-[^open]: https://opencollective.com/core-js
-[^pat]: https://patreon.com/zloirock
-[^boosty]: https://boosty.to/zloirock
-[^alipay]: https://user-images.githubusercontent.com/2213682/219464783-c17ad329-17ce-4795-82a7-f609493345ed.png
 
 **如果你能在Web标准和开源方面提供一份好工作，请联系我。**
 
-请随时在此issue帖子中添加评论:
+---
 
-https://github.com/zloirock/core-js/issues/1179
+**请随时在[此issue帖子](https://github.com/zloirock/core-js/issues/1179)中添加评论:**
 
-Denis Pushkarev[^denis]，2023年2月14日
-
-
-[^denis]: https://github.com/zloirock
+**[Denis Pushkarev](https://github.com/zloirock)，2023年2月14日**
 
 
-##### 翻译｜卫剑钒
-##### 译者注：这篇翻译一并发布在我的公众号“卫sir说”上:[《一个开源人的心酸哭诉》](https://mp.weixin.qq.com/s/EmxfaSOtqNAuC7XmzlHa4w)
-
+##### 翻译｜卫剑钒 (微信公众号:man-mind)
