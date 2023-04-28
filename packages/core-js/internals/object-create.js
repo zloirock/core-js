@@ -53,7 +53,9 @@ var NullProtoObjectViaIFrame = function () {
 var activeXDocument;
 var NullProtoObject = function () {
   try {
-    activeXDocument = new ActiveXObject('htmlfile');
+    if (ActiveXObject) {
+      activeXDocument = new ActiveXObject('htmlfile');
+    }
   } catch (error) { /* ignore */ }
   NullProtoObject = typeof document != 'undefined'
     ? document.domain && activeXDocument
