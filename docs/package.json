@@ -11,8 +11,8 @@
     "@vuepress/plugin-shiki": "2.0.0-beta.61",
     "core-js-compat": "^3.30.1",
     "vuepress": "2.0.0-beta.61",
-    "vuepress-plugin-i18n": "^0.6.1-repub1",
-    "vuepress-plugin-redirect": "2.0.0-beta.205",
-    "vuepress-theme-hope": "2.0.0-beta.205"
+    "vuepress-plugin-i18n": "^0.7.0",
+    "vuepress-plugin-redirect": "2.0.0-beta.206",
+    "vuepress-theme-hope": "2.0.0-beta.206"
   }
 }
