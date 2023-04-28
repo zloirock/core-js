@@ -8,6 +8,7 @@ var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var URL = getBuiltIn('URL');
 
 // https://github.com/nodejs/node/issues/47505
+// https://github.com/denoland/deno/issues/18893
 var THROWS_WITHOUT_ARGUMENTS = USE_NATIVE_URL && fails(function () {
   URL.canParse();
 });
