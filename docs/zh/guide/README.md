@@ -18,11 +18,11 @@ Core-JS 被集成到许多构建工具中，你可以用它们快速实现 polyf
 
 ```sh
 # 全局版本
-npm install --save core-js@3.30.1
+npm install --save core-js@%COREJS_VERSION%
 # 无全局命名空间污染的版本
-npm install --save core-js-pure@3.30.1
+npm install --save core-js-pure@%COREJS_VERSION%
 # bundle 后的全局版本
-npm install --save core-js-bundle@3.30.1
+npm install --save core-js-bundle@%COREJS_VERSION%
 ```
 
 或者你可以通过 [CDN](https://www.jsdelivr.com/package/npm/core-js-bundle) 来引入 Core-JS。
@@ -49,7 +49,7 @@ import "core-js";
 // 或者
 import "core-js/full";
 // 或者使用 Deno
-import "https://deno.land/x/corejs@v3.30.1/index.js";
+import "https://deno.land/x/corejs@v%COREJS_VERSION%/index.js";
 // Polyfill 所有 actual 特性 —— ES 标准、web 标准以及 stage3 阶段的 ES 提案：
 import "core-js/actual";
 // 只 polyfill 稳定特性 —— ES 和 web 标准：

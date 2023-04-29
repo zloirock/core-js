@@ -18,11 +18,11 @@ If you do need to use Core-JS manually, please continue reading the following se
 
 ```shell
 # global version
-npm install --save core-js@3.30.1
+npm install --save core-js@%COREJS_VERSION%
 # version without global namespace pollution
-npm install --save core-js-pure@3.30.1
+npm install --save core-js-pure@%COREJS_VERSION%
 # bundled global version
-npm install --save core-js-bundle@3.30.1
+npm install --save core-js-bundle@%COREJS_VERSION%
 ```
 
 Or you can use Core-JS [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
@@ -49,7 +49,7 @@ import "core-js";
 // or:
 import "core-js/full";
 // or use Deno:
-import "https://deno.land/x/corejs@v3.30.1/index.js";
+import "https://deno.land/x/corejs@v%COREJS_VERSION%/index.js";
 // polyfill all actual features - stable ES, web standards and stage 3 ES proposals:
 import "core-js/actual";
 // polyfill only stable features - ES and web standards:

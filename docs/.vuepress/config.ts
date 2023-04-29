@@ -5,6 +5,7 @@ import { redirectPlugin } from "vuepress-plugin-redirect";
 import searchPlugin from "@vuepress/plugin-search";
 import shikiPlugin from "@vuepress/plugin-shiki";
 import theme from "./theme.js";
+import { version } from "../../packages/core-js/package.json";
 
 const __dirname = getDirname(import.meta.url);
 export default defineUserConfig({
@@ -50,4 +51,12 @@ export default defineUserConfig({
       switchLocale: "modal",
     }),
   ],
+  extendsPage: (page) => {
+    if (page.sfcBlocks.template?.contentStripped)
+      page.sfcBlocks.template.contentStripped =
+        page.sfcBlocks.template.contentStripped.replaceAll(
+          "%COREJS_VERSION%",
+          version
+        );
+  },
 });

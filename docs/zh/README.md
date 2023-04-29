@@ -52,6 +52,7 @@ features:
 [![sponsor12](https://opencollective.com/core-js/sponsor/11/avatar.svg)](https://opencollective.com/core-js/sponsor/11/website)
 
 </div>
+%COREJS_VERSION%
 
 ::: details 更多支持者
 [![backers](https://opencollective.com/core-js/backers.svg?width=1200)](https://opencollective.com/core-js#backers){ .no-ext-link-icon }
@@ -131,7 +132,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 @tab Deno
 
 ```js
-import "https://deno.land/x/corejs@v3.30.1/index.js"; // <- at the top of your entry point
+import "https://deno.land/x/corejs@v%COREJS_VERSION%/index.js"; // <- at the top of your entry point
 Promise.resolve(42).then((it) => console.log(it)); // => 42
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 [1, 2].flatMap((it) => [it, it]); // => [1, 1, 2, 2]
