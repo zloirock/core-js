@@ -253,13 +253,17 @@ var structuredCloneInternal = function (value, map) {
         cloned = tryNativeRestrictedStructuredClone(value, type);
       }
       break;
-    // NodeJS 20.0.0 bug, https://github.com/nodejs/node/issues/47612
     case 'File':
-      try {
+      if (nativeRestrictedStructuredClone) try {
+        cloned = nativeRestrictedStructuredClone(value);
+        // NodeJS 20.0.0 bug, https://github.com/nodejs/node/issues/47612
+        if (classof(cloned) !== type) cloned = undefined;
+      } catch (error) { /* empty */ }
+      if (!cloned) try {
         cloned = new File([value], value.name, value);
-      } catch (error) {
-        cloned = tryNativeRestrictedStructuredClone(value, type);
-      } break;
+      } catch (error) { /* empty */ }
+      if (!cloned) throwUnpolyfillable(type);
+      break;
     case 'FileList':
       dataTransfer = createDataTransfer();
       if (dataTransfer) {
