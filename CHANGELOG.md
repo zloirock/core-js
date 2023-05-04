@@ -5,7 +5,7 @@
 - Added a workaround for getting proper global object in Figma plugins, [#1231](https://github.com/zloirock/core-js/issues/1231)
 - Compat data improvements:
   - Added NodeJS 20.0 compat data mapping
-  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported ([fixed](https://github.com/nodejs/node/pull/47513)) from NodeJS 20.1.0
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported (fixed) from [NodeJS 20.1.0](https://github.com/nodejs/node/pull/47513) and [Deno 1.33.2](https://github.com/denoland/deno/pull/18896)
   - Added Deno 1.33 compat data mapping
 
 ##### [3.30.1 - 2023.04.14](https://github.com/zloirock/core-js/releases/tag/v3.30.1)

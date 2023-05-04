@@ -2463,6 +2463,7 @@ export const data = {
     safari: '14.0',
   },
   'web.url.can-parse': {
+    deno: '1.33.2',
     node: '20.1.0',
   },
   'web.url.to-json': {
