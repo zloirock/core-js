@@ -1,12 +1,15 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.30.2 - 2023.05.07](https://github.com/zloirock/core-js/releases/tag/v3.30.2)
 - Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`
 - Added protection from Terser unsafe `String` optimization, [#1242](https://github.com/zloirock/core-js/issues/1242)
 - Added a workaround for getting proper global object in Figma plugins, [#1231](https://github.com/zloirock/core-js/issues/1231)
 - Compat data improvements:
   - Added NodeJS 20.0 compat data mapping
-  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported (fixed) from [NodeJS 20.1.0](https://github.com/nodejs/node/pull/47513) and [Deno 1.33.2](https://github.com/denoland/deno/pull/18896)
   - Added Deno 1.33 compat data mapping
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported (fixed) from [NodeJS 20.1.0](https://github.com/nodejs/node/pull/47513) and [Deno 1.33.2](https://github.com/denoland/deno/pull/18896)
 
 ##### [3.30.1 - 2023.04.14](https://github.com/zloirock/core-js/releases/tag/v3.30.1)
 - Added a fix for a NodeJS 19.9.0 `URL.canParse` [bug](https://github.com/nodejs/node/issues/47505)
