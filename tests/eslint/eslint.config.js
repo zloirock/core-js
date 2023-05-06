@@ -499,6 +499,8 @@ const base = {
   'unicorn/prefer-array-index-of': ERROR,
   // prefer `.some(…)` over `.filter(…).length` check and `.find(…)`
   'unicorn/prefer-array-some': ERROR,
+  // prefer `Blob#{ arrayBuffer, text }` over `FileReader#{ readAsArrayBuffer, readAsText }`
+  'unicorn/prefer-blob-reading-methods': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `EventTarget` over `EventEmitter`
