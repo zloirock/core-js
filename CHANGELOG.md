@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - Added Electron 26 compat data mapping
   - Added Quest Browser 27 compat data mapping
   - Added Opera Android 75 compat data mapping
 
