@@ -91,7 +91,7 @@
     "@babel/plugin-transform-unicode-regex": "^7.18.6",
     "konan": "^2.1.1",
     "npm-run-all2": "^6.0.5",
-    "semver": "^7.5.0",
+    "semver": "^7.5.1",
     "zx": "^7.2.2"
   }
 }
