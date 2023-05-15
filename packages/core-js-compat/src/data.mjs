@@ -2144,10 +2144,10 @@ export const data = {
   'esnext.set.delete-all': {
   },
   'esnext.set.difference.v2': {
+    bun: '0.6.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
-    bun: '0.6.0',
   },
   'esnext.set.every': {
   },
