@@ -2147,6 +2147,7 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
+    bun: '0.6.0',
   },
   'esnext.set.every': {
   },
