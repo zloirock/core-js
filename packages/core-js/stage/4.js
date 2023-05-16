@@ -9,6 +9,7 @@ require('../proposals/promise-any');
 require('../proposals/relative-indexing-method');
 require('../proposals/string-match-all');
 require('../proposals/string-replace-all-stage-4');
+require('../proposals/well-formed-unicode-strings');
 
 var path = require('../internals/path');
 

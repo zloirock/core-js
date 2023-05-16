@@ -817,7 +817,7 @@ correctionNeeded; // => [1, 1, 3]
 ```
 
 #### ECMAScript: String and RegExp[⬆](#index)
-The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js).
+The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js), [`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.is-well-formed.js), [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.to-well-formed.js).
 
 Adding support of well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js).
 
@@ -847,6 +847,8 @@ class String {
   trimRight(): string;
   trimStart(): string;
   trimEnd(): string;
+  isWellFormed(): boolean;
+  toWellFormed(): string;
   anchor(name: string): string;
   big(): string;
   blink(): string;
@@ -907,6 +909,8 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-end
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-left
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-right
+core-js(-pure)/es|stable|actual|full/string(/virtual)/is-well-formed
+core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
 core-js(-pure)/es|stable|actual|full/string(/virtual)/anchor
 core-js(-pure)/es|stable|actual|full/string(/virtual)/big
 core-js(-pure)/es|stable|actual|full/string(/virtual)/blink
@@ -932,7 +936,7 @@ core-js/es|stable|actual|full/regexp/to-string
 core-js/es|stable|actual|full/escape
 core-js/es|stable|actual|full/unescape
 ```
-[*Examples*](https://is.gd/Q8eRhG):
+[*Examples*](https://tinyurl.com/22uafm3p):
 ```js
 for (let value of 'a𠮷b') {
   console.log(value); // => 'a', '𠮷', 'b'
@@ -1004,6 +1008,12 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
 
 'abc'.at(1);  // => 'b'
 'abc'.at(-1); // => 'c'
+
+'a💩b'.isWellFormed();      // => true
+'a\uD83Db'.isWellFormed();  // => false
+
+'a💩b'.toWellFormed();      // => 'a💩b'
+'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
 #### ECMAScript: Number[⬆](#index)
 Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](https://goo.gl/jRd6b3):
@@ -2139,6 +2149,17 @@ namespace JSON {
 ```js
 core-js/proposals/well-formed-stringify
 ```
+##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
+```js
+class String {
+  isWellFormed(): boolean;
+  toWellFormed(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/well-formed-unicode-strings
+```
 
 #### Stage 3 proposals[⬆](#index)
 
@@ -2379,28 +2400,6 @@ core-js(-pure)/actual|full/symbol/dispose
 core-js(-pure)/actual|full/disposable-stack
 core-js(-pure)/actual|full/suppressed-error
 core-js(-pure)/actual|full/iterator/dispose
-```
-##### [Well-formed unicode strings](https://github.com/tc39/proposal-is-usv-string)[⬆](#index)
-Modules [`esnext.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.is-well-formed.js) and [`esnext.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.to-well-formed.js)
-```js
-class String {
-  isWellFormed(): boolean;
-  toWellFormed(): string;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/well-formed-unicode-strings
-core-js(-pure)/actual|full/string(/virtual)/is-well-formed
-core-js(-pure)/actual|full/string(/virtual)/to-well-formed
-```
-[*Examples*](https://tinyurl.com/2fulc2ak):
-```js
-'a💩b'.isWellFormed();      // => true
-'a\uD83Db'.isWellFormed();  // => false
-
-'a💩b'.toWellFormed();      // => 'a💩b'
-'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).

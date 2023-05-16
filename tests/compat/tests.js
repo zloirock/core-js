@@ -1088,6 +1088,9 @@ GLOBAL.tests = {
     return String.fromCodePoint;
   },
   'es.string.includes': createIsRegExpLogicTest('includes'),
+  'es.string.is-well-formed': function () {
+    return String.prototype.isWellFormed;
+  },
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
     return ''[Symbol.iterator];
   }],
@@ -1183,6 +1186,11 @@ GLOBAL.tests = {
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.substr': function () {
     return 'ab'.substr(-1) === 'b';
+  },
+  'es.string.to-well-formed': function () {
+    // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
+    return String.prototype.toWellFormed.call(1) === '1';
   },
   'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
@@ -1757,14 +1765,6 @@ GLOBAL.tests = {
   },
   'esnext.string.dedent': function () {
     return String.dedent;
-  },
-  'esnext.string.is-well-formed': function () {
-    return String.prototype.isWellFormed;
-  },
-  'esnext.string.to-well-formed': function () {
-    // Safari ToString conversion bug
-    // https://bugs.webkit.org/show_bug.cgi?id=251757
-    return String.prototype.toWellFormed.call(1) === '1';
   },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;

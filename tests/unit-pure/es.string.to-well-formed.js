@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants';
 import Symbol from 'core-js-pure/es/symbol';
-import toWellFormed from 'core-js-pure/actual/string/virtual/to-well-formed';
+import toWellFormed from 'core-js-pure/es/string/virtual/to-well-formed';
 
 QUnit.test('String#toWellFormed', assert => {
   assert.isFunction(toWellFormed);

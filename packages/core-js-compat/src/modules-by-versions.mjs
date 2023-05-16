@@ -203,6 +203,8 @@ export default {
     'web.url.can-parse',
   ],
   3.31: [
+    'es.string.is-well-formed',
+    'es.string.to-well-formed',
     'esnext.function.metadata',
   ],
 };

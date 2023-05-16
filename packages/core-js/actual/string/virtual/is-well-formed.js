@@ -1,3 +1,6 @@
+// TODO: Remove from `core-js@4`
 require('../../../modules/esnext.string.is-well-formed');
 
-module.exports = require('../../../internals/entry-virtual')('String').isWellFormed;
+var parent = require('../../../stable/string/virtual/is-well-formed');
+
+module.exports = parent;
