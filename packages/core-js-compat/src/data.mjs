@@ -1862,7 +1862,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.find-last-index': null,
   'esnext.array.group': {
-    bun: '0.1.9',
+    // disabled from Bun 0.6.2
+    // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
     safari: '16.4',
@@ -1874,7 +1875,8 @@ export const data = {
   'esnext.array.group-by-to-map': {
   },
   'esnext.array.group-to-map': {
-    bun: '0.1.9',
+    // disabled from Bun 0.6.2
+    // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
     safari: '16.4',
