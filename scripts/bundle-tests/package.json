@@ -2,7 +2,7 @@
   "name": "scripts/bundle-tests",
   "devDependencies": {
     "babel-loader": "^9.1.2",
-    "webpack": "^5.83.0",
+    "webpack": "^5.83.1",
     "webpack-cli": "^5.1.1"
   }
 }
