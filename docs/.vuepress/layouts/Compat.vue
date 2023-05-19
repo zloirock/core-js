@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-//@ts-expect-error ts2307
+//@ts-expect-error it is an alias
 import CommonWrapper from "@theme-hope/components/CommonWrapper";
-//@ts-expect-error ts2307
+//@ts-expect-error it is an alias
 import NormalPage from "@theme-hope/components/NormalPage";
 import { onMounted, ref } from "vue";
 import _compatData from "core-js-compat/data.json";
@@ -33,7 +33,7 @@ const environments = [
 ] as const;
 
 function calcValue(
-  env: typeof environments[number],
+  env: (typeof environments)[number],
   value: boolean | string | undefined
 ) {
   switch (value) {
@@ -49,7 +49,7 @@ function calcValue(
 }
 
 function calcClass(
-  env: typeof environments[number],
+  env: (typeof environments)[number],
   value: boolean | string | undefined
 ) {
   switch (value) {
@@ -69,7 +69,7 @@ onMounted(async () => {
     try {
       const test = (
         (window as any).tests as Record<
-          Partial<typeof environments[number]>,
+          Partial<(typeof environments)[number]>,
           Function | Array<Function>
         >
       )[moduleName];

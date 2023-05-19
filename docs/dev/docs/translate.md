@@ -9,21 +9,10 @@ icon: language
 ::: warning
 Don't use the machine translation directly!
 :::
-You can find the pending translate pages by tag `untranslated` in each language:
-
-- [中文(Chinese)](/zh/tag/untranslated)
-
-### Specification
-
-To ensure consistency in the format of the document, some of the requirements are listed below:
-
-- Please do not translate file names, categories and tags
-- See also the corresponding language specification
 
 ## Translate to new language
 
-1. Copy all documents into `/lang/`
-2. Add localised configuration:
+1. Add localised configuration:
 
    1. Copy `.vuepress/navbar/en.ts` and name it `.vuepress/navbar/lang.ts`, add prefix `/lang` for all `link` and translate the contents of `text`:
       :::details Example
@@ -52,7 +41,4 @@ To ensure consistency in the format of the document, some of the requirements ar
       @[code ts{2-3,14-17}](@docs-root/.vuepress/theme.ts)
       :::
 
-3. Translate the content of the document
-   :::tip
-   You can add the `untranslated` tag to the parts that are not translated at the moment
-   :::
+2. Translate the content of the document
