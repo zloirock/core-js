@@ -16,7 +16,7 @@ JavaScript、浏览器和 Web 开发正在以惊人的速度发展。所有浏�
 
 页面加载速度等于收入。
 
-![conversion](/project/roadmap/conversion.png)
+![conversion](/project/roadmap/conversion.webp)
 
 > 插图来自谷歌搜索的[随机帖子](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a)
 
@@ -114,9 +114,9 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 我已经在上面发布了 [`core-js` 使用统计数据](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e)。在许多情况下，您会看到 `core-js` 的重复——它只出现在应用的第一个加载页面上。有时甚至就像我们在彭博社网站上看到的那样：
 
-![bloomberg](/project/roadmap/bloomberg.png)
+![bloomberg](/project/roadmap/bloomberg.webp)
 
-[前段时间这个数字更高。](/project/roadmap/bloomberg2.png) 当然，这样数量的重复和 `core-js` 的各种版本并不典型，但是正如上面那样，`core-js` 重复太常见了，影响了使用 `core-js` 的网站中的约一半。为了防止发生这种情况，**需要一个新的解决方案来从项目的所有入口点、捆绑包和依赖项中收集所有 polyfill。**
+[前段时间这个数字更高。](/project/roadmap/bloomberg2.webp) 当然，这样数量的重复和 `core-js` 的各种版本并不典型，但是正如上面那样，`core-js` 重复太常见了，影响了使用 `core-js` 的网站中的约一半。为了防止发生这种情况，**需要一个新的解决方案来从项目的所有入口点、捆绑包和依赖项中收集所有 polyfill。**
 
 让我们为这个 `@core-js/collector` 调用一个工具。这个工具应该有一个入口点或一个入口点列表，并且应该使用与 `preset-env` 中使用的相同的静态分析，但是，这个工具不应该转换代码或注入任何东西，而应该检查完整的依赖树并且返回一个所需 `core-js` 模块的完整列表。作为一个需求，它应该很容易集成到当前的技术栈中。一种可能的方法是在插件中使用新的 polyfill 模式，我们叫它`收集`——在一个地方加载应用的所有 polyfill 并删除不必要的（见下文）。
 
@@ -126,7 +126,7 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 它不是这个问题的理想描述，许多其他例子会更好，但是既然上面我们开始谈论彭博社网站，让我们再看一次这个网站。我们无法访问源代码，但是，例如，我们拥有 [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) 这样一个很棒的工具（我希望彭博社的团队尽快修复它，这样结果可能会过时）。
 
-![bundlescanner](/project/roadmap/bundlescanner.png)
+![bundlescanner](/project/roadmap/bundlescanner.webp)
 
 从实践中可以看出，由于这样的分析不是一项简单的工作，因此该工具只能检测到大约一半的库代码。然而，除了 450 KB 的 `core-js` 之外，我们还看到了数百 KB 的其他 polyfill——许多份 `es6-promise`、`promise-polyfill`、`whatwg-fetch`（[出于上述原因](#web-标准的-polyfill)、`core-js` _仍然_ 不 polyfill 它），`string.prototype.codepointat`、`object-assign`（这是一个*ponyfill*，下一节是关于它们的）、`array-find-index` 等。
 
@@ -148,7 +148,7 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 加载相同的 polyfills 是错误的，比如在 IE11、iOS Safari 14.8 和最新的 Firefox 中——在现代浏览器中会加载太多不会运行的代码。目前，一种流行的模式是使用两个包——用于在支持原生模块加载的现代浏览器的 `<script type="module">`，以及用于不支持原生模块的过时浏览器的 `<script nomodule>`（在实践中有点难）。例如，Lighthouse 可以检测到一些 esmodules 目标不需要的 polyfill 案例，[让我们看看多灾多难的彭博社网站](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https%3A%2F%2Fwww.bloomberg.com%2Feurope&strategy=mobile&category=performance)：
 
-![lighthouse](/project/roadmap/lighthouse.png)
+![lighthouse](/project/roadmap/lighthouse.webp)
 
 Lighthouse 显示所有资源大约 200KB，0.56 秒。注意这个网站包含大约几 MB 的 polyfill。[现在 Lighthouse 检测不到它应有的一半功能](https://github.com/GoogleChrome/lighthouse/issues/13440)，但即使有另一半，它也只是所有加载的 polyfill 的一小部分。其余的在哪里？现代浏览器真的需要它们吗？问题是原生模块支持的下限太低——在这种情况下，“现代”浏览器需要旧 IE 所需的大部分稳定 JS 功能的 polyfill，因此部分 polyfill 显示在“未使用的 JavaScript”部分耗时 6.41 秒，有一部分根本没有显示……
 

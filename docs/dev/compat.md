@@ -15,7 +15,7 @@ For updating `core-js-compat` data:
 
 - If you want to add a new data for a browser, run `tests/compat/index.html` in this browser (tests and results for the actual release are available at [`Compat Form`](../compat.md)) and you will see what Core-JS modules are required for this browser.
 
-![compat-table](/compat/screenshot.png)
+![compat-table](/compat/screenshot.webp)
 
 - If you want to add new data for NodeJS, run `npm run compat-node` with the installed required NodeJS version and you will see the results in the console. Use `npm run compat-node json` if you want to get the result as JSON.
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno json` if you want to get the result as JSON.

@@ -20,7 +20,7 @@ date: 2023-02-14
 
 - **支付宝**:
 
-  ![Alipay-code](/sponsor/alipay.jpg)
+  ![Alipay-code](/sponsor/alipay.webp)
 
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)
@@ -53,51 +53,51 @@ date: 2023-02-14
 
 我写了个[简单的脚本](https://github.com/zloirock/core-js/blob/master/scripts/usage/usage.mjs)，通过 Alexa 顶级网站列表检查 core-js 的使用情况。我们可以知道 core-js 的应用情况（以及各网站所使用的版本）。
 
-![usage](/blog/2023/so-whats-next/usage.png)
+![usage](/blog/2023/so-whats-next/usage.webp)
 
 在 TOP 1000 网站上运行这个脚本，**我检测到[52%](https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6)的测试网站对 core-js 的使用情况**。由于每天情况并不太一样（列表、网站等不是常数），结果可能会有百分之几的差异。然而，这只是使用现代浏览器对网站主页的粗略检测，很多使用并没有测出来，**如果手动检查，会发现使用量增加百分之几十**。例如，上面截图中某些网站没有被脚本发现使用了 core-js，但去他们主页手工看一下就会发现他们也用了（`请耐心点`，在下面的一系列屏幕截图之后，就没有这么多图片了）：
 
-![whatsapp](/blog/2023/so-whats-next/whatsapp.png)
+![whatsapp](/blog/2023/so-whats-next/whatsapp.webp)
 
 ---
 
-![linkedin](/blog/2023/so-whats-next/linkedin.png)
+![linkedin](/blog/2023/so-whats-next/linkedin.webp)
 
 ---
 
-![netflix](/blog/2023/so-whats-next/netflix.png)
+![netflix]( netflix.png)
 
 ---
 
-![tencent](/blog/2023/so-whats-next/tencent.png)
+![tencent](/blog/2023/so-whats-next/tencent.webp)
 
 ---
 
-![ebay](/blog/2023/so-whats-next/ebay.png)
+![ebay](/blog/2023/so-whats-next/ebay.webp)
 
 ---
 
-![apple](/blog/2023/so-whats-next/apple.png)
+![apple](/blog/2023/so-whats-next/apple.webp)
 
 ---
 
-![fandom](/blog/2023/so-whats-next/fandom.png)
+![fandom](/blog/2023/so-whats-next/fandom.webp)
 
 ---
 
-![pornhub](/blog/2023/so-whats-next/pornhub.png)
+![pornhub](/blog/2023/so-whats-next/pornhub.webp)
 
 ---
 
-![paypal](/blog/2023/so-whats-next/paypal.png)
+![paypal](/blog/2023/so-whats-next/paypal.webp)
 
 ---
 
-![binance](/blog/2023/so-whats-next/binance.png)
+![binance](/blog/2023/so-whats-next/binance.webp)
 
 ---
 
-![spotify](/blog/2023/so-whats-next/spotify.png)
+![spotify](/blog/2023/so-whats-next/spotify.webp)
 
 **通过这样的手动检查，你可以在前 100 个网站的 75-80%的网站上找到 core-js**，而检测脚本只在 55-60%的网站上找到它。当然，在较大的样本中，百分比会下降。
 
@@ -109,7 +109,7 @@ date: 2023-02-14
 
 core-js 不仅仅是在网站的前端——它几乎在所有使用 JavaScript 的地方——我认为这从来没有被认真统计过。
 
-![github-desktop](/blog/2023/so-whats-next/github-desktop.png)
+![github-desktop](/blog/2023/so-whats-next/github-desktop.webp)
 
 然而，由于上述原因，**[几乎没有人记得他或她使用了 core-js](https://2022.stateofjs.com/en-US/other-tools)**。
 
@@ -119,7 +119,7 @@ core-js 不仅仅是在网站的前端——它几乎在所有使用 JavaScript 
 
 ## 让我们从一张流行的 xkcd 图片开始下一部分
 
-[![xkcd](/blog/2023/so-whats-next/xkcd.png)](https://xkcd.com/2347/)
+[![xkcd](/blog/2023/so-whats-next/xkcd.webp)](https://xkcd.com/2347/)
 
 ### 缘起
 
@@ -143,7 +143,7 @@ core-js 不仅仅是在网站的前端——它几乎在所有使用 JavaScript 
 
 然而，这只是所需工作的开始，之后跟随的是常年的辛勤工作。我几乎每天都花几个小时在 core-js 和相关项目（主要是 Babel 和[compat-table](https://kangax.github.io/compat-table/es2016plus/)）的维护上。
 
-![github](/blog/2023/so-whats-next/github.png)
+![github](/blog/2023/so-whats-next/github.webp)
 
 core-js 不是一个只有几十行代码的库，这种库你写完就可以忘掉它。与绝大多数库不同，它与 Web 的状态息息相关。它对 JavaScript 标准或提案的任何更改、任何 JS 引擎新发布、任何 JS 引擎中新的 bug 要做出反应。ECMAScript ~~6~~ 2015 之后跟着的是新提案、新版本的 ECMAScript、新的非 ECMAScript Web 标准、新引擎和新工具等。项目的演变、改进以及对 Web 当前状态的适配从未停止过——几乎所有这些工作，对普通用户来说，仍然是看不见的。
 
@@ -179,7 +179,7 @@ core-js 不是一个只有几十行代码的库，这种库你写完就可以忘
 
 于是我决定做一个小实验——向 core-js 用户寻求帮助——如果没人维护 core-js，他们将首先遭受痛苦。我在 core-js 安装后添加了一条消息：
 
-![postinstall](/blog/2023/so-whats-next/postinstall.png)
+![postinstall](/blog/2023/so-whats-next/postinstall.webp)
 
 ::: info 译者注
 上面这段提示主要是向用户请求资金捐助，给出了两个捐助网站，并在最后一句说：“core-js 的作者正在找一个好工作。”
@@ -191,7 +191,7 @@ core-js 不是一个只有几十行代码的库，这种库你写完就可以忘
 
 当然，我知道有人不希望在他们的控制台中看到帮助请求，但我收到的恨意简直淹没了我的房顶，每天有数百条消息、帖子和评论，都在表达他们的恨意。所有这些都可以简化为：
 
-![get-rid](/blog/2023/so-whats-next/get-rid.png)
+![get-rid](/blog/2023/so-whats-next/get-rid.webp)
 
 ::: info 译者注
 标题翻译：让这个 SB zloirock 和他的 core-js 库去死吧
@@ -249,7 +249,7 @@ core-js 不是一个只有几十行代码的库，这种库你写完就可以忘
 
 我看到了数十篇文章、数百篇帖子和数千条评论，其中许多评论的本质，大概就是这样的：
 
-![reddit](/blog/2023/so-whats-next/reddit.png)
+![reddit](/blog/2023/so-whats-next/reddit.webp)
 
 ::: info 译者注
 上面这段话的翻译：这家伙是个大混蛋。他绝对是我在 Github 上遇到的最糟糕的维护者，无人能及。不知道他因什么进了监狱，但我很高兴看到他离开这里。
@@ -277,13 +277,13 @@ JavaScript 的最佳前进方式是 TC39 和 core-js 的合作。TC39 邀请 Bab
 TC39 则是 ECMA 为 ES 专门组织的技术委员会（Technical Committee），39 这个数字用来标记旗下的技术委员会。TC39 的成员由各个主流浏览器厂商的代表构成。
 :::
 
-![shu](/blog/2023/so-whats-next/shu.png)
+![shu](/blog/2023/so-whats-next/shu.webp)
 
 ::: info
 上图文字翻译：真正的困难是我现在拒绝与 core-js 的作者接触
 :::
 
-![ljharb](/blog/2023/so-whats-next/ljharb.png)
+![ljharb](/blog/2023/so-whats-next/ljharb.webp)
 
 :::info 上图文字翻译
 polyfill 从来没有也从来不会决定提案如何运作，所以我不知道为什么这个问题一直被提起。
@@ -291,7 +291,7 @@ polyfill 从来没有也从来不会决定提案如何运作，所以我不知�
 
 一段时间后，NPM 表达了它的“支持”。在 2020 年底发布的 npm@7 中，作为 npm fund 的逻辑延续，控制台禁用了安装后脚本（post-install scripts）的输出。结果是可以预期的，人们不再能看到资金请求，同时，几乎没有人使用 npm fund，所以 core-js 赞助者的数量开始下降。NPM 可真够“支持”我的，它不仅通过分发我的作品来赚钱，而且它自己也在用 core-js :-)
 
-![npm](/blog/2023/so-whats-next/npm.png)
+![npm](/blog/2023/so-whats-next/npm.webp)
 
 ::: info 译者注
 这张图表明了 NPM 网站也在用 core-js
@@ -327,7 +327,7 @@ Crypto？通过加密钱包请求捐款是很流行的。然而，一直以来�
 
 如果有人说他们不知道 core-js 需要资金......拜托，我经常看到[这样的表情包](https://www.reddit.com/r/ProgrammerHumor/comments/fbfb2o/thank_you_for_using_corejs/)：
 
-![sanders](/blog/2023/so-whats-next/sanders.png)
+![sanders](/blog/2023/so-whats-next/sanders.webp)
 
 ::: info 译者注
 此图来自 reddit 网站的 `r/programmerHumor` 版块，用来讽刺作者在 core-js 安装后请求捐款。
@@ -337,12 +337,12 @@ Crypto？通过加密钱包请求捐款是很流行的。然而，一直以来�
 
 一年前，Tidelift 不再给我寄钱了。他们说，由于政治局势，他们使用的 Hyperwallet 不再供俄罗斯人使用（但上个月我试图更新一些个人数据时，它又可以使用了），为了安全起见，他们会把我的钱存放在他们那边。在过去的几个月里，我试图把这笔钱存入银行或 Hyperwallet 账户，但收到回复说，他们会尝试做些事情（听起来很棒，不是吗？）。去年年底以来，他们干脆停止回复电子邮件。现在，我只有这个：
 
-![tidelift](/blog/2023/so-whats-next/tidelift.png)
+![tidelift](/blog/2023/so-whats-next/tidelift.webp)
 
 ##### 信件主要内容翻译：Denis 你好，对于延误回复深表歉意。不幸的是，如果您在 Hyperwallet 中的账户被冻结，我们将无法向您付款，因此我们将终止您和我们之间的协议并立即生效。如果您能够解冻您的 Hyperwallet 帐户，请告诉我们，我们可以重新建立关系。（这是 Tidelift 给 core-js 作者 Denis 的邮件）
 
 **Tidelift 以如此有趣的方式，让我知道我的收入减少了，今年我的工作收入不是每月 1800 美元，而是每月 800 美元。** 当然，没有对后续电子邮件的回复。然而，他们的网站显示，我仍然在收到钱。
-![tidelift](/blog/2023/so-whats-next/tidelift2.png)
+![tidelift](/blog/2023/so-whats-next/tidelift2.webp)
 
 ::: info 译者注
 从截图中可以看出，同样地，Tidelift 网站也使用了 core-js
@@ -372,7 +372,7 @@ Crypto？通过加密钱包请求捐款是很流行的。然而，一直以来�
 
 当我开始研究 core-js 时，我独自一人。现在我有一个家庭了。一年多前，我成了我儿子的父亲。现在我必须为他提供体面的生活水平。
 
-![son](/blog/2023/so-whats-next/son.png)
+![son](/blog/2023/so-whats-next/son.webp)
 
 我有一个妻子，有时她想要一双新鞋，或一个包，或一个新的 iPhone，或一个 Apple Watch。我的父母已经到了需要我有力支持他们的年龄。
 
@@ -404,7 +404,7 @@ core-js 的工作几乎占据了我所有的时间，超过了全职工作日的
 
 我经常看到这样的评论：
 
-![core-js approach](/blog/2023/so-whats-next/approach.png)
+![core-js approach](/blog/2023/so-whats-next/approach.webp)
 
 ##### 图片内容翻译：Zach Leatherman 说：“认真想想这个：如果有人试图勒索开源怎么办：‘这个项目需要每月\_\_\_\_美元的捐款，否则将停止维护，没有更新，没有 bug 修复或安全补丁。这是个很好的项目——如果它发生了什么事，那真是太遗憾了。’”Matt Mink 说：“听起来 core-js 就是这么干的。”
 
@@ -446,13 +446,13 @@ core-js 的工作几乎占据了我所有的时间，超过了全职工作日的
 
   我经常看到这样的评论，有人甚至试图用分叉吓唬我。我已经说过太多次了，**如果有人能分叉并正确维护 core-js，我会很高兴**——在没有人维护的情况下，分叉有什么意义呢。现在我根本没有看到任何人试图为 core-js 添加一些重要的东西，或者至少定期做出贡献。项目应该跟进每个新的 JavaScript 引擎版本，更新兼容性数据，修复或至少考虑每个引擎的每个新错误（无论多大的错误），查看并实现每个可能的新的 JavaScript 功能，最大限度地正确执行，测试并考虑每个现代引擎或老引擎的每个版本的具体细节。这是一项艰苦的工作，你准备好了吗，并且有所需的知识和时间吗？举个例子，当我在监狱里时，Babel 说他们搞不定：
 
-  ![babel](/blog/2023/so-whats-next/babel.png)
+  ![babel](/blog/2023/so-whats-next/babel.webp)
 
 ##### 图片文字翻译：nicolo-ribaudo 在 2020 年 3 月 15 日说：“我是 Babel 的维护者，我们大概率不会 fork core-js，因为我们没有足够的资源维护它。”
 
 - **我们不需要 core-js，有许多替代项目可用。**
 
-  我没有抱着你不放。你说的替代品在哪里？当然，core-js 不是 JavaScript 标准库的唯一 polyfill，但所有其他项目的使用率都比 core-js 少[几十](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18)[倍](/blog/2023/so-whats-next/tens-of-times.png)，这并不奇怪——所有这些项目都只提供了 core-js 功能的一小部分，它们不够合适和复杂，它们可使用的场景非常有限，它们不能以如此简单的方式正确集成到你的项目中，并且还存在很多严重问题。如果真的有合适的替代品，我早就停止在 core-js 上工作了。
+  我没有抱着你不放。你说的替代品在哪里？当然，core-js 不是 JavaScript 标准库的唯一 polyfill，但所有其他项目的使用率都比 core-js 少[几十](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18)[倍](/blog/2023/so-whats-next/tens-of-times.webp)，这并不奇怪——所有这些项目都只提供了 core-js 功能的一小部分，它们不够合适和复杂，它们可使用的场景非常有限，它们不能以如此简单的方式正确集成到你的项目中，并且还存在很多严重问题。如果真的有合适的替代品，我早就停止在 core-js 上工作了。
 
 - **我们可以放弃 IE 支持，所以我们不再需要 polyfill。**
 
@@ -480,7 +480,7 @@ JavaScript、浏览器和 Web 开发正在以惊人的速度发展。所有浏�
 
 页面加载速度等于收入。
 
-![conversion](/project/roadmap/conversion.png)
+![conversion](/project/roadmap/conversion.webp)
 
 > 插图来自谷歌搜索的[随机帖子](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a)
 
@@ -578,9 +578,9 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 我已经在上面发布了 [`core-js` 使用统计数据](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e)。在许多情况下，您会看到 `core-js` 的重复——它只出现在应用的第一个加载页面上。有时甚至就像我们在彭博社网站上看到的那样：
 
-![bloomberg](/project/roadmap/bloomberg.png)
+![bloomberg](/project/roadmap/bloomberg.webp)
 
-[前段时间这个数字更高。](/project/roadmap/bloomberg2.png) 当然，这样数量的重复和 `core-js` 的各种版本并不典型，但是正如上面那样，`core-js` 重复太常见了，影响了使用 `core-js` 的网站中的约一半。为了防止发生这种情况，**需要一个新的解决方案来从项目的所有入口点、捆绑包和依赖项中收集所有 polyfill。**
+[前段时间这个数字更高。](/project/roadmap/bloomberg2.webp) 当然，这样数量的重复和 `core-js` 的各种版本并不典型，但是正如上面那样，`core-js` 重复太常见了，影响了使用 `core-js` 的网站中的约一半。为了防止发生这种情况，**需要一个新的解决方案来从项目的所有入口点、捆绑包和依赖项中收集所有 polyfill。**
 
 让我们为这个 `@core-js/collector` 调用一个工具。这个工具应该有一个入口点或一个入口点列表，并且应该使用与 `preset-env` 中使用的相同的静态分析，但是，这个工具不应该转换代码或注入任何东西，而应该检查完整的依赖树并且返回一个所需 `core-js` 模块的完整列表。作为一个需求，它应该很容易集成到当前的技术栈中。一种可能的方法是在插件中使用新的 polyfill 模式，我们叫它`收集`——在一个地方加载应用的所有 polyfill 并删除不必要的（见下文）。
 
@@ -590,7 +590,7 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 它不是这个问题的理想描述，许多其他例子会更好，但是既然上面我们开始谈论彭博社网站，让我们再看一次这个网站。我们无法访问源代码，但是，例如，我们拥有 [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) 这样一个很棒的工具（我希望彭博社的团队尽快修复它，这样结果可能会过时）。
 
-![bundlescanner](/project/roadmap/bundlescanner.png)
+![bundlescanner](/project/roadmap/bundlescanner.webp)
 
 从实践中可以看出，由于这样的分析不是一项简单的工作，因此该工具只能检测到大约一半的库代码。然而，除了 450 KB 的 `core-js` 之外，我们还看到了数百 KB 的其他 polyfill——许多份 `es6-promise`、`promise-polyfill`、`whatwg-fetch`（[出于上述原因](#web-标准的-polyfill)、`core-js` _仍然_ 不 polyfill 它），`string.prototype.codepointat`、`object-assign`（这是一个*ponyfill*，下一节是关于它们的）、`array-find-index` 等。
 
@@ -612,7 +612,7 @@ Babel 只是众多转译器中的一个。TypeScript 是另一个流行的选择
 
 加载相同的 polyfills 是错误的，比如在 IE11、iOS Safari 14.8 和最新的 Firefox 中——在现代浏览器中会加载太多不会运行的代码。目前，一种流行的模式是使用两个包——用于在支持原生模块加载的现代浏览器的 `<script type="module">`，以及用于不支持原生模块的过时浏览器的 `<script nomodule>`（在实践中有点难）。例如，Lighthouse 可以检测到一些 esmodules 目标不需要的 polyfill 案例，[让我们看看多灾多难的彭博社网站](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https%3A%2F%2Fwww.bloomberg.com%2Feurope&strategy=mobile&category=performance)：
 
-![lighthouse](/project/roadmap/lighthouse.png)
+![lighthouse](/project/roadmap/lighthouse.webp)
 
 Lighthouse 显示所有资源大约 200KB，0.56 秒。注意这个网站包含大约几 MB 的 polyfill。[现在 Lighthouse 检测不到它应有的一半功能](https://github.com/GoogleChrome/lighthouse/issues/13440)，但即使有另一半，它也只是所有加载的 polyfill 的一小部分。其余的在哪里？现代浏览器真的需要它们吗？问题是原生模块支持的下限太低——在这种情况下，“现代”浏览器需要旧 IE 所需的大部分稳定 JS 功能的 polyfill，因此部分 polyfill 显示在“未使用的 JavaScript”部分耗时 6.41 秒，有一部分根本没有显示……
 
@@ -644,7 +644,7 @@ Lighthouse 显示所有资源大约 200KB，0.56 秒。注意这个网站包含�
 
 - **支付宝**:
 
-  ![Alipay-code](/sponsor/alipay.jpg)
+  ![Alipay-code](/sponsor/alipay.webp)
 
 - [**Open Collective**](https://opencollective.com/core-js)
 - [**Patreon**](https://patreon.com/zloirock)

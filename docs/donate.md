@@ -19,7 +19,7 @@ sidebar: false
   `bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz`
 - Alipay:
 
-  ![Alipay-code](/sponsor/alipay.jpg)
+  ![Alipay-code](/sponsor/alipay.webp)
 
 ## Sponsors
 

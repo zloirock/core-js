@@ -20,7 +20,7 @@ If you or your company use `core-js` in one way or another and are interested in
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
 - Alipay:
 
-  ![Alipay-code](/sponsor/alipay.jpg)
+  ![Alipay-code](/sponsor/alipay.webp)
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
 
@@ -39,51 +39,51 @@ If you or your company use `core-js` in one way or another and are interested in
 
 I wrote [a simple script](https://github.com/zloirock/core-js/blob/master/scripts/usage/usage.mjs) that checks the usage of `core-js` in the wild by the Alexa top websites list. We can detect obvious cases of `core-js` usage and used versions (only modern).
 
-![usage](/blog/2023/so-whats-next/usage.png)
+![usage](/blog/2023/so-whats-next/usage.webp)
 
 At this moment, this script running on the TOP 1000 websites **detects usage of `core-js` on [52%](https://gist.github.com/zloirock/7ad972bba4b21596a4037ea2d87616f6) of tested websites**. Depending on the phase of the moon (the list, websites, etc. are not constants), results may vary by a few percent. However, it's just a naive detection on websites' home pages using a modern browser that loses many cases, **manual check shows that it's additional dozens of percent**. For example, let's leave the home pages of some websites from the screenshot above where `core-js` was **not** found by this script, without repeating for each company (at first — MS that's already on the screenshot) websites (be patient, after the series of screenshots the number of pictures will decrease):
 
-![whatsapp](/blog/2023/so-whats-next/whatsapp.png)
+![whatsapp](/blog/2023/so-whats-next/whatsapp.webp)
 
 ---
 
-![linkedin](/blog/2023/so-whats-next/linkedin.png)
+![linkedin](/blog/2023/so-whats-next/linkedin.webp)
 
 ---
 
-![netflix](/blog/2023/so-whats-next/netflix.png)
+![netflix](/blog/2023/so-whats-next/netflix.webp)
 
 ---
 
-![tencent](/blog/2023/so-whats-next/tencent.png)
+![tencent](/blog/2023/so-whats-next/tencent.webp)
 
 ---
 
-![ebay](/blog/2023/so-whats-next/ebay.png)
+![ebay](/blog/2023/so-whats-next/ebay.webp)
 
 ---
 
-![apple](/blog/2023/so-whats-next/apple.png)
+![apple](/blog/2023/so-whats-next/apple.webp)
 
 ---
 
-![fandom](/blog/2023/so-whats-next/fandom.png)
+![fandom](/blog/2023/so-whats-next/fandom.webp)
 
 ---
 
-![pornhub](/blog/2023/so-whats-next/pornhub.png)
+![pornhub](/blog/2023/so-whats-next/pornhub.webp)
 
 ---
 
-![paypal](/blog/2023/so-whats-next/paypal.png)
+![paypal](/blog/2023/so-whats-next/paypal.webp)
 
 ---
 
-![binance](/blog/2023/so-whats-next/binance.png)
+![binance](/blog/2023/so-whats-next/binance.webp)
 
 ---
 
-![spotify](/blog/2023/so-whats-next/spotify.png)
+![spotify](/blog/2023/so-whats-next/spotify.webp)
 
 **With such a manual check, you can find `core-js` on about 75-80% of the top 100 websites** while the script found it on about 55-60%. On a larger sample the percentage, of course, decreases.
 
@@ -95,7 +95,7 @@ What JS libraries are more widespread on websites? It's not [React](https://tren
 
 And `core-js` is not only about a website's frontend — it's used almost everywhere where JavaScript is used — but I think that's more than enough statistics.
 
-![github-desktop](/blog/2023/so-whats-next/github-desktop.png)
+![github-desktop](/blog/2023/so-whats-next/github-desktop.webp)
 
 However, for the above reasons, [**almost no one remembers that he or she uses `core-js`**](https://2022.stateofjs.com/en-US/other-tools).
 
@@ -105,7 +105,7 @@ Why am I posting this? No, not to show how cool I am, but to show how bad everyt
 
 ## Let's start the next part with one popular `xkcd` picture
 
-[![xkcd](/blog/2023/so-whats-next/xkcd.png)](https://xkcd.com/2347/)
+[![xkcd](/blog/2023/so-whats-next/xkcd.webp)](https://xkcd.com/2347/)
 
 ### Beginning
 
@@ -125,7 +125,7 @@ I didn't promote myself or the project. _This is the second mistake._ `core-js` 
 
 However, it was just the start of the required work. Many years of hard work followed. Almost every day I spent some hours on `core-js` and maintenance of related projects (mainly Babel and [`compat-table`](https://kangax.github.io/compat-table/es2016plus/)).
 
-![github](/blog/2023/so-whats-next/github.png)
+![github](/blog/2023/so-whats-next/github.webp)
 
 `core-js` is not a several lines library that you can write and forget about it. Unlike the vast majority of libraries, it's bound to the state of the Web. It should react to any change of JavaScript standards or proposals, to any new JS engine release, to any detection of a bug in JS engines, etc. ECMAScript ~~6~~ 2015 was followed by new proposals, new versions of ECMAScript, new non-ECMAScript web standards, new engines and tools, etc. The evolution, the improvement of the project, and the adaptation to the current state of the Web have never stopped — and almost all of this work remains not visible to the average user.
 
@@ -157,7 +157,7 @@ Some months before that, I started raising funds to support the `core-js` develo
 
 I decided to do a little experiment — to ask for help from the `core-js` users — those who will suffer if `core-js` will be left without maintenance. I added a message in `core-js` installation:
 
-![postinstall](/blog/2023/so-whats-next/postinstall.png)
+![postinstall](/blog/2023/so-whats-next/postinstall.webp)
 
 I understood that I'd have hardly gotten all the required money from donations, however, every dollar mattered. I added a job search message to get a chance to earn the other part. I was thinking that a few lines in the NPM installation log asking to help, which can be hidden if needed, is an acceptable price for using `core-js`. The original plan was to delete this message in a few weeks, but everything went against the plan. How wrong I was about people...
 
@@ -165,7 +165,7 @@ I understood that I'd have hardly gotten all the required money from donations, 
 
 Of course, I expected that someone would not like to see a request for help in their console, but the continuous stream of hate that I began to receive went through the roof. It was hundreds of messages, posts, and comments every day. All of it can be reduced to something like:
 
-![get-rid](/blog/2023/so-whats-next/get-rid.png)
+![get-rid](/blog/2023/so-whats-next/get-rid.webp)
 
 This is far from the funniest thing I've seen — if I wanted to, I could collect a huge selection of statements in the style [collected here](https://github.com/samdark/opensource-hate) — but why? I already have enough negativity in my life.
 
@@ -215,7 +215,7 @@ After about 10 months, I was released early.
 
 I saw dozens of articles, hundreds of posts, and thousands of comments the essence of many of which can be expressed by this:
 
-![reddit](/blog/2023/so-whats-next/reddit.png)
+![reddit](/blog/2023/so-whats-next/reddit.webp)
 
 What do you think I did? _Of course, I made the same mistake._ I saw some people who supported the development of `core-js`, many issues, questions, and messages — sure, not as many as angry comments. `core-js` became even more popular and was already used by almost the same percentage of websites as it is now.
 
@@ -235,17 +235,17 @@ When working on `core-js`, I am the first implementor of almost all modern and f
 
 The best way forward for JavaScript would be for TC39 and `core-js` to work together on the future of JavaScript. For example, TC39 invites members of projects like Babel and others as experts. Except `core-js`. Instead, too often, I see the ignoring of my or `core-js`'s issues or even creation of roadblocks by TC39 members; and they don't even hide it:
 
-![shu](/blog/2023/so-whats-next/shu.png)
+![shu](/blog/2023/so-whats-next/shu.webp)
 
 ---
 
-![ljharb](/blog/2023/so-whats-next/ljharb.png)
+![ljharb](/blog/2023/so-whats-next/ljharb.webp)
 
 ---
 
 After a while, "support" came from NPM. In `npm@7`, which was released at the end of 2020, as a logical continuation of `npm fund`, the console output was disabled in post-install scripts. The result was expectable, because people stopped seeing the funding request and almost no one uses `npm fund`, the number of `core-js` backers began to decline. An excellent support for the project from those, who not only earn by distributing my work, but also use it themselves :-\)
 
-![npm](/blog/2023/so-whats-next/npm.png)
+![npm](/blog/2023/so-whats-next/npm.webp)
 
 In addition, another factor came into play again. Higher quality — less support. Is the library well-maintained? There are practically almost no open bug reports, and when they happen, they are fixed almost instantly? Does the library already give us almost everything we want? Yes? So why should we support the maintenance of the library? The price at which this is done for the maintainers is not on the surface — for most developers and companies, it's still just "a small library". Many of those, who backed `core-js` before, stopped doing it.
 
@@ -277,16 +277,16 @@ However, in this list there is not a single big corporation or at least a compan
 
 If someone says that they don't know that `core-js` requires funding... Come on, I regularly see memes like [this](https://www.reddit.com/r/ProgrammerHumor/comments/fbfb2o/thank_you_for_using_corejs/):
 
-![sanders](/blog/2023/so-whats-next/sanders.png)
+![sanders](/blog/2023/so-whats-next/sanders.webp)
 
 ---
 
 A year ago, Tidelift stopped sending me money. They said that because of the political situation, the Hyperwallet, that they used, is no longer available to Russians (but it was available to me till last month when I tried to update some personal data), and for safety, they will store my money on their side. Over the previous couple of months, I tried to get this money to a bank or a Hyperwallet account, but only received replies that they will try to do something (_sounds great, doesn't it?_). Since the end of the last year, they have just stopped responding to emails. And now, I've got this:
 
-![tidelift](/blog/2023/so-whats-next/tidelift.png)
+![tidelift](/blog/2023/so-whats-next/tidelift.webp)
 
 **In such an amusing way, I found out that I will not receive the money for the previous year, and this year I worked not for \$1800, but for \$800 a month.** There were, of course, no replies to subsequent emails. However, their site indicated that I received and still receive money through them.
-![tidelift](/blog/2023/so-whats-next/tidelift2.png)
+![tidelift](/blog/2023/so-whats-next/tidelift2.webp)
 
 I wonder how the companies that support their dependencies chain through them will react to such a scam.
 
@@ -310,7 +310,7 @@ Among the regular threats, accusations, demands, and insults, I often get someth
 
 When I started working on `core-js`, I was alone. Now I have a family. A little over a year ago, I became a father of my son. Now I have to provide him with a decent standard of living.
 
-![son](/blog/2023/so-whats-next/son.png)
+![son](/blog/2023/so-whats-next/son.webp)
 
 I have a wife, and sometimes she wants some new shoes or a bag, a new iPhone or an Apple Watch. My parents are already at the age that I need to significantly support them.
 
@@ -342,7 +342,7 @@ The work on `core-js` occupies almost all of my time, more than a full working d
 
 Regularly I see comments like this:
 
-![core-js approach](/blog/2023/so-whats-next/approach.png)
+![core-js approach](/blog/2023/so-whats-next/approach.webp)
 
 Ok guys, if you want it — let's use such an approach.
 
@@ -382,11 +382,11 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
   I see such comments regularly, someone even tries to scare me with a fork. I've said already too many times that **if someone will fork and properly maintain `core-js`, I'd be happy** — it makes no sense just to fork it without maintenance. Now I don't see anyone at all who tries to add something significant to `core-js` or at least contribute regularly. The project ought to follow up on each new JavaScript engine release to update compatibility data, fix or at least take into account each new (no matter how significant) bug from each engine, take a look and implement each new JavaScript feature possible, do it maximally properly, test and take into account the specifics of each version of each modern or legacy engine. It's a hard work, are you ready and have the required knowledge and time for that? For example, when I was in prison, Babel said that they are not:
 
-  ![babel](/blog/2023/so-whats-next/babel.png)
+  ![babel](/blog/2023/so-whats-next/babel.webp)
 
 - **"We don't need `core-js`, many alternative projects are available."**
 
-  Nobody is holding you. But where are those alternatives in real life? Sure, `core-js` is not the only polyfill of the JavaScript standard library. But all other projects are [tens](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18) of [times](/blog/2023/so-whats-next/tens-of-times.png) less popular than `core-js`, and it's not unreasonable — all of them provide only a small part of `core-js` functionality, they are not proper and complex enough, the number of cases where they can be used is significantly limited, they can't be properly integrated into your project in such a simple way and have other significant problems. In the case if proper alternatives existed, I would have stopped working on `core-js` a long time ago.
+  Nobody is holding you. But where are those alternatives in real life? Sure, `core-js` is not the only polyfill of the JavaScript standard library. But all other projects are [tens](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=es6-shim&from=2014-11-18) of [times](/blog/2023/so-whats-next/tens-of-times.webp) less popular than `core-js`, and it's not unreasonable — all of them provide only a small part of `core-js` functionality, they are not proper and complex enough, the number of cases where they can be used is significantly limited, they can't be properly integrated into your project in such a simple way and have other significant problems. In the case if proper alternatives existed, I would have stopped working on `core-js` a long time ago.
 
 - **"We can drop IE support, so we no longer need polyfills."**
 
@@ -414,7 +414,7 @@ In too many places the mobile Internet is not perfect and is still 3G or even 2G
 
 The speed of the page load equals revenue.
 
-![conversion](/project/roadmap/conversion.png)
+![conversion](/project/roadmap/conversion.webp)
 
 > Illustration is from a [random post](https://medium.com/@vikigreen/impact-of-slow-page-load-time-on-website-performance-40d5c9ce568a) by googling
 
@@ -512,9 +512,9 @@ Projects often contain multiple entry points, multiple bundles, and, in some cas
 
 I already posted [the `core-js` usage statistics](https://gist.github.com/zloirock/7331cec2a1ba74feae09e64584ec5d0e) above. In many cases, you could see the duplication of `core-js` — and it's only on the first loaded page of the application. Sometimes it's even like what we see on the Bloomberg website:
 
-![bloomberg](/project/roadmap/bloomberg.png)
+![bloomberg](/project/roadmap/bloomberg.webp)
 
-[Some time ago this number was even higher.](/project/roadmap/bloomberg2.png) Of course, such a number of copies and various versions of `core-js` is not something typical, but a situation with several copies of `core-js` is too common as you saw above, affecting about half the websites with `core-js`. To prevent this **a new solution is required to collect all polyfills from all entry points, bundles and dependencies of the project in one place.**
+[Some time ago this number was even higher.](/project/roadmap/bloomberg2.webp) Of course, such a number of copies and various versions of `core-js` is not something typical, but a situation with several copies of `core-js` is too common as you saw above, affecting about half the websites with `core-js`. To prevent this **a new solution is required to collect all polyfills from all entry points, bundles and dependencies of the project in one place.**
 
 Let's call a tool for this `@core-js/collector`. This tool should take an entry point or a list of entry points and should use the same statical analysis that's used in `preset-env`, however, this tool should not transform code or inject anything, should check full dependencies trees and should return a full list of required `core-js` modules. As a requirement, it should be simple to integrate into the current development stack. One possible way can be a new polyfilling mode in plugins, let's call it `collected` — that will allow loading all collected polyfills of the application in one place and remove the unnecessary (see below).
 
@@ -524,7 +524,7 @@ Now it's typical to see, for example, a dozen copies of `Promise` polyfills with
 
 It's not an ideal illustration for this issue, many other examples would have been better, but since above we started to talk about the Bloomberg website, let's take a look at this site one more time. We have no access to the source code, however, we have, for example, such an awesome tool as [`bundlescanner.com`](https://bundlescanner.com/website/bloomberg.com%2Feurope/all) (I hope that the Bloomberg team will fix it ASAP, so the result could be outdated).
 
-![bundlescanner](/project/roadmap/bundlescanner.png)
+![bundlescanner](/project/roadmap/bundlescanner.webp)
 
 As shown in the practice, since such analysis it's not a simple work, this tool detects only about half of libraries' code. However, in addition to 450 kilobytes of `core-js`, we see hundreds of kilobytes of other polyfills — many copies of `es6-promise`, `promise-polyfill`, `whatwg-fetch` ([for the above reason](#web-standards-polyfills), `core-js` _still_ does not polyfill it), `string.prototype.codepointat`, `object-assign` (it's a _ponyfill_ and the next section is about them), `array-find-index`, etc.
 
@@ -546,7 +546,7 @@ That also could be applied to third-party ponyfills or obsolete libraries that i
 
 Loading the same polyfills, for example, in IE11, iOS Safari 14.8, and the latest Firefox is wrong — too much dead code will be loaded in modern browsers. At this moment, a popular pattern is the use of 2 bundles — for "modern" browsers that will be loaded if native modules are supported, `<script type="module">`, and for obsolete browsers which do not support native modules, `<script nomodule>` (a little harder in a practice). For example, Lighthouse can detect some cases of polyfills that are not required with the `esmodules` target, [let's check the long-suffering Bloomberg website](https://googlechrome.github.io/lighthouse/viewer/?psiurl=https%3A%2F%2Fwww.bloomberg.com%2Feurope&strategy=mobile&category=performance):
 
-![lighthouse](/project/roadmap/lighthouse.png)
+![lighthouse](/project/roadmap/lighthouse.webp)
 
 Lighthouse shows just about 200KB in all resources, 0.56s. Let's remember that the site contains about a couple of megabytes of polyfills. [Now Lighthouse detects less than half of the features that it should](https://github.com/GoogleChrome/lighthouse/issues/13440), but even with another half, it's only a little part of all loaded polyfills. Where are the rest? Are they really required for a modern browser? The problem is that the lower bar of native modules support is too low — "modern" browsers will, in this case, need most of the polyfills of stable JS features that are required for old IE, so a part of polyfills is shown in the "unused JavaScript" section that takes 6.41s, a part is not shown at all...
 
@@ -582,7 +582,7 @@ If you or your company use `core-js` in one way or another and are interested in
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
 - **Alipay**:
 
-  ![Alipay](/sponsor/alipay.jpg)
+  ![Alipay](/sponsor/alipay.webp)
 
 **Contact me if you can offer a good job on Web-standards and open-source.**
 

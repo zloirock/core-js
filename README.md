@@ -28,7 +28,7 @@
   `bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz`
 - Alipay:
 
-  ![Alipay-code](./docs/.vuepress/public/sponsor/alipay.jpg)
+  ![Alipay-code](./docs/.vuepress/public/sponsor/alipay.webp)
 
 ### Sponsors
 

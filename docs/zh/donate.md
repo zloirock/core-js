@@ -11,7 +11,7 @@ index: false
 
 - 支付宝:
 
-  ![Alipay-code](/sponsor/alipay.jpg)
+  ![Alipay-code](/sponsor/alipay.webp)
 
 - Open Collective:
 
