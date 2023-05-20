@@ -1,6 +1,6 @@
 {
   "name": "core-js-builder",
-  "version": "3.30.1",
+  "version": "3.30.2",
   "description": "core-js builder",
   "repository": {
     "type": "git",
@@ -21,8 +21,8 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "3.30.1",
-    "core-js-compat": "3.30.1",
+    "core-js": "3.30.2",
+    "core-js-compat": "3.30.2",
     "mkdirp": ">=0.5.5 <1",
     "webpack": ">=4.46.0 <5"
   },

@@ -2,11 +2,11 @@
   "name": "tests/unit-karma",
   "devDependencies": {
     "@onslip/karma-playwright-launcher": "^0.2.1",
-    "karma": "^6.4.1",
+    "karma": "^6.4.2",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.32.3",
+    "playwright": "^1.33.0",
     "qunit": "^2.19.4"
   }
 }

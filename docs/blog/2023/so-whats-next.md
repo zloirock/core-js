@@ -18,7 +18,9 @@ If you or your company use `core-js` in one way or another and are interested in
 - [**Patreon**](https://patreon.com/zloirock)
 - [**Boosty**](https://boosty.to/zloirock)
 - **Bitcoin ( bc1qlea7544qtsmj2rayg0lthvza9fau63ux0fstcz )**
-- [**Alipay**](/sponsor/alipay.jpg)
+- Alipay:
+
+  ![Alipay-code](/sponsor/alipay.jpg)
 
 **Write me if you want to offer a good job on Web-standards and open-source.**
 
@@ -137,7 +139,7 @@ I left a high-paying job and did not accept some very good options because in th
 
 ---
 
-Until April 2019, for about one and a half years as a whole and about a half-year full-time without distraction of any other work, I worked on [the `core-js@3` with a fundamental improvement of polyfilling-related Babel tools](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md), the foundation of the toolkit generation that now is used almost everywhere.
+Until April 2019, for about one and a half years as a whole and about a half-year full-time without distraction of any other work, I worked on [the `core-js@3` with a fundamental improvement of polyfilling-related Babel tools](../2019/core-js-3-babel-and-a-look-into-the-future.md), the foundation of the toolkit generation that now is used almost everywhere.
 
 ### Accident
 
@@ -380,7 +382,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
   I see such comments regularly, someone even tries to scare me with a fork. I've said already too many times that **if someone will fork and properly maintain `core-js`, I'd be happy** — it makes no sense just to fork it without maintenance. Now I don't see anyone at all who tries to add something significant to `core-js` or at least contribute regularly. The project ought to follow up on each new JavaScript engine release to update compatibility data, fix or at least take into account each new (no matter how significant) bug from each engine, take a look and implement each new JavaScript feature possible, do it maximally properly, test and take into account the specifics of each version of each modern or legacy engine. It's a hard work, are you ready and have the required knowledge and time for that? For example, when I was in prison, Babel said that they are not:
 
-  ![babel](/blog/2023/so-whats-next/babel.png)s
+  ![babel](/blog/2023/so-whats-next/babel.png)
 
 - **"We don't need `core-js`, many alternative projects are available."**
 
