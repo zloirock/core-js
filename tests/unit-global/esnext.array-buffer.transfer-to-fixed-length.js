@@ -39,8 +39,8 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 3');
   assert.same(buffer.byteLength, 0, 'original array length 3');
   if (DETACHED) assert.true(buffer.detached, 'original array detached 3');
-  assert.same(transferred.byteLength, 8, 'proper transferred byteLength 3');
-  assert.arrayEqual(bufferToArray(transferred), array, 'properly copied 3');
+  assert.same(transferred.byteLength, 16, 'proper transferred byteLength 3');
+  assert.arrayEqual(bufferToArray(transferred), [...array, 0, 0, 0, 0, 0, 0, 0, 0], 'properly copied 3');
 
   assert.throws(() => arrayToBuffer(array).transferToFixedLength(-1), RangeError, 'negative length');
   assert.throws(() => transferToFixedLength.call({}), TypeError, 'non-generic-1');
