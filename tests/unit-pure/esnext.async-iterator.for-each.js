@@ -12,8 +12,6 @@ QUnit.test('AsyncIterator#forEach', assert => {
 
   assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => forEach.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => forEach.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), null), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), {}), TypeError);

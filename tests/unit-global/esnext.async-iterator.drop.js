@@ -11,8 +11,6 @@ QUnit.test('AsyncIterator#drop', assert => {
 
   assert.throws(() => drop.call(undefined, 1), TypeError);
   assert.throws(() => drop.call(null, 1), TypeError);
-  assert.throws(() => drop.call({}, 1), TypeError);
-  assert.throws(() => drop.call([], 1), TypeError);
   assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   assert.throws(() => drop.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 

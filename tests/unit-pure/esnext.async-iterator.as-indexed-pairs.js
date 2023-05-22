@@ -11,8 +11,6 @@ QUnit.test('AsyncIterator#asIndexedPairs', assert => {
 
   assert.throws(() => asIndexedPairs.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => asIndexedPairs.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => asIndexedPairs.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => asIndexedPairs.call([], () => { /* empty */ }), TypeError);
 
   return asIndexedPairs.call(createIterator(['a', 'b', 'c'])).toArray().then(it => {
     assert.same(it.toString(), '0,a,1,b,2,c', 'basic functionality');

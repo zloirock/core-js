@@ -12,8 +12,6 @@ QUnit.test('AsyncIterator#flatMap', assert => {
 
   assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => flatMap.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => flatMap.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), null), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), {}), TypeError);

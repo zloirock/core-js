@@ -23,10 +23,10 @@ QUnit.test('Iterator#flatMap', assert => {
     return [arg];
   }).toArray();
 
-  assert.throws(() => flatMap.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
   assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => flatMap.call({}, () => { /* empty */ }), TypeError);
+  assert.throws(() => flatMap.call({}, () => { /* empty */ }).next(), TypeError);
+  assert.throws(() => flatMap.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), it => it).next(), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), null), TypeError);

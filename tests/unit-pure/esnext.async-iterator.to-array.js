@@ -11,8 +11,6 @@ QUnit.test('AsyncIterator#toArray', assert => {
 
   assert.throws(() => toArray.call(undefined), TypeError);
   assert.throws(() => toArray.call(null), TypeError);
-  assert.throws(() => toArray.call({}), TypeError);
-  assert.throws(() => toArray.call([]), TypeError);
 
   return toArray.call(createIterator([1, 2, 3])).then(it => {
     assert.arrayEqual(it, [1, 2, 3]);

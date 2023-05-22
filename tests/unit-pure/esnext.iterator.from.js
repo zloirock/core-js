@@ -17,6 +17,6 @@ QUnit.test('Iterator.from', assert => {
 
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
-  assert.throws(() => from({}), TypeError);
-  assert.throws(() => from(assign(new Iterator(), { next: 42 })), TypeError);
+  assert.throws(() => from({}).next(), TypeError);
+  assert.throws(() => from(assign(new Iterator(), { next: 42 })).next(), TypeError);
 });

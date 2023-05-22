@@ -16,8 +16,8 @@ QUnit.test('Iterator#take', assert => {
 
   assert.throws(() => take.call(undefined, 1), TypeError);
   assert.throws(() => take.call(null, 1), TypeError);
-  assert.throws(() => take.call({}, 1), TypeError);
-  assert.throws(() => take.call([], 1), TypeError);
+  assert.throws(() => take.call({}, 1).next(), TypeError);
+  assert.throws(() => take.call([], 1).next(), TypeError);
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   assert.throws(() => take.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 });

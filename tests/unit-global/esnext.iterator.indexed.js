@@ -13,6 +13,6 @@ QUnit.test('Iterator#indexed', assert => {
 
   assert.throws(() => indexed.call(undefined), TypeError);
   assert.throws(() => indexed.call(null), TypeError);
-  assert.throws(() => indexed.call({}), TypeError);
-  assert.throws(() => indexed.call([]), TypeError);
+  assert.throws(() => indexed.call({}).next(), TypeError);
+  assert.throws(() => indexed.call([]).next(), TypeError);
 });

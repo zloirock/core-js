@@ -12,8 +12,6 @@ QUnit.test('AsyncIterator#reduce', assert => {
 
   assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
   assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
