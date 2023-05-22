@@ -3,7 +3,7 @@ QUnit.test('Symbol.isRegistered', assert => {
   assert.isFunction(isRegistered, 'Symbol.isRegistered is function');
   assert.nonEnumerable(Symbol, 'isRegistered');
   assert.arity(isRegistered, 1, 'Symbol.isRegistered arity is 1');
-  assert.name(isRegistered, 'isRegistered', 'Symbol.isRegistered.name is "isRegistered"');
+  assert.name(isRegistered, 'isRegisteredSymbol', 'Symbol.isRegistered.name is "isRegisteredSymbol"');
   assert.looksNative(isRegistered, 'isRegistered looks like native');
 
   assert.true(isRegistered(Symbol.for('foo')), 'registered-1');

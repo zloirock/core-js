@@ -1772,11 +1772,11 @@ GLOBAL.tests = {
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
-  'esnext.symbol.is-registered': function () {
-    return Symbol.isRegistered;
+  'esnext.symbol.is-registered-symbol': function () {
+    return Symbol.isRegisteredSymbol;
   },
-  'esnext.symbol.is-well-known': function () {
-    return Symbol.isWellKnown;
+  'esnext.symbol.is-well-known-symbol': function () {
+    return Symbol.isWellKnownSymbol;
   },
   'esnext.symbol.matcher': function () {
     return Symbol.matcher;

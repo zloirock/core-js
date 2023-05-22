@@ -3,7 +3,7 @@ QUnit.test('Symbol.isWellKnown', assert => {
   assert.isFunction(isWellKnown, 'Symbol.isWellKnown is function');
   assert.nonEnumerable(Symbol, 'isWellKnown');
   assert.arity(isWellKnown, 1, 'Symbol.isWellKnown arity is 1');
-  assert.name(isWellKnown, 'isWellKnown', 'Symbol.isWellKnown.name is "isWellKnown"');
+  assert.name(isWellKnown, 'isWellKnownSymbol', 'Symbol.isWellKnown.name is "isWellKnownSymbol"');
   assert.looksNative(isWellKnown, 'isWellKnown looks like native');
 
   assert.true(isWellKnown(Symbol.iterator), 'registered-1');

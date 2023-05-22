@@ -6,13 +6,14 @@ require('../proposals/async-iterator-helpers');
 require('../proposals/iterator-range');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/string-dedent');
-require('../proposals/symbol-predicates');
+require('../proposals/symbol-predicates-v2');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping');
 require('../proposals/decorators');
 require('../proposals/decorator-metadata');
 require('../proposals/iterator-helpers');
 require('../proposals/set-methods');
+require('../proposals/symbol-predicates');
 require('../proposals/using-statement');
 
 module.exports = parent;
