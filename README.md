@@ -163,6 +163,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
+      - [`Promise.withResolvers`](#promisewithresolvers)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
@@ -1149,7 +1150,7 @@ class Promise {
   static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
-  static any(promises: Iterable): Promise<any>;
+  static any(promises: Iterable): Promise;
   static race(iterable: Iterable): Promise;
 }
 ```
@@ -2511,6 +2512,24 @@ for (const i of Iterator.range(1, 10)) {
 for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
   console.log(i); // => 1, 4, 7, 10
 }
+```
+##### [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers)[⬆](#index)
+Module [`esnext.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.with-resolvers.js)
+```js
+class Promise {
+  static withResolvers(): { promise: Promise, resolve: function, reject: function };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-with-resolvers
+core-js(-pure)/full/promise/with-resolvers
+```
+[*Examples*](https://tinyurl.com/2gx4t3xu):
+```js
+const d = Promise.withResolvers();
+d.resolve(42);
+d.promise.then(console.log); // => 42
 ```
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)

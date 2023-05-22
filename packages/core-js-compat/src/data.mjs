@@ -2128,6 +2128,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': {
   },
+  'esnext.promise.with-resolvers': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
   },
