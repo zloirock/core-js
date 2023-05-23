@@ -159,6 +159,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
       - [Explicit resource management](#explicit-resource-management)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
+      - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -167,7 +168,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [Async explicit resource management](#async-explicit-resource-management)
       - [`Symbol` predicates](#symbol-predicates)
-      - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -2402,6 +2402,23 @@ core-js(-pure)/actual|full/string(/virtual)/to-well-formed
 'a💩b'.toWellFormed();      // => 'a💩b'
 'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
+##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
+Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
+```js
+class Symbol {
+  static metadata: @@metadata;
+}
+
+class Function {
+  @@metadata: null;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/decorator-metadata-v2
+core-js(-pure)/actual|full/symbol/metadata
+core-js(-pure)/actual|full/function/metadata
+```
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
@@ -2615,18 +2632,6 @@ Symbol.isRegistered(Symbol('key')); // => false
 
 Symbol.isWellKnown(Symbol.iterator); // => true
 Symbol.isWellKnown(Symbol('key')); // => false
-```
-##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
-Module [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js).
-```js
-class Symbol {
-  static metadata: @@metadata;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/decorator-metadata-v2
-core-js(-pure)/full/symbol/metadata
 ```
 
 #### Stage 1 proposals[⬆](#index)
