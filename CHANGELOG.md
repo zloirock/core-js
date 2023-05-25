@@ -7,6 +7,7 @@
 - Compat data improvements:
   - `Set.prototype.difference` that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
   - `Array.prototype.{ group, groupToMap }` are disabled from Bun 0.6.2 because of [web compat issues](https://github.com/tc39/proposal-array-grouping/issues/44)
+  - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
   - Added Quest Browser 27 compat data mapping
   - Added Opera Android 75 compat data mapping
