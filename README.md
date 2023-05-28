@@ -2238,28 +2238,6 @@ core-js(-pure)/full/array/from-async
 ```js
 await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
 ```
-##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.array.group`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group.js), [`esnext.array.group-to-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.group-to-map.js).
-```js
-class Array {
-  group(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): { [key]: Array<mixed> };
-  groupToMap(callbackfn: (value: any, index: number, target: any) => key, thisArg?: any): Map<key, Array<mixed>>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-grouping-stage-3-2
-core-js(-pure)/actual|full/array(/virtual)/group
-core-js(-pure)/actual|full/array(/virtual)/group-to-map
-```
-[*Examples*](https://is.gd/3a0PbH):
-```js
-[1, 2, 3, 4, 5].group(it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
-
-const map = [1, 2, 3, 4, 5].groupToMap(it => it % 2);
-map.get(1); // => [1, 3, 5]
-map.get(0); // => [2, 4]
-````
 ##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)[⬆](#index)
 Modules [`esnext.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.v2.js), [`esnext.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.v2.js), [`esnext.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.v2.js), [`esnext.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.v2.js), [`esnext.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.v2.js), [`esnext.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.v2.js), [`esnext.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.v2.js)
 ```js
@@ -2425,6 +2403,31 @@ core-js(-pure)/actual|full/function/metadata
 ```
 core-js(-pure)/stage/2
 ```
+##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+Modules [`esnext.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.group-by.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js).
+```js
+class Object {
+  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
+}
+
+class Map {
+  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping-v2
+core-js(-pure)/full/map/group-by
+core-js(-pure)/full/object/group-by
+```
+[*Examples*](https://is.gd/3a0PbH):
+```js
+Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+
+const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
+map.get(1); // => [1, 3, 5]
+map.get(0); // => [2, 4]
+````
 ##### [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)[⬆](#index)
 Modules [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.to-array.js), , [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-async.js)
 ```js

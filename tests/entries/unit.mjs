@@ -797,6 +797,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'object/iterate-entries')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-keys')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-values')({}).next == 'function');
+    ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok('from' in load(NS, 'observable'));
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
@@ -896,6 +897,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-grouping');
   load('proposals/array-grouping-stage-3');
   load('proposals/array-grouping-stage-3-2');
+  load('proposals/array-grouping-v2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
   load('proposals/array-last');

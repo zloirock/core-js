@@ -206,6 +206,7 @@ export default {
     'es.string.is-well-formed',
     'es.string.to-well-formed',
     'esnext.function.metadata',
+    'esnext.object.group-by',
     'esnext.promise.with-resolvers',
     'esnext.symbol.is-registered-symbol',
     'esnext.symbol.is-well-known-symbol',

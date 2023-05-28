@@ -1690,6 +1690,9 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
+  'esnext.object.group-by': function () {
+    return Object.groupBy;
+  },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': function () {
     return Observable;

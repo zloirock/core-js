@@ -6,6 +6,11 @@
     - `String.prototype.toWellFormed` method
   - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/proposal-is-usv-string/pull/31)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
+  - Because of the [web compat issue](https://github.com/tc39/proposal-array-grouping/issues/44), [moved from prototype to static methods](https://github.com/tc39/proposal-array-grouping/pull/47), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553350818). Added:
+    - `Object.groupBy`
+    - `Map.groupBy`
+  - Demoted to stage 2
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
   - Moved to Stage 3, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553366034)
   - Added `Function.prototype[Symbol.metadata]` (`=== null`), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1550313363)
@@ -23,7 +28,7 @@
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Compat data improvements:
   - `Set.prototype.difference` that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
-  - `Array.prototype.{ group, groupToMap }` are disabled from Bun 0.6.2 because of [web compat issues](https://github.com/tc39/proposal-array-grouping/issues/44)
+  - `Array.prototype.{ group, groupToMap }` marked as no longer supported in WebKit runtimes because of the mentioned above web compat issue. For example, it's disabled from Bun 0.6.2
   - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
   - Added Samsung Internet 22 compat data mapping
