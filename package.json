@@ -17,7 +17,7 @@
     "zxi": "zx scripts/zxi.mjs",
     "prepare": "npm run zxi scripts/prepare.mjs",
     "build-compat": "zx scripts/build-compat/index.mjs",
-    "bundle": "run-p bundle-package bundle-tests",
+    "bundle": "run-s bundle-package bundle-tests",
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
     "bundle-tests": "npm run zxi time cd scripts/bundle-tests/bundle-tests.mjs",
     "check": "run-s check-v8-protectors check-unused-modules check-mapping check-dependencies",
