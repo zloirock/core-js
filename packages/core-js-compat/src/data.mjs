@@ -2509,6 +2509,14 @@ export const data = {
     node: '10.0',
     safari: '14.0',
   },
+  'web.url-search-params.delete': {
+    firefox: '115',
+    node: '20.2.0',
+  },
+  'web.url-search-params.has': {
+    firefox: '115',
+    node: '20.2.0',
+  },
   'web.url-search-params.size': {
     chrome: '113',
     deno: '1.32',
