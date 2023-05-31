@@ -9,8 +9,9 @@
   - `Array.prototype.{ group, groupToMap }` are disabled from Bun 0.6.2 because of [web compat issues](https://github.com/tc39/proposal-array-grouping/issues/44)
   - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
-  - Added Quest Browser 27 compat data mapping
+  - Added Samsung Internet 22 compat data mapping
   - Added Opera Android 75 compat data mapping
+  - Added Quest Browser 27 compat data mapping
 
 ##### [3.30.2 - 2023.05.07](https://github.com/zloirock/core-js/releases/tag/v3.30.2)
 - Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`
