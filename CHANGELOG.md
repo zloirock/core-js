@@ -4,6 +4,7 @@
   - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, May 2023 TC39 meeting, [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
   - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, May 2023 TC39 meeting, [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
+- Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Compat data improvements:
   - `Set.prototype.difference` that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
   - `Array.prototype.{ group, groupToMap }` are disabled from Bun 0.6.2 because of [web compat issues](https://github.com/tc39/proposal-array-grouping/issues/44)

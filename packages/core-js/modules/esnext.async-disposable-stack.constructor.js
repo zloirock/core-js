@@ -95,7 +95,7 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     var internalState = getPendingAsyncDisposableStackInternalState(this);
     aCallable(onDispose);
     addDisposableResource(internalState, undefined, HINT, function () {
-      onDispose(value);
+      return onDispose(value);
     });
     return value;
   },
