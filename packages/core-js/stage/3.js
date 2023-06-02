@@ -8,7 +8,6 @@ require('../proposals/explicit-resource-management');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/json-parse-with-source');
 require('../proposals/set-methods-v2');
-require('../proposals/well-formed-unicode-strings');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping-stage-3');
 require('../proposals/change-array-by-copy');

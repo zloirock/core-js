@@ -1,5 +1,11 @@
 ## Changelog
 ##### Unreleased
+- [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
+  - Methods:
+    - `String.prototype.isWellFormed`
+    - `String.prototype.toWellFormed`
+  - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/proposal-is-usv-string/pull/31)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
   - Moved to Stage 3, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553366034)
   - Added `Function.prototype[Symbol.metadata]` (`=== null`), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1550313363)

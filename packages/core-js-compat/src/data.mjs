@@ -1333,6 +1333,11 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  'es.string.is-well-formed': {
+    bun: '0.4.0',
+    chrome: '111',
+    safari: '16.4',
+  },
   'es.string.iterator': {
     chrome: '41',
     edge: '13',
@@ -1423,6 +1428,13 @@ export const data = {
     opera: '4',
     rhino: '1.7.13',
     safari: '1',
+  },
+  'es.string.to-well-formed': {
+    // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
+    bun: '0.5.7', // '0.4.0',
+    chrome: '111',
+    safari: '16.4',
   },
   'es.string.trim': {
     chrome: '59',
@@ -2216,22 +2228,10 @@ export const data = {
   },
   'esnext.string.dedent': {
   },
-  'esnext.string.is-well-formed': {
-    bun: '0.4.0',
-    chrome: '111',
-    safari: '16.4',
-  },
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
-  'esnext.string.to-well-formed': {
-    // Safari ToString conversion bug
-    // https://bugs.webkit.org/show_bug.cgi?id=251757
-    bun: '0.5.7', // '0.4.0',
-    chrome: '111',
-    safari: '16.4',
-  },
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
@@ -2517,8 +2517,10 @@ export const renamed = new Map([
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
+  ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
+  ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
   ['esnext.typed-array.at', 'es.typed-array.at'],
   ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
   ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
