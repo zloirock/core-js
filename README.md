@@ -2610,27 +2610,27 @@ core-js(-pure)/full/async-disposable-stack
 core-js(-pure)/full/async-iterator/async-dispose
 ```
 ##### [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)[⬆](#index)
-Modules [`esnext.symbol.is-registered`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered.js), [`esnext.symbol.is-well-known`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known.js).
+Modules [`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
 ```js
 class Symbol {
-  static isRegistered(value: any): boolean;
-  static isWellKnown(value: any): boolean;
+  static isRegisteredSymbol(value: any): boolean;
+  static isWellKnownSymbol(value: any): boolean;
 }
 ```
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/symbol-predicates
-core-js(-pure)/full/symbol/is-registered
-core-js(-pure)/full/symbol/is-well-known
+core-js/proposals/symbol-predicates-v2
+core-js(-pure)/full/symbol/is-registered-symbol
+core-js(-pure)/full/symbol/is-well-known-symbol
 ```
-[*Example*](https://tinyurl.com/2cuwpu8d):
+[*Example*](https://tinyurl.com/2oqoaq7t):
 ```js
-Symbol.isRegistered(Symbol.for('key')); // => true
-Symbol.isRegistered(Symbol('key')); // => false
+Symbol.isRegisteredSymbol(Symbol.for('key')); // => true
+Symbol.isRegisteredSymbol(Symbol('key')); // => false
 
-Symbol.isWellKnown(Symbol.iterator); // => true
-Symbol.isWellKnown(Symbol('key')); // => false
+Symbol.isWellKnownSymbol(Symbol.iterator); // => true
+Symbol.isWellKnownSymbol(Symbol('key')); // => false
 ```
 
 #### Stage 1 proposals[⬆](#index)

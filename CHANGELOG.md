@@ -13,6 +13,10 @@
 - [Iterator Helpers Stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, May 2023 TC39 meeting, [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
   - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, May 2023 TC39 meeting, [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
+- [`Symbol` predicates stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates):
+  - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1548219580):
+    - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol`
+    - `Symbol.isWellKnown` -> `Symbol.isWellKnownSymbol`
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Compat data improvements:

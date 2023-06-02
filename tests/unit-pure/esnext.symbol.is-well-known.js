@@ -4,7 +4,7 @@ QUnit.test('Symbol.isWellKnown', assert => {
   const { isWellKnown } = Symbol;
   assert.isFunction(isWellKnown, 'Symbol.isWellKnown is function');
   assert.arity(isWellKnown, 1, 'Symbol.isWellKnown arity is 1');
-  assert.name(isWellKnown, 'isWellKnown', 'Symbol.isWellKnown.name is "isWellKnown"');
+  assert.name(isWellKnown, 'isWellKnownSymbol', 'Symbol.isWellKnown.name is "isWellKnownSymbol"');
 
   assert.true(isWellKnown(Symbol.iterator), 'registered-1');
   assert.true(isWellKnown(Object(Symbol.iterator)), 'registered-2');

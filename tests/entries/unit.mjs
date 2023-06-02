@@ -825,6 +825,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
+    ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
+    ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
