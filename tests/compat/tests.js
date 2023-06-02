@@ -1535,6 +1535,9 @@ GLOBAL.tests = {
   'esnext.function.is-constructor': function () {
     return Function.isConstructor;
   },
+  'esnext.function.metadata': function () {
+    return Function.prototype[Symbol.metadata] === null;
+  },
   'esnext.iterator.constructor': function () {
     try {
       Iterator({});

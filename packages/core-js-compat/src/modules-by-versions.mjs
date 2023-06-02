@@ -202,4 +202,7 @@ export default {
   '3.30': [
     'web.url.can-parse',
   ],
+  3.31: [
+    'esnext.function.metadata',
+  ],
 };

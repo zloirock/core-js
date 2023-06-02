@@ -657,6 +657,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
+    ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator') == 'function');
     ok(typeof load(NS, 'iterator/drop') == 'function');
     ok(typeof load(NS, 'iterator/every') == 'function');
@@ -686,6 +687,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/to-well-formed')('a') === 'a');
     ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok(load(NS, 'symbol/dispose'));
+    ok(load(NS, 'symbol/metadata'));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
@@ -826,7 +828,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
-    ok(load(NS, 'symbol/metadata'));
     ok(load(NS, 'symbol/metadata-key'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'symbol/pattern-match'));

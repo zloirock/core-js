@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
+  - Moved to Stage 3, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553366034)
+  - Added `Function.prototype[Symbol.metadata]` (`=== null`), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1550313363)
+  - Added `/actual/` entries
 - [Iterator Helpers Stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, May 2023 TC39 meeting, [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
   - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, May 2023 TC39 meeting, [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
