@@ -5,6 +5,7 @@ require('../proposals/async-explicit-resource-management');
 require('../proposals/async-iterator-helpers');
 require('../proposals/iterator-range');
 require('../proposals/map-upsert-stage-2');
+require('../proposals/promise-with-resolvers');
 require('../proposals/string-dedent');
 require('../proposals/symbol-predicates-v2');
 // TODO: Obsolete versions, remove from `core-js@4`

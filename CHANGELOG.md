@@ -2,8 +2,8 @@
 ##### Unreleased
 - [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
   - Methods:
-    - `String.prototype.isWellFormed`
-    - `String.prototype.toWellFormed`
+    - `String.prototype.isWellFormed` method
+    - `String.prototype.toWellFormed` method
   - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/proposal-is-usv-string/pull/31)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
@@ -13,6 +13,8 @@
 - [Iterator Helpers Stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, May 2023 TC39 meeting, [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
   - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, May 2023 TC39 meeting, [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
+- Added [`Promise.withResolvers` Stage 2 proposal](https://github.com/tc39/proposal-promise-with-resolvers):
+  - `Promise.withResolvers` method
 - [`Symbol` predicates stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates):
   - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1548219580):
     - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol`

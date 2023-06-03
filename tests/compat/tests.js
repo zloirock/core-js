@@ -1703,6 +1703,9 @@ GLOBAL.tests = {
   'esnext.observable.of': function () {
     return Observable.of;
   },
+  'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
+    return Promise.withResolvers;
+  }],
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
