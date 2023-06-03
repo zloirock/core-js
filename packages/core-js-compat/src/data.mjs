@@ -1878,7 +1878,7 @@ export const data = {
     // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
-    safari: '16.4',
+    // safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -1891,7 +1891,7 @@ export const data = {
     // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
-    safari: '16.4',
+    // safari: '16.4',
   },
   'esnext.array.is-template-object': {
   },
@@ -2111,6 +2111,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': {
+  },
+  'esnext.object.group-by': {
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
