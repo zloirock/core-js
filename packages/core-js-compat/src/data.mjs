@@ -376,16 +376,19 @@ export const data = {
   'es.array.to-reversed': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.to-sorted': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.to-spliced': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.unscopables.flat': {
@@ -409,6 +412,7 @@ export const data = {
   'es.array.with': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array-buffer.constructor': {
@@ -1806,11 +1810,13 @@ export const data = {
   'es.typed-array.to-reversed': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.typed-array.to-sorted': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.typed-array.to-string': {
@@ -1824,6 +1830,7 @@ export const data = {
     bun: '0.1.9',
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.4',
   },
   'es.unescape': {
@@ -1860,6 +1867,7 @@ export const data = {
   },
   'esnext.array.from-async': {
     bun: '0.3.0',
+    firefox: '115',
     safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
@@ -2480,6 +2488,7 @@ export const data = {
   },
   'web.url.can-parse': {
     deno: '1.33.2',
+    firefox: '115',
     node: '20.1.0',
   },
   'web.url.to-json': {

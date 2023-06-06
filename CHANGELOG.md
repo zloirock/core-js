@@ -27,8 +27,11 @@
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Compat data improvements:
-  - `Set.prototype.difference` that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
+  - [`Set.prototype.difference`](https://github.com/tc39/proposal-set-methods) that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
   - `Array.prototype.{ group, groupToMap }` marked as no longer supported in WebKit runtimes because of the mentioned above web compat issue. For example, it's disabled from Bun 0.6.2
+  - Methods from the [change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from FF115
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from FF115
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported from FF115
   - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
   - Added Samsung Internet 22 compat data mapping
