@@ -9,7 +9,7 @@
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#arrayprototypegroup-rename-for-web-compatibility):
   - Because of the [web compat issue](https://github.com/tc39/proposal-array-grouping/issues/44), [moved from prototype to static methods](https://github.com/tc39/proposal-array-grouping/pull/47). Added:
     - `Object.groupBy` method
-    - `Map.groupBy` method (with the actual semantic - with a minor difference it was present in the "collections methods" stage 1 proposal)
+    - `Map.groupBy` method (with the actual semantic - with a minor difference it was present [in the collections methods stage 1 proposal](https://github.com/tc39/proposal-collection-methods))
   - Demoted to stage 2
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#decorator-metadata-for-stage-3):
   - Moved to Stage 3
