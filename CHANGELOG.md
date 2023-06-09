@@ -12,13 +12,13 @@
     - `Map.groupBy` method (with the actual semantic - with a minor difference it was present [in the collections methods stage 1 proposal](https://github.com/tc39/proposal-collection-methods))
   - Demoted to stage 2
 - [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#decorator-metadata-for-stage-3):
-  - Moved to Stage 3
+  - Moved to stage 3
   - Added `Function.prototype[Symbol.metadata]` (`=== null`)
   - Added `/actual/` entries
-- [Iterator Helpers Stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
+- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-symboliterator-fallback-be-a-callable-check-or-an-undefinednull-check), [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
   - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-malformed-iterators-fail-early-or-fail-only-when-iterated), [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
-- Added [`Promise.withResolvers` Stage 2 proposal](https://github.com/tc39/proposal-promise-with-resolvers):
+- Added [`Promise.withResolvers` stage 2 proposal](https://github.com/tc39/proposal-promise-with-resolvers):
   - `Promise.withResolvers` method
 - [`Symbol` predicates stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates):
   - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#symbol-predicates):
