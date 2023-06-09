@@ -4,26 +4,26 @@
   - Methods:
     - `String.prototype.isWellFormed` method
     - `String.prototype.toWellFormed` method
-  - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/proposal-is-usv-string/pull/31)
+  - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#well-formed-unicode-strings-for-stage-4)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
-- [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
-  - Because of the [web compat issue](https://github.com/tc39/proposal-array-grouping/issues/44), [moved from prototype to static methods](https://github.com/tc39/proposal-array-grouping/pull/47), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553350818). Added:
-    - `Object.groupBy`
-    - `Map.groupBy`
+- [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#arrayprototypegroup-rename-for-web-compatibility):
+  - Because of the [web compat issue](https://github.com/tc39/proposal-array-grouping/issues/44), [moved from prototype to static methods](https://github.com/tc39/proposal-array-grouping/pull/47). Added:
+    - `Object.groupBy` method
+    - `Map.groupBy` method (with the actual semantic - with a minor difference it was present in the "collections methods" stage 1 proposal)
   - Demoted to stage 2
-- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata):
-  - Moved to Stage 3, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1553366034)
-  - Added `Function.prototype[Symbol.metadata]` (`=== null`), [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1550313363)
+- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#decorator-metadata-for-stage-3):
+  - Moved to Stage 3
+  - Added `Function.prototype[Symbol.metadata]` (`=== null`)
   - Added `/actual/` entries
 - [Iterator Helpers Stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
-  - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, May 2023 TC39 meeting, [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
-  - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, May 2023 TC39 meeting, [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
+  - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-symboliterator-fallback-be-a-callable-check-or-an-undefinednull-check), [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
+  - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-malformed-iterators-fail-early-or-fail-only-when-iterated), [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
 - Added [`Promise.withResolvers` Stage 2 proposal](https://github.com/tc39/proposal-promise-with-resolvers):
   - `Promise.withResolvers` method
 - [`Symbol` predicates stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates):
-  - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/babel/proposals/issues/88#issuecomment-1548219580):
-    - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol`
-    - `Symbol.isWellKnown` -> `Symbol.isWellKnownSymbol`
+  - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#symbol-predicates):
+    - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol` method
+    - `Symbol.isWellKnown` -> `Symbol.isWellKnownSymbol` method
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Compat data improvements:
