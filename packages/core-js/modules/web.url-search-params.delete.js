@@ -1,17 +1,16 @@
 'use strict';
-var getBuiltIn = require('../internals/get-built-in');
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
-var URLSearchParams = getBuiltIn('URLSearchParams');
-var URLSearchParamsPrototype = URLSearchParams.prototype;
+var $URLSearchParams = URLSearchParams;
+var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var append = uncurryThis(URLSearchParamsPrototype.append);
 var $delete = uncurryThis(URLSearchParamsPrototype['delete']);
 var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
 var push = uncurryThis([].push);
-var params = new URLSearchParams('a=1&a=2');
+var params = new $URLSearchParams('a=1&a=2');
 
 params['delete']('a', 1);
 

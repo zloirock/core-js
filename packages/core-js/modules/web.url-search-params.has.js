@@ -1,15 +1,14 @@
 'use strict';
-var getBuiltIn = require('../internals/get-built-in');
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
-var URLSearchParams = getBuiltIn('URLSearchParams');
-var URLSearchParamsPrototype = URLSearchParams.prototype;
+var $URLSearchParams = URLSearchParams;
+var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var getAll = uncurryThis(URLSearchParamsPrototype.getAll);
 var $has = uncurryThis(URLSearchParamsPrototype.has);
-var params = new URLSearchParams('a=1');
+var params = new $URLSearchParams('a=1');
 
 if (params.has('a', 2)) {
   defineBuiltIn(URLSearchParamsPrototype, 'has', function has(name /* , value */) {
