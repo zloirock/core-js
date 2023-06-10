@@ -8,6 +8,6 @@ var path = require('../../internals/path');
 var Promise = path.Promise;
 var promiseWithResolvers = Promise.withResolvers;
 
-module.exports = { withResolvers: function withResolvers() {
+module.exports = function withResolvers() {
   return call(promiseWithResolvers, isCallable(this) ? this : Promise);
-} }.withResolvers;
+};
