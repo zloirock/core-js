@@ -21,6 +21,12 @@ export type Target =
   | 'react-native'
   | 'rhino'
   | 'safari'
-  | 'samsung';
+  | 'samsung'
+  /** `quest` alias */
+  | 'oculus'
+  /** `react-native` alias */
+  | 'react'
+  /** @deprecated use `opera-android` instead */
+  | 'opera_mobile';
 
 export type TargetVersion = string;
