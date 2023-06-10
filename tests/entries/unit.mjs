@@ -962,6 +962,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
   load('proposals/symbol-predicates');
+  load('proposals/symbol-predicates-v2');
   load('proposals/url');
   load('proposals/using-statement');
   load('proposals/well-formed-stringify');
