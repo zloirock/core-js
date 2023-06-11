@@ -4,7 +4,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
-var has = require('../internals/has-own-property');
 var toPropertyKey = require('../internals/to-property-key');
 var iterate = require('../internals/iterate');
 
@@ -21,8 +20,10 @@ $({ target: 'Object', stat: true, forced: true }, {
     var k = 0;
     iterate(items, function (value) {
       var key = toPropertyKey(callbackfn(value, k++));
-      if (!has(obj, key)) obj[key] = [value];
-      else push(obj[key], value);
+      // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
+      // but since it's a `null` prototype object, we can safely use `in`
+      if (key in obj) push(obj[key], value);
+      else obj[key] = [value];
     });
     return obj;
   }
