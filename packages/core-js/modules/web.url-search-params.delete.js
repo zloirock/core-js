@@ -27,13 +27,19 @@ if (params + '' !== 'a=2') {
     var key = toString(name);
     var value = toString($value);
     var index = 0;
+    var dindex = 0;
+    var found = false;
     var entriesLength = entries.length;
+    var entry;
     while (index < entriesLength) {
-      $delete(this, entries[index++].key);
+      entry = entries[index++];
+      if (found || entry.key === key) {
+        found = true;
+        $delete(this, entry.key);
+      } else dindex++;
     }
-    index = 0;
-    while (index < entriesLength) {
-      var entry = entries[index++];
+    while (dindex < entriesLength) {
+      entry = entries[dindex++];
       if (!(entry.key === key && entry.value === value)) append(this, entry.key, entry.value);
     }
   }, { enumerable: true, unsafe: true });
