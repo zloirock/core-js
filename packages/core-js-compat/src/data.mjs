@@ -2241,9 +2241,13 @@ export const data = {
   'esnext.string.dedent': {
   },
   // TODO: Remove from `core-js@4`
+  'esnext.string.is-well-formed': null,
+  // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.string.to-well-formed': null,
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
