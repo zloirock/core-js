@@ -1,5 +1,5 @@
 import { createIterator, createIterable } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
 
@@ -10,8 +10,11 @@ QUnit.test('AsyncIterator#flatMap', assert => {
   assert.arity(flatMap, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'flatMap');
 
-  assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => flatMap.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), null), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), {}), TypeError);

@@ -1,5 +1,5 @@
 import { createIterator, createIterable } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap } = Iterator.prototype;
@@ -23,8 +23,11 @@ QUnit.test('Iterator#flatMap', assert => {
     return [arg];
   }).toArray();
 
-  assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => flatMap.call({}, () => { /* empty */ }).next(), TypeError);
   assert.throws(() => flatMap.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), it => it).next(), TypeError);

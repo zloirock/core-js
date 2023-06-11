@@ -1,3 +1,4 @@
+import { STRICT } from '../helpers/constants';
 import { createIterator } from '../helpers/helpers';
 
 QUnit.test('Iterator#take', assert => {
@@ -14,8 +15,11 @@ QUnit.test('Iterator#take', assert => {
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), 4).toArray(), [1, 2, 3], 'big');
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), 0).toArray(), [], 'zero');
 
-  assert.throws(() => take.call(undefined, 1), TypeError);
-  assert.throws(() => take.call(null, 1), TypeError);
+  if (STRICT) {
+    assert.throws(() => take.call(undefined, 1), TypeError);
+    assert.throws(() => take.call(null, 1), TypeError);
+  }
+
   assert.throws(() => take.call({}, 1).next(), TypeError);
   assert.throws(() => take.call([], 1).next(), TypeError);
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');

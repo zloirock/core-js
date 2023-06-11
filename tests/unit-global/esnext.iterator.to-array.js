@@ -1,3 +1,4 @@
+import { STRICT } from '../helpers/constants';
 import { createIterable, createIterator } from '../helpers/helpers';
 
 QUnit.test('Iterator#toArray', assert => {
@@ -17,8 +18,11 @@ QUnit.test('Iterator#toArray', assert => {
 
   assert.arrayEqual(toArray.call(createIterator([1, 2, 3])), [1, 2, 3]);
 
-  assert.throws(() => toArray.call(undefined), TypeError);
-  assert.throws(() => toArray.call(null), TypeError);
+  if (STRICT) {
+    assert.throws(() => toArray.call(undefined), TypeError);
+    assert.throws(() => toArray.call(null), TypeError);
+  }
+
   assert.throws(() => toArray.call({}), TypeError);
   assert.throws(() => toArray.call([]), TypeError);
 });

@@ -1,3 +1,4 @@
+import { STRICT } from '../helpers/constants';
 import { createIterator } from '../helpers/helpers';
 
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
@@ -9,8 +10,11 @@ QUnit.test('AsyncIterator#take', assert => {
   assert.arity(take, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'take');
 
-  assert.throws(() => take.call(undefined, 1), TypeError);
-  assert.throws(() => take.call(null, 1), TypeError);
+  if (STRICT) {
+    assert.throws(() => take.call(undefined, 1), TypeError);
+    assert.throws(() => take.call(null, 1), TypeError);
+  }
+
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   assert.throws(() => take.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 

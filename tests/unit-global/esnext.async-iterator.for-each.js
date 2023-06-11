@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#forEach', assert => {
   const { forEach } = AsyncIterator.prototype;
@@ -10,8 +10,11 @@ QUnit.test('AsyncIterator#forEach', assert => {
   assert.looksNative(forEach);
   assert.nonEnumerable(AsyncIterator.prototype, 'forEach');
 
-  assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => forEach.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => forEach.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => forEach.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), null), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), {}), TypeError);

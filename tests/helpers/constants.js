@@ -65,13 +65,11 @@ try {
   REDEFINABLE_PROTO = true;
 } catch (error) { /* empty */ }
 
-export const STRICT = !function () {
-  return this;
-}();
-
 export const STRICT_THIS = (function () {
   return this;
 })();
+
+export const STRICT = !STRICT_THIS;
 
 export const FREEZING = !function () {
   try {
