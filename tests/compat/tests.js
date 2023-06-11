@@ -1956,6 +1956,15 @@ GLOBAL.tests = {
     return URL.prototype.toJSON;
   }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    var params = new URLSearchParams('a=1&a=2');
+    params['delete']('a', 1);
+    return params + '' === 'a=2';
+  }],
+  'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    var params = new URLSearchParams('a=1');
+    return params.has('a', 1) && !params.has('a', 2);
+  }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
   }]

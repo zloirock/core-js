@@ -210,5 +210,7 @@ export default {
     'esnext.promise.with-resolvers',
     'esnext.symbol.is-registered-symbol',
     'esnext.symbol.is-well-known-symbol',
+    'web.url-search-params.delete',
+    'web.url-search-params.has',
   ],
 };

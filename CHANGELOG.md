@@ -24,6 +24,7 @@
   - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#symbol-predicates):
     - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol` method
     - `Symbol.isWellKnown` -> `Symbol.isWellKnownSymbol` method
+- Added `value` argument of `URLSearchParams.prototype.{ has, delete }`, [url/735](https://github.com/whatwg/url/pull/735)
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Added TypeScript definitions to `core-js-compat`, [#1235](https://github.com/zloirock/core-js/issues/1235), thanks [@susnux](https://github.com/susnux)
@@ -33,6 +34,7 @@
   - Methods from the [change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from FF115
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from FF115
   - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported from FF115
+  - `value` argument of `URLSearchParams.prototype.{ has, delete }` marked as supported from [NodeJS 20.2.0](https://github.com/nodejs/node/pull/47885) and FF115
   - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
   - Added Samsung Internet 22 compat data mapping
