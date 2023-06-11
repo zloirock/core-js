@@ -28,6 +28,7 @@
 - Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
 - Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
 - Fixed `URLSearchParams#size` in ES3 engines (IE8-)
+- Added a workaround in `Object.{ entries, values }` for some IE versions bug with invisible integer keys on `null`-prototype objects
 - Added TypeScript definitions to `core-js-compat`, [#1235](https://github.com/zloirock/core-js/issues/1235), thanks [@susnux](https://github.com/susnux)
 - Compat data improvements:
   - [`Set.prototype.difference`](https://github.com/tc39/proposal-set-methods) that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
