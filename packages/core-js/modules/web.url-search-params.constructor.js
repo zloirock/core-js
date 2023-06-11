@@ -205,7 +205,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   anInstance(this, URLSearchParamsPrototype);
   var init = arguments.length > 0 ? arguments[0] : undefined;
   var state = setInternalState(this, new URLSearchParamsState(init));
-  if (!DESCRIPTORS) this.length = state.entries.length;
+  if (!DESCRIPTORS) this.size = state.entries.length;
 };
 
 var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
@@ -237,7 +237,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
         if (value !== undefined) break;
       } else index++;
     }
-    if (!DESCRIPTORS) this.length = entries.length;
+    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.get` method
@@ -302,7 +302,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
       }
     }
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.length = entries.length;
+    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.sort` method
