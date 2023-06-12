@@ -1,6 +1,8 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) marked as [supported from Safari 17.0](https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes#JavaScript)
+  - New `URL` features: [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse), [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) and [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as [supported from Safari 17.0](https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes#Web-API)
 
 ##### [3.31.0 - 2023.06.12](https://github.com/zloirock/core-js/releases/tag/v3.31.0)
 - [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):

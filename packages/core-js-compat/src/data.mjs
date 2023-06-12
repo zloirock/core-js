@@ -2173,6 +2173,7 @@ export const data = {
   },
   'esnext.set.difference.v2': {
     bun: '0.6.0',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
@@ -2187,24 +2188,28 @@ export const data = {
   },
   'esnext.set.intersection.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
   'esnext.set.is-superset-of.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
@@ -2221,12 +2226,14 @@ export const data = {
   },
   'esnext.set.symmetric-difference.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
   'esnext.set.union.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
@@ -2494,6 +2501,7 @@ export const data = {
     deno: '1.33.2',
     firefox: '115',
     node: '20.1.0',
+    safari: '17.0',
   },
   'web.url.to-json': {
     bun: '0.1.1',
@@ -2516,16 +2524,19 @@ export const data = {
   'web.url-search-params.delete': {
     firefox: '115',
     node: '20.2.0',
+    safari: '17.0',
   },
   'web.url-search-params.has': {
     firefox: '115',
     node: '20.2.0',
+    safari: '17.0',
   },
   'web.url-search-params.size': {
     chrome: '113',
     deno: '1.32',
     firefox: '112',
     node: '19.8.0',
+    safari: '17.0',
   },
 };
 
