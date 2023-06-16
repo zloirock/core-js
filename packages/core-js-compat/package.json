@@ -21,6 +21,6 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "browserslist": "^4.21.8"
+    "browserslist": "^4.21.9"
   }
 }
