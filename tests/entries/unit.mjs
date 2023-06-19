@@ -910,6 +910,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
+  load('proposals/dataview-get-set-uint8c');
   load('proposals/decorator-metadata');
   load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
