@@ -787,6 +787,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
     ok(load(NS, 'math/degrees')(Math.PI) === 180);
     ok(load(NS, 'math/fscale')(3, 1, 2, 1, 2) === 3);
+    ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'math/iaddh')(3, 2, 0xFFFFFFFF, 4) === 7);
     ok(load(NS, 'math/isubh')(3, 4, 0xFFFFFFFF, 2) === 1);
     ok(load(NS, 'math/imulh')(0xFFFFFFFF, 7) === -1);
@@ -919,6 +920,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
   load('proposals/explicit-resource-management');
+  load('proposals/float16array');
   load('proposals/function-demethodize');
   load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
