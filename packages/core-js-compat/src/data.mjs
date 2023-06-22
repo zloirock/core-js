@@ -148,11 +148,13 @@ export const data = {
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
+    'react-native': '0.72',
     safari: '14.0',
   },
   'es.aggregate-error.cause': {
     chrome: '94',
     firefox: '91',
+    'react-native': '0.72',
     safari: '15.0',
   },
   'es.array.at': {
@@ -561,6 +563,7 @@ export const data = {
   'es.json.stringify': {
     chrome: '72',
     firefox: '64',
+    'react-native': '0.72',
     safari: '12.1',
   },
   'es.json.to-string-tag': {
