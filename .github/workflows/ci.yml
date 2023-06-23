@@ -34,7 +34,6 @@ jobs:
         node:
           - 16.13
           - 18.12
-          - 19
           - 20
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +55,6 @@ jobs:
         node:
           - 16.13
           - 18.12
-          - 19
           - 20
     runs-on: ${{ matrix.os }}
     steps:
