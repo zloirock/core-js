@@ -24,7 +24,6 @@ var exportWebAssemblyErrorCauseWrapper = function (ERROR_NAME, wrapper) {
 };
 
 // https://tc39.es/ecma262/#sec-nativeerror
-// https://github.com/tc39/proposal-error-cause
 exportGlobalErrorCauseWrapper('Error', function (init) {
   return function Error(message) { return apply(init, this, arguments); };
 });

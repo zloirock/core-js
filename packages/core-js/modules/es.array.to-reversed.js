@@ -7,7 +7,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 var $Array = Array;
 
 // `Array.prototype.toReversed` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed
+// https://tc39.es/ecma262/#sec-array.prototype.toreversed
 $({ target: 'Array', proto: true }, {
   toReversed: function toReversed() {
     return arrayToReversed(toIndexedObject(this), $Array);

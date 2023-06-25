@@ -7,7 +7,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 
 // `%TypedArray%.prototype.toReversed` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toReversed
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.toreversed
 exportTypedArrayMethod('toReversed', function toReversed() {
   return arrayToReversed(aTypedArray(this), getTypedArrayConstructor(this));
 });

@@ -6,7 +6,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.findLast` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlast
 exportTypedArrayMethod('findLast', function findLast(predicate /* , thisArg */) {
   return $findLast(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
 });

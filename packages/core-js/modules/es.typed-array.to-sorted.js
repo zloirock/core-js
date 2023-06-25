@@ -10,7 +10,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 
 // `%TypedArray%.prototype.toSorted` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSorted
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted
 exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   if (compareFn !== undefined) aCallable(compareFn);
   var O = aTypedArray(this);
