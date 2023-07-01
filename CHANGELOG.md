@@ -7,6 +7,7 @@
   - `AggregateError` and well-formed `JSON.stringify` marked as [supported React Native 0.72 Hermes](https://reactnative.dev/blog/2023/06/21/0.72-metro-package-exports-symlinks#more-ecmascript-support-in-hermes)
   - Added Quest Browser 28 compat data mapping
   - Added missing NodeJS 12.16-12.22 compat data mapping
+  - Updated Opera Android 76 compat data mapping
 
 ##### [3.31.0 - 2023.06.12](https://github.com/zloirock/core-js/releases/tag/v3.31.0)
 - [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
