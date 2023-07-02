@@ -13,7 +13,7 @@ var isIntegralNumber = require('../internals/is-integral-number');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
-var toUint8C = require('../internals/to-uint8c');
+var toUint8Clamped = require('../internals/to-uint8-clamped');
 var toPropertyKey = require('../internals/to-property-key');
 var hasOwn = require('../internals/has-own-property');
 var classof = require('../internals/classof');
@@ -137,7 +137,7 @@ if (DESCRIPTORS) {
 
     var setter = function (that, index, value) {
       var data = getInternalState(that);
-      data.view[SETTER](index * BYTES + data.byteOffset, CLAMPED ? toUint8C(value) : value, true);
+      data.view[SETTER](index * BYTES + data.byteOffset, CLAMPED ? toUint8Clamped(value) : value, true);
     };
 
     var addElement = function (that, index) {

@@ -1973,9 +1973,9 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
-  'esnext.data-view.get-uint8c': {
+  'esnext.data-view.get-uint8-clamped': {
   },
-  'esnext.data-view.set-uint8c': {
+  'esnext.data-view.set-uint8-clamped': {
   },
   'esnext.disposable-stack.constructor': {
   },

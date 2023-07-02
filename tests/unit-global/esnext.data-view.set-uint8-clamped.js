@@ -1,17 +1,17 @@
 import { DESCRIPTORS } from '../helpers/constants';
 
-QUnit.test('DataView.prototype.{ getUint8C, setUint8C }', assert => {
-  const { getUint8C, setUint8C } = DataView.prototype;
+QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => {
+  const { getUint8Clamped, setUint8Clamped } = DataView.prototype;
 
-  assert.isFunction(getUint8C);
-  assert.arity(getUint8C, 1);
-  assert.name(getUint8C, 'getUint8C');
+  assert.isFunction(getUint8Clamped);
+  assert.arity(getUint8Clamped, 1);
+  assert.name(getUint8Clamped, 'getUint8Clamped');
 
-  assert.isFunction(setUint8C);
-  assert.arity(setUint8C, 2);
-  assert.name(setUint8C, 'setUint8C');
+  assert.isFunction(setUint8Clamped);
+  assert.arity(setUint8Clamped, 2);
+  assert.name(setUint8Clamped, 'setUint8Clamped');
 
-  assert.same(new DataView(new ArrayBuffer(8)).setUint8C(0, 0), undefined, 'void');
+  assert.same(new DataView(new ArrayBuffer(8)).setUint8Clamped(0, 0), undefined, 'void');
 
   function toString(it) {
     return it === 0 && 1 / it === -Infinity ? '-0' : it;
@@ -73,9 +73,9 @@ QUnit.test('DataView.prototype.{ getUint8C, setUint8C }', assert => {
   const array = DESCRIPTORS ? new Uint8Array(buffer) : null;
 
   for (const [value, conversion, little] of data) {
-    view.setUint8C(0, value);
-    assert.same(view.getUint8C(0, value), conversion, `DataView.prototype.setUint8C + DataView.prototype.getUint8C, ${ toString(value) } -> ${ toString(conversion) }`);
-    assert.same(view.getUint8(0, value), conversion, `DataView.prototype.setUint8C + DataView.prototype.getUint8, ${ toString(value) } -> ${ toString(conversion) }`);
-    if (DESCRIPTORS) assert.arrayEqual(array, little, `DataView.prototype.setUint8C + Uint8Array ${ toString(value) } -> [${ little }]`);
+    view.setUint8Clamped(0, value);
+    assert.same(view.getUint8Clamped(0, value), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8Clamped, ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.same(view.getUint8(0, value), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8, ${ toString(value) } -> ${ toString(conversion) }`);
+    if (DESCRIPTORS) assert.arrayEqual(array, little, `DataView.prototype.setUint8Clamped + Uint8Array ${ toString(value) } -> [${ little }]`);
   }
 });

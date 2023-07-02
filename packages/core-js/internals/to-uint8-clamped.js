@@ -1,3 +1,4 @@
+'use strict';
 var round = Math.round;
 
 module.exports = function (it) {

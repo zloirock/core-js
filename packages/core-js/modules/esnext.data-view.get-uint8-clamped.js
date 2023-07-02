@@ -5,10 +5,10 @@ var uncurryThis = require('../internals/function-uncurry-this');
 // eslint-disable-next-line es/no-typed-arrays -- safe
 var getUint8 = uncurryThis(DataView.prototype.getUint8);
 
-// `DataView.prototype.getUint8C` method
+// `DataView.prototype.getUint8Clamped` method
 // https://github.com/ljharb/proposal-dataview-get-set-uint8c
 $({ target: 'DataView', proto: true, forced: true }, {
-  getUint8C: function getUint8C(byteOffset) {
+  getUint8Clamped: function getUint8Clamped(byteOffset) {
     return getUint8(this, byteOffset);
   }
 });
