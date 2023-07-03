@@ -192,6 +192,7 @@ export default {
     [111, '22.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
+  // https://forums.opera.com/category/20/opera-for-android
   ChromeAndroidToOperaAndroid: [
     [59, 43],
     [60, 44],
