@@ -196,12 +196,13 @@ var Placeholder = function (object, type, metadata) {
   this.metadata = metadata;
 };
 
-var structuredCloneInternal = function (value, options) {
+var structuredCloneInternal = function (value, map, transferredBuffers) {
   if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
-
-  var map = options.map;
-  if (mapHas(map, value)) return mapGet(map, value);
+  // effectively preserves circular references
+  if (map) {
+    if (mapHas(map, value)) return mapGet(map, value);
+  } else map = new Map();
 
   var type = classof(value);
   var C, name, cloned, dataTransfer, i, length, keys, key;
@@ -266,7 +267,7 @@ var structuredCloneInternal = function (value, options) {
       break;
     case 'ArrayBuffer':
     case 'SharedArrayBuffer':
-      cloned = options.transferredBuffers
+      cloned = transferredBuffers
         ? new Placeholder(value, type)
         : cloneBuffer(value, map, type);
       break;
@@ -284,17 +285,17 @@ var structuredCloneInternal = function (value, options) {
     case 'BigInt64Array':
     case 'BigUint64Array':
       length = type === 'DataView' ? value.byteLength : value.length;
-      cloned = options.transferredBuffers
+      cloned = transferredBuffers
         ? new Placeholder(value, type, { offset: value.byteOffset, length: length })
         : cloneView(value, type, value.byteOffset, length, map);
       break;
     case 'DOMQuad':
       try {
         cloned = new DOMQuad(
-          structuredCloneInternal(value.p1, options),
-          structuredCloneInternal(value.p2, options),
-          structuredCloneInternal(value.p3, options),
-          structuredCloneInternal(value.p4, options)
+          structuredCloneInternal(value.p1, map, transferredBuffers),
+          structuredCloneInternal(value.p2, map, transferredBuffers),
+          structuredCloneInternal(value.p3, map, transferredBuffers),
+          structuredCloneInternal(value.p4, map, transferredBuffers)
         );
       } catch (error) {
         cloned = tryNativeRestrictedStructuredClone(value, type);
@@ -315,7 +316,7 @@ var structuredCloneInternal = function (value, options) {
       dataTransfer = createDataTransfer();
       if (dataTransfer) {
         for (i = 0, length = lengthOfArrayLike(value); i < length; i++) {
-          dataTransfer.items.add(structuredCloneInternal(value[i], options));
+          dataTransfer.items.add(structuredCloneInternal(value[i], map, transferredBuffers));
         }
         cloned = dataTransfer.files;
       } else cloned = tryNativeRestrictedStructuredClone(value, type);
@@ -324,7 +325,7 @@ var structuredCloneInternal = function (value, options) {
       // Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
       try {
         cloned = new ImageData(
-          structuredCloneInternal(value.data, options),
+          structuredCloneInternal(value.data, map, transferredBuffers),
           value.width,
           value.height,
           { colorSpace: value.colorSpace }
@@ -421,29 +422,29 @@ var structuredCloneInternal = function (value, options) {
       keys = objectKeys(value);
       for (i = 0, length = lengthOfArrayLike(keys); i < length; i++) {
         key = keys[i];
-        createProperty(cloned, key, structuredCloneInternal(value[key], options));
+        createProperty(cloned, key, structuredCloneInternal(value[key], map, transferredBuffers));
       } break;
     case 'Map':
       value.forEach(function (v, k) {
-        mapSet(cloned, structuredCloneInternal(k, options), structuredCloneInternal(v, options));
+        mapSet(cloned, structuredCloneInternal(k, map, transferredBuffers), structuredCloneInternal(v, map, transferredBuffers));
       });
       break;
     case 'Set':
       value.forEach(function (v) {
-        setAdd(cloned, structuredCloneInternal(v, options));
+        setAdd(cloned, structuredCloneInternal(v, map, transferredBuffers));
       });
       break;
     case 'Error':
-      createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, options));
+      createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map, transferredBuffers));
       if (hasOwn(value, 'cause')) {
-        createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, options));
+        createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map, transferredBuffers));
       }
       if (name == 'AggregateError') {
-        cloned.errors = structuredCloneInternal(value.errors, options);
+        cloned.errors = structuredCloneInternal(value.errors, map, transferredBuffers);
       } // break omitted
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
-        createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, options));
+        createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map, transferredBuffers));
       }
   }
 
@@ -611,18 +612,20 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
-    var map = new Map();
-    var buffers;
+    var transferredBuffers = false;
+    var map, buffers;
 
     if (transfer !== undefined) {
+      map = new Map();
       buffers = tryToTransfer(transfer, map);
+      transferredBuffers = !!lengthOfArrayLike(buffers);
     }
 
-    var clone = structuredCloneInternal(value, { map: map, transferredBuffers: !!buffers });
+    var clone = structuredCloneInternal(value, map, transferredBuffers);
 
     // since of an issue with cloning views of transferred buffers, we a forced to transfer / clone them in 2 steps
     // https://github.com/zloirock/core-js/issues/1265
-    if (buffers && lengthOfArrayLike(buffers)) {
+    if (transferredBuffers) {
       map = new Map();
       tryToTransferBuffers(transfer, map);
       clone = replacePlaceholders(clone, map);
