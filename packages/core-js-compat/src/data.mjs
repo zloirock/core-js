@@ -2525,11 +2525,13 @@ export const data = {
     safari: '14.0',
   },
   'web.url-search-params.delete': {
+    deno: '1.35',
     firefox: '115',
     node: '20.2.0',
     safari: '17.0',
   },
   'web.url-search-params.has': {
+    deno: '1.35',
     firefox: '115',
     node: '20.2.0',
     safari: '17.0',
