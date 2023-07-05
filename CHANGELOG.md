@@ -8,6 +8,7 @@
   - New `URL` features: [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse), [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) and [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as [supported from Safari 17.0](https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes#Web-API)
   - `value` argument of `URLSearchParams.prototype.{ has, delete }` marked as supported from [Deno 1.35](https://github.com/denoland/deno/pull/19654)
   - `AggregateError` and well-formed `JSON.stringify` marked as [supported React Native 0.72 Hermes](https://reactnative.dev/blog/2023/06/21/0.72-metro-package-exports-symlinks#more-ecmascript-support-in-hermes)
+  - Added Deno 1.35 compat data mapping
   - Added Quest Browser 28 compat data mapping
   - Added missing NodeJS 12.16-12.22 compat data mapping
   - Updated Opera Android 76 compat data mapping
