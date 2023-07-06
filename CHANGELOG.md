@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.31.1 - 2023.07.06](https://github.com/zloirock/core-js/releases/tag/v3.31.1)
 - Fixed a `structuredClone` bug with cloning views of transferred buffers, [#1265](https://github.com/zloirock/core-js/issues/1265)
 - Fixed the order of arguments validation in `DataView` methods
 - Allowed cloning of [`Float16Array`](https://github.com/tc39/proposal-float16array) in `structuredClone`

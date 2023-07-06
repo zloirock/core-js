@@ -1,7 +1,7 @@
 /**
- * core-js 3.31.0
+ * core-js 3.31.1
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.31.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.31.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -319,7 +319,6 @@ var exportWebAssemblyErrorCauseWrapper = function (ERROR_NAME, wrapper) {
 };
 
 // https://tc39.es/ecma262/#sec-nativeerror
-// https://github.com/tc39/proposal-error-cause
 exportGlobalErrorCauseWrapper('Error', function (init) {
   return function Error(message) { return apply(init, this, arguments); };
 });
@@ -956,10 +955,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.31.0',
+  version: '3.31.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.31.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.31.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -2476,7 +2475,7 @@ var FORCED = !fails(function () {
   return $AggregateError([1], AGGREGATE_ERROR, { cause: 7 }).cause !== 7;
 });
 
-// https://github.com/tc39/proposal-error-cause
+// https://tc39.es/ecma262/#sec-aggregate-error
 $({ global: true, constructor: true, arity: 2, forced: FORCED }, {
   AggregateError: wrapErrorConstructorWithCause(AGGREGATE_ERROR, function (init) {
     // eslint-disable-next-line no-unused-vars -- required for functions `.length`
@@ -2498,7 +2497,7 @@ var toIntegerOrInfinity = __webpack_require__(61);
 var addToUnscopables = __webpack_require__(101);
 
 // `Array.prototype.at` method
-// https://github.com/tc39/proposal-relative-indexing-method
+// https://tc39.es/ecma262/#sec-array.prototype.at
 $({ target: 'Array', proto: true }, {
   at: function at(index) {
     var O = toObject(this);
@@ -2549,7 +2548,7 @@ var $findLast = __webpack_require__(103).findLast;
 var addToUnscopables = __webpack_require__(101);
 
 // `Array.prototype.findLast` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-array.prototype.findlast
 $({ target: 'Array', proto: true }, {
   findLast: function findLast(callbackfn /* , that = undefined */) {
     return $findLast(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -2610,7 +2609,7 @@ var $findLastIndex = __webpack_require__(103).findLastIndex;
 var addToUnscopables = __webpack_require__(101);
 
 // `Array.prototype.findLastIndex` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-array.prototype.findlastindex
 $({ target: 'Array', proto: true }, {
   findLastIndex: function findLastIndex(callbackfn /* , that = undefined */) {
     return $findLastIndex(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
@@ -2744,7 +2743,7 @@ var addToUnscopables = __webpack_require__(101);
 var $Array = Array;
 
 // `Array.prototype.toReversed` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed
+// https://tc39.es/ecma262/#sec-array.prototype.toreversed
 $({ target: 'Array', proto: true }, {
   toReversed: function toReversed() {
     return arrayToReversed(toIndexedObject(this), $Array);
@@ -2789,7 +2788,7 @@ var $Array = Array;
 var sort = uncurryThis(getVirtual('Array').sort);
 
 // `Array.prototype.toSorted` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted
+// https://tc39.es/ecma262/#sec-array.prototype.tosorted
 $({ target: 'Array', proto: true }, {
   toSorted: function toSorted(compareFn) {
     if (compareFn !== undefined) aCallable(compareFn);
@@ -2847,7 +2846,7 @@ var max = Math.max;
 var min = Math.min;
 
 // `Array.prototype.toSpliced` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
+// https://tc39.es/ecma262/#sec-array.prototype.tospliced
 $({ target: 'Array', proto: true }, {
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
     var O = toIndexedObject(this);
@@ -2892,7 +2891,7 @@ var toIndexedObject = __webpack_require__(11);
 var $Array = Array;
 
 // `Array.prototype.with` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.with
+// https://tc39.es/ecma262/#sec-array.prototype.with
 $({ target: 'Array', proto: true }, {
   'with': function (index, value) {
     return arrayWith(toIndexedObject(this), $Array, index, value);
@@ -2931,7 +2930,7 @@ var $ = __webpack_require__(2);
 var hasOwn = __webpack_require__(38);
 
 // `Object.hasOwn` method
-// https://github.com/tc39/proposal-accessible-object-hasownproperty
+// https://tc39.es/ecma262/#sec-object.hasown
 $({ target: 'Object', stat: true }, {
   hasOwn: hasOwn
 });
@@ -4389,7 +4388,7 @@ var FORCED = fails(function () {
 });
 
 // `String.prototype.at` method
-// https://github.com/tc39/proposal-relative-indexing-method
+// https://tc39.es/ecma262/#sec-string.prototype.at
 $({ target: 'String', proto: true, forced: FORCED }, {
   at: function at(index) {
     var S = toString(requireObjectCoercible(this));
@@ -4660,7 +4659,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.at` method
-// https://github.com/tc39/proposal-relative-indexing-method
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.at
 exportTypedArrayMethod('at', function at(index) {
   var O = aTypedArray(this);
   var len = lengthOfArrayLike(O);
@@ -4891,7 +4890,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.findLast` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlast
 exportTypedArrayMethod('findLast', function findLast(predicate /* , thisArg */) {
   return $findLast(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
 });
@@ -4910,7 +4909,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.findLastIndex` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlastindex
 exportTypedArrayMethod('findLastIndex', function findLastIndex(predicate /* , thisArg */) {
   return $findLastIndex(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
 });
@@ -5011,7 +5010,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 
 // `%TypedArray%.prototype.toReversed` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toReversed
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.toreversed
 exportTypedArrayMethod('toReversed', function toReversed() {
   return arrayToReversed(aTypedArray(this), getTypedArrayConstructor(this));
 });
@@ -5034,7 +5033,7 @@ var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var sort = uncurryThis(ArrayBufferViewCore.TypedArrayPrototype.sort);
 
 // `%TypedArray%.prototype.toSorted` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.toSorted
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.tosorted
 exportTypedArrayMethod('toSorted', function toSorted(compareFn) {
   if (compareFn !== undefined) aCallable(compareFn);
   var O = aTypedArray(this);
@@ -5071,7 +5070,7 @@ var PROPER_ORDER = !!function () {
 }();
 
 // `%TypedArray%.prototype.with` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.with
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.with
 exportTypedArrayMethod('with', { 'with': function (index, value) {
   var O = aTypedArray(this);
   var relativeIndex = toIntegerOrInfinity(index);
@@ -14104,7 +14103,61 @@ var createDataTransfer = function () {
   return dataTransfer && dataTransfer.items && dataTransfer.files ? dataTransfer : null;
 };
 
-var structuredCloneInternal = function (value, map) {
+var cloneBuffer = function (value, map, $type) {
+  if (mapHas(map, value)) return mapGet(map, value);
+
+  var type = $type || classof(value);
+  var clone, length, options, source, target, i;
+
+  if (type === 'SharedArrayBuffer') {
+    if (nativeRestrictedStructuredClone) clone = nativeRestrictedStructuredClone(value);
+    // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
+    else clone = value;
+  } else {
+    var DataView = global.DataView;
+
+    // `ArrayBuffer#slice` is not available in IE10
+    // `ArrayBuffer#slice` and `DataView` are not available in old FF
+    if (!DataView && typeof value.slice != 'function') throwUnpolyfillable('ArrayBuffer');
+    // detached buffers throws in `DataView` and `.slice`
+    try {
+      if (typeof value.slice == 'function' && !value.resizable) {
+        clone = value.slice(0);
+      } else {
+        length = value.byteLength;
+        options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
+        clone = new ArrayBuffer(length, options);
+        source = new DataView(value);
+        target = new DataView(clone);
+        for (i = 0; i < length; i++) {
+          target.setUint8(i, source.getUint8(i));
+        }
+      }
+    } catch (error) {
+      throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
+    }
+  }
+
+  mapSet(map, value, clone);
+
+  return clone;
+};
+
+var cloneView = function (value, type, offset, length, map) {
+  var C = global[type];
+  // in some old engines like Safari 9, typeof C is 'object'
+  // on Uint8ClampedArray or some other constructors
+  if (!isObject(C)) throwUnpolyfillable(type);
+  return new C(cloneBuffer(value.buffer, map), offset, length);
+};
+
+var Placeholder = function (object, type, metadata) {
+  this.object = object;
+  this.type = type;
+  this.metadata = metadata;
+};
+
+var structuredCloneInternal = function (value, map, transferredBuffers) {
   if (isSymbol(value)) throwUncloneable('Symbol');
   if (!isObject(value)) return value;
   // effectively preserves circular references
@@ -14113,25 +14166,20 @@ var structuredCloneInternal = function (value, map) {
   } else map = new Map();
 
   var type = classof(value);
-  var deep = false;
-  var C, name, cloned, dataTransfer, i, length, keys, key, source, target, options;
+  var C, name, cloned, dataTransfer, i, length, keys, key;
 
   switch (type) {
     case 'Array':
       cloned = Array(lengthOfArrayLike(value));
-      deep = true;
       break;
     case 'Object':
       cloned = {};
-      deep = true;
       break;
     case 'Map':
       cloned = new Map();
-      deep = true;
       break;
     case 'Set':
       cloned = new Set();
-      deep = true;
       break;
     case 'RegExp':
       // in this block because of a Safari 14.1 bug
@@ -14174,11 +14222,15 @@ var structuredCloneInternal = function (value, map) {
         default:
           cloned = Error();
       }
-      deep = true;
       break;
     case 'DOMException':
       cloned = new DOMException(value.message, value.name);
-      deep = true;
+      break;
+    case 'ArrayBuffer':
+    case 'SharedArrayBuffer':
+      cloned = transferredBuffers
+        ? new Placeholder(value, type)
+        : cloneBuffer(value, map, type);
       break;
     case 'DataView':
     case 'Int8Array':
@@ -14188,28 +14240,23 @@ var structuredCloneInternal = function (value, map) {
     case 'Uint16Array':
     case 'Int32Array':
     case 'Uint32Array':
+    case 'Float16Array':
     case 'Float32Array':
     case 'Float64Array':
     case 'BigInt64Array':
     case 'BigUint64Array':
-      C = global[type];
-      // in some old engines like Safari 9, typeof C is 'object'
-      // on Uint8ClampedArray or some other constructors
-      if (!isObject(C)) throwUnpolyfillable(type);
-      cloned = new C(
-        // this is safe, since arraybuffer cannot have circular references
-        structuredCloneInternal(value.buffer, map),
-        value.byteOffset,
-        type === 'DataView' ? value.byteLength : value.length
-      );
+      length = type === 'DataView' ? value.byteLength : value.length;
+      cloned = transferredBuffers
+        ? new Placeholder(value, type, { offset: value.byteOffset, length: length })
+        : cloneView(value, type, value.byteOffset, length, map);
       break;
     case 'DOMQuad':
       try {
         cloned = new DOMQuad(
-          structuredCloneInternal(value.p1, map),
-          structuredCloneInternal(value.p2, map),
-          structuredCloneInternal(value.p3, map),
-          structuredCloneInternal(value.p4, map)
+          structuredCloneInternal(value.p1, map, transferredBuffers),
+          structuredCloneInternal(value.p2, map, transferredBuffers),
+          structuredCloneInternal(value.p3, map, transferredBuffers),
+          structuredCloneInternal(value.p4, map, transferredBuffers)
         );
       } catch (error) {
         cloned = tryNativeRestrictedStructuredClone(value, type);
@@ -14230,7 +14277,7 @@ var structuredCloneInternal = function (value, map) {
       dataTransfer = createDataTransfer();
       if (dataTransfer) {
         for (i = 0, length = lengthOfArrayLike(value); i < length; i++) {
-          dataTransfer.items.add(structuredCloneInternal(value[i], map));
+          dataTransfer.items.add(structuredCloneInternal(value[i], map, transferredBuffers));
         }
         cloned = dataTransfer.files;
       } else cloned = tryNativeRestrictedStructuredClone(value, type);
@@ -14239,7 +14286,7 @@ var structuredCloneInternal = function (value, map) {
       // Safari 9 ImageData is a constructor, but typeof ImageData is 'object'
       try {
         cloned = new ImageData(
-          structuredCloneInternal(value.data, map),
+          structuredCloneInternal(value.data, map, transferredBuffers),
           value.width,
           value.height,
           { colorSpace: value.colorSpace }
@@ -14266,32 +14313,6 @@ var structuredCloneInternal = function (value, map) {
           break;
         case 'Date':
           cloned = new Date(thisTimeValue(value));
-          break;
-        case 'ArrayBuffer':
-          C = global.DataView;
-          // `ArrayBuffer#slice` is not available in IE10
-          // `ArrayBuffer#slice` and `DataView` are not available in old FF
-          if (!C && typeof value.slice != 'function') throwUnpolyfillable(type);
-          // detached buffers throws in `DataView` and `.slice`
-          try {
-            if (typeof value.slice == 'function' && !value.resizable) {
-              cloned = value.slice(0);
-            } else {
-              length = value.byteLength;
-              options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
-              cloned = new ArrayBuffer(length, options);
-              source = new C(value);
-              target = new C(cloned);
-              for (i = 0; i < length; i++) {
-                target.setUint8(i, source.getUint8(i));
-              }
-            }
-          } catch (error) {
-            throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
-          } break;
-        case 'SharedArrayBuffer':
-          // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
-          cloned = value;
           break;
         case 'Blob':
           try {
@@ -14356,39 +14377,109 @@ var structuredCloneInternal = function (value, map) {
 
   mapSet(map, value, cloned);
 
-  if (deep) switch (type) {
+  switch (type) {
     case 'Array':
     case 'Object':
       keys = objectKeys(value);
       for (i = 0, length = lengthOfArrayLike(keys); i < length; i++) {
         key = keys[i];
-        createProperty(cloned, key, structuredCloneInternal(value[key], map));
+        createProperty(cloned, key, structuredCloneInternal(value[key], map, transferredBuffers));
       } break;
     case 'Map':
       value.forEach(function (v, k) {
-        mapSet(cloned, structuredCloneInternal(k, map), structuredCloneInternal(v, map));
+        mapSet(cloned, structuredCloneInternal(k, map, transferredBuffers), structuredCloneInternal(v, map, transferredBuffers));
       });
       break;
     case 'Set':
       value.forEach(function (v) {
-        setAdd(cloned, structuredCloneInternal(v, map));
+        setAdd(cloned, structuredCloneInternal(v, map, transferredBuffers));
       });
       break;
     case 'Error':
-      createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map));
+      createNonEnumerableProperty(cloned, 'message', structuredCloneInternal(value.message, map, transferredBuffers));
       if (hasOwn(value, 'cause')) {
-        createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map));
+        createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map, transferredBuffers));
       }
       if (name == 'AggregateError') {
-        cloned.errors = structuredCloneInternal(value.errors, map);
+        cloned.errors = structuredCloneInternal(value.errors, map, transferredBuffers);
       } // break omitted
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
-        createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map));
+        createNonEnumerableProperty(cloned, 'stack', structuredCloneInternal(value.stack, map, transferredBuffers));
       }
   }
 
   return cloned;
+};
+
+var replacePlaceholders = function (value, map) {
+  if (!isObject(value)) return value;
+  if (mapHas(map, value)) return mapGet(map, value);
+
+  var type, object, metadata, i, length, keys, key, replacement;
+
+  if (value instanceof Placeholder) {
+    type = value.type;
+    object = value.object;
+
+    switch (type) {
+      case 'ArrayBuffer':
+      case 'SharedArrayBuffer':
+        replacement = cloneBuffer(object, map, type);
+        break;
+      case 'DataView':
+      case 'Int8Array':
+      case 'Uint8Array':
+      case 'Uint8ClampedArray':
+      case 'Int16Array':
+      case 'Uint16Array':
+      case 'Int32Array':
+      case 'Uint32Array':
+      case 'Float16Array':
+      case 'Float32Array':
+      case 'Float64Array':
+      case 'BigInt64Array':
+      case 'BigUint64Array':
+        metadata = value.metadata;
+        replacement = cloneView(object, type, metadata.offset, metadata.length, map);
+    }
+  } else switch (classof(value)) {
+    case 'Array':
+    case 'Object':
+      keys = objectKeys(value);
+      for (i = 0, length = lengthOfArrayLike(keys); i < length; i++) {
+        key = keys[i];
+        value[key] = replacePlaceholders(value[key], map);
+      } break;
+    case 'Map':
+      replacement = new Map();
+      value.forEach(function (v, k) {
+        mapSet(replacement, replacePlaceholders(k, map), replacePlaceholders(v, map));
+      });
+      break;
+    case 'Set':
+      replacement = new Set();
+      value.forEach(function (v) {
+        setAdd(replacement, replacePlaceholders(v, map));
+      });
+      break;
+    case 'Error':
+      value.message = replacePlaceholders(value.message, map);
+      if (hasOwn(value, 'cause')) {
+        value.cause = replacePlaceholders(value.cause, map);
+      }
+      if (value.name == 'AggregateError') {
+        value.errors = replacePlaceholders(value.errors, map);
+      } // break omitted
+    case 'DOMException':
+      if (ERROR_STACK_INSTALLABLE) {
+        value.stack = replacePlaceholders(value.stack, map);
+      }
+  }
+
+  mapSet(map, value, replacement || value);
+
+  return replacement || value;
 };
 
 var tryToTransfer = function (rawTransfer, map) {
@@ -14402,18 +14493,24 @@ var tryToTransfer = function (rawTransfer, map) {
 
   var i = 0;
   var length = lengthOfArrayLike(transfer);
-  var value, type, C, transferredArray, transferred, canvas, context;
+  var buffers = [];
+  var value, type, C, transferred, canvas, context;
 
-  if (PROPER_TRANSFER) {
-    transferredArray = nativeStructuredClone(transfer, { transfer: transfer });
-    while (i < length) mapSet(map, transfer[i], transferredArray[i++]);
-  } else while (i < length) {
+  while (i < length) {
     value = transfer[i++];
-    if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
 
     type = classof(value);
 
-    switch (type) {
+    if (type === 'ArrayBuffer') {
+      push(buffers, value);
+      continue;
+    }
+
+    if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
+
+    if (PROPER_TRANSFER) {
+      transferred = nativeStructuredClone(value, { transfer: [value] });
+    } else switch (type) {
       case 'ImageBitmap':
         C = global.OffscreenCanvas;
         if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
@@ -14432,10 +14529,6 @@ var tryToTransfer = function (rawTransfer, map) {
           value.close();
         } catch (error) { /* empty */ }
         break;
-      case 'ArrayBuffer':
-        if (!isCallable(value.transfer)) throwUnpolyfillable(type, TRANSFERRING);
-        transferred = value.transfer();
-        break;
       case 'MediaSourceHandle':
       case 'MessagePort':
       case 'OffscreenCanvas':
@@ -14446,6 +14539,30 @@ var tryToTransfer = function (rawTransfer, map) {
     }
 
     if (transferred === undefined) throw new DOMException('This object cannot be transferred: ' + type, DATA_CLONE_ERROR);
+
+    mapSet(map, value, transferred);
+  }
+
+  return buffers;
+};
+
+var tryToTransferBuffers = function (transfer, map) {
+  var i = 0;
+  var length = lengthOfArrayLike(transfer);
+  var value, transferred;
+
+  while (i < length) {
+    value = transfer[i++];
+
+    if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
+
+    if (PROPER_TRANSFER) {
+      transferred = nativeStructuredClone(value, { transfer: [value] });
+    } else {
+      if (!isCallable(value.transfer)) throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+      transferred = value.transfer();
+    }
+
     mapSet(map, value, transferred);
   }
 };
@@ -14456,14 +14573,26 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;
-    var map;
+    var transferredBuffers = false;
+    var map, buffers;
 
     if (transfer !== undefined) {
       map = new Map();
-      tryToTransfer(transfer, map);
+      buffers = tryToTransfer(transfer, map);
+      transferredBuffers = !!lengthOfArrayLike(buffers);
     }
 
-    return structuredCloneInternal(value, map);
+    var clone = structuredCloneInternal(value, map, transferredBuffers);
+
+    // since of an issue with cloning views of transferred buffers, we a forced to transfer / clone them in 2 steps
+    // https://github.com/zloirock/core-js/issues/1265
+    if (transferredBuffers) {
+      map = new Map();
+      tryToTransferBuffers(transfer, map);
+      clone = replacePlaceholders(clone, map);
+    }
+
+    return clone;
   }
 });
 
