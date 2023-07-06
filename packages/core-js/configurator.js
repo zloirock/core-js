@@ -21,7 +21,7 @@ module.exports = function (options) {
       shared[USE_FUNCTION_CONSTRUCTOR] = !!options[USE_FUNCTION_CONSTRUCTOR];
     }
     if (hasOwn(options, ASYNC_ITERATOR_PROTOTYPE)) {
-      shared[USE_FUNCTION_CONSTRUCTOR] = options[ASYNC_ITERATOR_PROTOTYPE];
+      shared[ASYNC_ITERATOR_PROTOTYPE] = options[ASYNC_ITERATOR_PROTOTYPE];
     }
   }
 };
