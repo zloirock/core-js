@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var functionApply = require('../internals/function-apply');
 var aCallable = require('../internals/a-callable');

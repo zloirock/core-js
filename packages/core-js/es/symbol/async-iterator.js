@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.symbol.async-iterator');
 var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
 

@@ -1,3 +1,4 @@
+'use strict';
 // adapted from https://github.com/jridgewell/string-dedent
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');

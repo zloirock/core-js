@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../stable/set');
 require('../../modules/esnext.set.difference.v2');
 require('../../modules/esnext.set.intersection.v2');

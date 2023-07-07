@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/es.array.slice');
 var entryVirtual = require('../../../internals/entry-virtual');
 

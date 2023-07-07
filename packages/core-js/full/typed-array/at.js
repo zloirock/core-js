@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/typed-array/at');
 
 // TODO: Remove from `core-js@4`

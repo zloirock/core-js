@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var $parseFloat = require('../internals/number-parse-float');
 

@@ -1,3 +1,4 @@
+'use strict';
 var anObject = require('../internals/an-object');
 var iteratorClose = require('../internals/iterator-close');
 

@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../stable/array');
 require('../../modules/es.promise');
 require('../../modules/es.object.to-string');

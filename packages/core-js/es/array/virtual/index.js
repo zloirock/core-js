@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/es.array.at');
 require('../../../modules/es.array.concat');
 require('../../../modules/es.array.copy-within');

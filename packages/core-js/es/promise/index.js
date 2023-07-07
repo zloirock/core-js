@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.aggregate-error');
 require('../../modules/es.array.iterator');
 require('../../modules/es.object.to-string');

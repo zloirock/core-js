@@ -1,3 +1,4 @@
+'use strict';
 var classof = require('../internals/classof');
 
 module.exports = function (it) {

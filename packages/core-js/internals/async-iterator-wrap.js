@@ -1,3 +1,4 @@
+'use strict';
 var call = require('../internals/function-call');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 

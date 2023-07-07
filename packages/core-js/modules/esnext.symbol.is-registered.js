@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var isRegisteredSymbol = require('../internals/symbol-is-registered');
 

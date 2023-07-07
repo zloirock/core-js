@@ -1,3 +1,4 @@
+'use strict';
 var check = function (it) {
   return it && it.Math == Math && it;
 };

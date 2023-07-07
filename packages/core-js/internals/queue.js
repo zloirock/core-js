@@ -1,3 +1,4 @@
+'use strict';
 var Queue = function () {
   this.head = null;
   this.tail = null;

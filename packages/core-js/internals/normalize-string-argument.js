@@ -1,3 +1,4 @@
+'use strict';
 var toString = require('../internals/to-string');
 
 module.exports = function (argument, $default) {

@@ -1,3 +1,4 @@
+'use strict';
 var call = require('../internals/function-call');
 
 module.exports = function (iterator, fn, $next) {

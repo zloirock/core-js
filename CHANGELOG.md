@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Use strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
 
 ##### [3.31.1 - 2023.07.06](https://github.com/zloirock/core-js/releases/tag/v3.31.1)
 - Fixed a `structuredClone` bug with cloning views of transferred buffers, [#1265](https://github.com/zloirock/core-js/issues/1265)

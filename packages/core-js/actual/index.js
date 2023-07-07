@@ -1,3 +1,4 @@
+'use strict';
 require('../stable');
 require('../stage/3');
 

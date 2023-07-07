@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.reflect.get-metadata');
 var path = require('../../internals/path');
 

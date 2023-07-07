@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.to-string');
 require('../../modules/es.regexp.exec');
 require('../../modules/es.symbol.match-all');

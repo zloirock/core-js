@@ -1,3 +1,4 @@
+'use strict';
 var log = Math.log;
 
 // `Math.log1p` method implementation

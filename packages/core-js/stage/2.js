@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('./3');
 
 require('../proposals/array-grouping-v2');

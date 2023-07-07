@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var $groupToMap = require('../internals/array-group-to-map');

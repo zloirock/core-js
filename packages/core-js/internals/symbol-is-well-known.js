@@ -1,3 +1,4 @@
+'use strict';
 var shared = require('../internals/shared');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');

@@ -1,3 +1,4 @@
+'use strict';
 // TODO: Remove from `core-js@4`
 var isPrototypeOf = require('../../internals/object-is-prototype-of');
 var method = require('../array/virtual/filter-out');

@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.date.get-year');
 require('../../modules/es.date.now');
 require('../../modules/es.date.set-year');

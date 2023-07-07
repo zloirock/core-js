@@ -1,3 +1,4 @@
+'use strict';
 module.exports = function (exec) {
   try {
     return { error: false, value: exec() };

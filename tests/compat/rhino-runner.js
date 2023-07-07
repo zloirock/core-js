@@ -1,3 +1,4 @@
+'use strict';
 require('./tests');
 require('./compat-data');
 require('./common-runner');

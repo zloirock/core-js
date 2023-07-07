@@ -1,3 +1,4 @@
+'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
 // eslint-disable-next-line es/no-map -- safe

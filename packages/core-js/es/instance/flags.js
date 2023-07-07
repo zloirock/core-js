@@ -1,3 +1,4 @@
+'use strict';
 var isPrototypeOf = require('../../internals/object-is-prototype-of');
 var flags = require('../regexp/flags');
 

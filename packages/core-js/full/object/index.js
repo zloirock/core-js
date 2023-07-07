@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/object');
 require('../../modules/esnext.object.group-by');
 // TODO: Remove from `core-js@4`

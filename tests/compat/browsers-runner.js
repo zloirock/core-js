@@ -1,3 +1,4 @@
+'use strict';
 function createElement(name, props) {
   var element = document.createElement(name);
   if (props) for (var key in props) element[key] = props[key];

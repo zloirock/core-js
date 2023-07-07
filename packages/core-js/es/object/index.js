@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.symbol');
 require('../../modules/es.object.assign');
 require('../../modules/es.object.create');

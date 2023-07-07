@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.number.from-string');
 var path = require('../../internals/path');
 

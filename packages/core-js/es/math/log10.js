@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.math.log10');
 var path = require('../../internals/path');
 

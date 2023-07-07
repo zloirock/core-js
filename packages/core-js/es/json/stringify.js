@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.json.stringify');
 var path = require('../../internals/path');
 var apply = require('../../internals/function-apply');

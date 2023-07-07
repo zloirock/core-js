@@ -1,3 +1,4 @@
+'use strict';
 require('./url-search-params');
 require('../modules/web.url');
 require('../modules/web.url.can-parse');

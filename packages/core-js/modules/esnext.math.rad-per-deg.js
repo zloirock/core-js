@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 // `Math.RAD_PER_DEG` constant

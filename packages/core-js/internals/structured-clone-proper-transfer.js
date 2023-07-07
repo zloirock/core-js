@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 var fails = require('../internals/fails');
 var V8 = require('../internals/engine-v8-version');

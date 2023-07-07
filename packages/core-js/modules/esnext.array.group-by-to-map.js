@@ -1,3 +1,4 @@
+'use strict';
 // TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var arrayMethodIsStrict = require('../internals/array-method-is-strict');

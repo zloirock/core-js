@@ -1,3 +1,4 @@
+'use strict';
 var classof = require('../internals/classof');
 
 var $String = String;

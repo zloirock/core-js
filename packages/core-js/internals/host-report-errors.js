@@ -1,3 +1,4 @@
+'use strict';
 module.exports = function (a, b) {
   try {
     // eslint-disable-next-line no-console -- safe

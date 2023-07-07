@@ -1,3 +1,4 @@
+'use strict';
 require('../modules/web.atob');
 require('../modules/web.btoa');
 require('../modules/web.dom-collections.for-each');

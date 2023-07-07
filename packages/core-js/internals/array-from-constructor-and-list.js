@@ -1,3 +1,4 @@
+'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 module.exports = function (Constructor, list) {

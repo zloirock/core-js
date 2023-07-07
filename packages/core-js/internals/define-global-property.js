@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 
 // eslint-disable-next-line es/no-object-defineproperty -- safe

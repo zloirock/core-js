@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/array');
 require('../../modules/es.map');
 // TODO: Remove from `core-js@4`

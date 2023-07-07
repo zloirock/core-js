@@ -1,3 +1,4 @@
+'use strict';
 var hasOwn = require('./internals/has-own-property');
 var isArray = require('./internals/is-array');
 var isForced = require('./internals/is-forced');

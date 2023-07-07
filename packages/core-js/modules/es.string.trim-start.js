@@ -1,3 +1,4 @@
+'use strict';
 // TODO: Remove this line from `core-js@4`
 require('../modules/es.string.trim-left');
 var $ = require('../internals/export');

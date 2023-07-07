@@ -1,3 +1,4 @@
+'use strict';
 var createTypedArrayConstructor = require('../internals/typed-array-constructor');
 
 // `Int16Array` constructor

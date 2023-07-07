@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 var apply = require('../internals/function-apply');
 var bind = require('../internals/function-bind-context');

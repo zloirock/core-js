@@ -1,3 +1,4 @@
+'use strict';
 var hasOwn = require('../internals/has-own-property');
 
 module.exports = function (descriptor) {

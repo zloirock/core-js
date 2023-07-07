@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('./1');
 
 require('../proposals/efficient-64-bit-arithmetic');

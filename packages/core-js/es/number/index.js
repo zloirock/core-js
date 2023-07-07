@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.number.constructor');
 require('../../modules/es.number.epsilon');
 require('../../modules/es.number.is-finite');

@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('./4');
 
 require('../proposals/array-from-async-stage-2');

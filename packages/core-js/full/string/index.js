@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/string');
 require('../../modules/es.weak-map');
 // TODO: remove from `core-js@4`

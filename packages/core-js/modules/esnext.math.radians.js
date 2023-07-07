@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 var DEG_PER_RAD = Math.PI / 180;

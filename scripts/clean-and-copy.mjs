@@ -27,7 +27,7 @@ for (const filename of files) {
   const newFilename = filename.replace('full', 'features');
   const href = '../'.repeat(filename.split('').filter(it => it === '/').length - 2) + filename.slice(17, -3).replace(/\/index$/, '');
   await ensureFile(newFilename);
-  await writeFile(newFilename, `module.exports = require('${ href }');\n`);
+  await writeFile(newFilename, `'use strict';\nmodule.exports = require('${ href }');\n`);
 }
 
 echo(chalk.green('created /features/ entries'));

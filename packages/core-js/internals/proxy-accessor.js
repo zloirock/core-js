@@ -1,3 +1,4 @@
+'use strict';
 var defineProperty = require('../internals/object-define-property').f;
 
 module.exports = function (Target, Source, key) {

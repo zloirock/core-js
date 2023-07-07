@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var log10 = require('../internals/math-log10');
 

@@ -1,3 +1,4 @@
+'use strict';
 var fails = require('../internals/fails');
 var global = require('../internals/global');
 

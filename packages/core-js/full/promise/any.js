@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/promise/any');
 
 // TODO: Remove from `core-js@4`

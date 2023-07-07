@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 var isRawJSON = require('../internals/is-raw-json');

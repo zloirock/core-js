@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/tc39/proposal-change-array-by-copy
 require('../modules/esnext.array.to-reversed');
 require('../modules/esnext.array.to-sorted');

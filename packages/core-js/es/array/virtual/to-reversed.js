@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/es.array.to-reversed');
 var entryVirtual = require('../../../internals/entry-virtual');
 

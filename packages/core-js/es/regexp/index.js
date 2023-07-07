@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.regexp.constructor');
 require('../../modules/es.regexp.to-string');
 require('../../modules/es.regexp.dot-all');

@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../../stable/string/virtual');
 
 // TODO: Remove from `core-js@4`

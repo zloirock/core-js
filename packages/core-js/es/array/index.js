@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.array.from');
 require('../../modules/es.array.is-array');
 require('../../modules/es.array.of');

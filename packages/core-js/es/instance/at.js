@@ -1,3 +1,4 @@
+'use strict';
 var isPrototypeOf = require('../../internals/object-is-prototype-of');
 var arrayMethod = require('../array/virtual/at');
 var stringMethod = require('../string/virtual/at');

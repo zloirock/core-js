@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.math.acosh');
 require('../../modules/es.math.asinh');
 require('../../modules/es.math.atanh');

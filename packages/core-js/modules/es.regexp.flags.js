@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');

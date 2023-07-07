@@ -290,6 +290,8 @@ const base = {
   'one-var-declaration-per-line': [ERROR, 'initializations'],
   // enforce padding within blocks
   'padded-blocks': [ERROR, NEVER],
+  // disallow blank lines after 'use strict'
+  'padding-line-between-statements': [ERROR, { blankLine: 'never', prev: 'directive', next: '*' }],
   // specify whether double or single quotes should be used
   quotes: [ERROR, 'single', { avoidEscape: true }],
   // require or disallow use of quotes around object literal property names
@@ -750,8 +752,6 @@ const es3 = {
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
-  // require strict mode directives
-  strict: OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary

@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.create');
 require('../../modules/es.object.freeze');
 require('../../modules/esnext.json.raw-json');

@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/rbuckton/reflect-metadata
 require('../modules/esnext.reflect.define-metadata');
 require('../modules/esnext.reflect.delete-metadata');

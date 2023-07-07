@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/tc39/proposal-explicit-resource-management
 require('../modules/esnext.suppressed-error.constructor');
 require('../modules/esnext.disposable-stack.constructor');

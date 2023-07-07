@@ -1,3 +1,4 @@
+'use strict';
 require('../../actual/set/is-subset-of');
 require('../../modules/es.array.iterator');
 require('../../modules/es.string.iterator');

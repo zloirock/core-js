@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/promise');
 require('../../modules/esnext.promise.with-resolvers');
 // TODO: Remove from `core-js@4`

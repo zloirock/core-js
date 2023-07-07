@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/es.array.with');
 var entryVirtual = require('../../../internals/entry-virtual');
 

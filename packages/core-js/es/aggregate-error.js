@@ -1,3 +1,4 @@
+'use strict';
 require('../modules/es.error.cause');
 require('../modules/es.aggregate-error');
 require('../modules/es.aggregate-error.cause');

@@ -1,3 +1,4 @@
+'use strict';
 var tryToString = require('../internals/try-to-string');
 
 // Perform ? RequireInternalSlot(M, [[SetData]])

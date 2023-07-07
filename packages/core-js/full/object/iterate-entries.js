@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.object.iterate-entries');
 var path = require('../../internals/path');
 

@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var createProperty = require('../internals/create-property');

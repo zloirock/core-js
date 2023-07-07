@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 var RAD_PER_DEG = 180 / Math.PI;

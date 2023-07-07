@@ -1,3 +1,4 @@
+'use strict';
 var toPositiveInteger = require('../internals/to-positive-integer');
 
 var $RangeError = RangeError;

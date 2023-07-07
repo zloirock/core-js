@@ -1,3 +1,4 @@
+'use strict';
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');

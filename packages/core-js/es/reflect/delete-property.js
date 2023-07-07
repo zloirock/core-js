@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.reflect.delete-property');
 var path = require('../../internals/path');
 

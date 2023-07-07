@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var apply = require('../internals/function-apply');
 var getCompositeKeyNode = require('../internals/composite-key');

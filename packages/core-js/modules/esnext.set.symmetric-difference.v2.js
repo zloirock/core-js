@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var symmetricDifference = require('../internals/set-symmetric-difference');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');

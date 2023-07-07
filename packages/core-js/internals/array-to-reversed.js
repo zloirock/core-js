@@ -1,3 +1,4 @@
+'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed

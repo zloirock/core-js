@@ -1,3 +1,4 @@
+'use strict';
 var sign = require('../internals/math-sign');
 
 var abs = Math.abs;
