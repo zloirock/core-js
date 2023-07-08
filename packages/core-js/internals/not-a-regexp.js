@@ -1,3 +1,4 @@
+'use strict';
 var isRegExp = require('../internals/is-regexp');
 
 var $TypeError = TypeError;

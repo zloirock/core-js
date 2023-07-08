@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../../actual/function/virtual');
 require('../../../modules/esnext.function.demethodize');
 // TODO: Remove from `core-js@4`

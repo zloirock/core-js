@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.typed-array.int8-array');
 require('../../modules/es.typed-array.uint8-array');
 require('../../modules/es.typed-array.uint8-clamped-array');

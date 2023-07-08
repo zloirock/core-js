@@ -1,3 +1,4 @@
+'use strict';
 var ceil = Math.ceil;
 var floor = Math.floor;
 

@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 // `Number.MAX_SAFE_INTEGER` constant

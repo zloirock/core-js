@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#map', assert => {
   const { map } = AsyncIterator.prototype;
@@ -10,10 +10,11 @@ QUnit.test('AsyncIterator#map', assert => {
   assert.looksNative(map);
   assert.nonEnumerable(AsyncIterator.prototype, 'map');
 
-  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call([], () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => map.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => map.call(createIterator([1]), null), TypeError);
   assert.throws(() => map.call(createIterator([1]), {}), TypeError);

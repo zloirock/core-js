@@ -21,8 +21,6 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
-  assert.throws(() => from({}), TypeError);
-  assert.throws(() => from(assign(new AsyncIterator(), { next: 42 })), TypeError);
 
   return AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
     assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');

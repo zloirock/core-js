@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.regexp.exec');
 require('../../modules/es.symbol.replace');
 require('../../modules/es.string.replace');

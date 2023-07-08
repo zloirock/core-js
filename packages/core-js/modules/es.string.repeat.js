@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var repeat = require('../internals/string-repeat');
 

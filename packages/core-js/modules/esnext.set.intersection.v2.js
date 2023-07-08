@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
 var intersection = require('../internals/set-intersection');

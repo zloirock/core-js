@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.set');
 require('../../modules/esnext.set.intersection.v2');
 var entryUnbind = require('../../internals/entry-unbind');

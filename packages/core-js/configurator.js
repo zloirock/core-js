@@ -1,3 +1,4 @@
+'use strict';
 var hasOwn = require('./internals/has-own-property');
 var isArray = require('./internals/is-array');
 var isForced = require('./internals/is-forced');
@@ -21,7 +22,7 @@ module.exports = function (options) {
       shared[USE_FUNCTION_CONSTRUCTOR] = !!options[USE_FUNCTION_CONSTRUCTOR];
     }
     if (hasOwn(options, ASYNC_ITERATOR_PROTOTYPE)) {
-      shared[USE_FUNCTION_CONSTRUCTOR] = options[ASYNC_ITERATOR_PROTOTYPE];
+      shared[ASYNC_ITERATOR_PROTOTYPE] = options[ASYNC_ITERATOR_PROTOTYPE];
     }
   }
 };

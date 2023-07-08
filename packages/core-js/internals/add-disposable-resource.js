@@ -1,3 +1,4 @@
+'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 var bind = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');

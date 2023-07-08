@@ -1,3 +1,4 @@
+'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 

@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/tc39/proposal-set-methods
 require('../modules/esnext.set.difference.v2');
 require('../modules/esnext.set.intersection.v2');

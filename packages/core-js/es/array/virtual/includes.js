@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/es.array.includes');
 var entryVirtual = require('../../../internals/entry-virtual');
 

@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.math.atanh');
 var path = require('../../internals/path');
 

@@ -1,3 +1,4 @@
+'use strict';
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var results = GLOBAL.results = Object.create(null);
 var data = GLOBAL.data;

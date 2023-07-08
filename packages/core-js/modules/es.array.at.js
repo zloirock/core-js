@@ -6,7 +6,7 @@ var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
 // `Array.prototype.at` method
-// https://github.com/tc39/proposal-relative-indexing-method
+// https://tc39.es/ecma262/#sec-array.prototype.at
 $({ target: 'Array', proto: true }, {
   at: function at(index) {
     var O = toObject(this);

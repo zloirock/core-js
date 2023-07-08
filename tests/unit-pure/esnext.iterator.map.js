@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 import Iterator from 'core-js-pure/actual/iterator';
 
@@ -18,10 +18,13 @@ QUnit.test('Iterator#map', assert => {
     assert.same(counter, 0, 'counter');
   }).toArray();
 
-  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => map.call([], () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
+  }
+
+  assert.throws(() => map.call({}, () => { /* empty */ }).next(), TypeError);
+  assert.throws(() => map.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => map.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => map.call(createIterator([1]), null), TypeError);
   assert.throws(() => map.call(createIterator([1]), {}), TypeError);

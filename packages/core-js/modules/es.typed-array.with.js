@@ -21,7 +21,7 @@ var PROPER_ORDER = !!function () {
 }();
 
 // `%TypedArray%.prototype.with` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-%typedarray%.prototype.with
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.with
 exportTypedArrayMethod('with', { 'with': function (index, value) {
   var O = aTypedArray(this);
   var relativeIndex = toIntegerOrInfinity(index);

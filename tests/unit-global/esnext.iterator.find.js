@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('Iterator#find', assert => {
   const { find } = Iterator.prototype;
@@ -18,8 +18,11 @@ QUnit.test('Iterator#find', assert => {
     assert.same(counter, 0, 'counter');
   });
 
-  assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => find.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => find.call(createIterator([1]), undefined), TypeError);

@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.math.imulh');
 var path = require('../../internals/path');
 

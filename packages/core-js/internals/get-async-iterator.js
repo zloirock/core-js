@@ -1,3 +1,4 @@
+'use strict';
 var call = require('../internals/function-call');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var anObject = require('../internals/an-object');

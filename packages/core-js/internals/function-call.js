@@ -1,3 +1,4 @@
+'use strict';
 var NATIVE_BIND = require('../internals/function-bind-native');
 
 var call = Function.prototype.call;

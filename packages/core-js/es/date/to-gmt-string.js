@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.date.to-gmt-string');
 var entryUnbind = require('../../internals/entry-unbind');
 

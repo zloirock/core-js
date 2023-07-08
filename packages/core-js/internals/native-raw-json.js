@@ -1,3 +1,4 @@
+'use strict';
 /* eslint-disable es/no-json -- safe */
 var fails = require('../internals/fails');
 

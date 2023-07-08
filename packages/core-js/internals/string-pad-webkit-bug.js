@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/zloirock/core-js/issues/280
 var userAgent = require('../internals/engine-user-agent');
 

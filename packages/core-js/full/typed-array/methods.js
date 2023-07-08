@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/typed-array/methods');
 require('../../modules/es.map');
 require('../../modules/es.promise');

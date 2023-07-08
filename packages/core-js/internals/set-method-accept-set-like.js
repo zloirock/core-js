@@ -1,3 +1,4 @@
+'use strict';
 var getBuiltIn = require('../internals/get-built-in');
 
 var createEmptySetLike = function () {

@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');

@@ -1,3 +1,4 @@
+'use strict';
 require('../modules/es.error.to-string');
 require('../modules/es.array.iterator');
 require('../modules/es.object.keys');

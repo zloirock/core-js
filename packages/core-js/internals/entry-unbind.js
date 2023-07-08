@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 

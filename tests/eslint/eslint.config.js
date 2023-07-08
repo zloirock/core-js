@@ -290,6 +290,8 @@ const base = {
   'one-var-declaration-per-line': [ERROR, 'initializations'],
   // enforce padding within blocks
   'padded-blocks': [ERROR, NEVER],
+  // disallow blank lines after 'use strict'
+  'padding-line-between-statements': [ERROR, { blankLine: 'never', prev: 'directive', next: '*' }],
   // specify whether double or single quotes should be used
   quotes: [ERROR, 'single', { avoidEscape: true }],
   // require or disallow use of quotes around object literal property names
@@ -750,8 +752,6 @@ const es3 = {
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
-  // require strict mode directives
-  strict: OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
@@ -916,6 +916,11 @@ const forbidES2023BuiltIns = {
   'es/no-regexp-unicode-property-escapes-2023': ERROR,
 };
 
+const forbidES2024BuiltIns = {
+  'es/no-string-prototype-iswellformed-towellformed': ERROR,
+  'es/no-atomics-waitasync': ERROR,
+};
+
 const forbidES2016IntlBuiltIns = {
   'es/no-intl-getcanonicallocales': ERROR,
 };
@@ -963,6 +968,7 @@ const forbidModernESBuiltIns = {
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  ...forbidES2024BuiltIns,
   ...forbidES2016IntlBuiltIns,
   ...forbidES2017IntlBuiltIns,
   ...forbidES2018IntlBuiltIns,
@@ -1029,6 +1035,7 @@ const nodePackages = {
   ...forbidES2021BuiltIns,
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  ...forbidES2024BuiltIns,
   ...disable(forbidES2016IntlBuiltIns),
   ...disable(forbidES2017IntlBuiltIns),
   ...forbidES2018IntlBuiltIns,
@@ -1045,6 +1052,7 @@ const nodeDev = {
   ...disable(forbidModernESBuiltIns),
   'es/no-regexp-d-flag': ERROR,
   ...forbidES2023BuiltIns,
+  ...forbidES2024BuiltIns,
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
   // ReDoS vulnerability check

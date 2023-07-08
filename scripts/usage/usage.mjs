@@ -17,8 +17,13 @@ let withCoreJS = 0;
 echo(green('downloading and parsing T1M Alexa data, depending on AWS cloud speed it could take from some seconds to some minutes'));
 const response = await fetch('https://s3.amazonaws.com/alexa-static/top-1m.csv.zip');
 const archive = await jszip.loadAsync(await response.arrayBuffer());
-const file = await archive.file('top-1m.csv').async('string');
-const sites = file.split('\n').slice(0, limit).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
+// https://s3.amazonaws.com/alexa-static/top-1m.csv.zip is no longer provided, renamed and contains a deprecation message
+// here could be used, for example, Cisco Umbrella statistics - http://s3-us-west-1.amazonaws.com/umbrella-static/top-1m.csv.zip,
+// however, it's not so relative to our case like the Alexa list
+// makes sense take a look at https://github.com/PeterDaveHello/top-1m-domains
+const file = await archive.file('top-1m.csv.deprecated').async('string');
+const BANNER_LINES = 8;
+const sites = file.split('\n').slice(BANNER_LINES, limit + BANNER_LINES).map(string => string.replace(/^\d+,(.+)$/, '$1')).reverse();
 echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) / 1e3) } seconds\n${ gray('-'.repeat(120)) }`));
 
 function timeout(promise, time) {

@@ -1,3 +1,4 @@
+'use strict';
 var fails = require('../internals/fails');
 var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');

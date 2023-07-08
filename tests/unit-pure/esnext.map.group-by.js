@@ -10,15 +10,17 @@ QUnit.test('Map.groupBy', assert => {
   assert.arity(groupBy, 2);
   assert.name(groupBy, 'groupBy');
 
-  assert.true(Map.groupBy([], it => it) instanceof Map);
+  assert.true(groupBy([], it => it) instanceof Map);
 
-  assert.deepEqual(from(Map.groupBy([], it => it)), []);
-  assert.deepEqual(from(Map.groupBy([1, 2], it => it ** 2)), [[1, [1]], [4, [2]]]);
-  assert.deepEqual(from(Map.groupBy([1, 2, 1], it => it ** 2)), [[1, [1, 1]], [4, [2]]]);
-  assert.deepEqual(from(Map.groupBy(createIterable([1, 2]), it => it ** 2)), [[1, [1]], [4, [2]]]);
+  assert.deepEqual(from(groupBy([], it => it)), []);
+  assert.deepEqual(from(groupBy([1, 2], it => it ** 2)), [[1, [1]], [4, [2]]]);
+  assert.deepEqual(from(groupBy([1, 2, 1], it => it ** 2)), [[1, [1, 1]], [4, [2]]]);
+  assert.deepEqual(from(groupBy(createIterable([1, 2]), it => it ** 2)), [[1, [1]], [4, [2]]]);
 
   const element = {};
-  Map.groupBy([element], it => assert.same(it, element));
-
-  // assert.throws(() => groupBy([1, 2], it => it));
+  groupBy([element], function (it, i) {
+    assert.same(arguments.length, 2);
+    assert.same(it, element);
+    assert.same(i, 0);
+  });
 });

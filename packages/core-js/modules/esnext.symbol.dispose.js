@@ -1,3 +1,4 @@
+'use strict';
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 
 // `Symbol.dispose` well-known symbol

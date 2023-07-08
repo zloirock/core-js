@@ -1,3 +1,4 @@
+'use strict';
 var shared = require('../internals/shared');
 var uid = require('../internals/uid');
 

@@ -1,11 +1,64 @@
 ## Changelog
 ##### Unreleased
+- Use strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
+
+##### [3.31.1 - 2023.07.06](https://github.com/zloirock/core-js/releases/tag/v3.31.1)
+- Fixed a `structuredClone` bug with cloning views of transferred buffers, [#1265](https://github.com/zloirock/core-js/issues/1265)
+- Fixed the order of arguments validation in `DataView` methods
+- Allowed cloning of [`Float16Array`](https://github.com/tc39/proposal-float16array) in `structuredClone`
 - Compat data improvements:
-  - `Set.prototype.difference` that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
-  - `Array.prototype.{ group, groupToMap }` are disabled from Bun 0.6.2 because of [web compat issues](https://github.com/tc39/proposal-array-grouping/issues/44)
+  - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) marked as [supported from Safari 17.0](https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes#JavaScript)
+  - New `URL` features: [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse), [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) and [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as [supported from Safari 17.0](https://developer.apple.com/documentation/safari-release-notes/safari-17-release-notes#Web-API)
+  - `value` argument of `URLSearchParams.prototype.{ has, delete }` marked as supported from [Deno 1.35](https://github.com/denoland/deno/pull/19654)
+  - `AggregateError` and well-formed `JSON.stringify` marked as [supported React Native 0.72 Hermes](https://reactnative.dev/blog/2023/06/21/0.72-metro-package-exports-symlinks#more-ecmascript-support-in-hermes)
+  - Added Deno 1.35 compat data mapping
+  - Added Quest Browser 28 compat data mapping
+  - Added missing NodeJS 12.16-12.22 compat data mapping
+  - Updated Opera Android 76 compat data mapping
+
+##### [3.31.0 - 2023.06.12](https://github.com/zloirock/core-js/releases/tag/v3.31.0)
+- [Well-formed unicode strings proposal](https://github.com/tc39/proposal-is-usv-string):
+  - Methods:
+    - `String.prototype.isWellFormed` method
+    - `String.prototype.toWellFormed` method
+  - Moved to stable ES, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#well-formed-unicode-strings-for-stage-4)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#arrayprototypegroup-rename-for-web-compatibility):
+  - Because of the [web compat issue](https://github.com/tc39/proposal-array-grouping/issues/44), [moved from prototype to static methods](https://github.com/tc39/proposal-array-grouping/pull/47). Added:
+    - `Object.groupBy` method
+    - `Map.groupBy` method (with the actual semantic - with a minor difference it was present [in the collections methods stage 1 proposal](https://github.com/tc39/proposal-collection-methods))
+  - Demoted to stage 2
+- [Decorator Metadata proposal](https://github.com/tc39/proposal-decorator-metadata), [May 2023 TC39 meeting updates](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#decorator-metadata-for-stage-3):
+  - Moved to stage 3
+  - Added `Function.prototype[Symbol.metadata]` (`=== null`)
+  - Added `/actual/` entries
+- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
+  - Changed `Symbol.iterator` fallback from callable check to `undefined` / `null` check, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-symboliterator-fallback-be-a-callable-check-or-an-undefinednull-check), [proposal-iterator-helpers/272](https://github.com/tc39/proposal-iterator-helpers/pull/272)
+  - Removed `IsCallable` check on `NextMethod`, deferring errors to `Call` site, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-16.md#iterator-helpers-should-malformed-iterators-fail-early-or-fail-only-when-iterated), [proposal-iterator-helpers/274](https://github.com/tc39/proposal-iterator-helpers/pull/274)
+- Added [`Promise.withResolvers` stage 2 proposal](https://github.com/tc39/proposal-promise-with-resolvers):
+  - `Promise.withResolvers` method
+- [`Symbol` predicates stage 2 proposal](https://github.com/tc39/proposal-symbol-predicates):
+  - The methods renamed to end with `Symbol`, [May 2023 TC39 meeting](https://github.com/tc39/notes/blob/main/meetings/2023-05/may-15.md#symbol-predicates):
+    - `Symbol.isRegistered` -> `Symbol.isRegisteredSymbol` method
+    - `Symbol.isWellKnown` -> `Symbol.isWellKnownSymbol` method
+- Added `value` argument of `URLSearchParams.prototype.{ has, delete }`, [url/735](https://github.com/whatwg/url/pull/735)
+- Fixed some cases of increasing buffer size in `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfills
+- Fixed awaiting async `AsyncDisposableStack.prototype.adopt` callback, [#1258](https://github.com/zloirock/core-js/issues/1258)
+- Fixed `URLSearchParams#size` in ES3 engines (IE8-)
+- Added a workaround in `Object.{ entries, values }` for some IE versions bug with invisible integer keys on `null`-prototype objects
+- Added TypeScript definitions to `core-js-compat`, [#1235](https://github.com/zloirock/core-js/issues/1235), thanks [**@susnux**](https://github.com/susnux)
+- Compat data improvements:
+  - [`Set.prototype.difference`](https://github.com/tc39/proposal-set-methods) that was missed in Bun because of [a bug](https://github.com/oven-sh/bun/issues/2309) added in 0.6.0
+  - `Array.prototype.{ group, groupToMap }` marked as no longer supported in WebKit runtimes because of the mentioned above web compat issue. For example, it's disabled from Bun 0.6.2
+  - Methods from the [change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy) marked as supported from FF115
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from FF115
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as supported from FF115
+  - `value` argument of `URLSearchParams.prototype.{ has, delete }` marked as supported from [NodeJS 20.2.0](https://github.com/nodejs/node/pull/47885) and FF115
+  - Added Deno 1.34 compat data mapping
   - Added Electron 26 compat data mapping
+  - Added Samsung Internet 22 compat data mapping
+  - Added Opera Android 75 and 76 compat data mapping
   - Added Quest Browser 27 compat data mapping
-  - Added Opera Android 75 compat data mapping
 
 ##### [3.30.2 - 2023.05.07](https://github.com/zloirock/core-js/releases/tag/v3.30.2)
 - Added a fix for a NodeJS 20.0.0 [bug](https://github.com/nodejs/node/issues/47612) with cloning `File` via `structuredClone`

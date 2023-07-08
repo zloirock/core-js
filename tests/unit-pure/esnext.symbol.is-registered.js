@@ -4,7 +4,7 @@ QUnit.test('Symbol.isRegistered', assert => {
   const { isRegistered } = Symbol;
   assert.isFunction(isRegistered, 'Symbol.isRegistered is function');
   assert.arity(isRegistered, 1, 'Symbol.isRegistered arity is 1');
-  assert.name(isRegistered, 'isRegistered', 'Symbol.isRegistered.name is "isRegistered"');
+  assert.name(isRegistered, 'isRegisteredSymbol', 'Symbol.isRegistered.name is "isRegisteredSymbol"');
 
   assert.true(isRegistered(Symbol.for('foo')), 'registered-1');
   assert.true(isRegistered(Object(Symbol.for('foo'))), 'registered-2');

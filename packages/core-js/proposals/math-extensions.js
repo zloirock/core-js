@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/rwaldron/proposal-math-extensions
 require('../modules/esnext.math.clamp');
 require('../modules/esnext.math.deg-per-rad');

@@ -1,3 +1,4 @@
+'use strict';
 var global = require('../internals/global');
 var setToStringTag = require('../internals/set-to-string-tag');
 

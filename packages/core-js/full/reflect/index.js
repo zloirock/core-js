@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/reflect');
 require('../../modules/esnext.reflect.define-metadata');
 require('../../modules/esnext.reflect.delete-metadata');

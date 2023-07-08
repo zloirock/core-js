@@ -12,7 +12,7 @@ var max = Math.max;
 var min = Math.min;
 
 // `Array.prototype.toSpliced` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSpliced
+// https://tc39.es/ecma262/#sec-array.prototype.tospliced
 $({ target: 'Array', proto: true }, {
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
     var O = toIndexedObject(this);

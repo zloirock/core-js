@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 // `Number.MIN_SAFE_INTEGER` constant

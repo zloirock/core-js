@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.function.demethodize');
 var entryUnbind = require('../../internals/entry-unbind');
 

@@ -231,6 +231,18 @@ QUnit.test('URLSearchParams#delete', assert => {
   params.delete('first');
   assert.false(params.has('first'), 'search params object has no "first" name');
 
+  params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
+  params.delete('a', 2);
+  assert.same(String(params), 'a=1&a=null&a=3&b=4');
+
+  params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
+  params.delete('a', null);
+  assert.same(String(params), 'a=1&a=2&a=3&b=4');
+
+  params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
+  params.delete('a', undefined);
+  assert.same(String(params), 'b=4');
+
   if (DESCRIPTORS) {
     let url = new URL('http://example.com/?param1&param2');
     url.searchParams.delete('param1');
@@ -379,6 +391,15 @@ QUnit.test('URLSearchParams#has', assert => {
   assert.false(params.has('d'), 'search params object has no name "d"');
   params.delete('first');
   assert.false(params.has('first'), 'search params object has no name "first"');
+
+  params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
+  assert.true(params.has('a', 2));
+  assert.true(params.has('a', null));
+  assert.false(params.has('a', 4));
+  assert.true(params.has('b', 4));
+  assert.false(params.has('b', null));
+  assert.true(params.has('b', undefined));
+  assert.false(params.has('c', undefined));
 
   assert.throws(() => {
     return new URLSearchParams('').has();

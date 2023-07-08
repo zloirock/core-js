@@ -1,3 +1,4 @@
+'use strict';
 require('../modules/web.atob');
 require('../modules/web.btoa');
 require('../modules/web.dom-collections.for-each');
@@ -14,6 +15,8 @@ require('../modules/web.url');
 require('../modules/web.url.can-parse');
 require('../modules/web.url.to-json');
 require('../modules/web.url-search-params');
+require('../modules/web.url-search-params.delete');
+require('../modules/web.url-search-params.has');
 require('../modules/web.url-search-params.size');
 var path = require('../internals/path');
 

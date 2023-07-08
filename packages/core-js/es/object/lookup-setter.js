@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.lookup-setter');
 var entryUnbind = require('../../internals/entry-unbind');
 

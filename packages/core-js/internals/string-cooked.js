@@ -1,3 +1,4 @@
+'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toString = require('../internals/to-string');

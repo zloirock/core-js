@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.function.bind');
 var entryUnbind = require('../../internals/entry-unbind');
 

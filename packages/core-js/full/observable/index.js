@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/esnext.observable');
 require('../../modules/esnext.symbol.observable');
 require('../../modules/es.object.to-string');

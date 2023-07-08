@@ -1,3 +1,4 @@
+'use strict';
 var isObject = require('../internals/is-object');
 
 var floor = Math.floor;

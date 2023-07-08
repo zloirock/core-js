@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');

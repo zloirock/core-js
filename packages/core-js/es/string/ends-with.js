@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.string.ends-with');
 var entryUnbind = require('../../internals/entry-unbind');
 

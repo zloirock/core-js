@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var numberIsFinite = require('../internals/number-is-finite');
 

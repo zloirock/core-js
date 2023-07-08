@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.get-own-property-descriptor');
 var path = require('../../internals/path');
 

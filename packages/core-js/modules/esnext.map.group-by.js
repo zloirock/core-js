@@ -1,29 +1,30 @@
 'use strict';
 var $ = require('../internals/export');
-var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isCallable = require('../internals/is-callable');
 var aCallable = require('../internals/a-callable');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var iterate = require('../internals/iterate');
-var Map = require('../internals/map-helpers').Map;
+var MapHelpers = require('../internals/map-helpers');
 
+var Map = MapHelpers.Map;
+var has = MapHelpers.has;
+var get = MapHelpers.get;
+var set = MapHelpers.set;
 var push = uncurryThis([].push);
 
 // `Map.groupBy` method
-// https://github.com/tc39/proposal-collection-methods
+// https://github.com/tc39/proposal-array-grouping
 $({ target: 'Map', stat: true, forced: true }, {
-  groupBy: function groupBy(iterable, keyDerivative) {
-    var C = isCallable(this) ? this : Map;
-    var newMap = new C();
-    aCallable(keyDerivative);
-    var has = aCallable(newMap.has);
-    var get = aCallable(newMap.get);
-    var set = aCallable(newMap.set);
-    iterate(iterable, function (element) {
-      var derivedKey = keyDerivative(element);
-      if (!call(has, newMap, derivedKey)) call(set, newMap, derivedKey, [element]);
-      else push(call(get, newMap, derivedKey), element);
+  groupBy: function groupBy(items, callbackfn) {
+    requireObjectCoercible(items);
+    aCallable(callbackfn);
+    var map = new Map();
+    var k = 0;
+    iterate(items, function (value) {
+      var key = callbackfn(value, k++);
+      if (!has(map, key)) set(map, key, [value]);
+      else push(get(map, key), value);
     });
-    return newMap;
+    return map;
   }
 });

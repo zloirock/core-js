@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var trimEnd = require('../internals/string-trim-end');
 

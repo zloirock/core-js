@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/tc39/proposal-collection-methods
 require('../modules/esnext.map.group-by');
 require('../modules/esnext.map.key-by');

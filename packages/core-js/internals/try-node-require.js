@@ -1,3 +1,4 @@
+'use strict';
 var IS_NODE = require('../internals/engine-is-node');
 
 module.exports = function (name) {

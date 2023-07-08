@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 // eslint-disable-next-line es/no-math-hypot -- required for testing

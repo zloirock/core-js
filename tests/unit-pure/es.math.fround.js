@@ -2,16 +2,22 @@ import { createConversionChecker } from '../helpers/helpers';
 
 import fround from 'core-js-pure/es/math/fround';
 
+const { MAX_VALUE, MIN_VALUE } = Number;
+
 QUnit.test('Math.fround', assert => {
   assert.isFunction(fround);
+  assert.same(fround(), NaN);
   assert.same(fround(undefined), NaN);
   assert.same(fround(NaN), NaN);
+  assert.same(fround(null), 0);
   assert.same(fround(0), 0);
   assert.same(fround(-0), -0);
-  assert.same(fround(Number.MIN_VALUE), 0);
-  assert.same(fround(-Number.MIN_VALUE), -0);
+  assert.same(fround(MIN_VALUE), 0);
+  assert.same(fround(-MIN_VALUE), -0);
   assert.same(fround(Infinity), Infinity);
   assert.same(fround(-Infinity), -Infinity);
+  assert.same(fround(MAX_VALUE), Infinity);
+  assert.same(fround(-MAX_VALUE), -Infinity);
   assert.same(fround(1.7976931348623157e+308), Infinity);
   assert.same(fround(-1.7976931348623157e+308), -Infinity);
   assert.same(fround(3.4028235677973366e+38), Infinity);

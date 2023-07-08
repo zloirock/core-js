@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var union = require('../internals/set-union');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');

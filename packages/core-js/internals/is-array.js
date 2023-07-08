@@ -1,3 +1,4 @@
+'use strict';
 var classof = require('../internals/classof-raw');
 
 // `IsArray` abstract operation

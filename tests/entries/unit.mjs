@@ -225,6 +225,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/replace-all') == 'function');
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
     ok(load(NS, 'string/pad-end')('a', 3) === 'a  ');
+    ok(load(NS, 'string/is-well-formed')('a'));
+    ok(load(NS, 'string/to-well-formed')('a') === 'a');
     ok('next' in load(NS, 'string/iterator')('qwe'));
     ok(load(NS, 'string/virtual/at').call('a', 0) === 'a');
     ok(load(NS, 'string/virtual/code-point-at').call('a', 0) === 97);
@@ -255,6 +257,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/virtual/sup') == 'function');
     ok(load(NS, 'string/virtual/pad-start').call('a', 3) === '  a');
     ok(load(NS, 'string/virtual/pad-end').call('a', 3) === 'a  ');
+    ok(load(NS, 'string/virtual/is-well-formed').call('a'));
+    ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok('next' in load(NS, 'string/virtual/iterator').call('qwe'));
     ok('padEnd' in load(NS, 'string/virtual'));
     ok('raw' in load(NS, 'string'));
@@ -448,6 +452,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceKeys([]) == 'function');
     ok(instanceKeys([]).call([1, 2, 3]).next().value === 0);
 
+    const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
+    ok(typeof instanceIsWellFormed == 'function');
+    ok(instanceIsWellFormed({}) === undefined);
+    ok(typeof instanceIsWellFormed('') == 'function');
+    ok(instanceIsWellFormed('').call('a'));
+
     const instanceLastIndexOf = load(NS, 'instance/last-index-of');
     ok(typeof instanceLastIndexOf == 'function');
     ok(instanceLastIndexOf({}) === undefined);
@@ -558,6 +568,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceToSpliced([]) == 'function');
     ok(instanceToSpliced([]).call([3, 2, 1], 1, 1, 4, 5).length === 4);
 
+    const instanceToWellFormed = load(NS, 'instance/to-well-formed');
+    ok(typeof instanceToWellFormed == 'function');
+    ok(instanceToWellFormed({}) === undefined);
+    ok(typeof instanceToWellFormed('') == 'function');
+    ok(instanceToWellFormed('').call('a') === 'a');
+
     const instanceTrimEnd = load(NS, 'instance/trim-end');
     ok(typeof instanceTrimEnd == 'function');
     ok(instanceTrimEnd({}) === undefined);
@@ -657,6 +673,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
+    ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator') == 'function');
     ok(typeof load(NS, 'iterator/drop') == 'function');
     ok(typeof load(NS, 'iterator/every') == 'function');
@@ -681,11 +698,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'set/is-superset-of')(new Set([1, 2, 3, 4]), new Set([1, 2, 3])));
     ok(load(NS, 'set/symmetric-difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 4);
     ok(load(NS, 'set/union')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 5);
-    ok(load(NS, 'string/is-well-formed')('a'));
-    ok(load(NS, 'string/virtual/is-well-formed').call('a'));
-    ok(load(NS, 'string/to-well-formed')('a') === 'a');
-    ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok(load(NS, 'symbol/dispose'));
+    ok(load(NS, 'symbol/metadata'));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
@@ -714,18 +728,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceGroupByToMap({}) === undefined);
     ok(typeof instanceGroupByToMap([]) == 'function');
     ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
-
-    const instanceIsWellFormed = load(NS, 'instance/is-well-formed');
-    ok(typeof instanceIsWellFormed == 'function');
-    ok(instanceIsWellFormed({}) === undefined);
-    ok(typeof instanceIsWellFormed('') == 'function');
-    ok(instanceIsWellFormed('').call('a'));
-
-    const instanceToWellFormed = load(NS, 'instance/to-well-formed');
-    ok(typeof instanceToWellFormed == 'function');
-    ok(instanceToWellFormed({}) === undefined);
-    ok(typeof instanceToWellFormed('') == 'function');
-    ok(instanceToWellFormed('').call('a') === 'a');
   }
 
   for (const NS of ['full', 'features']) {
@@ -795,6 +797,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'object/iterate-entries')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-keys')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-values')({}).next == 'function');
+    ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok('from' in load(NS, 'observable'));
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
@@ -806,6 +809,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
     ok(typeof load(NS, 'reflect/metadata') == 'function');
     ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
+    ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
     ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
@@ -823,10 +827,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ` === 'a1b');
     ok('next' in load(NS, 'string/code-points')('a'));
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
+    ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
+    ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
-    ok(load(NS, 'symbol/metadata'));
     ok(load(NS, 'symbol/metadata-key'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'symbol/pattern-match'));
@@ -892,6 +897,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-grouping');
   load('proposals/array-grouping-stage-3');
   load('proposals/array-grouping-stage-3-2');
+  load('proposals/array-grouping-v2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
   load('proposals/array-last');
@@ -937,6 +943,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/promise-any');
   load('proposals/promise-finally');
   load('proposals/promise-try');
+  load('proposals/promise-with-resolvers');
   load('proposals/reflect-metadata');
   load('proposals/regexp-dotall-flag');
   load('proposals/regexp-named-groups');
@@ -955,6 +962,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
   load('proposals/symbol-predicates');
+  load('proposals/symbol-predicates-v2');
   load('proposals/url');
   load('proposals/using-statement');
   load('proposals/well-formed-stringify');

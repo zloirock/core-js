@@ -1,3 +1,4 @@
+'use strict';
 // `SameValueZero` abstract operation
 // https://tc39.es/ecma262/#sec-samevaluezero
 module.exports = function (x, y) {

@@ -1,3 +1,4 @@
+'use strict';
 module.exports = function (methodName, numArgs) {
   return numArgs == 1 ? function (object, arg) {
     return object[methodName](arg);

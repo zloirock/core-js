@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var getCompositeKeyNode = require('../internals/composite-key');
 var getBuiltIn = require('../internals/get-built-in');

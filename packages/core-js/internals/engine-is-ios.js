@@ -1,3 +1,4 @@
+'use strict';
 var userAgent = require('../internals/engine-user-agent');
 
 // eslint-disable-next-line redos/no-vulnerable -- safe

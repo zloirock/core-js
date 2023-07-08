@@ -1,3 +1,4 @@
+'use strict';
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');

@@ -1,3 +1,4 @@
+'use strict';
 // IEEE754 conversions based on https://github.com/feross/ieee754
 var $Array = Array;
 var abs = Math.abs;

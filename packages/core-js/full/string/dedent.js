@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.string.from-code-point');
 require('../../modules/es.weak-map');
 require('../../modules/esnext.string.dedent');

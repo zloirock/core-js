@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
 
@@ -10,10 +10,11 @@ QUnit.test('AsyncIterator#reduce', assert => {
   assert.arity(reduce, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'reduce');
 
-  assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call({}, () => { /* empty */ }, 1), TypeError);
-  assert.throws(() => reduce.call([], () => { /* empty */ }, 1), TypeError);
+  if (STRICT) {
+    assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
+    assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
+  }
+
   assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);

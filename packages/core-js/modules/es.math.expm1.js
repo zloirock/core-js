@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var expm1 = require('../internals/math-expm1');
 

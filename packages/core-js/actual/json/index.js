@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../stable/json');
 require('../../modules/es.object.create');
 require('../../modules/es.object.freeze');

@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var isSupersetOf = require('../internals/set-is-superset-of');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');

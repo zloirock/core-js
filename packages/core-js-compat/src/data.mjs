@@ -148,11 +148,13 @@ export const data = {
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
+    'react-native': '0.72',
     safari: '14.0',
   },
   'es.aggregate-error.cause': {
     chrome: '94',
     firefox: '91',
+    'react-native': '0.72',
     safari: '15.0',
   },
   'es.array.at': {
@@ -376,16 +378,19 @@ export const data = {
   'es.array.to-reversed': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.to-sorted': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.to-spliced': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array.unscopables.flat': {
@@ -409,6 +414,7 @@ export const data = {
   'es.array.with': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.array-buffer.constructor': {
@@ -557,6 +563,7 @@ export const data = {
   'es.json.stringify': {
     chrome: '72',
     firefox: '64',
+    'react-native': '0.72',
     safari: '12.1',
   },
   'es.json.to-string-tag': {
@@ -1333,6 +1340,11 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  'es.string.is-well-formed': {
+    bun: '0.4.0',
+    chrome: '111',
+    safari: '16.4',
+  },
   'es.string.iterator': {
     chrome: '41',
     edge: '13',
@@ -1423,6 +1435,13 @@ export const data = {
     opera: '4',
     rhino: '1.7.13',
     safari: '1',
+  },
+  'es.string.to-well-formed': {
+    // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
+    bun: '0.5.7', // '0.4.0',
+    chrome: '111',
+    safari: '16.4',
   },
   'es.string.trim': {
     chrome: '59',
@@ -1794,11 +1813,13 @@ export const data = {
   'es.typed-array.to-reversed': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.typed-array.to-sorted': {
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.0',
   },
   'es.typed-array.to-string': {
@@ -1812,6 +1833,7 @@ export const data = {
     bun: '0.1.9',
     chrome: '110',
     deno: '1.27',
+    firefox: '115',
     safari: '16.4',
   },
   'es.unescape': {
@@ -1848,6 +1870,7 @@ export const data = {
   },
   'esnext.array.from-async': {
     bun: '0.3.0',
+    firefox: '115',
     safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
@@ -1866,7 +1889,7 @@ export const data = {
     // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
-    safari: '16.4',
+    // safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
@@ -1879,7 +1902,7 @@ export const data = {
     // bun: '0.1.9',
     // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
     // chrome: '108',
-    safari: '16.4',
+    // safari: '16.4',
   },
   'esnext.array.is-template-object': {
   },
@@ -1957,6 +1980,8 @@ export const data = {
   'esnext.function.is-callable': {
   },
   'esnext.function.is-constructor': {
+  },
+  'esnext.function.metadata': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.function.un-this': {
@@ -2098,6 +2123,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': {
   },
+  'esnext.object.group-by': {
+  },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
   },
@@ -2113,6 +2140,8 @@ export const data = {
   'esnext.promise.any': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': {
+  },
+  'esnext.promise.with-resolvers': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
@@ -2147,6 +2176,7 @@ export const data = {
   },
   'esnext.set.difference.v2': {
     bun: '0.6.0',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
@@ -2161,24 +2191,28 @@ export const data = {
   },
   'esnext.set.intersection.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
   'esnext.set.is-superset-of.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
@@ -2195,12 +2229,14 @@ export const data = {
   },
   'esnext.set.symmetric-difference.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
   'esnext.set.union.v2': {
     bun: '0.5.7',
+    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
@@ -2214,28 +2250,27 @@ export const data = {
   },
   'esnext.string.dedent': {
   },
-  'esnext.string.is-well-formed': {
-    bun: '0.4.0',
-    chrome: '111',
-    safari: '16.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.string.is-well-formed': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.match-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
-  'esnext.string.to-well-formed': {
-    // Safari ToString conversion bug
-    // https://bugs.webkit.org/show_bug.cgi?id=251757
-    bun: '0.5.7', // '0.4.0',
-    chrome: '111',
-    safari: '16.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.string.to-well-formed': null,
   'esnext.symbol.async-dispose': {
   },
   'esnext.symbol.dispose': {
   },
+  'esnext.symbol.is-registered-symbol': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.is-registered': {
   },
+  // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
+  'esnext.symbol.is-well-known-symbol': {
+  },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.is-well-known': {
   },
   'esnext.symbol.matcher': {
@@ -2467,7 +2502,9 @@ export const data = {
   },
   'web.url.can-parse': {
     deno: '1.33.2',
+    firefox: '115',
     node: '20.1.0',
+    safari: '17.0',
   },
   'web.url.to-json': {
     bun: '0.1.1',
@@ -2487,11 +2524,24 @@ export const data = {
     node: '10.0',
     safari: '14.0',
   },
+  'web.url-search-params.delete': {
+    deno: '1.35',
+    firefox: '115',
+    node: '20.2.0',
+    safari: '17.0',
+  },
+  'web.url-search-params.has': {
+    deno: '1.35',
+    firefox: '115',
+    node: '20.2.0',
+    safari: '17.0',
+  },
   'web.url-search-params.size': {
     chrome: '113',
     deno: '1.32',
     firefox: '112',
     node: '19.8.0',
+    safari: '17.0',
   },
 };
 
@@ -2515,8 +2565,10 @@ export const renamed = new Map([
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
+  ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
+  ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
   ['esnext.typed-array.at', 'es.typed-array.at'],
   ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
   ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],

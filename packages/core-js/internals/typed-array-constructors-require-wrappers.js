@@ -1,3 +1,4 @@
+'use strict';
 /* eslint-disable no-new -- required for testing */
 var global = require('../internals/global');
 var fails = require('../internals/fails');

@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('AsyncIterator#filter', assert => {
   const { filter } = AsyncIterator.prototype;
@@ -10,10 +10,11 @@ QUnit.test('AsyncIterator#filter', assert => {
   assert.looksNative(filter);
   assert.nonEnumerable(AsyncIterator.prototype, 'filter');
 
-  assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
+  }
+
   assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => filter.call(createIterator([1]), null), TypeError);
   assert.throws(() => filter.call(createIterator([1]), {}), TypeError);

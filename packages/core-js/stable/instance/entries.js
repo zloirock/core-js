@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/web.dom-collections.iterator');
 var classof = require('../../internals/classof');
 var hasOwn = require('../../internals/has-own-property');

@@ -1,3 +1,4 @@
+'use strict';
 require('../modules/es.error.cause');
 require('../modules/es.error.to-string');
 require('../modules/esnext.suppressed-error.constructor');

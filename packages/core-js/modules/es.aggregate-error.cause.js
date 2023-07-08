@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var apply = require('../internals/function-apply');
@@ -13,7 +14,7 @@ var FORCED = !fails(function () {
   return $AggregateError([1], AGGREGATE_ERROR, { cause: 7 }).cause !== 7;
 });
 
-// https://github.com/tc39/proposal-error-cause
+// https://tc39.es/ecma262/#sec-aggregate-error
 $({ global: true, constructor: true, arity: 2, forced: FORCED }, {
   AggregateError: wrapErrorConstructorWithCause(AGGREGATE_ERROR, function (init) {
     // eslint-disable-next-line no-unused-vars -- required for functions `.length`

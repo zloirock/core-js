@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.define-property');
 var path = require('../../internals/path');
 

@@ -7,7 +7,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.at` method
-// https://github.com/tc39/proposal-relative-indexing-method
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.at
 exportTypedArrayMethod('at', function at(index) {
   var O = aTypedArray(this);
   var len = lengthOfArrayLike(O);

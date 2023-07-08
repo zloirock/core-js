@@ -1,3 +1,4 @@
+'use strict';
 var arraySlice = require('../internals/array-slice-simple');
 
 var floor = Math.floor;

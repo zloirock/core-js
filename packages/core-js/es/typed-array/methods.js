@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
 require('../../modules/es.typed-array.from');

@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var $isExtensible = require('../internals/object-is-extensible');
 

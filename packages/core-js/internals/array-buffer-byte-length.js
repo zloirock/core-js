@@ -1,3 +1,4 @@
+'use strict';
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var classof = require('../internals/classof-raw');
 

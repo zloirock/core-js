@@ -205,7 +205,7 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   anInstance(this, URLSearchParamsPrototype);
   var init = arguments.length > 0 ? arguments[0] : undefined;
   var state = setInternalState(this, new URLSearchParamsState(init));
-  if (!DESCRIPTORS) this.length = state.entries.length;
+  if (!DESCRIPTORS) this.size = state.entries.length;
 };
 
 var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
@@ -214,32 +214,37 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.append` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-append
   append: function append(name, value) {
-    validateArgumentsLength(arguments.length, 2);
     var state = getInternalParamsState(this);
+    validateArgumentsLength(arguments.length, 2);
     push(state.entries, { key: $toString(name), value: $toString(value) });
     if (!DESCRIPTORS) this.length++;
     state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name) {
-    validateArgumentsLength(arguments.length, 1);
+  'delete': function (name /* , value */) {
     var state = getInternalParamsState(this);
+    var length = validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
     var key = $toString(name);
+    var $value = length < 2 ? undefined : arguments[1];
+    var value = $value === undefined ? $value : $toString($value);
     var index = 0;
     while (index < entries.length) {
-      if (entries[index].key === key) splice(entries, index, 1);
-      else index++;
+      var entry = entries[index];
+      if (entry.key === key && (value === undefined || entry.value === value)) {
+        splice(entries, index, 1);
+        if (value !== undefined) break;
+      } else index++;
     }
-    if (!DESCRIPTORS) this.length = entries.length;
+    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.get` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-get
   get: function get(name) {
-    validateArgumentsLength(arguments.length, 1);
     var entries = getInternalParamsState(this).entries;
+    validateArgumentsLength(arguments.length, 1);
     var key = $toString(name);
     var index = 0;
     for (; index < entries.length; index++) {
@@ -250,8 +255,8 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.getAll` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-getall
   getAll: function getAll(name) {
-    validateArgumentsLength(arguments.length, 1);
     var entries = getInternalParamsState(this).entries;
+    validateArgumentsLength(arguments.length, 1);
     var key = $toString(name);
     var result = [];
     var index = 0;
@@ -262,21 +267,24 @@ defineBuiltIns(URLSearchParamsPrototype, {
   },
   // `URLSearchParams.prototype.has` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-has
-  has: function has(name) {
-    validateArgumentsLength(arguments.length, 1);
+  has: function has(name /* , value */) {
     var entries = getInternalParamsState(this).entries;
+    var length = validateArgumentsLength(arguments.length, 1);
     var key = $toString(name);
+    var $value = length < 2 ? undefined : arguments[1];
+    var value = $value === undefined ? $value : $toString($value);
     var index = 0;
     while (index < entries.length) {
-      if (entries[index++].key === key) return true;
+      var entry = entries[index++];
+      if (entry.key === key && (value === undefined || entry.value === value)) return true;
     }
     return false;
   },
   // `URLSearchParams.prototype.set` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-set
   set: function set(name, value) {
-    validateArgumentsLength(arguments.length, 1);
     var state = getInternalParamsState(this);
+    validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
     var found = false;
     var key = $toString(name);
@@ -294,7 +302,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
       }
     }
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.length = entries.length;
+    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.sort` method

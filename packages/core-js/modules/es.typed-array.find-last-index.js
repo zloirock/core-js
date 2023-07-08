@@ -6,7 +6,7 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.findLastIndex` method
-// https://github.com/tc39/proposal-array-find-from-last
+// https://tc39.es/ecma262/#sec-%typedarray%.prototype.findlastindex
 exportTypedArrayMethod('findLastIndex', function findLastIndex(predicate /* , thisArg */) {
   return $findLastIndex(aTypedArray(this), predicate, arguments.length > 1 ? arguments[1] : undefined);
 });

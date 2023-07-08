@@ -1,3 +1,4 @@
+'use strict';
 require('../../../modules/esnext.function.un-this');
 var entryVirtual = require('../../../internals/entry-virtual');
 

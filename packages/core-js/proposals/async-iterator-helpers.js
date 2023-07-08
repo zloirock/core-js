@@ -1,3 +1,4 @@
+'use strict';
 // https://github.com/tc39/proposal-async-iterator-helpers
 require('../modules/esnext.async-iterator.constructor');
 require('../modules/esnext.async-iterator.drop');

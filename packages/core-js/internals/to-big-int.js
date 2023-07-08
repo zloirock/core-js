@@ -1,3 +1,4 @@
+'use strict';
 var toPrimitive = require('../internals/to-primitive');
 
 var $TypeError = TypeError;

@@ -1,3 +1,4 @@
+'use strict';
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IndexedObject = require('../internals/indexed-object');
@@ -21,7 +22,7 @@ module.exports = function ($this, callbackfn, that, specificConstructor) {
   for (;length > index; index++) {
     value = self[index];
     key = toPropertyKey(boundFunction(value, index, O));
-    // in some IE10 builds, `hasOwnProperty` returns incorrect result on integer keys
+    // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
     // but since it's a `null` prototype object, we can safely use `in`
     if (key in target) push(target[key], value);
     else target[key] = [value];

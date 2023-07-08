@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 
 // `Date.prototype.toGMTString` method

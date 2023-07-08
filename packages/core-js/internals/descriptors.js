@@ -1,3 +1,4 @@
+'use strict';
 var fails = require('../internals/fails');
 
 // Detect IE8's incomplete defineProperty implementation

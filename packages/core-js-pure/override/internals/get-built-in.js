@@ -1,3 +1,4 @@
+'use strict';
 var path = require('../internals/path');
 var global = require('../internals/global');
 var isCallable = require('../internals/is-callable');

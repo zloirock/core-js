@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.regexp.exec');
 require('../../modules/es.string.replace');
 var call = require('../../internals/function-call');

@@ -1,6 +1,6 @@
 {
   "name": "core-js-compat",
-  "version": "3.30.2",
+  "version": "3.31.1",
   "description": "core-js compat",
   "repository": {
     "type": "git",
@@ -19,7 +19,8 @@
   },
   "sideEffects": false,
   "main": "index.js",
+  "types": "index.d.ts",
   "dependencies": {
-    "browserslist": "^4.21.5"
+    "browserslist": "^4.21.9"
   }
 }

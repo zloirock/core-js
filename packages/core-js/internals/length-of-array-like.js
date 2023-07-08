@@ -1,3 +1,4 @@
+'use strict';
 var toLength = require('../internals/to-length');
 
 // `LengthOfArrayLike` abstract operation

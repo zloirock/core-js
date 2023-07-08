@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var lastIndexOf = require('../internals/array-last-index-of');
 

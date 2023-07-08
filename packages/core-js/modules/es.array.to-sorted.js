@@ -11,7 +11,7 @@ var $Array = Array;
 var sort = uncurryThis(getVirtual('Array').sort);
 
 // `Array.prototype.toSorted` method
-// https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted
+// https://tc39.es/ecma262/#sec-array.prototype.tosorted
 $({ target: 'Array', proto: true }, {
   toSorted: function toSorted(compareFn) {
     if (compareFn !== undefined) aCallable(compareFn);

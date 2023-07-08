@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.string.trim-end');
 var entryUnbind = require('../../internals/entry-unbind');
 

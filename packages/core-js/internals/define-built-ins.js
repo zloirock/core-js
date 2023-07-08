@@ -1,3 +1,4 @@
+'use strict';
 var defineBuiltIn = require('../internals/define-built-in');
 
 module.exports = function (target, src, options) {

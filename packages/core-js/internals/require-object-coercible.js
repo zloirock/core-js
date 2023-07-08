@@ -1,3 +1,4 @@
+'use strict';
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 
 var $TypeError = TypeError;

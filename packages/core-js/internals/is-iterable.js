@@ -1,3 +1,4 @@
+'use strict';
 var classof = require('../internals/classof');
 var hasOwn = require('../internals/has-own-property');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');

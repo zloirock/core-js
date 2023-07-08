@@ -1,3 +1,4 @@
+'use strict';
 var aCallable = require('../internals/a-callable');
 var toObject = require('../internals/to-object');
 var IndexedObject = require('../internals/indexed-object');

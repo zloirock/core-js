@@ -1,3 +1,4 @@
+'use strict';
 var $String = String;
 
 module.exports = function (argument) {

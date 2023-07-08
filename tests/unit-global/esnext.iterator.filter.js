@@ -1,5 +1,5 @@
 import { createIterator } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { STRICT, STRICT_THIS } from '../helpers/constants';
 
 QUnit.test('Iterator#filter', assert => {
   const { filter } = Iterator.prototype;
@@ -18,10 +18,13 @@ QUnit.test('Iterator#filter', assert => {
     assert.same(counter, 0, 'counter');
   });
 
-  assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call({}, () => { /* empty */ }), TypeError);
-  assert.throws(() => filter.call([], () => { /* empty */ }), TypeError);
+  if (STRICT) {
+    assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
+    assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
+  }
+
+  assert.throws(() => filter.call({}, () => { /* empty */ }).next(), TypeError);
+  assert.throws(() => filter.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => filter.call(createIterator([1]), null), TypeError);
   assert.throws(() => filter.call(createIterator([1]), {}), TypeError);

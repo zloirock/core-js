@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.math.hypot');
 var path = require('../../internals/path');
 

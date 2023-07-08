@@ -2,17 +2,6 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
-    ['@babel/proposal-class-static-block'],
-    // private instance props in IE8- only with polyfills
-    ['@babel/proposal-class-properties'],
-    ['@babel/proposal-private-methods'],
-    ['@babel/proposal-private-property-in-object'],
-    ['@babel/proposal-logical-assignment-operators'],
-    ['@babel/proposal-nullish-coalescing-operator'],
-    ['@babel/proposal-numeric-separator'],
-    ['@babel/proposal-object-rest-spread'],
-    ['@babel/proposal-optional-catch-binding'],
-    ['@babel/proposal-optional-chaining'],
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
@@ -20,14 +9,25 @@ module.exports = {
     ['@babel/transform-block-scoping'],
     // it seems `setClassMethods` unlike `loose` does not work
     ['@babel/transform-classes', { loose: true }],
+    // private instance props in IE8- only with polyfills
+    ['@babel/transform-class-properties'],
+    ['@babel/transform-class-static-block'],
     ['@babel/transform-computed-properties'],
     ['@babel/transform-destructuring'],
     ['@babel/transform-exponentiation-operator'],
     ['@babel/transform-for-of'],
     ['@babel/transform-literals'],
+    ['@babel/transform-logical-assignment-operators'],
     ['@babel/transform-new-target'],
+    ['@babel/transform-nullish-coalescing-operator'],
+    ['@babel/transform-numeric-separator'],
+    ['@babel/transform-object-rest-spread'],
     ['@babel/transform-object-super'],
+    ['@babel/transform-optional-catch-binding'],
+    ['@babel/transform-optional-chaining'],
     ['@babel/transform-parameters'],
+    ['@babel/transform-private-methods'],
+    ['@babel/transform-private-property-in-object'],
     ['@babel/transform-reserved-words'],
     ['@babel/transform-shorthand-properties'],
     ['@babel/transform-spread'],

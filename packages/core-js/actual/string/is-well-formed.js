@@ -1,3 +1,7 @@
+'use strict';
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.string.is-well-formed');
 
-module.exports = require('../../internals/entry-unbind')('String', 'isWellFormed');
+var parent = require('../../stable/string/is-well-formed');
+
+module.exports = parent;

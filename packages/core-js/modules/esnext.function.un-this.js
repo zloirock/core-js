@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var demethodize = require('../internals/function-demethodize');
 

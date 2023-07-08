@@ -1,3 +1,4 @@
+'use strict';
 require('../../modules/es.json.to-string-tag');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.object.to-string');

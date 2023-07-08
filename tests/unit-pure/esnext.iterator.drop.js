@@ -1,3 +1,4 @@
+import { STRICT } from '../helpers/constants';
 import { createIterator } from '../helpers/helpers';
 
 import Iterator from 'core-js-pure/actual/iterator';
@@ -14,10 +15,13 @@ QUnit.test('Iterator#drop', assert => {
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 4).toArray(), [], 'big');
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 0).toArray(), [1, 2, 3], 'zero');
 
-  assert.throws(() => drop.call(undefined, 1), TypeError);
-  assert.throws(() => drop.call(null, 1), TypeError);
-  assert.throws(() => drop.call({}, 1), TypeError);
-  assert.throws(() => drop.call([], 1), TypeError);
+  if (STRICT) {
+    assert.throws(() => drop.call(undefined, 1), TypeError);
+    assert.throws(() => drop.call(null, 1), TypeError);
+  }
+
+  assert.throws(() => drop.call({}, 1).next(), TypeError);
+  assert.throws(() => drop.call([], 1).next(), TypeError);
   assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   assert.throws(() => drop.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
 });

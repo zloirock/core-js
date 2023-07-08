@@ -1,3 +1,4 @@
+'use strict';
 var $documentAll = require('../internals/document-all');
 
 var documentAll = $documentAll.all;

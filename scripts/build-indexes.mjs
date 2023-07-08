@@ -1,7 +1,7 @@
 import { modules } from 'core-js-compat/src/data.mjs';
 
 async function generateNamespaceIndex(ns, filter) {
-  return fs.writeFile(`./packages/core-js/${ ns }/index.js`, `${ modules
+  return fs.writeFile(`./packages/core-js/${ ns }/index.js`, `'use strict';\n${ modules
     .filter(it => filter.test(it))
     .map(it => `require('../modules/${ it }');\n`)
     .join('') }\nmodule.exports = require('../internals/path');\n`);

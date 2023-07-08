@@ -1,3 +1,4 @@
+'use strict';
 var setToStringTag = require('../internals/set-to-string-tag');
 
 // Math[@@toStringTag] property

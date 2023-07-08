@@ -1,3 +1,4 @@
+'use strict';
 var $ = require('../internals/export');
 var FREEZING = require('../internals/freezing');
 var fails = require('../internals/fails');

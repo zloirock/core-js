@@ -1,3 +1,4 @@
+'use strict';
 var parent = require('../../actual/weak-map');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.weak-map.emplace');

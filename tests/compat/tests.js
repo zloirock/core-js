@@ -1,3 +1,4 @@
+'use strict';
 /* eslint-disable radix, regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -1088,6 +1089,9 @@ GLOBAL.tests = {
     return String.fromCodePoint;
   },
   'es.string.includes': createIsRegExpLogicTest('includes'),
+  'es.string.is-well-formed': function () {
+    return String.prototype.isWellFormed;
+  },
   'es.string.iterator': [SYMBOLS_SUPPORT, function () {
     return ''[Symbol.iterator];
   }],
@@ -1183,6 +1187,11 @@ GLOBAL.tests = {
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.substr': function () {
     return 'ab'.substr(-1) === 'b';
+  },
+  'es.string.to-well-formed': function () {
+    // Safari ToString conversion bug
+    // https://bugs.webkit.org/show_bug.cgi?id=251757
+    return String.prototype.toWellFormed.call(1) === '1';
   },
   'es.string.trim': createStringTrimMethodTest('trim'),
   'es.string.trim-end': [createStringTrimMethodTest('trimEnd'), function () {
@@ -1535,6 +1544,9 @@ GLOBAL.tests = {
   'esnext.function.is-constructor': function () {
     return Function.isConstructor;
   },
+  'esnext.function.metadata': function () {
+    return Function.prototype[Symbol.metadata] === null;
+  },
   'esnext.iterator.constructor': function () {
     try {
       Iterator({});
@@ -1679,6 +1691,9 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
+  'esnext.object.group-by': function () {
+    return Object.groupBy;
+  },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': function () {
     return Observable;
@@ -1692,6 +1707,9 @@ GLOBAL.tests = {
   'esnext.observable.of': function () {
     return Observable.of;
   },
+  'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
+    return Promise.withResolvers;
+  }],
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
@@ -1755,25 +1773,17 @@ GLOBAL.tests = {
   'esnext.string.dedent': function () {
     return String.dedent;
   },
-  'esnext.string.is-well-formed': function () {
-    return String.prototype.isWellFormed;
-  },
-  'esnext.string.to-well-formed': function () {
-    // Safari ToString conversion bug
-    // https://bugs.webkit.org/show_bug.cgi?id=251757
-    return String.prototype.toWellFormed.call(1) === '1';
-  },
   'esnext.symbol.async-dispose': function () {
     return Symbol.dispose;
   },
   'esnext.symbol.dispose': function () {
     return Symbol.dispose;
   },
-  'esnext.symbol.is-registered': function () {
-    return Symbol.isRegistered;
+  'esnext.symbol.is-registered-symbol': function () {
+    return Symbol.isRegisteredSymbol;
   },
-  'esnext.symbol.is-well-known': function () {
-    return Symbol.isWellKnown;
+  'esnext.symbol.is-well-known-symbol': function () {
+    return Symbol.isWellKnownSymbol;
   },
   'esnext.symbol.matcher': function () {
     return Symbol.matcher;
@@ -1947,6 +1957,15 @@ GLOBAL.tests = {
     return URL.prototype.toJSON;
   }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
+  'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    var params = new URLSearchParams('a=1&a=2');
+    params['delete']('a', 1);
+    return params + '' === 'a=2';
+  }],
+  'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    var params = new URLSearchParams('a=1');
+    return params.has('a', 1) && !params.has('a', 2);
+  }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
   }]
