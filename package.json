@@ -1,4 +1,6 @@
 {
+  "name": "core-js-root",
+  "private": true,
   "version": "3.31.1",
   "repository": {
     "type": "git",
@@ -11,11 +13,12 @@
     "url": "http://zloirock.ru"
   },
   "workspaces": [
+    "./docs/",
     "./packages/*"
   ],
   "scripts": {
     "zxi": "zx scripts/zxi.mjs",
-    "prepare": "npm run zxi scripts/prepare.mjs",
+    "prepare": "npm run init",
     "build-compat": "zx scripts/build-compat/index.mjs",
     "bundle": "run-s bundle-package bundle-tests",
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
@@ -30,9 +33,12 @@
     "compat-hermes": "zx tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "zx tests/compat/rhino-adapter.mjs --version=1.7.14",
-    "lint": "run-s prepare lint-raw",
+    "docs:dev": "npm run --workspace=docs docs:dev",
+    "docs:build": "npm run --workspace=docs docs:build",
+    "init": "npm run zxi scripts/init.mjs",
+    "lint": "run-s init lint-raw",
     "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
-    "test": "run-s prepare test-raw",
+    "test": "run-s init test-raw",
     "test-raw": "run-s lint-raw bundle-tests test-unit test-promises test-observables test-entries test-compat-data test-compat-tools test-builder check",
     "test-eslint": "npm run zxi time tests/eslint/runner.mjs",
     "test-publint": "npm run zxi time tests/publint/runner.mjs",

@@ -1,0 +1,19 @@
+{
+  "name": "corejs-doc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vuepress dev",
+    "docs:build": "vuepress build"
+  },
+  "devDependencies": {
+    "@vuepress/plugin-search": "2.0.0-beta.64",
+    "@vuepress/plugin-shiki": "2.0.0-beta.64",
+    "core-js-compat": "^3.31.1",
+    "vue": "^3.3.1",
+    "vuepress": "2.0.0-beta.64",
+    "vuepress-plugin-i18n": "^0.8.3",
+    "vuepress-plugin-redirect": "2.0.0-beta.230",
+    "vuepress-theme-hope": "2.0.0-beta.230"
+  }
+}
