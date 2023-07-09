@@ -2259,8 +2259,12 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.string.to-well-formed': null,
   'esnext.symbol.async-dispose': {
+    // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
+    node: '20.4.0',
   },
   'esnext.symbol.dispose': {
+    // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
+    node: '20.4.0',
   },
   'esnext.symbol.is-registered-symbol': {
   },
