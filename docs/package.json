@@ -7,13 +7,13 @@
     "docs:build": "vuepress build"
   },
   "devDependencies": {
-    "@vuepress/plugin-search": "2.0.0-beta.62",
-    "@vuepress/plugin-shiki": "2.0.0-beta.62",
+    "@vuepress/plugin-search": "2.0.0-beta.64",
+    "@vuepress/plugin-shiki": "2.0.0-beta.64",
     "core-js-compat": "^3.31.1",
     "vue": "^3.3.1",
-    "vuepress": "2.0.0-beta.62",
-    "vuepress-plugin-i18n": "^0.8.2",
-    "vuepress-plugin-redirect": "2.0.0-beta.210",
-    "vuepress-theme-hope": "2.0.0-beta.210"
+    "vuepress": "2.0.0-beta.64",
+    "vuepress-plugin-i18n": "^0.8.3",
+    "vuepress-plugin-redirect": "2.0.0-beta.230",
+    "vuepress-theme-hope": "2.0.0-beta.230"
   }
 }
