@@ -111,8 +111,36 @@ await [1, 2, 3]
 
 ```js
 const configurator = require("core-js/configurator");
+
 configurator({ USE_FUNCTION_CONSTRUCTOR: true });
+
 require("core-js/actual/async-iterator");
+
+(async function* () {
+  /* empty */
+})() instanceof AsyncIterator; // => true
+```
+
+- 作为一个替代方案，你可以向`core-js/configurator`传递一个对象，该对象将被视为`%AsyncIteratorPrototype%`：
+
+```js
+const configurator = require("core-js/configurator");
+const { getPrototypeOf } = Object;
+
+configurator({
+  AsyncIteratorPrototype: getPrototypeOf(
+    getPrototypeOf(
+      getPrototypeOf(
+        (async function* () {
+          /* empty */
+        })()
+      )
+    )
+  ),
+});
+
+require("core-js/actual/async-iterator");
+
 (async function* () {
   /* empty */
 })() instanceof AsyncIterator; // => true

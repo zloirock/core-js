@@ -63,6 +63,8 @@ Finished (stage 4) 提案已经在 Core-JS 中标记为稳定的 ECMAScript，�
 
 ### [Well-formed `JSON.stringify`](well-formed-stringify.md)
 
+### [结构良好的 unicode 字符串](well-formed-unicode-strings.md)
+
 ## Stage 3
 
 `core-js/stage/3` 只包含 Stage 3 的提案，而`core-js/stage/2`则包含 Stage 2 到 Stage 3 的提案，以此类推……
@@ -77,8 +79,6 @@ core-js(-pure)/stage/3
 
 ### [`Array.fromAsync`](array-from-async.md)
 
-### [`Array` 分组](array-grouping.md)
-
 ### [`ArrayBuffer.prototype.transfer` 和相关的](array-buffer-transfer.md)
 
 ### [新的 `Set` 方法](new-set-methods.md)
@@ -87,7 +87,7 @@ core-js(-pure)/stage/3
 
 ### [显式资源管理](explicit-resource-management.md)
 
-### [结构良好的 unicode 字符串](well-formed-unicode-strings.md)
+### [装饰器元数据的 `Symbol.metadata` 提案](decorator-metadata.md)
 
 ## Stage 2
 
@@ -97,11 +97,15 @@ core-js(-pure)/stage/3
 core-js(-pure)/stage/2
 ```
 
+### [`Array` 分组](array-grouping.md)
+
 ### [`AsyncIterator` helper 函数](async-iterator-helpers.md)
 
 ### [`Iterator.range`](iterator-range.md)
 
-### [`Map.prototype.emplace`](map-upsert.md)
+### [`Promise.withResolvers`](promise-with-resolvers.md)
+
+### [`Map.prototype.emplace`](map-emplace.md)
 
 ### [`Array.isTemplateObject`](array-is-template-object.md)
 
@@ -110,8 +114,6 @@ core-js(-pure)/stage/2
 ### [异步显式资源管理](async-explicit-resource-management.md)
 
 ### [`Symbol` 断言](symbol-predicates.md)
-
-### [装饰器元数据的 `Symbol.metadata` 提案](decorator-metadata.md)
 
 ## Stage 1
 

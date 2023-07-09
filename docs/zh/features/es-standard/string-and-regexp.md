@@ -27,6 +27,8 @@ tag:
 - [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js)
 - [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js)
 - [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js)
+- [`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.is-well-formed.js)
+- [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.to-well-formed.js)
 
 支持著名的 [symbols](./symbol.md) `@@match`, `@@replace`, `@@search` 和 `@@split`，并把 `.exec` 调用定向至 `String` 相关的方法：
 
@@ -90,6 +92,8 @@ interface String {
   trimRight(): string;
   trimStart(): string;
   trimEnd(): string;
+  isWellFormed(): boolean;
+  toWellFormed(): string;
   anchor(name: string): string;
   big(): string;
   blink(): string;
@@ -157,6 +161,8 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-end
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-left
 core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-right
+core-js(-pure)/es|stable|actual|full/string(/virtual)/is-well-formed
+core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
 core-js(-pure)/es|stable|actual|full/string(/virtual)/anchor
 core-js(-pure)/es|stable|actual|full/string(/virtual)/big
 core-js(-pure)/es|stable|actual|full/string(/virtual)/blink
@@ -261,4 +267,9 @@ for (let [_, d, D] of "1111a2b3cccc".matchAll(/(\d)(\D)/g)) {
 
 "abc".at(1); // => 'b'
 "abc".at(-1); // => 'c'
+
+"a💩b".isWellFormed(); // => true
+"a\uD83Db".isWellFormed(); // => false
+"a💩b".toWellFormed(); // => 'a💩b'
+"a\uD83Db".toWellFormed(); // => 'a�b'
 ```

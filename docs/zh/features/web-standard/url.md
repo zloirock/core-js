@@ -14,6 +14,8 @@ tag:
 - [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js)
 - [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js)
 - [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js)
+- [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.delete.js)
+- [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.has.js)
 - [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 
 ## 类型
@@ -41,10 +43,10 @@ class URL {
 class URLSearchParams {
   constructor(params?: string | Iterable<[key, value]> | Object);
   append(name: string, value: string): void;
-  delete(name: string): void;
+  delete(name: string, value?: string): void;
   get(name: string): string | void;
   getAll(name: string): Array<string>;
-  has(name: string): boolean;
+  has(name: string, value?: string): boolean;
   set(name: string, value: string): void;
   sort(): void;
   toString(): string;
@@ -72,7 +74,7 @@ core-js(-pure)/stable|actual|full/url-search-params
 
 ## 示例
 
-[_示例_](https://tinyurl.com/2ovt23zn):
+[_示例_](https://tinyurl.com/2j35uor6):
 
 ```js
 URL.canParse(
@@ -112,16 +114,21 @@ const params = new URLSearchParams("?a=1&b=2&a=3");
 
 params.append("c", 4);
 params.append("a", 2);
+params.delete("a", 1);
 params.sort();
 
-console.log(params.size); // => 5
+console.log(params.size); // => 4
 
 for (let [key, value] of params) {
-  console.log(key); // => 'a', 'a', 'a', 'b', 'c'
-  console.log(value); // => '1', '3', '2', '2', '4'
+  console.log(key); // => 'a', 'a', 'b', 'c'
+  console.log(value); // => '3', '2', '2', '4'
 }
 
-console.log(params.toString()); // => 'a=1&a=3&a=2&b=2&c=4'
+console.log(params.has('a')); // => true
+console.log(params.has('a', 3)); // => true
+console.log(params.has('a', 4)); // => false
+
+console.log(params.toString()); // => 'a=3&a=2&b=2&c=4'
 ```
 
 ## 使用 `URL` 和 `URLSearchParams` 时的注意事项

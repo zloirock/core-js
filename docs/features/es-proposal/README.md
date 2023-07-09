@@ -63,6 +63,8 @@ Finished (stage 4) proposals already marked in Core-JS as stable ECMAScript, the
 
 ### [Well-formed `JSON.stringify`](well-formed-stringify.md)
 
+### [Well-formed unicode strings](well-formed-unicode-strings.md)
+
 ## Stage 3
 
 `core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
@@ -77,8 +79,6 @@ core-js(-pure)/stage/3
 
 ### [`Array.fromAsync`](array-from-async.md)
 
-### [`Array` grouping](array-grouping.md)
-
 ### [`ArrayBuffer.prototype.transfer` and friends](array-buffer-transfer.md)
 
 ### [New `Set` methods](new-set-methods.md)
@@ -87,7 +87,7 @@ core-js(-pure)/stage/3
 
 ### [Explicit resource management](explicit-resource-management.md)
 
-### [Well-formed unicode strings](well-formed-unicode-strings.md)
+### [`Symbol.metadata` for decorators metadata proposal](decorator-metadata.md)
 
 ## Stage 2
 
@@ -97,11 +97,15 @@ Entry points:
 core-js(-pure)/stage/2
 ```
 
+### [`Array` grouping](array-grouping.md)
+
 ### [`AsyncIterator` helpers](async-iterator-helpers.md)
 
 ### [`Iterator.range`](iterator-range.md)
 
-### [`Map.prototype.emplace`](map-upsert.md)
+### [`Promise.withResolvers`](promise-with-resolvers.md)
+
+### [`Map.prototype.emplace`](map-emplace.md)
 
 ### [`Array.isTemplateObject`](array-is-template-object.md)
 
@@ -110,8 +114,6 @@ core-js(-pure)/stage/2
 ### [Async explicit resource management](async-explicit-resource-management.md)
 
 ### [`Symbol` predicates](symbol-predicates.md)
-
-### [`Symbol.metadata` for decorators metadata proposal](decorator-metadata.md)
 
 ## Stage 1
 

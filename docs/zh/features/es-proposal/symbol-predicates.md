@@ -8,33 +8,33 @@ tag:
 
 ## 模块
 
-- [`esnext.symbol.is-registered`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered.js)
-- [`esnext.symbol.is-well-known`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known.js)
+- [`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js)
+- [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js)
 
 ## 类型
 
 ```ts
 interface SymbolConstructor {
-  isRegistered(value: symbol): boolean;
-  isWellKnown(value: symbol): boolean;
+  isRegisteredSymbol(value: symbol): boolean;
+  isWellKnownSymbol(value: symbol): boolean;
 }
 ```
 
 ## 入口点
 
-```js
-core - js / proposals / symbol - predicates;
-core - js(-pure) / full / symbol / is - registered;
-core - js(-pure) / full / symbol / is - well - known;
+```
+core-js/proposals/symbol-predicates-v2
+core-js(-pure)/full/symbol/is-registered-symbol
+core-js(-pure)/full/symbol/is-well-known-symbol
 ```
 
 ## 示例
 
-[_示例_](https://tinyurl.com/2cuwpu8d)
+[_示例_](https://tinyurl.com/2oqoaq7t)
 
 ```js
-Symbol.isRegistered(Symbol.for("key")); // => true
-Symbol.isRegistered(Symbol("key")); // => false
-Symbol.isWellKnown(Symbol.iterator); // => true
-Symbol.isWellKnown(Symbol("key")); // => false
+Symbol.isRegisteredSymbol(Symbol.for("key")); // => true
+Symbol.isRegisteredSymbol(Symbol("key")); // => false
+Symbol.isWellKnownSymbol(Symbol.iterator); // => true
+Symbol.isWellKnownSymbol(Symbol("key")); // => false
 ```
