@@ -3,6 +3,7 @@
 - Use strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
 - Compat data improvements:
   - [NodeJS 20.4.0 add `Symbol.{ dispose, asyncDispose }`](https://github.com/nodejs/node/pull/48518), but [with incorrect property descriptors](https://github.com/nodejs/node/issues/48699)
+  - Added Electron 27 compat data mapping
 
 ##### [3.31.1 - 2023.07.06](https://github.com/zloirock/core-js/releases/tag/v3.31.1)
 - Fixed a `structuredClone` bug with cloning views of transferred buffers, [#1265](https://github.com/zloirock/core-js/issues/1265)
