@@ -1,5 +1,5 @@
 import { createIterable } from '../helpers/helpers';
-import groupBy from 'core-js-pure/full/object/group-by';
+import groupBy from 'core-js-pure/actual/object/group-by';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import entries from 'core-js-pure/es/object/entries';
 

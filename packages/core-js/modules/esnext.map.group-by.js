@@ -14,7 +14,7 @@ var push = uncurryThis([].push);
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-array-grouping
-$({ target: 'Map', stat: true, forced: true }, {
+$({ target: 'Map', stat: true }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);
     aCallable(callbackfn);

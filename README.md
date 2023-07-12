@@ -153,6 +153,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` helpers](#iterator-helpers)
+      - [`Array` grouping](#array-grouping)
       - [`Array.fromAsync`](#arrayfromasync)
       - [New `Set` methods](#new-set-methods)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
@@ -160,7 +161,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2 proposals](#stage-2-proposals)
-      - [`Array` grouping](#array-grouping)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
       - [`Promise.withResolvers`](#promisewithresolvers)
@@ -2220,8 +2220,36 @@ Iterator.from({
   next: () => ({ done: Math.random() > .9, value: Math.random() * 10 | 0 })
 }).toArray(); // => [7, 6, 3, 0, 2, 8]
 ```
+
 ###### Caveats:[⬆](#index)
 - For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
+
+##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+Modules [`esnext.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.group-by.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js).
+```js
+class Object {
+  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
+}
+
+class Map {
+  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping-v2
+core-js(-pure)/full/map/group-by
+core-js(-pure)/full/object/group-by
+```
+[*Examples*](https://is.gd/3a0PbH):
+```js
+Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
+
+const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
+map.get(1); // => [1, 3, 5]
+map.get(0); // => [2, 4]
+````
+
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
 ```js
@@ -2403,31 +2431,6 @@ core-js(-pure)/actual|full/function/metadata
 ```
 core-js(-pure)/stage/2
 ```
-##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.group-by.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js).
-```js
-class Object {
-  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
-}
-
-class Map {
-  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-grouping-v2
-core-js(-pure)/full/map/group-by
-core-js(-pure)/full/object/group-by
-```
-[*Examples*](https://is.gd/3a0PbH):
-```js
-Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
-
-const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
-map.get(1); // => [1, 3, 5]
-map.get(0); // => [2, 4]
-````
 ##### [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)[⬆](#index)
 Modules [`esnext.async-iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.constructor.js), [`esnext.async-iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.drop.js), [`esnext.async-iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.every.js), [`esnext.async-iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.filter.js), [`esnext.async-iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.find.js), [`esnext.async-iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.flat-map.js), [`esnext.async-iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.for-each.js), [`esnext.async-iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.from.js), [`esnext.async-iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.map.js), [`esnext.async-iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.reduce.js), [`esnext.async-iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.some.js), [`esnext.async-iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.take.js), [`esnext.async-iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.to-array.js), , [`esnext.iterator.to-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-async.js)
 ```js

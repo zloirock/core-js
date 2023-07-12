@@ -12,7 +12,7 @@ var push = uncurryThis([].push);
 
 // `Object.groupBy` method
 // https://github.com/tc39/proposal-array-grouping
-$({ target: 'Object', stat: true, forced: true }, {
+$({ target: 'Object', stat: true }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);
     aCallable(callbackfn);
