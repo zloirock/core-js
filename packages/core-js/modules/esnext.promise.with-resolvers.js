@@ -4,7 +4,7 @@ var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 
 // `Promise.withResolvers` method
 // https://github.com/tc39/proposal-promise-with-resolvers
-$({ target: 'Promise', stat: true, forced: true }, {
+$({ target: 'Promise', stat: true }, {
   withResolvers: function withResolvers() {
     var promiseCapability = newPromiseCapabilityModule.f(this);
     return {

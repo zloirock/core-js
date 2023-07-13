@@ -648,7 +648,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
-    const Map = load(NS, 'map');
     ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/group') == 'function');
     ok(typeof load(NS, 'array/group-to-map') == 'function');
@@ -692,7 +691,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
-    ok(load(NS, 'map/group-by')([], it => it) instanceof Map);
+    ok(load(NS, 'map/group-by')([], it => it) instanceof load(NS, 'map'));
+    ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
     ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
     ok(load(NS, 'set/intersection')(new Set([1, 2, 3]), new Set([1, 3, 4])).size === 2);
@@ -810,7 +810,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
     ok(typeof load(NS, 'reflect/metadata') == 'function');
     ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
-    ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
     ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
