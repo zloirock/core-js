@@ -25,7 +25,7 @@ var IteratorProxy = createIteratorProxy(function () {
     if (this.done = !!result.done) return;
 
     try {
-      this.inner = getIteratorFlattenable(mapper(result.value, this.counter++));
+      this.inner = getIteratorFlattenable(mapper(result.value, this.counter++), false);
     } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
 });

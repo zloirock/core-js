@@ -15,7 +15,7 @@ var IteratorProxy = createIteratorProxy(function () {
 // https://github.com/tc39/proposal-iterator-helpers
 $({ target: 'Iterator', stat: true }, {
   from: function from(O) {
-    var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
+    var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O, true);
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new IteratorProxy(iteratorRecord);

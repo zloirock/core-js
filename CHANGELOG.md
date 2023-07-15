@@ -6,6 +6,8 @@
 - [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers), July 2023 TC39 meeting updates:
   - [Moved to stage 3](https://github.com/tc39/proposal-promise-with-resolvers/pull/18)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
+- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
+  - Avoid creating observable `String` wrapper objects, [proposal-iterator-helpers/281](https://github.com/tc39/proposal-iterator-helpers/pull/281)
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
 - Compat data improvements:
   - [NodeJS 20.4.0 add `Symbol.{ dispose, asyncDispose }`](https://github.com/nodejs/node/pull/48518), but [with incorrect property descriptors](https://github.com/nodejs/node/issues/48699)
