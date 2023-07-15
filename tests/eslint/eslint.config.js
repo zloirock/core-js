@@ -1057,6 +1057,8 @@ const nodeDev = {
   ...forbidES2023IntlBuiltIns,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
+  // prefer top-level await
+  'unicorn/prefer-top-level-await': ERROR,
 };
 
 const tests = {
