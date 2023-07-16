@@ -125,6 +125,6 @@ if (DESCRIPTORS) defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed'
 defineBuiltIn(AsyncDisposableStackPrototype, ASYNC_DISPOSE, AsyncDisposableStackPrototype.disposeAsync, { name: 'disposeAsync' });
 defineBuiltIn(AsyncDisposableStackPrototype, TO_STRING_TAG, ASYNC_DISPOSABLE_STACK, { nonWritable: true });
 
-$({ global: true, constructor: true, forced: true }, {
+$({ global: true, constructor: true }, {
   AsyncDisposableStack: $AsyncDisposableStack
 });
