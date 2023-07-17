@@ -6,7 +6,7 @@ require('../proposals/array-last');
 require('../proposals/array-unique');
 require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
-require('../proposals/dataview-get-set-uint8-clamped');
+require('../proposals/data-view-get-set-uint8-clamped');
 require('../proposals/keys-composition');
 require('../proposals/math-extensions');
 require('../proposals/math-signbit');

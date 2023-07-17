@@ -176,6 +176,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [Getting last item from `Array`](#getting-last-item-from-array)
+      - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
       - [`Math.signbit`](#mathsignbit)
@@ -2904,6 +2905,22 @@ array.lastItem = 4;
 
 array; // => [1, 2, 4]
 ```
+
+##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
+Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
+```js
+class DataView {
+  getUint8Clamped(offset: any): uint8
+  setUint8Clamped(offset: any, value: any): void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/data-view-get-set-uint8-clamped
+core-js/full/dataview/get-uint8-clamped
+core-js/full/dataview/set-uint8-clamped
+```
+
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
 Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
 ```js
