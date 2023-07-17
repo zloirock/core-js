@@ -1532,6 +1532,12 @@ GLOBAL.tests = {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
+  'esnext.data-view.get-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.getUint8Clamped;
+  }],
+  'esnext.data-view.set-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.setUint8Clamped;
+  }],
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },

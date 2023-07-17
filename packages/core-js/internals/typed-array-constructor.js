@@ -13,6 +13,7 @@ var isIntegralNumber = require('../internals/is-integral-number');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
+var toUint8Clamped = require('../internals/to-uint8-clamped');
 var toPropertyKey = require('../internals/to-property-key');
 var hasOwn = require('../internals/has-own-property');
 var classof = require('../internals/classof');
@@ -36,7 +37,6 @@ var setInternalState = InternalStateModule.set;
 var enforceInternalState = InternalStateModule.enforce;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
-var round = Math.round;
 var RangeError = global.RangeError;
 var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
@@ -137,8 +137,7 @@ if (DESCRIPTORS) {
 
     var setter = function (that, index, value) {
       var data = getInternalState(that);
-      if (CLAMPED) value = (value = round(value)) < 0 ? 0 : value > 0xFF ? 0xFF : value & 0xFF;
-      data.view[SETTER](index * BYTES + data.byteOffset, value, true);
+      data.view[SETTER](index * BYTES + data.byteOffset, CLAMPED ? toUint8Clamped(value) : value, true);
     };
 
     var addElement = function (that, index) {

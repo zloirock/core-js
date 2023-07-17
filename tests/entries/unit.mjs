@@ -755,6 +755,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/indexed') == 'function');
     load(NS, 'bigint/range');
     load(NS, 'bigint');
+    load(NS, 'data-view/get-uint8-clamped');
+    load(NS, 'data-view/set-uint8-clamped');
     ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
     ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
@@ -910,6 +912,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
+  load('proposals/data-view-get-set-uint8-clamped');
   load('proposals/decorator-metadata');
   load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
