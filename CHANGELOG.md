@@ -6,7 +6,9 @@
 - [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers), July 2023 TC39 meeting updates:
   - [Moved to stage 3](https://github.com/tc39/proposal-promise-with-resolvers/pull/18)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
-- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
+- [`Set` methods stage 3 proposal](https://github.com/tc39/proposal-set-methods), July 2023 TC39 meeting updates::
+  - Throw on negative `Set` sizes, [proposal-set-methods/88](https://github.com/tc39/proposal-set-methods/pull/88)
+- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers), July 2023 TC39 meeting updates::
   - Avoid creating observable `String` wrapper objects, [proposal-iterator-helpers/281](https://github.com/tc39/proposal-iterator-helpers/pull/281)
 - Async explicit resource management:
   - Built-ins:

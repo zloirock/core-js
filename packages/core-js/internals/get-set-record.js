@@ -4,6 +4,8 @@ var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 
+var INVALID_SIZE = 'Invalid size';
+var $RangeError = RangeError;
 var $TypeError = TypeError;
 var max = Math.max;
 
@@ -30,10 +32,12 @@ module.exports = function (obj) {
   var numSize = +obj.size;
   // NOTE: If size is undefined, then numSize will be NaN
   // eslint-disable-next-line no-self-compare -- NaN check
-  if (numSize != numSize) throw $TypeError('Invalid size');
+  if (numSize != numSize) throw $TypeError(INVALID_SIZE);
+  var intSize = toIntegerOrInfinity(numSize);
+  if (intSize < 0) throw $RangeError(INVALID_SIZE);
   return new SetRecord(
     obj,
-    max(toIntegerOrInfinity(numSize), 0),
+    max(intSize, 0),
     aCallable(obj.has),
     aCallable(obj.keys)
   );
