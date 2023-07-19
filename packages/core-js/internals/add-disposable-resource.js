@@ -1,4 +1,5 @@
 'use strict';
+var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var bind = require('../internals/function-bind-context');
 var anObject = require('../internals/an-object');
@@ -13,7 +14,12 @@ var push = uncurryThis([].push);
 
 var getDisposeMethod = function (V, hint) {
   if (hint == 'async-dispose') {
-    return getMethod(V, ASYNC_DISPOSE) || getMethod(V, DISPOSE);
+    var method = getMethod(V, ASYNC_DISPOSE);
+    if (method !== undefined) return method;
+    method = getMethod(V, DISPOSE);
+    return function () {
+      call(method, this);
+    };
   } return getMethod(V, DISPOSE);
 };
 

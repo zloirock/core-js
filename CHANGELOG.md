@@ -24,6 +24,7 @@
     - `AsyncIterator.prototype[@@asyncDispose]`
   - Moved back into [the initial proposal](https://github.com/tc39/proposal-explicit-resource-management) -> moved to stage 3, [proposal-explicit-resource-management/154](https://github.com/tc39/proposal-explicit-resource-management/pull/154)
   - Added `/actual/` namespace entries, disabled forced replacement
+  - Ignore return value of `[@@dispose]()` method when hint is `async-dispose`, [proposal-explicit-resource-management/180](https://github.com/tc39/proposal-explicit-resource-management/pull/180)
 - Added [`DataView` get / set `Uint8Clamped` methods stage 1 proposal](https://github.com/tc39/proposal-dataview-get-set-uint8clamped):
   - Methods:
     - `DataView.prototype.getUint8Clamped`
