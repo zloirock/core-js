@@ -10,5 +10,5 @@ var keys = uncurryThis(SetPrototype.keys);
 var next = keys(new Set()).next;
 
 module.exports = function (set, fn, interruptible) {
-  return interruptible ? iterateSimple(keys(set), fn, next) : forEach(set, fn);
+  return interruptible ? iterateSimple({ iterator: keys(set), next: next }, fn) : forEach(set, fn);
 };

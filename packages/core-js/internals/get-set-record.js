@@ -3,6 +3,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
+var getIteratorDirect = require('../internals/get-iterator-direct');
 
 var INVALID_SIZE = 'Invalid size';
 var $RangeError = RangeError;
@@ -18,7 +19,7 @@ var SetRecord = function (set, size, has, keys) {
 
 SetRecord.prototype = {
   getIterator: function () {
-    return anObject(call(this.keys, this.set));
+    return getIteratorDirect(anObject(call(this.keys, this.set)));
   },
   includes: function (it) {
     return call(this.has, this.set, it);
