@@ -30,6 +30,7 @@
     - `DataView.prototype.getUint8Clamped`
     - `DataView.prototype.setUint8Clamped`
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
+- Fixed and exposed [`AsyncIteratorPrototype` `core-js/configurator` option](https://github.com/zloirock/core-js#asynciterator-helpers), [#1268](https://github.com/zloirock/core-js/issues/1268)
 - Compat data improvements:
   - [NodeJS 20.4.0 add `Symbol.{ dispose, asyncDispose }`](https://github.com/nodejs/node/pull/48518), but [with incorrect property descriptors](https://github.com/nodejs/node/issues/48699)
   - Added Electron 27 compat data mapping
