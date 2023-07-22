@@ -74,8 +74,8 @@ QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => 
 
   for (const [value, conversion, little] of data) {
     view.setUint8Clamped(0, value);
-    assert.same(view.getUint8Clamped(0, value), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8Clamped, ${ toString(value) } -> ${ toString(conversion) }`);
-    assert.same(view.getUint8(0, value), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8, ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.same(view.getUint8Clamped(0), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8Clamped, ${ toString(value) } -> ${ toString(conversion) }`);
+    assert.same(view.getUint8(0), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8, ${ toString(value) } -> ${ toString(conversion) }`);
     if (DESCRIPTORS) assert.arrayEqual(array, little, `DataView.prototype.setUint8Clamped + Uint8Array ${ toString(value) } -> [${ little }]`);
   }
 });

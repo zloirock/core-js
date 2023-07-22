@@ -214,7 +214,10 @@ export default {
     'web.url-search-params.has',
   ],
   3.32: [
+    'esnext.data-view.get-float16',
     'esnext.data-view.get-uint8-clamped',
+    'esnext.data-view.set-float16',
     'esnext.data-view.set-uint8-clamped',
+    'esnext.math.f16round',
   ],
 };

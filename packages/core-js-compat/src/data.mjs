@@ -1973,7 +1973,11 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
+  'esnext.data-view.get-float16': {
+  },
   'esnext.data-view.get-uint8-clamped': {
+  },
+  'esnext.data-view.set-float16': {
   },
   'esnext.data-view.set-uint8-clamped': {
   },
@@ -2087,6 +2091,8 @@ export const data = {
   'esnext.math.degrees': {
   },
   'esnext.math.fscale': {
+  },
+  'esnext.math.f16round': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': {
