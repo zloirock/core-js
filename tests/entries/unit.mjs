@@ -673,6 +673,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
+    load(NS, 'data-view/get-float16');
+    load(NS, 'data-view/set-float16');
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator') == 'function');
     ok(typeof load(NS, 'iterator/drop') == 'function');
@@ -692,6 +694,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'map/group-by')([], it => it) instanceof load(NS, 'map'));
+    ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
     ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
@@ -787,7 +790,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
     ok(load(NS, 'math/degrees')(Math.PI) === 180);
     ok(load(NS, 'math/fscale')(3, 1, 2, 1, 2) === 3);
-    ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'math/iaddh')(3, 2, 0xFFFFFFFF, 4) === 7);
     ok(load(NS, 'math/isubh')(3, 4, 0xFFFFFFFF, 2) === 1);
     ok(load(NS, 'math/imulh')(0xFFFFFFFF, 7) === -1);
