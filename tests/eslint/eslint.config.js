@@ -917,8 +917,9 @@ const forbidES2023BuiltIns = {
 };
 
 const forbidES2024BuiltIns = {
-  'es/no-string-prototype-iswellformed-towellformed': ERROR,
   'es/no-atomics-waitasync': ERROR,
+  'es/no-string-prototype-iswellformed-towellformed': ERROR,
+  'es/no-regexp-v-flag': ERROR,
 };
 
 const forbidES2016IntlBuiltIns = {
