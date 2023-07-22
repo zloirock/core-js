@@ -25,6 +25,7 @@
   - Moved back into [the initial proposal](https://github.com/tc39/proposal-explicit-resource-management) -> moved to stage 3, [proposal-explicit-resource-management/154](https://github.com/tc39/proposal-explicit-resource-management/pull/154)
   - Added `/actual/` namespace entries, disabled forced replacement
   - Ignore return value of `[@@dispose]()` method when hint is `async-dispose`, [proposal-explicit-resource-management/180](https://github.com/tc39/proposal-explicit-resource-management/pull/180)
+  - Added ticks for empty resources, [proposal-explicit-resource-management/163](https://github.com/tc39/proposal-explicit-resource-management/pull/163)
 - Added some methods from [`Float16Array` stage 3 proposal](https://github.com/tc39/proposal-float16array):
   - There are some reason why I don't want to add `Float16Array` right now, however, make sense to add some methods from this proposal.
   - Methods:
