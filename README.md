@@ -158,6 +158,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [New `Set` methods](#new-set-methods)
       - [`Promise.withResolvers`](#promisewithresolvers)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
+      - [`Float16` methods](#float16-methods)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
       - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
@@ -2359,6 +2360,35 @@ JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
 const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
 embedded === '{"tooBigForNumber":9007199254740993}'; // true
 ```
+
+##### [`Float16` methods](https://github.com/tc39/proposal-float16array)[⬆](#index)
+Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js), [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js) and [`esnext.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.f16round.js)
+```js
+class DataView {
+  getFloat16(offset: any): number
+  setFloat16(offset: any, value: any): void;
+}
+
+namespace Math {
+  fround(number: any): number;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/float16
+core-js/actual|full/dataview/get-float16
+core-js/actual|full/dataview/set-float16
+core-js/actual|full/math/f16round
+```
+[Examples](https://tinyurl.com/2zxkrwub):
+```js
+console.log(Math.f16round(1.337)); // => 1.3369140625
+
+const view = new DataView(new ArrayBuffer(2));
+view.setFloat16(0, 1.337);
+console.log(view.getFloat16(0)); // => 1.3369140625
+```
+
 ##### [`ArrayBuffer.prototype.transfer` and friends](#https://github.com/tc39/proposal-arraybuffer-transfer)[⬆](#index)
 Note: **`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer support.**
 Modules [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js), [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js), [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js).
@@ -2919,6 +2949,12 @@ class DataView {
 core-js/proposals/data-view-get-set-uint8-clamped
 core-js/full/dataview/get-uint8-clamped
 core-js/full/dataview/set-uint8-clamped
+```
+[Examples](https://tinyurl.com/2h4zv8sw):
+```js
+const view = new DataView(new ArrayBuffer(1));
+view.setUint8Clamped(0, 100500);
+console.log(view.getUint8Clamped(0)); // => 255
 ```
 
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)

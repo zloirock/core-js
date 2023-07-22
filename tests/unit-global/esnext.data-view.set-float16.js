@@ -26,7 +26,7 @@ QUnit.test('DataView.prototype.{ getFloat16, setFloat16 }', assert => {
     [0b1111101111111111, -65504],
     [0b0000000000000001, 2 ** -24],
     [0b1000000000000001, -(2 ** -24)],
-    // [0b0111110000000001, NaN], <- what NaN should be used?
+    // [0b0111110000000001, NaN], <- what NaN representation should be used?
     [0b0111110000000000, Infinity],
     [0b1111110000000000, -Infinity],
   ];
