@@ -8,7 +8,7 @@ var $isFinite = isFinite;
 
 // `Math.f16round` method
 // https://github.com/tc39/proposal-float16array
-$({ target: 'Math', stat: true }, {
+$({ target: 'Math', stat: true, forced: true }, {
   f16round: function f16round(x) {
     var n = +x;
     return $isFinite(n) && n !== 0 ? unpackIEEE754(packIEEE754(n, 10, 2), 10) : n;
