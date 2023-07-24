@@ -1601,6 +1601,7 @@ console.log(weakset.has(b));   // => false
 ##### Caveats when using collections polyfill:[⬆](#index)
 
 * Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
+* Native symbols as `WeakMap` keys can't be properly polyfilled without memory leaks.
 
 #### ECMAScript: Typed Arrays[⬆](#index)
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
