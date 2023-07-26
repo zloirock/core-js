@@ -39,12 +39,13 @@
     - `DataView.prototype.setUint8Clamped`
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
 - Fixed [a Chromium 117 bug](https://bugs.chromium.org/p/v8/issues/detail?id=14222) in `value` argument of `URLSearchParams.prototype.{ has, delete }`
+- Fixed incorrect `Symbol.{ dispose, asyncDispose }` descriptors from [NodeJS 20.4](https://github.com/nodejs/node/issues/48699) / transpilers helpers / userland code
 - Fixed forced polyfilling of some iterator helpers that should return wrapped iterator in the pure version
 - Fixed and exposed [`AsyncIteratorPrototype` `core-js/configurator` option](https://github.com/zloirock/core-js#asynciterator-helpers), [#1268](https://github.com/zloirock/core-js/issues/1268)
 - Compat data improvements:
   - Sync [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as [supported](https://chromestatus.com/feature/5102502917177344) from V8 ~ Chrome 117
   - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping) features marked as [supported](https://chromestatus.com/feature/5714791975878656) from V8 ~ Chrome 117
-  - [NodeJS 20.4.0 add `Symbol.{ dispose, asyncDispose }`](https://github.com/nodejs/node/pull/48518), but [with incorrect property descriptors](https://github.com/nodejs/node/issues/48699)
+  - Mark `Symbol.{ dispose, asyncDispose }` as supported from NodeJS 20.5.0 (as mentioned above, NodeJS 20.4.0 add it, but [with incorrect descriptors](https://github.com/nodejs/node/issues/48699))
   - Added Electron 27 compat data mapping
 
 ##### [3.31.1 - 2023.07.06](https://github.com/zloirock/core-js/releases/tag/v3.31.1)

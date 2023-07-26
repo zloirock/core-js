@@ -1789,10 +1789,12 @@ GLOBAL.tests = {
     return String.dedent;
   },
   'esnext.symbol.async-dispose': function () {
-    return Symbol.dispose;
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'esnext.symbol.dispose': function () {
-    return Symbol.dispose;
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'esnext.symbol.is-registered-symbol': function () {
     return Symbol.isRegisteredSymbol;

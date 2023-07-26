@@ -2285,11 +2285,13 @@ export const data = {
   'esnext.string.to-well-formed': null,
   'esnext.symbol.async-dispose': {
     // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
-    node: '20.4.0',
+    // https://github.com/nodejs/node/issues/48699
+    node: '20.5.0',
   },
   'esnext.symbol.dispose': {
     // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
-    node: '20.4.0',
+    // https://github.com/nodejs/node/issues/48699
+    node: '20.5.0',
   },
   'esnext.symbol.is-registered-symbol': {
   },
