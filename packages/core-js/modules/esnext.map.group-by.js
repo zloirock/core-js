@@ -1,11 +1,11 @@
 'use strict';
 var $ = require('../internals/export');
-var IS_PURE = require('../internals/is-pure');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var iterate = require('../internals/iterate');
 var MapHelpers = require('../internals/map-helpers');
+var IS_PURE = require('../internals/is-pure');
 
 var Map = MapHelpers.Map;
 var has = MapHelpers.has;

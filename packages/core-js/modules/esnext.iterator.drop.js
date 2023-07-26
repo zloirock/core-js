@@ -6,6 +6,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var IS_PURE = require('../internals/is-pure');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -24,7 +25,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.drop` method
 // https://github.com/tc39/proposal-iterator-helpers
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   drop: function drop(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));

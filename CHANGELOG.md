@@ -38,6 +38,7 @@
     - `DataView.prototype.getUint8Clamped`
     - `DataView.prototype.setUint8Clamped`
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
+- Fixed forced polyfilling of some iterator helpers that should return wrapped iterator in the pure version
 - Fixed and exposed [`AsyncIteratorPrototype` `core-js/configurator` option](https://github.com/zloirock/core-js#asynciterator-helpers), [#1268](https://github.com/zloirock/core-js/issues/1268)
 - Compat data improvements:
   - Sync [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as [supported](https://chromestatus.com/feature/5102502917177344) from V8 ~ Chrome 117

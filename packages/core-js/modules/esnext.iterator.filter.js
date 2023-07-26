@@ -6,6 +6,7 @@ var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
+var IS_PURE = require('../internals/is-pure');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -23,7 +24,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://github.com/tc39/proposal-iterator-helpers
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   filter: function filter(predicate) {
     anObject(this);
     aCallable(predicate);

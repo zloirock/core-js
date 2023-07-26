@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
+var IS_PURE = require('../internals/is-pure');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -32,7 +33,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.flatMap` method
 // https://github.com/tc39/proposal-iterator-helpers
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
     aCallable(mapper);
