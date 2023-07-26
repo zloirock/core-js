@@ -1973,13 +1973,18 @@ GLOBAL.tests = {
   }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
-    var params = new URLSearchParams('a=1&a=2');
+    var params = new URLSearchParams('a=1&a=2&b=3');
     params['delete']('a', 1);
+    // `undefined` case is a Chromium 117 bug
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    params['delete']('b', undefined);
     return params + '' === 'a=2';
   }],
   'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     var params = new URLSearchParams('a=1');
-    return params.has('a', 1) && !params.has('a', 2);
+    // `undefined` case is a Chromium 117 bug
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    return params.has('a', 1) && !params.has('a', 2) && params.has('a', undefined);
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;

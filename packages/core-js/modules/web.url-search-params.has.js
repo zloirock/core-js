@@ -10,7 +10,9 @@ var getAll = uncurryThis(URLSearchParamsPrototype.getAll);
 var $has = uncurryThis(URLSearchParamsPrototype.has);
 var params = new $URLSearchParams('a=1');
 
-if (params.has('a', 2)) {
+// `undefined` case is a Chromium 117 bug
+// https://bugs.chromium.org/p/v8/issues/detail?id=14222
+if (params.has('a', 2) || !params.has('a', undefined)) {
   defineBuiltIn(URLSearchParamsPrototype, 'has', function has(name /* , value */) {
     var length = arguments.length;
     var $value = length < 2 ? undefined : arguments[1];

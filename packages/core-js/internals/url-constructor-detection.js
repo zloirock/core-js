@@ -9,22 +9,25 @@ var ITERATOR = wellKnownSymbol('iterator');
 module.exports = !fails(function () {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
   var url = new URL('b?a=1&b=2&c=3', 'http://a');
-  var searchParams = url.searchParams;
-  var searchParams2 = new URLSearchParams('a=1&a=2');
+  var params = url.searchParams;
+  var params2 = new URLSearchParams('a=1&a=2&b=3');
   var result = '';
   url.pathname = 'c%20d';
-  searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+  params.forEach(function (value, key) {
+    params['delete']('b');
     result += key + value;
   });
-  searchParams2['delete']('a', 2);
-  return (IS_PURE && (!url.toJSON || !searchParams2.has('a', 1) || searchParams2.has('a', 2)))
-    || (!searchParams.size && (IS_PURE || !DESCRIPTORS))
-    || !searchParams.sort
+  params2['delete']('a', 2);
+  // `undefined` case is a Chromium 117 bug
+  // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+  params2['delete']('b', undefined);
+  return (IS_PURE && (!url.toJSON || !params2.has('a', 1) || params2.has('a', 2) || !params2.has('a', undefined) || params2.has('b')))
+    || (!params.size && (IS_PURE || !DESCRIPTORS))
+    || !params.sort
     || url.href !== 'http://a/c%20d?a=1&c=3'
-    || searchParams.get('c') !== '3'
+    || params.get('c') !== '3'
     || String(new URLSearchParams('?a=1')) !== 'a=1'
-    || !searchParams[ITERATOR]
+    || !params[ITERATOR]
     // throws in Edge
     || new URL('https://a@b').username !== 'a'
     || new URLSearchParams(new URLSearchParams('a=b')).get('a') !== 'b'

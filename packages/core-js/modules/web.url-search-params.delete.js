@@ -10,9 +10,12 @@ var append = uncurryThis(URLSearchParamsPrototype.append);
 var $delete = uncurryThis(URLSearchParamsPrototype['delete']);
 var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
 var push = uncurryThis([].push);
-var params = new $URLSearchParams('a=1&a=2');
+var params = new $URLSearchParams('a=1&a=2&b=3');
 
 params['delete']('a', 1);
+// `undefined` case is a Chromium 117 bug
+// https://bugs.chromium.org/p/v8/issues/detail?id=14222
+params['delete']('b', undefined);
 
 if (params + '' !== 'a=2') {
   defineBuiltIn(URLSearchParamsPrototype, 'delete', function (name /* , value */) {

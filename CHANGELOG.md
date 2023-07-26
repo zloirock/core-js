@@ -38,6 +38,7 @@
     - `DataView.prototype.getUint8Clamped`
     - `DataView.prototype.setUint8Clamped`
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
+- Fixed [a Chromium 117 bug](https://bugs.chromium.org/p/v8/issues/detail?id=14222) in `value` argument of `URLSearchParams.prototype.{ has, delete }`
 - Fixed forced polyfilling of some iterator helpers that should return wrapped iterator in the pure version
 - Fixed and exposed [`AsyncIteratorPrototype` `core-js/configurator` option](https://github.com/zloirock/core-js#asynciterator-helpers), [#1268](https://github.com/zloirock/core-js/issues/1268)
 - Compat data improvements:
