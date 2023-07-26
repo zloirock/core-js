@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var IS_PURE = require('../internals/is-pure');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -14,7 +15,7 @@ var push = uncurryThis([].push);
 
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-array-grouping
-$({ target: 'Map', stat: true }, {
+$({ target: 'Map', stat: true, forced: IS_PURE }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);
     aCallable(callbackfn);
