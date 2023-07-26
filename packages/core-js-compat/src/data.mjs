@@ -2070,6 +2070,7 @@ export const data = {
   'esnext.map.from': {
   },
   'esnext.map.group-by': {
+    chrome: '117',
   },
   'esnext.map.includes': {
   },
@@ -2147,6 +2148,7 @@ export const data = {
   'esnext.object.iterate-values': {
   },
   'esnext.object.group-by': {
+    chrome: '117',
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
