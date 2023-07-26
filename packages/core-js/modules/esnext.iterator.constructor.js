@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var global = require('../internals/global');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
+var getPrototypeOf = require('../internals/object-get-prototype-of');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
@@ -12,6 +13,7 @@ var IS_PURE = require('../internals/is-pure');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
+var $TypeError = TypeError;
 var NativeIterator = global.Iterator;
 
 // FF56- have non-standard global helper `Iterator`
@@ -23,6 +25,7 @@ var FORCED = IS_PURE
 
 var IteratorConstructor = function Iterator() {
   anInstance(this, IteratorPrototype);
+  if (getPrototypeOf(this) === IteratorPrototype) throw $TypeError('Abstract class Iterator not directly constructable');
 };
 
 if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) {

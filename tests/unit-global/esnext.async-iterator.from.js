@@ -1,4 +1,4 @@
-const { assign } = Object;
+const { assign, create } = Object;
 
 QUnit.test('AsyncIterator.from', assert => {
   const { from } = AsyncIterator;
@@ -13,7 +13,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.true(AsyncIterator.from([]) instanceof AsyncIterator, 'proxy, iterable');
 
-  const asyncIterator = assign(new AsyncIterator(), {
+  const asyncIterator = assign(create(AsyncIterator.prototype), {
     next: () => { /* empty */ },
   });
 

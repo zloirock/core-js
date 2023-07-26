@@ -9,8 +9,9 @@
 - [`Set` methods stage 3 proposal](https://github.com/tc39/proposal-set-methods), July 2023 TC39 meeting updates::
   - Throw on negative `Set` sizes, [proposal-set-methods/88](https://github.com/tc39/proposal-set-methods/pull/88)
   - Removed `IsCallable` check in `GetKeysIterator`, [proposal-set-methods/101](https://github.com/tc39/proposal-set-methods/pull/101)
-- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers), July 2023 TC39 meeting updates::
-  - Avoid creating observable `String` wrapper objects, [proposal-iterator-helpers/281](https://github.com/tc39/proposal-iterator-helpers/pull/281)
+- [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
+  - Avoid creating observable `String` wrapper objects, July 2023 TC39 meeting update, [proposal-iterator-helpers/281](https://github.com/tc39/proposal-iterator-helpers/pull/281)
+  - `Iterator` is not constructible from the active function object (works as an abstract class)
 - Async explicit resource management:
   - Built-ins:
     - `Symbol.asyncDispose`

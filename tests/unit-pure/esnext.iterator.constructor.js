@@ -1,4 +1,4 @@
-import { createIterator } from '../helpers/helpers';
+import { createIterator, nativeSubclass } from '../helpers/helpers';
 
 import Symbol from 'core-js-pure/es/symbol';
 import Iterator from 'core-js-pure/actual/iterator';
@@ -9,7 +9,12 @@ QUnit.test('Iterator', assert => {
 
   assert.true(Iterator.from(createIterator([1, 2, 3])) instanceof Iterator, 'From Proxy');
 
-  assert.true(new Iterator() instanceof Iterator, 'constructor');
+  if (nativeSubclass) {
+    const Sub = nativeSubclass(Iterator);
+    assert.true(new Sub() instanceof Iterator, 'abstract constructor');
+  }
+
+  assert.throws(() => new Iterator(), 'direct constructor throws');
   assert.throws(() => Iterator(), 'throws w/o `new`');
 });
 
