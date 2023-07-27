@@ -1,3 +1,4 @@
+'use strict';
 /* eslint-disable radix, regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -219,6 +220,40 @@ function createStringTrimMethodTest(METHOD_NAME) {
     return !WHITESPACES[METHOD_NAME]()
       && NOT_WHITESPACES[METHOD_NAME]() === NOT_WHITESPACES
       && WHITESPACES[METHOD_NAME].name === METHOD_NAME;
+  };
+}
+
+function createSetLike(size) {
+  return {
+    size: size,
+    has: function () {
+      return false;
+    },
+    keys: function () {
+      return {
+        next: function () {
+          return { done: true };
+        }
+      };
+    }
+  };
+}
+
+function createSetMethodTest(METHOD_NAME) {
+  return function () {
+    try {
+      new Set()[METHOD_NAME](createSetLike(0));
+      try {
+        // late spec change, early WebKit ~ Safari 17.0 beta implementation does not pass it
+        // https://github.com/tc39/proposal-set-methods/pull/88
+        new Set()[METHOD_NAME](createSetLike(-1));
+        return false;
+      } catch (error2) {
+        return true;
+      }
+    } catch (error) {
+      return false;
+    }
   };
 }
 
@@ -1531,6 +1566,18 @@ GLOBAL.tests = {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
+  'esnext.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.getFloat16;
+  }],
+  'esnext.data-view.get-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.getUint8Clamped;
+  }],
+  'esnext.data-view.set-float16': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.setFloat16;
+  }],
+  'esnext.data-view.set-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.setUint8Clamped;
+  }],
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },
@@ -1675,6 +1722,9 @@ GLOBAL.tests = {
   'esnext.math.fscale': function () {
     return Math.fscale;
   },
+  'esnext.math.f16round': function () {
+    return Math.f16round;
+  },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;
   },
@@ -1715,9 +1765,7 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference.v2': function () {
-    return Set.prototype.difference;
-  },
+  'esnext.set.difference.v2': createSetMethodTest('difference'),
   'esnext.set.every': function () {
     return Set.prototype.every;
   },
@@ -1730,18 +1778,12 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection.v2': function () {
+  'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
     return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) == '3,2';
-  },
-  'esnext.set.is-disjoint-from.v2': function () {
-    return Set.prototype.isDisjointFrom;
-  },
-  'esnext.set.is-subset-of.v2': function () {
-    return Set.prototype.isSubsetOf;
-  },
-  'esnext.set.is-superset-of.v2': function () {
-    return Set.prototype.isSupersetOf;
-  },
+  }],
+  'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
+  'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
+  'esnext.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
   'esnext.set.join': function () {
     return Set.prototype.join;
   },
@@ -1757,12 +1799,8 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference.v2': function () {
-    return Set.prototype.symmetricDifference;
-  },
-  'esnext.set.union.v2': function () {
-    return Set.prototype.union;
-  },
+  'esnext.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'esnext.set.union.v2': createSetMethodTest('union'),
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
@@ -1773,10 +1811,12 @@ GLOBAL.tests = {
     return String.dedent;
   },
   'esnext.symbol.async-dispose': function () {
-    return Symbol.dispose;
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'esnext.symbol.dispose': function () {
-    return Symbol.dispose;
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'esnext.symbol.is-registered-symbol': function () {
     return Symbol.isRegisteredSymbol;
@@ -1957,13 +1997,18 @@ GLOBAL.tests = {
   }],
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
-    var params = new URLSearchParams('a=1&a=2');
+    var params = new URLSearchParams('a=1&a=2&b=3');
     params['delete']('a', 1);
+    // `undefined` case is a Chromium 117 bug
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    params['delete']('b', undefined);
     return params + '' === 'a=2';
   }],
   'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     var params = new URLSearchParams('a=1');
-    return params.has('a', 1) && !params.has('a', 2);
+    // `undefined` case is a Chromium 117 bug
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14222
+    return params.has('a', 1) && !params.has('a', 2) && params.has('a', undefined);
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;

@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.32.0 - 2023.07.28](https://github.com/zloirock/core-js/releases/tag/v3.32.0)
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping), July 2023 TC39 meeting updates:
   - [Moved back to stage 3](https://github.com/tc39/proposal-array-grouping/issues/54)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection

@@ -5984,6 +5984,10 @@
   "esnext.bigint.range": {},
   "esnext.composite-key": {},
   "esnext.composite-symbol": {},
+  "esnext.data-view.get-float16": {},
+  "esnext.data-view.get-uint8-clamped": {},
+  "esnext.data-view.set-float16": {},
+  "esnext.data-view.set-uint8-clamped": {},
   "esnext.disposable-stack.constructor": {},
   "esnext.function.demethodize": {},
   "esnext.function.is-callable": {},
@@ -6013,23 +6017,114 @@
     "safari": "12.1",
     "samsung": "10.0"
   },
-  "esnext.iterator.constructor": {},
+  "esnext.iterator.constructor": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.iterator.as-indexed-pairs": {},
   "esnext.iterator.dispose": {},
-  "esnext.iterator.drop": {},
-  "esnext.iterator.every": {},
-  "esnext.iterator.filter": {},
-  "esnext.iterator.find": {},
-  "esnext.iterator.flat-map": {},
-  "esnext.iterator.for-each": {},
-  "esnext.iterator.from": {},
+  "esnext.iterator.drop": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.every": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.filter": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.find": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.flat-map": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.for-each": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.from": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.iterator.indexed": {},
-  "esnext.iterator.map": {},
+  "esnext.iterator.map": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.iterator.range": {},
-  "esnext.iterator.reduce": {},
-  "esnext.iterator.some": {},
-  "esnext.iterator.take": {},
-  "esnext.iterator.to-array": {},
+  "esnext.iterator.reduce": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.some": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.take": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
+  "esnext.iterator.to-array": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.iterator.to-async": {},
   "esnext.json.is-raw-json": {
     "android": "114",
@@ -6077,7 +6172,14 @@
   "esnext.map.find": {},
   "esnext.map.find-key": {},
   "esnext.map.from": {},
-  "esnext.map.group-by": {},
+  "esnext.map.group-by": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.map.includes": {},
   "esnext.map.key-by": {},
   "esnext.map.key-of": {},
@@ -6094,6 +6196,7 @@
   "esnext.math.deg-per-rad": {},
   "esnext.math.degrees": {},
   "esnext.math.fscale": {},
+  "esnext.math.f16round": {},
   "esnext.math.iaddh": {},
   "esnext.math.imulh": {},
   "esnext.math.isubh": {},
@@ -6130,7 +6233,14 @@
   "esnext.object.iterate-entries": {},
   "esnext.object.iterate-keys": {},
   "esnext.object.iterate-values": {},
-  "esnext.object.group-by": {},
+  "esnext.object.group-by": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "edge": "117",
+    "electron": "27.0",
+    "opera": "103"
+  },
   "esnext.observable": {},
   "esnext.observable.constructor": {},
   "esnext.observable.from": {},
@@ -6188,56 +6298,28 @@
   "esnext.reflect.metadata": {},
   "esnext.set.add-all": {},
   "esnext.set.delete-all": {},
-  "esnext.set.difference.v2": {
-    "bun": "0.6.0",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.difference.v2": {},
   "esnext.set.difference": {},
   "esnext.set.every": {},
   "esnext.set.filter": {},
   "esnext.set.find": {},
   "esnext.set.from": {},
-  "esnext.set.intersection.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.intersection.v2": {},
   "esnext.set.intersection": {},
-  "esnext.set.is-disjoint-from.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.is-disjoint-from.v2": {},
   "esnext.set.is-disjoint-from": {},
-  "esnext.set.is-subset-of.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.is-subset-of.v2": {},
   "esnext.set.is-subset-of": {},
-  "esnext.set.is-superset-of.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.is-superset-of.v2": {},
   "esnext.set.is-superset-of": {},
   "esnext.set.join": {},
   "esnext.set.map": {},
   "esnext.set.of": {},
   "esnext.set.reduce": {},
   "esnext.set.some": {},
-  "esnext.set.symmetric-difference.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.symmetric-difference.v2": {},
   "esnext.set.symmetric-difference": {},
-  "esnext.set.union.v2": {
-    "bun": "0.5.7",
-    "ios": "17.0",
-    "safari": "17.0"
-  },
+  "esnext.set.union.v2": {},
   "esnext.set.union": {},
   "esnext.string.at": {},
   "esnext.string.cooked": {},
@@ -6323,8 +6405,12 @@
     "safari": "16.4",
     "samsung": "22.0"
   },
-  "esnext.symbol.async-dispose": {},
-  "esnext.symbol.dispose": {},
+  "esnext.symbol.async-dispose": {
+    "node": "20.5.0"
+  },
+  "esnext.symbol.dispose": {
+    "node": "20.5.0"
+  },
   "esnext.symbol.is-registered-symbol": {},
   "esnext.symbol.is-registered": {},
   "esnext.symbol.is-well-known-symbol": {},
