@@ -11,7 +11,7 @@ var setUint16 = uncurryThis(DataView.prototype.setUint16);
 
 // `DataView.prototype.setFloat16` method
 // https://github.com/tc39/proposal-float16array
-$({ target: 'DataView', proto: true, forced: true }, {
+$({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
     if (classof(this) !== 'DataView') throw $TypeError('Incorrect receiver');
     var offset = toIndex(byteOffset);
