@@ -1,9 +1,9 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
 
-var createEmptySetLike = function () {
+var createSetLike = function (size) {
   return {
-    size: 0,
+    size: size,
     has: function () {
       return false;
     },
@@ -18,10 +18,17 @@ var createEmptySetLike = function () {
 };
 
 module.exports = function (name) {
+  var Set = getBuiltIn('Set');
   try {
-    var Set = getBuiltIn('Set');
-    new Set()[name](createEmptySetLike());
-    return true;
+    new Set()[name](createSetLike(0));
+    try {
+      // late spec change, early Safari implementation does not pass it
+      // https://github.com/tc39/proposal-set-methods/pull/88
+      new Set()[name](createSetLike(-1));
+      return false;
+    } catch (error2) {
+      return true;
+    }
   } catch (error) {
     return false;
   }

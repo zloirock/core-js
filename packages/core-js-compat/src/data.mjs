@@ -2200,8 +2200,6 @@ export const data = {
   'esnext.set.delete-all': {
   },
   'esnext.set.difference.v2': {
-    bun: '0.6.0',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
@@ -2215,29 +2213,21 @@ export const data = {
   'esnext.set.from': {
   },
   'esnext.set.intersection.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
   'esnext.set.is-superset-of.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
@@ -2253,15 +2243,11 @@ export const data = {
   'esnext.set.some': {
   },
   'esnext.set.symmetric-difference.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
   'esnext.set.union.v2': {
-    bun: '0.5.7',
-    safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {

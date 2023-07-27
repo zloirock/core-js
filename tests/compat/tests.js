@@ -223,6 +223,40 @@ function createStringTrimMethodTest(METHOD_NAME) {
   };
 }
 
+function createSetLike(size) {
+  return {
+    size: size,
+    has: function () {
+      return false;
+    },
+    keys: function () {
+      return {
+        next: function () {
+          return { done: true };
+        }
+      };
+    }
+  };
+}
+
+function createSetMethodTest(METHOD_NAME) {
+  return function () {
+    try {
+      new Set()[METHOD_NAME](createSetLike(0));
+      try {
+        // late spec change, early Safari implementation does not pass it
+        // https://github.com/tc39/proposal-set-methods/pull/88
+        new Set()[METHOD_NAME](createSetLike(-1));
+        return false;
+      } catch (error2) {
+        return true;
+      }
+    } catch (error) {
+      return false;
+    }
+  };
+}
+
 function NATIVE_RAW_JSON() {
   var unsafeInt = '9007199254740993';
   var raw = JSON.rawJSON(unsafeInt);
@@ -1731,9 +1765,7 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference.v2': function () {
-    return Set.prototype.difference;
-  },
+  'esnext.set.difference.v2': createSetMethodTest('difference'),
   'esnext.set.every': function () {
     return Set.prototype.every;
   },
@@ -1746,18 +1778,12 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection.v2': function () {
+  'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
     return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) == '3,2';
-  },
-  'esnext.set.is-disjoint-from.v2': function () {
-    return Set.prototype.isDisjointFrom;
-  },
-  'esnext.set.is-subset-of.v2': function () {
-    return Set.prototype.isSubsetOf;
-  },
-  'esnext.set.is-superset-of.v2': function () {
-    return Set.prototype.isSupersetOf;
-  },
+  }],
+  'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
+  'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
+  'esnext.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
   'esnext.set.join': function () {
     return Set.prototype.join;
   },
@@ -1773,12 +1799,8 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference.v2': function () {
-    return Set.prototype.symmetricDifference;
-  },
-  'esnext.set.union.v2': function () {
-    return Set.prototype.union;
-  },
+  'esnext.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'esnext.set.union.v2': createSetMethodTest('union'),
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
