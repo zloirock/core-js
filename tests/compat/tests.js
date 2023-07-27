@@ -244,7 +244,7 @@ function createSetMethodTest(METHOD_NAME) {
     try {
       new Set()[METHOD_NAME](createSetLike(0));
       try {
-        // late spec change, early Safari implementation does not pass it
+        // late spec change, early WebKit ~ Safari 17.0 beta implementation does not pass it
         // https://github.com/tc39/proposal-set-methods/pull/88
         new Set()[METHOD_NAME](createSetLike(-1));
         return false;

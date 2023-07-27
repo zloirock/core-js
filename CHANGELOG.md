@@ -13,18 +13,8 @@
   - Avoid creating observable `String` wrapper objects, July 2023 TC39 meeting update, [proposal-iterator-helpers/281](https://github.com/tc39/proposal-iterator-helpers/pull/281)
   - `Iterator` is not constructible from the active function object (works as an abstract class)
 - Async explicit resource management:
-  - Built-ins:
-    - `Symbol.asyncDispose`
-    - `AsyncDisposableStack`
-      - `AsyncDisposableStack.prototype.disposeAsync`
-      - `AsyncDisposableStack.prototype.use`
-      - `AsyncDisposableStack.prototype.adopt`
-      - `AsyncDisposableStack.prototype.defer`
-      - `AsyncDisposableStack.prototype.move`
-      - `AsyncDisposableStack.prototype[@@asyncDispose]`
-    - `AsyncIterator.prototype[@@asyncDispose]`
   - Moved back into [the initial proposal](https://github.com/tc39/proposal-explicit-resource-management) -> moved to stage 3, [proposal-explicit-resource-management/154](https://github.com/tc39/proposal-explicit-resource-management/pull/154)
-  - Added `/actual/` namespace entries, disabled forced replacement
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
   - Ignore return value of `[@@dispose]()` method when hint is `async-dispose`, [proposal-explicit-resource-management/180](https://github.com/tc39/proposal-explicit-resource-management/pull/180)
   - Added ticks for empty resources, [proposal-explicit-resource-management/163](https://github.com/tc39/proposal-explicit-resource-management/pull/163)
 - Added some methods from [`Float16Array` stage 3 proposal](https://github.com/tc39/proposal-float16array):
@@ -39,7 +29,7 @@
     - `DataView.prototype.setUint8Clamped`
 - Used strict mode in some missed cases, [#1269](https://github.com/zloirock/core-js/issues/1269)
 - Fixed [a Chromium 117 bug](https://bugs.chromium.org/p/v8/issues/detail?id=14222) in `value` argument of `URLSearchParams.prototype.{ has, delete }`
-- Fixed early WebKit `Set` methods implementation by the actual spec
+- Fixed early WebKit ~ Safari 17.0 beta `Set` methods implementation by the actual spec
 - Fixed incorrect `Symbol.{ dispose, asyncDispose }` descriptors from [NodeJS 20.4](https://github.com/nodejs/node/issues/48699) / transpilers helpers / userland code
 - Fixed forced polyfilling of some iterator helpers that should return wrapped iterator in the pure version
 - Fixed and exposed [`AsyncIteratorPrototype` `core-js/configurator` option](https://github.com/zloirock/core-js#asynciterator-helpers), [#1268](https://github.com/zloirock/core-js/issues/1268)
