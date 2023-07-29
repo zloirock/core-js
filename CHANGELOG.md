@@ -9,7 +9,7 @@
 - [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers), July 2023 TC39 meeting updates:
   - [Moved to stage 3](https://github.com/tc39/proposal-promise-with-resolvers/pull/18)
   - Added `/actual/` namespaces entries, unconditional forced replacement changed to feature detection
-- [`Set` methods stage 3 proposal](https://github.com/tc39/proposal-set-methods), July 2023 TC39 meeting updates::
+- [`Set` methods stage 3 proposal](https://github.com/tc39/proposal-set-methods), July 2023 TC39 meeting updates:
   - Throw on negative `Set` sizes, [proposal-set-methods/88](https://github.com/tc39/proposal-set-methods/pull/88)
   - Removed `IsCallable` check in `GetKeysIterator`, [proposal-set-methods/101](https://github.com/tc39/proposal-set-methods/pull/101)
 - [Iterator Helpers stage 3 proposal](https://github.com/tc39/proposal-iterator-helpers):
