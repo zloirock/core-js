@@ -2167,6 +2167,7 @@ export const data = {
   'esnext.promise.try': {
   },
   'esnext.promise.with-resolvers': {
+    bun: '0.7.1',
   },
   // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
