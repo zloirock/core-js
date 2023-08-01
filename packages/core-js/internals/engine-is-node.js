@@ -1,4 +1,5 @@
 'use strict';
+var global = require('../internals/global');
 var classof = require('../internals/classof-raw');
 
-module.exports = typeof process != 'undefined' && classof(process) === 'process';
+module.exports = classof(global.process) === 'process';
