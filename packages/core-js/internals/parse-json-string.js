@@ -29,19 +29,19 @@ module.exports = function (source, i) {
   var value = '';
   while (i < source.length) {
     var chr = at(source, i);
-    if (chr == '\\') {
+    if (chr === '\\') {
       var twoChars = slice(source, i, i + 2);
       if (hasOwn(codePoints, twoChars)) {
         value += codePoints[twoChars];
         i += 2;
-      } else if (twoChars == '\\u') {
+      } else if (twoChars === '\\u') {
         i += 2;
         var fourHexDigits = slice(source, i, i + 4);
         if (!exec(IS_4_HEX_DIGITS, fourHexDigits)) throw $SyntaxError('Bad Unicode escape at: ' + i);
         value += fromCharCode($parseInt(fourHexDigits, 16));
         i += 4;
       } else throw $SyntaxError('Unknown escape sequence: "' + twoChars + '"');
-    } else if (chr == '"') {
+    } else if (chr === '"') {
       unterminated = false;
       i++;
       break;

@@ -62,7 +62,7 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
     var set1 = new global.Set([7]);
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation(Object(7));
-    return set2 == set1 || !set2.has(7) || typeof number != 'object' || number != 7;
+    return set2 === set1 || !set2.has(7) || typeof number != 'object' || number !== 7;
   }) && structuredCloneImplementation;
 };
 
@@ -78,7 +78,7 @@ var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
 var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
-    return test.name != 'AggregateError' || test.errors[0] != 1 || test.message != PERFORMANCE_MARK || test.cause != 3;
+    return test.name !== 'AggregateError' || test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
   });
 };
 
@@ -440,7 +440,7 @@ var structuredCloneInternal = function (value, map, transferredBuffers) {
       if (hasOwn(value, 'cause')) {
         createNonEnumerableProperty(cloned, 'cause', structuredCloneInternal(value.cause, map, transferredBuffers));
       }
-      if (name == 'AggregateError') {
+      if (name === 'AggregateError') {
         cloned.errors = structuredCloneInternal(value.errors, map, transferredBuffers);
       } // break omitted
     case 'DOMException':
@@ -508,7 +508,7 @@ var replacePlaceholders = function (value, map) {
       if (hasOwn(value, 'cause')) {
         value.cause = replacePlaceholders(value.cause, map);
       }
-      if (value.name == 'AggregateError') {
+      if (value.name === 'AggregateError') {
         value.errors = replacePlaceholders(value.errors, map);
       } // break omitted
     case 'DOMException':

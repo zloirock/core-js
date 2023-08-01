@@ -85,7 +85,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     // TODO: ES2018 increased the maximum number of fraction digits to 100, need to improve the implementation
     if (fractDigits < 0 || fractDigits > 20) throw $RangeError('Incorrect fraction digits');
     // eslint-disable-next-line no-self-compare -- NaN check
-    if (number != number) return 'NaN';
+    if (number !== number) return 'NaN';
     if (number <= -1e21 || number >= 1e21) return $String(number);
     if (number < 0) {
       sign = '-';

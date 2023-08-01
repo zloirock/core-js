@@ -28,7 +28,7 @@ var PENDING = 'pending';
 
 var getPendingDisposableStackInternalState = function (stack) {
   var internalState = getDisposableStackInternalState(stack);
-  if (internalState.state == DISPOSED) throw $ReferenceError(DISPOSABLE_STACK + ' already disposed');
+  if (internalState.state === DISPOSED) throw $ReferenceError(DISPOSABLE_STACK + ' already disposed');
   return internalState;
 };
 
@@ -47,7 +47,7 @@ var DisposableStackPrototype = $DisposableStack.prototype;
 defineBuiltIns(DisposableStackPrototype, {
   dispose: function dispose() {
     var internalState = getDisposableStackInternalState(this);
-    if (internalState.state == DISPOSED) return;
+    if (internalState.state === DISPOSED) return;
     internalState.state = DISPOSED;
     if (!DESCRIPTORS) this.disposed = true;
     var stack = internalState.stack;
@@ -102,7 +102,7 @@ defineBuiltIns(DisposableStackPrototype, {
 if (DESCRIPTORS) defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
   configurable: true,
   get: function disposed() {
-    return getDisposableStackInternalState(this).state == DISPOSED;
+    return getDisposableStackInternalState(this).state === DISPOSED;
   }
 });
 

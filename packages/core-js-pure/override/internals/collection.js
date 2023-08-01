@@ -8,6 +8,7 @@ var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
+var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
 var forEach = require('../internals/array-iteration').forEach;
@@ -38,7 +39,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
         type: CONSTRUCTOR_NAME,
         collection: new NativeConstructor()
       });
-      if (iterable != undefined) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
+      if (!isNullOrUndefined(iterable)) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
     });
 
     var Prototype = Constructor.prototype;
@@ -46,11 +47,11 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
     forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
-      var IS_ADDER = KEY == 'add' || KEY == 'set';
-      if (KEY in NativePrototype && !(IS_WEAK && KEY == 'clear')) {
+      var IS_ADDER = KEY === 'add' || KEY === 'set';
+      if (KEY in NativePrototype && !(IS_WEAK && KEY === 'clear')) {
         createNonEnumerableProperty(Prototype, KEY, function (a, b) {
           var collection = getInternalState(this).collection;
-          if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY == 'get' ? undefined : false;
+          if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY === 'get' ? undefined : false;
           var result = collection[KEY](a === 0 ? 0 : a, b);
           return IS_ADDER ? this : result;
         });

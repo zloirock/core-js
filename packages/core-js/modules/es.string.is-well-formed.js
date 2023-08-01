@@ -15,9 +15,9 @@ $({ target: 'String', proto: true }, {
     for (var i = 0; i < length; i++) {
       var charCode = charCodeAt(S, i);
       // single UTF-16 code unit
-      if ((charCode & 0xF800) != 0xD800) continue;
+      if ((charCode & 0xF800) !== 0xD800) continue;
       // unpaired surrogate
-      if (charCode >= 0xDC00 || ++i >= length || (charCodeAt(S, i) & 0xFC00) != 0xDC00) return false;
+      if (charCode >= 0xDC00 || ++i >= length || (charCodeAt(S, i) & 0xFC00) !== 0xDC00) return false;
     } return true;
   }
 });

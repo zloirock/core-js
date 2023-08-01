@@ -13,6 +13,6 @@ var FORCED = !($atanh && 1 / $atanh(-0) < 0);
 $({ target: 'Math', stat: true, forced: FORCED }, {
   atanh: function atanh(x) {
     var n = +x;
-    return n == 0 ? n : log((1 + n) / (1 - n)) / 2;
+    return n === 0 ? n : log((1 + n) / (1 - n)) / 2;
   }
 });

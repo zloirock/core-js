@@ -30,9 +30,9 @@ $({ target: 'String', proto: true, forced: TO_STRING_CONVERSION_BUG }, {
     for (var i = 0; i < length; i++) {
       var charCode = charCodeAt(S, i);
       // single UTF-16 code unit
-      if ((charCode & 0xF800) != 0xD800) result[i] = charAt(S, i);
+      if ((charCode & 0xF800) !== 0xD800) result[i] = charAt(S, i);
       // unpaired surrogate
-      else if (charCode >= 0xDC00 || i + 1 >= length || (charCodeAt(S, i + 1) & 0xFC00) != 0xDC00) result[i] = REPLACEMENT_CHARACTER;
+      else if (charCode >= 0xDC00 || i + 1 >= length || (charCodeAt(S, i + 1) & 0xFC00) !== 0xDC00) result[i] = REPLACEMENT_CHARACTER;
       // surrogate pair
       else {
         result[i] = charAt(S, i);

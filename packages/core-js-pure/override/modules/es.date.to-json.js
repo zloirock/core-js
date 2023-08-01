@@ -20,6 +20,6 @@ $({ target: 'Date', proto: true, forced: FORCED }, {
     var O = toObject(this);
     var pv = toPrimitive(O, 'number');
     return typeof pv == 'number' && !isFinite(pv) ? null :
-      (!('toISOString' in O) && classof(O) == 'Date') ? call(toISOString, O) : O.toISOString();
+      (!('toISOString' in O) && classof(O) === 'Date') ? call(toISOString, O) : O.toISOString();
   }
 });

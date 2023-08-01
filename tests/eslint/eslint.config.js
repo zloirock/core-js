@@ -104,6 +104,8 @@ const base = {
   'dot-notation': [ERROR, { allowKeywords: true }],
   // enforce newline before and after dot
   'dot-location': [ERROR, 'property'],
+  // require the use of === and !==
+  eqeqeq: [ERROR, 'smart'],
   // disallow use of arguments.caller or arguments.callee
   'no-caller': ERROR,
   // disallow lexical declarations in case/default clauses

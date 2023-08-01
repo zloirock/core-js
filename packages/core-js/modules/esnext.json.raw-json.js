@@ -36,7 +36,7 @@ var IS_WHITESPACE = /^[\t\n\r ]$/;
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {
     var jsonString = toString(text);
-    if (jsonString == '' || exec(IS_WHITESPACE, at(jsonString, 0)) || exec(IS_WHITESPACE, at(jsonString, jsonString.length - 1))) {
+    if (jsonString === '' || exec(IS_WHITESPACE, at(jsonString, 0)) || exec(IS_WHITESPACE, at(jsonString, jsonString.length - 1))) {
       throw $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
@@ -69,10 +69,10 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
 
     for (var i = 0; i < length; i++) {
       var chr = at(json, i);
-      if (chr == '"') {
+      if (chr === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
-        result += slice(string, 0, MARK_LENGTH) == MARK
+        result += slice(string, 0, MARK_LENGTH) === MARK
           ? rawStrings[slice(string, MARK_LENGTH)]
           : '"' + string + '"';
         i = end;

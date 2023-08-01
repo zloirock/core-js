@@ -132,7 +132,7 @@ Context.prototype = {
     var nodes = {};
     while (i < source.length) {
       i = this.until(['"', '}'], i);
-      if (at(source, i) == '}' && !expectKeypair) {
+      if (at(source, i) === '}' && !expectKeypair) {
         i++;
         break;
       }
@@ -148,10 +148,10 @@ Context.prototype = {
       createProperty(object, key, result.value);
       i = this.until([',', '}'], result.end);
       var chr = at(source, i);
-      if (chr == ',') {
+      if (chr === ',') {
         expectKeypair = true;
         i++;
-      } else if (chr == '}') {
+      } else if (chr === '}') {
         i++;
         break;
       }
@@ -166,7 +166,7 @@ Context.prototype = {
     var nodes = [];
     while (i < source.length) {
       i = this.skip(IS_WHITESPACE, i);
-      if (at(source, i) == ']' && !expectElement) {
+      if (at(source, i) === ']' && !expectElement) {
         i++;
         break;
       }
@@ -174,10 +174,10 @@ Context.prototype = {
       push(nodes, result);
       push(array, result.value);
       i = this.until([',', ']'], result.end);
-      if (at(source, i) == ',') {
+      if (at(source, i) === ',') {
         expectElement = true;
         i++;
-      } else if (at(source, i) == ']') {
+      } else if (at(source, i) === ']') {
         i++;
         break;
       }
@@ -193,17 +193,17 @@ Context.prototype = {
     var source = this.source;
     var startIndex = this.index;
     var i = startIndex;
-    if (at(source, i) == '-') i++;
-    if (at(source, i) == '0') i++;
+    if (at(source, i) === '-') i++;
+    if (at(source, i) === '0') i++;
     else if (exec(IS_NON_ZERO_DIGIT, at(source, i))) i = this.skip(IS_DIGIT, ++i);
     else throw SyntaxError('Failed to parse number at: ' + i);
-    if (at(source, i) == '.') i = this.skip(IS_DIGIT, ++i);
-    if (at(source, i) == 'e' || at(source, i) == 'E') {
+    if (at(source, i) === '.') i = this.skip(IS_DIGIT, ++i);
+    if (at(source, i) === 'e' || at(source, i) === 'E') {
       i++;
-      if (at(source, i) == '+' || at(source, i) == '-') i++;
+      if (at(source, i) === '+' || at(source, i) === '-') i++;
       var exponentStartIndex = i;
       i = this.skip(IS_DIGIT, i);
-      if (exponentStartIndex == i) throw SyntaxError("Failed to parse number's exponent value at: " + i);
+      if (exponentStartIndex === i) throw SyntaxError("Failed to parse number's exponent value at: " + i);
     }
     return this.node(PRIMITIVE, Number(slice(source, startIndex, i)), startIndex, i);
   },
@@ -211,7 +211,7 @@ Context.prototype = {
     var keyword = '' + value;
     var index = this.index;
     var endIndex = index + keyword.length;
-    if (slice(this.source, index, endIndex) != keyword) throw SyntaxError('Failed to parse value at: ' + index);
+    if (slice(this.source, index, endIndex) !== keyword) throw SyntaxError('Failed to parse value at: ' + index);
     return this.node(PRIMITIVE, value, index, endIndex);
   },
   skip: function (regex, i) {
@@ -222,7 +222,7 @@ Context.prototype = {
   until: function (array, i) {
     i = this.skip(IS_WHITESPACE, i);
     var chr = at(this.source, i);
-    for (var j = 0; j < array.length; j++) if (array[j] == chr) return i;
+    for (var j = 0; j < array.length; j++) if (array[j] === chr) return i;
     throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   }
 };

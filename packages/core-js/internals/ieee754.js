@@ -18,9 +18,9 @@ var pack = function (number, mantissaLength, bytes) {
   var exponent, mantissa, c;
   number = abs(number);
   // eslint-disable-next-line no-self-compare -- NaN check
-  if (number != number || number === Infinity) {
+  if (number !== number || number === Infinity) {
     // eslint-disable-next-line no-self-compare -- NaN check
-    mantissa = number != number ? 1 : 0;
+    mantissa = number !== number ? 1 : 0;
     exponent = eMax;
   } else {
     exponent = floor(log(number) / LN2);

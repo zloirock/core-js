@@ -7,7 +7,7 @@ var arrayMethodIsStrict = require('../internals/array-method-is-strict');
 
 var nativeJoin = uncurryThis([].join);
 
-var ES3_STRINGS = IndexedObject != Object;
+var ES3_STRINGS = IndexedObject !== Object;
 var FORCED = ES3_STRINGS || !arrayMethodIsStrict('join', ',');
 
 // `Array.prototype.join` method

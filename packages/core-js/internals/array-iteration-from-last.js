@@ -6,7 +6,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 // `Array.prototype.{ findLast, findLastIndex }` methods implementation
 var createMethod = function (TYPE) {
-  var IS_FIND_LAST_INDEX = TYPE == 1;
+  var IS_FIND_LAST_INDEX = TYPE === 1;
   return function ($this, callbackfn, that) {
     var O = toObject($this);
     var self = IndexedObject(O);

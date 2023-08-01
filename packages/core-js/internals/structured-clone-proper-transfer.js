@@ -14,5 +14,5 @@ module.exports = !!structuredClone && !fails(function () {
   if ((IS_DENO && V8 > 92) || (IS_NODE && V8 > 94) || (IS_BROWSER && V8 > 97)) return false;
   var buffer = new ArrayBuffer(8);
   var clone = structuredClone(buffer, { transfer: [buffer] });
-  return buffer.byteLength != 0 || clone.byteLength != 8;
+  return buffer.byteLength !== 0 || clone.byteLength !== 8;
 });

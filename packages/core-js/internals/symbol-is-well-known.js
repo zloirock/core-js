@@ -27,6 +27,7 @@ module.exports = function isWellKnownSymbol(value) {
   try {
     var symbol = thisSymbolValue(value);
     for (var j = 0, keys = getOwnPropertyNames(WellKnownSymbolsStore), keysLength = keys.length; j < keysLength; j++) {
+      // eslint-disable-next-line eqeqeq -- polyfilled symbols case
       if (WellKnownSymbolsStore[keys[j]] == symbol) return true;
     }
   } catch (error) { /* empty */ }

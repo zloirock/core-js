@@ -30,7 +30,7 @@ var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
     // eslint-disable-next-line es/no-weak-map, unicorn/require-post-message-target-origin -- safe
     new MessageChannel().port1.postMessage(new WeakMap());
   } catch (error) {
-    if (error.name == DATA_CLONE_ERR && error.code == 25) return error.constructor;
+    if (error.name === DATA_CLONE_ERR && error.code === 25) return error.constructor;
   }
 })();
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;

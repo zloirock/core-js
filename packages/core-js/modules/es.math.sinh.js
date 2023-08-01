@@ -9,7 +9,7 @@ var E = Math.E;
 
 var FORCED = fails(function () {
   // eslint-disable-next-line es/no-math-sinh -- required for testing
-  return Math.sinh(-2e-17) != -2e-17;
+  return Math.sinh(-2e-17) !== -2e-17;
 });
 
 // `Math.sinh` method

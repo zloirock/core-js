@@ -101,8 +101,8 @@ if (NATIVE_WEAK_MAP) if (IS_IE11) {
         else if (isSealed(key)) arrayIntegrityLevel = SEALED;
       }
       nativeSet(this, key, value);
-      if (arrayIntegrityLevel == FROZEN) freeze(key);
-      if (arrayIntegrityLevel == SEALED) seal(key);
+      if (arrayIntegrityLevel === FROZEN) freeze(key);
+      if (arrayIntegrityLevel === SEALED) seal(key);
       return this;
     }
   });

@@ -23,7 +23,7 @@ $({ target: 'Number', stat: true, forced: true }, {
     var R, mathNum;
     if (typeof string != 'string') throw $TypeError(INVALID_NUMBER_REPRESENTATION);
     if (!string.length) throw $SyntaxError(INVALID_NUMBER_REPRESENTATION);
-    if (charAt(string, 0) == '-') {
+    if (charAt(string, 0) === '-') {
       sign = -1;
       string = stringSlice(string, 1);
       if (!string.length) throw $SyntaxError(INVALID_NUMBER_REPRESENTATION);

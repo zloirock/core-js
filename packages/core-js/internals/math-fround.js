@@ -24,6 +24,6 @@ module.exports = Math.fround || function fround(x) {
   a = (1 + EPSILON32 / EPSILON) * $abs;
   result = a - (a - $abs);
   // eslint-disable-next-line no-self-compare -- NaN check
-  if (result > MAX32 || result != result) return $sign * Infinity;
+  if (result > MAX32 || result !== result) return $sign * Infinity;
   return $sign * result;
 };

@@ -47,7 +47,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
     throw $RangeError(INCORRECT_RANGE);
   }
   // eslint-disable-next-line no-self-compare -- NaN check
-  var hitsEnd = start != start || end != end || step != step || (end > start) !== (step > zero);
+  var hitsEnd = start !== start || end !== end || step !== step || (end > start) !== (step > zero);
   setInternalState(this, {
     type: NUMERIC_RANGE_ITERATOR,
     start: start,

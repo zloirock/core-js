@@ -34,7 +34,7 @@ $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
     anObject(args);
     var newTarget = arguments.length < 3 ? Target : aConstructor(arguments[2]);
     if (ARGS_BUG && !NEW_TARGET_BUG) return nativeConstruct(Target, args, newTarget);
-    if (Target == newTarget) {
+    if (Target === newTarget) {
       // w/o altered newTarget, optimization for 0-4 arguments
       switch (args.length) {
         case 0: return new Target();

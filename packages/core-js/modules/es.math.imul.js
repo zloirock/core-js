@@ -6,7 +6,7 @@ var fails = require('../internals/fails');
 var $imul = Math.imul;
 
 var FORCED = fails(function () {
-  return $imul(0xFFFFFFFF, 5) != -5 || $imul.length != 2;
+  return $imul(0xFFFFFFFF, 5) !== -5 || $imul.length !== 2;
 });
 
 // `Math.imul` method

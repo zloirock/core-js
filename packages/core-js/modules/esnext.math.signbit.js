@@ -7,6 +7,6 @@ $({ target: 'Math', stat: true, forced: true }, {
   signbit: function signbit(x) {
     var n = +x;
     // eslint-disable-next-line no-self-compare -- NaN check
-    return n == n && n == 0 ? 1 / n == -Infinity : n < 0;
+    return n === n && n === 0 ? 1 / n === -Infinity : n < 0;
   }
 });

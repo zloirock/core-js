@@ -14,7 +14,7 @@ if (DESCRIPTORS) {
     get: function lastIndex() {
       var O = toObject(this);
       var len = lengthOfArrayLike(O);
-      return len == 0 ? 0 : len - 1;
+      return len === 0 ? 0 : len - 1;
     }
   });
 

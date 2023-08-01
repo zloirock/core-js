@@ -10,7 +10,7 @@ var $fromCodePoint = String.fromCodePoint;
 var join = uncurryThis([].join);
 
 // length should be 1, old FF problem
-var INCORRECT_LENGTH = !!$fromCodePoint && $fromCodePoint.length != 1;
+var INCORRECT_LENGTH = !!$fromCodePoint && $fromCodePoint.length !== 1;
 
 // `String.fromCodePoint` method
 // https://tc39.es/ecma262/#sec-string.fromcodepoint

@@ -11,6 +11,6 @@ $({ target: 'Math', stat: true }, {
     var n = +x;
     var a = expm1(n);
     var b = expm1(-n);
-    return a == Infinity ? 1 : b == Infinity ? -1 : (a - b) / (exp(n) + exp(-n));
+    return a === Infinity ? 1 : b === Infinity ? -1 : (a - b) / (exp(n) + exp(-n));
   }
 });

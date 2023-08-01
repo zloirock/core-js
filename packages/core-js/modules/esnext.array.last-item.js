@@ -14,12 +14,12 @@ if (DESCRIPTORS) {
     get: function lastItem() {
       var O = toObject(this);
       var len = lengthOfArrayLike(O);
-      return len == 0 ? undefined : O[len - 1];
+      return len === 0 ? undefined : O[len - 1];
     },
     set: function lastItem(value) {
       var O = toObject(this);
       var len = lengthOfArrayLike(O);
-      return O[len == 0 ? 0 : len - 1] = value;
+      return O[len === 0 ? 0 : len - 1] = value;
     }
   });
 

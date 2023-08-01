@@ -5,5 +5,5 @@
 module.exports = Math.sign || function sign(x) {
   var n = +x;
   // eslint-disable-next-line no-self-compare -- NaN check
-  return n == 0 || n != n ? n : n < 0 ? -1 : 1;
+  return n === 0 || n !== n ? n : n < 0 ? -1 : 1;
 };

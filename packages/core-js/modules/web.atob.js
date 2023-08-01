@@ -46,10 +46,10 @@ $({ global: true, bind: true, enumerable: true, forced: NO_SPACES_IGNORE || NO_E
     var position = 0;
     var bc = 0;
     var chr, bs;
-    if (string.length % 4 == 0) {
+    if (string.length % 4 === 0) {
       string = replace(string, finalEq, '');
     }
-    if (string.length % 4 == 1 || exec(disallowed, string)) {
+    if (string.length % 4 === 1 || exec(disallowed, string)) {
       throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
     }
     while (chr = charAt(string, position++)) {
