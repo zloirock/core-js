@@ -1,11 +1,22 @@
 'use strict';
 // IEEE754 conversions based on https://github.com/feross/ieee754
+var trunc = require("../internals/math-trunc");
+
 var $Array = Array;
 var abs = Math.abs;
 var pow = Math.pow;
+var sign = Math.sign;
 var floor = Math.floor;
 var log = Math.log;
 var LN2 = Math.LN2;
+
+var roundToEven = function (number) {
+  var truncated = trunc(number);
+  var delta = abs(number - truncated);
+  if (delta > 0.5 || delta === 0.5 && truncated % 2 !== 0) {
+    return truncated + sign(number);
+  } return truncated;
+}
 
 var pack = function (number, mantissaLength, bytes) {
   var buffer = $Array(bytes);
@@ -42,10 +53,10 @@ var pack = function (number, mantissaLength, bytes) {
       mantissa = 0;
       exponent = eMax;
     } else if (exponent + eBias >= 1) {
-      mantissa = (number * c - 1) * pow(2, mantissaLength);
+      mantissa = roundToEven((number * c - 1) * pow(2, mantissaLength));
       exponent = exponent + eBias;
     } else {
-      mantissa = number * pow(2, eBias - 1) * pow(2, mantissaLength);
+      mantissa = roundToEven(number * pow(2, eBias - 1) * pow(2, mantissaLength));
       exponent = 0;
     }
   }
