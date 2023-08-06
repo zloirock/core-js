@@ -1,5 +1,8 @@
 'use strict';
 // IEEE754 conversions based on https://github.com/feross/ieee754
+var sign = require('../internals/math-sign');
+var trunc = require('../internals/math-trunc');
+
 var $Array = Array;
 var abs = Math.abs;
 var pow = Math.pow;
@@ -7,13 +10,21 @@ var floor = Math.floor;
 var log = Math.log;
 var LN2 = Math.LN2;
 
+var roundToEven = function (number) {
+  var truncated = trunc(number);
+  var delta = abs(number - truncated);
+  if (delta > 0.5 || delta === 0.5 && truncated % 2 !== 0) {
+    return truncated + sign(number);
+  } return truncated;
+};
+
 var pack = function (number, mantissaLength, bytes) {
   var buffer = $Array(bytes);
   var exponentLength = bytes * 8 - mantissaLength - 1;
   var eMax = (1 << exponentLength) - 1;
   var eBias = eMax >> 1;
   var rt = mantissaLength === 23 ? pow(2, -24) - pow(2, -77) : 0;
-  var sign = number < 0 || number === 0 && 1 / number < 0 ? 1 : 0;
+  var s = number < 0 || number === 0 && 1 / number < 0 ? 1 : 0;
   var index = 0;
   var exponent, mantissa, c;
   number = abs(number);
@@ -42,10 +53,10 @@ var pack = function (number, mantissaLength, bytes) {
       mantissa = 0;
       exponent = eMax;
     } else if (exponent + eBias >= 1) {
-      mantissa = (number * c - 1) * pow(2, mantissaLength);
+      mantissa = roundToEven((number * c - 1) * pow(2, mantissaLength));
       exponent = exponent + eBias;
     } else {
-      mantissa = number * pow(2, eBias - 1) * pow(2, mantissaLength);
+      mantissa = roundToEven(number * pow(2, eBias - 1) * pow(2, mantissaLength));
       exponent = 0;
     }
   }
@@ -61,7 +72,7 @@ var pack = function (number, mantissaLength, bytes) {
     exponent /= 256;
     exponentLength -= 8;
   }
-  buffer[--index] |= sign * 128;
+  buffer[--index] |= s * 128;
   return buffer;
 };
 
@@ -72,10 +83,10 @@ var unpack = function (buffer, mantissaLength) {
   var eBias = eMax >> 1;
   var nBits = exponentLength - 7;
   var index = bytes - 1;
-  var sign = buffer[index--];
-  var exponent = sign & 127;
+  var s = buffer[index--];
+  var exponent = s & 127;
   var mantissa;
-  sign >>= 7;
+  s >>= 7;
   while (nBits > 0) {
     exponent = exponent * 256 + buffer[index--];
     nBits -= 8;
@@ -90,11 +101,11 @@ var unpack = function (buffer, mantissaLength) {
   if (exponent === 0) {
     exponent = 1 - eBias;
   } else if (exponent === eMax) {
-    return mantissa ? NaN : sign ? -Infinity : Infinity;
+    return mantissa ? NaN : s ? -Infinity : Infinity;
   } else {
     mantissa = mantissa + pow(2, mantissaLength);
     exponent = exponent - eBias;
-  } return (sign ? -1 : 1) * mantissa * pow(2, exponent - mantissaLength);
+  } return (s ? -1 : 1) * mantissa * pow(2, exponent - mantissaLength);
 };
 
 module.exports = {

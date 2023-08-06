@@ -32,8 +32,8 @@ QUnit.test('Math.f16round', assert => {
   assert.same(f16round(-minFloat16), -minFloat16);
   assert.same(f16round(minFloat16 / 2), 0);
   assert.same(f16round(-minFloat16 / 2), -0);
-  assert.same(f16round(minFloat16 / 2 + 2 ** -25), minFloat16);
-  assert.same(f16round(-minFloat16 / 2 - 2 ** -25), -minFloat16);
+  assert.same(f16round(2.980232238769531911744490042422139897126953655970282852649688720703125e-8), minFloat16);
+  assert.same(f16round(-2.980232238769531911744490042422139897126953655970282852649688720703125e-8), -minFloat16);
 
   assert.same(f16round(1.337), 1.3369140625);
 
