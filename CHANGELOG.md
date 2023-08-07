@@ -183,7 +183,7 @@
     - `ArrayBuffer.prototype.transferToFixedLength` (only in runtimes with native `structuredClone` with `ArrayBuffer` transfer support)
   - In backwards, in runtimes with native `ArrayBuffer.prototype.transfer`, but without proper `structuredClone`, added `ArrayBuffer` transfer support to `structuredClone` polyfill
 - [Iterator Helpers](https://github.com/tc39/proposal-iterator-helpers) proposal:
-  - Splitted into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals, async version moved back to Stage 2, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410926068)
+  - Split into 2 ([sync](https://github.com/tc39/proposal-iterator-helpers) and [async](https://github.com/tc39/proposal-async-iterator-helpers)) proposals, async version moved back to Stage 2, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410926068)
   - Allowed interleaved mapping in `AsyncIterator` helpers, [proposal-iterator-helpers/262](https://github.com/tc39/proposal-iterator-helpers/pull/262)
 - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 and [Async Explicit Resource Management](https://github.com/tc39/proposal-async-explicit-resource-management/) Stage 2 proposals:
   - `InstallErrorCause` removed from `SuppressedError`, [January 2023 TC39 meeting](https://github.com/babel/proposals/issues/86#issuecomment-1410889704), [proposal-explicit-resource-management/145](https://github.com/tc39/proposal-explicit-resource-management/pull/146)
@@ -291,7 +291,7 @@
   - Moved to Stage 3, [November 2022 TC39 meeting](https://github.com/babel/proposals/issues/85#issuecomment-1332180862)
   - Added `/actual/` entries, disabled unconditional forced replacement
 - [Explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 and [Async explicit resource management](https://github.com/tc39/proposal-async-explicit-resource-management) Stage 2 proposals:
-  - Renamed from "`using` statement" and [splitted into 2 (sync and async) proposals](https://github.com/tc39/proposal-explicit-resource-management/pull/131)
+  - Renamed from "`using` statement" and [split into 2 (sync and async) proposals](https://github.com/tc39/proposal-explicit-resource-management/pull/131)
   - In addition to already present well-known symbols, added new built-ins:
     - `Symbol.dispose`
     - `Symbol.asyncDispose`
@@ -1123,7 +1123,7 @@
 
 ##### [3.2.0 - 2019.08.09](https://github.com/zloirock/core-js/releases/tag/v3.2.0)
 - `Promise.allSettled` moved to stable ES, per July TC39 meeting
-- `Promise.any` moved to stage 2, `.errors` property of `AggregateError` instances maked non-enumerable, per July TC39 meeting
+- `Promise.any` moved to stage 2, `.errors` property of `AggregateError` instances made non-enumerable, per July TC39 meeting
 - `using` statement proposal moved to stage 2, added `Symbol.asyncDispose`, per July TC39 meeting
 - Added `Array.isTemplateObject` [stage 2 proposal](https://github.com/tc39/proposal-array-is-template-object), per June TC39 meeting
 - Added `Map#updateOrInsert` [stage 1 proposal](https://docs.google.com/presentation/d/1_xtrGSoN1-l2Q74eCXPHBbbrBHsVyqArWN0ebnW-pVQ/), per July TC39 meeting
@@ -1726,7 +1726,7 @@
   - `String#trimLeft`
   - `String#trimRight`
 - [`String#trim`](https://github.com/zloirock/core-js/#ecmascript-6-string) fixed for some engines by es6 spec and moved from `es5` to single `es6` module
-- Splitted [`es6.object.statics-accept-primitives`](https://github.com/zloirock/core-js/#ecmascript-6-object)
+- Split [`es6.object.statics-accept-primitives`](https://github.com/zloirock/core-js/#ecmascript-6-object)
 - Caps for `freeze`-family `Object` methods moved from `es5` to `es6` namespace and joined with [es6 wrappers](https://github.com/zloirock/core-js/#ecmascript-6-object)
 - `es5` [namespace](https://github.com/zloirock/core-js/#commonjs) also includes modules, moved to `es6` namespace - you can use it as before
 - Increased `MessageChannel` priority in `$.task`, [#95](https://github.com/zloirock/core-js/issues/95)
@@ -1874,7 +1874,7 @@
 
 ##### [0.8.0 - 2015.04.02](https://github.com/zloirock/core-js/releases/tag/v0.8.0)
 - Changed [CommonJS API](https://github.com/zloirock/core-js/#commonjs)
-- Splitted and renamed some modules
+- Split and renamed some modules
 - Added support ES3 environment (ES5 polyfill) to **all** default versions - size increases slightly (+ ~4kb w/o gzip), many issues disappear, if you don't need it - [simply include only required namespaces / features / modules](https://github.com/zloirock/core-js/#commonjs)
 - Removed [abstract references](https://github.com/zenparsing/es-abstract-refs) support - proposal has been superseded =\
 - [`$for.isIterable` -> `core.isIterable`, `$for.getIterator` -> `core.getIterator`](https://github.com/zloirock/core-js/#ecmascript-6-iterators), temporary available in old namespace
@@ -1888,7 +1888,7 @@
 - Some fixes
 
 ##### [0.7.0 - 2015.03.06](https://github.com/zloirock/core-js/releases/tag/v0.7.0)
-- Rewritten and splitted into [CommonJS modules](https://github.com/zloirock/core-js/#commonjs)
+- Rewritten and split into [CommonJS modules](https://github.com/zloirock/core-js/#commonjs)
 
 ##### [0.6.1 - 2015.02.24](https://github.com/zloirock/core-js/releases/tag/v0.6.1)
 - Fixed support [`Object.defineProperty`](https://github.com/zloirock/core-js/#ecmascript-5) with accessors on DOM elements on IE8
@@ -1916,8 +1916,8 @@
 
 ##### [0.5.0 - 2015.02.08](https://github.com/zloirock/core-js/releases/tag/v0.5.0)
 - Systematization of modules
-- Splitted [`es6` module](https://github.com/zloirock/core-js/#ecmascript-6)
-- Splitted `console` module: `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
+- Split [`es6` module](https://github.com/zloirock/core-js/#ecmascript-6)
+- Split `console` module: `web.console` - only cap for missing methods, `core.log` - bound methods & additional features
 - Added [`delay` method](https://github.com/zloirock/core-js/#delay)
 - Some fixes
 
