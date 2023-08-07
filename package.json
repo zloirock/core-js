@@ -25,6 +25,7 @@
     "check-mapping": "npm run zxi time scripts/check-compat-data-mapping.mjs",
     "check-unused-modules": "zx scripts/check-unused-modules.mjs",
     "check-v8-protectors": "node --trace-protector-invalidation packages/core-js",
+    "codespell": "npm run zxi scripts/codespell.mjs",
     "compat-bun": "bun tests/compat/bun-runner.js",
     "compat-deno": "deno run --allow-read tests/compat/deno-runner.mjs",
     "compat-hermes": "zx tests/compat/hermes-adapter.mjs",

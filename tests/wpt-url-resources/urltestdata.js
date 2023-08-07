@@ -4429,7 +4429,7 @@ export default [
     failure: true,
   },
   {
-    input: 'sc://te@s:t@/',
+    input: 'sc://tes@s:t@/',
     base: 'about:blank',
     failure: true,
   },
