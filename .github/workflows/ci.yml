@@ -14,8 +14,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
       - run: npm ci
-      - run: npm run lint-raw
+      - run: pip install codespell
+      - run: npx run-s lint-raw codespell
 
   karma:
     runs-on: ubuntu-latest
