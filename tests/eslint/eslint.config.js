@@ -356,10 +356,6 @@ const base = {
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
 
-  // deprecated:
-  // disallow catch clause parameters from shadowing variables in the outer scope
-  'no-catch-shadow': ERROR,
-
   // import:
   // ensure all imports appear before other statements
   'import/first': ERROR,
@@ -716,8 +712,6 @@ const base = {
   'es/no-labelled-function-declarations': ERROR,
   // disallow the `RegExp.prototype.compile` method
   'es/no-regexp-prototype-compile': ERROR,
-  // disallow identifiers from shadowing catch parameter names
-  'es/no-shadow-catch-param': ERROR,
 
   // eslint-comments:
   // require include descriptions in eslint directive-comments
