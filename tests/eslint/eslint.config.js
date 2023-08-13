@@ -29,15 +29,13 @@ function disable(rules) {
 }
 
 const base = {
-  // possible errors:
+  // possible problems:
+  // enforces return statements in callbacks of array's methods
+  'array-callback-return': ERROR,
   // enforce 'for' loop update clause moving the counter in the right direction
   'for-direction': ERROR,
-  // disallow window alert / confirm / prompt calls
-  'no-alert': ERROR,
   // disallow comparing against -0
   'no-compare-neg-zero': ERROR,
-  // disallow use of console
-  'no-console': ERROR,
   // disallows expressions where the operation doesn't affect the value
   'no-constant-binary-expression': ERROR,
   // disallow constant expressions in conditions
@@ -46,20 +44,18 @@ const base = {
   'no-debugger': ERROR,
   // disallow duplicate arguments in functions
   'no-dupe-args': ERROR,
+  // disallow duplicate conditions in if-else-if chains
+  'no-dupe-else-if': ERROR,
   // disallow duplicate keys when creating object literals
   'no-dupe-keys': ERROR,
   // disallow a duplicate case label.
   'no-duplicate-case': ERROR,
-  // disallow else after a return in an if
-  'no-else-return': ERROR,
-  // disallow empty statements
-  'no-empty': ERROR,
-  // disallow unnecessary boolean casts
-  'no-extra-boolean-cast': ERROR,
-  // disallow unnecessary semicolons
-  'no-extra-semi': ERROR,
+  // disallow empty destructuring patterns
+  'no-empty-pattern': ERROR,
   // disallow assigning to the exception in a catch block
   'no-ex-assign': ERROR,
+  // disallow fallthrough of case statements
+  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
   // disallow overwriting functions written as function declarations
   'no-func-assign': ERROR,
   // disallow irregular whitespace outside of strings and comments
@@ -70,52 +66,74 @@ const base = {
   'no-obj-calls': ERROR,
   // disallow use of Object.prototypes builtins directly
   'no-prototype-builtins': ERROR,
-  // disallow specific global variables
-  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
+  // disallow self assignment
+  'no-self-assign': ERROR,
+  // disallow comparisons where both sides are exactly the same
+  'no-self-compare': ERROR,
   // disallow returning values from setters
   'no-setter-return': ERROR,
   // disallow sparse arrays
   'no-sparse-arrays': ERROR,
   // disallow template literal placeholder syntax in regular strings
   'no-template-curly-in-string': ERROR,
+  // disallow use of undeclared variables unless mentioned in a /*global */ block
+  'no-undef': [ERROR],
   // avoid code that looks like two expressions but is actually one
   'no-unexpected-multiline': ERROR,
+  // disallow unreachable statements after a return, throw, continue, or break statement
+  'no-unreachable': ERROR,
+  // disallow loops with a body that allows only one iteration
+  'no-unreachable-loop': ERROR,
   // disallow negation of the left operand of an in expression
   'no-unsafe-negation': ERROR,
   // disallow use of optional chaining in contexts where the `undefined` value is not allowed
   'no-unsafe-optional-chaining': ERROR,
-  // disallow loops with a body that allows only one iteration
-  'no-unreachable-loop': ERROR,
   // disallow unused private class members
   'no-unused-private-class-members': ERROR,
+  // disallow declaration of variables that are not used in the code
+  'no-unused-vars': [ERROR, {
+    vars: 'all',
+    args: 'after-used',
+    ignoreRestSiblings: true,
+  }],
   // disallow comparisons with the value NaN
   'use-isnan': ERROR,
-  // disallow unreachable statements after a return, throw, continue, or break statement
-  'no-unreachable': ERROR,
   // ensure that the results of typeof are compared against a valid string
   'valid-typeof': ERROR,
 
-  // best practices:
-  // enforces return statements in callbacks of array's methods
-  'array-callback-return': ERROR,
+  // suggestions:
+  // require camel case names
+  camelcase: [ERROR, { properties: NEVER }],
   // enforce default clauses in switch statements to be last
   'default-case-last': ERROR,
   // encourages use of dot notation whenever possible
   'dot-notation': [ERROR, { allowKeywords: true }],
-  // enforce newline before and after dot
-  'dot-location': [ERROR, 'property'],
   // require the use of === and !==
   eqeqeq: [ERROR, 'smart'],
+  // require logical assignment operator shorthand
+  'logical-assignment-operators': [ERROR, ALWAYS],
+  // enforce a maximum depth that callbacks can be nested
+  'max-nested-callbacks': [ERROR, 4],
+  // specify the maximum number of statement allowed in a function
+  'max-statements': [ERROR, 50],
+  // require a capital letter for constructors
+  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
+  // disallow window alert / confirm / prompt calls
+  'no-alert': ERROR,
   // disallow use of arguments.caller or arguments.callee
   'no-caller': ERROR,
   // disallow lexical declarations in case/default clauses
   'no-case-declarations': ERROR,
-  // disallow duplicate conditions in if-else-if chains
-  'no-dupe-else-if': ERROR,
+  // disallow use of console
+  'no-console': ERROR,
+  // disallow deletion of variables
+  'no-delete-var': ERROR,
+  // disallow else after a return in an if
+  'no-else-return': ERROR,
+  // disallow empty statements
+  'no-empty': ERROR,
   // disallow empty functions, except for standalone funcs/arrows
   'no-empty-function': ERROR,
-  // disallow empty destructuring patterns
-  'no-empty-pattern': ERROR,
   // disallow empty static blocks
   'no-empty-static-block': ERROR,
   // disallow use of eval()
@@ -124,10 +142,12 @@ const base = {
   'no-extend-native': ERROR,
   // disallow unnecessary function binding
   'no-extra-bind': ERROR,
+  // disallow unnecessary boolean casts
+  'no-extra-boolean-cast': ERROR,
   // disallow unnecessary labels
   'no-extra-label': ERROR,
-  // disallow fallthrough of case statements
-  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
+  // disallow unnecessary semicolons
+  'no-extra-semi': ERROR,
   // disallow the use of leading or trailing decimal points in numeric literals
   'no-floating-decimal': ERROR,
   // disallow reassignments of native objects
@@ -136,14 +156,16 @@ const base = {
   'no-implied-eval': ERROR,
   // disallow usage of __iterator__ property
   'no-iterator': ERROR,
+  // disallow labels that share a name with a variable
+  'no-label-var': ERROR,
   // disallow use of labels for anything other then loops and switches
   'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
   // disallow unnecessary nested blocks
   'no-lone-blocks': ERROR,
+  // disallow `if` as the only statement in an `else` block
+  'no-lonely-if': ERROR,
   // disallow function declarations and expressions inside loop statements
   'no-loop-func': ERROR,
-  // disallow use of multiple spaces
-  'no-multi-spaces': [ERROR, { ignoreEOLComments: true }],
   // disallow use of multiline strings
   'no-multi-str': ERROR,
   // disallow use of new operator when not part of the assignment or comparison
@@ -152,30 +174,32 @@ const base = {
   'no-new-func': ERROR,
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': ERROR,
-  // disallow use of (old style) octal literals
-  'no-octal': ERROR,
   // disallow `\8` and `\9` escape sequences in string literals
   'no-nonoctal-decimal-escape': ERROR,
+  // disallow use of (old style) octal literals
+  'no-octal': ERROR,
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
   'no-octal-escape': ERROR,
   // disallow usage of __proto__ property
   'no-proto': ERROR,
   // disallow declaring the same variable more then once
   'no-redeclare': [ERROR, { builtinGlobals: false }],
-  // disallow unnecessary calls to `.call()` and `.apply()`
-  'no-useless-call': ERROR,
-  // disallow redundant return statements
-  'no-useless-return': ERROR,
+  // disallow specific global variables
+  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
   // disallow use of `javascript:` urls.
   'no-script-url': ERROR,
-  // disallow self assignment
-  'no-self-assign': ERROR,
-  // disallow comparisons where both sides are exactly the same
-  'no-self-compare': ERROR,
   // disallow use of comma operator
   'no-sequences': ERROR,
+  // disallow declaration of variables already declared in the outer scope
+  'no-shadow': ERROR,
+  // disallow shadowing of names such as arguments
+  'no-shadow-restricted-names': ERROR,
   // restrict what can be thrown as an exception
   'no-throw-literal': ERROR,
+  // disallow initializing variables to undefined
+  'no-undef-init': ERROR,
+  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
+  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
   // disallow usage of expressions in statement position
   'no-unused-expressions': [ERROR, {
     allowShortCircuit: true,
@@ -184,48 +208,67 @@ const base = {
   }],
   // disallow unused labels
   'no-unused-labels': ERROR,
+  // disallow unnecessary calls to `.call()` and `.apply()`
+  'no-useless-call': ERROR,
   // disallow unnecessary catch clauses
   'no-useless-catch': ERROR,
+  // disallow unnecessary computed property keys in object literals
+  'no-useless-computed-key': ERROR,
   // disallow useless string concatenation
   'no-useless-concat': ERROR,
+  // disallow unnecessary constructors
+  'no-useless-constructor': ERROR,
+  // disallow renaming import, export, and destructured assignments to the same name
+  'no-useless-rename': ERROR,
+  // disallow redundant return statements
+  'no-useless-return': ERROR,
+  // require let or const instead of var
+  'no-var': ERROR,
   // disallow void operators
   'no-void': ERROR,
   // disallow use of the with statement
   'no-with': ERROR,
+  // require or disallow method and property shorthand syntax for object literals
+  'object-shorthand': ERROR,
+  // require newlines around variable declarations with initializations
+  'one-var-declaration-per-line': [ERROR, 'initializations'],
+  // require using arrow functions for callbacks
+  'prefer-arrow-callback': ERROR,
+  // require const declarations for variables that are never reassigned after declared
+  'prefer-const': [ERROR, { destructuring: 'all' }],
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': ERROR,
+  // prefer the exponentiation operator over `Math.pow()`
+  'prefer-exponentiation-operator': ERROR,
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': ERROR,
+  // require template literals instead of string concatenation
+  'prefer-template': ERROR,
+  // require or disallow use of quotes around object literal property names
+  'quote-props': [ERROR, 'as-needed', { keywords: false }],
   // require use of the second argument for parseInt()
   radix: ERROR,
-
-  // variables:
-  // disallow catch clause parameters from shadowing variables in the outer scope
-  'no-catch-shadow': ERROR,
-  // disallow deletion of variables
-  'no-delete-var': ERROR,
-  // disallow labels that share a name with a variable
-  'no-label-var': ERROR,
-  // disallow declaration of variables already declared in the outer scope
-  'no-shadow': ERROR,
-  // disallow shadowing of names such as arguments
-  'no-shadow-restricted-names': ERROR,
-  // disallow use of undeclared variables unless mentioned in a /*global */ block
-  'no-undef': [ERROR],
-  // disallow initializing variables to undefined
-  'no-undef-init': ERROR,
-  // disallow declaration of variables that are not used in the code
-  'no-unused-vars': [ERROR, {
-    vars: 'all',
-    args: 'after-used',
-    ignoreRestSiblings: true,
+  // disallow generator functions that do not have `yield`
+  'require-yield': ERROR,
+  // require or disallow a space immediately following the // or /* in a comment
+  'spaced-comment': [ERROR, ALWAYS, {
+    line: { exceptions: ['/'] },
+    block: { exceptions: ['*'] },
   }],
+  // require strict mode directives
+  strict: [ERROR, 'global'],
 
-  // stylistic issues:
+  // layout & formatting:
   // enforce spacing inside array brackets
   'array-bracket-spacing': [ERROR, NEVER],
+  // require parentheses around arrow function arguments
+  'arrow-parens': [ERROR, 'as-needed'],
+  // enforce consistent spacing before and after the arrow in arrow functions
+  'arrow-spacing': ERROR,
   // enforce spacing inside single-line blocks
   'block-spacing': [ERROR, ALWAYS],
   // enforce one true brace style
   'brace-style': [ERROR, '1tbs', { allowSingleLine: true }],
-  // require camel case names
-  camelcase: [ERROR, { properties: NEVER }],
   // enforce trailing commas in multiline object literals
   'comma-dangle': [ERROR, 'always-multiline'],
   // enforce spacing after comma
@@ -234,24 +277,26 @@ const base = {
   'comma-style': [ERROR, 'last', { exceptions: { VariableDeclaration: true } }],
   // disallow padding inside computed properties
   'computed-property-spacing': [ERROR, NEVER],
+  // enforce newline before and after dot
+  'dot-location': [ERROR, 'property'],
   // enforce one newline at the end of files
   'eol-last': [ERROR, ALWAYS],
   // disallow space between function identifier and application
   'func-call-spacing': ERROR,
+  // enforce the location of arrow function bodies
+  'implicit-arrow-linebreak': [ERROR, 'beside'],
   // enforce consistent indentation
   indent: [ERROR, 2, {
     ignoredNodes: ['ConditionalExpression'],
     SwitchCase: 1,
     VariableDeclarator: 'first',
   }],
-  // require a space before & after certain keywords
-  'keyword-spacing': [ERROR, { before: true, after: true }],
   // enforces spacing between keys and values in object literal properties
   'key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
+  // require a space before & after certain keywords
+  'keyword-spacing': [ERROR, { before: true, after: true }],
   // enforce consistent linebreak style
   'linebreak-style': [ERROR, 'unix'],
-  // require logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, ALWAYS],
   // specify the maximum length of a line in your program
   'max-len': [ERROR, {
     code: 140,
@@ -260,26 +305,18 @@ const base = {
     ignoreTemplateLiterals: true,
     ignoreUrls: true,
   }],
-  // enforce a maximum depth that callbacks can be nested
-  'max-nested-callbacks': [ERROR, 4],
-  // specify the maximum number of statement allowed in a function
-  'max-statements': [ERROR, 50],
-  // require a capital letter for constructors
-  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
   // require parentheses when invoking a constructor with no arguments
   'new-parens': ERROR,
-  // disallow `if` as the only statement in an `else` block
-  'no-lonely-if': ERROR,
   // disallow mixed spaces and tabs for indentation
   'no-mixed-spaces-and-tabs': ERROR,
+  // disallow use of multiple spaces
+  'no-multi-spaces': [ERROR, { ignoreEOLComments: true }],
   // disallow multiple empty lines and only one newline at the end
   'no-multiple-empty-lines': [ERROR, { max: 1, maxEOF: 1 }],
   // disallow tabs
   'no-tabs': ERROR,
   // disallow trailing whitespace at the end of lines
   'no-trailing-spaces': ERROR,
-  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
-  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
   // disallow whitespace before properties
   'no-whitespace-before-property': ERROR,
   // enforce the location of single-line statements
@@ -288,16 +325,14 @@ const base = {
   'object-curly-newline': [ERROR, { consistent: true }],
   // enforce spaces inside braces
   'object-curly-spacing': [ERROR, ALWAYS],
-  // require newlines around variable declarations with initializations
-  'one-var-declaration-per-line': [ERROR, 'initializations'],
   // enforce padding within blocks
   'padded-blocks': [ERROR, NEVER],
   // disallow blank lines after 'use strict'
   'padding-line-between-statements': [ERROR, { blankLine: 'never', prev: 'directive', next: '*' }],
   // specify whether double or single quotes should be used
   quotes: [ERROR, 'single', { avoidEscape: true }],
-  // require or disallow use of quotes around object literal property names
-  'quote-props': [ERROR, 'as-needed', { keywords: false }],
+  // enforce spacing between rest and spread operators and their expressions
+  'rest-spread-spacing': ERROR,
   // require or disallow use of semicolons instead of ASI
   semi: [ERROR, ALWAYS],
   // enforce spacing before and after semicolons
@@ -314,15 +349,16 @@ const base = {
   'space-infix-ops': ERROR,
   // require or disallow spaces before/after unary operators
   'space-unary-ops': ERROR,
-  // require or disallow a space immediately following the // or /* in a comment
-  'spaced-comment': [ERROR, ALWAYS, {
-    line: { exceptions: ['/'] },
-    block: { exceptions: ['*'] },
-  }],
   // enforce spacing around colons of switch statements
   'switch-colon-spacing': ERROR,
+  // require or disallow spacing around embedded expressions of template strings
+  'template-curly-spacing': [ERROR, ALWAYS],
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
+
+  // deprecated:
+  // disallow catch clause parameters from shadowing variables in the outer scope
+  'no-catch-shadow': ERROR,
 
   // import:
   // ensure all imports appear before other statements
@@ -375,45 +411,6 @@ const base = {
   'node/prefer-global/text-encoder': [ERROR, ALWAYS],
   'node/prefer-global/url-search-params': [ERROR, ALWAYS],
   'node/prefer-global/url': [ERROR, ALWAYS],
-
-  // es6+:
-  // require parentheses around arrow function arguments
-  'arrow-parens': [ERROR, 'as-needed'],
-  // enforce consistent spacing before and after the arrow in arrow functions
-  'arrow-spacing': ERROR,
-  // enforce the location of arrow function bodies
-  'implicit-arrow-linebreak': [ERROR, 'beside'],
-  // disallow unnecessary computed property keys in object literals
-  'no-useless-computed-key': ERROR,
-  // disallow unnecessary constructors
-  'no-useless-constructor': ERROR,
-  // require let or const instead of var
-  'no-var': ERROR,
-  // disallow renaming import, export, and destructured assignments to the same name
-  'no-useless-rename': ERROR,
-  // require or disallow method and property shorthand syntax for object literals
-  'object-shorthand': ERROR,
-  // require using arrow functions for callbacks
-  'prefer-arrow-callback': ERROR,
-  // require const declarations for variables that are never reassigned after declared
-  'prefer-const': [ERROR, { destructuring: 'all' }],
-  // require destructuring from arrays and/or objects
-  'prefer-destructuring': ERROR,
-  // prefer the exponentiation operator over `Math.pow()`
-  'prefer-exponentiation-operator': ERROR,
-  // prefer `Object.hasOwn`
-  'prefer-object-has-own': ERROR,
-  // require template literals instead of string concatenation
-  'prefer-template': ERROR,
-  // disallow generator functions that do not have `yield`
-  'require-yield': ERROR,
-  // enforce spacing between rest and spread operators and their expressions
-  'rest-spread-spacing': ERROR,
-  // require or disallow spacing around embedded expressions of template strings
-  'template-curly-spacing': [ERROR, ALWAYS],
-
-  // require strict mode directives
-  strict: [ERROR, 'global'],
 
   // array-func:
   // avoid reversing the array and running a method on it if there is an equivalent of the method operating on the array from the other end
