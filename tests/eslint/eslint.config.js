@@ -32,18 +32,26 @@ const base = {
   // possible problems:
   // enforces return statements in callbacks of array's methods
   'array-callback-return': ERROR,
+  // require `super()` calls in constructors
+  'constructor-super': ERROR,
   // enforce 'for' loop update clause moving the counter in the right direction
   'for-direction': ERROR,
+  // disallow reassigning class members
+  'no-class-assign': ERROR,
   // disallow comparing against -0
   'no-compare-neg-zero': ERROR,
   // disallows expressions where the operation doesn't affect the value
   'no-constant-binary-expression': ERROR,
   // disallow constant expressions in conditions
   'no-constant-condition': [ERROR, { checkLoops: false }],
+  // disallow returning value from constructor
+  'no-constructor-return': ERROR,
   // disallow use of debugger
   'no-debugger': ERROR,
   // disallow duplicate arguments in functions
   'no-dupe-args': ERROR,
+  // disallow duplicate class members
+  'no-dupe-class-members': ERROR,
   // disallow duplicate conditions in if-else-if chains
   'no-dupe-else-if': ERROR,
   // disallow duplicate keys when creating object literals
@@ -76,6 +84,8 @@ const base = {
   'no-sparse-arrays': ERROR,
   // disallow template literal placeholder syntax in regular strings
   'no-template-curly-in-string': ERROR,
+  // disallow `this` / `super` before calling `super()` in constructors
+  'no-this-before-super': ERROR,
   // disallow use of undeclared variables unless mentioned in a /*global */ block
   'no-undef': [ERROR],
   // avoid code that looks like two expressions but is actually one
