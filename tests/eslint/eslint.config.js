@@ -284,7 +284,7 @@ const base = {
   // enforce spacing after comma
   'comma-spacing': ERROR,
   // enforce one true comma style
-  'comma-style': [ERROR, 'last', { exceptions: { VariableDeclaration: true } }],
+  'comma-style': [ERROR, 'last'],
   // disallow padding inside computed properties
   'computed-property-spacing': [ERROR, NEVER],
   // enforce newline before and after dot
