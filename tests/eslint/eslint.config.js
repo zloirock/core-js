@@ -293,6 +293,8 @@ const base = {
   'eol-last': [ERROR, ALWAYS],
   // disallow space between function identifier and application
   'func-call-spacing': ERROR,
+  // require spacing around the `*` in `function *` expressions
+  'generator-star-spacing': [ERROR, 'both'],
   // enforce the location of arrow function bodies
   'implicit-arrow-linebreak': [ERROR, 'beside'],
   // enforce consistent indentation
@@ -365,6 +367,8 @@ const base = {
   'template-curly-spacing': [ERROR, ALWAYS],
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
+  // require spacing around the `*` in `yield *` expressions
+  'yield-star-spacing': [ERROR, 'both'],
 
   // import:
   // ensure all imports appear before other statements
