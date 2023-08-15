@@ -338,7 +338,7 @@ const base = {
   // enforce padding within blocks
   'padded-blocks': [ERROR, NEVER],
   // disallow blank lines after 'use strict'
-  'padding-line-between-statements': [ERROR, { blankLine: 'never', prev: 'directive', next: '*' }],
+  'padding-line-between-statements': [ERROR, { blankLine: NEVER, prev: 'directive', next: '*' }],
   // specify whether double or single quotes should be used
   quotes: [ERROR, 'single', { avoidEscape: true }],
   // enforce spacing between rest and spread operators and their expressions
