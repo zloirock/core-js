@@ -6,6 +6,7 @@
 - Compat data improvements:
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as supported [from Bun 0.7.1](https://bun.sh/blog/bun-v0.7.1#bun-ismainthread-and-promise-withresolvers)
   - Added Opera Android 77 compat data mapping
+  - Updated Electron 27 compat data mapping
 
 ##### [3.32.0 - 2023.07.28](https://github.com/zloirock/core-js/releases/tag/v3.32.0)
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping), July 2023 TC39 meeting updates:
