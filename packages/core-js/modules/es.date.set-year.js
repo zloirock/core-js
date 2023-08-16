@@ -14,7 +14,7 @@ $({ target: 'Date', proto: true }, {
     // validate
     thisTimeValue(this);
     var yi = toIntegerOrInfinity(year);
-    var yyyy = 0 <= yi && yi <= 99 ? yi + 1900 : yi;
+    var yyyy = yi >= 0 && yi <= 99 ? yi + 1900 : yi;
     return setFullYear(this, yyyy);
   }
 });

@@ -267,6 +267,8 @@ const base = {
   }],
   // require strict mode directives
   strict: [ERROR, 'global'],
+  // disallow "Yoda" conditions
+  yoda: [ERROR, NEVER],
 
   // layout & formatting:
   // enforce spacing inside array brackets

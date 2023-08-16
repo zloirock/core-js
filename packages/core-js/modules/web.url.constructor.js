@@ -912,7 +912,7 @@ URLState.prototype = {
     if (search === '') {
       this.query = null;
     } else {
-      if ('?' === charAt(search, 0)) search = stringSlice(search, 1);
+      if (charAt(search, 0) === '?') search = stringSlice(search, 1);
       this.query = '';
       this.parse(search, QUERY);
     }
@@ -933,7 +933,7 @@ URLState.prototype = {
       this.fragment = null;
       return;
     }
-    if ('#' === charAt(hash, 0)) hash = stringSlice(hash, 1);
+    if (charAt(hash, 0) === '#') hash = stringSlice(hash, 1);
     this.fragment = '';
     this.parse(hash, FRAGMENT);
   },
