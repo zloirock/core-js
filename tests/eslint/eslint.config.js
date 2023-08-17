@@ -40,6 +40,8 @@ const base = {
   'no-class-assign': ERROR,
   // disallow comparing against -0
   'no-compare-neg-zero': ERROR,
+  // disallow reassigning `const` variables
+  'no-const-assign': ERROR,
   // disallows expressions where the operation doesn't affect the value
   'no-constant-binary-expression': ERROR,
   // disallow constant expressions in conditions
@@ -86,8 +88,12 @@ const base = {
   'no-template-curly-in-string': ERROR,
   // disallow `this` / `super` before calling `super()` in constructors
   'no-this-before-super': ERROR,
+  // disallow unmodified loop conditions
+  'no-unmodified-loop-condition': ERROR,
   // disallow use of undeclared variables unless mentioned in a /*global */ block
   'no-undef': [ERROR],
+  // disallow control flow statements in `finally` blocks
+  'no-unsafe-finally': ERROR,
   // avoid code that looks like two expressions but is actually one
   'no-unexpected-multiline': ERROR,
   // disallow unreachable statements after a return, throw, continue, or break statement
