@@ -65,7 +65,7 @@ var dedentStringsArray = function (template) {
   var blocks = $Array(length);
   var dedented = $Array(length);
   var i = 0;
-  var lines, common;
+  var lines, common, quasi, k;
 
   if (!length) throw $TypeError(INVALID_TAG);
 
@@ -107,7 +107,9 @@ var dedentStringsArray = function (template) {
 
   for (i = 0; i < length; i++) {
     lines = blocks[i];
-    for (var quasi = lines[0], k = 1; k < lines.length; k += 2) {
+    quasi = lines[0];
+    k = 1;
+    for (; k < lines.length; k += 2) {
       quasi += lines[k] + stringSlice(lines[k + 1], count);
     }
     dedented[i] = quasi;
@@ -126,7 +128,10 @@ var commonLeadingIndentation = function (a, b) {
 };
 
 var cookStrings = function (raw) {
-  for (var i = 0, length = raw.length, result = $Array(length); i < length; i++) {
+  var i = 0;
+  var length = raw.length;
+  var result = $Array(length);
+  for (; i < length; i++) {
     result[i] = parse(raw[i]);
   } return result;
 };

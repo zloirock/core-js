@@ -13,7 +13,9 @@ var factories = {};
 
 var construct = function (C, argsLength, args) {
   if (!hasOwn(factories, argsLength)) {
-    for (var list = [], i = 0; i < argsLength; i++) list[i] = 'a[' + i + ']';
+    var list = [];
+    var i = 0;
+    for (; i < argsLength; i++) list[i] = 'a[' + i + ']';
     factories[argsLength] = $Function('C,a', 'return new C(' + join(list, ',') + ')');
   } return factories[argsLength](C, args);
 };

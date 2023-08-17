@@ -11,7 +11,8 @@ module.exports = function (O, start, end) {
   var k = toAbsoluteIndex(start, length);
   var fin = toAbsoluteIndex(end === undefined ? length : end, length);
   var result = $Array(max(fin - k, 0));
-  for (var n = 0; k < fin; k++, n++) createProperty(result, n, O[k]);
+  var n = 0;
+  for (; k < fin; k++, n++) createProperty(result, n, O[k]);
   result.length = n;
   return result;
 };

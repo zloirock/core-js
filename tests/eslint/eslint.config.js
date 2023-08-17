@@ -112,6 +112,8 @@ const base = {
   'valid-typeof': ERROR,
 
   // suggestions:
+  // enforce the use of variables within the scope they are defined
+  'block-scoped-var': ERROR,
   // require camel case names
   camelcase: [ERROR, { properties: NEVER }],
   // enforce default clauses in switch statements to be last
