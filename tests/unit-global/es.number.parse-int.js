@@ -1,3 +1,4 @@
+/* eslint-disable prefer-numeric-literals -- required for testing */
 import { GLOBAL, WHITESPACES } from '../helpers/constants';
 
 QUnit.test('Number.parseInt', assert => {

@@ -1,4 +1,4 @@
-/* eslint-disable regexp/sort-flags, regexp/no-useless-flag -- required for testing */
+/* eslint-disable prefer-regex-literals, regexp/sort-flags, regexp/no-useless-flag -- required for testing */
 import { DESCRIPTORS } from '../helpers/constants';
 
 if (DESCRIPTORS) {

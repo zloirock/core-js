@@ -1,3 +1,4 @@
+/* eslint-disable prefer-regex-literals -- required for testing */
 import { DESCRIPTORS } from '../helpers/constants';
 
 QUnit.test('RegExp#exec lastIndex updating', assert => {

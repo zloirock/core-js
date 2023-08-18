@@ -1,3 +1,4 @@
+/* eslint-disable prefer-numeric-literals -- required for testing */
 import { WHITESPACES } from '../helpers/constants';
 
 /* eslint-disable radix -- required for testing */

@@ -194,6 +194,8 @@ const base = {
   'no-new': ERROR,
   // disallow use of new operator for Function object
   'no-new-func': ERROR,
+  // disallow Object constructors
+  'no-new-object': ERROR,
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': ERROR,
   // disallow `\8` and `\9` escape sequences in string literals
@@ -262,8 +264,12 @@ const base = {
   'prefer-destructuring': ERROR,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': ERROR,
+  // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
+  'prefer-numeric-literals': ERROR,
   // prefer `Object.hasOwn`
   'prefer-object-has-own': ERROR,
+  // disallow use of the `RegExp` constructor in favor of regular expression literals
+  'prefer-regex-literals': [ERROR, { disallowRedundantWrapping: true }],
   // require rest parameters instead of `arguments`
   'prefer-rest-params': ERROR,
   // require spread operators instead of `.apply()`

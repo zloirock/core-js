@@ -1,3 +1,4 @@
+/* eslint-disable prefer-regex-literals -- required for testing */
 import { GLOBAL, STRICT } from '../helpers/constants';
 import { patchRegExp$exec } from '../helpers/helpers';
 
