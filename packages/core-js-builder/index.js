@@ -36,7 +36,7 @@ module.exports = async function ({
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
-  const TITLE = filename != null ? filename : '`core-js`';
+  const TITLE = filename !== null || filename !== undefined ? filename : '`core-js`';
   let script = banner;
   let code = '\n';
 
@@ -95,7 +95,7 @@ module.exports = async function ({
     } else console.log('\u001B[36mnothing\u001B[0m');
   }
 
-  if (filename != null) {
+  if (!(filename === null || filename === undefined)) {
     await mkdirp(dirname(filename));
     await writeFile(filename, script);
   }

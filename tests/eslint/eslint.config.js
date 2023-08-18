@@ -154,6 +154,8 @@ const base = {
   'no-empty-function': ERROR,
   // disallow empty static blocks
   'no-empty-static-block': ERROR,
+  // disallow `null` comparisons without type-checking operators
+  'no-eq-null': ERROR,
   // disallow use of eval()
   'no-eval': ERROR,
   // disallow adding to native types
