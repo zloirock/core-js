@@ -80,8 +80,6 @@ const base = {
   'no-self-assign': ERROR,
   // disallow comparisons where both sides are exactly the same
   'no-self-compare': ERROR,
-  // disallow returning values from setters
-  'no-setter-return': ERROR,
   // disallow sparse arrays
   'no-sparse-arrays': ERROR,
   // disallow template literal placeholder syntax in regular strings
