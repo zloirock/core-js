@@ -187,7 +187,7 @@ const run = assert => {
   assert.same(''.match.call(number, regexp).index, 1, 'S15.5.4.10_A2_T18 #3');
   assert.same(''.match.call(number, regexp).input, String(number), 'S15.5.4.10_A2_T18 #4');
 
-  assert.throws(() => ''.match.call(Symbol(), /./), 'throws on symbol context');
+  assert.throws(() => ''.match.call(Symbol('match test'), /./), 'throws on symbol context');
 };
 
 QUnit.test('String#match regression', run);

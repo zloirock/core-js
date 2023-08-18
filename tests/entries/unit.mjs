@@ -25,7 +25,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'object/freeze')({}));
     ok(load(NS, 'object/get-own-property-descriptor')({ q: 1 }, 'q').enumerable);
     ok(load(NS, 'object/get-own-property-names')({ q: 42 })[0] === 'q');
-    ok(load(NS, 'object/get-own-property-symbols')({ [Symbol()]: 42 }).length === 1);
+    ok(load(NS, 'object/get-own-property-symbols')({ [Symbol('getOwnPropertySymbols test')]: 42 }).length === 1);
     ok(load(NS, 'object/get-prototype-of')([]) === Array.prototype);
     ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
     ok(load(NS, 'object/is')(NaN, NaN));

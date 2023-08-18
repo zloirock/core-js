@@ -130,7 +130,7 @@ const run = assert => {
   // eslint-disable-next-line regexp/prefer-escape-replacement-dollar-char -- required for testing
   assert.same('a'.replace(/(.)/, '$0'), '$0');
 
-  assert.throws(() => ''.replace.call(Symbol(), /./, ''), 'throws on symbol context');
+  assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 };
 
 QUnit.test('String#replace regression', run);

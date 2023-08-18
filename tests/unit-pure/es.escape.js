@@ -9,6 +9,6 @@ QUnit.test('escape', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => escape(Symbol()), 'throws on symbol argument');
+    assert.throws(() => escape(Symbol('escape test')), 'throws on symbol argument');
   }
 });

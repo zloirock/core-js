@@ -15,7 +15,7 @@ QUnit.test('JSON.rawJSON', assert => {
   assert.false(isRawJSON(1), 'number');
   assert.false(isRawJSON('qwe'), 'string');
   assert.false(isRawJSON(true), 'bool');
-  assert.false(isRawJSON(Symbol()), 'sym');
+  assert.false(isRawJSON(Symbol('JSON.isRawJSON test')), 'sym');
   assert.false(isRawJSON({}), 'object');
   assert.false(isRawJSON([]), 'array');
 });

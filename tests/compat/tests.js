@@ -84,7 +84,7 @@ var PROMISE_STATICS_ITERATION = function () {
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return Object.getOwnPropertySymbols && String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
+  return Object.getOwnPropertySymbols && String(Symbol('symbol detection')) && !(V8_VERSION && V8_VERSION < 41);
 };
 
 var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
@@ -281,18 +281,20 @@ function TIMERS() {
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
+    var symbol = Symbol('stringify detection');
     return Object.getOwnPropertySymbols('qwe')
       && Symbol['for']
       && Symbol.keyFor
-      && JSON.stringify([Symbol()]) === '[null]'
-      && JSON.stringify({ a: Symbol() }) === '{}'
-      && JSON.stringify(Object(Symbol())) === '{}'
+      && JSON.stringify([symbol]) === '[null]'
+      && JSON.stringify({ a: symbol }) === '{}'
+      && JSON.stringify(Object(symbol)) === '{}'
       && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
   'es.symbol.constructor': SYMBOLS_SUPPORT,
   'es.symbol.description': function () {
-    return Symbol('foo').description === 'foo' && Symbol().description === undefined;
+    // eslint-disable-next-line symbol-description -- required for testing
+    return Symbol('description detection').description === 'description detection' && Symbol().description === undefined;
   },
   'es.symbol.async-iterator': function () {
     return Symbol.asyncIterator;
@@ -663,9 +665,10 @@ GLOBAL.tests = {
     return globalThis;
   },
   'es.json.stringify': [SYMBOLS_SUPPORT, function () {
-    return JSON.stringify([Symbol()]) === '[null]'
-      && JSON.stringify({ a: Symbol() }) === '{}'
-      && JSON.stringify(Object(Symbol())) === '{}'
+    var symbol = Symbol('stringify detection');
+    return JSON.stringify([symbol]) === '[null]'
+      && JSON.stringify({ a: symbol }) === '{}'
+      && JSON.stringify(Object(symbol)) === '{}'
       && JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
       && JSON.stringify('\uDEAD') === '"\\udead"';
   }],
@@ -836,7 +839,7 @@ GLOBAL.tests = {
     }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
-    var symbol = Symbol();
+    var symbol = Symbol('assign detection');
     var alphabet = 'abcdefghijklmnopqrst';
     A[symbol] = 7;
     alphabet.split('').forEach(function (chr) { B[chr] = chr; });

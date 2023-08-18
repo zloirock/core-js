@@ -53,7 +53,7 @@ QUnit.test('Well-known Symbols', assert => {
 });
 
 QUnit.test('Symbol#@@toPrimitive', assert => {
-  const symbol = Symbol();
+  const symbol = Symbol('Symbol#@@toPrimitive test');
   assert.isFunction(Symbol.prototype[Symbol.toPrimitive]);
   assert.same(symbol, symbol[Symbol.toPrimitive](), 'works');
 });
@@ -227,6 +227,6 @@ if (DESCRIPTORS) {
   });
 
   QUnit.test('Symbol.sham flag', assert => {
-    assert.same(Symbol.sham, typeof Symbol() == 'symbol' ? undefined : true);
+    assert.same(Symbol.sham, typeof Symbol('Symbol.sham flag test') == 'symbol' ? undefined : true);
   });
 }

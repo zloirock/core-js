@@ -8,6 +8,6 @@ QUnit.test('String#italics', assert => {
   assert.same('a'.italics(), '<i>a</i>', 'lower case');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => italics.call(Symbol()), 'throws on symbol context');
+    assert.throws(() => italics.call(Symbol('italics test')), 'throws on symbol context');
   }
 });

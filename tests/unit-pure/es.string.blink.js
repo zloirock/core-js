@@ -6,6 +6,6 @@ QUnit.test('String#blink', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => blink(Symbol()), 'throws on symbol context');
+    assert.throws(() => blink(Symbol('blink test')), 'throws on symbol context');
   }
 });

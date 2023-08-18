@@ -6,6 +6,6 @@ QUnit.test('String#small', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => small(Symbol()), 'throws on symbol context');
+    assert.throws(() => small(Symbol('small test')), 'throws on symbol context');
   }
 });

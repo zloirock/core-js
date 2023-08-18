@@ -33,9 +33,10 @@ QUnit.test('String#replaceAll', assert => {
   assert.same('121314'.replaceAll('1', '$`'), '212312134', '$`');
   assert.same('121314'.replaceAll('1', "$'"), '213142314344', "$'");
 
-  assert.throws(() => replaceAll.call(Symbol(), 'a', 'b'), 'throws on symbol context');
-  assert.throws(() => replaceAll.call('a', Symbol(), 'b'), 'throws on symbol argument 1');
-  assert.throws(() => replaceAll.call('a', 'b', Symbol()), 'throws on symbol argument 2');
+  const symbol = Symbol('replaceAll test');
+  assert.throws(() => replaceAll.call(symbol, 'a', 'b'), 'throws on symbol context');
+  assert.throws(() => replaceAll.call('a', symbol, 'b'), 'throws on symbol argument 1');
+  assert.throws(() => replaceAll.call('a', 'b', symbol), 'throws on symbol argument 2');
 
   if (STRICT) {
     assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);

@@ -6,10 +6,11 @@ QUnit.test('Symbol.isRegistered', assert => {
   assert.name(isRegistered, 'isRegisteredSymbol', 'Symbol.isRegistered.name is "isRegisteredSymbol"');
   assert.looksNative(isRegistered, 'isRegistered looks like native');
 
-  assert.true(isRegistered(Symbol.for('foo')), 'registered-1');
-  assert.true(isRegistered(Object(Symbol.for('foo'))), 'registered-2');
-  assert.false(isRegistered(Symbol()), 'non-registered');
-  assert.false(isRegistered(Object(Symbol())), 'non-registered');
+  assert.true(isRegistered(Symbol.for('foo')), 'registered');
+  assert.true(isRegistered(Object(Symbol.for('foo'))), 'registered, boxed');
+  const symbol = Symbol('Symbol.isRegistered test');
+  assert.false(isRegistered(symbol), 'non-registered');
+  assert.false(isRegistered(Object(symbol)), 'non-registered, boxed');
   assert.false(isRegistered(1), '1');
   assert.false(isRegistered(true), 'true');
   assert.false(isRegistered('1'), 'string');

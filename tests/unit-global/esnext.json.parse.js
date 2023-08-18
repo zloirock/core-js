@@ -127,7 +127,7 @@ QUnit.test('JSON.parse', assert => {
     assert.same(parse(-0, reviver), 0, `negative-zero-5 ${ note }`);
 
     assert.throws(() => parse(undefined, reviver), SyntaxError, `undefined ${ note }`);
-    assert.throws(() => parse(Symbol(), reviver), TypeError, `symbol ${ note }`);
+    assert.throws(() => parse(Symbol('JSON.parse test'), reviver), TypeError, `symbol ${ note }`);
     assert.same(parse(null, reviver), null, `null ${ note }`);
     assert.same(parse(false, reviver), false, `false ${ note }`);
     assert.same(parse(true, reviver), true, `true ${ note }`);

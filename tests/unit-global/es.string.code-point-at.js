@@ -58,7 +58,7 @@ QUnit.test('String#codePointAt', assert => {
   assert.same('\uDF06abc'.codePointAt(undefined), 0xDF06);
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => codePointAt.call(Symbol(), 1), 'throws on symbol context');
+    assert.throws(() => codePointAt.call(Symbol('codePointAt test'), 1), 'throws on symbol context');
   }
 
   if (STRICT) {

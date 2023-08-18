@@ -7,7 +7,8 @@ QUnit.test('String#fontsize', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => fontsize(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => fontsize('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('fontsize test');
+    assert.throws(() => fontsize(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => fontsize('a', symbol), 'throws on symbol argument');
   }
 });

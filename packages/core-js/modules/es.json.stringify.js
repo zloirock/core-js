@@ -24,7 +24,7 @@ var low = /^[\uD800-\uDBFF]$/;
 var hi = /^[\uDC00-\uDFFF]$/;
 
 var WRONG_SYMBOLS_CONVERSION = !NATIVE_SYMBOL || fails(function () {
-  var symbol = getBuiltIn('Symbol')();
+  var symbol = getBuiltIn('Symbol')('stringify detection');
   // MS Edge converts symbol values to JSON as {}
   return $stringify([symbol]) !== '[null]'
     // WebKit converts symbol values to JSON as null

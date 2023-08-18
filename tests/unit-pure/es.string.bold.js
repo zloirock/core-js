@@ -6,6 +6,6 @@ QUnit.test('String#bold', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => bold(Symbol()), 'throws on symbol context');
+    assert.throws(() => bold(Symbol('bold test')), 'throws on symbol context');
   }
 });

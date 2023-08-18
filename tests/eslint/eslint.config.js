@@ -289,6 +289,8 @@ const base = {
   }],
   // require strict mode directives
   strict: [ERROR, 'global'],
+  // require symbol descriptions
+  'symbol-description': ERROR,
   // disallow "Yoda" conditions
   yoda: [ERROR, NEVER],
 

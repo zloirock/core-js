@@ -7,7 +7,8 @@ QUnit.test('String#anchor', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => anchor(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => anchor('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('anchor test');
+    assert.throws(() => anchor(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => anchor('a', symbol), 'throws on symbol argument');
   }
 });

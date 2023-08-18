@@ -6,6 +6,6 @@ QUnit.test('String#italics', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => italics(Symbol()), 'throws on symbol context');
+    assert.throws(() => italics(Symbol('italics test')), 'throws on symbol context');
   }
 });

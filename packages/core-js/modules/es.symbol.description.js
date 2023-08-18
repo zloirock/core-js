@@ -35,7 +35,7 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototy
   SymbolWrapper.prototype = SymbolPrototype;
   SymbolPrototype.constructor = SymbolWrapper;
 
-  var NATIVE_SYMBOL = String(NativeSymbol('test')) === 'Symbol(test)';
+  var NATIVE_SYMBOL = String(NativeSymbol('description detection')) === 'Symbol(description detection)';
   var thisSymbolValue = uncurryThis(SymbolPrototype.valueOf);
   var symbolDescriptiveString = uncurryThis(SymbolPrototype.toString);
   var regexp = /^Symbol\((.*)\)[^)]+$/;

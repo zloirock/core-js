@@ -7,7 +7,8 @@ QUnit.test('String#fontcolor', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => fontcolor(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => fontcolor('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('fontcolor test');
+    assert.throws(() => fontcolor(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => fontcolor('a', symbol), 'throws on symbol argument');
   }
 });

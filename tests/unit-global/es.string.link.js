@@ -9,7 +9,8 @@ QUnit.test('String#link', assert => {
   assert.same('a'.link('"'), '<a href="&quot;">a</a>', 'escape quotes');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => link.call(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => link.call('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('link test');
+    assert.throws(() => link.call(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => link.call('a', symbol), 'throws on symbol argument');
   }
 });

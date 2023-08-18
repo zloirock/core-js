@@ -32,7 +32,7 @@ QUnit.test('RegExp#toString', assert => {
   }
 
   assert.throws(() => toString.call({
-    source: Symbol(),
+    source: Symbol('RegExp#toString test'),
     flags: 'g',
   }), 'throws on symbol');
 });

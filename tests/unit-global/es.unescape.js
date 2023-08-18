@@ -9,6 +9,6 @@ QUnit.test('unescape', assert => {
   assert.same(unescape(undefined), 'undefined');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => unescape(Symbol()), 'throws on symbol argument');
+    assert.throws(() => unescape(Symbol('unescape test')), 'throws on symbol argument');
   }
 });

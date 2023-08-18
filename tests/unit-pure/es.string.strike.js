@@ -6,6 +6,6 @@ QUnit.test('String#strike', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => strike(Symbol()), 'throws on symbol context');
+    assert.throws(() => strike(Symbol('strike test')), 'throws on symbol context');
   }
 });

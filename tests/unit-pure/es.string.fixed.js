@@ -6,6 +6,6 @@ QUnit.test('String#fixed', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => fixed(Symbol()), 'throws on symbol context');
+    assert.throws(() => fixed(Symbol('fixed test')), 'throws on symbol context');
   }
 });

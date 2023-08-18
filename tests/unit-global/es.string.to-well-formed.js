@@ -36,5 +36,5 @@ QUnit.test('String#toWellFormed', assert => {
     assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');
   }
 
-  assert.throws(() => toWellFormed.call(Symbol()), 'throws on symbol context');
+  assert.throws(() => toWellFormed.call(Symbol('toWellFormed test')), 'throws on symbol context');
 });

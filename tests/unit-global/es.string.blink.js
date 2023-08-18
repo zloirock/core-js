@@ -8,6 +8,6 @@ QUnit.test('String#blink', assert => {
   assert.same('a'.blink(), '<blink>a</blink>', 'lower case');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => blink.call(Symbol()), 'throws on symbol context');
+    assert.throws(() => blink.call(Symbol('blink test')), 'throws on symbol context');
   }
 });

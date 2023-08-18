@@ -6,6 +6,6 @@ QUnit.test('String#sup', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => sup(Symbol()), 'throws on symbol context');
+    assert.throws(() => sup(Symbol('sup test')), 'throws on symbol context');
   }
 });

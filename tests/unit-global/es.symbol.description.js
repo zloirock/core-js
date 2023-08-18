@@ -1,3 +1,4 @@
+/* eslint-disable symbol-description -- required for testing */
 import { DESCRIPTORS } from '../helpers/constants';
 
 QUnit.test('Symbol#description', assert => {

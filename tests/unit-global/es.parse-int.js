@@ -36,8 +36,9 @@ QUnit.test('parseInt', assert => {
   assert.same(parseInt(undefined), NaN);
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => parseInt(Symbol()), 'throws on symbol argument');
-    assert.throws(() => parseInt(Object(Symbol())), 'throws on boxed symbol argument');
+    const symbol = Symbol('parseInt test');
+    assert.throws(() => parseInt(symbol), 'throws on symbol argument');
+    assert.throws(() => parseInt(Object(symbol)), 'throws on boxed symbol argument');
   }
 });
 

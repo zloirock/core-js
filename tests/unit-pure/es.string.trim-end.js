@@ -9,7 +9,7 @@ QUnit.test('String#trimEnd', assert => {
   assert.same(trimEnd(WHITESPACES), '', 'removes all whitespaces');
   assert.same(trimEnd('\u200B\u0085'), '\u200B\u0085', "shouldn't remove this symbols");
 
-  assert.throws(() => trimEnd(Symbol()), 'throws on symbol context');
+  assert.throws(() => trimEnd(Symbol('trimEnd test')), 'throws on symbol context');
 
   if (STRICT) {
     assert.throws(() => trimEnd(null, 0), TypeError);

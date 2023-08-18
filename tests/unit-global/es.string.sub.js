@@ -8,6 +8,6 @@ QUnit.test('String#sub', assert => {
   assert.same('a'.sub(), '<sub>a</sub>', 'lower case');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => sub.call(Symbol()), 'throws on symbol context');
+    assert.throws(() => sub.call(Symbol('sub test')), 'throws on symbol context');
   }
 });

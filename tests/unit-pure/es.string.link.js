@@ -7,7 +7,8 @@ QUnit.test('String#link', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => link(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => link('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('link test');
+    assert.throws(() => link(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => link('a', symbol), 'throws on symbol argument');
   }
 });

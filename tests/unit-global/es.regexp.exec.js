@@ -32,7 +32,7 @@ QUnit.test('RegExp#exec capturing groups', assert => {
 
 if (DESCRIPTORS) {
   QUnit.test('RegExp#exec regression', assert => {
-    assert.throws(() => /l/.exec(Symbol()), 'throws on symbol argument');
+    assert.throws(() => /l/.exec(Symbol('RegExp#exec test')), 'throws on symbol argument');
   });
 
   QUnit.test('RegExp#exec sticky', assert => {

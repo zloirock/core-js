@@ -23,8 +23,9 @@ QUnit.test('String#startsWith', assert => {
   assert.true('abc'.startsWith('a', 'x'));
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => startsWith.call(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => startsWith.call('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('startsWith test');
+    assert.throws(() => startsWith.call(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => startsWith.call('a', symbol), 'throws on symbol argument');
   }
 
   if (STRICT) {

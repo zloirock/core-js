@@ -8,7 +8,7 @@ var $String = global.String;
 
 // eslint-disable-next-line es/no-object-getownpropertysymbols -- required for testing
 module.exports = !!Object.getOwnPropertySymbols && !fails(function () {
-  var symbol = Symbol();
+  var symbol = Symbol('symbol detection');
   // Chrome 38 Symbol has incorrect toString conversion
   // `get-own-property-symbols` polyfill symbols converted to object are not Symbol instances
   // nb: Do not call `String` directly to avoid this being optimized out to `symbol+''` which will,

@@ -11,7 +11,7 @@ QUnit.test('String#trimRight', assert => {
   assert.same(WHITESPACES.trimRight(), '', 'removes all whitespaces');
   assert.same('\u200B\u0085'.trimRight(), '\u200B\u0085', "shouldn't remove this symbols");
 
-  assert.throws(() => trimRight.call(Symbol()), 'throws on symbol context');
+  assert.throws(() => trimRight.call(Symbol('trimRight test')), 'throws on symbol context');
 
   if (STRICT) {
     assert.throws(() => trimRight.call(null, 0), TypeError);

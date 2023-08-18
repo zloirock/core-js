@@ -32,7 +32,7 @@ module.exports = !$assign || fails(function () {
   var A = {};
   var B = {};
   // eslint-disable-next-line es/no-symbol -- safe
-  var symbol = Symbol();
+  var symbol = Symbol('assign detection');
   var alphabet = 'abcdefghijklmnopqrst';
   A[symbol] = 7;
   alphabet.split('').forEach(function (chr) { B[chr] = chr; });

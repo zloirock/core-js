@@ -128,8 +128,9 @@ QUnit.test('String#matchAll', assert => {
   }
 
   if (DESCRIPTORS && typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => matchAll.call(Symbol(), /./), 'throws on symbol context');
-    assert.throws(() => matchAll.call('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('matchAll test');
+    assert.throws(() => matchAll.call(symbol, /./), 'throws on symbol context');
+    assert.throws(() => matchAll.call('a', symbol), 'throws on symbol argument');
   }
 
   if (STRICT) {

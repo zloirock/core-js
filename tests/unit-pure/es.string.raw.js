@@ -13,8 +13,9 @@ QUnit.test('String.raw', assert => {
 
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
-    assert.throws(() => raw({ raw: [Symbol()] }, 0), TypeError, 'throws on symbol #1');
-    assert.throws(() => raw({ raw: 'test' }, Symbol()), TypeError, 'throws on symbol #2');
+    const symbol = Symbol('raw test');
+    assert.throws(() => raw({ raw: [symbol] }, 0), TypeError, 'throws on symbol #1');
+    assert.throws(() => raw({ raw: 'test' }, symbol), TypeError, 'throws on symbol #2');
   }
 
   assert.throws(() => raw({}), TypeError);

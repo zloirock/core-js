@@ -15,8 +15,9 @@ QUnit.test('String#padEnd', assert => {
   assert.same('foo'.padEnd(1), 'foo');
   assert.same('foo'.padEnd(5, ''), 'foo');
 
-  assert.throws(() => padEnd.call(Symbol(), 10, 'a'), 'throws on symbol context');
-  assert.throws(() => padEnd.call('a', 10, Symbol()), 'throws on symbol argument');
+  const symbol = Symbol('padEnd test');
+  assert.throws(() => padEnd.call(symbol, 10, 'a'), 'throws on symbol context');
+  assert.throws(() => padEnd.call('a', 10, symbol), 'throws on symbol argument');
 
   if (STRICT) {
     assert.throws(() => padEnd.call(null, 0), TypeError);

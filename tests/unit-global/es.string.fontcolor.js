@@ -9,6 +9,6 @@ QUnit.test('String#fontcolor', assert => {
   assert.same('a'.fontcolor('"'), '<font color="&quot;">a</font>', 'escape quotes');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => fontcolor.call(Symbol()), 'throws on symbol context');
+    assert.throws(() => fontcolor.call(Symbol('fontcolor test')), 'throws on symbol context');
   }
 });

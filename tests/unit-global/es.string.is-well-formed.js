@@ -40,5 +40,5 @@ QUnit.test('String#isWellFormed', assert => {
     assert.throws(() => isWellFormed.call(undefined), TypeError, 'coercible #2');
   }
 
-  assert.throws(() => isWellFormed.call(Symbol()), 'throws on symbol context');
+  assert.throws(() => isWellFormed.call(Symbol('isWellFormed test')), 'throws on symbol context');
 });

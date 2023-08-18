@@ -15,8 +15,9 @@ QUnit.test('String#includes', assert => {
   assert.false('abcd'.includes('b', 2));
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => includes.call(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => includes.call('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('includes test');
+    assert.throws(() => includes.call(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => includes.call('a', symbol), 'throws on symbol argument');
   }
 
   if (STRICT) {

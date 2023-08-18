@@ -9,7 +9,8 @@ QUnit.test('String#fontsize', assert => {
   assert.same('a'.fontsize('"'), '<font size="&quot;">a</font>', 'escape quotes');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => fontsize.call(Symbol(), 'b'), 'throws on symbol context');
-    assert.throws(() => fontsize.call('a', Symbol()), 'throws on symbol argument');
+    const symbol = Symbol('fontsize test');
+    assert.throws(() => fontsize.call(symbol, 'b'), 'throws on symbol context');
+    assert.throws(() => fontsize.call('a', symbol), 'throws on symbol argument');
   }
 });

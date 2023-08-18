@@ -143,7 +143,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(obj4, null), json1, 'replacer-wrong-type-4');
     assert.same(stringify(obj4, ''), json1, 'replacer-wrong-type-5');
     assert.same(stringify(obj4, 0), json1, 'replacer-wrong-type-6');
-    assert.same(stringify(obj4, Symbol()), json1, 'replacer-wrong-type-7');
+    assert.same(stringify(obj4, Symbol('stringify replacer test')), json1, 'replacer-wrong-type-7');
     assert.same(stringify(obj4, true), json1, 'replacer-wrong-type-8');
 
     const obj5 = {
@@ -209,7 +209,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(obj5), stringify(obj5, null, null), 'space-wrong-type-1');
     assert.same(stringify(obj5), stringify(obj5, null, true), 'space-wrong-type-2');
     assert.same(stringify(obj5), stringify(obj5, null, new Boolean(false)), 'space-wrong-type-3');
-    assert.same(stringify(obj5), stringify(obj5, null, Symbol()), 'space-wrong-type-4');
+    assert.same(stringify(obj5), stringify(obj5, null, Symbol('stringify space test')), 'space-wrong-type-4');
     assert.same(stringify(obj5), stringify(obj5, null, {}), 'space-wrong-type-5');
 
     const direct2 = [];
@@ -485,24 +485,27 @@ if (GLOBAL.JSON?.stringify) {
   });
 
   QUnit.test('Symbols & JSON.stringify', assert => {
+    const symbol1 = Symbol('symbol & stringify test 1');
+    const symbol2 = Symbol('symbol & stringify test 2');
+
     assert.same(stringify([
       1,
-      Symbol('foo'),
+      symbol1,
       false,
-      Symbol('bar'),
+      symbol2,
       {},
     ]), '[1,null,false,null,{}]', 'array value');
     assert.same(stringify({
-      symbol: Symbol('symbol'),
+      symbol: symbol1,
     }), '{}', 'object value');
     if (DESCRIPTORS) {
       const object = { bar: 2 };
-      object[Symbol('symbol')] = 1;
+      object[symbol1] = 1;
       assert.same(stringify(object), '{"bar":2}', 'object key');
     }
-    assert.same(stringify(Symbol('symbol')), undefined, 'symbol value');
-    if (typeof Symbol() == 'symbol') {
-      assert.same(stringify(Object(Symbol('symbol'))), '{}', 'boxed symbol');
+    assert.same(stringify(symbol1), undefined, 'symbol value');
+    if (typeof symbol1 == 'symbol') {
+      assert.same(stringify(Object(symbol1)), '{}', 'boxed symbol');
     }
     assert.same(stringify(undefined, () => 42), '42', 'replacer works with top-level undefined');
   });

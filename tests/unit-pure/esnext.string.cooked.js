@@ -11,8 +11,9 @@ QUnit.test('String.cooked', assert => {
   assert.same(cooked([]), '', 'empty template');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => cooked([Symbol()]), TypeError, 'throws on symbol #1');
-    assert.throws(() => cooked('test', Symbol()), TypeError, 'throws on symbol #2');
+    const symbol = Symbol('cooked test');
+    assert.throws(() => cooked([symbol]), TypeError, 'throws on symbol #1');
+    assert.throws(() => cooked('test', symbol), TypeError, 'throws on symbol #2');
   }
 
   assert.throws(() => cooked([undefined]), TypeError);

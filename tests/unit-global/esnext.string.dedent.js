@@ -42,7 +42,7 @@ QUnit.test('String.dedent', assert => {
   assert.same(dedent(tag), dedent(tag), '#7');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => dedent({ raw: freeze(['\n', Symbol(), '\n']) }), TypeError, 'throws on symbol');
+    assert.throws(() => dedent({ raw: freeze(['\n', Symbol('dedent test'), '\n']) }), TypeError, 'throws on symbol');
   }
 
   assert.throws(() => dedent([]), TypeError, '[]');

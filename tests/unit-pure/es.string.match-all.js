@@ -126,7 +126,7 @@ QUnit.test('String#matchAll', assert => {
     assert.notThrows(() => matchAll('', target), `Not throws on ${ target } as the first argument`);
   }
 
-  assert.throws(() => matchAll(Symbol(), /./), 'throws on symbol context');
+  assert.throws(() => matchAll(Symbol('matchAll test'), /./), 'throws on symbol context');
 
   if (STRICT) {
     assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
