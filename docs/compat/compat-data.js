@@ -6286,7 +6286,9 @@
     "samsung": "14.0"
   },
   "esnext.promise.try": {},
-  "esnext.promise.with-resolvers": {},
+  "esnext.promise.with-resolvers": {
+    "bun": "0.7.1"
+  },
   "esnext.reflect.define-metadata": {},
   "esnext.reflect.delete-metadata": {},
   "esnext.reflect.get-metadata": {},

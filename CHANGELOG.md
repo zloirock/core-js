@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.32.1 - 2023.08.19](https://github.com/zloirock/core-js/releases/tag/v3.32.1)
 - Fixed some cases of IEEE754 rounding, [#1279](https://github.com/zloirock/core-js/issues/1279), thanks [**@petamoriken**](https://github.com/petamoriken)
 - Prevented injection `process` polyfill to `core-js` via some bundlers or `esm.sh`, [#1277](https://github.com/zloirock/core-js/issues/1277)
 - Some minor fixes and stylistic changes

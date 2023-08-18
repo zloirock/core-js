@@ -1,5 +1,6 @@
 'use strict';
-/* eslint-disable radix, regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
+/* eslint-disable prefer-regex-literals, radix -- required for testing */
+/* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
   '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
@@ -44,14 +45,14 @@ var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\
 var DESCRIPTORS_SUPPORT = function () {
   return Object.defineProperty({}, 'a', {
     get: function () { return 7; }
-  }).a == 7;
+  }).a === 7;
 };
 
 var V8_PROTOTYPE_DEFINE_BUG = function () {
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
     writable: false
-  }).prototype == 42;
+  }).prototype === 42;
 };
 
 var PROMISES_SUPPORT = function () {
@@ -83,7 +84,7 @@ var PROMISE_STATICS_ITERATION = function () {
 };
 
 var SYMBOLS_SUPPORT = function () {
-  return Object.getOwnPropertySymbols && String(Symbol()) && !(V8_VERSION && V8_VERSION < 41);
+  return Object.getOwnPropertySymbols && String(Symbol('symbol detection')) && !(V8_VERSION && V8_VERSION < 41);
 };
 
 var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
@@ -184,8 +185,8 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
     return this;
   };
 
-  return new Int8Array(iterable)[0] == 1
-    && new Int8Array(new ArrayBuffer(2), 1, undefined).length == 1;
+  return new Int8Array(iterable)[0] === 1
+    && new Int8Array(new ArrayBuffer(2), 1, undefined).length === 1;
 };
 
 function NCG_SUPPORT() {
@@ -211,7 +212,7 @@ function createIsRegExpLogicTest(name) {
 function createStringHTMLMethodTest(METHOD_NAME) {
   return function () {
     var test = ''[METHOD_NAME]('"');
-    return test == test.toLowerCase() && test.split('"').length <= 3;
+    return test === test.toLowerCase() && test.split('"').length <= 3;
   };
 }
 
@@ -266,32 +267,34 @@ function NATIVE_RAW_JSON() {
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
     var version = global.Bun.version.split('.');
-    return version.length < 3 || version[0] == 0 && (version[1] < 3 || version[1] == 3 && version[2] == 0);
+    return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }
 
 function TIMERS() {
   return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
     var version = global.Bun.version.split('.');
-    return version.length < 3 || version[0] == 0 && (version[1] < 3 || version[1] == 3 && version[2] == 0);
+    return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }
 
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
+    var symbol = Symbol('stringify detection');
     return Object.getOwnPropertySymbols('qwe')
       && Symbol['for']
       && Symbol.keyFor
-      && JSON.stringify([Symbol()]) == '[null]'
-      && JSON.stringify({ a: Symbol() }) == '{}'
-      && JSON.stringify(Object(Symbol())) == '{}'
+      && JSON.stringify([symbol]) === '[null]'
+      && JSON.stringify({ a: symbol }) === '{}'
+      && JSON.stringify(Object(symbol)) === '{}'
       && Symbol.prototype[Symbol.toPrimitive]
       && Symbol.prototype[Symbol.toStringTag];
   }],
   'es.symbol.constructor': SYMBOLS_SUPPORT,
   'es.symbol.description': function () {
-    return Symbol('foo').description == 'foo' && Symbol().description === undefined;
+    // eslint-disable-next-line symbol-description -- required for testing
+    return Symbol('description detection').description === 'description detection' && Symbol().description === undefined;
   },
   'es.symbol.async-iterator': function () {
     return Symbol.asyncIterator;
@@ -604,7 +607,7 @@ GLOBAL.tests = {
     new ArrayBuffer();
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
-    return ArrayBuffer.length == 1 && ArrayBuffer.name == 'ArrayBuffer';
+    return ArrayBuffer.length === 1 && ArrayBuffer.name === 'ArrayBuffer';
   }],
   'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return ArrayBuffer.isView;
@@ -630,7 +633,7 @@ GLOBAL.tests = {
     try {
       new Date(NaN).toISOString();
     } catch (error) {
-      return new Date(-5e13 - 1).toISOString() == '0385-07-25T07:06:39.999Z';
+      return new Date(-5e13 - 1).toISOString() === '0385-07-25T07:06:39.999Z';
     }
   },
   'es.date.to-json': function () {
@@ -642,7 +645,7 @@ GLOBAL.tests = {
   }],
   // TODO: Remove from `core-js@4`
   'es.date.to-string': function () {
-    return new Date(NaN).toString() == 'Invalid Date';
+    return new Date(NaN).toString() === 'Invalid Date';
   },
   'es.escape': function () {
     return escape;
@@ -662,9 +665,10 @@ GLOBAL.tests = {
     return globalThis;
   },
   'es.json.stringify': [SYMBOLS_SUPPORT, function () {
-    return JSON.stringify([Symbol()]) == '[null]'
-      && JSON.stringify({ a: Symbol() }) == '{}'
-      && JSON.stringify(Object(Symbol())) == '{}'
+    var symbol = Symbol('stringify detection');
+    return JSON.stringify([symbol]) === '[null]'
+      && JSON.stringify({ a: symbol }) === '{}'
+      && JSON.stringify(Object(symbol)) === '{}'
       && JSON.stringify('\uDF06\uD834') === '"\\udf06\\ud834"'
       && JSON.stringify('\uDEAD') === '"\\udead"';
   }],
@@ -685,16 +689,16 @@ GLOBAL.tests = {
     var map = new Map(iterable);
     return map.forEach
       && map[Symbol.iterator]().next()
-      && map.get(1) == 2
-      && map.set(-0, 3) == map
+      && map.get(1) === 2
+      && map.set(-0, 3) === map
       && map.has(0)
       && map[Symbol.toStringTag];
   }],
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
-    return Math.floor(Math.acosh(Number.MAX_VALUE)) == 710
+    return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
       // Tor Browser bug: Math.acosh(Infinity) -> NaN
-      && Math.acosh(Infinity) == Infinity;
+      && Math.acosh(Infinity) === Infinity;
   },
   'es.math.asinh': function () {
     return 1 / Math.asinh(0) > 0;
@@ -715,7 +719,7 @@ GLOBAL.tests = {
     // Old FF bug
     return Math.expm1(10) <= 22025.465794806719 && Math.expm1(10) >= 22025.4657948067165168
       // Tor Browser bug
-      && Math.expm1(-2e-17) == -2e-17;
+      && Math.expm1(-2e-17) === -2e-17;
   },
   'es.math.fround': function () {
     return Math.fround;
@@ -724,7 +728,7 @@ GLOBAL.tests = {
     return Math.hypot && Math.hypot(Infinity, NaN) === Infinity;
   },
   'es.math.imul': function () {
-    return Math.imul(0xFFFFFFFF, 5) == -5 && Math.imul.length == 2;
+    return Math.imul(0xFFFFFFFF, 5) === -5 && Math.imul.length === 2;
   },
   'es.math.log10': function () {
     return Math.log10;
@@ -739,7 +743,7 @@ GLOBAL.tests = {
     return Math.sign;
   },
   'es.math.sinh': function () {
-    return Math.sinh(-2e-17) == -2e-17;
+    return Math.sinh(-2e-17) === -2e-17;
   },
   'es.math.tanh': function () {
     return Math.tanh;
@@ -835,11 +839,11 @@ GLOBAL.tests = {
     }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
-    var symbol = Symbol();
+    var symbol = Symbol('assign detection');
     var alphabet = 'abcdefghijklmnopqrst';
     A[symbol] = 7;
     alphabet.split('').forEach(function (chr) { B[chr] = chr; });
-    return Object.assign({}, A)[symbol] == 7 && Object.keys(Object.assign({}, B)).join('') == alphabet;
+    return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
   // TODO: Remove from `core-js@4`
   'es.object.create': function () {
@@ -1015,7 +1019,7 @@ GLOBAL.tests = {
     return new RegExp(re1) !== re1
       && RegExp(re1) === re1
       && RegExp(re2) !== re2
-      && RegExp(re1, 'i') == '/a/i'
+      && String(RegExp(re1, 'i')) === '/a/i'
       && new RegExp('a', 'y') // just check that it doesn't throw
       && RegExp('.', 's').exec('\n')
       && RegExp[Symbol.species];
@@ -1108,7 +1112,7 @@ GLOBAL.tests = {
     return set.forEach
       && set[Symbol.iterator]().next()
       && set.has(1)
-      && set.add(-0) == set
+      && set.add(-0) === set
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
@@ -1139,7 +1143,7 @@ GLOBAL.tests = {
     re[Symbol.match]('');
 
     // eslint-disable-next-line regexp/prefer-regexp-exec -- required for testing
-    return ''.match(O) == 7 && execCalled;
+    return ''.match(O) === 7 && execCalled;
   },
   'es.string.match-all': function () {
     try {
@@ -1177,7 +1181,7 @@ GLOBAL.tests = {
       return result;
     };
 
-    return ''.replace(O) == 7
+    return ''.replace(O) === 7
       && execCalled
       // eslint-disable-next-line regexp/no-useless-dollar-replacements -- false positive
       && ''.replace(re2, '$<a>') === '7'
@@ -1197,7 +1201,7 @@ GLOBAL.tests = {
     re.exec = function () { execCalled = true; return null; };
     re[Symbol.search]('');
 
-    return ''.search(O) == 7 && execCalled;
+    return ''.search(O) === 7 && execCalled;
   },
   'es.string.split': function () {
     var O = {};
@@ -1216,7 +1220,7 @@ GLOBAL.tests = {
     re2.exec = function () { return originalExec.apply(this, arguments); };
     var result = 'ab'.split(re2);
 
-    return ''.split(O) == 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
+    return ''.split(O) === 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
   'es.string.substr': function () {
@@ -1414,11 +1418,11 @@ GLOBAL.tests = {
     try {
       Int8Array.prototype.toLocaleString.call([1, 2]);
     } catch (error) {
-      return [1, 2].toLocaleString() == new Int8Array([1, 2]).toLocaleString();
+      return [1, 2].toLocaleString() === new Int8Array([1, 2]).toLocaleString();
     }
   }],
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.toString == Array.prototype.toString;
+    return Int8Array.prototype.toString === Array.prototype.toString;
   }],
   'es.typed-array.to-reversed': function () {
     return Int8Array.prototype.toReversed;
@@ -1450,9 +1454,9 @@ GLOBAL.tests = {
 
     var map = new WeakMap(iterable);
     // MS IE bug
-    return map.get(key) == 1
-      && map.get(null) == undefined
-      && map.set({}, 2) == map
+    return map.get(key) === 1
+      && map.get(null) === undefined
+      && map.set({}, 2) === map
       && map[Symbol.toStringTag]
       // MS Edge bug
       && Object.isFrozen(key);
@@ -1472,7 +1476,7 @@ GLOBAL.tests = {
     var set = new WeakSet(iterable);
     return set.has(key)
       && !set.has(null)
-      && set.add({}) == set
+      && set.add({}) === set
       && set[Symbol.toStringTag];
   }],
   'esnext.suppressed-error.constructor': function () {
@@ -1779,7 +1783,7 @@ GLOBAL.tests = {
     return Set.from;
   },
   'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
-    return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) == '3,2';
+    return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) === '3,2';
   }],
   'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
   'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
@@ -1975,7 +1979,7 @@ GLOBAL.tests = {
 
     function checkNewErrorsCloningSemantic(structuredCloneImplementation) {
       var test = structuredCloneImplementation(new AggregateError([1], 'message', { cause: 3 }));
-      return test.name == 'AggregateError' && test.errors[0] == 1 && test.message == 'message' && test.cause == 3;
+      return test.name === 'AggregateError' && test.errors[0] === 1 && test.message === 'message' && test.cause === 3;
     }
 
     return checkErrorsCloning(structuredClone, Error)
