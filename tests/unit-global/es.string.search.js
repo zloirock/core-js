@@ -112,9 +112,9 @@ QUnit.test('RegExp#@@search delegates to exec', assert => {
   let execCalled = false;
   let re = /b/;
   re.lastIndex = 7;
-  re.exec = function () {
+  re.exec = function (...args) {
     execCalled = true;
-    return /./.exec.apply(this, arguments);
+    return /./.exec.apply(this, args);
   };
   assert.deepEqual(re[Symbol.search]('abc'), 1);
   assert.true(execCalled);

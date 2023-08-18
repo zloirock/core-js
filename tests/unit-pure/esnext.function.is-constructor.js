@@ -7,6 +7,7 @@ QUnit.test('Function.isConstructor', assert => {
   assert.name(isConstructor, 'isConstructor');
   assert.false(isConstructor({}), 'object');
   assert.false(isConstructor(function () {
+    // eslint-disable-next-line prefer-rest-params -- required for testing
     return arguments;
   }()), 'arguments');
   assert.false(isConstructor([]), 'array');

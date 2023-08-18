@@ -1,3 +1,4 @@
+/* eslint-disable prefer-spread -- required for testing */
 QUnit.test('String.fromCodePoint', assert => {
   const { fromCodePoint } = String;
   assert.isFunction(fromCodePoint);

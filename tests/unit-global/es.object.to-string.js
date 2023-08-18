@@ -20,6 +20,7 @@ QUnit.test('Object#toString', assert => {
   assert.same(toString.call(/./), '[object RegExp]', 'regexp -> `RegExp`');
   assert.same(toString.call(new TypeError()), '[object Error]', 'new TypeError -> `Error`');
   assert.same(toString.call(function () {
+    // eslint-disable-next-line prefer-rest-params -- required for testing
     return arguments;
   }()), '[object Arguments]', 'arguments -> `Arguments`');
   const constructors = [

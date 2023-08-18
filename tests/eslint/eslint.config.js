@@ -124,6 +124,8 @@ const base = {
   camelcase: [ERROR, { properties: NEVER }],
   // enforce default clauses in switch statements to be last
   'default-case-last': ERROR,
+  // enforce default parameters to be last
+  'default-param-last': ERROR,
   // encourages use of dot notation whenever possible
   'dot-notation': [ERROR, { allowKeywords: true }],
   // require the use of === and !==
@@ -262,6 +264,10 @@ const base = {
   'prefer-exponentiation-operator': ERROR,
   // prefer `Object.hasOwn`
   'prefer-object-has-own': ERROR,
+  // require rest parameters instead of `arguments`
+  'prefer-rest-params': ERROR,
+  // require spread operators instead of `.apply()`
+  'prefer-spread': ERROR,
   // require template literals instead of string concatenation
   'prefer-template': ERROR,
   // require or disallow use of quotes around object literal property names
@@ -767,6 +773,10 @@ const es3 = {
   'prefer-exponentiation-operator': OFF,
   // prefer `Object.hasOwn`
   'prefer-object-has-own': OFF,
+  // require rest parameters instead of `arguments`
+  'prefer-rest-params': OFF,
+  // require spread operators instead of `.apply()`
+  'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names

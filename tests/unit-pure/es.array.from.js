@@ -1,3 +1,4 @@
+/* eslint-disable prefer-rest-params -- required for testing */
 import { DESCRIPTORS } from '../helpers/constants';
 import { createIterable } from '../helpers/helpers';
 

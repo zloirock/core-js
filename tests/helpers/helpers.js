@@ -139,8 +139,8 @@ export function patchRegExp$exec(run) {
   return assert => {
     const originalExec = RegExp.prototype.exec;
     // eslint-disable-next-line no-extend-native -- required for testing
-    RegExp.prototype.exec = function () {
-      return originalExec.apply(this, arguments);
+    RegExp.prototype.exec = function (...args) {
+      return originalExec.apply(this, args);
     };
     try {
       return run(assert);

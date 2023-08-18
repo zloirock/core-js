@@ -1,3 +1,4 @@
+/* eslint-disable prefer-spread -- required for testing */
 import fromCodePoint from 'core-js-pure/es/string/from-code-point';
 
 QUnit.test('String.fromCodePoint', assert => {

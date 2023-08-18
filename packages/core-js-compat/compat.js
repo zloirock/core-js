@@ -25,7 +25,7 @@ function getModules(filter) {
 
 function normalizeModules(option) {
   // TODO: use `.flatMap` in core-js@4
-  return new Set(Array.isArray(option) ? [].concat.apply([], option.map(getModules)) : getModules(option));
+  return new Set(Array.isArray(option) ? [].concat(...option.map(getModules)) : getModules(option));
 }
 
 function checkModule(name, targets) {

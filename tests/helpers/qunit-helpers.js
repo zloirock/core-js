@@ -33,7 +33,7 @@ assign(QUnit.assert, {
         : 'Enumerability is not applicable',
     });
   },
-  epsilon(a, b, EPSILON = 1e-11, message) {
+  epsilon(a, b, EPSILON = 1e-11, message = null) {
     const result = Math.abs(a - b) <= EPSILON;
     this.pushResult({
       result,

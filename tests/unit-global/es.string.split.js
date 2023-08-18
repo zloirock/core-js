@@ -735,18 +735,19 @@ QUnit.test('RegExp#@@split delegates to exec', assert => {
   let speciesCalled = false;
   let execSpeciesCalled = false;
   const re = /[24]/;
-  re.exec = function () {
+  re.exec = function (...args) {
     execCalled = true;
-    return /./.exec.apply(this, arguments);
+    return /./.exec.apply(this, args);
   };
   re.constructor = {
     // eslint-disable-next-line object-shorthand -- constructor
-    [Symbol.species]: function (source, flags) {
+    [Symbol.species]: function (...args) {
+      const [source, flags] = args;
       const re2 = new RegExp(source, flags);
       speciesCalled = true;
       re2.exec = function () {
         execSpeciesCalled = true;
-        return /./.exec.apply(this, arguments);
+        return /./.exec.apply(this, args);
       };
       return re2;
     },

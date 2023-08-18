@@ -228,9 +228,9 @@ QUnit.test('String#match delegates to @@match', assert => {
 });
 
 QUnit.test('RegExp#@@match delegates to exec', assert => {
-  const exec = function () {
+  const exec = function (...args) {
     execCalled = true;
-    return /./.exec.apply(this, arguments);
+    return /./.exec.apply(this, args);
   };
 
   let execCalled = false;

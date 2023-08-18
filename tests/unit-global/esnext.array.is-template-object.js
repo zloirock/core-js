@@ -12,6 +12,7 @@ QUnit.test('Array.isTemplateObject', assert => {
   assert.false(isTemplateObject(null));
   assert.false(isTemplateObject({}));
   assert.false(isTemplateObject(function () {
+    // eslint-disable-next-line prefer-rest-params -- required for testing
     return arguments;
   }()));
   assert.false(isTemplateObject([]));

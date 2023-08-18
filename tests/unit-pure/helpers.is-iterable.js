@@ -7,6 +7,7 @@ QUnit.test('isIterable helper', assert => {
   assert.true(isIterable(createIterable([])));
   assert.true(isIterable([]));
   assert.true(isIterable(function () {
+    // eslint-disable-next-line prefer-rest-params -- required for testing
     return arguments;
   }()));
   assert.true(isIterable(Array.prototype));
