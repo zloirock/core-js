@@ -27,6 +27,7 @@ if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
     [-128, -128, [0, 0, 0, 195]],
     [255, 255, [0, 0, 127, 67]],
     [-255, -255, [0, 0, 127, 195]],
+    // eslint-disable-next-line no-loss-of-precision -- false positive
     [255.1, 255.10000610351562, [154, 25, 127, 67]],
     [255.9, 255.89999389648438, [102, 230, 127, 67]],
     [256, 256, [0, 0, 128, 67]],

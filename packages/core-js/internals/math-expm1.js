@@ -7,6 +7,7 @@ var exp = Math.exp;
 // https://tc39.es/ecma262/#sec-math.expm1
 module.exports = (!$expm1
   // Old FF bug
+  // eslint-disable-next-line no-loss-of-precision -- required for old engines
   || $expm1(10) > 22025.465794806719 || $expm1(10) < 22025.4657948067165168
   // Tor Browser bug
   || $expm1(-2e-17) !== -2e-17

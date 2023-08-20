@@ -70,6 +70,8 @@ const base = {
   'no-func-assign': ERROR,
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': ERROR,
+  // disallow literal numbers that lose precision
+  'no-loss-of-precision': ERROR,
   // disallow `new` operators with global non-constructor functions
   'no-new-native-nonconstructor': ERROR,
   // disallow the use of object properties of the global object (Math and JSON) as functions

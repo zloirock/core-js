@@ -17,8 +17,8 @@ QUnit.test('Math.trunc', assert => {
   assert.same(trunc(-1), -1, '-1 -> -1');
   assert.same(trunc(-1.99), -1, '-1.99 -> -1');
   assert.same(trunc(-555.555), -555, '-555.555 -> -555');
-  assert.same(trunc(0x20000000000001), 0x20000000000001, '0x20000000000001 -> 0x20000000000001');
-  assert.same(trunc(-0x20000000000001), -0x20000000000001, '-0x20000000000001 -> -0x20000000000001');
+  assert.same(trunc(9007199254740992), 9007199254740992, '9007199254740992 -> 9007199254740992');
+  assert.same(trunc(-9007199254740992), -9007199254740992, '-9007199254740992 -> -9007199254740992');
 
   const checker = createConversionChecker(-1.99);
   assert.same(trunc(checker), -1, 'object wrapper');
