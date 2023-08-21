@@ -369,27 +369,27 @@ if (GLOBAL.JSON?.stringify) {
     }), EvalError, 'value-tojson-abrupt-1');
 
     let callCount = 0;
-    let _this, _key;
+    let $this, $key;
     const obj6 = {
       toJSON(key) {
         callCount += 1;
-        _this = this;
-        _key = key;
+        $this = this;
+        $key = key;
       },
     };
     assert.same(stringify(obj6), undefined, 'value-tojson-arguments-1');
     assert.same(callCount, 1, 'value-tojson-arguments-2');
-    assert.same(_this, obj6, 'value-tojson-arguments-3');
-    assert.same(_key, '', 'value-tojson-arguments-4');
+    assert.same($this, obj6, 'value-tojson-arguments-3');
+    assert.same($key, '', 'value-tojson-arguments-4');
     assert.same(stringify([1, obj6, 3]), '[1,null,3]', 'value-tojson-arguments-5');
     assert.same(callCount, 2, 'value-tojson-arguments-6');
-    assert.same(_this, obj6, 'value-tojson-arguments-7');
+    assert.same($this, obj6, 'value-tojson-arguments-7');
     // some old implementations (like WebKit) could pass numbers as keys
-    // assert.same(_key, '1', 'value-tojson-arguments-8');
+    // assert.same($key, '1', 'value-tojson-arguments-8');
     assert.same(stringify({ key: obj6 }), '{}', 'value-tojson-arguments-9');
     assert.same(callCount, 3, 'value-tojson-arguments-10');
-    assert.same(_this, obj6, 'value-tojson-arguments-11');
-    assert.same(_key, 'key', 'value-tojson-arguments-12');
+    assert.same($this, obj6, 'value-tojson-arguments-11');
+    assert.same($key, 'key', 'value-tojson-arguments-12');
 
     const arr1 = [];
     const circular2 = [arr1];

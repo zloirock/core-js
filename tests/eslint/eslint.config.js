@@ -222,6 +222,8 @@ const base = {
   'no-throw-literal': ERROR,
   // disallow initializing variables to undefined
   'no-undef-init': ERROR,
+  // disallow dangling underscores in identifiers
+  'no-underscore-dangle': ERROR,
   // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
   'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
   // disallow usage of expressions in statement position
@@ -1119,6 +1121,13 @@ const tests = {
   'no-throw-literal': OFF,
   // disallow usage of expressions in statement position
   'no-unused-expressions': OFF,
+  // disallow dangling underscores in identifiers
+  'no-underscore-dangle': [ERROR, { allow: [
+    '__defineGetter__',
+    '__defineSetter__',
+    '__lookupGetter__',
+    '__lookupSetter__',
+  ] }],
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': OFF,
   // enforce passing a message value when throwing a built-in error
