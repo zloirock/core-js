@@ -86,7 +86,7 @@ var handleNCG = function (string) {
   for (; index <= length; index++) {
     chr = charAt(string, index);
     if (chr === '\\') {
-      chr = chr + charAt(string, ++index);
+      chr += charAt(string, ++index);
     } else if (chr === ']') {
       brackets = false;
     } else if (!brackets) switch (true) {

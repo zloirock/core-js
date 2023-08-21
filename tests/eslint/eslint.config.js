@@ -260,6 +260,8 @@ const base = {
   'object-shorthand': ERROR,
   // require newlines around variable declarations with initializations
   'one-var-declaration-per-line': [ERROR, 'initializations'],
+  // require assignment operator shorthand where possible
+  'operator-assignment': [ERROR, 'always'],
   // require using arrow functions for callbacks
   'prefer-arrow-callback': ERROR,
   // require const declarations for variables that are never reassigned after declared
