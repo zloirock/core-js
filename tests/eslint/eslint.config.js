@@ -132,10 +132,12 @@ const base = {
   eqeqeq: [ERROR, 'smart'],
   // require logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, ALWAYS],
+  // enforce a maximum depth that blocks can be nested
+  'max-depth': [ERROR, { max: 5 }],
   // enforce a maximum depth that callbacks can be nested
-  'max-nested-callbacks': [ERROR, 4],
+  'max-nested-callbacks': [ERROR, { max: 4 }],
   // specify the maximum number of statement allowed in a function
-  'max-statements': [ERROR, 50],
+  'max-statements': [ERROR, { max: 50 }],
   // require a capital letter for constructors
   'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
   // disallow window alert / confirm / prompt calls
