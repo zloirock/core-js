@@ -17,8 +17,8 @@ QUnit.test('setTimeout / clearTimeout', assert => {
       clearTimeout(setTimeout(resolve, 10));
     });
   }).then(() => {
-    assert.avoid('clearImmediate works with wrapped setTimeout');
+    assert.avoid('clearTimeout works with wrapped setTimeout');
   }, () => {
-    assert.required('clearImmediate works with wrapped setTimeout');
+    assert.required('clearTimeout works with wrapped setTimeout');
   });
 });
