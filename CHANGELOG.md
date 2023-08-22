@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added Deno 1.36.2 compat data mapping
 
 ##### [3.32.1 - 2023.08.19](https://github.com/zloirock/core-js/releases/tag/v3.32.1)
 - Fixed some cases of IEEE754 rounding, [#1279](https://github.com/zloirock/core-js/issues/1279), thanks [**@petamoriken**](https://github.com/petamoriken)
