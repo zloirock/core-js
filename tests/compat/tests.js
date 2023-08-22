@@ -1489,22 +1489,6 @@ GLOBAL.tests = {
   'esnext.array.filter-reject': function () {
     return [].filterReject;
   },
-  'esnext.array.group': function () {
-    try {
-      // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.group.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.group;
-  },
-  'esnext.array.group-to-map': function () {
-    try {
-      // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.groupToMap.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.groupToMap;
-  },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;
   },
