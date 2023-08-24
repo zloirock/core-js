@@ -1140,7 +1140,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.match]('');
 
     // eslint-disable-next-line regexp/prefer-regexp-exec -- required for testing
@@ -1172,7 +1175,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.replace]('');
 
     var re2 = /./;
@@ -1199,7 +1205,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.search]('');
 
     return ''.search(O) === 7 && execCalled;
@@ -1210,7 +1219,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re.constructor = {};
     re.constructor[Symbol.species] = function () { return re; };
     re[Symbol.split]('');

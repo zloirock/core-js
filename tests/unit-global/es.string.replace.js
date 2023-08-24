@@ -220,7 +220,10 @@ QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
   assert.same('1234'.replace(re, '$x'), '1$x4');
 
   let args;
-  assert.same('1234'.replace(re, (..._args) => { args = _args; return 'x'; }), '1x4');
+  assert.same('1234'.replace(re, (...$args) => {
+    args = $args;
+    return 'x';
+  }), '1x4');
   assert.deepEqual(args, ['23', '7', 1, '1234', { '!!!': '7' }]);
 });
 
