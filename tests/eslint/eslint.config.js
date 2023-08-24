@@ -91,7 +91,7 @@ const base = {
   // disallow unmodified loop conditions
   'no-unmodified-loop-condition': ERROR,
   // disallow use of undeclared variables unless mentioned in a /*global */ block
-  'no-undef': [ERROR],
+  'no-undef': [ERROR, { typeof: false }],
   // disallow control flow statements in `finally` blocks
   'no-unsafe-finally': ERROR,
   // avoid code that looks like two expressions but is actually one
@@ -222,7 +222,7 @@ const base = {
   'no-shadow-restricted-names': ERROR,
   // restrict what can be thrown as an exception
   'no-throw-literal': ERROR,
-  // disallow initializing variables to undefined
+  // disallow initializing variables to `undefined`
   'no-undef-init': ERROR,
   // disallow dangling underscores in identifiers
   'no-underscore-dangle': ERROR,
