@@ -213,6 +213,10 @@ const base = {
   // disallow specified syntax
   'no-restricted-syntax': [ERROR,
     {
+      selector: 'ForInStatement',
+      message: '`for-in` loops are disallowed since iterate over the prototype chain',
+    },
+    {
       selector: 'LabeledStatement',
       message: 'Labels are disallowed as a form of GOTO',
     },
@@ -786,6 +790,8 @@ const es3 = {
   'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
+  // disallow specified syntax
+  'no-restricted-syntax': base['no-restricted-syntax'].filter(it => it.selector !== 'ForInStatement'),
   // require let or const instead of var
   'no-var': OFF,
   // require or disallow method and property shorthand syntax for object literals
@@ -1138,6 +1144,8 @@ const tests = {
   'no-new-func': OFF,
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': OFF,
+  // disallow specified syntax
+  'no-restricted-syntax': base['no-restricted-syntax'].filter(it => it.selector !== 'ForInStatement'),
   // restrict what can be thrown as an exception
   'no-throw-literal': OFF,
   // disallow usage of expressions in statement position
