@@ -29,7 +29,7 @@ const allModules = await glob('packages/core-js?(-pure)/**/*.js');
 
 await Promise.all(allModules.map(async path => {
   for (const dependency of konan(String(await fs.readFile(path))).strings) {
-    internalModules.delete(dependency.match(/\/internals\/([^/]+)$/)?.[1]);
+    internalModules.delete(dependency.match(/\/internals\/(?<module>[^/]+)$/)?.groups.module);
   }
 }));
 

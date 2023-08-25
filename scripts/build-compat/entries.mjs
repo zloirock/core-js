@@ -5,8 +5,8 @@ import helpers from 'core-js-compat/helpers.js';
 async function getModulesForEntryPoint(path, parent) {
   const entry = new URL(path, parent);
 
-  const match = entry.pathname.match(/[/\\]modules[/\\]([^/\\]+)$/);
-  if (match) return [match[1]];
+  const match = entry.pathname.match(/[/\\]modules[/\\](?<module>[^/\\]+)$/);
+  if (match) return [match.groups.module];
 
   entry.pathname += await fs.pathExists(entry) ? '/index.js' : '.js';
 

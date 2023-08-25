@@ -270,6 +270,8 @@ const base = {
   'prefer-destructuring': ERROR,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': ERROR,
+  // enforce using named capture group in regular expression
+  'prefer-named-capture-group': ERROR,
   // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
   'prefer-numeric-literals': ERROR,
   // prefer `Object.hasOwn`
@@ -787,6 +789,8 @@ const es3 = {
   'prefer-destructuring': OFF,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': OFF,
+  // enforce using named capture group in regular expression
+  'prefer-named-capture-group': OFF,
   // prefer `Object.hasOwn`
   'prefer-object-has-own': OFF,
   // require rest parameters instead of `arguments`
@@ -1065,6 +1069,8 @@ const nodePackages = {
   ...asyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
+  // enforce using named capture group in regular expression
+  'prefer-named-capture-group': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
@@ -1136,6 +1142,8 @@ const tests = {
   ] }],
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': OFF,
+  // enforce using named capture group in regular expression
+  'prefer-named-capture-group': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
   // functions should not have identical implementations

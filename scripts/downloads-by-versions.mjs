@@ -11,7 +11,7 @@ let total = 0;
 async function getStat(pkg) {
   const res = await fetch(`https://www.npmjs.com/package/${ pkg }`);
   const html = await res.text();
-  const [, json] = html.match(/>window\.__context__ = ([^<]+)<\//);
+  const { json } = html.match(/>window\.__context__ = (?<json>[^<]+)<\//).groups;
   return JSON.parse(json).context.versionsDownloads;
 }
 

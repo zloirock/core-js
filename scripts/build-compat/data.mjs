@@ -12,7 +12,7 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/([a-z])([A-Z])/, (_, a, b) => `${ a }-${ b }`).toLowerCase());
+        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>-$<upper>').toLowerCase());
       const version = module[engine];
       if (!version || has(module, targetKey)) return;
       const mapping = mappings[mappingKey];

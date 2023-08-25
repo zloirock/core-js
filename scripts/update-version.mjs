@@ -4,8 +4,13 @@ const [PREV_VERSION, NEW_VERSION] = (await Promise.all([
   readJson('packages/core-js/package.json'),
   readJson('package.json'),
 ])).map(it => it.version);
-const PREV_VERSION_MINOR = PREV_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
-const NEW_VERSION_MINOR = NEW_VERSION.replace(/^(\d+\.\d+)\..*/, '$1');
+
+function getMinorVersion(version) {
+  return version.match(/^(?<minor>\d+\.\d+)\..*/).groups.minor;
+}
+
+const PREV_VERSION_MINOR = getMinorVersion(PREV_VERSION);
+const NEW_VERSION_MINOR = getMinorVersion(NEW_VERSION);
 const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
 const README = 'README.md';
@@ -17,7 +22,7 @@ const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
 const license = await readFile(LICENSE, 'utf8');
-const OLD_YEAR = +license.match(/2014-(\d{4}) D/)[1];
+const OLD_YEAR = +license.match(/2014-(?<year>\d{4}) D/).groups.year;
 await writeFile(LICENSE, license.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const readme = await readFile(README, 'utf8');
