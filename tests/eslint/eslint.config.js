@@ -182,8 +182,6 @@ const base = {
   'no-iterator': ERROR,
   // disallow labels that share a name with a variable
   'no-label-var': ERROR,
-  // disallow use of labels for anything other then loops and switches
-  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
   // disallow unnecessary nested blocks
   'no-lone-blocks': ERROR,
   // disallow `if` as the only statement in an `else` block
@@ -212,6 +210,17 @@ const base = {
   'no-redeclare': [ERROR, { builtinGlobals: false }],
   // disallow specific global variables
   'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
+  // disallow specified syntax
+  'no-restricted-syntax': [ERROR,
+    {
+      selector: 'LabeledStatement',
+      message: 'Labels are disallowed as a form of GOTO',
+    },
+    {
+      selector: 'WithStatement',
+      message: '`with` is disallowed in strict mode',
+    },
+  ],
   // disallow use of `javascript:` urls.
   'no-script-url': ERROR,
   // disallow use of comma operator
