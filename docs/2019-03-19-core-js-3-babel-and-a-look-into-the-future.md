@@ -1,5 +1,9 @@
 # core-js@3, babel and a look into the future
 
+_Translations: [简体中文][zh_cn]_
+
+[zh_cn]: zh_CN/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md
+
 After more than 1.5 years of development, dozens of pre-releases, many sleepless nights, **[`core-js@3`](https://github.com/zloirock/core-js)** is finally released. It's the largest set of changes in `core-js` and polyfilling-related **[`babel`](https://babeljs.io)** features of all time.
 
 What is `core-js`?

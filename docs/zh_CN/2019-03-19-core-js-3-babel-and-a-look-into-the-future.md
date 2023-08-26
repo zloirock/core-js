@@ -1,16 +1,16 @@
 # core-js@3, Babel 展望未来
 
-经过一年半的开发，数十个版本，许多不眠之夜，**[`core-js@3`](https://github.com/zloirock/core-js)** 终于发布了。这是 `core-js` 和 **[babel](https://babeljs.io/)** 补丁相关的功能的最大的一次变化。
+经过一年半的开发，数十个版本，许多不眠之夜，**[`core-js@3`](https://github.com/zloirock/core-js)** 终于发布了。这是 `core-js` 和 **[`babel`](https://babeljs.io/)** 补丁相关的功能的最大的一次变化。
 
 什么是 `core-js`?
 
-- 它是JavaScript标准库的 polyfill，它支持
+- 它是 JavaScript 标准库的 polyfill，它支持
   - 最新的 [ECMAScript](https://en.wikipedia.org/wiki/ECMAScript) 标准
   - ECMAScript 标准库提案
   - 一些 [WHATWG](https://en.wikipedia.org/wiki/WHATWG)  / [W3C](https://en.wikipedia.org/wiki/World_Wide_Web_Consortium) 标准（跨平台或者 ECMAScript 相关）
 - 它最大限度的模块化：你能仅仅加载你想要使用的功能
 - 它能够不污染全局命名空间
-- 它[和babel紧密集成](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#Babel)：这能够优化`core-js`的导入
+- 它[和 babel 紧密集成](https://github.com/zloirock/core-js/blob/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md#Babel)：这能够优化`core-js`的导入
 
 它是最普遍、[最流行](https://npmtrends.com/airbnb-js-shims-vs-core-js-vs-es5-shim-vs-es6-shim-vs-js-polyfills-vs-polyfill-library-vs-polyfill-service) 的给 JavaScript 标准库打补丁的方式，但是有很大一部分开发者并不知道他们间接的使用了`core-js`🙂
 
@@ -44,14 +44,14 @@
 
 一些在 ES2016-ES2019 中作为提案被接受且已经使用很长时间的功能，现在被标记为稳定：
 
-- [`Array.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes) 和 [`TypedArray.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray/includes) 方法（ ESMAScript 2016 ）
-- [`Object.values`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/values) 和 [`Object.entries`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/entries) 方法( ECMAScript 2017 )
+- [`Array.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes) 和 [`TypedArray.prototype.includes`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray/includes)方法（ESMAScript 2016）
+- [`Object.values`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/values) 和 [`Object.entries`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/entries) 方法 ( ECMAScript 2017 )
 - [`Object.getOwnPropertyDescriptors`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/getOwnPropertyDescriptors) 方法 ( ECMAScript 2017 )
-- [`String.prototype.padStart`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart) 和 [`String.prototype.padEnd`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padEnd) 方法（ ECMAScript 2017 ）
-- [`Promise.prototype.finally`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally) 方法（ ECMAScript 2018 ）
-- [`Symbol.asyncIterator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/asyncIterator) 知名标志（ ECMAScript 2018 ）
-- [`Object.prototype.__define(Getter|Setter)__`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/__defineGetter__) 和 [`Object.prototype.__lookup(Getter|Setter)__`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/__lookupGetter__) 方法（ ECMAScript 2018 ）
-- [`String.prototype.trim(Start|End|Left|Right)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/trimStart) 方法（ ECMAScript 2019 ）
+- [`String.prototype.padStart`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart) 和 [`String.prototype.padEnd`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padEnd) 方法（ECMAScript 2017）
+- [`Promise.prototype.finally`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/finally) 方法（ECMAScript 2018）
+- [`Symbol.asyncIterator`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/asyncIterator) 知名标志（ECMAScript 2018）
+- [`Object.prototype.__define(Getter|Setter)__`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/__defineGetter__) 和 [`Object.prototype.__lookup(Getter|Setter)__`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/__lookupGetter__) 方法（ECMAScript 2018）
+- [`String.prototype.trim(Start|End|Left|Right)`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/trimStart) 方法（ECMAScript 2019）
 
 修复了针对浏览器的许多问题，例如，[Safari 12.0 `Array.prototype.reverse` bug](https://bugs.webkit.org/show_bug.cgi?id=188794) 已经被修复了。
 
@@ -59,8 +59,8 @@
 
 除了上文提到的支持内容，`core-js@3` 现在还支持下面的 ECMAScript 提案：
 
-- [`globalThis`](https://github.com/tc39/proposal-global) stage 3（ 现在是 stage 4 ）的提案 - 之前，已经有了 `global` 和 `System.global`
-- [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled) stage 2（ 现在是 stage 4 ）提案
+- [`globalThis`](https://github.com/tc39/proposal-global) stage 3（现在是 stage 4）的提案 - 之前，已经有了 `global` 和 `System.global`
+- [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled) stage 2（现在是 stage 4）提案
 - [新 `Set` 方法](https://github.com/tc39/proposal-set-methods) stage 2 提案：
   - Set.prototype.difference
   - Set.prototype.intersection
@@ -97,13 +97,13 @@
   - WeakMap.prototype.deleteAll
   - WeakSet.prototype.addAll
   - WeakSet.prototype.deleteAll
-- [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replace-all) stage 1（ 现在是 stage 3 ） 提案
+- [`String.prototype.replaceAll`](https://github.com/tc39/proposal-string-replace-all) stage 1（现在是 stage 3）提案
 - [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints) stage 1 提案
 - [`Array.prototype.last(Item|Index)`](https://github.com/tc39-transfer/proposal-array-last) stage 1 提案
 - [`compositeKey` 和 `compositeSymbol` 方法](https://github.com/bmeck/proposal-richer-keys/tree/master/compositeKey) stage 1 提案
 - [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring) stage 1 提案
 - [`Math.seededPRNG`](https://github.com/tc39/proposal-seeded-random) stage 1 提案
-- [`Promise.any` (合并的错误)](https://github.com/tc39/proposal-promise-any) stage 0（ 现在是 stage 3 ）提案
+- [`Promise.any` (合并的错误)](https://github.com/tc39/proposal-promise-any) stage 0（现在是 stage 3）提案
 
 一些提案的变化很大，`core-js` 也将相应的更新：
 
@@ -117,7 +117,7 @@
 
 最重要的一个是 [`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL) 和 [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)。他是[最受欢迎的功能请求之一](https://github.com/zloirock/core-js/issues/117)。增加 `URL` 和 `URLSearchParams`，并保证他们最大限度的符合规范，保持源代码足够紧凑来支撑任何环境是 `core-js@3` 开发中[最困难的任务之一](https://github.com/zloirock/core-js/pull/454/files)。
 
-`core-js@3` 包函在 JavaScript 中创建微任务（ microtask ）的标准方法：[`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing) 。`core-js@2` 提供了  `asap` 函数，提供了同样功能的老的提案。`queueMicrotask` 被定义在 HTML 标准中，它已经能够在现代浏览器比如 Chromium 或者 NodeJS 中使用。
+`core-js@3` 包函在 JavaScript 中创建微任务（microtask）的标准方法：[`queueMicrotask`](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#microtask-queuing) 。`core-js@2` 提供了  `asap` 函数，提供了同样功能的老的提案。`queueMicrotask` 被定义在 HTML 标准中，它已经能够在现代浏览器比如 Chromium 或者 NodeJS 中使用。
 
 另一个受欢迎的功能请求是支持 [DOM 集合的 `.forEach` 方法](https://developer.mozilla.org/en-US/docs/Web/API/NodeList/forEach)。由于 `core-js` 已经针对 DOM 集合迭代器做了 polyfill，为什么不给 `节点列表` 和 [`DOMTokenList`](https://developer.mozilla.org/zh-CN/docs/Web/API/DOMTokenList) 也增加 `.forEach` 呢？
 
@@ -138,8 +138,8 @@
 
 ### 包、入口和模块名字
 
-一个 issue 里提了 `core-js` 包的很大（ ~2MB ），有很多重复文件。因为这个原因，`core-js` 分成了 3 个包：
-- [`core-js`](https://www.npmjs.com/package/core-js) 定义全局的 polyfills。（ ~500KB，[压缩并且 gzipped 处理后 40KB](https://bundlephobia.com/result?p=core-js@3.0.0-beta.20) ）
+一个 issue 里提了 `core-js` 包的很大（ ~2MB），有很多重复文件。因为这个原因，`core-js` 分成了 3 个包：
+- [`core-js`](https://www.npmjs.com/package/core-js) 定义全局的 polyfills。（ ~500KB，[压缩并且 gzipped 处理后 40 KB](https://bundlephobia.com/result?p=core-js@3.0.0-beta.20) ）
 - [`core-js-pure`](https://www.npmjs.com/package/core-js-pure)，提供了不污染全局变量的 polyfills。它和 `core-js@2` 中的 `core-js/library` 相当。（~440KB）
 - [`core-js-bundle`](https://www.npmjs.com/package/core-js-bundle)：定义了全局填充的打包版本
 
@@ -160,7 +160,7 @@ import "core-js/es";
 // 如果你想用 `Set` 的补丁
 // 所有 `Set`- ES 提案中，相关的功能：
 import "core-js/features/set";
-// 稳定的 `Set` ES 功能和来自web标准的功能
+// 稳定的 `Set` ES 功能和来自 web 标准的功能
 // （DOM 集合迭代器）
 import "core-js/stable/set";
 // 只有 `Set` 所需的稳定的 ES 功能
@@ -186,9 +186,9 @@ import "core-js/stage/2";
 
 `core-js` polyfill 能够 [配置侵入等级](https://github.com/zloirock/core-js/blob/master/README.md#configurable-level-of-aggressiveness)。如果你认为有些情境 `core-js` 功能检测侵入性太强，原生实现对你来说已经足够，或者一个错误的实现没有被 `core-js` 检测到，你可以修改 `core-js` 的默认行为。
 
-如果无法安装规范的每个细节实现某个功能，`core-js` 增加了一个 `.sham` 属性，例如，IE11中 `Symbol.sham` 是 `true`。
+如果无法安装规范的每个细节实现某个功能，`core-js` 增加了一个 `.sham` 属性，例如，IE11 中 `Symbol.sham` 是 `true`。
 
-不再有 LiveScript! 当我开始写 `core-js` 时，我主要使用的是 [LiveScript](http://livescript.net/) ；一段时间后，我用 JavaScript 重写了全部的 polyfills 。在 `core-js@2` 中测试和帮助的工具函数仍然使用 LiveScript ：它是非常有趣的像 CoffeeScript 一样的语言，有强大的语法糖使你能够写非常紧凑的代码，但是它几乎已经死了。除此之外，它也是为 `core-js` 贡献的屏障，因为大多数 `core-js` 用户不知道这个语言。`core-js@3` 测试和工具函数使用现代 ES 语法：它将成为为 `core-js` 贡献的好时机🙂。
+不再有 LiveScript! 当我开始写 `core-js` 时，我主要使用的是 [LiveScript](http://livescript.net/) ；一段时间后，我用 JavaScript 重写了全部的 polyfills。在 `core-js@2` 中测试和帮助的工具函数仍然使用 LiveScript：它是非常有趣的像 CoffeeScript 一样的语言，有强大的语法糖使你能够写非常紧凑的代码，但是它几乎已经死了。除此之外，它也是为 `core-js` 贡献的屏障，因为大多数 `core-js` 用户不知道这个语言。`core-js@3` 测试和工具函数使用现代 ES 语法：它将成为为 `core-js` 贡献的好时机🙂。
 
 对于大多数用户，为了优化 `core-js` 导入，我建议使用 [babel](#Babel)。当然，有些情况下 [`core-js-builder`](http://npmjs.com/package/core-js-builder) 仍然有用。现在它支持 `target` 参数，使用带有目标引擎的[`browserslist`](https://github.com/browserslist/browserslist) 查询 - 你能够创建一个 bundle，仅仅包含目标引擎需要的 polyfills。对于这种情况，我做了 [`core-js-compat`](https://www.npmjs.com/package/core-js-compat)，更多关于它的信息，你能够从 [这篇文章的 `@babel/preset-env` 部分](#babelpreset-env)了解到。
 
@@ -198,11 +198,11 @@ import "core-js/stage/2";
 
 ## Babel
 
-正如上文提到的，`babel` 和 `core-js` 是紧密集成的：`babel` 提供了优化 `core-js` 优化导入的可能性。`core-js@3` 开发中很重要的一部分是改进 `core-js` 相关的 `babel` 功能（看[这个PR](https://github.com/babel/babel/pull/7646)）。这些变化在 [Babel 7.4.0](https://babeljs.io/blog/2019/03/19/7.4.0) 发布了。
+正如上文提到的，`babel` 和 `core-js` 是紧密集成的：`babel` 提供了优化 `core-js` 优化导入的可能性。`core-js@3` 开发中很重要的一部分是改进 `core-js` 相关的 `babel` 功能（看[这个 PR](https://github.com/babel/babel/pull/7646)）。这些变化在 [Babel 7.4.0](https://babeljs.io/blog/2019/03/19/7.4.0) 发布了。
 
 ### babel/polyfill
 
-[`@babel/polyfill`](https://babeljs.io/docs/en/next/babel-polyfill.html) 是一个包裹的包，里面仅仅包含 `core-js` 稳定版的引入（在Babel 6 中也包含提案）和 `regenerator-runtime/runtime`，用来转译 generators 和 async 函数。这个包没有提供从 `core-js@2` 到 `core-js@3` 平滑升级路径：因为这个原因，决定弃用 `@babel/polyfill` 代之以分别引入需要的 `core-js` 和 `regenerator-runtime` 。
+[`@babel/polyfill`](https://babeljs.io/docs/en/next/babel-polyfill.html) 是一个包裹的包，里面仅仅包含 `core-js` 稳定版的引入（在 Babel 6 中也包含提案）和 `regenerator-runtime/runtime`，用来转译 generators 和 async 函数。这个包没有提供从 `core-js@2` 到 `core-js@3` 平滑升级路径：因为这个原因，决定弃用 `@babel/polyfill` 代之以分别引入需要的 `core-js` 和 `regenerator-runtime` 。
 
 原来
 ```js
@@ -242,7 +242,7 @@ Babel 7.4.0 引入了两种模式的共同更改，以及每种模式的特定�
 
 因为这个原因，我创建了 [`core-js-compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat)：它提供了对于不同浏览器 `core-js` 模块的必要性数据。当使用 `core-js@3` 时，`@babel/preset-env` 将使用新的包取代 `compat-table`。[请帮助我们测试并提供缺少的引擎的数据的映射关系！](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#updating-core-js-compat-data)😊。
 
-在 Babel 7.3 之前，`@babel/preset-env` 有一些与 polyfills 注入顺序有关的问题。从 7.4.0开始，`@babel/preset-env` 只按推荐顺序增加需要的 polyfills 。
+在 Babel 7.3 之前，`@babel/preset-env` 有一些与 polyfills 注入顺序有关的问题。从 7.4.0 开始，`@babel/preset-env` 只按推荐顺序增加需要的 polyfills。
 
 #### `useBuiltIns: entry` with `corejs: 3`
 
@@ -272,7 +272,7 @@ import "core-js/modules/web.immediate";
 import "core-js/modules/web.immediate";
 ```
 
-自从 `@babel/polyfill` 被弃用，转而使用分开的 `core-js` 和 `regenerator-runtime`，我们能够优化 `regenerator-runtime` 的导入。因为这个原因，如果目标浏览器原生支持 generators ，那么 `regenerator-runtime` 的导入将从源代码中移除。
+自从 `@babel/polyfill` 被弃用，转而使用分开的 `core-js` 和 `regenerator-runtime`，我们能够优化 `regenerator-runtime` 的导入。因为这个原因，如果目标浏览器原生支持 generators，那么 `regenerator-runtime` 的导入将从源代码中移除。
 
 现在，设置 `useBuiltIns: entry` 模式的 `@babel/preset-env` 编译所有能够获得的 `core-js` 入口和他们的组合。这意味着你能够自定义，通过使用不同的 `core-js` 入口，它将根据的目标环境优化。
 
@@ -337,7 +337,7 @@ Babel 7.4 支持注入提案 polyfills。默认，`@babel/preset-env` 不会注�
 
 ### @babel/runtime
 
-当使用 `core-js@3` 时， [`@babel/transform-runtime`](https://babeljs.io/docs/en/next/babel-plugin-transform-runtime#corejs) 现在通过 `core-js-pure`（`core-js`的一个版本，不会污染全局变量） 注入 polyfills。
+当使用 `core-js@3` 时， [`@babel/transform-runtime`](https://babeljs.io/docs/en/next/babel-plugin-transform-runtime#corejs) 现在通过 `core-js-pure`（`core-js`的一个版本，不会污染全局变量）注入 polyfills。
 
 通过将 `@babel/transform-runtime` 设置 `corejs: 3` 选项和创建 `@babel/runtime-corejs3` 包，已经将 `core-js@3` 和 `@babel/runtime` 集成在一起。但是这将带来什么好处呢？
 
@@ -388,9 +388,9 @@ _matchAllInstanceProperty(string).call(string, /something/g);
 myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 ```
 
-尽管 `@babel/runtime` 早期版本不支持实例方法，但是使用一些自定义的帮助函数能够支持迭代（`[Symbol.iterator]()` 和他的presence）。之前不支持提取 `[Symbol.iterator]` 方法，但是现在支持了。
+尽管 `@babel/runtime` 早期版本不支持实例方法，但是使用一些自定义的帮助函数能够支持迭代（`[Symbol.iterator]()` 和他的 presence）。之前不支持提取 `[Symbol.iterator]` 方法，但是现在支持了。
 
-作为意外收获，`@babel/runtime` 现在支持IE8-，但是有些限制，例如，IE8- 不支持访问器、模块转换应该用松散的方式，`regenerator-runtime`（内部使用 ES5+ 实现）需要通过这个插件转译。
+作为意外收获，`@babel/runtime` 现在支持 IE8-，但是有些限制，例如，IE8- 不支持访问器、模块转换应该用松散的方式，`regenerator-runtime`（内部使用 ES5+ 实现）需要通过这个插件转译。
 
 ## 畅享未来
 
@@ -398,11 +398,11 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 ### 老的引擎支持
 
-现在，`core-js` 试图去支持所有可能的引擎或者我们能够测试到的平台：甚至是IE8-，或者例如，早期版本的 Firefox。虽然它对某些用户有用，但是仅有一小部分使用 `core-js` 的开发者需要它。对于大多数用户，它将引起像包体积过大或者执行缓慢的问题。
+现在，`core-js` 试图去支持所有可能的引擎或者我们能够测试到的平台：甚至是 IE8-，或者例如，早期版本的 Firefox。虽然它对某些用户有用，但是仅有一小部分使用 `core-js` 的开发者需要它。对于大多数用户，它将引起像包体积过大或者执行缓慢的问题。
 
 主要的问题源自于支持 ES3 引擎（首先是 IE8- ）：多数现代 ES 特性是基于 ES5，这些功能在老版本浏览器中均不可用。
 
-最大的缺失特性是属性描述符：当它缺失时，一些功能不能 polyfill，因为他们要么是访问器（像 `RegExp.prototype.flags` 或 `URL` 属性的 setters ）要么就是基于访问器（像 typed array polyfill）。为了解决这个不足，我们需要使用不同的解决方法（例如，保持 `Set.prototype.size` 更新）。维护这些解决方法有时很痛苦，移除他们将极大的简化许多 polyfills。
+最大的缺失特性是属性描述符：当它缺失时，一些功能不能 polyfill，因为他们要么是访问器（像 `RegExp.prototype.flags` 或 `URL` 属性的 setters）要么就是基于访问器（像 typed array polyfill）。为了解决这个不足，我们需要使用不同的解决方法（例如，保持 `Set.prototype.size` 更新）。维护这些解决方法有时很痛苦，移除他们将极大的简化许多 polyfills。
 
 然而，描述符仅仅是问题的一部分。ES5 标准库包含了很多其他特性，他们被认为是现代 JavaScript 的基础：`Object.create`，`Object.getPrototypeOf`，`Array.prototype.forEach`，`Function.prototype.bind`，等等。和多数现代特性不同，`core-js` 内部依赖他们并且[为了实现一个简单的现代函数，`core-js` 需要加载其中一些"建筑模块"的实现](https://github.com/babel/babel/pull/7646#discussion_r179333093)。对于想要创建一个足够小的构建包和仅仅想要引入部分 `core-js` 的用户来说，这是个问题。
 
@@ -412,7 +412,7 @@ myArrayLikeObject[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 ### ECMAScript 模块
 
-`core-js` 使用 `CommonJS` 模块规范。长期以来，他是最受欢迎的 JavaScript 模块规范，但是现在 ECMAScript 提供了他自己的模块规范。许多引擎已经支持它了。一些构建工具（像 rollup ）基于它，其他的构建工具提供它作为 `CommonJS` 的替代。这意味提供了一个可选择的使用 ESMAScript 模块规范版本的 `core-js` 行得通。
+`core-js` 使用 `CommonJS` 模块规范。长期以来，他是最受欢迎的 JavaScript 模块规范，但是现在 ECMAScript 提供了他自己的模块规范。许多引擎已经支持它了。一些构建工具（像 rollup）基于它，其他的构建工具提供它作为 `CommonJS` 的替代。这意味提供了一个可选择的使用 ESMAScript 模块规范版本的 `core-js` 行得通。
 
 ### 支持 web 标准扩展？
 
@@ -449,7 +449,7 @@ TC39 一直在努力工作去改进 ECMAScript：你可以通过查看 `core-js`
 
 现在，TC39 考虑给 ECMAScript 增加[内置模块](https://github.com/tc39/proposal-javascript-standard-library)：一个模块化的标准库。它将成为 JavaScript 的最佳补充，而 `core-js` 是它可以被 polyfill 的最佳位置。根据 `@babel/preset-env` 和 `@babel/runtime` 用到的技术，理论上我们可以通过一种简单的方式注入内置模块需要的 polyfill。然而，这个提案的当前版本会导致一些严重问题，这些问题并没有使其简单明了。
 
-内置模块的 polyfill，[根据作者的提案](https://github.com/tc39/proposal-javascript-standard-library/issues/2)，仅仅意味着退回到分层 API 或者 导入 maps。这表明如果原生模块缺失，它将能够通过提供的 url 载入一个polyfill。这绝对不是 polyfill 需要的，并且它与 `core-js` 的架构以及其他流行的 polyfill 都不兼容。导入 maps 不应该是 polyfill 内置模块的唯一方式。
+内置模块的 polyfill，[根据作者的提案](https://github.com/tc39/proposal-javascript-standard-library/issues/2)，仅仅意味着退回到分层 API 或者 导入 maps。这表明如果原生模块缺失，它将能够通过提供的 url 载入一个 polyfill。这绝对不是 polyfill 需要的，并且它与 `core-js` 的架构以及其他流行的 polyfill 都不兼容。导入 maps 不应该是 polyfill 内置模块的唯一方式。
 
 我们通过一个特定前缀使用 ES 模块语法就能够得到内置模块。这个语法在语言的早期版本并没有对等的 - 转译模块不可能在现在浏览器中与未转译的交互 - 这会导致包分发的问题。
 
@@ -463,7 +463,7 @@ TC39 一直在努力工作去改进 ECMAScript：你可以通过查看 `core-js`
 StandardLibraryRegistry.get(moduleName);
 StandardLibraryRegistry.set(moduleName, value);
 ```
-异步回调，比如分层API应该全局注册表之后使用。
+异步回调，比如分层 API 应该全局注册表之后使用。
 
 值得一提的是，它将简化将本地模块导入到老的语法的转换。
 
@@ -489,4 +489,4 @@ StandardLibraryRegistry.set(moduleName, value);
 
 [这里](https://github.com/zloirock/core-js/discussions/963) 可以评论这篇文章。
 
-[Denis Pushkarev](https://github.com/zloirock)，2019年3月19日，感谢 [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) 编辑。
+[Denis Pushkarev](https://github.com/zloirock)，2019 年 3 月 19 日，感谢 [Nicolò Ribaudo](https://github.com/nicolo-ribaudo) 编辑。
