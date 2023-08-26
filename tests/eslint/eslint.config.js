@@ -60,6 +60,8 @@ const base = {
   'no-dupe-keys': ERROR,
   // disallow a duplicate case label.
   'no-duplicate-case': ERROR,
+  // disallow duplicate module imports
+  'no-duplicate-imports': ERROR,
   // disallow empty destructuring patterns
   'no-empty-pattern': ERROR,
   // disallow assigning to the exception in a catch block
@@ -68,6 +70,8 @@ const base = {
   'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
   // disallow overwriting functions written as function declarations
   'no-func-assign': ERROR,
+  // disallow assigning to imported bindings
+  'no-import-assign': ERROR,
   // disallow irregular whitespace outside of strings and comments
   'no-irregular-whitespace': ERROR,
   // disallow literal numbers that lose precision
