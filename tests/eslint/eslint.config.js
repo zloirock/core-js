@@ -186,6 +186,8 @@ const base = {
   'no-iterator': ERROR,
   // disallow labels that share a name with a variable
   'no-label-var': ERROR,
+  // disallow use of labels for anything other then loops and switches
+  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
   // disallow unnecessary nested blocks
   'no-lone-blocks': ERROR,
   // disallow `if` as the only statement in an `else` block
@@ -219,14 +221,6 @@ const base = {
     {
       selector: 'ForInStatement',
       message: '`for-in` loops are disallowed since iterate over the prototype chain',
-    },
-    {
-      selector: 'LabeledStatement',
-      message: 'Labels are disallowed as a form of GOTO',
-    },
-    {
-      selector: 'WithStatement',
-      message: '`with` is disallowed in strict mode',
     },
   ],
   // disallow use of `javascript:` urls.
