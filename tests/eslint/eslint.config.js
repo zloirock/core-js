@@ -58,7 +58,7 @@ const base = {
   'no-dupe-else-if': ERROR,
   // disallow duplicate keys when creating object literals
   'no-dupe-keys': ERROR,
-  // disallow a duplicate case label.
+  // disallow a duplicate case label
   'no-duplicate-case': ERROR,
   // disallow duplicate module imports
   'no-duplicate-imports': ERROR,
@@ -134,6 +134,8 @@ const base = {
   'dot-notation': [ERROR, { allowKeywords: true }],
   // require the use of === and !==
   eqeqeq: [ERROR, 'smart'],
+  // require grouped accessor pairs in object literals and classes
+  'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
   // require logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, ALWAYS],
   // enforce a maximum depth that blocks can be nested
@@ -412,6 +414,8 @@ const base = {
   'switch-colon-spacing': ERROR,
   // require or disallow spacing around embedded expressions of template strings
   'template-curly-spacing': [ERROR, ALWAYS],
+  // disallow spacing between template tags and their literals
+  'template-tag-spacing': [ERROR, NEVER],
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
   // require spacing around the `*` in `yield *` expressions
