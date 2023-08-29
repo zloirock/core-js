@@ -793,7 +793,7 @@ const es3 = {
   // disallow function or variable declarations in nested blocks
   'no-inner-declarations': ERROR,
   // disallow specified syntax
-  'no-restricted-syntax': base['no-restricted-syntax'].filter(it => it.selector !== 'ForInStatement'),
+  'no-restricted-syntax': OFF,
   // require let or const instead of var
   'no-var': OFF,
   // require or disallow method and property shorthand syntax for object literals
@@ -1147,7 +1147,7 @@ const tests = {
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': OFF,
   // disallow specified syntax
-  'no-restricted-syntax': base['no-restricted-syntax'].filter(it => it.selector !== 'ForInStatement'),
+  'no-restricted-syntax': OFF,
   // restrict what can be thrown as an exception
   'no-throw-literal': OFF,
   // disallow usage of expressions in statement position
