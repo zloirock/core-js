@@ -36,6 +36,8 @@ const base = {
   'constructor-super': ERROR,
   // enforce 'for' loop update clause moving the counter in the right direction
   'for-direction': ERROR,
+  // disallow using an async function as a `Promise` executor
+  'no-async-promise-executor': ERROR,
   // disallow reassigning class members
   'no-class-assign': ERROR,
   // disallow comparing against -0
@@ -259,6 +261,8 @@ const base = {
   'no-useless-concat': ERROR,
   // disallow unnecessary constructors
   'no-useless-constructor': ERROR,
+  // disallow unnecessary escape characters
+  'no-useless-escape': ERROR,
   // disallow renaming import, export, and destructured assignments to the same name
   'no-useless-rename': ERROR,
   // disallow redundant return statements
