@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - Added Samsung Internet 23 compat data mapping
   - Added Quest Browser 29 compat data mapping
 
 ##### [3.32.1 - 2023.08.19](https://github.com/zloirock/core-js/releases/tag/v3.32.1)

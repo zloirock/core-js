@@ -194,6 +194,7 @@ export default {
     [106, '20.0'],
     [110, '21.0'],
     [111, '22.0'],
+    [115, '23.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   // https://forums.opera.com/category/20/opera-for-android
