@@ -22,7 +22,9 @@ try {
 } catch (error) { /* empty */ }
 
 module.exports = function (exec, SKIP_CLOSING) {
-  if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
+  try {
+    if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
+  } catch (error) { return false; } // it is not safe when the `SAFE_CLOSING` is not in the current scope
   var ITERATION_SUPPORT = false;
   try {
     var object = {};
