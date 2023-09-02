@@ -484,6 +484,10 @@ const base = {
   'array-func/from-map': ERROR,
   // avoid the `this` parameter when providing arrow function as callback in array functions
   'array-func/no-unnecessary-this-arg': ERROR,
+  // use `.flatMap()`` to map and then flatten an array instead of using `.map().flat()`
+  'array-func/prefer-flat-map': ERROR,
+  // use `.flat()` to flatten an array of arrays
+  'array-func/prefer-flat': ERROR,
 
   // promise:
   // avoid calling `cb()` inside of a `then()` or `catch()`
@@ -822,6 +826,8 @@ const es3 = {
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
+  // use `.flat()` to flatten an array of arrays
+  'array-func/prefer-flat': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
@@ -1086,12 +1092,19 @@ const transpiledAndPolyfilled = {
   'es/no-weakrefs': ERROR,
 };
 
+const testsWithoutPolyfills = {
+  // use `.flat()` to flatten an array of arrays
+  'array-func/prefer-flat': OFF,
+};
+
 const nodePackages = {
   ...asyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // enforce using named capture group in regular expression
   'prefer-named-capture-group': OFF,
+  // use `.flat()` to flatten an array of arrays
+  'array-func/prefer-flat': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
@@ -1427,6 +1440,12 @@ module.exports = [
       sourceType: 'module',
     },
     rules: transpiledAndPolyfilled,
+  },
+  {
+    files: [
+      'tests/@(compat|helpers|unit-pure)/**',
+    ],
+    rules: testsWithoutPolyfills,
   },
   {
     files: [
