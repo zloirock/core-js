@@ -787,6 +787,16 @@ const base = {
   'es/no-regexp-prototype-compile': ERROR,
 
   // eslint-comments:
+  // disallow duplicate `eslint-disable` comments
+  'eslint-comments/no-duplicate-disable': ERROR,
+  // disallow `eslint-disable` comments without rule names
+  'eslint-comments/no-unlimited-disable': ERROR,
+  // disallow unused `eslint-disable` comments
+  //   it's clearly disabled since result of some rules (like `redos/no-vulnerable`) is non-deterministic
+  //   and anyway it's reported because of `reportUnusedDisableDirectives` option
+  'eslint-comments/no-unused-disable': OFF,
+  // disallow unused `eslint-enable` comments
+  'eslint-comments/no-unused-enable': ERROR,
   // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': ERROR,
 };
