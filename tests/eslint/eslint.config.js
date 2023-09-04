@@ -1280,20 +1280,42 @@ const json = {
   'jsonc/key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
   // disallow BigInt literals
   'jsonc/no-bigint-literals': ERROR,
+  // disallow binary expression
+  'jsonc/no-binary-expression': ERROR,
+  // disallow binary numeric literals
+  'jsonc/no-binary-numeric-literals': ERROR,
   // disallow comments
   'jsonc/no-comments': ERROR,
   // disallow duplicate keys when creating object literals
   'jsonc/no-dupe-keys': ERROR,
   // disallow escape sequences in identifiers.
   'jsonc/no-escape-sequence-in-identifier': ERROR,
+  // disallow leading or trailing decimal points in numeric literals
+  'jsonc/no-floating-decimal': ERROR,
+  // disallow hexadecimal numeric literals
+  'jsonc/no-hexadecimal-numeric-literals': ERROR,
+  // disallow `Infinity`
+  'jsonc/no-infinity': ERROR,
   // disallow irregular whitespace
   'jsonc/no-irregular-whitespace': ERROR,
   // disallow use of multiline strings
   'jsonc/no-multi-str': ERROR,
+  // disallow `NaN`
+  'jsonc/no-nan': ERROR,
   // disallow number property keys
   'jsonc/no-number-props': ERROR,
+  // disallow numeric separators
+  'jsonc/no-numeric-separators': ERROR,
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
   'jsonc/no-octal-escape': ERROR,
+  // disallow octal numeric literals
+  'jsonc/no-octal-numeric-literals': ERROR,
+  // disallow legacy octal literals
+  'jsonc/no-octal': ERROR,
+  // disallow parentheses around the expression
+  'jsonc/no-parenthesized': ERROR,
+  // disallow plus sign
+  'jsonc/no-plus-sign': ERROR,
   // disallow RegExp literals
   'jsonc/no-regexp-literals': ERROR,
   // disallow sparse arrays
