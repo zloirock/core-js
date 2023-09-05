@@ -1,4 +1,4 @@
-import { deepEqual, ok } from 'assert/strict';
+import { deepEqual, ok } from 'node:assert/strict';
 import konan from 'konan';
 
 const allModules = await fs.readJson('packages/core-js-compat/modules.json');

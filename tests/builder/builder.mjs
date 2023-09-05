@@ -1,4 +1,4 @@
-import { ok } from 'assert/strict';
+import { ok } from 'node:assert/strict';
 import builder from 'core-js-builder';
 
 const polyfills = await builder({

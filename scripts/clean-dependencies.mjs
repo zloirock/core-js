@@ -1,4 +1,4 @@
-import { readdir, rm } from 'fs/promises';
+import { readdir, rm } from 'node:fs/promises';
 
 const ignore = new Set([
   'scripts/usage',

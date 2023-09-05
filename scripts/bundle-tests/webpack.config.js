@@ -1,5 +1,5 @@
 'use strict';
-const { resolve } = require('path');
+const { resolve } = require('node:path');
 const babelConfig = require('../../babel.config');
 
 module.exports = {

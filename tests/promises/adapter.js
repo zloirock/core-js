@@ -5,7 +5,7 @@ const pkg = process.argv.includes('--pure') ? 'core-js-pure' : 'core-js';
 
 // eslint-disable-next-line import/no-dynamic-require -- dynamic
 const Promise = require(`../../packages/${ pkg }/es/promise`);
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
   deferred() {

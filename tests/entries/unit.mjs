@@ -1,5 +1,5 @@
 /* eslint-disable import/no-dynamic-require, node/global-require -- required */
-import { ok } from 'assert';
+import { ok } from 'node:assert/strict';
 
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 const expected = new Set(Object.keys(entries));
