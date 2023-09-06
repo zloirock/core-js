@@ -25,7 +25,7 @@ await Promise.all(pkgs.map(async path => {
   `;
 
   const { results } = JSON.parse(stdout);
-  const obsolete = { ...results.dependencies, ...results.devDependencies };
+  const obsolete = { ...results?.dependencies, ...results?.devDependencies };
 
   if (Object.keys(obsolete).length) {
     echo(chalk.cyan(`${ name }:`));
