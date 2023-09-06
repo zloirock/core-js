@@ -62,7 +62,7 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
     var set1 = new global.Set([7]);
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation(Object(7));
-    return set2 === set1 || !set2.has(7) || typeof number != 'object' || number !== 7;
+    return set2 === set1 || !set2.has(7) || typeof number != 'object' || +number !== 7;
   }) && structuredCloneImplementation;
 };
 
