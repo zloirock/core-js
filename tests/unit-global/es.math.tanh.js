@@ -1,5 +1,5 @@
-import { NATIVE } from '../helpers/constants';
-import { createConversionChecker } from '../helpers/helpers';
+import { NATIVE } from '../helpers/constants.js';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('Math.tanh', assert => {
   const { tanh } = Math;

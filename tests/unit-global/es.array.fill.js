@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#fill', assert => {
   const { fill } = Array.prototype;

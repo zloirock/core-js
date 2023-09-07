@@ -1,6 +1,6 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
-import { GLOBAL, STRICT } from '../helpers/constants';
-import { patchRegExp$exec } from '../helpers/helpers';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 

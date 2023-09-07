@@ -1,4 +1,4 @@
-import { STRICT, WHITESPACES } from '../helpers/constants';
+import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('String#trimRight', assert => {
   const { trimRight } = String.prototype;

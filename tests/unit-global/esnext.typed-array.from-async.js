@@ -1,5 +1,5 @@
-import { createAsyncIterable, createIterable } from '../helpers/helpers';
-import { DESCRIPTORS, STRICT_THIS, TYPED_ARRAYS } from '../helpers/constants';
+import { createAsyncIterable, createIterable } from '../helpers/helpers.js';
+import { DESCRIPTORS, STRICT_THIS, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor

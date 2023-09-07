@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import find from 'core-js-pure/es/array/find';
 

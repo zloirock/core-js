@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;

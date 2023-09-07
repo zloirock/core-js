@@ -1,4 +1,4 @@
-import { includes } from '../helpers/helpers';
+import { includes } from '../helpers/helpers.js';
 
 QUnit.test('Reflect.ownKeys', assert => {
   const { ownKeys } = Reflect;

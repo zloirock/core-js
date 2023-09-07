@@ -1,4 +1,4 @@
-import { NODE } from '../helpers/constants';
+import { NODE } from '../helpers/constants.js';
 
 QUnit.test('URL.canParse', assert => {
   const { canParse } = URL;

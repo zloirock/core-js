@@ -1,4 +1,4 @@
-import { includes } from '../helpers/helpers';
+import { includes } from '../helpers/helpers.js';
 
 import freeze from 'core-js-pure/es/object/freeze';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';

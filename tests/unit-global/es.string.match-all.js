@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 QUnit.test('String#matchAll', assert => {
   const { matchAll } = String.prototype;

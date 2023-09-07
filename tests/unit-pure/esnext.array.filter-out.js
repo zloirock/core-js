@@ -1,5 +1,5 @@
 // TODO: Remove from `core-js@4`
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import filterOut from 'core-js-pure/full/array/filter-out';

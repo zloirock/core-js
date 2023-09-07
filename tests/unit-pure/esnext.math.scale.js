@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 import scale from 'core-js-pure/full/math/scale';
 

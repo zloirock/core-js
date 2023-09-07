@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import uniqueBy from 'core-js-pure/full/array/unique-by';
 

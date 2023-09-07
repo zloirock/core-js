@@ -1,5 +1,5 @@
 // TODO: Remove from `core-js@4`
-import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.filterOut', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor

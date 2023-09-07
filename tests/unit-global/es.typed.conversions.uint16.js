@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint16 conversions', assert => {
   const uint16array = new Uint16Array(1);

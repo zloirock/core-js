@@ -1,4 +1,4 @@
-import { NATIVE, PROTO } from '../helpers/constants';
+import { NATIVE, PROTO } from '../helpers/constants.js';
 
 if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
   const { setPrototypeOf } = Reflect;

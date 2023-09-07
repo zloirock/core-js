@@ -1,6 +1,6 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { GLOBAL } from '../helpers/constants';
-import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
+import { GLOBAL } from '../helpers/constants.js';
+import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 const transfer = GLOBAL?.ArrayBuffer?.prototype?.transfer;
 

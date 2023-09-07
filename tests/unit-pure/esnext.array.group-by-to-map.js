@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import Map from 'core-js-pure/es/map';
 import Symbol from 'core-js-pure/es/symbol';

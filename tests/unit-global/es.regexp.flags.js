@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals, regexp/sort-flags, regexp/no-useless-flag -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) {
   QUnit.test('RegExp#flags', assert => {

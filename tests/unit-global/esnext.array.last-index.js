@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Array#lastIndex', assert => {
   const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'lastIndex');

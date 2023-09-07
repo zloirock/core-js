@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-globals -- safe */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('self', assert => {
   assert.same(self, Object(self), 'is object');

@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import create from 'core-js-pure/es/object/create';

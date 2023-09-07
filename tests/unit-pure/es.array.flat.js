@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import flat from 'core-js-pure/es/array/flat';
 import defineProperty from 'core-js-pure/es/object/define-property';

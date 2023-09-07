@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Object.defineProperties', assert => {
   const { defineProperties } = Object;

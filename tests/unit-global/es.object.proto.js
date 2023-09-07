@@ -1,5 +1,5 @@
 /* eslint-disable no-proto -- required for testing */
-import { DESCRIPTORS, PROTO } from '../helpers/constants';
+import { DESCRIPTORS, PROTO } from '../helpers/constants.js';
 
 if (PROTO && DESCRIPTORS) QUnit.test('Object.prototype.__proto__', assert => {
   assert.true('__proto__' in Object.prototype, 'in Object.prototype');

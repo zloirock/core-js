@@ -1,4 +1,4 @@
-import { STRICT, WHITESPACES } from '../helpers/constants';
+import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import trimStart from 'core-js-pure/es/string/trim-start';

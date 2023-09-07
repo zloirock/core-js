@@ -1,4 +1,4 @@
-import { NATIVE } from '../helpers/constants';
+import { NATIVE } from '../helpers/constants.js';
 
 QUnit.test('Promise#catch', assert => {
   assert.isFunction(Promise.prototype.catch);

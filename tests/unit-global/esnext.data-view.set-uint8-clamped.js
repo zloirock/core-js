@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => {
   const { getUint8Clamped, setUint8Clamped } = DataView.prototype;

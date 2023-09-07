@@ -1,4 +1,4 @@
-import { GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
 QUnit.test('Object.preventExtensions', assert => {
   const { preventExtensions, keys, isExtensible, getOwnPropertyNames, getOwnPropertySymbols } = Object;

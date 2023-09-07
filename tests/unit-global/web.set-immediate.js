@@ -1,4 +1,4 @@
-import { timeLimitedPromise } from '../helpers/helpers';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 QUnit.test('setImmediate / clearImmediate', assert => {
   assert.isFunction(setImmediate, 'setImmediate is function');

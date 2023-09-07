@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/actual/symbol';
 import DisposableStack from 'core-js-pure/actual/disposable-stack';

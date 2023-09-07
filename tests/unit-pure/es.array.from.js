@@ -1,6 +1,6 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import defineProperty from 'core-js-pure/es/object/define-property';

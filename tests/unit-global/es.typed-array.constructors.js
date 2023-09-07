@@ -1,5 +1,5 @@
-import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 const { keys, getOwnPropertyDescriptor, getPrototypeOf, defineProperty, assign } = Object;
 

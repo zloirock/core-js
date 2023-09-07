@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol.dispose', assert => {
   assert.true('dispose' in Symbol, 'Symbol.dispose available');

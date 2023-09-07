@@ -1,5 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('ArrayBuffer#detached', assert => {
   assert.same(new ArrayBuffer(8).detached, false, 'default');

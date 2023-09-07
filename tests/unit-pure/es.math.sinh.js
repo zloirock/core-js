@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 import sinh from 'core-js-pure/es/math/sinh';
 

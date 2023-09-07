@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('forEach method on iterable DOM collections', assert => {
   let absent = true;

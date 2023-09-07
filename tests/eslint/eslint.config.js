@@ -454,12 +454,16 @@ const base = {
   'import/no-useless-path-segments': ERROR,
 
   // node:
-  // disallow deprecated APIs
-  'node/no-deprecated-api': ERROR,
+  // enforce the style of file extensions in `import` declarations
+  'node/file-extension-in-import': ERROR,
   // require require() calls to be placed at top-level module scope
   'node/global-require': ERROR,
+  // disallow deprecated APIs
+  'node/no-deprecated-api': ERROR,
   // disallow the assignment to `exports`
   'node/no-exports-assign': ERROR,
+  // disallow third-party modules which are hiding core modules
+  'node/no-hide-core-modules': ERROR,
   // disallow require calls to be mixed with regular variable declarations
   'node/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
@@ -468,6 +472,8 @@ const base = {
   'node/no-path-concat': ERROR,
   // disallow the use of `process.exit()`
   'node/no-process-exit': ERROR,
+  // disallow synchronous methods
+  'node/no-sync': ERROR,
   // prefer global
   'node/prefer-global/buffer': [ERROR, ALWAYS],
   'node/prefer-global/console': [ERROR, ALWAYS],
@@ -476,6 +482,9 @@ const base = {
   'node/prefer-global/text-encoder': [ERROR, ALWAYS],
   'node/prefer-global/url-search-params': [ERROR, ALWAYS],
   'node/prefer-global/url': [ERROR, ALWAYS],
+  // prefer promises
+  'node/prefer-promises/dns': ERROR,
+  'node/prefer-promises/fs': ERROR,
 
   // array-func:
   // avoid reversing the array and running a method on it if there is an equivalent of the method operating on the array from the other end
@@ -1117,8 +1126,13 @@ const nodePackages = {
   'array-func/prefer-flat': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
+  // disallow third-party modules which are hiding core modules
+  'node/no-hide-core-modules': OFF,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
+  // prefer promises
+  'node/prefer-promises/dns': OFF,
+  'node/prefer-promises/fs': OFF,
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),

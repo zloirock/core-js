@@ -1,4 +1,4 @@
-import { NATIVE } from '../helpers/constants';
+import { NATIVE } from '../helpers/constants.js';
 
 QUnit.test('Symbol.for', assert => {
   assert.isFunction(Symbol.for, 'Symbol.for is function');

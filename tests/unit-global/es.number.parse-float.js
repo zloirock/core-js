@@ -1,4 +1,4 @@
-import { GLOBAL, WHITESPACES } from '../helpers/constants';
+import { GLOBAL, WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('Number.parseFloat', assert => {
   const { parseFloat } = Number;

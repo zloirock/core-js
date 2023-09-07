@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 const { MAX_VALUE, MIN_VALUE } = Number;
 

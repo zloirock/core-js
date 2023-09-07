@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 if (GLOBAL.JSON?.stringify) {
   QUnit.test('JSON.stringify', assert => {

@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('Date#@@toPrimitive', assert => {
   const toPrimitive = Date.prototype[Symbol.toPrimitive];

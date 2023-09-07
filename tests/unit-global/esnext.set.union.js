@@ -1,4 +1,4 @@
-import { createIterable, createSetLike } from '../helpers/helpers';
+import { createIterable, createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;

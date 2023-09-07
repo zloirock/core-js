@@ -1,4 +1,4 @@
-import { timeLimitedPromise } from '../helpers/helpers';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 QUnit.test('setTimeout / clearTimeout', assert => {
   assert.isFunction(setTimeout, 'setTimeout is function');

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 

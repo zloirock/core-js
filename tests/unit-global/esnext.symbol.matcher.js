@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol.matcher', assert => {
   assert.true('matcher' in Symbol, 'Symbol.matcher available');

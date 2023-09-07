@@ -1,4 +1,4 @@
-import { createIterable, createSetLike } from '../helpers/helpers';
+import { createIterable, createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#isSupersetOf', assert => {
   const { isSupersetOf } = Set.prototype;

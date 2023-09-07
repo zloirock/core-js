@@ -1,4 +1,4 @@
-import { arrayToBuffer, bufferToArray } from '../helpers/helpers';
+import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 QUnit.test('ArrayBuffer#slice', assert => {
   const { slice } = ArrayBuffer.prototype;

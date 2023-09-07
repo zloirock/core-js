@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';

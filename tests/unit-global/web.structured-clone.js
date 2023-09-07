@@ -1,7 +1,7 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-import { GLOBAL, NODE } from '../helpers/constants';
-import { bufferToArray, fromSource } from '../helpers/helpers';
+import { GLOBAL, NODE } from '../helpers/constants.js';
+import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 const { from } = Array;
 const { assign, getPrototypeOf, keys } = Object;

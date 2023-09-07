@@ -1,4 +1,4 @@
-import { STRICT, WHITESPACES } from '../helpers/constants';
+import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
 import trim from 'core-js-pure/es/string/trim';
 

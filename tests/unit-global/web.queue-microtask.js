@@ -1,5 +1,5 @@
-import { NODE } from '../helpers/constants';
-import { timeLimitedPromise } from '../helpers/helpers';
+import { NODE } from '../helpers/constants.js';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 QUnit.test('queueMicrotask', assert => {
   assert.isFunction(queueMicrotask);

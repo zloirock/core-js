@@ -1,4 +1,4 @@
-import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants';
+import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Float64 conversions', assert => {
   const float64array = new Float64Array(1);

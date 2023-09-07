@@ -1,6 +1,6 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Array.from', assert => {
   const Symbol = GLOBAL.Symbol || {};

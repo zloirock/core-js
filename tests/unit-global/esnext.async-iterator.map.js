@@ -1,5 +1,5 @@
-import { createIterator } from '../helpers/helpers';
-import { STRICT, STRICT_THIS } from '../helpers/constants';
+import { createIterator } from '../helpers/helpers.js';
+import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('AsyncIterator#map', assert => {
   const { map } = AsyncIterator.prototype;

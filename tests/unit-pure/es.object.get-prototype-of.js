@@ -1,4 +1,4 @@
-import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
+import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants.js';
 
 import create from 'core-js-pure/es/object/create';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';

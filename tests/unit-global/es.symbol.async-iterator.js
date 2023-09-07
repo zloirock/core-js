@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol.asyncIterator', assert => {
   assert.true('asyncIterator' in Symbol, 'Symbol.asyncIterator available');

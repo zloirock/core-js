@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import create from 'core-js-pure/es/object/create';
 import __defineSetter__ from 'core-js-pure/es/object/define-setter';

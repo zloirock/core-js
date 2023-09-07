@@ -1,4 +1,4 @@
-import { createIterable, createSetLike } from '../helpers/helpers';
+import { createIterable, createSetLike } from '../helpers/helpers.js';
 
 import from from 'core-js-pure/es/array/from';
 import Set from 'core-js-pure/full/set';

@@ -1,4 +1,4 @@
-import { PROTO } from '../helpers/constants';
+import { PROTO } from '../helpers/constants.js';
 
 import path from 'core-js-pure/es/error';
 import create from 'core-js-pure/es/object/create';

@@ -1,5 +1,5 @@
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
-import { NODE } from '../helpers/constants';
+import { NODE } from '../helpers/constants.js';
 
 QUnit.test('atob', assert => {
   assert.isFunction(atob);

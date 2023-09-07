@@ -1,5 +1,5 @@
-import { STRICT } from '../helpers/constants';
-import { createIterator } from '../helpers/helpers';
+import { STRICT } from '../helpers/constants.js';
+import { createIterator } from '../helpers/helpers.js';
 
 import AsyncIterator from 'core-js-pure/full/async-iterator';
 

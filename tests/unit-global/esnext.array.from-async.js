@@ -1,5 +1,5 @@
-import { createAsyncIterable, createIterable } from '../helpers/helpers';
-import { STRICT_THIS } from '../helpers/constants';
+import { createAsyncIterable, createIterable } from '../helpers/helpers.js';
+import { STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('Array.fromAsync', assert => {
   const { fromAsync } = Array;

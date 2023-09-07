@@ -1,5 +1,5 @@
-import { createIterable, nativeSubclass } from '../helpers/helpers';
-import { DESCRIPTORS, FREEZING } from '../helpers/constants';
+import { createIterable, nativeSubclass } from '../helpers/helpers.js';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
 
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 import freeze from 'core-js-pure/es/object/freeze';

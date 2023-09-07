@@ -1,5 +1,5 @@
-import { STRICT } from '../helpers/constants';
-import { createIterable, createIterator } from '../helpers/helpers';
+import { STRICT } from '../helpers/constants.js';
+import { createIterable, createIterator } from '../helpers/helpers.js';
 
 import Iterator from 'core-js-pure/actual/iterator';
 

@@ -1,4 +1,4 @@
-import { createIterable } from '../helpers/helpers';
+import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Promise.race', assert => {
   let FakePromise1, FakePromise2;

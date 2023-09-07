@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
 
 QUnit.test('DataView', assert => {
   assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'

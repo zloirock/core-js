@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 import log1p from 'core-js-pure/es/math/log1p';
 

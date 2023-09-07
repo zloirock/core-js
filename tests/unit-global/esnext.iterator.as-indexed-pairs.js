@@ -1,5 +1,5 @@
-import { STRICT } from '../helpers/constants';
-import { createIterator } from '../helpers/helpers';
+import { STRICT } from '../helpers/constants.js';
+import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#asIndexedPairs', assert => {
   const { asIndexedPairs } = Iterator.prototype;

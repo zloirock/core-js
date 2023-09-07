@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('RegExp#exec lastIndex updating', assert => {
   let re = /b/;

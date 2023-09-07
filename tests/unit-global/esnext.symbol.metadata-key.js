@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol.metadataKey', assert => {
   assert.true('metadataKey' in Symbol, 'Symbol.metadataKey available');

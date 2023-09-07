@@ -1,4 +1,4 @@
-import { createIterable } from '../helpers/helpers';
+import { createIterable } from '../helpers/helpers.js';
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 
 import Promise from 'core-js-pure/es/promise';

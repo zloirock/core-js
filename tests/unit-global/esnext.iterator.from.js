@@ -1,4 +1,4 @@
-import { createIterable, createIterator } from '../helpers/helpers';
+import { createIterable, createIterator } from '../helpers/helpers.js';
 
 const { assign } = Object;
 

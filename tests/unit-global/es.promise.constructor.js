@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 const { setPrototypeOf, create } = Object;

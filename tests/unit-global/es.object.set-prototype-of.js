@@ -1,4 +1,4 @@
-import { PROTO } from '../helpers/constants';
+import { PROTO } from '../helpers/constants.js';
 
 if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   const { setPrototypeOf } = Object;

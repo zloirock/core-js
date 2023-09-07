@@ -1,4 +1,4 @@
-import { PROTO } from '../helpers/constants';
+import { PROTO } from '../helpers/constants.js';
 
 import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
 

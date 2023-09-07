@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('Math.log1p', assert => {
   const { log1p } = Math;

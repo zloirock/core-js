@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import getIteratorMethod from 'core-js-pure/stable/get-iterator-method';

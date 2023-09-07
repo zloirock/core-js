@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 if (DESCRIPTORS) {
   QUnit.test('Object#__defineGetter__', assert => {

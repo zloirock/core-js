@@ -1,5 +1,5 @@
-import { DESCRIPTORS } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';

@@ -1,5 +1,5 @@
 /* eslint-disable symbol-description -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol#description', assert => {
   assert.same(Symbol('foo').description, 'foo');

@@ -1,5 +1,5 @@
-import { createConversionChecker } from '../helpers/helpers';
-import { DESCRIPTORS, TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants';
+import { createConversionChecker } from '../helpers/helpers.js';
+import { DESCRIPTORS, TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor

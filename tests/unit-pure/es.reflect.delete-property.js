@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 import keys from 'core-js-pure/es/object/keys';
 import defineProperty from 'core-js-pure/es/object/define-property';

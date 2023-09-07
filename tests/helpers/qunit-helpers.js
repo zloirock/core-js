@@ -1,9 +1,9 @@
-import { DESCRIPTORS } from './constants';
+import { DESCRIPTORS } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
 import defineProperties from 'core-js-pure/es/object/define-properties';
 import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
-import { is, arrayFromArrayLike } from './helpers';
+import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
 if (!Object.freeze) Object.freeze = Object;

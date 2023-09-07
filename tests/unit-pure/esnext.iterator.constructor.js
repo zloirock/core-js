@@ -1,4 +1,4 @@
-import { createIterator, nativeSubclass } from '../helpers/helpers';
+import { createIterator, nativeSubclass } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import Iterator from 'core-js-pure/actual/iterator';

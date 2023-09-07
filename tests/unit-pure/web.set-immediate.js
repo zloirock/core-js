@@ -1,4 +1,4 @@
-import { timeLimitedPromise } from '../helpers/helpers';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 import setImmediate from 'core-js-pure/stable/set-immediate';
 import clearImmediate from 'core-js-pure/stable/clear-immediate';

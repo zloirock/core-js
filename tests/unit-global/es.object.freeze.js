@@ -1,4 +1,4 @@
-import { GLOBAL, NATIVE } from '../helpers/constants';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
 QUnit.test('Object.freeze', assert => {
   const { freeze, isFrozen, keys, getOwnPropertyNames, getOwnPropertySymbols } = Object;

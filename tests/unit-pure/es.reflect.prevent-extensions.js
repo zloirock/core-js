@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
 
 import preventExtensions from 'core-js-pure/es/reflect/prevent-extensions';
 import isExtensible from 'core-js-pure/es/object/is-extensible';

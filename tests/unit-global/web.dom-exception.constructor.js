@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NODE } from '../helpers/constants';
+import { DESCRIPTORS, NODE } from '../helpers/constants.js';
 
 const errors = {
   IndexSizeError: { s: 'INDEX_SIZE_ERR', c: 1, m: 1 },

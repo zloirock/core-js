@@ -1,5 +1,5 @@
-import { DESCRIPTORS, NODE } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 const { getPrototypeOf, getOwnPropertyDescriptor } = Object;
 

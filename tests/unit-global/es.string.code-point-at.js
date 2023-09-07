@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('String#codePointAt', assert => {
   const { codePointAt } = String.prototype;

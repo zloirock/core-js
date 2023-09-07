@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants.js';
 
 import Promise from 'core-js-pure/es/promise';
 import Symbol from 'core-js-pure/es/symbol';

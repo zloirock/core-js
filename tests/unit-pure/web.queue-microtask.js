@@ -1,4 +1,4 @@
-import { timeLimitedPromise } from '../helpers/helpers';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 import queueMicrotask from 'core-js-pure/full/queue-microtask';
 

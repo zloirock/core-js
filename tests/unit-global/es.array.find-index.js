@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#findIndex', assert => {
   const { findIndex } = Array.prototype;

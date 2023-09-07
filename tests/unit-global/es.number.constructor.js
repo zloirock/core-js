@@ -1,5 +1,5 @@
-import { WHITESPACES } from '../helpers/constants';
-import { nativeSubclass } from '../helpers/helpers';
+import { WHITESPACES } from '../helpers/constants.js';
+import { nativeSubclass } from '../helpers/helpers.js';
 
 function getCheck(assert) {
   return function (a, b) {

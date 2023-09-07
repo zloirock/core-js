@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
-import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants';
+import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants.js';
 import parse from 'core-js-pure/actual/json/parse';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import hasOwn from 'core-js-pure/es/object/has-own';

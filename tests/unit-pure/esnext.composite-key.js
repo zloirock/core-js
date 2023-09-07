@@ -1,5 +1,5 @@
 
-import { FREEZING } from '../helpers/constants';
+import { FREEZING } from '../helpers/constants.js';
 
 import { getPrototypeOf, isFrozen } from 'core-js-pure/es/object';
 import compositeKey from 'core-js-pure/full/composite-key';

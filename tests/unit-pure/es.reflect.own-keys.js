@@ -1,4 +1,4 @@
-import { includes } from '../helpers/helpers';
+import { includes } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import create from 'core-js-pure/es/object/create';

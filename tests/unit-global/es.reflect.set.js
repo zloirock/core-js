@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
 
 QUnit.test('Reflect.set', assert => {
   const { set } = Reflect;

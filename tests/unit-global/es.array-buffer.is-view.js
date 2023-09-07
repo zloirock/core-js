@@ -1,4 +1,4 @@
-import { TYPED_ARRAYS } from '../helpers/constants';
+import { TYPED_ARRAYS } from '../helpers/constants.js';
 
 QUnit.test('ArrayBuffer.isView', assert => {
   const { isView } = ArrayBuffer;

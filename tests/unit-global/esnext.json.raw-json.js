@@ -1,4 +1,4 @@
-import { FREEZING } from '../helpers/constants';
+import { FREEZING } from '../helpers/constants.js';
 
 QUnit.test('JSON.rawJSON', assert => {
   const { rawJSON, stringify } = JSON;

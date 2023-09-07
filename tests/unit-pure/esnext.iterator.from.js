@@ -1,4 +1,4 @@
-import { createIterable, createIterator } from '../helpers/helpers';
+import { createIterable, createIterator } from '../helpers/helpers.js';
 
 import Iterator from 'core-js-pure/actual/iterator';
 import assign from 'core-js-pure/es/object/assign';

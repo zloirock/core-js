@@ -1,5 +1,5 @@
 // some asserts based on https://github.com/petamoriken/float16/blob/master/test/f16round.js
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 const { MAX_VALUE, MIN_VALUE } = Number;
 

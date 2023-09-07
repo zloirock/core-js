@@ -1,8 +1,8 @@
 /* eslint-disable es/no-object-getownpropertydescriptor, unicorn/relative-url-style -- required for testing */
-import { DESCRIPTORS, NODE } from '../helpers/constants';
-import urlTestData from '../wpt-url-resources/urltestdata';
-import settersTestData from '../wpt-url-resources/setters';
-import toASCIITestData from '../wpt-url-resources/toascii';
+import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import urlTestData from '../wpt-url-resources/urltestdata.js';
+import settersTestData from '../wpt-url-resources/setters.js';
+import toASCIITestData from '../wpt-url-resources/toascii.js';
 
 import URL from 'core-js-pure/stable/url';
 import URLSearchParams from 'core-js-pure/stable/url-search-params';

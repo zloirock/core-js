@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants';
+import { GLOBAL } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 

@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import Promise from 'core-js-pure/es/promise';
 import Symbol from 'core-js-pure/full/symbol';

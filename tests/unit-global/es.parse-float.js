@@ -1,4 +1,4 @@
-import { WHITESPACES } from '../helpers/constants';
+import { WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('parseFloat', assert => {
   assert.isFunction(parseFloat);

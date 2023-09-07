@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';

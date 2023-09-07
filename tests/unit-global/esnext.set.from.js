@@ -1,4 +1,4 @@
-import { createIterable } from '../helpers/helpers';
+import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Set.from', assert => {
   const { from } = Set;

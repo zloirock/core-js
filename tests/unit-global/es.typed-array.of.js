@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArray%.of', assert => {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
 
 const {
   defineProperty,

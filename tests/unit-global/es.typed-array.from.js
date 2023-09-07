@@ -1,5 +1,5 @@
-import { DESCRIPTORS, NATIVE, TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants';
-import { createIterable } from '../helpers/helpers';
+import { DESCRIPTORS, NATIVE, TYPED_ARRAYS_WITH_BIG_INT } from '../helpers/constants.js';
+import { createIterable } from '../helpers/helpers.js';
 
 if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor

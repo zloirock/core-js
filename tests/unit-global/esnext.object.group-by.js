@@ -1,4 +1,4 @@
-import { createIterable } from '../helpers/helpers';
+import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Object.groupBy', assert => {
   const { groupBy, getPrototypeOf, entries } = Object;

@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 import codePointAt from 'core-js-pure/es/string/code-point-at';
 

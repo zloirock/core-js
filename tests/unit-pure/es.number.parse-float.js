@@ -1,4 +1,4 @@
-import { WHITESPACES } from '../helpers/constants';
+import { WHITESPACES } from '../helpers/constants.js';
 
 import parseFloat from 'core-js-pure/es/number/parse-float';
 

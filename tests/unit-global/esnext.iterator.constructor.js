@@ -1,4 +1,4 @@
-import { createIterator, nativeSubclass } from '../helpers/helpers';
+import { createIterator, nativeSubclass } from '../helpers/helpers.js';
 
 const { getPrototypeOf } = Object;
 

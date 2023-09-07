@@ -1,4 +1,4 @@
-import { createConversionChecker } from '../helpers/helpers';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 import acosh from 'core-js-pure/es/math/acosh';
 import EPSILON from 'core-js-pure/es/number/epsilon';

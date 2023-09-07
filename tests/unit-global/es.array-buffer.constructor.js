@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
 
 QUnit.test('ArrayBuffer', assert => {
   const Symbol = GLOBAL.Symbol || {};

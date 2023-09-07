@@ -1,4 +1,4 @@
-import { GLOBAL, PROTO } from '../helpers/constants';
+import { GLOBAL, PROTO } from '../helpers/constants.js';
 
 const { create } = Object;
 

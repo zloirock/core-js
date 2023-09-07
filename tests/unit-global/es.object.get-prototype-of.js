@@ -1,4 +1,4 @@
-import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants';
+import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants.js';
 
 QUnit.test('Object.getPrototypeOf', assert => {
   const { create, getPrototypeOf } = Object;

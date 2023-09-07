@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
   const { getOwnPropertyDescriptor } = Reflect;

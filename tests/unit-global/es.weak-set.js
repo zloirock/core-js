@@ -1,5 +1,5 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants';
-import { createIterable, nativeSubclass } from '../helpers/helpers';
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
+import { createIterable, nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
 const { freeze, keys, getOwnPropertyNames, getOwnPropertySymbols } = Object;

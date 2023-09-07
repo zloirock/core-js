@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import stringify from 'core-js-pure/es/json/stringify';
 import Symbol from 'core-js-pure/es/symbol';
 import defineProperty from 'core-js-pure/es/object/define-property';

@@ -1,4 +1,4 @@
-import { nativeSubclass } from '../helpers/helpers';
+import { nativeSubclass } from '../helpers/helpers.js';
 
 const { getPrototypeOf } = Object;
 

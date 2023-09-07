@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
 
 QUnit.test('Reflect.preventExtensions', assert => {
   const { preventExtensions } = Reflect;

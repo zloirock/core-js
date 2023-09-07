@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Symbol.replaceAll', assert => {
   assert.true('replaceAll' in Symbol, 'Symbol.replaceAll is available');

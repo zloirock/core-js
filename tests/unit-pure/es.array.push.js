@@ -1,4 +1,4 @@
-import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
 
 import push from 'core-js-pure/es/array/virtual/push';
 import defineProperty from 'core-js-pure/es/object/define-property';

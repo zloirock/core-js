@@ -1,5 +1,5 @@
 /* eslint-disable prefer-numeric-literals -- required for testing */
-import { WHITESPACES } from '../helpers/constants';
+import { WHITESPACES } from '../helpers/constants.js';
 
 /* eslint-disable radix -- required for testing */
 QUnit.test('parseInt', assert => {

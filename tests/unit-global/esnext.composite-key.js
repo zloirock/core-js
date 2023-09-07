@@ -1,5 +1,5 @@
 
-import { FREEZING } from '../helpers/constants';
+import { FREEZING } from '../helpers/constants.js';
 
 const { getPrototypeOf, isFrozen } = Object;
 

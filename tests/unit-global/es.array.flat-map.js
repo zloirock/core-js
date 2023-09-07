@@ -1,5 +1,5 @@
 /* eslint-disable unicorn/prefer-array-flat -- required for testing */
-import { STRICT } from '../helpers/constants';
+import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#flatMap', assert => {
   const { flatMap } = Array.prototype;

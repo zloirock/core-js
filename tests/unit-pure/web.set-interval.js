@@ -1,4 +1,4 @@
-import { timeLimitedPromise } from '../helpers/helpers';
+import { timeLimitedPromise } from '../helpers/helpers.js';
 
 import setTimeout from 'core-js-pure/stable/set-timeout';
 import setInterval from 'core-js-pure/stable/set-interval';

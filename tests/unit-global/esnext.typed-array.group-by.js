@@ -1,4 +1,4 @@
-import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants';
+import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants.js';
 
 const { getPrototypeOf } = Object;
 

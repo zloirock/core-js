@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants';
+import { DESCRIPTORS } from '../helpers/constants.js';
 
 import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
 import isExtensible from 'core-js-pure/es/reflect/is-extensible';
