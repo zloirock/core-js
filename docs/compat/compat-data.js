@@ -5936,7 +5936,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.array-buffer.transfer": {
     "android": "114",
@@ -5949,7 +5950,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.array-buffer.transfer-to-fixed-length": {
     "android": "114",
@@ -5962,7 +5964,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.async-disposable-stack.constructor": {},
   "esnext.async-iterator.constructor": {},
@@ -6137,7 +6140,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.json.parse": {
     "android": "114",
@@ -6150,7 +6154,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.json.raw-json": {
     "android": "114",
@@ -6163,7 +6168,8 @@
     "opera": "100",
     "opera-android": "76",
     "opera_mobile": "76",
-    "quest": "28.0"
+    "quest": "28.0",
+    "samsung": "23.0"
   },
   "esnext.map.delete-all": {},
   "esnext.map.emplace": {},
@@ -6965,6 +6971,7 @@
     "opera-android": "76",
     "opera_mobile": "76",
     "quest": "28.0",
-    "safari": "17.0"
+    "safari": "17.0",
+    "samsung": "23.0"
   }
 }

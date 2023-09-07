@@ -717,6 +717,7 @@ GLOBAL.tests = {
   },
   'es.math.expm1': function () {
     // Old FF bug
+    // eslint-disable-next-line no-loss-of-precision -- required for old engines
     return Math.expm1(10) <= 22025.465794806719 && Math.expm1(10) >= 22025.4657948067165168
       // Tor Browser bug
       && Math.expm1(-2e-17) === -2e-17;
@@ -1139,7 +1140,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.match]('');
 
     // eslint-disable-next-line regexp/prefer-regexp-exec -- required for testing
@@ -1171,7 +1175,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.replace]('');
 
     var re2 = /./;
@@ -1198,7 +1205,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re[Symbol.search]('');
 
     return ''.search(O) === 7 && execCalled;
@@ -1209,7 +1219,10 @@ GLOBAL.tests = {
 
     var execCalled = false;
     var re = /a/;
-    re.exec = function () { execCalled = true; return null; };
+    re.exec = function () {
+      execCalled = true;
+      return null;
+    };
     re.constructor = {};
     re.constructor[Symbol.species] = function () { return re; };
     re[Symbol.split]('');
@@ -1487,22 +1500,6 @@ GLOBAL.tests = {
   },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
-  },
-  'esnext.array.group': function () {
-    try {
-      // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.group.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.group;
-  },
-  'esnext.array.group-to-map': function () {
-    try {
-      // https://bugs.webkit.org/show_bug.cgi?id=236541
-      Array.prototype.groupToMap.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.groupToMap;
   },
   'esnext.array.is-template-object': function () {
     return Array.isTemplateObject;

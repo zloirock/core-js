@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.32.2 - 2023.09.07](https://github.com/zloirock/core-js/releases/tag/v3.32.2)
 - Fixed `structuredClone` feature detection `core-js@3.32.1` bug, [#1288](https://github.com/zloirock/core-js/issues/1288)
 - Added a workaround of old WebKit + `eval` bug, [#1287](https://github.com/zloirock/core-js/pull/1287)
 - Compat data improvements:
