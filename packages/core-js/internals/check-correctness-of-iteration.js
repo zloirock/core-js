@@ -24,7 +24,7 @@ try {
 module.exports = function (exec, SKIP_CLOSING) {
   try {
     if (!SKIP_CLOSING && !SAFE_CLOSING) return false;
-  } catch (error) { return false; } // it is not safe when the `SAFE_CLOSING` is not in the current scope
+  } catch (error) { return false; } // workaround of old WebKit + `eval` bug
   var ITERATION_SUPPORT = false;
   try {
     var object = {};
