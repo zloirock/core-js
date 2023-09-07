@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed `structuredClone` feature detection `core-js@3.32.1` bug, [#1288](https://github.com/zloirock/core-js/issues/1288)
+- Added a workaround of old WebKit + `eval` bug, [#1287](https://github.com/zloirock/core-js/pull/1287)
 - Compat data improvements:
   - Added Samsung Internet 23 compat data mapping
   - Added Quest Browser 29 compat data mapping
