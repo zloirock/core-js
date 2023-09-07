@@ -24,7 +24,7 @@
     "core-js": "3.32.1",
     "core-js-compat": "3.32.1",
     "mkdirp": ">=0.5.5 <1",
-    "webpack": ">=4.46.0 <5"
+    "webpack": ">=4.47.0 <5"
   },
   "engines": {
     "node": ">=8.9.0"
