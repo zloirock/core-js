@@ -1219,7 +1219,7 @@ const qunit = {
   'qunit/assert-args': ERROR,
   // enforce comparison assertions have arguments in the right order
   'qunit/literal-compare-order': ERROR,
-  // forbid the use of assert.equal
+  // forbid the use of `assert.equal`
   'qunit/no-assert-equal': ERROR,
   // require use of boolean assertions
   'qunit/no-assert-equal-boolean': ERROR,
@@ -1229,10 +1229,8 @@ const qunit = {
   'qunit/no-async-in-loops': ERROR,
   // disallow async module callbacks
   'qunit/no-async-module-callbacks': ERROR,
-  // forbid the use of asyncTest
+  // forbid the use of `asyncTest`
   'qunit/no-async-test': ERROR,
-  // disallow the use of hooks from ancestor modules
-  'qunit/no-hooks-from-ancestor-modules': ERROR,
   // forbid commented tests
   'qunit/no-commented-tests': ERROR,
   // forbid comparing relational expression to boolean in assertions
@@ -1241,37 +1239,41 @@ const qunit = {
   'qunit/no-early-return': ERROR,
   // forbid the use of global qunit assertions
   'qunit/no-global-assertions': ERROR,
-  // forbid the use of global expect
+  // forbid the use of global `expect`
   'qunit/no-global-expect': ERROR,
-  // forbid the use of global module / test / asyncTest
+  // forbid the use of global `module` / `test` / `asyncTest`
   'qunit/no-global-module-test': ERROR,
-  // forbid use of global stop / start
+  // forbid use of global `stop` / `start`
   'qunit/no-global-stop-start': ERROR,
+  // disallow the use of hooks from ancestor modules
+  'qunit/no-hooks-from-ancestor-modules': ERROR,
   // forbid identical test and module names
   'qunit/no-identical-names': ERROR,
-  // forbid use of QUnit.init
+  // forbid use of `QUnit.init`
   'qunit/no-init': ERROR,
-  // forbid use of QUnit.jsDump
+  // forbid use of `QUnit.jsDump`
   'qunit/no-jsdump': ERROR,
   // disallow the use of `assert.equal` / `assert.ok` / `assert.notEqual` / `assert.notOk``
   'qunit/no-loose-assertions': ERROR,
-  // forbid QUnit.test() calls inside callback of another QUnit.test
+  // forbid `QUnit.test()` calls inside callback of another `QUnit.test`
   'qunit/no-nested-tests': ERROR,
-  // forbid equality comparisons in assert.{ok, notOk}
+  // forbid equality comparisons in `assert.{ ok, notOk }`
   'qunit/no-ok-equality': ERROR,
-  // forbid the use of QUnit.push
+  // disallow `QUnit.only`
+  'qunit/no-only': ERROR,
+  // forbid the use of `QUnit.push`
   'qunit/no-qunit-push': ERROR,
-  // forbid QUnit.start within tests or test hooks
+  // forbid `QUnit.start` within tests or test hooks
   'qunit/no-qunit-start-in-tests': ERROR,
-  // forbid the use of QUnit.stop
+  // forbid the use of `QUnit.stop`
   'qunit/no-qunit-stop': ERROR,
   // forbid overwriting of QUnit logging callbacks
   'qunit/no-reassign-log-callbacks': ERROR,
-  // forbid use of QUnit.reset
+  // forbid use of `QUnit.reset`
   'qunit/no-reset': ERROR,
   // forbid setup / teardown module hooks
   'qunit/no-setup-teardown': ERROR,
-  // forbid expect argument in QUnit.test
+  // forbid expect argument in `QUnit.test`
   'qunit/no-test-expect-argument': ERROR,
   // forbid assert.throws() with block, string, and message
   'qunit/no-throws-string': ERROR,
