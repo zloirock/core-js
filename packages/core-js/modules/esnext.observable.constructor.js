@@ -17,7 +17,6 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var hostReportErrors = require('../internals/host-report-errors');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
-var OBSERVABLE_FORCED = require('../internals/observable-forced');
 
 var $$OBSERVABLE = wellKnownSymbol('observable');
 var OBSERVABLE = 'Observable';
@@ -181,7 +180,7 @@ defineBuiltIns(ObservablePrototype, {
 
 defineBuiltIn(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
-$({ global: true, constructor: true, forced: OBSERVABLE_FORCED }, {
+$({ global: true, constructor: true, forced: true }, {
   Observable: $Observable
 });
 

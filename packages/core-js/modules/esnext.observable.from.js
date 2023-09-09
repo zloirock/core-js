@@ -8,13 +8,12 @@ var getIterator = require('../internals/get-iterator');
 var getMethod = require('../internals/get-method');
 var iterate = require('../internals/iterate');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var OBSERVABLE_FORCED = require('../internals/observable-forced');
 
 var $$OBSERVABLE = wellKnownSymbol('observable');
 
 // `Observable.from` method
 // https://github.com/tc39/proposal-observable
-$({ target: 'Observable', stat: true, forced: OBSERVABLE_FORCED }, {
+$({ target: 'Observable', stat: true, forced: true }, {
   from: function from(x) {
     var C = isConstructor(this) ? this : getBuiltIn('Observable');
     var observableMethod = getMethod(anObject(x), $$OBSERVABLE);
