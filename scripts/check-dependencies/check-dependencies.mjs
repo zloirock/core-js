@@ -24,7 +24,7 @@ await Promise.all(pkgs.map(async path => {
     --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
   `;
 
-  const { results } = JSON.parse(stdout);
+  const results = JSON.parse(stdout)?.results?.npm;
   const obsolete = { ...results?.dependencies, ...results?.devDependencies };
 
   if (Object.keys(obsolete).length) {
