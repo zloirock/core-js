@@ -1997,7 +1997,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.global-this': null,
   'esnext.iterator.constructor': {
-    chrome: '117',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
@@ -2005,44 +2004,32 @@ export const data = {
   'esnext.iterator.dispose': {
   },
   'esnext.iterator.drop': {
-    chrome: '117',
   },
   'esnext.iterator.every': {
-    chrome: '117',
   },
   'esnext.iterator.filter': {
-    chrome: '117',
   },
   'esnext.iterator.find': {
-    chrome: '117',
   },
   'esnext.iterator.flat-map': {
-    chrome: '117',
   },
   'esnext.iterator.for-each': {
-    chrome: '117',
   },
   'esnext.iterator.from': {
-    chrome: '117',
   },
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.map': {
-    chrome: '117',
   },
   'esnext.iterator.range': {
   },
   'esnext.iterator.reduce': {
-    chrome: '117',
   },
   'esnext.iterator.some': {
-    chrome: '117',
   },
   'esnext.iterator.take': {
-    chrome: '117',
   },
   'esnext.iterator.to-array': {
-    chrome: '117',
   },
   'esnext.iterator.to-async': {
   },
