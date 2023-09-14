@@ -24,7 +24,7 @@ QUnit.test('Array#fill', assert => {
       length: -1,
     }, 0, {
       set() {
-        throw Error();
+        throw new Error();
       },
     })), 'uses ToLength');
   }

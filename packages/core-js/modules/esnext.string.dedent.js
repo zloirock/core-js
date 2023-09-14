@@ -47,7 +47,7 @@ var INVALID_CLOSING_LINE = 'Invalid closing line';
 var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
   // https://github.com/tc39/proposal-string-dedent/issues/75
-  if (FREEZING && !isFrozen(rawInput)) throw $TypeError('Raw template should be frozen');
+  if (FREEZING && !isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
   if (globalDedentRegistry.has(rawInput)) return globalDedentRegistry.get(rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
@@ -67,12 +67,12 @@ var dedentStringsArray = function (template) {
   var i = 0;
   var lines, common, quasi, k;
 
-  if (!length) throw $TypeError(INVALID_TAG);
+  if (!length) throw new $TypeError(INVALID_TAG);
 
   for (; i < length; i++) {
     var element = t[i];
     if (typeof element == 'string') blocks[i] = split(element, NEW_LINE);
-    else throw $TypeError(INVALID_TAG);
+    else throw new $TypeError(INVALID_TAG);
   }
 
   for (i = 0; i < length; i++) {
@@ -80,13 +80,13 @@ var dedentStringsArray = function (template) {
     lines = blocks[i];
     if (i === 0) {
       if (lines.length === 1 || lines[0].length > 0) {
-        throw $TypeError(INVALID_OPENING_LINE);
+        throw new $TypeError(INVALID_OPENING_LINE);
       }
       lines[1] = '';
     }
     if (lastSplit) {
       if (lines.length === 1 || exec(NON_WHITESPACE, lines[lines.length - 1])) {
-        throw $TypeError(INVALID_CLOSING_LINE);
+        throw new $TypeError(INVALID_CLOSING_LINE);
       }
       lines[lines.length - 2] = '';
       lines[lines.length - 1] = '';

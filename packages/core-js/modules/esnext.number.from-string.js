@@ -21,17 +21,17 @@ $({ target: 'Number', stat: true, forced: true }, {
   fromString: function fromString(string, radix) {
     var sign = 1;
     var R, mathNum;
-    if (typeof string != 'string') throw $TypeError(INVALID_NUMBER_REPRESENTATION);
-    if (!string.length) throw $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    if (typeof string != 'string') throw new $TypeError(INVALID_NUMBER_REPRESENTATION);
+    if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     if (charAt(string, 0) === '-') {
       sign = -1;
       string = stringSlice(string, 1);
-      if (!string.length) throw $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+      if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
     R = radix === undefined ? 10 : toIntegerOrInfinity(radix);
-    if (R < 2 || R > 36) throw $RangeError(INVALID_RADIX);
+    if (R < 2 || R > 36) throw new $RangeError(INVALID_RADIX);
     if (!exec(valid, string) || numberToString(mathNum = parseInt(string, R), R) !== string) {
-      throw $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+      throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
     return sign * mathNum;
   }

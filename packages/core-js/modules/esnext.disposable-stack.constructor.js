@@ -28,7 +28,7 @@ var PENDING = 'pending';
 
 var getPendingDisposableStackInternalState = function (stack) {
   var internalState = getDisposableStackInternalState(stack);
-  if (internalState.state === DISPOSED) throw $ReferenceError(DISPOSABLE_STACK + ' already disposed');
+  if (internalState.state === DISPOSED) throw new $ReferenceError(DISPOSABLE_STACK + ' already disposed');
   return internalState;
 };
 

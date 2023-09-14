@@ -19,7 +19,7 @@ module.exports = function cooked(template /* , ...substitutions */) {
   var i = 0;
   while (true) {
     var nextVal = cookedTemplate[i++];
-    if (nextVal === undefined) throw $TypeError('Incorrect template');
+    if (nextVal === undefined) throw new $TypeError('Incorrect template');
     push(elements, toString(nextVal));
     if (i === literalSegments) return join(elements, '');
     if (i < argumentsLength) push(elements, toString(arguments[i]));

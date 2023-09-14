@@ -18,7 +18,7 @@ var $SuppressedError = function SuppressedError(error, suppressed, message) {
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
   var that;
   if (setPrototypeOf) {
-    that = setPrototypeOf($Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
+    that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
   } else {
     that = isInstance ? this : create(SuppressedErrorPrototype);
     createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');

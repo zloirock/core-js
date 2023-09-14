@@ -137,7 +137,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
     iteratorWithReturn[Symbol.iterator] = function () {
       return this;
     };
-    Array.from(iteratorWithReturn, function () { throw Error('close'); });
+    Array.from(iteratorWithReturn, function () { throw new Error('close'); });
   } catch (error) {
     return SAFE_CLOSING;
   }

@@ -149,7 +149,7 @@ QUnit.test('AsyncDisposableStack#2', assert => {
   const stack = new AsyncDisposableStack();
 
   stack.use({ [Symbol.asyncDispose]: () => result += '6' });
-  stack.adopt({}, () => { throw Error(5); });
+  stack.adopt({}, () => { throw new Error(5); });
   stack.defer(() => result += '4');
   stack.use({ [Symbol.asyncDispose]: () => Promise.resolve(result += '3') });
   stack.adopt({}, () => Promise.resolve(result += '2'));
@@ -169,7 +169,7 @@ QUnit.test('AsyncDisposableStack#3', assert => {
   const stack = new AsyncDisposableStack();
 
   stack.use({ [Symbol.asyncDispose]: () => result += '6' });
-  stack.adopt({}, () => { throw Error(5); });
+  stack.adopt({}, () => { throw new Error(5); });
   stack.defer(() => result += '4');
   stack.use({ [Symbol.asyncDispose]: () => Promise.reject(Error(3)) });
   stack.adopt({}, () => Promise.resolve(result += '2'));

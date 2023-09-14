@@ -22,7 +22,7 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
         accumulator = callbackfn(accumulator, value, value, set);
       }
     });
-    if (noInitial) throw $TypeError('Reduce of empty set with no initial value');
+    if (noInitial) throw new $TypeError('Reduce of empty set with no initial value');
     return accumulator;
   }
 });

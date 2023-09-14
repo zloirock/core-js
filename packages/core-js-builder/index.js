@@ -33,7 +33,7 @@ module.exports = async function ({
   filename = null,
   summary = {},
 } = {}) {
-  if (!['bundle', 'cjs', 'esm'].includes(format)) throw TypeError('Incorrect output type');
+  if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
   const TITLE = filename !== null || filename !== undefined ? filename : '`core-js`';

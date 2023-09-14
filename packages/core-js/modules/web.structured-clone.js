@@ -230,37 +230,37 @@ var structuredCloneInternal = function (value, map, transferredBuffers) {
       name = value.name;
       switch (name) {
         case 'AggregateError':
-          cloned = getBuiltin('AggregateError')([]);
+          cloned = new (getBuiltin('AggregateError'))([]);
           break;
         case 'EvalError':
-          cloned = EvalError();
+          cloned = new EvalError();
           break;
         case 'RangeError':
-          cloned = RangeError();
+          cloned = new RangeError();
           break;
         case 'ReferenceError':
-          cloned = ReferenceError();
+          cloned = new ReferenceError();
           break;
         case 'SyntaxError':
-          cloned = SyntaxError();
+          cloned = new SyntaxError();
           break;
         case 'TypeError':
-          cloned = TypeError();
+          cloned = new TypeError();
           break;
         case 'URIError':
-          cloned = URIError();
+          cloned = new URIError();
           break;
         case 'CompileError':
-          cloned = CompileError();
+          cloned = new CompileError();
           break;
         case 'LinkError':
-          cloned = LinkError();
+          cloned = new LinkError();
           break;
         case 'RuntimeError':
-          cloned = RuntimeError();
+          cloned = new RuntimeError();
           break;
         default:
-          cloned = Error();
+          cloned = new Error();
       }
       break;
     case 'DOMException':
@@ -523,7 +523,7 @@ var replacePlaceholders = function (value, map) {
 };
 
 var tryToTransfer = function (rawTransfer, map) {
-  if (!isObject(rawTransfer)) throw TypeError('Transfer option cannot be converted to a sequence');
+  if (!isObject(rawTransfer)) throw new TypeError('Transfer option cannot be converted to a sequence');
 
   var transfer = [];
 

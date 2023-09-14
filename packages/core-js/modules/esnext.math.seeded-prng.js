@@ -30,7 +30,7 @@ var $SeededRandomGenerator = createIteratorConstructor(function SeededRandomGene
 $({ target: 'Math', stat: true, forced: true }, {
   seededPRNG: function seededPRNG(it) {
     var seed = anObject(it).seed;
-    if (!numberIsFinite(seed)) throw $TypeError(SEED_TYPE_ERROR);
+    if (!numberIsFinite(seed)) throw new $TypeError(SEED_TYPE_ERROR);
     return new $SeededRandomGenerator(seed);
   }
 });

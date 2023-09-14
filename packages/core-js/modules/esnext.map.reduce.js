@@ -22,7 +22,7 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
         accumulator = callbackfn(accumulator, value, key, map);
       }
     });
-    if (noInitial) throw $TypeError('Reduce of empty map with no initial value');
+    if (noInitial) throw new $TypeError('Reduce of empty map with no initial value');
     return accumulator;
   }
 });

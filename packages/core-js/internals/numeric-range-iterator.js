@@ -19,10 +19,10 @@ var $TypeError = TypeError;
 var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(start, end, option, type, zero, one) {
   // TODO: Drop the first `typeof` check after removing legacy methods in `core-js@4`
   if (typeof start != type || (end !== Infinity && end !== -Infinity && typeof end != type)) {
-    throw $TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (start === Infinity || start === -Infinity) {
-    throw $RangeError(INCORRECT_RANGE);
+    throw new $RangeError(INCORRECT_RANGE);
   }
   var ifIncrease = end > start;
   var inclusiveEnd = false;
@@ -35,16 +35,16 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   } else if (typeof option == type) {
     step = option;
   } else {
-    throw $TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (isNullOrUndefined(step)) {
     step = ifIncrease ? one : -one;
   }
   if (typeof step != type) {
-    throw $TypeError(INCORRECT_RANGE);
+    throw new $TypeError(INCORRECT_RANGE);
   }
   if (step === Infinity || step === -Infinity || (step === zero && start !== end)) {
-    throw $RangeError(INCORRECT_RANGE);
+    throw new $RangeError(INCORRECT_RANGE);
   }
   // eslint-disable-next-line no-self-compare -- NaN check
   var hitsEnd = start !== start || end !== end || step !== step || (end > start) !== (step > zero);

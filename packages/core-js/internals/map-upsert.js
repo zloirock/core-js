@@ -16,7 +16,7 @@ module.exports = function upsert(key, updateFn /* , insertFn */) {
   var insertFn = arguments.length > 2 ? arguments[2] : undefined;
   var value;
   if (!isCallable(updateFn) && !isCallable(insertFn)) {
-    throw $TypeError('At least one callback required');
+    throw new $TypeError('At least one callback required');
   }
   if (call(has, map, key)) {
     value = call(get, map, key);

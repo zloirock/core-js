@@ -31,7 +31,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
     // eslint-disable-next-line unicorn/no-thenable -- required for testing
     then() {
       result += 'A';
-      throw Error();
+      throw new Error();
     },
   });
   promise1.catch(() => {
@@ -49,7 +49,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
   $resolve2(Object.defineProperty({}, 'then', {
     get() {
       result += 'D';
-      throw Error();
+      throw new Error();
     },
   }));
   result += 'E';

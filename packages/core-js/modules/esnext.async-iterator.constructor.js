@@ -14,7 +14,7 @@ var $TypeError = TypeError;
 
 var AsyncIteratorConstructor = function AsyncIterator() {
   anInstance(this, AsyncIteratorPrototype);
-  if (getPrototypeOf(this) === AsyncIteratorPrototype) throw $TypeError('Abstract class AsyncIterator not directly constructable');
+  if (getPrototypeOf(this) === AsyncIteratorPrototype) throw new $TypeError('Abstract class AsyncIterator not directly constructable');
 };
 
 AsyncIteratorConstructor.prototype = AsyncIteratorPrototype;

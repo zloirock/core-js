@@ -11,6 +11,6 @@ $({ target: 'Iterator', stat: true, forced: true }, {
   range: function range(start, end, option) {
     if (typeof start == 'number') return new NumericRangeIterator(start, end, option, 'number', 0, 1);
     if (typeof start == 'bigint') return new NumericRangeIterator(start, end, option, 'bigint', BigInt(0), BigInt(1));
-    throw $TypeError('Incorrect Iterator.range arguments');
+    throw new $TypeError('Incorrect Iterator.range arguments');
   }
 });

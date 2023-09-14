@@ -33,9 +33,9 @@ module.exports = function (obj) {
   var numSize = +obj.size;
   // NOTE: If size is undefined, then numSize will be NaN
   // eslint-disable-next-line no-self-compare -- NaN check
-  if (numSize !== numSize) throw $TypeError(INVALID_SIZE);
+  if (numSize !== numSize) throw new $TypeError(INVALID_SIZE);
   var intSize = toIntegerOrInfinity(numSize);
-  if (intSize < 0) throw $RangeError(INVALID_SIZE);
+  if (intSize < 0) throw new $RangeError(INVALID_SIZE);
   return new SetRecord(
     obj,
     max(intSize, 0),

@@ -13,7 +13,7 @@ var setUint8 = uncurryThis(DataView.prototype.setUint8);
 // https://github.com/tc39/proposal-dataview-get-set-uint8c
 $({ target: 'DataView', proto: true, forced: true }, {
   setUint8Clamped: function setUint8Clamped(byteOffset, value) {
-    if (classof(this) !== 'DataView') throw $TypeError('Incorrect receiver');
+    if (classof(this) !== 'DataView') throw new $TypeError('Incorrect receiver');
     var offset = toIndex(byteOffset);
     return setUint8(this, offset, toUint8Clamped(value));
   }

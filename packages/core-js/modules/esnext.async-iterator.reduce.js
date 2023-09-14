@@ -34,7 +34,7 @@ $({ target: 'AsyncIterator', proto: true, real: true }, {
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
-                noInitial ? reject($TypeError('Reduce of empty iterator with no initial value')) : resolve(accumulator);
+                noInitial ? reject(new $TypeError('Reduce of empty iterator with no initial value')) : resolve(accumulator);
               } else {
                 var value = step.value;
                 if (noInitial) {

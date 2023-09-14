@@ -7,7 +7,7 @@ const allModules = require('./modules');
 const targetsParser = require('./targets-parser');
 
 function throwInvalidFilter(filter) {
-  throw TypeError(`Specified invalid module name or pattern: ${ filter }`);
+  throw new TypeError(`Specified invalid module name or pattern: ${ filter }`);
 }
 
 function atLeastSomeModules(modules, filter) {

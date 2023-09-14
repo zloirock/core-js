@@ -18,7 +18,7 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     aCallable(callback);
     var isPresentInMap = has(map, key);
     if (!isPresentInMap && length < 3) {
-      throw $TypeError('Updating absent value');
+      throw new $TypeError('Updating absent value');
     }
     var value = isPresentInMap ? get(map, key) : aCallable(length > 2 ? arguments[2] : undefined)(key, map);
     set(map, key, callback(value, key, map));

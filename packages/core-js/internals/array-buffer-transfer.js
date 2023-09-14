@@ -24,7 +24,7 @@ module.exports = PROPER_TRANSFER && function (arrayBuffer, newLength, preserveRe
   var byteLength = arrayBufferByteLength(arrayBuffer);
   var newByteLength = newLength === undefined ? byteLength : toIndex(newLength);
   var fixedLength = !isResizable || !isResizable(arrayBuffer);
-  if (isDetached(arrayBuffer)) throw TypeError('ArrayBuffer is detached');
+  if (isDetached(arrayBuffer)) throw new TypeError('ArrayBuffer is detached');
   var newBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
   if (byteLength === newByteLength && (preserveResizability || fixedLength)) return newBuffer;
   if (byteLength >= newByteLength && (!preserveResizability || fixedLength)) return slice(newBuffer, 0, newByteLength);

@@ -146,13 +146,13 @@ QUnit.test('JSON.parse', assert => {
     assert.throws(() => parse({
       toString: null,
       valueOf() {
-        throw EvalError('t262');
+        throw new EvalError('t262');
       },
     }, reviver), EvalError, `text-object-abrupt-1 ${ note }`);
 
     assert.throws(() => parse({
       toString() {
-        throw EvalError('t262');
+        throw new EvalError('t262');
       },
     }, reviver), EvalError, `text-object-abrupt-2 ${ note }`);
   }
@@ -215,11 +215,11 @@ QUnit.test('JSON.parse', assert => {
     assert.same(obj3.b, 2, 'reviver-object-non-configurable-prop-delete-3');
 
     assert.throws(() => parse('[0,0]', function () {
-      defineProperty(this, '1', { get: () => { throw EvalError('t262'); } });
+      defineProperty(this, '1', { get: () => { throw new EvalError('t262'); } });
     }), EvalError, 'reviver-get-name-err');
   }
 
-  assert.throws(() => parse('0', () => { throw EvalError('t262'); }), EvalError, 'reviver-call-err');
+  assert.throws(() => parse('0', () => { throw new EvalError('t262'); }), EvalError, 'reviver-call-err');
 
   // FF20- enumeration order issue
   if (keys({ k: 1, 2: 3 })[0] === '2') {

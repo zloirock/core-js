@@ -43,7 +43,7 @@ module.exports = function () {
   for (i = 0; i < length; i++) {
     if (isObject(it = arguments[i])) active = active.next(i, it, true);
   }
-  if (this === $Object && active === root) throw $TypeError('Composite keys must contain a non-primitive component');
+  if (this === $Object && active === root) throw new $TypeError('Composite keys must contain a non-primitive component');
   for (i = 0; i < length; i++) {
     if (!isObject(it = arguments[i])) active = active.next(i, it, false);
   } return active;

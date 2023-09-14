@@ -7,7 +7,7 @@ function semver(input) {
   // eslint-disable-next-line new-cap -- ok
   if (!(this instanceof semver)) return new semver(input);
   const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(input);
-  if (!match) throw TypeError(`Invalid version: ${ input }`);
+  if (!match) throw new TypeError(`Invalid version: ${ input }`);
   const [, $major, $minor, $patch] = match;
   this.major = +$major;
   this.minor = $minor ? +$minor : 0;

@@ -89,4 +89,4 @@ if (missed.length) {
   error = true;
 } else echo(chalk.green('adding of compat data tests not required'));
 
-if (error) throw Error(error);
+if (error) throw new Error(error);

@@ -13,7 +13,7 @@ var setUint16 = uncurryThis(DataView.prototype.setUint16);
 // https://github.com/tc39/proposal-float16array
 $({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
-    if (classof(this) !== 'DataView') throw $TypeError('Incorrect receiver');
+    if (classof(this) !== 'DataView') throw new $TypeError('Incorrect receiver');
     var offset = toIndex(byteOffset);
     var bytes = packIEEE754(+value, 10, 2);
     return setUint16(this, offset, bytes[1] << 8 | bytes[0], arguments.length > 2 ? arguments[2] : false);

@@ -43,7 +43,7 @@ var $parse = function (source, reviver) {
   var value = root.value;
   var endIndex = context.skip(IS_WHITESPACE, root.end);
   if (endIndex < source.length) {
-    throw SyntaxError('Unexpected extra character: "' + at(source, endIndex) + '" after the parsed data at: ' + endIndex);
+    throw new SyntaxError('Unexpected extra character: "' + at(source, endIndex) + '" after the parsed data at: ' + endIndex);
   }
   return isCallable(reviver) ? internalize({ '': value }, '', reviver, root) : value;
 };
@@ -119,7 +119,7 @@ Context.prototype = {
         return fork.keyword(false);
       case 'n':
         return fork.keyword(null);
-    } throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
+    } throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   },
   node: function (type, value, start, end, nodes) {
     return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
@@ -196,14 +196,14 @@ Context.prototype = {
     if (at(source, i) === '-') i++;
     if (at(source, i) === '0') i++;
     else if (exec(IS_NON_ZERO_DIGIT, at(source, i))) i = this.skip(IS_DIGIT, ++i);
-    else throw SyntaxError('Failed to parse number at: ' + i);
+    else throw new SyntaxError('Failed to parse number at: ' + i);
     if (at(source, i) === '.') i = this.skip(IS_DIGIT, ++i);
     if (at(source, i) === 'e' || at(source, i) === 'E') {
       i++;
       if (at(source, i) === '+' || at(source, i) === '-') i++;
       var exponentStartIndex = i;
       i = this.skip(IS_DIGIT, i);
-      if (exponentStartIndex === i) throw SyntaxError("Failed to parse number's exponent value at: " + i);
+      if (exponentStartIndex === i) throw new SyntaxError("Failed to parse number's exponent value at: " + i);
     }
     return this.node(PRIMITIVE, Number(slice(source, startIndex, i)), startIndex, i);
   },
@@ -211,7 +211,7 @@ Context.prototype = {
     var keyword = '' + value;
     var index = this.index;
     var endIndex = index + keyword.length;
-    if (slice(this.source, index, endIndex) !== keyword) throw SyntaxError('Failed to parse value at: ' + index);
+    if (slice(this.source, index, endIndex) !== keyword) throw new SyntaxError('Failed to parse value at: ' + index);
     return this.node(PRIMITIVE, value, index, endIndex);
   },
   skip: function (regex, i) {
@@ -223,7 +223,7 @@ Context.prototype = {
     i = this.skip(IS_WHITESPACE, i);
     var chr = at(this.source, i);
     for (var j = 0; j < array.length; j++) if (array[j] === chr) return i;
-    throw SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
+    throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
   }
 };
 

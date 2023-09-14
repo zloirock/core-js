@@ -628,6 +628,8 @@ const base = {
   'unicorn/switch-case-braces': [ERROR, 'avoid'],
   // enforce consistent case for text encoding identifiers
   'unicorn/text-encoding-identifier-case': ERROR,
+  // require `new` when throwing an error
+  'unicorn/throw-new-error': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense

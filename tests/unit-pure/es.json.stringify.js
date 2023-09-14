@@ -20,7 +20,7 @@ if (GLOBAL.JSON?.stringify) {
 
     const num1 = new Number(10);
     num1.toString = () => 'toString';
-    num1.valueOf = () => { throw EvalError('should not be called'); };
+    num1.valueOf = () => { throw new EvalError('should not be called'); };
     assert.same(stringify({
       10: 1,
       toString: 2,
@@ -46,7 +46,7 @@ if (GLOBAL.JSON?.stringify) {
 
     const str1 = new String('str');
     str1.toString = () => 'toString';
-    str1.valueOf = () => { throw EvalError('should not be called'); };
+    str1.valueOf = () => { throw new EvalError('should not be called'); };
     assert.same(stringify({
       str: 1,
       toString: 2,
@@ -60,7 +60,7 @@ if (GLOBAL.JSON?.stringify) {
     sparse[1] = 'key';
     assert.same(stringify({ undefined: 1, key: 2 }, sparse), '{"key":2}', 'replacer-array-undefined-3');
 
-    assert.throws(() => stringify({}, () => { throw EvalError('should not be called'); }), EvalError, 'replacer-function-abrupt');
+    assert.throws(() => stringify({}, () => { throw new EvalError('should not be called'); }), EvalError, 'replacer-function-abrupt');
 
     const calls = [];
     const b1 = [1, 2];
@@ -112,7 +112,7 @@ if (GLOBAL.JSON?.stringify) {
         case '1': return 2;
         case 'c1': return true;
         case 'c2': return false;
-      } throw EvalError('unreachable');
+      } throw new EvalError('unreachable');
     }), stringify({
       a1: {
         b1: [1, 2],
@@ -163,12 +163,12 @@ if (GLOBAL.JSON?.stringify) {
 
     assert.same(stringify(obj5, null, new Number(1)), stringify(obj5, null, 1), 'space-number-object-1');
     const num2 = new Number(1);
-    num2.toString = () => { throw EvalError('should not be called'); };
+    num2.toString = () => { throw new EvalError('should not be called'); };
     num2.valueOf = () => 3;
     assert.same(stringify(obj5, null, num2), stringify(obj5, null, 3), 'space-number-object-2');
     const abrupt1 = new Number(4);
-    abrupt1.toString = () => { throw EvalError('t262'); };
-    abrupt1.valueOf = () => { throw EvalError('t262'); };
+    abrupt1.toString = () => { throw new EvalError('t262'); };
+    abrupt1.valueOf = () => { throw new EvalError('t262'); };
     assert.throws(() => stringify(obj5, null, abrupt1), EvalError, 'space-number-object-3');
 
     assert.same(stringify(obj5, null, new Number(-5)), stringify(obj5, null, 0), 'space-number-range-1');
@@ -180,11 +180,11 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(obj5, null, new String('xxx')), stringify(obj5, null, 'xxx'), 'space-string-object-1');
     const str2 = new String('xxx');
     str2.toString = () => '---';
-    str2.valueOf = () => { throw EvalError('should not be called'); };
+    str2.valueOf = () => { throw new EvalError('should not be called'); };
     assert.same(stringify(obj5, null, str2), stringify(obj5, null, '---'), 'space-string-object-2');
     const abrupt2 = new String('xxx');
-    abrupt2.toString = () => { throw EvalError('t262'); };
-    abrupt2.valueOf = () => { throw EvalError('t262'); };
+    abrupt2.toString = () => { throw new EvalError('t262'); };
+    abrupt2.valueOf = () => { throw new EvalError('t262'); };
     assert.throws(() => stringify(obj5, null, abrupt2), EvalError, 'space-string-object-3');
 
     assert.same(stringify(obj5, null, '0123456789xxxxxxxxx'), stringify(obj5, null, '0123456789'), 'space-string-range');
@@ -251,7 +251,7 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify(['str'], (key, value) => {
       if (value === 'str') {
         const num = new Number(42);
-        num.toString = () => { throw EvalError('should not be called'); };
+        num.toString = () => { throw new EvalError('should not be called'); };
         num.valueOf = () => 2;
         return num;
       } return value;
@@ -260,8 +260,8 @@ if (GLOBAL.JSON?.stringify) {
       key: {
         toJSON() {
           const num = new Number(3.14);
-          num.toString = () => { throw EvalError('t262'); };
-          num.valueOf = () => { throw EvalError('t262'); };
+          num.toString = () => { throw new EvalError('t262'); };
+          num.valueOf = () => { throw new EvalError('t262'); };
           return num;
         },
       },
@@ -351,7 +351,7 @@ if (GLOBAL.JSON?.stringify) {
         toJSON() {
           const str = new String('str');
           str.toString = () => 'toString';
-          str.valueOf = () => { throw EvalError('should not be called'); };
+          str.valueOf = () => { throw new EvalError('should not be called'); };
           return str;
         },
       },
@@ -359,14 +359,14 @@ if (GLOBAL.JSON?.stringify) {
     assert.throws(() => stringify([true], (key, value) => {
       if (value === true) {
         const str = new String('str');
-        str.toString = () => { throw EvalError('t262'); };
-        str.valueOf = () => { throw EvalError('t262'); };
+        str.toString = () => { throw new EvalError('t262'); };
+        str.valueOf = () => { throw new EvalError('t262'); };
         return str;
       } return value;
     }), 'value-string-object-3');
 
     assert.throws(() => stringify({
-      toJSON() { throw EvalError('t262'); },
+      toJSON() { throw new EvalError('t262'); },
     }), EvalError, 'value-tojson-abrupt-1');
 
     let callCount = 0;

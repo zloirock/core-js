@@ -25,7 +25,7 @@ var FORCED = IS_PURE
 
 var IteratorConstructor = function Iterator() {
   anInstance(this, IteratorPrototype);
-  if (getPrototypeOf(this) === IteratorPrototype) throw $TypeError('Abstract class Iterator not directly constructable');
+  if (getPrototypeOf(this) === IteratorPrototype) throw new $TypeError('Abstract class Iterator not directly constructable');
 };
 
 if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) {

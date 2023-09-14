@@ -22,6 +22,6 @@ QUnit.test('URL.canParse', assert => {
   assert.true(canParse('x', 'https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'), 'x, https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment');
 
   assert.throws(() => canParse(), 'no args');
-  assert.throws(() => canParse({ toString() { throw Error('thrower'); } }), 'conversion thrower #1');
-  assert.throws(() => canParse('q:w', { toString() { throw Error('thrower'); } }), 'conversion thrower #2');
+  assert.throws(() => canParse({ toString() { throw new Error('thrower'); } }), 'conversion thrower #1');
+  assert.throws(() => canParse('q:w', { toString() { throw new Error('thrower'); } }), 'conversion thrower #2');
 });
