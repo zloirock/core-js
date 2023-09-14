@@ -17,13 +17,13 @@ if (DESCRIPTORS) {
       try {
         dotAllGetter.call(/a/);
         assert.required('.dotAll getter works on literals');
-      } catch (error) {
+      } catch {
         assert.avoid('.dotAll getter works on literals');
       }
       try {
         dotAllGetter.call(new RegExp('a'));
         assert.required('.dotAll getter works on instances');
-      } catch (error) {
+      } catch {
         assert.avoid('.dotAll getter works on instances');
       }
 

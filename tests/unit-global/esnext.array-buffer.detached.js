@@ -7,7 +7,7 @@ QUnit.test('ArrayBuffer#detached', assert => {
   const detached = new ArrayBuffer(8);
   try {
     structuredClone(detached, { transfer: [detached] });
-  } catch (error) { /* empty */ }
+  } catch { /* empty */ }
 
   if (detached.length === 0) {
     assert.same(detached.detached, true, 'detached');

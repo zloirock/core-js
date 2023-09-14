@@ -63,7 +63,7 @@ try {
   // Chrome 27- bug, also a bug for native `JSON.parse`
   defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
   REDEFINABLE_PROTO = true;
-} catch (error) { /* empty */ }
+} catch { /* empty */ }
 
 export const STRICT_THIS = (function () {
   return this;

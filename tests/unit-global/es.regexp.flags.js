@@ -16,7 +16,7 @@ if (DESCRIPTORS) {
     let INDICES_SUPPORT = true;
     try {
       RegExp('.', 'd');
-    } catch (error) {
+    } catch {
       INDICES_SUPPORT = false;
     }
 

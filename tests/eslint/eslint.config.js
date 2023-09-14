@@ -493,10 +493,6 @@ const base = {
   'array-func/from-map': ERROR,
   // avoid the `this` parameter when providing arrow function as callback in array functions
   'array-func/no-unnecessary-this-arg': ERROR,
-  // use `.flatMap()`` to map and then flatten an array instead of using `.map().flat()`
-  'array-func/prefer-flat-map': ERROR,
-  // use `.flat()` to flatten an array of arrays
-  'array-func/prefer-flat': ERROR,
 
   // promise:
   // avoid calling `cb()` inside of a `then()` or `catch()`
@@ -522,17 +518,17 @@ const base = {
   'promise/valid-params': ERROR,
 
   // unicorn
-  // enforce a specific parameter name in catch clauses
+  // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
+  // enforce correct `Error` subclassing
+  'unicorn/custom-error-definition': ERROR,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': ERROR,
   // require escape sequences to use uppercase values
   'unicorn/escape-case': ERROR,
   // enforce a case style for filenames
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
-  // enforce importing index files with `.`
-  'unicorn/import-index': ERROR,
-  // enforce specifying rules to disable in eslint-disable comments
+  // enforce specifying rules to disable in `eslint-disable` comments
   'unicorn/no-abusive-eslint-disable': ERROR,
   // enforce combining multiple `Array#push` into one call
   'unicorn/no-array-push-push': ERROR,
@@ -544,12 +540,16 @@ const base = {
   'unicorn/no-invalid-remove-event-listener': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
+  // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
+  'unicorn/no-new-buffer': ERROR,
   // forbid classes that only have static members
   'unicorn/no-static-only-class': ERROR,
   // disallow `then` property
   'unicorn/no-thenable': ERROR,
   // disallow comparing `undefined` using `typeof` when it's not required
   'unicorn/no-typeof-undefined': ERROR,
+  // disallow awaiting non-promise values
+  'unicorn/no-unnecessary-await': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
@@ -564,11 +564,19 @@ const base = {
   'unicorn/no-useless-promise-resolve-reject': ERROR,
   // disallow useless spread
   'unicorn/no-useless-spread': ERROR,
-  // disallow useless case in switch statements
+  // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
   'unicorn/number-literal-case': ERROR,
-  // prefer `.find(…)` over the first element from `.filter(…)`
+  // enforce the style of numeric separators by correctly grouping digits
+  'unicorn/numeric-separators-style': [ERROR, {
+    onlyIfContainsSeparator: true,
+    number: { minimumDigits: 0, groupLength: 3 },
+    binary: { minimumDigits: 0, groupLength: 4 },
+    octal: { minimumDigits: 0, groupLength: 4 },
+    hexadecimal: { minimumDigits: 0, groupLength: 2 },
+  }],
+  // prefer `.find()` over the first element from `.filter()`
   'unicorn/prefer-array-find': ERROR,
   // use `.flat()` to flatten an array of arrays
   'unicorn/prefer-array-flat': ERROR,
@@ -576,21 +584,35 @@ const base = {
   'unicorn/prefer-array-flat-map': ERROR,
   // prefer `Array#indexOf` over `Array#findIndex`` when looking for the index of an item
   'unicorn/prefer-array-index-of': ERROR,
-  // prefer `.some(…)` over `.filter(…).length` check and `.find(…)`
+  // prefer `.some()` over `.filter().length` check and `.find()`
   'unicorn/prefer-array-some': ERROR,
+  // prefer `.at()` method for index access and `String#charAt()`
+  'unicorn/prefer-at': [ERROR, { checkAllIndexAccess: false }],
   // prefer `Blob#{ arrayBuffer, text }` over `FileReader#{ readAsArrayBuffer, readAsText }`
   'unicorn/prefer-blob-reading-methods': ERROR,
+  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
+  'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
+  // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
+  'unicorn/prefer-includes': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': ERROR,
-  // prefer modern `Math`` APIs over legacy patterns
+  // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': ERROR,
-  // prefer using Set#size instead of Array#length
+  // prefer negative index over `.length - index` when possible
+  'unicorn/prefer-negative-index': ERROR,
+  // prefer using the `node:` protocol when importing Node builtin modules
+  'unicorn/prefer-node-protocol': ERROR,
+  // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
+  'unicorn/prefer-object-from-entries': ERROR,
+  // prefer omitting the `catch` binding parameter
+  'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
@@ -845,12 +867,12 @@ const es3 = {
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
-  // use `.flat()` to flatten an array of arrays
-  'array-func/prefer-flat': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': OFF,
+  // prefer omitting the `catch` binding parameter
+  'unicorn/prefer-optional-catch-binding': OFF,
 };
 
 const forbidESAnnexBBuiltIns = {
@@ -892,6 +914,10 @@ const forbidES5BuiltIns = {
   'es/no-object-preventextensions': ERROR,
   'es/no-object-seal': ERROR,
   'es/no-string-prototype-trim': ERROR,
+  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
+  'unicorn/prefer-date-now': OFF,
+  // prefer modern `Math` APIs over legacy patterns
+  'unicorn/prefer-modern-math-apis': OFF,
 };
 
 const forbidES2015BuiltIns = {
@@ -956,6 +982,8 @@ const forbidES2015BuiltIns = {
 
 const forbidES2016BuiltIns = {
   'es/no-array-prototype-includes': ERROR,
+  // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
+  'unicorn/prefer-includes': OFF,
 };
 
 const forbidES2017BuiltIns = {
@@ -972,11 +1000,14 @@ const forbidES2018BuiltIns = {
 };
 
 const forbidES2019BuiltIns = {
-  'unicorn/prefer-array-flat': OFF,
   'es/no-array-prototype-flat': ERROR,
   'es/no-object-fromentries': ERROR,
   'es/no-string-prototype-trimstart-trimend': ERROR,
   'es/no-symbol-prototype-description': ERROR,
+  // use `.flat()` to flatten an array of arrays
+  'unicorn/prefer-array-flat': OFF,
+  // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
+  'unicorn/prefer-object-from-entries': OFF,
 };
 
 const forbidES2020BuiltIns = {
@@ -1000,6 +1031,8 @@ const forbidES2022BuiltIns = {
   'es/no-object-hasown': ERROR,
   'es/no-regexp-d-flag': ERROR,
   'es/no-regexp-unicode-property-escapes-2022': ERROR,
+  // prefer `.at()` method for index access and `String#charAt()`
+  'unicorn/prefer-at': OFF,
 };
 
 const forbidES2023BuiltIns = {
@@ -1079,8 +1112,6 @@ const asyncAwait = {
   'promise/prefer-await-to-callbacks': ERROR,
   // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
   'promise/prefer-await-to-then': ERROR,
-  // disallow awaiting non-promise values
-  'unicorn/no-unnecessary-await': ERROR,
 };
 
 const polyfills = {
@@ -1111,19 +1142,12 @@ const transpiledAndPolyfilled = {
   'es/no-weakrefs': ERROR,
 };
 
-const testsWithoutPolyfills = {
-  // use `.flat()` to flatten an array of arrays
-  'array-func/prefer-flat': OFF,
-};
-
 const nodePackages = {
   ...asyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // enforce using named capture group in regular expression
   'prefer-named-capture-group': OFF,
-  // use `.flat()` to flatten an array of arrays
-  'array-func/prefer-flat': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow third-party modules which are hiding core modules
@@ -1133,6 +1157,12 @@ const nodePackages = {
   // prefer promises
   'node/prefer-promises/dns': OFF,
   'node/prefer-promises/fs': OFF,
+  // prefer using a logical operator over a ternary
+  'unicorn/prefer-logical-operator-over-ternary': OFF,
+  // prefer using the `node:` protocol when importing Node builtin modules
+  'unicorn/prefer-node-protocol': OFF,
+  // prefer omitting the `catch` binding parameter
+  'unicorn/prefer-optional-catch-binding': OFF,
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
@@ -1206,6 +1236,10 @@ const tests = {
   'prefer-named-capture-group': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
+  // prefer `.at()` method for index access and `String#charAt()`
+  'unicorn/prefer-at': OFF,
+  // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
+  'unicorn/prefer-includes': OFF,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
@@ -1486,12 +1520,6 @@ module.exports = [
       sourceType: 'module',
     },
     rules: transpiledAndPolyfilled,
-  },
-  {
-    files: [
-      'tests/@(compat|helpers|unit-pure)/**',
-    ],
-    rules: testsWithoutPolyfills,
   },
   {
     files: [

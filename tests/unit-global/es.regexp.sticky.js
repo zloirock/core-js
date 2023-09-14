@@ -20,13 +20,13 @@ if (DESCRIPTORS) {
       try {
         stickyGetter.call(/a/);
         assert.required('.sticky getter works on literals');
-      } catch (error) {
+      } catch {
         assert.avoid('.sticky getter works on literals');
       }
       try {
         stickyGetter.call(new RegExp('a'));
         assert.required('.sticky getter works on instances');
-      } catch (error) {
+      } catch {
         assert.avoid('.sticky getter works on instances');
       }
 

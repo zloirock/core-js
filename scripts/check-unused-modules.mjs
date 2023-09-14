@@ -2,7 +2,8 @@ import konan from 'konan';
 import { modules, ignored } from 'core-js-compat/src/data.mjs';
 
 async function jsModulesFrom(path) {
-  return new Set((await fs.readdir(path)).filter(it => it.endsWith('.js')).map(it => it.slice(0, -3)));
+  const directory = await fs.readdir(path);
+  return new Set(directory.filter(it => it.endsWith('.js')).map(it => it.slice(0, -3)));
 }
 
 function log(set, kind) {

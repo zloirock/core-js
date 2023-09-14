@@ -1,5 +1,6 @@
 'use strict';
 /* eslint-disable node/no-sync -- avoiding overcomplicating */
+/* eslint-disable unicorn/prefer-node-protocol -- ancient env possible */
 var fs = require('fs');
 var os = require('os');
 var path = require('path');

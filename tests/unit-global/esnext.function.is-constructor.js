@@ -32,7 +32,7 @@ QUnit.test('Function.isConstructor', assert => {
   // V8 ~ Chrome 49- bug
   if (Gen) try {
     new Gen();
-  } catch (error) {
+  } catch {
     assert.false(isConstructor(Gen), 'gen');
   }
   const asyncFunc = fromSource('async function () {}');
