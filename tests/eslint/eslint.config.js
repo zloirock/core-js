@@ -620,8 +620,6 @@ const base = {
   'sonarjs/no-extra-arguments': ERROR,
   // boolean expressions should not be gratuitous
   'sonarjs/no-gratuitous-expressions': ERROR,
-  // functions should not have identical implementations
-  'sonarjs/no-identical-functions': ERROR,
   // boolean literals should not be redundant
   'sonarjs/no-redundant-boolean': ERROR,
   // jump statements should not be redundant
@@ -1206,8 +1204,6 @@ const tests = {
   'prefer-named-capture-group': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
-  // functions should not have identical implementations
-  'sonarjs/no-identical-functions': OFF,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
