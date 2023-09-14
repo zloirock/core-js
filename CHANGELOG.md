@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Fully forced polyfilling of [the TC39 `Observable` proposal](https://github.com/tc39/proposal-observable) because of incompatibility with [the new WHATWG `Observable` proposal](https://github.com/domfarolino/observable)
+- Fully forced polyfilling of [the TC39 `Observable` proposal](https://github.com/tc39/proposal-observable) because of incompatibility with [the new WHATWG `Observable` proposal](https://github.com/WICG/observable)
 - Compat data improvements:
   - V8 unshipped [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers) because of [some Web compatibility issues](https://github.com/tc39/proposal-iterator-helpers/issues/286)
 
