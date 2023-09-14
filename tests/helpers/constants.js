@@ -37,7 +37,7 @@ for (const name in $TYPED_ARRAYS) TYPED_ARRAYS.push({
   $: Number,
 });
 
-export const TYPED_ARRAYS_WITH_BIG_INT = TYPED_ARRAYS.slice();
+export const TYPED_ARRAYS_WITH_BIG_INT = [...TYPED_ARRAYS];
 
 for (const name of ['BigInt64Array', 'BigUint64Array']) if (GLOBAL[name]) TYPED_ARRAYS_WITH_BIG_INT.push({
   name,

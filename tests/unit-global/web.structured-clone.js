@@ -71,7 +71,7 @@ QUnit.module('structuredClone', () => {
   ];
 
   QUnit.test('primitives', assert => {
-    const primitives = [undefined, null].concat(booleans, numbers, bigints, strings);
+    const primitives = [undefined, null, ...booleans, ...numbers, ...bigints, ...strings];
 
     for (const value of primitives) cloneTest(value, (orig, clone) => {
       assert.same(orig, clone, 'primitives should be same after cloned');
@@ -80,7 +80,7 @@ QUnit.module('structuredClone', () => {
 
   // "Primitive" Objects (Boolean, Number, BigInt, String)
   QUnit.test('primitive objects', assert => {
-    const primitives = [].concat(booleans, numbers, bigints, strings);
+    const primitives = [...booleans, ...numbers, ...bigints, ...strings];
 
     for (const value of primitives) cloneObjectTest(assert, Object(value), (orig, clone) => {
       assert.same(orig.valueOf(), clone.valueOf(), 'primitive wrappers should have same value');
