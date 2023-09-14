@@ -1,3 +1,5 @@
+if (process.env.CI) await $`playwright install-deps`;
+
 await Promise.all([
   ['packages/core-js-bundle/index', 'tests/bundles/unit-global'],
   ['packages/core-js-bundle/minified', 'tests/bundles/unit-global'],
