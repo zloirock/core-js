@@ -626,11 +626,13 @@ const base = {
   'sonarjs/no-redundant-jump': ERROR,
   // conditionals should start on new lines
   'sonarjs/no-same-line-conditional': ERROR,
+  // `switch` statements should have at least 3 `case` clauses
+  'sonarjs/no-small-switch': ERROR,
   // collection and array contents should be used
   'sonarjs/no-unused-collection': ERROR,
   // the output of functions that don't return anything should not be used
   'sonarjs/no-use-of-empty-return-value': ERROR,
-  // non-existent operators '=+', '=-' and '=!' should not be used
+  // non-existent operators `=+`, `=-` and `=!` should not be used
   'sonarjs/non-existent-operator': ERROR,
   // local variables should not be declared and then immediately returned or thrown
   'sonarjs/prefer-immediate-return': ERROR,
