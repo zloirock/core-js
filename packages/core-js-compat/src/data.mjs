@@ -2506,6 +2506,7 @@ export const data = {
     safari: '14.0',
   },
   'web.url.can-parse': {
+    bun: '1.0.2',
     deno: '1.33.2',
     firefox: '115',
     node: '20.1.0',
@@ -2542,6 +2543,7 @@ export const data = {
     safari: '17.0',
   },
   'web.url-search-params.size': {
+    bun: '1.0.2',
     chrome: '113',
     deno: '1.32',
     firefox: '112',
