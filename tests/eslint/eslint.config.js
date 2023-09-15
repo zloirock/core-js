@@ -514,6 +514,10 @@ const base = {
     resolvePattern: '^resolve',
     rejectPattern: '^reject',
   }],
+  // prefer `async` / `await` to the callback pattern
+  'promise/prefer-await-to-callbacks': ERROR,
+  // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
+  'promise/prefer-await-to-then': ERROR,
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 
@@ -612,8 +616,16 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
+  'unicorn/prefer-regexp-test': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
+  // prefer `String#replaceAll()` over regex searches with the global flag
+  'unicorn/prefer-string-replace-all': ERROR,
+  // prefer `String#{ startsWith, endsWith }()` over RegExp#test()
+  'unicorn/prefer-string-starts-ends-with': ERROR,
+  // prefer `String#{ trimStart, trimEnd }()` over `String#{ trimLeft, trimRight }()`
+  'unicorn/prefer-string-trim-start-end': ERROR,
   // prefer `switch` over multiple `else-if`
   'unicorn/prefer-switch': [ERROR, { minimumCases: 3 }],
   // enforce consistent relative `URL` style
@@ -626,6 +638,8 @@ const base = {
   'unicorn/require-post-message-target-origin': ERROR,
   // forbid braces for case clauses
   'unicorn/switch-case-braces': [ERROR, 'avoid'],
+  // fix whitespace-insensitive template indentation
+  'unicorn/template-indent': OFF, // waiting for `String.dedent`
   // enforce consistent case for text encoding identifiers
   'unicorn/text-encoding-identifier-case': ERROR,
   // require `new` when throwing an error
@@ -834,7 +848,15 @@ const base = {
   'eslint-comments/require-description': ERROR,
 };
 
-const es3 = {
+const noAsyncAwait = {
+  // prefer `async` / `await` to the callback pattern
+  'promise/prefer-await-to-callbacks': OFF,
+  // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
+  'promise/prefer-await-to-then': OFF,
+};
+
+const useES3Syntax = {
+  ...noAsyncAwait,
   // disallow trailing commas in multiline object literals
   'comma-dangle': [ERROR, NEVER],
   // encourages use of dot notation whenever possible
@@ -859,8 +881,6 @@ const es3 = {
   'prefer-exponentiation-operator': OFF,
   // enforce using named capture group in regular expression
   'prefer-named-capture-group': OFF,
-  // prefer `Object.hasOwn`
-  'prefer-object-has-own': OFF,
   // require rest parameters instead of `arguments`
   'prefer-rest-params': OFF,
   // require spread operators instead of `.apply()`
@@ -980,6 +1000,8 @@ const forbidES2015BuiltIns = {
   'es/no-typed-arrays': ERROR,
   'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
+  // prefer `String#{ startsWith, endsWith }()` over RegExp#test()
+  'unicorn/prefer-string-starts-ends-with': OFF,
 };
 
 const forbidES2016BuiltIns = {
@@ -1010,6 +1032,8 @@ const forbidES2019BuiltIns = {
   'unicorn/prefer-array-flat': OFF,
   // prefer using `Object.fromEntries()` to transform a list of key-value pairs into an object
   'unicorn/prefer-object-from-entries': OFF,
+  // prefer `String#{ trimStart, trimEnd }()` over `String#{ trimLeft, trimRight }()`
+  'unicorn/prefer-string-trim-start-end': OFF,
 };
 
 const forbidES2020BuiltIns = {
@@ -1025,9 +1049,13 @@ const forbidES2021BuiltIns = {
   'es/no-regexp-unicode-property-escapes-2021': ERROR,
   'es/no-string-prototype-replaceall': ERROR,
   'es/no-weakrefs': ERROR,
+  // prefer `String#replaceAll()` over regex searches with the global flag
+  'unicorn/prefer-string-replace-all': OFF,
 };
 
 const forbidES2022BuiltIns = {
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': OFF,
   'es/no-array-string-prototype-at': ERROR,
   'es/no-error-cause': ERROR,
   'es/no-object-hasown': ERROR,
@@ -1109,19 +1137,16 @@ const forbidModernESBuiltIns = {
   ...forbidES2023IntlBuiltIns,
 };
 
-const asyncAwait = {
-  // prefer `async` / `await` to the callback pattern
-  'promise/prefer-await-to-callbacks': ERROR,
-  // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
-  'promise/prefer-await-to-then': ERROR,
-};
-
 const polyfills = {
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': OFF,
+  // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
+  // use `RegExp#exec()` since it does not have implicit calls under the hood
+  'unicorn/prefer-regexp-test': OFF,
 };
 
 const transpiledAndPolyfilled = {
+  ...noAsyncAwait,
   // disallow accessor properties
   'es/no-accessor-properties': ERROR,
   // disallow async functions
@@ -1145,7 +1170,6 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  ...asyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // enforce using named capture group in regular expression
@@ -1171,6 +1195,8 @@ const nodePackages = {
   ...disable(forbidES2017BuiltIns),
   'es/no-atomics': ERROR,
   'es/no-shared-array-buffer': ERROR,
+  // disallow top-level `await`
+  'es/no-top-level-await': ERROR,
   ...forbidES2018BuiltIns,
   ...forbidES2019BuiltIns,
   ...forbidES2020BuiltIns,
@@ -1188,7 +1214,6 @@ const nodePackages = {
 };
 
 const nodeDev = {
-  ...asyncAwait,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
@@ -1493,12 +1518,13 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 3,
     },
-    rules: es3,
+    rules: useES3Syntax,
   },
   {
     files: [
       'packages/core-js?(-pure)/**',
       'tests/@(unit-pure|worker)/**',
+      'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
     ],
     rules: forbidModernESBuiltIns,
   },

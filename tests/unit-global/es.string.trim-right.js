@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/prefer-string-trim-start-end -- required for testing */
 import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('String#trimRight', assert => {
