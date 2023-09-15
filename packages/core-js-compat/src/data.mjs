@@ -2058,6 +2058,7 @@ export const data = {
   },
   'esnext.map.group-by': {
     chrome: '117',
+    firefox: '119',
   },
   'esnext.map.includes': {
   },
@@ -2136,6 +2137,7 @@ export const data = {
   },
   'esnext.object.group-by': {
     chrome: '117',
+    firefox: '119',
   },
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
