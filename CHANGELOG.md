@@ -3,6 +3,7 @@
 - Fully forced polyfilling of [the TC39 `Observable` proposal](https://github.com/tc39/proposal-observable) because of incompatibility with [the new WHATWG `Observable` proposal](https://github.com/WICG/observable)
 - Compat data improvements:
   - V8 unshipped [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers) because of [some Web compatibility issues](https://github.com/tc39/proposal-iterator-helpers/issues/286)
+  - [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as properly supported from V8 ~ Chrome 118
   - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) and [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) marked as [supported from Bun 1.0.2](https://github.com/oven-sh/bun/releases/tag/bun-v1.0.2)
 
 ##### [3.32.2 - 2023.09.07](https://github.com/zloirock/core-js/releases/tag/v3.32.2)
