@@ -47,6 +47,7 @@ var getInternalState = InternalStateModule.getterFor(SYMBOL);
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = global.Symbol;
 var SymbolPrototype = $Symbol && $Symbol[PROTOTYPE];
+var RangeError = global.RangeError;
 var TypeError = global.TypeError;
 var QObject = global.QObject;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
@@ -173,6 +174,7 @@ if (!NATIVE_SYMBOL) {
       try {
         setSymbolDescriptor(this, tag, descriptor);
       } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
         fallbackDefineProperty(this, tag, descriptor);
       }
     };
