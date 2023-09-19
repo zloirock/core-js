@@ -2157,6 +2157,7 @@ export const data = {
   },
   'esnext.promise.with-resolvers': {
     bun: '0.7.1',
+    chrome: '119',
   },
   // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
