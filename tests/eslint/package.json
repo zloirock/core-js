@@ -15,7 +15,7 @@
     "eslint-plugin-regexp": "^1.15.0",
     "eslint-plugin-sonarjs": "~0.21.0",
     "eslint-plugin-unicorn": "^48.0.1",
-    "globals": "^13.21.0",
+    "globals": "^13.22.0",
     "jsonc-eslint-parser": "^2.3.0"
   }
 }
