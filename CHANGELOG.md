@@ -8,6 +8,7 @@
   - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping) features marked as [supported from FF119](https://bugzilla.mozilla.org/show_bug.cgi?id=1792650#c9)
   - [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as properly supported from V8 ~ Chrome 118
   - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) and [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) marked as [supported from Bun 1.0.2](https://github.com/oven-sh/bun/releases/tag/bun-v1.0.2)
+  - Added Deno 1.37 compat data mapping
 
 ##### [3.32.2 - 2023.09.07](https://github.com/zloirock/core-js/releases/tag/v3.32.2)
 - Fixed `structuredClone` feature detection `core-js@3.32.1` bug, [#1288](https://github.com/zloirock/core-js/issues/1288)
