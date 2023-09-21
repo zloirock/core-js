@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Added `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` and support transferring of `ArrayBuffer`s via `structuredClone` to engines with `MessageChannel`
+- Added [`ArrayBuffer.prototype.{ transfer, transferToFixedLength }`](https://github.com/tc39/proposal-arraybuffer-transfer) and support transferring of `ArrayBuffer`s via [`structuredClone`](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone) to engines with `MessageChannel`
 - Fully forced polyfilling of [the TC39 `Observable` proposal](https://github.com/tc39/proposal-observable) because of incompatibility with [the new WHATWG `Observable` proposal](https://github.com/WICG/observable)
 - Added an extra workaround of errors with exotic environment objects in `Symbol` polyfill, [#1289](https://github.com/zloirock/core-js/issues/1289)
 - Compat data improvements:
