@@ -22,8 +22,9 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
+var arrayBufferTransfer = require('../internals/array-buffer-transfer');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
-var PROPER_TRANSFER = require('../internals/structured-clone-proper-transfer');
+var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var Object = global.Object;
 var Array = global.Array;
@@ -548,7 +549,7 @@ var tryToTransfer = function (rawTransfer, map) {
 
     if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
 
-    if (PROPER_TRANSFER) {
+    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
       transferred = nativeStructuredClone(value, { transfer: [value] });
     } else switch (type) {
       case 'ImageBitmap':
@@ -596,8 +597,8 @@ var tryToTransferBuffers = function (transfer, map) {
 
     if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
 
-    if (PROPER_TRANSFER) {
-      transferred = nativeStructuredClone(value, { transfer: [value] });
+    if (arrayBufferTransfer) {
+      transferred = arrayBufferTransfer(value, undefined, true);
     } else {
       if (!isCallable(value.transfer)) throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
       transferred = value.transfer();
@@ -609,7 +610,7 @@ var tryToTransferBuffers = function (transfer, map) {
 
 // `structuredClone` method
 // https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone
-$({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLACEMENT }, {
+$({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, forced: FORCED_REPLACEMENT }, {
   structuredClone: function structuredClone(value /* , { transfer } */) {
     var options = validateArgumentsLength(arguments.length, 1) > 1 && !isNullOrUndefined(arguments[1]) ? anObject(arguments[1]) : undefined;
     var transfer = options ? options.transfer : undefined;

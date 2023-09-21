@@ -2391,7 +2391,7 @@ console.log(view.getFloat16(0)); // => 1.3369140625
 ```
 
 ##### [`ArrayBuffer.prototype.transfer` and friends](#https://github.com/tc39/proposal-arraybuffer-transfer)[⬆](#index)
-Note: **`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer support.**
+Note: **`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.**
 Modules [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js), [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js), [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js).
 ```js
 class ArrayBuffer {
@@ -3222,7 +3222,7 @@ structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
 ##### Caveats when using `structuredClone` polyfill:[⬆](#index)
 
-* `ArrayBuffer` instances and many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
+* Many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
 * Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
 
 #### Base64 utility methods[⬆](#index)

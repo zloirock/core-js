@@ -11,7 +11,8 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.looksNative(transferToFixedLength);
   assert.nonEnumerable(ArrayBuffer.prototype, 'transferToFixedLength');
 
-  const DETACHED = 'detached' in ArrayBuffer.prototype;
+  // works incorrectly in ancient webkit
+  const DETACHED = false; // 'detached' in ArrayBuffer.prototype;
 
   const array = [0, 1, 2, 3, 4, 5, 6, 7];
 
