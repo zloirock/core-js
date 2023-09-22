@@ -204,12 +204,12 @@ const base = {
   'no-new': ERROR,
   // disallow use of new operator for Function object
   'no-new-func': ERROR,
-  // disallow Object constructors
-  'no-new-object': ERROR,
   // disallows creating new instances of String, Number, and Boolean
   'no-new-wrappers': ERROR,
   // disallow `\8` and `\9` escape sequences in string literals
   'no-nonoctal-decimal-escape': ERROR,
+  // disallow calls to the `Object` constructor without an argument
+  'no-object-constructor': ERROR,
   // disallow use of (old style) octal literals
   'no-octal': ERROR,
   // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
