@@ -35,6 +35,8 @@ QUnit.test('Math.f16round', assert => {
   assert.same(f16round(-2.980232238769531911744490042422139897126953655970282852649688720703125e-8), -minFloat16);
 
   assert.same(f16round(1.337), 1.3369140625);
+  assert.same(f16round(0.499994), 0.5);
+  assert.same(f16round(7.9999999), 8);
 
   const checker = createConversionChecker(1.1);
   assert.same(f16round(checker), 1.099609375, 'object wrapper');

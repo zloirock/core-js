@@ -2,14 +2,15 @@
 var sign = require('../internals/math-sign');
 
 var abs = Math.abs;
-var pow = Math.pow;
-var EPSILON = pow(2, -52);
-var EPSILON32 = pow(2, -23);
-var MAX32 = pow(2, 127) * (2 - EPSILON32);
-var MIN32 = pow(2, -126);
+
+var EPSILON = 2.220446049250313e-16; // Number.EPSILON
+var EPSILON32 = 1.1920928955078125e-7; // 2 ** -23;
+var INVERSE_EPSILON = 1 / EPSILON;
+var MAX32 = 3.4028234663852886e+38; // 2 ** 128 - 2 ** 104
+var MIN32 = 1.1754943508222875e-38; // 2 ** -126;
 
 var roundTiesToEven = function (n) {
-  return n + 1 / EPSILON - 1 / EPSILON;
+  return n + INVERSE_EPSILON - INVERSE_EPSILON;
 };
 
 // `Math.fround` method implementation
