@@ -11,6 +11,7 @@
   - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) and [`URLSearchParams.prototype.size`](https://url.spec.whatwg.org/#dom-urlsearchparams-size) marked as [supported from Bun 1.0.2](https://github.com/oven-sh/bun/releases/tag/bun-v1.0.2)
   - Added Deno 1.37 compat data mapping
   - Added Electron 28 compat data mapping
+  - Added Opera Android 78 compat data mapping
 
 ##### [3.32.2 - 2023.09.07](https://github.com/zloirock/core-js/releases/tag/v3.32.2)
 - Fixed `structuredClone` feature detection `core-js@3.32.1` bug, [#1288](https://github.com/zloirock/core-js/issues/1288)
