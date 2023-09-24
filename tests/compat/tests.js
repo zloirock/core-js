@@ -1744,19 +1744,6 @@ GLOBAL.tests = {
   'esnext.object.group-by': function () {
     return Object.groupBy;
   },
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'esnext.observable': function () {
-    return Observable;
-  },
-  'esnext.observable.constructor': function () {
-    return Observable;
-  },
-  'esnext.observable.from': function () {
-    return Observable.from;
-  },
-  'esnext.observable.of': function () {
-    return Observable.of;
-  },
   'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
