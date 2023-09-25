@@ -41,4 +41,26 @@ QUnit.test('DataView.prototype.{ getFloat16, setFloat16 }', assert => {
     assert.same(view.getUint16(0, LE), bin, `DataView.prototype.setFloat16 + DataView.prototype.getUint16, LE: ${ LE }, ${ toString(f16) } -> ${ toString(bin) }`);
     assert.same(view.getFloat16(0, LE), f16, `DataView.prototype.setFloat16 + DataView.prototype.getFloat16, LE: ${ LE }, ${ toString(f16) }`);
   }
+
+  const MAX_FLOAT16 = 65504;
+  const MIN_FLOAT16 = 2 ** -24;
+
+  const conversions = [
+    [1.337, 1.3369140625],
+    [0.499994, 0.5],
+    [7.9999999, 8],
+    [MAX_FLOAT16, MAX_FLOAT16],
+    [-MAX_FLOAT16, -MAX_FLOAT16],
+    [MIN_FLOAT16, MIN_FLOAT16],
+    [-MIN_FLOAT16, -MIN_FLOAT16],
+    [MIN_FLOAT16 / 2, 0],
+    [-MIN_FLOAT16 / 2, -0],
+    [2.980232238769531911744490042422139897126953655970282852649688720703125e-8, MIN_FLOAT16],
+    [-2.980232238769531911744490042422139897126953655970282852649688720703125e-8, -MIN_FLOAT16],
+  ];
+
+  for (const [from, to] of conversions) for (const LE of [false, true]) {
+    view.setFloat16(0, from, LE);
+    assert.same(view.getFloat16(0, LE), to, `DataView.prototype.setFloat16 + DataView.prototype.getFloat16, LE: ${ LE }, ${ toString(from) } -> ${ toString(to) }`);
+  }
 });

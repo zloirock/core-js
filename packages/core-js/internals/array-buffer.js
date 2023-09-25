@@ -12,6 +12,7 @@ var anInstance = require('../internals/an-instance');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
+var fround = require('../internals/math-fround');
 var IEEE754 = require('../internals/ieee754');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
@@ -62,7 +63,7 @@ var unpackInt32 = function (buffer) {
 };
 
 var packFloat32 = function (number) {
-  return packIEEE754(number, 23, 4);
+  return packIEEE754(fround(number), 23, 4);
 };
 
 var packFloat64 = function (number) {

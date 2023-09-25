@@ -4,6 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var classof = require('../internals/classof');
 var toIndex = require('../internals/to-index');
 var packIEEE754 = require('../internals/ieee754').pack;
+var f16round = require('../internals/math-f16round');
 
 var $TypeError = TypeError;
 // eslint-disable-next-line es/no-typed-arrays -- safe
@@ -15,7 +16,7 @@ $({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
     if (classof(this) !== 'DataView') throw new $TypeError('Incorrect receiver');
     var offset = toIndex(byteOffset);
-    var bytes = packIEEE754(+value, 10, 2);
+    var bytes = packIEEE754(f16round(value), 10, 2);
     return setUint16(this, offset, bytes[1] << 8 | bytes[0], arguments.length > 2 ? arguments[2] : false);
   }
 });

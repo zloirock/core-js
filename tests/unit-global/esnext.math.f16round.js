@@ -23,17 +23,17 @@ QUnit.test('Math.f16round', assert => {
   assert.same(f16round(MAX_VALUE), Infinity);
   assert.same(f16round(-MAX_VALUE), -Infinity);
 
-  const maxFloat16 = 65504;
-  const minFloat16 = 2 ** -24;
+  const MAX_FLOAT16 = 65504;
+  const MIN_FLOAT16 = 2 ** -24;
 
-  assert.same(f16round(maxFloat16), maxFloat16);
-  assert.same(f16round(-maxFloat16), -maxFloat16);
-  assert.same(f16round(minFloat16), minFloat16);
-  assert.same(f16round(-minFloat16), -minFloat16);
-  assert.same(f16round(minFloat16 / 2), 0);
-  assert.same(f16round(-minFloat16 / 2), -0);
-  assert.same(f16round(2.980232238769531911744490042422139897126953655970282852649688720703125e-8), minFloat16);
-  assert.same(f16round(-2.980232238769531911744490042422139897126953655970282852649688720703125e-8), -minFloat16);
+  assert.same(f16round(MAX_FLOAT16), MAX_FLOAT16);
+  assert.same(f16round(-MAX_FLOAT16), -MAX_FLOAT16);
+  assert.same(f16round(MIN_FLOAT16), MIN_FLOAT16);
+  assert.same(f16round(-MIN_FLOAT16), -MIN_FLOAT16);
+  assert.same(f16round(MIN_FLOAT16 / 2), 0);
+  assert.same(f16round(-MIN_FLOAT16 / 2), -0);
+  assert.same(f16round(2.980232238769531911744490042422139897126953655970282852649688720703125e-8), MIN_FLOAT16);
+  assert.same(f16round(-2.980232238769531911744490042422139897126953655970282852649688720703125e-8), -MIN_FLOAT16);
 
   assert.same(f16round(1.337), 1.3369140625);
   assert.same(f16round(0.499994), 0.5);
