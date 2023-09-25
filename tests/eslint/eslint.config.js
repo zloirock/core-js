@@ -5,6 +5,7 @@ const parserJSONC = require('jsonc-eslint-parser');
 const pluginArrayFunc = require('eslint-plugin-array-func');
 const pluginESX = require('eslint-plugin-es-x');
 const pluginESlintComments = require('eslint-plugin-eslint-comments');
+const pluginFilenames = require('eslint-plugin-filenames');
 const pluginImport = require('eslint-plugin-import');
 const pluginJSONC = require('eslint-plugin-jsonc');
 const pluginN = require('eslint-plugin-n');
@@ -1497,6 +1498,7 @@ module.exports = [
       'array-func': pluginArrayFunc,
       es: pluginESX,
       'eslint-comments': pluginESlintComments,
+      filenames: pluginFilenames,
       import: pluginImport,
       jsonc: pluginJSONC,
       node: pluginN,
@@ -1622,6 +1624,30 @@ module.exports = [
       'no-console': OFF,
       // import used for tasks
       'import/first': OFF,
+    },
+  },
+  {
+    rules: {
+      // ensure that filenames match a convention
+      'filenames/match-regex': [ERROR, /^[\da-z]|[a-z][\d\-.a-z]*[\da-z]$/],
+    },
+  },
+  {
+    files: [
+      'packages/core-js?(-pure)/modules/**',
+    ],
+    rules: {
+      // ensure that filenames match a convention
+      'filenames/match-regex': [ERROR, /^(?:es|esnext|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+    },
+  },
+  {
+    files: [
+      'tests/@(unit-@(global|pure))/**',
+    ],
+    rules: {
+      // ensure that filenames match a convention
+      'filenames/match-regex': [ERROR, /^(?:es|esnext|helpers|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
     },
   },
   {
