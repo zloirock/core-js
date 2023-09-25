@@ -287,8 +287,6 @@ const base = {
   'prefer-destructuring': ERROR,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': ERROR,
-  // enforce using named capture group in regular expression
-  'prefer-named-capture-group': ERROR,
   // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
   'prefer-numeric-literals': ERROR,
   // prefer `Object.hasOwn`
@@ -616,8 +614,6 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
-  // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
-  'unicorn/prefer-regexp-test': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
@@ -775,20 +771,28 @@ const base = {
   'regexp/no-useless-two-nums-quantifier': ERROR,
   // disallow quantifiers with a maximum of zero
   'regexp/no-zero-quantifier': ERROR,
-  // require optimal quantifiers for concatenated quantifiers
-  'regexp/optimal-quantifier-concatenation': ERROR,
   // disallow the alternatives of lookarounds that end with a non-constant quantifier
   'regexp/optimal-lookaround-quantifier': ERROR,
+  // require optimal quantifiers for concatenated quantifiers
+  'regexp/optimal-quantifier-concatenation': ERROR,
   // enforce using character class
   'regexp/prefer-character-class': ERROR,
   // enforce using `\d`
   'regexp/prefer-d': ERROR,
   // enforces escape of replacement `$` character (`$$`)
   'regexp/prefer-escape-replacement-dollar-char': ERROR,
+  // prefer lookarounds over capturing group that do not replace
+  'regexp/prefer-lookaround': [ERROR, { lookbehind: true, strictTypes: true }],
+  // enforce using named backreferences
+  'regexp/prefer-named-backreference': ERROR,
+  // enforce using named capture group in regular expression
+  'regexp/prefer-named-capture-group': ERROR,
   // enforce using named replacement
   'regexp/prefer-named-replacement': ERROR,
   // enforce using `+` quantifier
   'regexp/prefer-plus-quantifier': ERROR,
+  // prefer predefined assertion over equivalent lookarounds
+  'regexp/prefer-predefined-assertion': ERROR,
   // enforce using quantifier
   'regexp/prefer-quantifier': ERROR,
   // enforce using `?` quantifier
@@ -879,8 +883,6 @@ const useES3Syntax = {
   'prefer-destructuring': OFF,
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': OFF,
-  // enforce using named capture group in regular expression
-  'prefer-named-capture-group': OFF,
   // require rest parameters instead of `arguments`
   'prefer-rest-params': OFF,
   // require spread operators instead of `.apply()`
@@ -889,6 +891,10 @@ const useES3Syntax = {
   'prefer-template': OFF,
   // require or disallow use of quotes around object literal property names
   'quote-props': [ERROR, 'as-needed', { keywords: true }],
+  // prefer lookarounds over capturing group that do not replace
+  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
+  // enforce using named capture group in regular expression
+  'regexp/prefer-named-capture-group': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
@@ -1142,7 +1148,7 @@ const polyfills = {
   'promise/no-nesting': OFF,
   // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
   // use `RegExp#exec()` since it does not have implicit calls under the hood
-  'unicorn/prefer-regexp-test': OFF,
+  'regexp/prefer-regexp-test': OFF,
 };
 
 const transpiledAndPolyfilled = {
@@ -1167,13 +1173,15 @@ const transpiledAndPolyfilled = {
   'es/no-bigint': ERROR,
   // unpolyfillable es2021 builtins
   'es/no-weakrefs': ERROR,
+  // prefer lookarounds over capturing group that do not replace
+  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
+  // enforce using named capture group in regular expression
+  'regexp/prefer-named-capture-group': OFF,
 };
 
 const nodePackages = {
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
-  // enforce using named capture group in regular expression
-  'prefer-named-capture-group': OFF,
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow third-party modules which are hiding core modules
@@ -1183,6 +1191,10 @@ const nodePackages = {
   // prefer promises
   'node/prefer-promises/dns': OFF,
   'node/prefer-promises/fs': OFF,
+  // prefer lookarounds over capturing group that do not replace
+  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
+  // enforce using named capture group in regular expression
+  'regexp/prefer-named-capture-group': OFF,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': OFF,
   // prefer using the `node:` protocol when importing Node builtin modules
@@ -1259,8 +1271,6 @@ const tests = {
   ] }],
   // disallow unnecessary calls to `.call()` and `.apply()`
   'no-useless-call': OFF,
-  // enforce using named capture group in regular expression
-  'prefer-named-capture-group': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
   // prefer `.at()` method for index access and `String#charAt()`

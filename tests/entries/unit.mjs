@@ -474,7 +474,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceMatchAll == 'function');
     ok(instanceMatchAll({}) === undefined);
     ok(typeof instanceMatchAll('') == 'function');
-    ok(instanceMatchAll('').call('test1test2', /t(e)(st(\d?))/g).next().value[0] === 'test1');
+    ok(instanceMatchAll('').call('test1test2', /(?<test>test\d)/g).next().value.groups.test === 'test1');
 
     const instancePadEnd = load(NS, 'instance/pad-end');
     ok(typeof instancePadEnd == 'function');
