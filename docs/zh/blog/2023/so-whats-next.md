@@ -65,7 +65,7 @@ date: 2023-02-14
 
 ---
 
-![netflix]( netflix.png)
+![netflix](/blog/2023/so-whats-next/netflix.webp)
 
 ---
 
