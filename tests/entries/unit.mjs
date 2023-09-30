@@ -819,6 +819,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
     ok(typeof load(NS, 'reflect/metadata') == 'function');
     ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
+    ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
     ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
@@ -953,6 +954,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/promise-with-resolvers');
   load('proposals/reflect-metadata');
   load('proposals/regexp-dotall-flag');
+  load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
   load('proposals/seeded-random');
