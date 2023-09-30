@@ -2186,6 +2186,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.reflect.metadata': {
   },
+  'esnext.regexp.escape': {
+  },
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {
