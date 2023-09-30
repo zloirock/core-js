@@ -2390,7 +2390,7 @@ view.setFloat16(0, 1.337);
 console.log(view.getFloat16(0)); // => 1.3369140625
 ```
 
-##### [`ArrayBuffer.prototype.transfer` and friends](#https://github.com/tc39/proposal-arraybuffer-transfer)[⬆](#index)
+##### [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer)[⬆](#index)
 Note: **`ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.**
 Modules [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js), [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js), [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js).
 ```js
