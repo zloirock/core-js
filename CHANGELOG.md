@@ -5,6 +5,7 @@
 - Fixed [some conversion cases](https://github.com/petamoriken/float16/issues/1046) of [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array)
 - Fully forced polyfilling of [the TC39 `Observable` proposal](https://github.com/tc39/proposal-observable) because of incompatibility with [the new WHATWG `Observable` proposal](https://github.com/WICG/observable)
 - Added an extra workaround of errors with exotic environment objects in `Symbol` polyfill, [#1289](https://github.com/zloirock/core-js/issues/1289)
+- Some minor fixes and stylistic changes
 - Compat data improvements:
   - V8 unshipped [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers) because of [some Web compatibility issues](https://github.com/tc39/proposal-iterator-helpers/issues/286)
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as [supported from V8 ~ Chrome 119](https://chromestatus.com/feature/5810984110784512)
