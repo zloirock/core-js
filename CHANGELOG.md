@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Re-introduced [`RegExp` escaping stage 2 proposal](https://github.com/tc39/proposal-regex-escaping), September 2023 TC39 meeting:
+  - Added `RegExp.escape` method with the new set of symbols for escaping
+  - Some years ago, it was presented in `core-js`, but it was removed after rejecting the old version of this proposal
 - Added [`ArrayBuffer.prototype.{ transfer, transferToFixedLength }`](https://github.com/tc39/proposal-arraybuffer-transfer) and support transferring of `ArrayBuffer`s via [`structuredClone`](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone) to engines with `MessageChannel`
 - Optimized [`Math.f16round`](https://github.com/tc39/proposal-float16array) polyfill
 - Fixed [some conversion cases](https://github.com/petamoriken/float16/issues/1046) of [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array)

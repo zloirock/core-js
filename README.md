@@ -168,6 +168,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
+      - [`RegExp` escaping](#regexp-escaping)
       - [`Symbol` predicates](#symbol-predicates)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
@@ -2665,6 +2666,24 @@ console.log(String.dedent`
 String.dedent(console.log)`
   print('${ message }')
 `; // => ["print('", "')", raw: Array(2)], 42
+```
+##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
+Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
+```js
+class RegExp {
+  static escape(value: string): string
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-escaping
+core-js(-pure)/full/regexp/escape
+```
+[*Example*](https://tinyurl.com/yqvehz5c):
+```js
+console.log(RegExp.escape('10$')); // => '\\x310\\$'
+console.log(RegExp.escape('abcdefg_123456')); // => 'abcdefg_123456'
+console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`')); // => '\\(\\)\\{\\}\\[\\]\\|\\,\\.\\?\\*\\+\\-\\^\\$\\=\\<\\>\\\\\\/\\#\\&\\!\\%\\:\\;\\@\\~\\\'\\"\\`'
 ```
 ##### [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)[⬆](#index)
 Modules [`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
