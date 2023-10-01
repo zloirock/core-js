@@ -220,4 +220,7 @@ export default {
     'esnext.data-view.set-uint8-clamped',
     'esnext.math.f16round',
   ],
+  3.33: [
+    'esnext.regexp.escape',
+  ],
 };

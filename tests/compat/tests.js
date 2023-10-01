@@ -1747,6 +1747,9 @@ GLOBAL.tests = {
   'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'esnext.regexp.escape': function () {
+    return RegExp.escape;
+  },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
