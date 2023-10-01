@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.33.0 - 2023.10.02](https://github.com/zloirock/core-js/releases/tag/v3.33.0)
 - Re-introduced [`RegExp` escaping stage 2 proposal](https://github.com/tc39/proposal-regex-escaping), September 2023 TC39 meeting:
   - Added `RegExp.escape` method with the new set of symbols for escaping
   - Some years ago, it was presented in `core-js`, but it was removed after rejecting the old version of this proposal

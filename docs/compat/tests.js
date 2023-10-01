@@ -137,7 +137,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
     iteratorWithReturn[Symbol.iterator] = function () {
       return this;
     };
-    Array.from(iteratorWithReturn, function () { throw Error('close'); });
+    Array.from(iteratorWithReturn, function () { throw new Error('close'); });
   } catch (error) {
     return SAFE_CLOSING;
   }
@@ -1744,22 +1744,12 @@ GLOBAL.tests = {
   'esnext.object.group-by': function () {
     return Object.groupBy;
   },
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'esnext.observable': function () {
-    return Observable;
-  },
-  'esnext.observable.constructor': function () {
-    return Observable;
-  },
-  'esnext.observable.from': function () {
-    return Observable.from;
-  },
-  'esnext.observable.of': function () {
-    return Observable.of;
-  },
   'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'esnext.regexp.escape': function () {
+    return RegExp.escape;
+  },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
