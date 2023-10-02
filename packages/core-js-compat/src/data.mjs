@@ -2707,9 +2707,6 @@ export const data = {
   },
   'esnext.math.scale': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.seeded-prng': {
-  },
   'esnext.math.signbit': {
   },
   // TODO: Remove from `core-js@4`
