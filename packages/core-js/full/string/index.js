@@ -6,7 +6,6 @@ require('../../modules/esnext.string.at');
 require('../../modules/esnext.string.cooked');
 require('../../modules/esnext.string.code-points');
 require('../../modules/esnext.string.dedent');
-require('../../modules/esnext.string.match-all');
 require('../../modules/esnext.string.replace-all');
 
 module.exports = parent;
