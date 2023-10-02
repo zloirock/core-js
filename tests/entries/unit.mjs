@@ -818,7 +818,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok(load(NS, 'number/range')(1, 2).next().value === 1);
-    ok(typeof load(NS, 'object/iterate-entries')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-keys')({}).next == 'function');
     ok(typeof load(NS, 'object/iterate-values')({}).next == 'function');
     ok('from' in load(NS, 'observable'));
