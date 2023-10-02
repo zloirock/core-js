@@ -2503,8 +2503,6 @@ export const data = {
   'esnext.array.last-item': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.array.to-reversed': null,
-  // TODO: Remove from `core-js@4`
   'esnext.array.to-sorted': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.to-spliced': null,
@@ -3198,7 +3196,6 @@ export const renamed = new Map([
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
   ['esnext.array.from-async', 'es.array.from-async'],
-  ['esnext.array.to-reversed', 'es.array.to-reversed'],
   ['esnext.array.to-sorted', 'es.array.to-sorted'],
   ['esnext.array.to-spliced', 'es.array.to-spliced'],
   ['esnext.array.with', 'es.array.with'],
