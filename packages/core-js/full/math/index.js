@@ -10,7 +10,5 @@ require('../../modules/esnext.math.radians');
 require('../../modules/esnext.math.scale');
 require('../../modules/esnext.math.signbit');
 require('../../modules/esnext.math.sum-precise');
-// TODO: Remove from `core-js@4`
-require('../../modules/esnext.math.umulh');
 
 module.exports = parent;
