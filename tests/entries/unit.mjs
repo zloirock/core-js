@@ -1117,8 +1117,6 @@ for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/unique-by');
 }
 
-load('modules/esnext.string.at-alternative');
-
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
 
 if (expected.size) {
