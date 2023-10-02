@@ -2574,9 +2574,6 @@ export const data = {
   },
   'esnext.math.scale': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.seeded-prng': {
-  },
   'esnext.math.signbit': {
   },
   'esnext.math.sum-precise': {
