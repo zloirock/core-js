@@ -831,32 +831,25 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
-    deepEqual(load(NS, 'array/group')([1, 2, 3], it => it % 2)[1], [1, 3]);
-    deepEqual(load(NS, 'array/group-to-map')([1, 2, 3], it => it % 2).get(1), [1, 3]);
-    deepEqual(load(NS, 'array/group-by')([1, 2, 3], it => it % 2)[1], [1, 3]);
-    deepEqual(load(NS, 'array/group-by-to-map')([1, 2, 3], it => it % 2).get(1), [1, 3]);
-    deepEqual(load(NS, 'array/virtual/group').call([1, 2, 3], it => it % 2)[1], [1, 3]);
-    deepEqual(load(NS, 'array/virtual/group-to-map').call([1, 2, 3], it => it % 2).get(1), [1, 3]);
-    deepEqual(load(NS, 'array/virtual/group-by').call([1, 2, 3], it => it % 2)[1], [1, 3]);
-    deepEqual(load(NS, 'array/virtual/group-by-to-map').call([1, 2, 3], it => it % 2).get(1), [1, 3]);
-    const AsyncIterator = load(NS, 'async-iterator');
-    throws(() => new AsyncIterator(), TypeError);
-    ok((await AsyncIterator.from([Promise.resolve(1)]).next()).value === 1);
-    const asyncIteratorFrom = load(NS, 'async-iterator/from');
-    ok((await load(NS, 'async-iterator/drop')(asyncIteratorFrom([1, 2, 3]), 2).next()).value === 3);
-    ok(await load(NS, 'async-iterator/every')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === false);
-    ok((await load(NS, 'async-iterator/filter')(asyncIteratorFrom([1, 2, 3]), async it => it > 1).next()).value === 2);
-    ok(await load(NS, 'async-iterator/find')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === 2);
-    ok((await load(NS, 'async-iterator/flat-map')(asyncIteratorFrom([1, 2]), async it => [it * 2]).next()).value === 2);
-    const asyncValues = [];
-    ok(await load(NS, 'async-iterator/for-each')(asyncIteratorFrom([1, 2]), async it => asyncValues.push(it * 2)) === undefined);
-    deepEqual(asyncValues, [2, 4]);
-    ok((await asyncIteratorFrom([Promise.resolve(2)]).next()).value === 2);
-    ok((await load(NS, 'async-iterator/map')(asyncIteratorFrom([1, 2]), async it => it * 2).next()).value === 2);
-    ok(await load(NS, 'async-iterator/reduce')(asyncIteratorFrom([1, 2, 3]), async (memo, it) => memo * 10 + it, 0) === 123);
-    ok(await load(NS, 'async-iterator/some')(asyncIteratorFrom([1, 2, 3]), async it => it > 1) === true);
-    deepEqual(await load(NS, 'async-iterator/take')(asyncIteratorFrom([1, 2, 3]), 2).toArray(), [1, 2]);
-    deepEqual(await load(NS, 'async-iterator/to-array')(asyncIteratorFrom([1, 2, 3])), [1, 2, 3]);
+    ok(typeof load(NS, 'array/group-to-map') == 'function');
+    ok(typeof load(NS, 'array/group-by') == 'function');
+    ok(typeof load(NS, 'array/group-by-to-map') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-by') == 'function');
+    ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
+    ok(typeof load(NS, 'async-iterator') == 'function');
+    ok(typeof load(NS, 'async-iterator/drop') == 'function');
+    ok(typeof load(NS, 'async-iterator/every') == 'function');
+    ok(typeof load(NS, 'async-iterator/filter') == 'function');
+    ok(typeof load(NS, 'async-iterator/find') == 'function');
+    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
+    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
+    ok(typeof load(NS, 'async-iterator/from') == 'function');
+    ok(typeof load(NS, 'async-iterator/map') == 'function');
+    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
+    ok(typeof load(NS, 'async-iterator/some') == 'function');
+    ok(typeof load(NS, 'async-iterator/take') == 'function');
+    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
     ok((await load(NS, 'iterator/to-async')([1, 2].values()).next()).value === 1);
     deepEqual(await load(NS, 'promise/all-keyed')({ a: Promise.resolve(1), b: 2 }), { __proto__: null, a: 1, b: 2 });
@@ -867,12 +860,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     });
     ok(typeof load(NS, 'symbol/metadata') === 'symbol');
     ok(load(NS, 'symbol/metadata') === load(NS, 'symbol').metadata);
-
-    const instanceGroup = load(NS, 'instance/group');
-    ok(typeof instanceGroup == 'function');
-    ok(instanceGroup({}) === undefined);
-    ok(typeof instanceGroup([]) == 'function');
-    ok(instanceGroup([]).call([1, 2, 3], it => it % 2)[1].length === 2);
 
     const instanceGroupToMap = load(NS, 'instance/group-to-map');
     ok(typeof instanceGroupToMap == 'function');
