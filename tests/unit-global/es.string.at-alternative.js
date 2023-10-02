@@ -7,6 +7,7 @@ QUnit.test('String#at', assert => {
   assert.name(at, 'at');
   assert.looksNative(at);
   assert.nonEnumerable(String.prototype, 'at');
+
   assert.same('123'.at(0), '1');
   assert.same('123'.at(1), '2');
   assert.same('123'.at(2), '3');
@@ -21,8 +22,7 @@ QUnit.test('String#at', assert => {
   assert.same('1'.at(NaN), '1');
   assert.same('1'.at(), '1');
   assert.same('123'.at(-0), '1');
-  // TODO: disabled by default because of the conflict with old proposal
-  // assert.same('𠮷'.at(), '\uD842');
+  assert.same('𠮷'.at(), '\uD842');
   assert.same(at.call({ toString() { return '123'; } }, 0), '1');
 
   assert.throws(() => at.call(Symbol('at-alternative test'), 0), 'throws on symbol context');
