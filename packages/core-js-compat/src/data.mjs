@@ -1343,6 +1343,7 @@ export const data = {
   'es.string.is-well-formed': {
     bun: '0.4.0',
     chrome: '111',
+    firefox: '119',
     safari: '16.4',
   },
   'es.string.iterator': {
@@ -1441,6 +1442,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=251757
     bun: '0.5.7', // '0.4.0',
     chrome: '111',
+    firefox: '119',
     safari: '16.4',
   },
   'es.string.trim': {
