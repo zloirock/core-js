@@ -19,8 +19,7 @@ QUnit.test('String#at', assert => {
   assert.same('1', at('1', NaN));
   assert.same('1', at('1'));
   assert.same('1', at('123', -0));
-  // TODO: disabled by default because of the conflict with old proposal
-  // assert.same('\uD842', at('𠮷'));
+  assert.same('\uD842', at('𠮷'));
   assert.same('1', at({ toString() { return '123'; } }, 0));
 
   assert.throws(() => at(Symbol('at-alternative test'), 0), 'throws on symbol context');
