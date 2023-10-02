@@ -805,7 +805,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/radians')(180) === Math.PI);
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
     ok(load(NS, 'math/signbit')(-2) === true);
-    ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
@@ -932,7 +931,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/decorator-metadata');
   load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
-  load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
   load('proposals/explicit-resource-management');
   load('proposals/extractors');

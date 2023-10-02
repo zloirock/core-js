@@ -62,7 +62,6 @@ await bundle(DENO ? {
       'esnext.array.filter-out',       // obsolete
       'esnext.map.update-or-insert',   // obsolete
       'esnext.map.upsert',             // obsolete
-      'esnext.math.umulh',             // withdrawn
       'esnext.string.at',              // withdrawn
       'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
       'esnext.symbol.replace-all',     // obsolete
