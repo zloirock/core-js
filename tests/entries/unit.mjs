@@ -979,7 +979,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');
   load('proposals/set-methods-v2');
-  load('proposals/string-at');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
   load('proposals/string-dedent');
