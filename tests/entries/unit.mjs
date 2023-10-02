@@ -960,15 +960,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/rad-per-deg') === 180 / Math.PI);
     ok(load(NS, 'math/radians')(180) === Math.PI);
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
-    const seededPRNG = load(NS, 'math/seeded-prng');
-    const firstPRNG = seededPRNG({ seed: 42 });
-    const secondPRNG = seededPRNG({ seed: 42 });
-    const firstValue = firstPRNG.next().value;
-    const secondValue = firstPRNG.next().value;
-    ok(firstValue >= 0 && firstValue < 1);
-    ok(secondValue >= 0 && secondValue < 1);
-    ok(firstValue !== secondValue);
-    deepEqual([firstValue, secondValue], [secondPRNG.next().value, secondPRNG.next().value]);
     ok(load(NS, 'math/signbit')(-2) === true);
     ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
@@ -1153,7 +1144,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
-  load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/set-methods-v2');
   load('proposals/string-at');
