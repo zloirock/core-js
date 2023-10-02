@@ -1902,9 +1902,6 @@ export const data = {
   'esnext.array.filter-reject': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.array.group-by': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.array.group-by-to-map': {
   },
   'esnext.array.group-to-map': {
