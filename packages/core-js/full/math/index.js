@@ -9,7 +9,5 @@ require('../../modules/esnext.math.rad-per-deg');
 require('../../modules/esnext.math.radians');
 require('../../modules/esnext.math.scale');
 require('../../modules/esnext.math.signbit');
-// TODO: Remove from `core-js@4`
-require('../../modules/esnext.math.umulh');
 
 module.exports = parent;
