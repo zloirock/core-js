@@ -17,8 +17,6 @@ const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   ...ignored,
-  // TODO: Drop from core-js@4
-  'esnext.string.at-alternative',
 ]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
