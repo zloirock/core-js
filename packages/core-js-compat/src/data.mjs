@@ -2214,8 +2214,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.promise.all-settled': null,
   // TODO: Remove from `core-js@4`
-  'esnext.promise.any': null,
-  // TODO: Remove from `core-js@4`
   'esnext.promise.try': {
   },
   // TODO: Remove from `core-js@4`
@@ -2700,7 +2698,6 @@ export const renamed = new Map([
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
-  ['esnext.promise.any', 'es.promise.any'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
   ['esnext.string.match-all', 'es.string.match-all'],
