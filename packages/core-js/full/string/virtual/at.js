@@ -1,7 +1,4 @@
 'use strict';
-require('../../../actual/string/virtual/at');
-// TODO: Remove from `core-js@4`
-require('../../../modules/esnext.string.at');
-var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
+var parent = require('../../../actual/string/virtual/at');
 
-module.exports = getBuiltInPrototypeMethod('String', 'at');
+module.exports = parent;
