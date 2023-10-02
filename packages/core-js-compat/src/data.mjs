@@ -2285,9 +2285,9 @@ export const data = {
   },
   'esnext.symbol.matcher': {
   },
-  // TODO: Remove from `core-js@4`
   'esnext.symbol.metadata': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.metadata-key': {
   },
   'esnext.symbol.observable': {

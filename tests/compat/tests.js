@@ -1818,8 +1818,8 @@ GLOBAL.tests = {
   'esnext.symbol.matcher': function () {
     return Symbol.matcher;
   },
-  'esnext.symbol.metadata-key': function () {
-    return Symbol.metadataKey;
+  'esnext.symbol.metadata': function () {
+    return Symbol.metadata;
   },
   'esnext.symbol.observable': function () {
     return Symbol.observable;
