@@ -5,6 +5,7 @@ import at from 'core-js-pure/es/string/at';
 
 QUnit.test('String#at', assert => {
   assert.isFunction(at);
+
   assert.same(at('123', 0), '1');
   assert.same(at('123', 1), '2');
   assert.same(at('123', 2), '3');
@@ -19,8 +20,7 @@ QUnit.test('String#at', assert => {
   assert.same(at('1', NaN), '1');
   assert.same(at('1'), '1');
   assert.same(at('123', -0), '1');
-  // TODO: disabled by default because of the conflict with old proposal
-  // assert.same(at('𠮷'), '\uD842');
+  assert.same(at('𠮷'), '\uD842');
   assert.same(at({ toString() { return '123'; } }, 0), '1');
 
   assert.throws(() => at(Symbol('at-alternative test'), 0), 'throws on symbol context');
