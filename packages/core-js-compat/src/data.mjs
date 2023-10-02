@@ -2576,8 +2576,6 @@ export const data = {
   'esnext.function.un-this': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.global-this': null,
-  // TODO: Remove from `core-js@4`
   'esnext.iterator.constructor': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
@@ -3193,7 +3191,6 @@ export const renamed = new Map([
   ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
   ['esnext.disposable-stack.constructor', 'es.disposable-stack.constructor'],
   ['esnext.error.is-error', 'es.error.is-error'],
-  ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
   ['esnext.iterator.concat', 'es.iterator.concat'],
   ['esnext.iterator.dispose', 'es.iterator.dispose'],
