@@ -796,7 +796,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/rad-per-deg') === 180 / Math.PI);
     ok(load(NS, 'math/radians')(180) === Math.PI);
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
-    ok(typeof load(NS, 'math/seeded-prng')({ seed: 42 }).next().value === 'number');
     ok(load(NS, 'math/signbit')(-2) === true);
     ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
@@ -957,7 +956,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
-  load('proposals/seeded-random');
   load('proposals/set-methods');
   load('proposals/set-methods-v2');
   load('proposals/string-at');
