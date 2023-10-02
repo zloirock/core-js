@@ -2761,8 +2761,6 @@ export const data = {
   'esnext.string.dedent': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.string.match-all': null,
-  // TODO: Remove from `core-js@4`
   'esnext.string.replace-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.symbol.async-dispose': null,
@@ -3136,7 +3134,6 @@ export const renamed = new Map([
   ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
   ['esnext.set.symmetric-difference.v2', 'es.set.symmetric-difference.v2'],
   ['esnext.set.union.v2', 'es.set.union.v2'],
-  ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
