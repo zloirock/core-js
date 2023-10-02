@@ -2225,13 +2225,29 @@ export const data = {
   'esnext.array.unique-by': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.array.with': null,
-  // TODO: Remove from `core-js@4`
   'esnext.array-buffer.detached': null,
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer': null,
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
+  'esnext.array-buffer.detached': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
+  'esnext.array-buffer.transfer': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
+  'esnext.array-buffer.transfer-to-fixed-length': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
   'esnext.async-disposable-stack.constructor': {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     chrome: '134', // '133',
@@ -2963,7 +2979,6 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.array.with', 'es.array.with'],
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
