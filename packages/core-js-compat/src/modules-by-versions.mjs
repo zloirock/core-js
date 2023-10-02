@@ -71,7 +71,6 @@ export default {
     'esnext.typed-array.filter-out',
   ],
   3.9: [
-    'esnext.typed-array.find-last-index',
     'esnext.typed-array.unique-by',
   ],
   3.11: [
