@@ -2,7 +2,7 @@
 // https://github.com/tc39/proposal-change-array-by-copy
 require('../modules/es.array.to-reversed');
 require('../modules/es.array.to-sorted');
-require('../modules/esnext.array.to-spliced');
+require('../modules/es.array.to-spliced');
 require('../modules/esnext.array.with');
 require('../modules/esnext.typed-array.to-reversed');
 require('../modules/esnext.typed-array.to-sorted');
