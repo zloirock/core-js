@@ -3,4 +3,4 @@
 require('../modules/es.array.find-last');
 require('../modules/es.array.find-last-index');
 require('../modules/es.typed-array.find-last');
-require('../modules/esnext.typed-array.find-last-index');
+require('../modules/es.typed-array.find-last-index');
