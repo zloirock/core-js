@@ -52,7 +52,6 @@ const ignore = new Set([
   'esnext.set.is-superset-of',
   'esnext.set.symmetric-difference',
   'esnext.set.union',
-  'esnext.string.at',
   'esnext.symbol.is-registered',
   'esnext.symbol.is-well-known',
   'esnext.symbol.metadata-key',
