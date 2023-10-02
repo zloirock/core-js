@@ -2387,8 +2387,6 @@ export const data = {
   'esnext.typed-array.group-by': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.typed-array.to-reversed': null,
-  // TODO: Remove from `core-js@4`
   'esnext.typed-array.to-sorted': null,
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.to-spliced': {
@@ -2657,7 +2655,6 @@ export const renamed = new Map([
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
-  ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],
   ['esnext.typed-array.to-sorted', 'es.typed-array.to-sorted'],
   ['esnext.typed-array.with', 'es.typed-array.with'],
   ['web.url', 'web.url.constructor'],
