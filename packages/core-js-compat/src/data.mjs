@@ -2569,9 +2569,6 @@ export const data = {
   'esnext.math.sum-precise': {
     firefox: '137',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': {
-  },
   'esnext.number.clamp': {
   },
   'esnext.number.from-string': {
