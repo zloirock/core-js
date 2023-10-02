@@ -47,7 +47,6 @@ export default {
     'es.json.stringify',
   ],
   3.5: [
-    'esnext.object.iterate-keys',
     'esnext.object.iterate-values',
   ],
   3.6: [
