@@ -212,7 +212,7 @@ It is the fundamental work with standards and proposals. As a side effect of thi
 
 As you can see above, `core-js` is present in most of the popular websites, provides an almost complete JavaScript standard library, and fixes improper implementations. The number of web page openings with `core-js` is greater than the number of web page openings in Safari and Firefox. Thus, from a certain point of view, `core-js` can be called one of the most popular JavaScript runtimes.
 
-When working on `core-js`, I am the first implementor of almost all modern and future JavaScript standard library features, almost all of them have my feedback and they have been fixed according to it. `core-js` is the best playground for experimentation with ECMAScript proposals. In too many cases, proposals receive feedback from other users after they play with experimental `core-js` implementations of these proposals.
+When working on `core-js`, I am the first implementer of almost all modern and future JavaScript standard library features, almost all of them have my feedback and they have been fixed according to it. `core-js` is the best playground for experimentation with ECMAScript proposals. In too many cases, proposals receive feedback from other users after they play with experimental `core-js` implementations of these proposals.
 
 The best way forward for JavaScript would be for TC39 and `core-js` to work together on the future of JavaScript. For example, TC39 invites members of projects like Babel and others as experts. Except `core-js`. Instead, too often, I see the ignoring of my or `core-js`'s issues or even creation of roadblocks by TC39 members; and they don't even hide it:
 
