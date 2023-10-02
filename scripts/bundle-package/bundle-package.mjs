@@ -65,7 +65,6 @@ await bundle(DENO ? {
       'esnext.math.iaddh',             // withdrawn
       'esnext.math.imulh',             // withdrawn
       'esnext.math.isubh',             // withdrawn
-      'esnext.math.seeded-prng',       // changing of the API, waiting for the spec text
       'esnext.math.umulh',             // withdrawn
       'esnext.string.at',              // withdrawn
       'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
