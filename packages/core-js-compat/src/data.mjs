@@ -2776,8 +2776,6 @@ export const data = {
   },
   'esnext.typed-array.unique-by': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.with': null,
   'esnext.uint8-array.from-base64': {
     // Because of a bug: it doesn't throw an error on incorrect length of base64 string
     // bun: '1.1.22',
@@ -3132,7 +3130,6 @@ export const renamed = new Map([
   ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
   ['esnext.symbol.dispose', 'es.symbol.dispose'],
-  ['esnext.typed-array.with', 'es.typed-array.with'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
