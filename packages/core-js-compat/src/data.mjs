@@ -2638,9 +2638,6 @@ export const data = {
   'esnext.number.range': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.object.iterate-keys': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': {
   },
   // TODO: Remove from `core-js@4`
