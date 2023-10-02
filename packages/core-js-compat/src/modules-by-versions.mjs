@@ -46,9 +46,6 @@ export default {
   3.4: [
     'es.json.stringify',
   ],
-  3.5: [
-    'esnext.object.iterate-values',
-  ],
   3.6: [
     'es.regexp.sticky',
     'es.regexp.test',
