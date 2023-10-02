@@ -117,7 +117,6 @@ export default {
     'esnext.iterator.to-async',
     'esnext.string.cooked',
     'esnext.typed-array.to-spliced',
-    'esnext.typed-array.with',
     'web.dom-exception.constructor',
     'web.dom-exception.stack',
     'web.dom-exception.to-string-tag',
