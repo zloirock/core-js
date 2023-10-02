@@ -2621,9 +2621,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.sum-precise': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.math.umulh': {
-  },
   'esnext.number.clamp': {
   },
   'esnext.number.from-string': {
