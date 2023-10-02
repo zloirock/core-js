@@ -2153,8 +2153,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.last-item': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.to-spliced': null,
   'esnext.array.unique-by': {
   },
   // TODO: Remove from `core-js@4`
@@ -2887,7 +2885,6 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.array.to-spliced', 'es.array.to-spliced'],
   ['esnext.array.with', 'es.array.with'],
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
