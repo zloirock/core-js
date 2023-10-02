@@ -2119,8 +2119,6 @@ export const data = {
     safari: '18.0', // '16.4',
   },
   // TODO: Remove from `core-js@4`
-  'esnext.array.at': null,
-  // TODO: Remove from `core-js@4`
   'esnext.array.filter-out': {
   },
   'esnext.array.filter-reject': {
@@ -2895,7 +2893,6 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.array.at', 'es.array.at'],
   ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
   ['esnext.array.to-reversed', 'es.array.to-reversed'],
