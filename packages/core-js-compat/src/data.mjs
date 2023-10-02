@@ -2134,9 +2134,6 @@ export const data = {
   'esnext.math.f16round': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.math.iaddh': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.math.imulh': {
   },
   // TODO: Remove from `core-js@4`
