@@ -2326,9 +2326,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.string.at': {
-  },
   'esnext.string.cooked': {
   },
   'esnext.string.code-points': {
