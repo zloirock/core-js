@@ -64,7 +64,6 @@ await bundle(DENO ? {
       'esnext.math.isubh',             // withdrawn
       'esnext.math.seeded-prng',       // changing of the API, waiting for the spec text
       'esnext.math.umulh',             // withdrawn
-      'esnext.object.iterate-entries', // withdrawn
       'esnext.object.iterate-keys',    // withdrawn
       'esnext.object.iterate-values',  // withdrawn
       'esnext.string.at',              // withdrawn
