@@ -142,7 +142,6 @@ export default {
     'es.object.proto',
   ],
   3.26: [
-    'esnext.string.to-well-formed',
     'web.self',
   ],
   3.27: [
