@@ -2693,9 +2693,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.math.f16round': null,
   // TODO: Remove from `core-js@4`
-  'esnext.math.imulh': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.math.isubh': {
   },
   'esnext.math.rad-per-deg': {
