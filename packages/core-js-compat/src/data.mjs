@@ -2377,8 +2377,6 @@ export const data = {
   'esnext.array.filter-reject': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.array.find-last': null,
-  // TODO: Remove from `core-js@4`
   'esnext.array.find-last-index': null,
   'esnext.array.group': {
     // disabled from Bun 0.6.2
@@ -3128,7 +3126,6 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
   ['esnext.array.from-async', 'es.array.from-async'],
   ['esnext.array.to-reversed', 'es.array.to-reversed'],
