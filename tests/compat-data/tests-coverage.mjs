@@ -30,7 +30,6 @@ const ignore = new Set([
   'esnext.iterator.indexed',
   'esnext.map.update-or-insert',
   'esnext.map.upsert',
-  'esnext.math.imulh',
   'esnext.math.isubh',
   'esnext.math.umulh',
   'esnext.number.range',
