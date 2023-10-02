@@ -8,6 +8,5 @@ require('../../modules/esnext.uint8-array.set-from-hex');
 require('../../modules/esnext.uint8-array.to-base64');
 require('../../modules/esnext.uint8-array.to-hex');
 require('../../modules/esnext.typed-array.to-spliced');
-require('../../modules/esnext.typed-array.with');
 
 module.exports = parent;
