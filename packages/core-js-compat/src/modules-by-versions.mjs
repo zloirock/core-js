@@ -125,7 +125,6 @@ export default {
     'es.array.unshift',
     'es.typed-array.find-last',
     'es.typed-array.find-last-index',
-    'esnext.array.group',
     'esnext.array.group-to-map',
     'esnext.symbol.metadata-key',
   ],
