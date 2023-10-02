@@ -15,7 +15,6 @@ const ignore = new Set([
   'es.set',
   'es.weak-map',
   'es.weak-set',
-  'esnext.aggregate-error',
   'esnext.array.filter-out',
   'esnext.array.group',
   'esnext.array.group-by',
