@@ -2823,8 +2823,6 @@ export const data = {
   'esnext.typed-array.unique-by': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.typed-array.with': null,
-  // TODO: Remove from `core-js@4`
   'esnext.uint8-array.from-base64': null,
   // TODO: Remove from `core-js@4`
   'esnext.uint8-array.from-hex': null,
@@ -3156,7 +3154,6 @@ export const renamed = new Map([
   ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
   ['esnext.symbol.dispose', 'es.symbol.dispose'],
-  ['esnext.typed-array.with', 'es.typed-array.with'],
   ['esnext.uint8-array.from-base64', 'es.uint8-array.from-base64'],
   ['esnext.uint8-array.from-hex', 'es.uint8-array.from-hex'],
   ['esnext.uint8-array.set-from-base64', 'es.uint8-array.set-from-base64'],
