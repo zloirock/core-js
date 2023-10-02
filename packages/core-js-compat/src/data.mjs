@@ -2368,8 +2368,6 @@ export const data = {
     safari: '10.0',
   },
   // TODO: Remove from `core-js@4`
-  'esnext.aggregate-error': null,
-  // TODO: Remove from `core-js@4`
   'esnext.suppressed-error.constructor': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.from-async': null,
@@ -3139,7 +3137,6 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
-  ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.array.at', 'es.array.at'],
   ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
