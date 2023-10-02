@@ -11,7 +11,6 @@ require('../proposals/keys-composition');
 require('../proposals/math-extensions');
 require('../proposals/math-signbit');
 require('../proposals/number-from-string');
-require('../proposals/object-iteration');
 require('../proposals/observable');
 require('../proposals/pattern-matching');
 require('../proposals/seeded-random');
