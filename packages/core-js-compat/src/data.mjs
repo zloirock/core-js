@@ -2476,13 +2476,6 @@ export const data = {
   },
   'esnext.array.filter-reject': {
   },
-  'esnext.array.group': {
-    // disabled from Bun 0.6.2
-    // bun: '0.1.9',
-    // https://github.com/tc39/proposal-array-grouping/issues/44#issuecomment-1306311107
-    // chrome: '108',
-    // safari: '16.4',
-  },
   // TODO: Remove from `core-js@4`
   'esnext.array.group-by': {
   },
