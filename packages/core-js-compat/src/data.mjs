@@ -2422,8 +2422,6 @@ export const data = {
   },
   'esnext.typed-array.unique-by': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.with': null,
   'esnext.uint8-array.from-base64': {
   },
   'esnext.uint8-array.from-hex': {
@@ -2687,7 +2685,6 @@ export const renamed = new Map([
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
-  ['esnext.typed-array.with', 'es.typed-array.with'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
