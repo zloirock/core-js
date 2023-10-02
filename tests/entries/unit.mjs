@@ -697,10 +697,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
 
   for (const NS of ['actual', 'full', 'features']) {
     ok(typeof load(NS, 'array/group-to-map') == 'function');
-    ok(typeof load(NS, 'array/group-by') == 'function');
     ok(typeof load(NS, 'array/group-by-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
@@ -726,12 +724,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceGroupToMap({}) === undefined);
     ok(typeof instanceGroupToMap([]) == 'function');
     ok(instanceGroupToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
-
-    const instanceGroupBy = load(NS, 'instance/group-by');
-    ok(typeof instanceGroupBy == 'function');
-    ok(instanceGroupBy({}) === undefined);
-    ok(typeof instanceGroupBy([]) == 'function');
-    ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
 
     const instanceGroupByToMap = load(NS, 'instance/group-by-to-map');
     ok(typeof instanceGroupByToMap == 'function');
