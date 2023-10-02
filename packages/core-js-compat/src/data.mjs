@@ -2431,9 +2431,6 @@ export const data = {
     firefox: '129',
     safari: '18.2',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': {
-  },
   'esnext.math.rad-per-deg': {
   },
   'esnext.math.radians': {
