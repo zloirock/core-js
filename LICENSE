@@ -1,19 +1,31 @@
-Copyright (c) 2014-2025 Denis Pushkarev, 2025 CoreJS Company
+## core-js experimental version license
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### Copyright (c) 2014-2025 Denis Pushkarev, 2025 CoreJS Company
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+### Non-Commercial Use Only
+* The Software may be used strictly for non-commercial purposes. Any commercial use — including but not limited to selling, sublicensing, using in commercial services, or including in commercial products — is expressly prohibited.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+### Experimental Use Only
+* The Software is provided solely for experimental, research, and evaluation purposes. The user acknowledges that the Software is in a pre-release or developmental stage and may be unstable, contain bugs, or be incomplete.
+
+### Term of the License
+* This license is valid only until an official stable version 4 of core-js is released.
+* Within 7 calendar days of such release, the user must either:
+  - Transition to the stable version under its applicable license, or
+  - Cease all use of this experimental version.
+* Continued use beyond this period is strictly prohibited.
+
+### Disclaimer of Warranty
+* The Software is provided "as is", without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.
+
+### Limited Redistribution
+* Redistribution of the Software as part of a non-commercial website or web-based project is permitted, provided that:
+  - The Software is not modified, and
+  - It is used solely in accordance with the terms of this license.
+* Any other form of redistribution, sublicense, or share is prohibited without prior written permission from the copyright holder.
+
+### Prohibition on Use for AI Training
+* The Software, including its source code and any derived works, may not be used, in whole or in part, for the training or fine-tuning of machine learning models or artificial intelligence systems, whether commercial or non-commercial, without explicit prior written permission from the copyright holder.
+
+### Governing Law
+* This license shall be governed by and construed in accordance with the laws of the State of Delaware, United States of America, without regard to its conflict of law principles.
