@@ -13,7 +13,6 @@ require('../proposals/math-signbit');
 require('../proposals/number-from-string');
 require('../proposals/observable');
 require('../proposals/pattern-matching-v2');
-require('../proposals/seeded-random');
 require('../proposals/string-code-points');
 require('../proposals/string-cooked');
 // TODO: Obsolete versions, remove from `core-js@4`:
