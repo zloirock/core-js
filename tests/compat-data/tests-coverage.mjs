@@ -36,7 +36,6 @@ const ignore = new Set([
   'esnext.math.iaddh',
   'esnext.math.imulh',
   'esnext.math.isubh',
-  'esnext.math.seeded-prng',
   'esnext.math.umulh',
   'esnext.number.range',
   'esnext.observable',
