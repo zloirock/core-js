@@ -40,7 +40,6 @@ const ignore = new Set([
   'esnext.math.seeded-prng',
   'esnext.math.umulh',
   'esnext.number.range',
-  'esnext.object.iterate-entries',
   'esnext.object.iterate-keys',
   'esnext.object.iterate-values',
   'esnext.observable',
