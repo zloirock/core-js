@@ -2230,24 +2230,6 @@ export const data = {
   'esnext.array-buffer.transfer': null,
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
-  'esnext.array-buffer.detached': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer-to-fixed-length': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
   'esnext.async-disposable-stack.constructor': {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     chrome: '134', // '133',
@@ -2329,8 +2311,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.function.un-this': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.global-this': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.constructor': null,
   // TODO: Remove from `core-js@4`
@@ -2976,7 +2956,6 @@ export const renamed = new Map([
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
   ['esnext.iterator.every', 'es.iterator.every'],
