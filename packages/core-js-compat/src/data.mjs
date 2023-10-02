@@ -2404,8 +2404,6 @@ export const data = {
   'esnext.typed-array.from-async': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.typed-array.at': null,
-  // TODO: Remove from `core-js@4`
   'esnext.typed-array.filter-out': {
   },
   'esnext.typed-array.filter-reject': {
@@ -2697,7 +2695,6 @@ export const renamed = new Map([
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
-  ['esnext.typed-array.at', 'es.typed-array.at'],
   ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
   ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
   ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],
