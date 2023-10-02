@@ -73,9 +73,6 @@ export default {
   3.9: [
     'esnext.typed-array.unique-by',
   ],
-  3.11: [
-    'esnext.object.has-own',
-  ],
   3.12: [
     'esnext.symbol.matcher',
     'esnext.symbol.metadata',
