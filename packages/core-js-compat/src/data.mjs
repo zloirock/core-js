@@ -2761,8 +2761,6 @@ export const data = {
   'esnext.observable.of': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.promise.all-settled': null,
-  // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.with-resolvers': null,
@@ -3254,7 +3252,6 @@ export const renamed = new Map([
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.object.group-by', 'es.object.group-by'],
-  ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.regexp.escape', 'es.regexp.escape'],
