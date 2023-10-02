@@ -135,7 +135,8 @@ const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');
 ok(!inverted1.includes('esnext.iterator.from'), 'inverse #2');
-ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
+// TODO: enable after adding new stabilized aliases in `core-js@4`
+// ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
 
 const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
 
