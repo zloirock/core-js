@@ -2607,11 +2607,7 @@ export const data = {
   },
   'esnext.math.fscale': {
   },
-  // TODO: Remove from `core-js@4`
   'esnext.math.f16round': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.math.isubh': {
-  },
   'esnext.math.rad-per-deg': {
   },
   'esnext.math.radians': {
