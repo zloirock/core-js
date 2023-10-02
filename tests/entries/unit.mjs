@@ -801,7 +801,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
     ok(load(NS, 'math/degrees')(Math.PI) === 180);
     ok(load(NS, 'math/fscale')(3, 1, 2, 1, 2) === 3);
-    ok(load(NS, 'math/isubh')(3, 4, 0xFFFFFFFF, 2) === 1);
     ok(load(NS, 'math/rad-per-deg') === 180 / Math.PI);
     ok(load(NS, 'math/radians')(180) === Math.PI);
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
