@@ -2359,8 +2359,6 @@ export const data = {
   },
   'esnext.string.dedent': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.string.replace-all': null,
   'esnext.symbol.async-dispose': {
     bun: '1.0.23',
     deno: '1.38',
@@ -2683,7 +2681,6 @@ export const renamed = new Map([
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['esnext.string.replace-all', 'es.string.replace-all'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
