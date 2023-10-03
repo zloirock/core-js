@@ -118,9 +118,6 @@ export default {
     'es.typed-array.find-last-index',
     'esnext.symbol.metadata-key',
   ],
-  3.24: [
-    'esnext.iterator.indexed',
-  ],
   3.25: [
     'es.object.proto',
   ],
