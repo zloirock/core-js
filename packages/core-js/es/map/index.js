@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es.array.iterator');
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/es.map.group-by');
 require('../../modules/es.map.get-or-insert');
 require('../../modules/es.map.get-or-insert-computed');
