@@ -2045,8 +2045,6 @@ export const data = {
     chrome: '122',
     deno: '1.37',
   },
-  'esnext.iterator.indexed': {
-  },
   'esnext.iterator.map': {
     chrome: '122',
     deno: '1.37',
