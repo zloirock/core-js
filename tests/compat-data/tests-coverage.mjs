@@ -58,7 +58,6 @@ const ignore = new Set([
   'esnext.symbol.replace-all',
   'esnext.typed-array.from-async',
   'esnext.typed-array.filter-out',
-  'esnext.typed-array.group-by',
   'esnext.typed-array.to-spliced',
   'esnext.weak-map.emplace',
   'esnext.weak-map.upsert',
