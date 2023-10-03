@@ -2,7 +2,6 @@
 var parent = require('./2');
 
 require('../proposals/array-filtering-stage-1');
-require('../proposals/array-last');
 require('../proposals/array-unique');
 require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
