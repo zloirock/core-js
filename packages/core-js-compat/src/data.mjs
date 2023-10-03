@@ -2730,9 +2730,6 @@ export const data = {
   'esnext.set.symmetric-difference.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.union.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.union': {
-  },
   'esnext.string.cooked': {
   },
   'esnext.string.code-points': {
