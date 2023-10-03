@@ -1,7 +1,6 @@
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createSetLike } from '../helpers/helpers.js';
 
-// TODO: use /es/ in core-js@4
-import Set from 'core-js-pure/full/set';
+import Set from 'core-js-pure/es/set';
 
 QUnit.test('Set#isDisjointFrom', assert => {
   const { isDisjointFrom } = Set.prototype;
@@ -19,14 +18,6 @@ QUnit.test('Set#isDisjointFrom', assert => {
   assert.false(new Set([1]).isDisjointFrom(createSetLike([1])));
   assert.true(new Set([1, 2, 3]).isDisjointFrom(createSetLike([4, 5, 6])));
   assert.false(new Set([1, 2, 3]).isDisjointFrom(createSetLike([5, 4, 3])));
-
-  // TODO: drop from core-js@4
-  assert.true(new Set([1]).isDisjointFrom([2]));
-  assert.false(new Set([1]).isDisjointFrom([1]));
-  assert.true(new Set([1, 2, 3]).isDisjointFrom([4, 5, 6]));
-  assert.false(new Set([1, 2, 3]).isDisjointFrom([5, 4, 3]));
-  assert.true(new Set([1]).isDisjointFrom(createIterable([2])));
-  assert.false(new Set([1]).isDisjointFrom(createIterable([1])));
 
   assert.false(new Set([42, 43]).isDisjointFrom({
     size: Infinity,
