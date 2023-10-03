@@ -103,7 +103,6 @@ export default {
     'esnext.function.un-this',
     'esnext.iterator.to-async',
     'esnext.string.cooked',
-    'esnext.typed-array.to-spliced',
     'web.dom-exception.constructor',
     'web.dom-exception.stack',
     'web.dom-exception.to-string-tag',

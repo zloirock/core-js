@@ -1034,7 +1034,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
   load('proposals/await-dictionary');
-  load('proposals/change-array-by-copy');
   load('proposals/change-array-by-copy-stage-4');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
@@ -1232,10 +1231,6 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/with');
   load(NS, 'typed-array/methods');
   ok(load(NS, 'typed-array').Uint32Array === load(NS, 'typed-array/uint32-array'));
-}
-
-for (const NS of ['actual', 'full', 'features']) {
-  load(NS, 'typed-array/to-spliced');
 }
 
 for (const NS of ['full', 'features']) {
