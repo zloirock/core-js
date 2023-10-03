@@ -4,7 +4,8 @@ const { version } = await fs.readJson('package.json');
 const { major, minor, patch } = coerce(version);
 let ok = true;
 
-if (minor || patch) { // ignore for pre-releases
+// TODO: enable it after `core-js@4` publishing
+if (minor < 0 || patch < 0) { // ignore for pre-releases
   const zero = `${ major }.0`;
   const modulesByVersions = await fs.readJson('packages/core-js-compat/modules-by-versions.json');
   const response = await fetch(`https://cdn.jsdelivr.net/npm/core-js-compat@${ major }.0.0/modules-by-versions.json`);

@@ -5,7 +5,7 @@ const modules = await fs.readJson('packages/core-js-compat/modules.json');
 const modulesByVersions = await fs.readJson('packages/core-js-compat/modules-by-versions.json');
 
 const modules30 = modulesByVersions['3.0'];
-const filter = new Set([...modules30, ...modulesByVersions['3.1']]);
+const filter = new Set([...modules30, ...modulesByVersions['3.1'] ?? []]);
 const modules31 = modules.filter(it => filter.has(it));
 
 deepEqual(getModulesListForTargetVersion(3), modules30, 'num 3'); // TODO: Make it throw in core-js@4
