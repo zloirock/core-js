@@ -174,8 +174,6 @@ export const data = {
     rhino: '1.7.14',
     safari: '8.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.aggregate-error': null,
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
@@ -2956,7 +2954,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['es.aggregate-error', 'es.aggregate-error.constructor'],
   ['es.data-view', 'es.data-view.constructor'],
   ['es.map', 'es.map.constructor'],
   ['es.set', 'es.set.constructor'],
@@ -3019,7 +3016,6 @@ export const dataWithIgnored = { ...data };
 
 export const ignored = [
   // TODO: Clean in `core-js@4`
-  'es.aggregate-error.constructor',
   'es.data-view.constructor',
   'es.map.constructor',
   'es.set.constructor',
