@@ -1,7 +1,6 @@
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createSetLike } from '../helpers/helpers.js';
 
-// TODO: use /es/ in core-js@4
-import Set from 'core-js-pure/full/set';
+import Set from 'core-js-pure/es/set';
 
 QUnit.test('Set#isSupersetOf', assert => {
   const { isSupersetOf } = Set.prototype;
@@ -19,14 +18,6 @@ QUnit.test('Set#isSupersetOf', assert => {
   assert.false(new Set([2, 3, 4]).isSupersetOf(createSetLike([1])));
   assert.true(new Set([5, 4, 3, 2, 1]).isSupersetOf(createSetLike([1, 2, 3])));
   assert.false(new Set([5, 4, 3, 2]).isSupersetOf(createSetLike([1, 2, 3])));
-
-  // TODO: drop from core-js@4
-  assert.true(new Set([1, 2, 3]).isSupersetOf([1]));
-  assert.false(new Set([2, 3, 4]).isSupersetOf([1]));
-  assert.true(new Set([5, 4, 3, 2, 1]).isSupersetOf([1, 2, 3]));
-  assert.false(new Set([5, 4, 3, 2]).isSupersetOf([1, 2, 3]));
-  assert.true(new Set([1, 2, 3]).isSupersetOf(createIterable([1])));
-  assert.false(new Set([2, 3, 4]).isSupersetOf(createIterable([1])));
 
   assert.false(new Set([42, 43]).isSupersetOf({
     size: Infinity,
