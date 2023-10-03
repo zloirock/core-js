@@ -721,13 +721,11 @@ for (PATH of ['core-js-pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
-    ok(typeof load(NS, 'array/filter-out') == 'function');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
     ok(typeof load(NS, 'array/unique-by') == 'function');
-    ok(typeof load(NS, 'array/virtual/filter-out') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
     ok(typeof load(NS, 'async-iterator/as-indexed-pairs') == 'function');
@@ -845,12 +843,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceDemethodize({}) === undefined);
     ok(typeof instanceDemethodize([].slice) == 'function');
     ok(instanceDemethodize([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
-
-    const instanceFilterOut = load(NS, 'instance/filter-out');
-    ok(typeof instanceFilterOut == 'function');
-    ok(instanceFilterOut({}) === undefined);
-    ok(typeof instanceFilterOut([]) == 'function');
-    ok(instanceFilterOut([]).call([1, 2, 3], it => it % 2).length === 1);
 
     const instanceFilterReject = load(NS, 'instance/filter-reject');
     ok(typeof instanceFilterReject == 'function');
