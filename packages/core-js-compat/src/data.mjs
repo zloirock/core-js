@@ -2594,8 +2594,6 @@ export const data = {
     bun: '1.4.0',
     firefox: '154',
   },
-  'esnext.iterator.indexed': {
-  },
   'esnext.iterator.join': {
     firefox: '154',
   },
