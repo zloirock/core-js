@@ -2418,9 +2418,6 @@ export const data = {
   },
   'esnext.typed-array.filter-reject': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.to-spliced': {
-  },
   'esnext.typed-array.unique-by': {
   },
   'esnext.uint8-array.from-base64': {
