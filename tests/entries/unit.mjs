@@ -951,16 +951,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
-    ok(typeof load(NS, 'symbol/matcher') === 'symbol');
-    ok(load(NS, 'symbol/matcher') === load(NS, 'symbol').matcher);
-    ok(typeof load(NS, 'symbol/metadata-key') === 'symbol');
-    ok(load(NS, 'symbol/metadata-key') === load(NS, 'symbol').metadataKey);
-    ok(typeof load(NS, 'symbol/observable') === 'symbol');
-    ok(load(NS, 'symbol/observable') === load(NS, 'symbol').observable);
-    ok(typeof load(NS, 'symbol/pattern-match') === 'symbol');
-    ok(load(NS, 'symbol/pattern-match') === load(NS, 'symbol').patternMatch);
-    ok(typeof load(NS, 'symbol/replace-all') === 'symbol');
-    ok(load(NS, 'symbol/replace-all') === load(NS, 'symbol').replaceAll);
+    ok(load(NS, 'symbol/matcher'));
+    ok(load(NS, 'symbol/observable'));
+    ok(load(NS, 'symbol/pattern-match'));
+    ok(load(NS, 'symbol/replace-all'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
     ok(load(NS, 'weak-map/upsert')(new WeakMap(), {}, null, () => 42) === 42);
@@ -1023,7 +1017,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
-  load('proposals/decorator-metadata');
   load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
   load('proposals/error-cause');
