@@ -724,8 +724,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
-    load(NS, 'bigint/range');
-    load(NS, 'bigint');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
     ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
