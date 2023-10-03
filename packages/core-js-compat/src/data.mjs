@@ -2731,9 +2731,6 @@ export const data = {
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
     // firefox: '144',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
-  },
   'esnext.weak-set.add-all': {
   },
   'esnext.weak-set.delete-all': {
