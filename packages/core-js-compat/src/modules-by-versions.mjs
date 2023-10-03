@@ -78,7 +78,7 @@ export default {
   3.17: [
     'es.array.at',
     'es.object.has-own',
-    'es.string.at-alternative',
+    'es.string.at',
     'es.typed-array.at',
   ],
   3.18: [
