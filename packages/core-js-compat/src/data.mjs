@@ -2642,9 +2642,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of.v2': null,
   // TODO: Remove from `core-js@4`
-  'esnext.set.is-subset-of': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
