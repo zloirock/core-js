@@ -120,7 +120,6 @@ export default {
     'esnext.symbol.metadata-key',
   ],
   3.24: [
-    'esnext.async-iterator.indexed',
     'esnext.iterator.indexed',
   ],
   3.25: [
