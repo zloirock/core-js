@@ -6,7 +6,6 @@ require('../proposals/iterator-sequencing');
 require('../proposals/json-parse-with-source');
 require('../proposals/map-upsert-v4');
 // TODO: Obsolete versions, remove from `core-js@4`
-require('../proposals/change-array-by-copy');
 require('../proposals/iterator-helpers-stage-3');
 
 module.exports = parent;
