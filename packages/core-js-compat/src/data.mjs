@@ -2231,8 +2231,6 @@ export const data = {
   'esnext.iterator.for-each': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.from': null,
-  'esnext.iterator.indexed': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.map': null,
   'esnext.iterator.range': {
