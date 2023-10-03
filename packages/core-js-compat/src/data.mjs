@@ -2785,9 +2785,6 @@ export const data = {
   'esnext.symbol.is-well-known-symbol': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.symbol.is-well-known': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.symbol.matcher': {
   },
   'esnext.symbol.metadata': {
