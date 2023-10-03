@@ -39,7 +39,6 @@ const ignore = new Set([
   'esnext.set.union',
   'esnext.symbol.matcher',
   'esnext.weak-map.emplace',
-  'esnext.weak-map.upsert',
   'web.url-search-params',
   'web.url',
 ]);

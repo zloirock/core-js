@@ -55,9 +55,6 @@ await bundle(DENO ? {
   bundled: 'index',
   options: {
     targets: { deno: '1.0' },
-    exclude: [
-      'esnext.weak-map.upsert',        // obsolete
-    ],
   },
 } : {
   bundled: 'index',
