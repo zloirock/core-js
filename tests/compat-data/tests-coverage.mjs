@@ -45,7 +45,6 @@ const ignore = new Set([
   'esnext.symbol.is-registered',
   'esnext.symbol.is-well-known',
   'esnext.symbol.matcher',
-  'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
   'esnext.weak-map.emplace',
   'esnext.weak-map.upsert',
