@@ -1,5 +1,5 @@
 import { DESCRIPTORS } from '../helpers/constants.js';
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;
@@ -19,11 +19,6 @@ QUnit.test('Set#union', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).union(new Set([3, 4]))), [1, 2, 3, 4]);
   assert.deepEqual(from(new Set([1, 2, 3]).union(createSetLike([4, 5]))), [1, 2, 3, 4, 5]);
   assert.deepEqual(from(new Set([1, 2, 3]).union(createSetLike([3, 4]))), [1, 2, 3, 4]);
-
-  // TODO: drop from core-js@4
-  assert.deepEqual(from(new Set([1, 2, 3]).union([4, 5])), [1, 2, 3, 4, 5]);
-  assert.deepEqual(from(new Set([1, 2, 3]).union([3, 4])), [1, 2, 3, 4]);
-  assert.deepEqual(from(new Set([1, 2, 3]).union(createIterable([3, 4]))), [1, 2, 3, 4]);
 
   assert.throws(() => new Set([1, 2, 3]).union(), TypeError);
 
