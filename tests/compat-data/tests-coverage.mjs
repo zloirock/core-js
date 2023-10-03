@@ -17,7 +17,6 @@ const ignore = new Set([
   'es.weak-set',
   'esnext.map.update-or-insert',
   'esnext.map.upsert',
-  'esnext.number.range',
   'esnext.observable',
   'esnext.observable.constructor',
   'esnext.observable.from',
