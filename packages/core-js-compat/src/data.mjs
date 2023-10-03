@@ -2612,9 +2612,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.constructor': null,
   // TODO: Remove from `core-js@4`
-  'esnext.iterator.as-indexed-pairs': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.iterator.chunks': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.concat': null,
