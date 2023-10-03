@@ -177,7 +177,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
-      - [Getting last item from `Array`](#getting-last-item-from-array)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
@@ -2928,30 +2927,6 @@ core-js/full/typed-array/unique-by
   { id: 2, uid: 10000 },
   { id: 3, uid: 10001 }
 ].uniqueBy(it => it.uid);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
-```
-##### [Getting last item from `Array`](https://github.com/keithamus/proposal-array-last)[⬆](#index)
-Modules [`esnext.array.last-item`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-item.js) and [`esnext.array.last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.last-index.js)
-```js
-class Array {
-  attribute lastItem: any;
-  readonly attribute lastIndex: uint;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/array-last
-core-js/full/array/last-item
-core-js/full/array/last-index
-```
-[*Examples*](https://goo.gl/2TmcMT):
-```js
-[1, 2, 3].lastItem;  // => 3
-[1, 2, 3].lastIndex; // => 2
-
-const array = [1, 2, 3];
-array.lastItem = 4;
-
-array; // => [1, 2, 4]
 ```
 
 ##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
