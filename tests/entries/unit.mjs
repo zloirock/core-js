@@ -804,7 +804,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
-    ok(load(NS, 'symbol/metadata-key'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'symbol/pattern-match'));
     ok(load(NS, 'symbol/replace-all'));
@@ -869,7 +868,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
-  load('proposals/decorator-metadata');
   load('proposals/decorator-metadata-v2');
   load('proposals/decorators');
   load('proposals/error-cause');
