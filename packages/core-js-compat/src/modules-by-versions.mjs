@@ -36,7 +36,6 @@ export default {
     'esnext.iterator.some',
     'esnext.iterator.take',
     'esnext.iterator.to-array',
-    'esnext.weak-map.upsert',
   ],
   3.4: [
     'es.json.stringify',
@@ -222,10 +221,6 @@ export default {
     'es.iterator.to-array',
     'es.promise.try',
     'esnext.iterator.concat',
-    'esnext.map.get-or-insert',
-    'esnext.map.get-or-insert-computed',
-    'esnext.weak-map.get-or-insert',
-    'esnext.weak-map.get-or-insert-computed',
   ],
   '3.40': [
     'esnext.error.is-error',
