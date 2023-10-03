@@ -751,7 +751,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
-    ok(load(NS, 'map/update-or-insert')(new Map([[1, 2]]), 1, it => it ** 2, () => 42) === 4);
     ok(load(NS, 'map/upsert')(new Map([[1, 2]]), 1, it => it ** 2, () => 42) === 4);
     ok(load(NS, 'math/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
