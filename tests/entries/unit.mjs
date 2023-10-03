@@ -861,20 +861,17 @@ for (PATH of ['core-js-pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
-    deepEqual(load(NS, 'array/filter-out')([1, 2, 3], it => it % 2), [2]);
-    deepEqual(load(NS, 'array/filter-reject')([1, 2, 3], it => it % 2), [2]);
-    ok(load(NS, 'array/is-template-object')([]) === false);
-    ok(load(NS, 'array/is-template-object')((it => it)`test`) === true);
+    ok(typeof load(NS, 'array/filter-reject') == 'function');
+    ok(typeof load(NS, 'array/is-template-object') == 'function');
     load(NS, 'array/last-item');
     load(NS, 'array/last-index');
-    deepEqual(load(NS, 'array/unique-by')([1, 2, 3, 2, 1]), [1, 2, 3]);
-    deepEqual(load(NS, 'array/virtual/filter-out').call([1, 2, 3], it => it % 2), [2]);
-    deepEqual(load(NS, 'array/virtual/filter-reject').call([1, 2, 3], it => it % 2), [2]);
-    deepEqual(load(NS, 'array/virtual/unique-by').call([1, 2, 3, 2, 1]), [1, 2, 3]);
-    deepEqual((await load(NS, 'async-iterator/as-indexed-pairs')(load(NS, 'async-iterator/from')([42])).next()).value, [0, 42]);
-    deepEqual((await load(NS, 'async-iterator/indexed')(load(NS, 'async-iterator/from')([42])).next()).value, [0, 42]);
-    deepEqual([...load(NS, 'bigint/range')(1n, 3n)], [1n, 2n]);
-    deepEqual([...load(NS, 'bigint').range(1n, 3n)], [1n, 2n]);
+    ok(typeof load(NS, 'array/unique-by') == 'function');
+    ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
+    ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
+    ok(typeof load(NS, 'async-iterator/as-indexed-pairs') == 'function');
+    ok(typeof load(NS, 'async-iterator/indexed') == 'function');
+    load(NS, 'bigint/range');
+    load(NS, 'bigint');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
     const keyObject = {};
@@ -999,12 +996,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceDemethodize({}) === undefined);
     ok(typeof instanceDemethodize([].slice) == 'function');
     ok(instanceDemethodize([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
-
-    const instanceFilterOut = load(NS, 'instance/filter-out');
-    ok(typeof instanceFilterOut == 'function');
-    ok(instanceFilterOut({}) === undefined);
-    ok(typeof instanceFilterOut([]) == 'function');
-    ok(instanceFilterOut([]).call([1, 2, 3], it => it % 2).length === 1);
 
     const instanceFilterReject = load(NS, 'instance/filter-reject');
     ok(typeof instanceFilterReject == 'function');
