@@ -2494,9 +2494,6 @@ export const data = {
   'esnext.async-iterator.constructor': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.async-iterator.as-indexed-pairs': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.async-iterator.async-dispose': null,
   'esnext.async-iterator.drop': {
   },
