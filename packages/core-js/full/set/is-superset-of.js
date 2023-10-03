@@ -1,9 +1,4 @@
 'use strict';
-require('../../actual/set/is-superset-of');
-require('../../modules/es.array.iterator');
-require('../../modules/es.string.iterator');
-require('../../modules/esnext.set.is-superset-of');
-require('../../modules/web.dom-collections.iterator');
-var entryUnbind = require('../../internals/entry-unbind');
+var parent = require('../../actual/set/is-superset-of');
 
-module.exports = entryUnbind('Set', 'isSupersetOf');
+module.exports = parent;
