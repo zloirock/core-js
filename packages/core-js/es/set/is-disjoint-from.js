@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/es.set.is-disjoint-from.v2');
 var entryUnbind = require('../../internals/entry-unbind');
 
