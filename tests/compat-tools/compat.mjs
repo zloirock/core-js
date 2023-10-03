@@ -141,6 +141,6 @@ ok(!inverted1.includes('esnext.iterator.from'), 'inverse #2');
 const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
 
 ok(inverted2.includes('es.math.acosh'), 'inverse #4');
-ok(!inverted2.includes('es.map'), 'inverse #5');
+ok(!inverted2.includes('es.map.constructor'), 'inverse #5');
 
 echo(chalk.green('compat tool tested'));
