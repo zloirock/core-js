@@ -1917,9 +1917,6 @@ export const data = {
     firefox: '115',
     safari: '16.4',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.filter-out': {
-  },
   'esnext.array.filter-reject': {
   },
   'esnext.array.is-template-object': {
