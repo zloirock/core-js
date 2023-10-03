@@ -2073,9 +2073,6 @@ export const data = {
   'esnext.map.update': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.map.update-or-insert': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.map.upsert': {
   },
   'esnext.math.clamp': {
