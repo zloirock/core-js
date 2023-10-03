@@ -7,7 +7,6 @@ require('../proposals/iterator-includes');
 require('../proposals/iterator-join');
 require('../proposals/joint-iteration');
 // TODO: Obsolete versions, remove from `core-js@4`
-require('../proposals/array-grouping-stage-3');
 require('../proposals/array-grouping-stage-3-2');
 require('../proposals/change-array-by-copy');
 require('../proposals/iterator-chunking-v2');
