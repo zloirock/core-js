@@ -2284,9 +2284,6 @@ export const data = {
   },
   'esnext.weak-map.emplace': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
-  },
   'esnext.weak-set.add-all': {
   },
   'esnext.weak-set.delete-all': {
