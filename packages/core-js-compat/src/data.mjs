@@ -2397,9 +2397,6 @@ export const data = {
   'esnext.function.metadata': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.function.un-this': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.iterator.constructor': null,
   'esnext.iterator.chunks': {
   },
