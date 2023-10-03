@@ -2018,9 +2018,6 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     safari: '18.0', // '16.4',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.filter-out': {
-  },
   'esnext.array.filter-reject': {
   },
   'esnext.array.is-template-object': {
