@@ -2473,9 +2473,6 @@ export const data = {
   },
   'esnext.array.is-template-object': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.last-item': {
-  },
   'esnext.array.unique-by': {
   },
   // TODO: Remove from `core-js@4`
