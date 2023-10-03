@@ -11,7 +11,6 @@ require('../proposals/symbol-predicates-v2');
 require('../proposals/async-explicit-resource-management');
 require('../proposals/decorators');
 require('../proposals/set-methods');
-require('../proposals/symbol-predicates');
 require('../proposals/using-statement');
 
 module.exports = parent;
