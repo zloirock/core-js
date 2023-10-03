@@ -1,7 +1,7 @@
 'use strict';
 require('../../modules/es.object.to-string');
 require('../../modules/es.array.iterator');
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
 require('../../modules/esnext.set.delete-all');
