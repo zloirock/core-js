@@ -6,7 +6,6 @@ export default {
   3.2: [
     'es.promise.all-settled',
     'esnext.array.is-template-object',
-    'esnext.map.update-or-insert',
     'esnext.symbol.async-dispose',
   ],
   3.3: [
