@@ -2593,8 +2593,6 @@ export const data = {
   'esnext.iterator.includes': {
     firefox: '154',
   },
-  'esnext.iterator.indexed': {
-  },
   'esnext.iterator.join': {
     firefox: '154',
   },
