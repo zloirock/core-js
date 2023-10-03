@@ -13,7 +13,6 @@ require('../proposals/decorators');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/math-clamp-v2');
 require('../proposals/set-methods');
-require('../proposals/symbol-predicates');
 require('../proposals/using-statement');
 
 module.exports = parent;
