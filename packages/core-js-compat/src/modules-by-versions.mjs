@@ -101,7 +101,6 @@ export default {
     'es.error.to-string',
     'es.aggregate-error.cause',
     'es.number.to-exponential',
-    'esnext.array.group-by-to-map',
     'esnext.function.is-callable',
     'esnext.function.is-constructor',
     'esnext.function.un-this',
