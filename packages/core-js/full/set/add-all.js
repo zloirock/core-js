@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.set');
+require('../../modules/es.set.constructor');
 require('../../modules/esnext.set.add-all');
 var entryUnbind = require('../../internals/entry-unbind');
 
