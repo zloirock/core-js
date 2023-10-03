@@ -2203,7 +2203,6 @@ core-js(-pure)/actual|full/iterator/find
 core-js(-pure)/actual|full/iterator/flat-map
 core-js(-pure)/actual|full/iterator/for-each
 core-js(-pure)/actual|full/iterator/from
-core-js(-pure)/actual|full/iterator/indexed
 core-js(-pure)/actual|full/iterator/map
 core-js(-pure)/actual|full/iterator/reduce
 core-js(-pure)/actual|full/iterator/some
@@ -2535,7 +2534,6 @@ core-js(-pure)/actual|full/async-iterator/find
 core-js(-pure)/actual|full/async-iterator/flat-map
 core-js(-pure)/actual|full/async-iterator/for-each
 core-js(-pure)/actual|full/async-iterator/from
-core-js(-pure)/actual|full/async-iterator/indexed
 core-js(-pure)/actual|full/async-iterator/map
 core-js(-pure)/actual|full/async-iterator/reduce
 core-js(-pure)/actual|full/async-iterator/some
