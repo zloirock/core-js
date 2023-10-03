@@ -8,6 +8,5 @@ require('../../modules/esnext.symbol.observable');
 require('../../modules/esnext.symbol.is-registered');
 require('../../modules/esnext.symbol.is-well-known');
 require('../../modules/esnext.symbol.matcher');
-require('../../modules/esnext.symbol.replace-all');
 
 module.exports = parent;
