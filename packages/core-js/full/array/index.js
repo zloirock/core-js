@@ -1,7 +1,5 @@
 'use strict';
 var parent = require('../../actual/array');
-// TODO: Remove from `core-js@4`
-require('../../modules/esnext.array.filter-out');
 require('../../modules/esnext.array.filter-reject');
 require('../../modules/esnext.array.is-template-object');
 require('../../modules/esnext.array.last-item');
