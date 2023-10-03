@@ -1435,7 +1435,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.string.at-alternative': {
+  'es.string.at': {
     chrome: '92',
     firefox: '90',
     'react-native': '0.71',
