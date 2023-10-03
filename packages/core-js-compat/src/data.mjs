@@ -2316,9 +2316,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.from-async': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.filter-out': {
-  },
   'esnext.typed-array.filter-reject': {
   },
   // TODO: Remove from `core-js@4`

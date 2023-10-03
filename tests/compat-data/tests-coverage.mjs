@@ -53,7 +53,6 @@ const ignore = new Set([
   'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
   'esnext.typed-array.from-async',
-  'esnext.typed-array.filter-out',
   'esnext.typed-array.to-spliced',
   'esnext.weak-map.upsert',
   'web.url-search-params',
