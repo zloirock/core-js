@@ -19,7 +19,6 @@ const ignore = new Set([
   'esnext.array.last-item',
   'esnext.bigint.range',
   'esnext.function.un-this',
-  'esnext.iterator.as-indexed-pairs',
   'esnext.iterator.indexed',
   'esnext.map.emplace',
   'esnext.map.update-or-insert',
