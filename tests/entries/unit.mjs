@@ -768,7 +768,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
-    ok(load(NS, 'number/range')(1, 2).next().value === 1);
     ok('from' in load(NS, 'observable'));
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
@@ -891,7 +890,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/math-signbit');
   load('proposals/math-sum');
   load('proposals/number-from-string');
-  load('proposals/number-range');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');
