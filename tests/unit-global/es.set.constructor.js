@@ -1,23 +1,17 @@
 /* eslint-disable sonarjs/no-element-overwrite -- required for testing */
-
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import getIterator from 'core-js-pure/es/get-iterator';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/es/array/from';
-import freeze from 'core-js-pure/es/object/freeze';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import keys from 'core-js-pure/es/object/keys';
-import ownKeys from 'core-js-pure/es/reflect/own-keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Map from 'core-js-pure/es/map';
-import Set from 'core-js-pure/es/set';
+const Symbol = GLOBAL.Symbol || {};
+const { getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, freeze } = Object;
+const { ownKeys } = GLOBAL.Reflect || {};
+const { from } = Array;
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);
+  assert.name(Set, 'Set');
+  assert.arity(Set, 0);
+  assert.looksNative(Set);
   assert.true('add' in Set.prototype, 'add in Set.prototype');
   assert.true('clear' in Set.prototype, 'clear in Set.prototype');
   assert.true('delete' in Set.prototype, 'delete in Set.prototype');
@@ -42,6 +36,7 @@ QUnit.test('Set', assert => {
   assert.deepEqual(from(new Set([3, 4]).add(2).add(1)), [3, 4, 2, 1]);
   let done = false;
   const { add } = Set.prototype;
+  // eslint-disable-next-line no-extend-native -- required for testing
   Set.prototype.add = function () {
     throw new Error();
   };
@@ -52,6 +47,7 @@ QUnit.test('Set', assert => {
       },
     }));
   } catch { /* empty */ }
+  // eslint-disable-next-line no-extend-native -- required for testing
   Set.prototype.add = add;
   assert.true(done, '.return #throw');
   const array = [];
@@ -60,7 +56,7 @@ QUnit.test('Set', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return getIteratorMethod([]).call(this);
+    return [][Symbol.iterator].call(this);
   };
   new Set(array);
   assert.true(done);
@@ -82,15 +78,17 @@ QUnit.test('Set', assert => {
     assert.true(new Subclass().add(2).has(2), 'correct subclassing with native classes #3');
   }
 
-  if (typeof ArrayBuffer == 'function') {
-    const buffer = new ArrayBuffer(8);
-    set = new Set([buffer]);
-    assert.true(set.has(buffer), 'works with ArrayBuffer keys');
-  }
+  const buffer = new ArrayBuffer(8);
+  set = new Set([buffer]);
+  assert.true(set.has(buffer), 'works with ArrayBuffer keys');
 });
 
 QUnit.test('Set#add', assert => {
   assert.isFunction(Set.prototype.add);
+  assert.name(Set.prototype.add, 'add');
+  assert.arity(Set.prototype.add, 1);
+  assert.looksNative(Set.prototype.add);
+  assert.nonEnumerable(Set.prototype, 'add');
   const array = [];
   let set = new Set();
   set.add(NaN);
@@ -119,6 +117,10 @@ QUnit.test('Set#add', assert => {
 
 QUnit.test('Set#clear', assert => {
   assert.isFunction(Set.prototype.clear);
+  assert.name(Set.prototype.clear, 'clear');
+  assert.arity(Set.prototype.clear, 0);
+  assert.looksNative(Set.prototype.clear);
+  assert.nonEnumerable(Set.prototype, 'clear');
   let set = new Set();
   set.clear();
   assert.same(set.size, 0);
@@ -145,6 +147,10 @@ QUnit.test('Set#clear', assert => {
 
 QUnit.test('Set#delete', assert => {
   assert.isFunction(Set.prototype.delete);
+  if (NATIVE) assert.name(Set.prototype.delete, 'delete');
+  assert.arity(Set.prototype.delete, 1);
+  assert.looksNative(Set.prototype.delete);
+  assert.nonEnumerable(Set.prototype, 'delete');
   const array = [];
   const set = new Set();
   set.add(NaN);
@@ -171,6 +177,10 @@ QUnit.test('Set#delete', assert => {
 
 QUnit.test('Set#forEach', assert => {
   assert.isFunction(Set.prototype.forEach);
+  assert.name(Set.prototype.forEach, 'forEach');
+  assert.arity(Set.prototype.forEach, 1);
+  assert.looksNative(Set.prototype.forEach);
+  assert.nonEnumerable(Set.prototype, 'forEach');
   let result = [];
   let count = 0;
   let set = new Set();
@@ -217,6 +227,10 @@ QUnit.test('Set#forEach', assert => {
 
 QUnit.test('Set#has', assert => {
   assert.isFunction(Set.prototype.has);
+  assert.name(Set.prototype.has, 'has');
+  assert.arity(Set.prototype.has, 1);
+  assert.looksNative(Set.prototype.has);
+  assert.nonEnumerable(Set.prototype, 'has');
   const array = [];
   const frozen = freeze({});
   const set = new Set();
@@ -236,6 +250,7 @@ QUnit.test('Set#has', assert => {
 });
 
 QUnit.test('Set#size', assert => {
+  assert.nonEnumerable(Set.prototype, 'size');
   const set = new Set();
   set.add(1);
   const { size } = set;
@@ -247,9 +262,7 @@ QUnit.test('Set#size', assert => {
     const setter = sizeDescriptor && sizeDescriptor.set;
     assert.same(typeof getter, 'function', 'size is getter');
     assert.same(typeof setter, 'undefined', 'size is not setter');
-    assert.throws(() => {
-      Set.prototype.size;
-    }, TypeError);
+    assert.throws(() => Set.prototype.size, TypeError);
   }
 });
 
@@ -304,6 +317,11 @@ QUnit.test('Set Iterator', assert => {
 
 QUnit.test('Set#keys', assert => {
   assert.isFunction(Set.prototype.keys);
+  assert.name(Set.prototype.keys, 'values');
+  assert.arity(Set.prototype.keys, 0);
+  assert.looksNative(Set.prototype.keys);
+  assert.same(Set.prototype.keys, Set.prototype.values);
+  assert.nonEnumerable(Set.prototype, 'keys');
   const set = new Set();
   set.add('q');
   set.add('w');
@@ -332,6 +350,10 @@ QUnit.test('Set#keys', assert => {
 
 QUnit.test('Set#values', assert => {
   assert.isFunction(Set.prototype.values);
+  assert.name(Set.prototype.values, 'values');
+  assert.arity(Set.prototype.values, 0);
+  assert.looksNative(Set.prototype.values);
+  assert.nonEnumerable(Set.prototype, 'values');
   const set = new Set();
   set.add('q');
   set.add('w');
@@ -360,6 +382,10 @@ QUnit.test('Set#values', assert => {
 
 QUnit.test('Set#entries', assert => {
   assert.isFunction(Set.prototype.entries);
+  assert.name(Set.prototype.entries, 'entries');
+  assert.arity(Set.prototype.entries, 0);
+  assert.looksNative(Set.prototype.entries);
+  assert.nonEnumerable(Set.prototype, 'entries');
   const set = new Set();
   set.add('q');
   set.add('w');
@@ -387,11 +413,17 @@ QUnit.test('Set#entries', assert => {
 });
 
 QUnit.test('Set#@@iterator', assert => {
+  assert.isIterable(Set.prototype);
+  assert.name(Set.prototype[Symbol.iterator], 'values');
+  assert.arity(Set.prototype[Symbol.iterator], 0);
+  assert.looksNative(Set.prototype[Symbol.iterator]);
+  assert.same(Set.prototype[Symbol.iterator], Set.prototype.values);
+  assert.nonEnumerable(Set.prototype, Symbol.iterator);
   const set = new Set();
   set.add('q');
   set.add('w');
   set.add('e');
-  const iterator = getIterator(set);
+  const iterator = set[Symbol.iterator]();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.same(iterator[Symbol.toStringTag], 'Set Iterator');
