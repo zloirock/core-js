@@ -801,7 +801,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'symbol/is-registered')(1) === false);
     ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/observable'));
