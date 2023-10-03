@@ -56,7 +56,6 @@ await bundle(DENO ? {
   options: {
     targets: { deno: '1.0' },
     exclude: [
-      'esnext.array.filter-out',       // obsolete
       'esnext.map.update-or-insert',   // obsolete
       'esnext.map.upsert',             // obsolete
       'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
