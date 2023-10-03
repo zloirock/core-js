@@ -901,7 +901,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
-  load('proposals/set-methods');
   load('proposals/set-methods-v2');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
