@@ -728,8 +728,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(!load(NS, 'function/is-callable')(class { /* empty */ }));
     ok(!load(NS, 'function/is-constructor')(it => it));
-    ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
@@ -830,12 +828,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceUniqueBy({}) === undefined);
     ok(typeof instanceUniqueBy([]) == 'function');
     ok(instanceUniqueBy([]).call([1, 2, 3, 2, 1]).length === 3);
-
-    const instanceUnThis = load(NS, 'instance/un-this');
-    ok(typeof instanceUnThis == 'function');
-    ok(instanceUnThis({}) === undefined);
-    ok(typeof instanceUnThis([].slice) == 'function');
-    ok(instanceUnThis([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
   }
 
   load('proposals/accessible-object-hasownproperty');
@@ -866,7 +858,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/float16');
   load('proposals/function-demethodize');
   load('proposals/function-is-callable-is-constructor');
-  load('proposals/function-un-this');
   load('proposals/global-this');
   load('proposals/iterator-helpers-stage-3');
   load('proposals/iterator-helpers-stage-3-2');
