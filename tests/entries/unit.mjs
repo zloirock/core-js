@@ -785,7 +785,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'symbol/is-well-known')(1) === false);
     ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
@@ -888,7 +887,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-replace-all');
   load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
-  load('proposals/symbol-predicates');
   load('proposals/symbol-predicates-v2');
   load('proposals/url');
   load('proposals/using-statement');
