@@ -2600,8 +2600,6 @@ export const data = {
     chrome: '154',
     firefox: '154',
   },
-  'esnext.iterator.indexed': {
-  },
   'esnext.iterator.join': {
     bun: '1.4.0',
     chrome: '154',
