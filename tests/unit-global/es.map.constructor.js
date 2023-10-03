@@ -1,22 +1,16 @@
 /* eslint-disable sonarjs/no-element-overwrite -- required for testing */
-
+import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import getIterator from 'core-js-pure/es/get-iterator';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import freeze from 'core-js-pure/es/object/freeze';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import keys from 'core-js-pure/es/object/keys';
-import ownKeys from 'core-js-pure/es/reflect/own-keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Set from 'core-js-pure/es/set';
-import Map from 'core-js-pure/es/map';
+const Symbol = GLOBAL.Symbol || {};
+const { getOwnPropertyDescriptor, keys, getOwnPropertyNames, getOwnPropertySymbols, freeze } = Object;
+const { ownKeys } = GLOBAL.Reflect || {};
 
 QUnit.test('Map', assert => {
   assert.isFunction(Map);
+  assert.arity(Map, 0);
+  assert.name(Map, 'Map');
+  assert.looksNative(Map);
   assert.true('clear' in Map.prototype, 'clear in Map.prototype');
   assert.true('delete' in Map.prototype, 'delete in Map.prototype');
   assert.true('forEach' in Map.prototype, 'forEach in Map.prototype');
@@ -41,7 +35,7 @@ QUnit.test('Map', assert => {
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
-    return getIteratorMethod([]).call(this);
+    return [][Symbol.iterator].call(this);
   };
   new Map(array);
   assert.true(done);
@@ -63,25 +57,32 @@ QUnit.test('Map', assert => {
     assert.same(new Subclass().set(1, 2).get(1), 2, 'correct subclassing with native classes #3');
   }
 
-  if (typeof ArrayBuffer == 'function') {
-    const buffer = new ArrayBuffer(8);
-    const map = new Map([[buffer, 8]]);
-    assert.true(map.has(buffer), 'works with ArrayBuffer keys');
-  }
+  const buffer = new ArrayBuffer(8);
+  const map = new Map([[buffer, 8]]);
+  assert.true(map.has(buffer), 'works with ArrayBuffer keys');
 });
 
 QUnit.test('Map#clear', assert => {
   assert.isFunction(Map.prototype.clear);
+  assert.arity(Map.prototype.clear, 0);
+  assert.name(Map.prototype.clear, 'clear');
+  assert.looksNative(Map.prototype.clear);
+  assert.nonEnumerable(Map.prototype, 'clear');
   let map = new Map();
   map.clear();
   assert.same(map.size, 0);
-  map = new Map().set(1, 2).set(2, 3).set(1, 4);
+  map = new Map();
+  map.set(1, 2);
+  map.set(2, 3);
+  map.set(1, 4);
   map.clear();
   assert.same(map.size, 0);
   assert.false(map.has(1));
   assert.false(map.has(2));
   const frozen = freeze({});
-  map = new Map().set(1, 2).set(frozen, 3);
+  map = new Map();
+  map.set(1, 2);
+  map.set(frozen, 3);
   map.clear();
   assert.same(map.size, 0, 'Support frozen objects');
   assert.false(map.has(1));
@@ -90,6 +91,10 @@ QUnit.test('Map#clear', assert => {
 
 QUnit.test('Map#delete', assert => {
   assert.isFunction(Map.prototype.delete);
+  assert.arity(Map.prototype.delete, 1);
+  if (NATIVE) assert.name(Map.prototype.delete, 'delete');
+  assert.looksNative(Map.prototype.delete);
+  assert.nonEnumerable(Map.prototype, 'delete');
   const object = {};
   const map = new Map();
   map.set(NaN, 1);
@@ -116,6 +121,10 @@ QUnit.test('Map#delete', assert => {
 
 QUnit.test('Map#forEach', assert => {
   assert.isFunction(Map.prototype.forEach);
+  assert.arity(Map.prototype.forEach, 1);
+  assert.name(Map.prototype.forEach, 'forEach');
+  assert.looksNative(Map.prototype.forEach);
+  assert.nonEnumerable(Map.prototype, 'forEach');
   let result = {};
   let count = 0;
   const object = {};
@@ -162,11 +171,17 @@ QUnit.test('Map#forEach', assert => {
     result += it;
   });
   assert.same(result, '1');
-  assert.throws(() => Map.prototype.forEach.call(new Set(), () => { /* empty */ }), 'non-generic');
+  assert.throws(() => {
+    Map.prototype.forEach.call(new Set(), () => { /* empty */ });
+  }, 'non-generic');
 });
 
 QUnit.test('Map#get', assert => {
   assert.isFunction(Map.prototype.get);
+  assert.name(Map.prototype.get, 'get');
+  assert.arity(Map.prototype.get, 1);
+  assert.looksNative(Map.prototype.get);
+  assert.nonEnumerable(Map.prototype, 'get');
   const object = {};
   const frozen = freeze({});
   const map = new Map();
@@ -187,6 +202,10 @@ QUnit.test('Map#get', assert => {
 
 QUnit.test('Map#has', assert => {
   assert.isFunction(Map.prototype.has);
+  assert.name(Map.prototype.has, 'has');
+  assert.arity(Map.prototype.has, 1);
+  assert.looksNative(Map.prototype.has);
+  assert.nonEnumerable(Map.prototype, 'has');
   const object = {};
   const frozen = freeze({});
   const map = new Map();
@@ -207,6 +226,10 @@ QUnit.test('Map#has', assert => {
 
 QUnit.test('Map#set', assert => {
   assert.isFunction(Map.prototype.set);
+  assert.name(Map.prototype.set, 'set');
+  assert.arity(Map.prototype.set, 2);
+  assert.looksNative(Map.prototype.set);
+  assert.nonEnumerable(Map.prototype, 'set');
   const object = {};
   let map = new Map();
   map.set(NaN, 1);
@@ -242,6 +265,7 @@ QUnit.test('Map#set', assert => {
 });
 
 QUnit.test('Map#size', assert => {
+  assert.nonEnumerable(Map.prototype, 'size');
   const map = new Map();
   map.set(2, 1);
   const { size } = map;
@@ -296,6 +320,10 @@ QUnit.test('Map Iterator', assert => {
   map.set('d', 4);
   const results = [];
   const iterator = map.keys();
+  assert.isIterator(iterator);
+  assert.isIterable(iterator);
+  assert.nonEnumerable(iterator, 'next');
+  assert.nonEnumerable(iterator, Symbol.iterator);
   results.push(iterator.next().value);
   assert.true(map.delete('a'));
   assert.true(map.delete('b'));
@@ -310,6 +338,10 @@ QUnit.test('Map Iterator', assert => {
 
 QUnit.test('Map#keys', assert => {
   assert.isFunction(Map.prototype.keys);
+  assert.name(Map.prototype.keys, 'keys');
+  assert.arity(Map.prototype.keys, 0);
+  assert.looksNative(Map.prototype.keys);
+  assert.nonEnumerable(Map.prototype, 'keys');
   const map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');
@@ -338,6 +370,10 @@ QUnit.test('Map#keys', assert => {
 
 QUnit.test('Map#values', assert => {
   assert.isFunction(Map.prototype.values);
+  assert.name(Map.prototype.values, 'values');
+  assert.arity(Map.prototype.values, 0);
+  assert.looksNative(Map.prototype.values);
+  assert.nonEnumerable(Map.prototype, 'values');
   const map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');
@@ -366,6 +402,10 @@ QUnit.test('Map#values', assert => {
 
 QUnit.test('Map#entries', assert => {
   assert.isFunction(Map.prototype.entries);
+  assert.name(Map.prototype.entries, 'entries');
+  assert.arity(Map.prototype.entries, 0);
+  assert.looksNative(Map.prototype.entries);
+  assert.nonEnumerable(Map.prototype, 'entries');
   const map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');
@@ -393,11 +433,16 @@ QUnit.test('Map#entries', assert => {
 });
 
 QUnit.test('Map#@@iterator', assert => {
+  assert.isIterable(Map.prototype);
+  assert.name(Map.prototype.entries, 'entries');
+  assert.arity(Map.prototype.entries, 0);
+  assert.looksNative(Map.prototype[Symbol.iterator]);
+  assert.same(Map.prototype[Symbol.iterator], Map.prototype.entries);
   const map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');
   map.set('d', 'e');
-  const iterator = getIterator(map);
+  const iterator = map[Symbol.iterator]();
   assert.isIterator(iterator);
   assert.isIterable(iterator);
   assert.same(iterator[Symbol.toStringTag], 'Map Iterator');

@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es.object.to-string');
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/esnext.map.key-by');
 require('../../modules/esnext.map.delete-all');
 require('../../modules/esnext.map.emplace');
