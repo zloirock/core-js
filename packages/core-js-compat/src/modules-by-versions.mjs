@@ -26,7 +26,6 @@ export default {
     'esnext.async-iterator.take',
     'esnext.async-iterator.to-array',
     'esnext.iterator.constructor',
-    'esnext.iterator.as-indexed-pairs',
     'esnext.iterator.drop',
     'esnext.iterator.every',
     'esnext.iterator.filter',
