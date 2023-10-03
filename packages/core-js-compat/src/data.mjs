@@ -2280,9 +2280,6 @@ export const data = {
   },
   'esnext.symbol.metadata': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.metadata-key': {
-  },
   'esnext.symbol.observable': {
   },
   // TODO: Remove from `core-js@4`
