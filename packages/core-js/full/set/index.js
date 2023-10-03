@@ -7,7 +7,6 @@ require('../../modules/esnext.set.delete-all');
 require('../../modules/esnext.set.every');
 require('../../modules/esnext.set.filter');
 require('../../modules/esnext.set.find');
-require('../../modules/esnext.set.is-superset-of');
 require('../../modules/esnext.set.join');
 require('../../modules/esnext.set.map');
 require('../../modules/esnext.set.reduce');
