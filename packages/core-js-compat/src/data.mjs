@@ -2653,9 +2653,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference.v2': null,
   // TODO: Remove from `core-js@4`
-  'esnext.set.symmetric-difference': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.set.union.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
