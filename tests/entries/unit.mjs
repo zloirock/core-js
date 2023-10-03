@@ -878,7 +878,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-flat-map');
   load('proposals/array-from-async');
   load('proposals/array-from-async-stage-2');
-  load('proposals/array-grouping');
   load('proposals/array-grouping-v2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
@@ -1067,7 +1066,6 @@ for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
-  load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
 }
 
