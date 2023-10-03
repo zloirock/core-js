@@ -9,7 +9,6 @@ const modulesSet = new Set([
 const tested = new Set(Object.keys(globalThis.tests));
 
 const ignore = new Set([
-  'es.map',
   'es.set',
   'es.weak-map',
   'es.weak-set',
