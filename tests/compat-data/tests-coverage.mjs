@@ -28,7 +28,6 @@ const ignore = new Set([
   'esnext.reflect.has-metadata',
   'esnext.reflect.has-own-metadata',
   'esnext.reflect.metadata',
-  'esnext.set.symmetric-difference',
   'esnext.set.union',
   'web.url-search-params',
   'web.url',
