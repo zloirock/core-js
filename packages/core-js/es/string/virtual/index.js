@@ -1,7 +1,7 @@
 'use strict';
 require('../../../modules/es.object.to-string');
 require('../../../modules/es.regexp.exec');
-require('../../../modules/es.string.at-alternative');
+require('../../../modules/es.string.at');
 require('../../../modules/es.string.code-point-at');
 require('../../../modules/es.string.ends-with');
 require('../../../modules/es.string.includes');
