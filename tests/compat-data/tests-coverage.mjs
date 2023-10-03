@@ -31,7 +31,6 @@ const ignore = new Set([
   'esnext.reflect.has-metadata',
   'esnext.reflect.has-own-metadata',
   'esnext.reflect.metadata',
-  'esnext.set.union',
   'esnext.symbol.matcher',
   'esnext.weak-map.emplace',
   'web.url-search-params',
