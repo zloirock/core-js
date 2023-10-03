@@ -2606,10 +2606,6 @@ export const data = {
   'esnext.map.from': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.map.get-or-insert': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.map.get-or-insert-computed': null,
-  // TODO: Remove from `core-js@4`
   'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
@@ -2805,13 +2801,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.emplace': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.get-or-insert': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.get-or-insert-computed': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
   },
   'esnext.weak-set.add-all': {
   },
@@ -3094,8 +3083,6 @@ export const renamed = new Map([
   ['esnext.json.parse', 'es.json.parse'],
   ['esnext.json.raw-json', 'es.json.raw-json'],
   ['esnext.map.group-by', 'es.map.group-by'],
-  ['esnext.map.get-or-insert', 'es.map.get-or-insert'],
-  ['esnext.map.get-or-insert-computed', 'es.map.get-or-insert-computed'],
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.object.group-by', 'es.object.group-by'],
@@ -3118,8 +3105,6 @@ export const renamed = new Map([
   ['esnext.uint8-array.set-from-hex', 'es.uint8-array.set-from-hex'],
   ['esnext.uint8-array.to-base64', 'es.uint8-array.to-base64'],
   ['esnext.uint8-array.to-hex', 'es.uint8-array.to-hex'],
-  ['esnext.weak-map.get-or-insert', 'es.weak-map.get-or-insert'],
-  ['esnext.weak-map.get-or-insert-computed', 'es.weak-map.get-or-insert-computed'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
