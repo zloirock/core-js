@@ -2613,8 +2613,6 @@ export const data = {
   'esnext.iterator.from': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.includes': null,
-  'esnext.iterator.indexed': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.join': null,
   // TODO: Remove from `core-js@4`
