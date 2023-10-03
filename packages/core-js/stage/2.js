@@ -11,7 +11,6 @@ require('../proposals/symbol-predicates-v2');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/async-explicit-resource-management');
 require('../proposals/decorators');
-require('../proposals/decorator-metadata');
 require('../proposals/joint-iteration');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/math-clamp-v2');
