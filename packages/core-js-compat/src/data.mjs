@@ -2350,9 +2350,6 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.typed-array.from-async': {
-  },
   'esnext.typed-array.filter-reject': {
   },
   'esnext.typed-array.unique-by': {
