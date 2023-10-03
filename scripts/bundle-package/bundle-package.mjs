@@ -73,7 +73,6 @@ if (!process.exitCode) await bundle(DENO ? {
     exclude: [
       'esnext.map.update-or-insert',   // obsolete
       'esnext.map.upsert',             // obsolete
-      'esnext.symbol.replace-all',     // obsolete
       'esnext.weak-map.upsert',        // obsolete
     ],
   },
