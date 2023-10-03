@@ -115,7 +115,6 @@ export default {
     'es.array.unshift',
     'es.typed-array.find-last',
     'es.typed-array.find-last-index',
-    'esnext.symbol.metadata-key',
   ],
   3.25: [
     'es.object.proto',
