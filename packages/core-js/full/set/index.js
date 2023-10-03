@@ -11,7 +11,6 @@ require('../../modules/esnext.set.join');
 require('../../modules/esnext.set.map');
 require('../../modules/esnext.set.reduce');
 require('../../modules/esnext.set.some');
-require('../../modules/esnext.set.symmetric-difference');
 require('../../modules/esnext.set.union');
 
 module.exports = parent;
