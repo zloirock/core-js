@@ -738,7 +738,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
