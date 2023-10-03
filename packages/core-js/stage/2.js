@@ -8,7 +8,6 @@ require('../proposals/iterator-range');
 require('../proposals/string-dedent');
 require('../proposals/symbol-predicates-v2');
 // TODO: Obsolete versions, remove from `core-js@4`
-require('../proposals/array-grouping');
 require('../proposals/async-explicit-resource-management');
 require('../proposals/decorators');
 require('../proposals/decorator-metadata');
