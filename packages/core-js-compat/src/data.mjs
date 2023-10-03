@@ -2216,9 +2216,6 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-superset-of': {
-  },
   'esnext.set.join': {
   },
   'esnext.set.map': {
