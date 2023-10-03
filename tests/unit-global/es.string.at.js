@@ -25,7 +25,7 @@ QUnit.test('String#at', assert => {
   assert.same('𠮷'.at(), '\uD842');
   assert.same(at.call({ toString() { return '123'; } }, 0), '1');
 
-  assert.throws(() => at.call(Symbol('at-alternative test'), 0), 'throws on symbol context');
+  assert.throws(() => at.call(Symbol('at test'), 0), 'throws on symbol context');
 
   if (STRICT) {
     assert.throws(() => at.call(null, 0), TypeError);
