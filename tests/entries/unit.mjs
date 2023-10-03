@@ -726,7 +726,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
-    ok(typeof load(NS, 'async-iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'async-iterator/indexed') == 'function');
     load(NS, 'bigint/range');
     load(NS, 'bigint');
