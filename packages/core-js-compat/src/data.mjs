@@ -520,8 +520,27 @@ export const data = {
     rhino: '1.7.13',
     safari: '12.1',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.data-view': null,
+  'es.array-buffer.detached': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    rhino: '1.9.0',
+    safari: '17.4',
+  },
+  'es.array-buffer.transfer': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    rhino: '1.9.0',
+    safari: '17.4',
+  },
+  'es.array-buffer.transfer-to-fixed-length': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    rhino: '1.9.0',
+    safari: '17.4',
+  },
   'es.data-view.constructor': {
     chrome: '26',
     firefox: '15',
@@ -543,27 +562,6 @@ export const data = {
     deno: '1.43',
     firefox: '129',
     safari: '18.2',
-  },
-  'es.array-buffer.detached': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    rhino: '1.9.0',
-    safari: '17.4',
-  },
-  'es.array-buffer.transfer': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    rhino: '1.9.0',
-    safari: '17.4',
-  },
-  'es.array-buffer.transfer-to-fixed-length': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    rhino: '1.9.0',
-    safari: '17.4',
   },
   'es.date.get-year': {
     chrome: '1',
@@ -3023,7 +3021,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['es.data-view', 'es.data-view.constructor'],
   ['es.map', 'es.map.constructor'],
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
@@ -3089,7 +3086,6 @@ export const dataWithIgnored = { ...data };
 
 export const ignored = [
   // TODO: Clean in `core-js@4`
-  'es.data-view.constructor',
   'es.map.constructor',
   'es.set.constructor',
   'es.string.trim-left',
