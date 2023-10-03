@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/esnext.map.includes');
 var entryUnbind = require('../../internals/entry-unbind');
 
