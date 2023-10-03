@@ -2475,9 +2475,6 @@ export const data = {
   },
   'esnext.array.filter-reject': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array.group-by-to-map': {
-  },
   'esnext.array.group-to-map': {
     // disabled from Bun 0.6.2
     // bun: '0.1.9',
