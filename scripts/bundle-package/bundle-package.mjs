@@ -63,9 +63,6 @@ await bundle(DENO ? {
   bundled: BUNDLED_NAME,
   options: {
     targets: { deno: '1.0' },
-    exclude: [
-      'esnext.weak-map.upsert',        // obsolete
-    ],
   },
 } : {
   bundled: BUNDLED_NAME,
