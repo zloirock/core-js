@@ -57,7 +57,6 @@ export default {
   ],
   3.8: [
     'esnext.array.unique-by',
-    'esnext.number.range',
   ],
   3.9: [
     'esnext.typed-array.unique-by',
