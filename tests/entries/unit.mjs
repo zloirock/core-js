@@ -755,7 +755,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
-    ok(load(NS, 'number/range')(1, 2).next().value === 1);
     ok('from' in load(NS, 'observable'));
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
@@ -862,7 +861,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/number-from-string');
-  load('proposals/number-range');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');
