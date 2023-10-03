@@ -2797,9 +2797,6 @@ export const data = {
   'esnext.symbol.metadata': {
     deno: '1.40.4',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.metadata-key': {
-  },
   'esnext.symbol.observable': {
   },
   // TODO: Remove from `core-js@4`
