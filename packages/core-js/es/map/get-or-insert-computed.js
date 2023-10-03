@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.map');
+require('../../modules/es.map.constructor');
 require('../../modules/es.map.get-or-insert-computed');
 var entryUnbind = require('../../internals/entry-unbind');
 
