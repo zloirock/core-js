@@ -2726,9 +2726,6 @@ export const data = {
   'esnext.weak-map.get-or-insert-computed': {
     bun: '1.2.20',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
-  },
   'esnext.weak-set.add-all': {
   },
   'esnext.weak-set.delete-all': {
