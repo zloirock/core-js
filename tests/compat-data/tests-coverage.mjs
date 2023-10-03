@@ -31,7 +31,6 @@ const ignore = new Set([
   'esnext.reflect.has-metadata',
   'esnext.reflect.has-own-metadata',
   'esnext.reflect.metadata',
-  'esnext.set.intersection',
   'esnext.set.is-disjoint-from',
   'esnext.set.is-subset-of',
   'esnext.set.is-superset-of',
