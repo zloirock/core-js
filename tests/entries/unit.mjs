@@ -1009,7 +1009,6 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
 }
 
 for (const NS of ['full', 'features']) {
-  load(NS, 'typed-array/from-async');
   load(NS, 'typed-array/from-base64');
   load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/filter-reject');
