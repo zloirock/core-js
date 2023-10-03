@@ -71,7 +71,6 @@ if (!process.exitCode) await bundle(DENO ? {
   options: {
     targets: { deno: '1.0' },
     exclude: [
-      'esnext.map.upsert',             // obsolete
       'esnext.weak-map.upsert',        // obsolete
     ],
   },
