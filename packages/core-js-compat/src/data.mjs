@@ -2178,9 +2178,6 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-subset-of': {
-  },
   'esnext.set.is-superset-of.v2': {
     // v8 do not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
