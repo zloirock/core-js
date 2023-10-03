@@ -20,7 +20,6 @@ const ignore = new Set([
   'esnext.map.update-or-insert',
   'esnext.map.upsert',
   'esnext.math.clamp',
-  'esnext.number.range',
   'esnext.observable',
   'esnext.observable.constructor',
   'esnext.observable.from',
