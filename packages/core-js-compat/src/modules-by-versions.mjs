@@ -97,7 +97,6 @@ export default {
     'es.number.to-exponential',
     'esnext.function.is-callable',
     'esnext.function.is-constructor',
-    'esnext.function.un-this',
     'esnext.iterator.to-async',
     'esnext.string.cooked',
     'web.dom-exception.constructor',
