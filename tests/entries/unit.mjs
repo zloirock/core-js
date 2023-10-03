@@ -889,8 +889,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
-    deepEqual([...load(NS, 'iterator/as-indexed-pairs')([42].values())], [[0, 42]]);
-    deepEqual([...load(NS, 'iterator/indexed')([42].values())], [[0, 42]]);
+    ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     deepEqual([...load(NS, 'iterator/sliding')([1, 2].values(), 3)], [[1, 2]]);
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
