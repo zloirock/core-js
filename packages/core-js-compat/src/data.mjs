@@ -1957,9 +1957,6 @@ export const data = {
   },
   'esnext.async-iterator.constructor': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.async-iterator.as-indexed-pairs': {
-  },
   'esnext.async-iterator.async-dispose': {
   },
   'esnext.async-iterator.drop': {
