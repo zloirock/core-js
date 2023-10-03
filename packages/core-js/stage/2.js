@@ -12,7 +12,6 @@ require('../proposals/symbol-predicates-v2');
 require('../proposals/async-explicit-resource-management');
 require('../proposals/decorators');
 require('../proposals/decorator-metadata');
-require('../proposals/iterator-helpers');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/math-clamp-v2');
 require('../proposals/set-methods');
