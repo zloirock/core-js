@@ -1,4 +1,4 @@
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#difference', assert => {
   const { difference } = Set.prototype;
@@ -17,11 +17,6 @@ QUnit.test('Set#difference', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).difference(new Set([3, 4]))), [1, 2]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference(createSetLike([4, 5]))), [1, 2, 3]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference(createSetLike([3, 4]))), [1, 2]);
-
-  // TODO: drop from core-js@4
-  assert.deepEqual(from(new Set([1, 2, 3]).difference([4, 5])), [1, 2, 3]);
-  assert.deepEqual(from(new Set([1, 2, 3]).difference([3, 4])), [1, 2]);
-  assert.deepEqual(from(new Set([1, 2, 3]).difference(createIterable([3, 4]))), [1, 2]);
 
   assert.same(new Set([42, 43]).difference({
     size: Infinity,
