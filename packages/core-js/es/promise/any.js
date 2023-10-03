@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.aggregate-error');
+require('../../modules/es.aggregate-error.constructor');
 require('../../modules/es.array.iterator');
 require('../../modules/es.object.to-string');
 require('../../modules/es.promise');
