@@ -7,7 +7,5 @@ require('../../modules/esnext.weak-map.emplace');
 require('../../modules/esnext.weak-map.get-or-insert');
 require('../../modules/esnext.weak-map.get-or-insert-computed');
 require('../../modules/esnext.weak-map.delete-all');
-// TODO: remove from `core-js@4`
-require('../../modules/esnext.weak-map.upsert');
 
 module.exports = parent;
