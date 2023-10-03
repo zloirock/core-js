@@ -21,7 +21,5 @@ require('../../modules/esnext.map.some');
 require('../../modules/esnext.map.update');
 // TODO: remove from `core-js@4`
 require('../../modules/esnext.map.upsert');
-// TODO: remove from `core-js@4`
-require('../../modules/esnext.map.update-or-insert');
 
 module.exports = parent;
