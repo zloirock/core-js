@@ -732,7 +732,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
@@ -873,7 +872,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
   load('proposals/global-this');
-  load('proposals/iterator-helpers');
   load('proposals/iterator-helpers-stage-3');
   load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
