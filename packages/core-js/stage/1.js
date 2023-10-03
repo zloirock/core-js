@@ -18,7 +18,6 @@ require('../proposals/string-cooked');
 require('../proposals/array-from-async');
 require('../proposals/map-upsert');
 require('../proposals/math-clamp');
-require('../proposals/number-range');
 require('../proposals/pattern-matching');
 require('../proposals/string-replace-all');
 
