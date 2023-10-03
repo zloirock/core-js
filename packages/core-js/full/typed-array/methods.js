@@ -2,7 +2,6 @@
 var parent = require('../../actual/typed-array/methods');
 require('../../modules/es.map');
 require('../../modules/es.promise');
-require('../../modules/esnext.typed-array.from-async');
 require('../../modules/esnext.typed-array.filter-reject');
 require('../../modules/esnext.typed-array.unique-by');
 

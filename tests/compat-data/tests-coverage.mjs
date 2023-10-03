@@ -54,7 +54,6 @@ const ignore = new Set([
   'esnext.symbol.metadata-key',
   'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
-  'esnext.typed-array.from-async',
   'esnext.weak-map.emplace',
   'esnext.weak-map.upsert',
   'web.url-search-params',
