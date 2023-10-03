@@ -1499,7 +1499,7 @@ map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ```
 #### Set[⬆](#index)
-Module [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js).
+Module [`es.set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.constructor.js).
 ```js
 class Set {
   constructor(iterable?: Iterable<value>): Set;
