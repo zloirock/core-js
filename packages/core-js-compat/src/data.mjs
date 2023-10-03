@@ -2781,9 +2781,6 @@ export const data = {
   'esnext.symbol.dispose': null,
   'esnext.symbol.is-registered-symbol': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.is-registered': {
-  },
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
   'esnext.symbol.is-well-known-symbol': {
   },
