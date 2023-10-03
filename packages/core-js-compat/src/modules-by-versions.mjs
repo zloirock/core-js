@@ -91,7 +91,6 @@ export default {
   ],
   3.18: [
     'esnext.array.from-async',
-    'esnext.typed-array.from-async',
   ],
   '3.20': [
     'es.error.cause',
