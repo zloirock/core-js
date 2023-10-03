@@ -5,7 +5,6 @@ require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
 require('../../modules/esnext.set.delete-all');
 require('../../modules/esnext.set.every');
-require('../../modules/esnext.set.difference');
 require('../../modules/esnext.set.filter');
 require('../../modules/esnext.set.find');
 require('../../modules/esnext.set.intersection');
