@@ -1725,8 +1725,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '10.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.set': null,
   'es.set.constructor': {
     chrome: '51',
     edge: '15',
@@ -3068,7 +3066,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
   ['esnext.array.from-async', 'es.array.from-async'],
@@ -3138,7 +3135,6 @@ export const dataWithIgnored = { ...data };
 
 export const ignored = [
   // TODO: Clean in `core-js@4`
-  'es.set.constructor',
   'es.string.trim-left',
   'es.string.trim-right',
   'es.symbol.constructor',
