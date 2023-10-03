@@ -2738,9 +2738,6 @@ export const data = {
     firefox: '144',
     safari: '26.2',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.upsert': {
-  },
   'esnext.weak-set.add-all': {
   },
   'esnext.weak-set.delete-all': {

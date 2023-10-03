@@ -800,7 +800,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
-    ok(load(NS, 'weak-map/upsert')(new WeakMap(), {}, null, () => 42) === 42);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
     ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
     ok(load(NS, 'weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
@@ -878,7 +877,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
-  load('proposals/map-upsert');
   load('proposals/map-upsert-stage-2');
   load('proposals/map-upsert-v4');
   load('proposals/math-clamp');
