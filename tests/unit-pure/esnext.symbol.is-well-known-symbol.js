@@ -8,8 +8,8 @@ QUnit.test('Symbol.isWellKnownSymbol', assert => {
 
   assert.true(isWellKnownSymbol(Symbol.iterator), 'registered-1');
   assert.true(isWellKnownSymbol(Object(Symbol.iterator)), 'registered-2, boxed');
-  assert.true(isWellKnownSymbol(Symbol.patternMatch), 'registered-3');
-  assert.true(isWellKnownSymbol(Object(Symbol.patternMatch)), 'registered-4, boxed');
+  assert.true(isWellKnownSymbol(Symbol.matcher), 'registered-3');
+  assert.true(isWellKnownSymbol(Object(Symbol.matcher)), 'registered-4, boxed');
   const symbol = Symbol('Symbol.isWellKnownSymbol test');
   assert.false(isWellKnownSymbol(symbol), 'non-registered');
   assert.false(isWellKnownSymbol(Object(symbol)), 'non-registered, boxed');
