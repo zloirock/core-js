@@ -2103,9 +2103,6 @@ export const data = {
     deno: '1.37',
     firefox: '131',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.as-indexed-pairs': {
-  },
   'esnext.iterator.dispose': {
   },
   'esnext.iterator.drop': {
