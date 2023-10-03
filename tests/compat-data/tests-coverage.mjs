@@ -16,7 +16,6 @@ const ignore = new Set([
   'es.set',
   'es.weak-map',
   'es.weak-set',
-  'esnext.bigint.range',
   'esnext.iterator.sliding',
   'esnext.map.emplace',
   'esnext.map.update-or-insert',
