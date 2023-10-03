@@ -696,8 +696,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
-    ok(typeof load(NS, 'array/group-to-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/every') == 'function');
@@ -716,12 +714,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
     ok(load(NS, 'symbol/metadata'));
-
-    const instanceGroupToMap = load(NS, 'instance/group-to-map');
-    ok(typeof instanceGroupToMap == 'function');
-    ok(instanceGroupToMap({}) === undefined);
-    ok(typeof instanceGroupToMap([]) == 'function');
-    ok(instanceGroupToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
   }
 
   for (const NS of ['full', 'features']) {
@@ -887,7 +879,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-from-async');
   load('proposals/array-from-async-stage-2');
   load('proposals/array-grouping');
-  load('proposals/array-grouping-stage-3-2');
   load('proposals/array-grouping-v2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
