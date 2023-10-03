@@ -17,7 +17,6 @@ require('../proposals/string-cooked');
 // TODO: Obsolete versions, remove from `core-js@4`:
 require('../proposals/array-from-async');
 require('../proposals/map-upsert');
-require('../proposals/number-range');
 require('../proposals/string-replace-all');
 
 module.exports = parent;
