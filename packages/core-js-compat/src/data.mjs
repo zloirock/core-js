@@ -2270,9 +2270,6 @@ export const data = {
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
   'esnext.symbol.is-well-known-symbol': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.is-well-known': {
-  },
   'esnext.symbol.matcher': {
   },
   'esnext.symbol.metadata': {
