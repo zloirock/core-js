@@ -2469,9 +2469,6 @@ export const data = {
   'esnext.symbol.observable': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.symbol.pattern-match': {
-  },
-  // TODO: Remove from `core-js@4`
   'esnext.symbol.replace-all': {
   },
   'esnext.typed-array.filter-reject': {
