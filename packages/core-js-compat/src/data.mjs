@@ -2470,9 +2470,6 @@ export const data = {
   'esnext.suppressed-error.constructor': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.from-async': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.filter-out': {
-  },
   'esnext.array.filter-reject': {
   },
   'esnext.array.is-template-object': {
