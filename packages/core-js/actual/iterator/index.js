@@ -1,6 +1,9 @@
 'use strict';
 var parent = require('../../stable/iterator');
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
+require('../../modules/es.promise.resolve');
 require('../../modules/esnext.iterator.constructor');
 require('../../modules/esnext.iterator.concat');
 require('../../modules/esnext.iterator.dispose');
