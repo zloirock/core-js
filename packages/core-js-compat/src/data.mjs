@@ -2415,8 +2415,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '1.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'web.url': null,
   'web.url.constructor': {
     bun: '0.1.1',
     chrome: '67',
@@ -2480,7 +2478,6 @@ export const renamed = new Map([
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
 
@@ -2509,7 +2506,6 @@ export const ignored = [
   'web.set-immediate',
   'web.set-interval',
   'web.set-timeout',
-  'web.url.constructor',
   'web.url-search-params.constructor',
 ];
 
