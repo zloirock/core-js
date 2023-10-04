@@ -6,4 +6,4 @@ require('../modules/es.set.is-disjoint-from');
 require('../modules/es.set.is-subset-of');
 require('../modules/es.set.is-superset-of');
 require('../modules/es.set.symmetric-difference');
-require('../modules/esnext.set.union.v2');
+require('../modules/es.set.union');

@@ -1512,7 +1512,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.union.v2': {
+  'es.set.union': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
@@ -2377,8 +2377,6 @@ export const data = {
   },
   'esnext.set.some': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.union.v2': null,
   'esnext.string.cooked': {
   },
   'esnext.string.code-points': {
@@ -2724,7 +2722,6 @@ export const renamed = new Map([
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['esnext.set.union.v2', 'es.set.union.v2'],
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
