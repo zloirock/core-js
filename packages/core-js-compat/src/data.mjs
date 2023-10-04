@@ -2126,7 +2126,7 @@ export const data = {
   },
   'esnext.set.delete-all': {
   },
-  'esnext.set.difference.v2': {
+  'esnext.set.difference': {
     // v8 do not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     // chrome: '122',
