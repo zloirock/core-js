@@ -22,16 +22,6 @@ export type Target =
   | 'rhino'
   | 'safari'
   | 'samsung'
-  | 'yandex-android'
-  /** `quest` alias */
-  | 'oculus'
-  /** `react-native` alias */
-  | 'react'
-  /** `react-native` alias */
-  | 'reactnative'
-  /** @deprecated use `opera-android` instead */
-  | 'opera_mobile'
-  /** `yandex-android` alias */
-  | 'ya_android';
+  | 'yandex-android';
 
 export type TargetVersion = string;
