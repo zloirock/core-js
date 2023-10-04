@@ -1204,7 +1204,7 @@ GLOBAL.tests = {
   'es.set.is-disjoint-from': createSetMethodTest('isDisjointFrom'),
   'es.set.is-subset-of': createSetMethodTest('isSubsetOf'),
   'es.set.is-superset-of': createSetMethodTest('isSupersetOf'),
-  'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'es.set.symmetric-difference': createSetMethodTest('symmetricDifference'),
   'es.set.union.v2': createSetMethodTest('union'),
   'es.string.at': function () {
     return '𠮷'.at(-2) === '\uD842';
