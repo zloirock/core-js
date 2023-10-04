@@ -22,6 +22,7 @@ require('../../modules/es.string.substr');
 require('../../modules/es.string.to-well-formed');
 require('../../modules/es.string.trim');
 require('../../modules/es.string.trim-end');
+require('../../modules/es.string.trim-left');
 require('../../modules/es.string.trim-right');
 require('../../modules/es.string.trim-start');
 require('../../modules/es.string.iterator');
