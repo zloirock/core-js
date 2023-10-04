@@ -1368,7 +1368,7 @@ GLOBAL.tests = {
   }), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
-  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom', function (result) {
+  'es.set.is-disjoint-from': createSetMethodTest('isDisjointFrom', function (result) {
     return !result;
   }),
   'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf', function (result) {
