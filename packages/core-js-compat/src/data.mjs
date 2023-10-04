@@ -2639,9 +2639,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.group-by': null,
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'esnext.observable': {
-  },
   'esnext.observable.constructor': {
   },
   'esnext.observable.from': {
@@ -3036,9 +3033,6 @@ export const ignored = [
   'es.promise.race',
   'es.promise.reject',
   'es.promise.resolve',
-  'esnext.observable.constructor',
-  'esnext.observable.from',
-  'esnext.observable.of',
 ];
 
 for (const ignore of ignored) delete data[ignore];
