@@ -7,6 +7,8 @@ require('../../modules/es.set.intersection');
 require('../../modules/es.set.is-disjoint-from');
 require('../../modules/es.set.is-subset-of');
 require('../../modules/es.set.is-superset-of');
+require('../../modules/es.set.symmetric-difference');
+require('../../modules/es.set.union');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
 require('../../modules/esnext.set.delete-all');
