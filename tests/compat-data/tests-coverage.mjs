@@ -27,7 +27,6 @@ const ignore = new Set([
   'esnext.reflect.metadata',
   'esnext.symbol.matcher',
   'esnext.weak-map.emplace',
-  'web.url-search-params',
 ]);
 
 const missed = modules.filter(it => !(tested.has(it) || tested.has(it.replace(/^esnext\./, 'es.')) || ignore.has(it)));
