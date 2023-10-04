@@ -1,7 +1,7 @@
 'use strict';
 require('../../modules/es.array.iterator');
 require('../../modules/es.string.iterator');
-require('../../modules/es.weak-set');
+require('../../modules/es.weak-set.constructor');
 require('../../modules/esnext.weak-set.from');
 require('../../modules/web.dom-collections.iterator');
 var call = require('../../internals/function-call');

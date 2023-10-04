@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es.array.iterator');
-require('../../modules/es.weak-set');
+require('../../modules/es.weak-set.constructor');
 require('../../modules/esnext.weak-set.of');
 var path = require('../../internals/path');
 var apply = require('../../internals/function-apply');
