@@ -1,13 +1,4 @@
 export const data = {
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.symbol': {
-    chrome: '49',
-    edge: '15',
-    firefox: '51',
-    hermes: '0.1',
-    rhino: '1.7.15',
-    safari: '10.0',
-  },
   'es.symbol.constructor': {
     chrome: '41',
     edge: '13',
@@ -2950,10 +2941,6 @@ export const dataWithIgnored = { ...data };
 
 export const ignored = [
   // TODO: Clean in `core-js@4`
-  'es.symbol.constructor',
-  'es.symbol.for',
-  'es.symbol.key-for',
-  'es.object.get-own-property-symbols',
   'es.promise.constructor',
   'es.promise.all',
   'es.promise.catch',
