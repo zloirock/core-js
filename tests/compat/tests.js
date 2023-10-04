@@ -1341,7 +1341,7 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
+  'es.set.difference': [createSetMethodTest('difference', function (result) {
     return result.size === 0;
   }), function () {
     // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
