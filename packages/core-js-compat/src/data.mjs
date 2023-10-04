@@ -1452,7 +1452,7 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'es.set.difference.v2': {
+  'es.set.difference': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
@@ -2346,8 +2346,6 @@ export const data = {
   },
   'esnext.set.delete-all': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.difference.v2': null,
   'esnext.set.every': {
   },
   'esnext.set.filter': {
@@ -2723,7 +2721,6 @@ export const renamed = new Map([
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['esnext.set.difference.v2', 'es.set.difference.v2'],
   ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
   ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
   ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
