@@ -9,7 +9,6 @@ const modulesSet = new Set([
 const tested = new Set(Object.keys(globalThis.tests));
 
 const ignore = new Set([
-  'es.weak-set',
   'esnext.iterator.sliding',
   'esnext.map.emplace',
   'esnext.math.clamp',
