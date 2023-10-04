@@ -3580,7 +3580,7 @@ atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
 ```
 
 #### `setTimeout` and `setInterval`[⬆](#index)
-Module [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+Modules [`web.set-timeout`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-timeout.js) and [`web.set-interval`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-interval.js). Additional arguments fix for IE9-.
 ```ts
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
