@@ -2470,8 +2470,6 @@ export const data = {
     node: '10.0',
     safari: '14.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'web.url-search-params': null,
   'web.url-search-params.constructor': {
     bun: '0.1.1',
     chrome: '67',
@@ -2512,7 +2510,6 @@ export const renamed = new Map([
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
@@ -2540,7 +2537,6 @@ export const ignored = [
   'web.set-immediate',
   'web.set-interval',
   'web.set-timeout',
-  'web.url-search-params.constructor',
 ];
 
 for (const ignore of ignored) delete data[ignore];
