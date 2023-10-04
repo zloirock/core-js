@@ -1395,7 +1395,7 @@ GLOBAL.tests = {
 
     return baseSet.difference(setLike).size === 3;
   }],
-  'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
+  'es.set.intersection': [createSetMethodTest('intersection', function (result) {
     return result.size === 2 && result.has(1) && result.has(2);
   }), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
