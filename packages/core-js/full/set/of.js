@@ -7,6 +7,7 @@ require('../../modules/es.set.intersection');
 require('../../modules/es.set.is-disjoint-from');
 require('../../modules/es.set.is-subset-of');
 require('../../modules/es.set.is-superset-of');
+require('../../modules/es.set.symmetric-difference');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
 require('../../modules/esnext.set.delete-all');
@@ -17,7 +18,6 @@ require('../../modules/esnext.set.join');
 require('../../modules/esnext.set.map');
 require('../../modules/esnext.set.reduce');
 require('../../modules/esnext.set.some');
-require('../../modules/esnext.set.symmetric-difference.v2');
 require('../../modules/esnext.set.union.v2');
 var path = require('../../internals/path');
 
