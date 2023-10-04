@@ -2214,7 +2214,7 @@ export const data = {
   },
   'esnext.set.some': {
   },
-  'esnext.set.symmetric-difference.v2': {
+  'esnext.set.symmetric-difference': {
     // v8 ~ Chrome 122 do not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
