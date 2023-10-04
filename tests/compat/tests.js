@@ -1756,7 +1756,7 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference.v2': createSetMethodTest('difference'),
+  'esnext.set.difference': createSetMethodTest('difference'),
   'esnext.set.every': function () {
     return Set.prototype.every;
   },
