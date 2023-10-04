@@ -1712,7 +1712,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=288595
     safari: '26.0', // '18.0', // '17.0',
   },
-  'es.set.intersection.v2': {
+  'es.set.intersection': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
@@ -2695,8 +2695,6 @@ export const data = {
   'esnext.set.from': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.set.intersection.v2': null,
-  // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of.v2': null,
@@ -3043,7 +3041,6 @@ export const renamed = new Map([
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.regexp.escape', 'es.regexp.escape'],
-  ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
   ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
   ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
   ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
