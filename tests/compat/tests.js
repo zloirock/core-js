@@ -1774,7 +1774,7 @@ GLOBAL.tests = {
   }],
   'esnext.set.is-disjoint-from': createSetMethodTest('isDisjointFrom'),
   'esnext.set.is-subset-of': createSetMethodTest('isSubsetOf'),
-  'esnext.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
+  'esnext.set.is-superset-of': createSetMethodTest('isSupersetOf'),
   'esnext.set.join': function () {
     return Set.prototype.join;
   },
