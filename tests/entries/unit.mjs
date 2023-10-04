@@ -767,6 +767,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok('from' in load(NS, 'observable'));
+    ok(typeof load(NS, 'observable/constructor') == 'function');
+    ok(typeof load(NS, 'observable/from') == 'function');
+    ok(typeof load(NS, 'observable/of') == 'function');
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
     ok(typeof load(NS, 'reflect/get-metadata') == 'function');
