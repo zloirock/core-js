@@ -2,10 +2,10 @@
 require('../../modules/es.object.to-string');
 require('../../modules/es.array.iterator');
 require('../../modules/es.set.constructor');
+require('../../modules/es.set.difference');
 require('../../modules/esnext.set.of');
 require('../../modules/esnext.set.add-all');
 require('../../modules/esnext.set.delete-all');
-require('../../modules/esnext.set.difference.v2');
 require('../../modules/esnext.set.every');
 require('../../modules/esnext.set.filter');
 require('../../modules/esnext.set.find');
