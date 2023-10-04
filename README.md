@@ -2762,7 +2762,7 @@ console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72,
 core-js(-pure)/stage/1
 ```
 ##### [`Observable`](https://github.com/zenparsing/es-observable)[⬆](#index)
-Modules [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
+Modules [`esnext.observable.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.constructor.js), [`esnext.observable.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.from.js), [`esnext.observable.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.of.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 ```js
 class Observable {
   constructor(subscriber: Function): Observable;
