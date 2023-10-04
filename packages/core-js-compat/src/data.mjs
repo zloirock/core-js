@@ -2142,7 +2142,7 @@ export const data = {
   },
   'esnext.set.from': {
   },
-  'esnext.set.intersection.v2': {
+  'esnext.set.intersection': {
     // v8 do not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     // chrome: '122',
