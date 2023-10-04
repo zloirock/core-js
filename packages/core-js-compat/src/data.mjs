@@ -1692,7 +1692,7 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'es.set.difference.v2': {
+  'es.set.difference': {
     // Bun 1.2.4 has a bug when `this` is updated while Set.prototype.difference is being executed
     // https://bugs.webkit.org/show_bug.cgi?id=288595
     bun: '1.2.5', // '1.1.1',
@@ -2684,8 +2684,6 @@ export const data = {
   },
   'esnext.set.delete-all': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.difference.v2': null,
   'esnext.set.every': {
   },
   'esnext.set.filter': {
@@ -3043,7 +3041,6 @@ export const renamed = new Map([
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.regexp.escape', 'es.regexp.escape'],
-  ['esnext.set.difference.v2', 'es.set.difference.v2'],
   ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
   ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
   ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
