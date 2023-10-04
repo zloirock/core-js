@@ -1769,7 +1769,7 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
+  'esnext.set.intersection': [createSetMethodTest('intersection'), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
   'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
