@@ -2333,13 +2333,6 @@ export const data = {
     node: '17.0',
     safari: '11.1',
   },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.immediate': {
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.7',
-    ie: '10',
-    node: '0.9.1',
-  },
   'web.queue-microtask': {
     bun: '0.1.1',
     chrome: '71',
@@ -2484,8 +2477,6 @@ export const ignored = [
   'esnext.observable.constructor',
   'esnext.observable.from',
   'esnext.observable.of',
-  'web.clear-immediate',
-  'web.set-immediate',
 ];
 
 for (const ignore of ignored) delete data[ignore];
