@@ -1145,7 +1145,7 @@ GLOBAL.tests = {
   'es.set.intersection': [createSetMethodTest('intersection'), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
-  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
+  'es.set.is-disjoint-from': createSetMethodTest('isDisjointFrom'),
   'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
   'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
   'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),

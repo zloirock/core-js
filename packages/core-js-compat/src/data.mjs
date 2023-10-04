@@ -1377,7 +1377,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.is-disjoint-from.v2': {
+  'es.set.is-disjoint-from': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
@@ -2274,8 +2274,6 @@ export const data = {
   'esnext.set.from': {
   },
   // TODO: Remove from `core-js@4`
-  'esnext.set.is-disjoint-from.v2': null,
-  // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of.v2': null,
@@ -2604,7 +2602,6 @@ export const renamed = new Map([
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
-  ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
   ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
   ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
   ['esnext.set.symmetric-difference.v2', 'es.set.symmetric-difference.v2'],
