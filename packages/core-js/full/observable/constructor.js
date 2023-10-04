@@ -1,7 +1,5 @@
 'use strict';
 require('../../modules/esnext.observable.constructor');
-require('../../modules/esnext.observable.from');
-require('../../modules/esnext.observable.of');
 require('../../modules/esnext.symbol.observable');
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
