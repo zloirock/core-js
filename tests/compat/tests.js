@@ -357,18 +357,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
 }
 
 GLOBAL.tests = {
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.symbol': [SYMBOLS_SUPPORT, function () {
-    var symbol = Symbol('stringify detection');
-    return Object.getOwnPropertySymbols('qwe')
-      && Symbol['for']
-      && Symbol.keyFor
-      && JSON.stringify([symbol]) === '[null]'
-      && JSON.stringify({ a: symbol }) === '{}'
-      && JSON.stringify(Object(symbol)) === '{}'
-      && Symbol.prototype[Symbol.toPrimitive]
-      && Symbol.prototype[Symbol.toStringTag];
-  }],
   'es.symbol.constructor': SYMBOLS_SUPPORT,
   'es.symbol.description': function () {
     // eslint-disable-next-line symbol-description -- required for testing
