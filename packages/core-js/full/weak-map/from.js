@@ -2,7 +2,7 @@
 require('../../modules/es.object.to-string');
 require('../../modules/es.array.iterator');
 require('../../modules/es.string.iterator');
-require('../../modules/es.weak-map');
+require('../../modules/es.weak-map.constructor');
 require('../../modules/es.weak-map.get-or-insert');
 require('../../modules/es.weak-map.get-or-insert-computed');
 require('../../modules/esnext.weak-map.from');
