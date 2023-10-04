@@ -5,7 +5,7 @@ require('../../modules/es.set.constructor');
 require('../../modules/es.set.difference');
 require('../../modules/es.set.intersection');
 require('../../modules/es.set.is-disjoint-from');
-require('../../modules/es.set.is-subset-of.v2');
+require('../../modules/es.set.is-subset-of');
 require('../../modules/es.set.is-superset-of.v2');
 require('../../modules/es.set.symmetric-difference.v2');
 require('../../modules/es.set.union.v2');
