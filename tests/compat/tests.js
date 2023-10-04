@@ -1141,7 +1141,7 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': createSetMethodTest('difference'),
+  'es.set.difference': createSetMethodTest('difference'),
   'es.set.intersection.v2': [createSetMethodTest('intersection'), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
