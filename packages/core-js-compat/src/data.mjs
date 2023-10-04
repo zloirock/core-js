@@ -3022,7 +3022,6 @@ export const dataWithIgnored = { ...data };
 
 export const ignored = [
   // TODO: Clean in `core-js@4`
-  'es.string.trim-left',
   'es.symbol.constructor',
   'es.symbol.for',
   'es.symbol.key-for',
