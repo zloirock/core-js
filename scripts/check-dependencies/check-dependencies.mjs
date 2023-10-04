@@ -1,8 +1,4 @@
 const ignore = {
-  root: [
-    // https://github.com/bcomnes/npm-run-all2/issues/121
-    'npm-run-all2',
-  ],
   'core-js-builder': [
     'mkdirp',
     'webpack',
