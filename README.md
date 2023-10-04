@@ -3787,7 +3787,7 @@ atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
 ```
 
 #### `setTimeout` and `setInterval`[⬆](#index)
-[Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers), module [`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+[Spec](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#timers), modules [`web.set-timeout`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-timeout.js) and [`web.set-interval`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-interval.js). Additional arguments fix for IE9-.
 ```ts
 function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
 function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
