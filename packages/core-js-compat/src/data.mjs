@@ -1796,7 +1796,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.is-superset-of.v2': {
+  'es.set.is-superset-of': {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://issues.chromium.org/issues/42204504
@@ -1810,7 +1810,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     safari: '18.0', // '17.0',
   },
-  'es.set.symmetric-difference.v2': {
+  'es.set.symmetric-difference': {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
@@ -1824,7 +1824,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     safari: '26.0', // '18.0', // '17.0',
   },
-  'es.set.union.v2': {
+  'es.set.union': {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     bun: '1.2.5', // '1.1.1',
@@ -2753,8 +2753,6 @@ export const data = {
   },
   'esnext.set.from': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.is-superset-of.v2': null,
   'esnext.set.join': {
   },
   'esnext.set.map': {
@@ -2765,10 +2763,6 @@ export const data = {
   },
   'esnext.set.some': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.set.symmetric-difference.v2': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.set.union.v2': null,
   'esnext.string.cooked': {
   },
   'esnext.string.code-points': {
@@ -3113,9 +3107,6 @@ export const renamed = new Map([
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.regexp.escape', 'es.regexp.escape'],
-  ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
-  ['esnext.set.symmetric-difference.v2', 'es.set.symmetric-difference.v2'],
-  ['esnext.set.union.v2', 'es.set.union.v2'],
   ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
   ['esnext.symbol.dispose', 'es.symbol.dispose'],
