@@ -10,7 +10,6 @@ const aliases = new Map([
   ['ios_saf', 'ios'],
   ['oculus', 'quest'],
   ['op_mob', 'opera-android'],
-  // TODO: Remove from `core-js@4`
   ['opera_mobile', 'opera-android'],
   ['react', 'react-native'],
   ['reactnative', 'react-native'],
