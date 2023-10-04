@@ -1393,8 +1393,7 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.promise': {
+  'es.promise.constructor': {
     // V8 6.6 has a serious bug
     chrome: '67', // '51',
     // `unhandledrejection` event support was added in Deno@1.24
@@ -1403,9 +1402,36 @@ export const data = {
     rhino: '1.7.14',
     safari: '11.0',
   },
-  'es.promise.constructor': {
+  'es.promise.catch': {
+    chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.finally': {
     // V8 6.6 has a serious bug
-    chrome: '67', // '51',
+    chrome: '67', // '63',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
+    firefox: '69',
+    // Previous versions are non-generic
+    // https://bugs.webkit.org/show_bug.cgi?id=200788
+    ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
+    rhino: '1.7.14',
+    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
+  },
+  'es.promise.reject': {
+    chrome: '67',
+    // `unhandledrejection` event support was added in Deno@1.24
+    deno: '1.24',
+    firefox: '69',
+    rhino: '1.7.14',
+    safari: '11.0',
+  },
+  'es.promise.resolve': {
+    chrome: '67',
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '69',
@@ -1436,43 +1462,7 @@ export const data = {
     rhino: '1.8.0',
     safari: '14.0',
   },
-  'es.promise.catch': {
-    chrome: '67',
-    // `unhandledrejection` event support was added in Deno@1.24
-    deno: '1.24',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.finally': {
-    // V8 6.6 has a serious bug
-    chrome: '67', // '63',
-    // `unhandledrejection` event support was added in Deno@1.24
-    deno: '1.24',
-    firefox: '69',
-    // Previous versions are non-generic
-    // https://bugs.webkit.org/show_bug.cgi?id=200788
-    ios: '13.2.3', // need to clarify the patch release, >13.0.0 && <= 13.2.3
-    rhino: '1.7.14',
-    safari: '13.0.3', // need to clarify the patch release, >13.0.0 && <= 13.0.3
-  },
   'es.promise.race': {
-    chrome: '67',
-    // `unhandledrejection` event support was added in Deno@1.24
-    deno: '1.24',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.reject': {
-    chrome: '67',
-    // `unhandledrejection` event support was added in Deno@1.24
-    deno: '1.24',
-    firefox: '69',
-    rhino: '1.7.14',
-    safari: '11.0',
-  },
-  'es.promise.resolve': {
     chrome: '67',
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
@@ -3012,15 +3002,10 @@ for (const [old, nw] of renamed) data[old] = data[nw];
 export const dataWithIgnored = { ...data };
 
 export const ignored = [
-  // TODO: Clean in `core-js@4`
-  'es.promise.constructor',
-  'es.promise.all',
-  'es.promise.catch',
-  'es.promise.race',
-  'es.promise.reject',
-  'es.promise.resolve',
+  // empty
 ];
 
+// eslint-disable-next-line sonarjs/no-empty-collection -- safe
 for (const ignore of ignored) delete data[ignore];
 
 export const modules = Object.keys(data);
