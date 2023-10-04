@@ -1,6 +1,6 @@
 'use strict';
 require('../../modules/es.object.to-string');
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
 require('../../modules/es.promise.try');
 var apply = require('../../internals/function-apply');
 var isCallable = require('../../internals/is-callable');
