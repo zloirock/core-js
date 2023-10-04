@@ -1790,7 +1790,7 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'esnext.set.symmetric-difference': createSetMethodTest('symmetricDifference'),
   'esnext.set.union.v2': createSetMethodTest('union'),
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
