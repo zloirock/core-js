@@ -1887,7 +1887,7 @@ let person = new Person('Vasya');
 person.getName();            // => 'Vasya'
 ```
 ##### WeakSet[⬆](#index)
-Modules [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+Modules [`es.weak-set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.constructor.js).
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
