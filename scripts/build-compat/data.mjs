@@ -53,15 +53,7 @@ for (const scope of [data, external]) {
     } else {
       map('ChromeAndroidToOperaAndroid');
     }
-    // TODO: Remove from `core-js@4`
-    if (has(module, 'opera-android')) {
-      module.opera_mobile = module['opera-android'];
-    }
     map('ChromeAndroidToQuest');
-    // TODO: Remove from `core-js@4`
-    if (has(module, 'quest')) {
-      module.oculus = module.quest;
-    }
     map('ChromeAndroidToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
