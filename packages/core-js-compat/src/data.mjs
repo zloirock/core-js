@@ -2422,8 +2422,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '1',
   },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.weak-map': null,
   'es.weak-map.constructor': {
     chrome: '51',
     // adding frozen arrays to WeakMap unfreeze them
@@ -3016,7 +3014,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
   ['esnext.array.from-async', 'es.array.from-async'],
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
@@ -3091,7 +3088,6 @@ export const ignored = [
   'es.promise.race',
   'es.promise.reject',
   'es.promise.resolve',
-  'es.weak-map.constructor',
   'es.weak-set.constructor',
   'esnext.observable.constructor',
   'esnext.observable.from',
