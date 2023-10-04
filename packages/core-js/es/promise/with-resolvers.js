@@ -1,5 +1,8 @@
 'use strict';
-require('../../modules/es.promise');
+require('../../modules/es.object.to-string');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
 require('../../modules/es.promise.with-resolvers');
 var call = require('../../internals/function-call');
 var isCallable = require('../../internals/is-callable');
