@@ -1769,7 +1769,7 @@ console.log(person.getName());            // => 'Vasya'
 for (let key in person) console.log(key); // => only 'getName'
 ```
 #### WeakSet[⬆](#index)
-Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+Module [`es.weak-set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.constructor.js).
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
