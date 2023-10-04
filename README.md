@@ -187,7 +187,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
-      - [`URL`](#url)
     - [Pre-stage 0 proposals](#pre-stage-0-proposals)
       - [`Reflect` metadata](#reflect-metadata)
   - [Web standards](#web-standards)
@@ -3113,8 +3112,6 @@ Function.isConstructor(function () {}); // => true
 Function.isConstructor(() => {});       // => false
 Function.isConstructor(class {});       // => true
 ```
-##### [`URL`](https://github.com/jasnell/proposal-url)[⬆](#index)
-See more info [in web standards namespace](#url-and-urlsearchparams)
 
 #### Pre-stage 0 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
