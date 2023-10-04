@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.weak-map');
+require('../../modules/es.weak-map.constructor');
 require('../../modules/esnext.weak-map.emplace');
 var entryUnbind = require('../../internals/entry-unbind');
 
