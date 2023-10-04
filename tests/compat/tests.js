@@ -1484,7 +1484,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.set.is-disjoint-from': createSetMethodTest('isDisjointFrom', function (result) {
     return !result;
   }),
-  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf', function (result) {
+  'es.set.is-subset-of': createSetMethodTest('isSubsetOf', function (result) {
     return result;
   }),
   'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf', function (result) {
