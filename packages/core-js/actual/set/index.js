@@ -1,7 +1,7 @@
 'use strict';
 var parent = require('../../stable/set');
 require('../../modules/esnext.set.difference');
-require('../../modules/esnext.set.intersection.v2');
+require('../../modules/esnext.set.intersection');
 require('../../modules/esnext.set.is-disjoint-from.v2');
 require('../../modules/esnext.set.is-subset-of.v2');
 require('../../modules/esnext.set.is-superset-of.v2');
