@@ -12,7 +12,6 @@ const ignore = new Set([
   'esnext.iterator.sliding',
   'esnext.map.emplace',
   'esnext.math.clamp',
-  'esnext.observable',
   'esnext.observable.constructor',
   'esnext.observable.from',
   'esnext.observable.of',
