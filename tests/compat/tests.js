@@ -1143,9 +1143,14 @@ GLOBAL.tests = {
         && parseInt(WHITESPACES + '0x16') === 22;
     }
   },
-  // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-  'es.promise': PROMISES_SUPPORT,
   'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise.catch': PROMISES_SUPPORT,
+  'es.promise.finally': [PROMISES_SUPPORT, function () {
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
+  }],
+  'es.promise.reject': PROMISES_SUPPORT,
+  'es.promise.resolve': PROMISES_SUPPORT,
   'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.all;
   }],
@@ -1155,16 +1160,9 @@ GLOBAL.tests = {
   'es.promise.any': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.any;
   }],
-  'es.promise.catch': PROMISES_SUPPORT,
-  'es.promise.finally': [PROMISES_SUPPORT, function () {
-    // eslint-disable-next-line unicorn/no-thenable -- required for testing
-    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
-  }],
   'es.promise.race': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
     return Promise.race;
   }],
-  'es.promise.reject': PROMISES_SUPPORT,
-  'es.promise.resolve': PROMISES_SUPPORT,
   'es.promise.try': [PROMISES_SUPPORT, function () {
     var ACCEPT_ARGUMENTS = false;
     Promise['try'](function (argument) {
