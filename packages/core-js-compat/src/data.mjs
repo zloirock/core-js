@@ -2840,21 +2840,6 @@ export const data = {
     // firefox: '94',
     // node: '17.0',
   },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.timers': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
   'web.url.constructor': {
     bun: '0.1.1',
     chrome: '67',
@@ -2990,8 +2975,6 @@ export const ignored = [
   'esnext.observable.of',
   'web.clear-immediate',
   'web.set-immediate',
-  'web.set-interval',
-  'web.set-timeout',
 ];
 
 for (const ignore of ignored) delete data[ignore];
