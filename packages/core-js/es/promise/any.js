@@ -2,7 +2,10 @@
 require('../../modules/es.aggregate-error.constructor');
 require('../../modules/es.array.iterator');
 require('../../modules/es.object.to-string');
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
+require('../../modules/es.promise.resolve');
 require('../../modules/es.promise.any');
 require('../../modules/es.string.iterator');
 var call = require('../../internals/function-call');
