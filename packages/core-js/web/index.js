@@ -14,7 +14,7 @@ require('../modules/web.timers');
 require('../modules/web.url.constructor');
 require('../modules/web.url.can-parse');
 require('../modules/web.url.to-json');
-require('../modules/web.url-search-params');
+require('../modules/web.url-search-params.constructor');
 require('../modules/web.url-search-params.delete');
 require('../modules/web.url-search-params.has');
 require('../modules/web.url-search-params.size');
