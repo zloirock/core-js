@@ -2,6 +2,7 @@
 require('../../stable/async-iterator');
 require('../../modules/es.array.iterator');
 require('../../modules/es.string.iterator');
+require('../../modules/es.promise.reject');
 require('../../modules/esnext.async-iterator.constructor');
 require('../../modules/esnext.async-iterator.async-dispose');
 require('../../modules/esnext.async-iterator.drop');
