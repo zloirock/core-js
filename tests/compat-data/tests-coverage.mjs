@@ -10,7 +10,6 @@ const tested = new Set(Object.keys(globalThis.tests));
 
 const ignore = new Set([
   'esnext.map.emplace',
-  'esnext.observable',
   'esnext.observable.constructor',
   'esnext.observable.from',
   'esnext.observable.of',
