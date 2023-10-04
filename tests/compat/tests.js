@@ -2335,8 +2335,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && checkErrorsCloning(structuredClone, DOMException)
       && checkNewErrorsCloningSemantic(structuredClone);
   },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.timers': TIMERS,
   'web.url.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url.can-parse': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     try {
