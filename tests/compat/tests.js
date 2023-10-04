@@ -1403,14 +1403,14 @@ GLOBAL.tests = {
   'es.set.is-subset-of': createSetMethodTest('isSubsetOf', function (result) {
     return result;
   }),
-  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf', function (result) {
+  'es.set.is-superset-of': createSetMethodTest('isSupersetOf', function (result) {
     return !result;
   }),
-  'es.set.symmetric-difference.v2': [
+  'es.set.symmetric-difference': [
     createSetMethodTest('symmetricDifference'),
     createSetMethodTestShouldGetKeysBeforeCloning('symmetricDifference')
   ],
-  'es.set.union.v2': [
+  'es.set.union': [
     createSetMethodTest('union'),
     createSetMethodTestShouldGetKeysBeforeCloning('union')
   ],
