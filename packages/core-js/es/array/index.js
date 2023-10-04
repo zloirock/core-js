@@ -40,7 +40,9 @@ require('../../modules/es.array.unshift');
 require('../../modules/es.array.with');
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
 var path = require('../../internals/path');
 
 module.exports = path.Array;
