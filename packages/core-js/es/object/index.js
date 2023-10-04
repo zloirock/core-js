@@ -1,5 +1,4 @@
 'use strict';
-require('../../modules/es.symbol');
 require('../../modules/es.array.iterator');
 require('../../modules/es.object.assign');
 require('../../modules/es.object.create');
@@ -11,6 +10,7 @@ require('../../modules/es.object.from-entries');
 require('../../modules/es.object.get-own-property-descriptor');
 require('../../modules/es.object.get-own-property-descriptors');
 require('../../modules/es.object.get-own-property-names');
+require('../../modules/es.object.get-own-property-symbols');
 require('../../modules/es.object.get-prototype-of');
 require('../../modules/es.object.group-by');
 require('../../modules/es.object.has-own');
