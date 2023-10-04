@@ -2301,8 +2301,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return typeof DOMException == 'function'
       && DOMException.prototype[Symbol.toStringTag] === 'DOMException';
   },
-  // TODO: Remove this module from `core-js@4` since it's split to submodules
-  'web.immediate': IMMEDIATE,
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value.length === 1;
   },
