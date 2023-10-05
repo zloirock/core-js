@@ -6,7 +6,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var getUint8 = uncurryThis(DataView.prototype.getUint8);
 
 // `DataView.prototype.getUint8Clamped` method
-// https://github.com/tc39/proposal-dataview-get-set-uint8c
+// https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 $({ target: 'DataView', proto: true, forced: true }, {
   getUint8Clamped: function getUint8Clamped(byteOffset) {
     return getUint8(this, byteOffset);

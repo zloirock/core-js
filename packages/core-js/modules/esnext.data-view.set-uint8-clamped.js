@@ -10,7 +10,7 @@ var $TypeError = TypeError;
 var setUint8 = uncurryThis(DataView.prototype.setUint8);
 
 // `DataView.prototype.setUint8Clamped` method
-// https://github.com/tc39/proposal-dataview-get-set-uint8c
+// https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 $({ target: 'DataView', proto: true, forced: true }, {
   setUint8Clamped: function setUint8Clamped(byteOffset, value) {
     if (classof(this) !== 'DataView') throw new $TypeError('Incorrect receiver');
