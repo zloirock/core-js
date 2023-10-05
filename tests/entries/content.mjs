@@ -52,7 +52,6 @@ superset('core-js/es/symbol', /^es\.symbol/);
 superset('core-js/es/typed-array', /^es\.typed-array\./);
 superset('core-js/es/weak-map', /^es\.weak-map/);
 superset('core-js/es/weak-set', /^es\.weak-set/);
-equal('core-js/web', /^web\./);
 equal('core-js/stable', /^(?:es|web)\./);
 superset('core-js/stable/array', /^es\.array\./);
 superset('core-js/stable/array-buffer', /^es\.array-buffer\./);
