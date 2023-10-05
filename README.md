@@ -2452,7 +2452,7 @@ class %TypedArray% {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/change-array-by-copy-stage-4
+core-js/proposals/change-array-by-copy
 core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
 core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
 core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
@@ -2484,7 +2484,7 @@ class Array {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/array-from-async-stage-2
+core-js/proposals/array-from-async
 ```
 
 ##### [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer)[⬆](#index)
@@ -2620,7 +2620,7 @@ class Iterator {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/iterator-helpers-stage-3-2
+core-js/proposals/iterator-helpers
 ```
 
 ##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
@@ -2824,7 +2824,7 @@ class String {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/string-replace-all-stage-4
+core-js/proposals/string-replace-all
 ```
 ##### [`String.prototype.trimStart` / `String.prototype.trimEnd`](https://github.com/tc39/proposal-string-left-right-trim)[⬆](#index)
 ```ts
@@ -3008,7 +3008,7 @@ class Set {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/set-methods-v2
+core-js/proposals/set-methods
 ```
 
 ##### [`Map` upsert](https://github.com/tc39/proposal-upsert)[⬆](#index)
@@ -3094,7 +3094,7 @@ class Function {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/decorator-metadata-v2
+core-js/proposals/decorator-metadata
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
 ```
@@ -3260,7 +3260,7 @@ class Symbol {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/symbol-predicates-v2
+core-js/proposals/symbol-predicates
 core-js(-pure)/full/symbol/is-registered-symbol
 core-js(-pure)/full/symbol/is-well-known-symbol
 ```
@@ -3488,7 +3488,7 @@ class %TypedArray% {
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/array-filtering-stage-1
+core-js/proposals/array-filtering
 core-js(-pure)/full/array(/virtual)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
