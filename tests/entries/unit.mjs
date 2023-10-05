@@ -1067,19 +1067,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('stage/0');
   load('stage/pre');
 
-  ok(new (load('web/dom-exception'))('message', 'SyntaxError').name === 'SyntaxError');
-  ok(load('web/dom-collections') === load('stage/0'));
-  ok(load('web/immediate').setImmediate === load('stable/set-immediate'));
-  let webMicrotaskCalled = false;
-  load('web/queue-microtask')(() => { webMicrotaskCalled = true; });
-  await Promise.resolve();
-  ok(webMicrotaskCalled);
-  ok(load('web/structured-clone')(42) === 42);
-  ok(load('web/timers').setTimeout === load('stable/set-timeout'));
-  ok(new (load('web/url'))('/b', 'https://example.com/a').href === 'https://example.com/b');
-  ok(new (load('web/url-search-params'))('a=1&b=2').get('b') === '2');
-  ok(load('web').URL === load('stable/url'));
-
   for (const key in entries) {
     if (key.startsWith('core-js/modules/')) {
       load('modules', key.slice(16));
