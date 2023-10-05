@@ -1,5 +1,5 @@
 'use strict';
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
 require('../../modules/esnext.promise.try');
 var call = require('../../internals/function-call');
 var isCallable = require('../../internals/is-callable');
