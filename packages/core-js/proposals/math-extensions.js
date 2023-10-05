@@ -1,6 +1,5 @@
 'use strict';
 // https://github.com/rwaldron/proposal-math-extensions
-require('../modules/esnext.math.clamp');
 require('../modules/esnext.math.deg-per-rad');
 require('../modules/esnext.math.degrees');
 require('../modules/esnext.math.fscale');
