@@ -2361,7 +2361,7 @@ embedded === '{"tooBigForNumber":9007199254740993}'; // true
 ```
 
 ##### [`Float16` methods](https://github.com/tc39/proposal-float16array)[⬆](#index)
-Modules [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js), [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js) and [`esnext.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.f16round.js)
+Modules [`esnext.data-view.get-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-float16.js), [`esnext.data-view.set-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-float16.js) and [`esnext.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.f16round.js)
 ```js
 class DataView {
   getFloat16(offset: any): number
