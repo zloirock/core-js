@@ -2594,9 +2594,6 @@ export const data = {
   },
   'esnext.map.update': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.math.clamp': {
-  },
   'esnext.math.deg-per-rad': {
   },
   'esnext.math.degrees': {
@@ -2697,9 +2694,6 @@ export const data = {
   },
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
   'esnext.symbol.is-well-known-symbol': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.matcher': {
   },
   'esnext.symbol.metadata': {
     deno: '1.40.4',

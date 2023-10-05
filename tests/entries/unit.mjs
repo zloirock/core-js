@@ -751,7 +751,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
-    ok(load(NS, 'math/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
     ok(load(NS, 'math/degrees')(Math.PI) === 180);
     ok(load(NS, 'math/fscale')(3, 1, 2, 1, 2) === 3);
@@ -799,7 +798,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'symbol/matcher'));
     ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
@@ -843,26 +841,22 @@ for (PATH of ['core-js-pure', 'core-js']) {
 
   load('proposals/accessible-object-hasownproperty');
   load('proposals/array-filtering');
-  load('proposals/array-filtering-stage-1');
   load('proposals/array-find-from-last');
   load('proposals/array-flat-map');
   load('proposals/array-from-async');
-  load('proposals/array-from-async-stage-2');
-  load('proposals/array-grouping-v2');
+  load('proposals/array-grouping');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
   load('proposals/array-unique');
   load('proposals/array-buffer-base64');
   load('proposals/array-buffer-transfer');
-  load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
-  load('proposals/change-array-by-copy-stage-4');
+  load('proposals/change-array-by-copy');
   load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
-  load('proposals/decorator-metadata-v2');
-  load('proposals/decorators');
+  load('proposals/decorator-metadata');
   load('proposals/error-cause');
   load('proposals/explicit-resource-management');
   load('proposals/extractors');
@@ -871,8 +865,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/function-is-callable-is-constructor');
   load('proposals/global-this');
   load('proposals/is-error');
-  load('proposals/iterator-helpers-stage-3');
-  load('proposals/iterator-helpers-stage-3-2');
+  load('proposals/iterator-helpers');
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
@@ -880,10 +873,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
-  load('proposals/map-upsert-stage-2');
-  load('proposals/map-upsert-v4');
+  load('proposals/map-emplace');
+  load('proposals/map-upsert');
   load('proposals/math-clamp');
-  load('proposals/math-clamp-v2');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/math-sum');
@@ -893,7 +885,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/object-values-entries');
   load('proposals/observable');
   load('proposals/pattern-matching');
-  load('proposals/pattern-matching-v2');
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
   load('proposals/promise-finally');
@@ -904,7 +895,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
-  load('proposals/set-methods-v2');
+  load('proposals/set-methods');
   load('proposals/string-cooked');
   load('proposals/string-code-points');
   load('proposals/string-dedent');
@@ -912,22 +903,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/string-match-all');
   load('proposals/string-padding');
   load('proposals/string-replace-all');
-  load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
-  load('proposals/symbol-predicates-v2');
-  load('proposals/using-statement');
+  load('proposals/symbol-predicates');
   load('proposals/well-formed-stringify');
   load('proposals/well-formed-unicode-strings');
-  load('proposals');
 
-  ok(load('stage/4'));
-  ok(load('stage/3'));
-  ok(load('stage/2.7'));
-  ok(load('stage/2'));
-  ok(load('stage/1'));
-  ok(load('stage/0'));
-  ok(load('stage/pre'));
-  ok(load('stage'));
+  load('stage/4');
+  load('stage/3');
+  load('stage/2.7');
+  load('stage/2');
+  load('stage/1');
+  load('stage/0');
+  load('stage/pre');
 
   ok(load('web/dom-exception'));
   ok(load('web/dom-collections'));
