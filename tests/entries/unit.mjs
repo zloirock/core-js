@@ -54,9 +54,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/virtual/bind').call(function (a, b) {
       return this + a + b;
     }, 1, 2)(3) === 6);
-    ok(load(NS, 'function/virtual').bind.call(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
     load(NS, 'function/name');
     load(NS, 'function/has-instance');
     load(NS, 'function');
@@ -133,7 +130,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
-    ok('map' in load(NS, 'array/virtual'));
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
@@ -179,7 +175,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'number/virtual/to-exponential').call(1, 1) === '1.0e+0');
     ok(load(NS, 'number/virtual/to-fixed').call(1, 1) === '1.0');
     ok(load(NS, 'number/virtual/to-precision').call(1) === '1');
-    ok('toPrecision' in load(NS, 'number/virtual'));
     ok('isNaN' in load(NS, 'number'));
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
@@ -265,7 +260,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'string/virtual/is-well-formed').call('a'));
     ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok('next' in load(NS, 'string/virtual/iterator').call('qwe'));
-    ok('padEnd' in load(NS, 'string/virtual'));
     ok('raw' in load(NS, 'string'));
     ok(String(load(NS, 'regexp/constructor')('a', 'g')) === '/a/g');
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
