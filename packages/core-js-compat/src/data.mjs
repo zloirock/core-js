@@ -2286,7 +2286,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.group-by': null,
-  },
   'esnext.observable.constructor': {
   },
   'esnext.observable.from': {
@@ -2381,9 +2380,6 @@ export const data = {
   },
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
   'esnext.symbol.is-well-known-symbol': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.matcher': {
   },
   'esnext.symbol.metadata': {
     deno: '1.40.4',
