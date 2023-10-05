@@ -1,4 +1,5 @@
 'use strict';
-var parent = require('../web/queue-microtask');
+require('../modules/web.queue-microtask');
+var path = require('../internals/path');
 
-module.exports = parent;
+module.exports = path.queueMicrotask;

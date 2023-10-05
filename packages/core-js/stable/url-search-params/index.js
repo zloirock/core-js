@@ -1,5 +1,8 @@
 'use strict';
-var parent = require('../../web/url-search-params');
-require('../../modules/web.dom-collections.iterator');
+require('../../modules/web.url-search-params.constructor');
+require('../../modules/web.url-search-params.delete');
+require('../../modules/web.url-search-params.has');
+require('../../modules/web.url-search-params.size');
+var path = require('../../internals/path');
 
-module.exports = parent;
+module.exports = path.URLSearchParams;
