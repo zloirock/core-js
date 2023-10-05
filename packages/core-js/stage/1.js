@@ -1,7 +1,7 @@
 'use strict';
-var parent = require('./2');
+require('./2');
 
-require('../proposals/array-filtering-stage-1');
+require('../proposals/array-filtering');
 require('../proposals/array-unique');
 require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
@@ -14,8 +14,3 @@ require('../proposals/observable');
 require('../proposals/pattern-matching');
 require('../proposals/string-code-points');
 require('../proposals/string-cooked');
-// TODO: Obsolete versions, remove from `core-js@4`:
-require('../proposals/array-from-async');
-require('../proposals/string-replace-all');
-
-module.exports = parent;
