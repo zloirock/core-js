@@ -25,7 +25,6 @@ const entriesList = await glob([
   'packages/core-js/actual/**/*.js',
   'packages/core-js/es/**/*.js',
   'packages/core-js/full/**/*.js',
-  'packages/core-js/features/**/*.js',
   'packages/core-js/modules/*.js',
   'packages/core-js/proposals/**/*.js',
   'packages/core-js/stable/**/*.js',
