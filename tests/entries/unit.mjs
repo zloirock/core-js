@@ -14,7 +14,7 @@ function load(...components) {
 }
 
 for (PATH of ['core-js-pure', 'core-js']) {
-  for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
+  for (const NS of ['es', 'stable', 'actual', 'full']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
@@ -628,7 +628,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
   }
 
-  for (const NS of ['stable', 'actual', 'full', 'features']) {
+  for (const NS of ['stable', 'actual', 'full']) {
     ok(load(NS, 'atob')('Zg==') === 'f');
     ok(load(NS, 'btoa')('f') === 'Zg==');
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
@@ -650,7 +650,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'url-search-params') == 'function');
   }
 
-  for (const NS of ['actual', 'full', 'features']) {
+  for (const NS of ['actual', 'full']) {
     ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
@@ -705,7 +705,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
   }
 
-  for (const NS of ['full', 'features']) {
+  for (const NS of ['full']) {
     const Map = load(NS, 'map');
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
@@ -894,7 +894,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load());
 }
 
-for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
+for (const NS of ['es', 'stable', 'actual', 'full']) {
   ok(typeof load(NS, 'string/match') == 'function');
   ok('next' in load(NS, 'string/match-all')('a', /./g));
   ok(typeof load(NS, 'string/replace') == 'function');
@@ -955,17 +955,11 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
-for (const NS of ['actual', 'full', 'features']) {
+for (const NS of ['actual', 'full']) {
   load(NS, 'typed-array/from-base64');
   load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/to-base64');
   load(NS, 'typed-array/to-hex');
-}
-
-for (const NS of ['full', 'features']) {
-  load(NS, 'typed-array/from-async');
-  load(NS, 'typed-array/filter-reject');
-  load(NS, 'typed-array/unique-by');
 }
 
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
