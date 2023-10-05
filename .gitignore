@@ -9,7 +9,6 @@ node_modules/
 .idea
 
 /docs/web/blog/index.md
-/packages/core-js/features/
 /packages/core-js/es/index.js
 /packages/core-js/full/index.js
 /packages/core-js/stable/index.js
@@ -28,7 +27,6 @@ node_modules/
 /packages/core-js-compat/modules-by-versions.json
 /packages/core-js-pure/actual/
 /packages/core-js-pure/es/
-/packages/core-js-pure/features/
 /packages/core-js-pure/full/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
