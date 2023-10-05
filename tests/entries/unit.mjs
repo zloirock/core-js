@@ -916,16 +916,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('stage/0');
   load('stage/pre');
 
-  ok(load('web/dom-exception'));
-  ok(load('web/dom-collections'));
-  ok(load('web/immediate'));
-  ok(load('web/queue-microtask'));
-  ok(load('web/structured-clone')(42) === 42);
-  ok(load('web/timers'));
-  ok(load('web/url'));
-  ok(load('web/url-search-params'));
-  ok(load('web'));
-
   for (const key in entries) {
     if (key.startsWith('core-js/modules/')) {
       load('modules', key.slice(16));
