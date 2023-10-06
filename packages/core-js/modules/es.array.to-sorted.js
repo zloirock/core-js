@@ -18,7 +18,7 @@ $({ target: 'Array', proto: true }, {
     var O = toIndexedObject(this);
     var A = arrayFromConstructorAndList($Array, O);
     return sort(A, compareFn);
-  }
+  },
 });
 
 addToUnscopables('toSorted');

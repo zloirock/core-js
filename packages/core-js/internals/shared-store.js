@@ -11,5 +11,5 @@ var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, 
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2025 Denis Pushkarev (zloirock.ru), 2025 CoreJS Company (core-js.io)',
   license: 'https://github.com/zloirock/core-js/blob/v3.45.1/LICENSE',
-  source: 'https://github.com/zloirock/core-js'
+  source: 'https://github.com/zloirock/core-js',
 });
