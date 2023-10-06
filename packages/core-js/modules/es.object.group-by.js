@@ -36,5 +36,5 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
       else obj[key] = [value];
     });
     return obj;
-  }
+  },
 });

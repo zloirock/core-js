@@ -14,5 +14,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     if (has(aMap(this), key)) return get(this, key);
     set(this, key, value);
     return value;
-  }
+  },
 });
