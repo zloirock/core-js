@@ -13,5 +13,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { $isExtensible(1); });
 module.exports = (FAILS_ON_PRIMITIVES || ARRAY_BUFFER_NON_EXTENSIBLE) ? function isExtensible(it) {
   if (!isObject(it)) return false;
   if (ARRAY_BUFFER_NON_EXTENSIBLE && classof(it) === 'ArrayBuffer') return false;
-  return $isExtensible ? $isExtensible(it) : true;
+  return $isExtensible(it);
 } : $isExtensible;
