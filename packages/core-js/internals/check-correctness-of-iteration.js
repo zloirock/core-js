@@ -10,7 +10,7 @@ try {
     next: function () {
       return { done: !!called++ };
     },
-    'return': function () {
+    return: function () {
       SAFE_CLOSING = true;
     }
   };

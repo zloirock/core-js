@@ -54,15 +54,15 @@ var hasMSEdgeFreezingBug = function () {
 if (NATIVE_WEAK_MAP) if (IS_IE11) {
   InternalWeakMap = collectionWeak.getConstructor(wrapper, 'WeakMap', true);
   InternalMetadataModule.enable();
-  var nativeDelete = uncurryThis(WeakMapPrototype['delete']);
+  var nativeDelete = uncurryThis(WeakMapPrototype.delete);
   var nativeHas = uncurryThis(WeakMapPrototype.has);
   var nativeGet = uncurryThis(WeakMapPrototype.get);
   defineBuiltIns(WeakMapPrototype, {
-    'delete': function (key) {
+    delete: function (key) {
       if (isObject(key) && !isExtensible(key)) {
         var state = enforceInternalState(this);
         if (!state.frozen) state.frozen = new InternalWeakMap();
-        return nativeDelete(this, key) || state.frozen['delete'](key);
+        return nativeDelete(this, key) || state.frozen.delete(key);
       } return nativeDelete(this, key);
     },
     has: function has(key) {
