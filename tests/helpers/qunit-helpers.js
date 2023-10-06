@@ -4,10 +4,6 @@ import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
-// for Babel template transform
-// eslint-disable-next-line es/no-object-freeze -- safe
-if (!Object.freeze) Object.freeze = Object;
-
 // eslint-disable-next-line es/no-object-getownpropertydescriptor, es/no-object-getownpropertynames -- safe
 const { getOwnPropertyDescriptor, getOwnPropertyNames } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
