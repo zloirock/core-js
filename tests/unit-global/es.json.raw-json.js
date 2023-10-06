@@ -1,5 +1,3 @@
-import { FREEZING } from '../helpers/constants.js';
-
 QUnit.test('JSON.rawJSON', assert => {
   const { rawJSON, stringify } = JSON;
   const { isFrozen, hasOwn } = Object;
@@ -12,7 +10,7 @@ QUnit.test('JSON.rawJSON', assert => {
   const raw = rawJSON(1);
   assert.true(hasOwn(raw, 'rawJSON'), 'own rawJSON');
   assert.same(raw.rawJSON, '1', 'is string 1');
-  if (FREEZING) assert.true(isFrozen(raw), 'frozen');
+  assert.true(isFrozen(raw), 'frozen');
 
   assert.same(stringify(rawJSON('"qwe"')), '"qwe"');
   assert.same(stringify(rawJSON('null')), 'null');
