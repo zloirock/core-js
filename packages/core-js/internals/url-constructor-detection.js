@@ -1,7 +1,6 @@
 'use strict';
 var fails = require('../internals/fails');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 var ITERATOR = wellKnownSymbol('iterator');
@@ -22,7 +21,7 @@ module.exports = !fails(function () {
   // https://bugs.chromium.org/p/v8/issues/detail?id=14222
   params2['delete']('b', undefined);
   return (IS_PURE && (!url.toJSON || !params2.has('a', 1) || params2.has('a', 2) || !params2.has('a', undefined) || params2.has('b')))
-    || (!params.size && (IS_PURE || !DESCRIPTORS))
+    || (!params.size && IS_PURE)
     || !params.sort
     || url.href !== 'https://a/c%20d?a=1&c=3'
     || params.get('c') !== '3'
