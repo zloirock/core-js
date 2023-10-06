@@ -72,5 +72,5 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
       if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
     }
     return join(output, '');
-  }
+  },
 });
