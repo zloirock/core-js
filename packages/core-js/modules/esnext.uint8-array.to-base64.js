@@ -45,5 +45,5 @@ if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true }, {
     }
 
     return result;
-  }
+  },
 });

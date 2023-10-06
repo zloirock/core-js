@@ -87,5 +87,5 @@ $({ target: 'Iterator', stat: true, forced: true }, {
       }
       return obj;
     });
-  }
+  },
 });

@@ -14,5 +14,5 @@ $({ target: 'Number', proto: true, forced: true }, {
     aNumber(min);
     aNumber(max);
     return $min(max, $max(min, value));
-  }
+  },
 });

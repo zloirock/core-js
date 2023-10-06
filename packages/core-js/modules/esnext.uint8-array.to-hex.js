@@ -19,5 +19,5 @@ if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true }, {
       result += hex.length === 1 ? '0' + hex : hex;
     }
     return result;
-  }
+  },
 });
