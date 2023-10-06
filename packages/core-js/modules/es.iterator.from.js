@@ -13,7 +13,7 @@ var FORCED = IS_PURE || function () {
   // https://bugs.webkit.org/show_bug.cgi?id=288714
   try {
     // eslint-disable-next-line es/no-iterator -- required for testing
-    Iterator.from({ 'return': null })['return']();
+    Iterator.from({ return: null }).return();
   } catch (error) {
     return true;
   }
