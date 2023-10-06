@@ -68,6 +68,6 @@ if ($stringify) {
       var args = arraySlice(arguments);
       var result = apply(WRONG_SYMBOLS_CONVERSION ? stringifyWithSymbolsFix : $stringify, null, args);
       return ILL_FORMED_UNICODE && typeof result == 'string' ? replace(result, tester, fixIllFormed) : result;
-    }
+    },
   });
 }
