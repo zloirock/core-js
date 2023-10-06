@@ -6,6 +6,8 @@ const getModulesListForTargetVersion = require('./get-modules-list-for-target-ve
 const allModules = require('./modules');
 const targetsParser = require('./targets-parser');
 
+const actualModules = entries['core-js/actual'];
+
 function throwInvalidFilter(filter) {
   throw new TypeError(`Specified invalid module name or pattern: ${ filter }`);
 }
@@ -69,7 +71,7 @@ module.exports = function ({
 
   exclude = normalizeModules(exclude);
 
-  modules = modules ? [...normalizeModules(modules)] : allModules;
+  modules = modules ? [...normalizeModules(modules)] : actualModules;
 
   if (exclude.size) modules = modules.filter(it => !exclude.has(it));
 
