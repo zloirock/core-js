@@ -34,5 +34,5 @@ $({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES 
       else push(get(map, key), value);
     });
     return map;
-  }
+  },
 });

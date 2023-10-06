@@ -220,7 +220,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
       reactions: new Queue(),
       rejection: false,
       state: PENDING,
-      value: undefined
+      value: undefined,
     });
   };
 
@@ -281,7 +281,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
 }
 
 $({ global: true, constructor: true, wrap: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
-  Promise: PromiseConstructor
+  Promise: PromiseConstructor,
 });
 
 setToStringTag(PromiseConstructor, PROMISE, false, true);

@@ -6,8 +6,8 @@ var isCallable = require('../../internals/is-callable');
 var path = require('../../internals/path');
 
 var Promise = path.Promise;
-var promiseTry = Promise['try'];
+var promiseTry = Promise.try;
 
-module.exports = { 'try': function (callbackfn) {
+module.exports = { try: function (callbackfn) {
   return call(promiseTry, isCallable(this) ? this : Promise, callbackfn);
-} }['try'];
+} }.try;
