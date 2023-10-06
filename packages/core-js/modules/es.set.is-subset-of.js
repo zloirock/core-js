@@ -16,5 +16,5 @@ $({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('isS
     return iterate(O, function (e) {
       if (!otherRec.includes(e)) return false;
     }, true) !== false;
-  }
+  },
 });

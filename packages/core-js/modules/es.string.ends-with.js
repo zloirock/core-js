@@ -30,5 +30,5 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     var end = endPosition === undefined ? len : min(toLength(endPosition), len);
     var search = toString(searchString);
     return slice(that, end - search.length, end) === search;
-  }
+  },
 });

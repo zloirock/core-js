@@ -23,7 +23,7 @@ var ControlEscape = {
   '\u000A': 'n',
   '\u000B': 'v',
   '\u000C': 'f',
-  '\u000D': 'r'
+  '\u000D': 'r',
 };
 
 var escapeChar = function (chr) {
@@ -67,5 +67,5 @@ $({ target: 'RegExp', stat: true, forced: FORCED }, {
     }
 
     return join(result, '');
-  }
+  },
 });

@@ -20,5 +20,5 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new IteratorProxy(iteratorRecord);
-  }
+  },
 });
