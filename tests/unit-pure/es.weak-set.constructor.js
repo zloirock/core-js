@@ -1,5 +1,4 @@
 import { createIterable, nativeSubclass } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 import freeze from 'core-js-pure/es/object/freeze';
@@ -46,12 +45,12 @@ QUnit.test('WeakSet', assert => {
   assert.true(done);
   object = {};
   new WeakSet().add(object);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in object) results.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+
+  const results = [];
+  for (const key in object) results.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
+
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
