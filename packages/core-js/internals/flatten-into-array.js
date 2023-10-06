@@ -1,8 +1,9 @@
 'use strict';
-var isArray = require('../internals/is-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var bind = require('../internals/function-bind-context');
+
+var isArray = Array.isArray;
 
 // `FlattenIntoArray` abstract operation
 // https://tc39.es/ecma262/#sec-flattenintoarray
