@@ -1,5 +1,4 @@
 'use strict';
-require('../../modules/es.object.create');
 require('../../modules/es.object.freeze');
 require('../../modules/es.object.keys');
 require('../../modules/es.date.to-json');

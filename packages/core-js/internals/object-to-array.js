@@ -12,7 +12,6 @@ var push = uncurryThis([].push);
 // in some IE versions, `propertyIsEnumerable` returns incorrect result on integer keys
 // of `null` prototype objects
 var IE_BUG = fails(function () {
-  // eslint-disable-next-line es/no-object-create -- safe
   var O = Object.create(null);
   O[2] = 2;
   return !propertyIsEnumerable(O, 2);
