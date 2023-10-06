@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
@@ -10,7 +9,7 @@ var fails = require('../internals/fails');
 
 // eslint-disable-next-line es/no-object-groupby -- testing
 var nativeGroupBy = Object.groupBy;
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var push = uncurryThis([].push);
 
 // https://bugs.webkit.org/show_bug.cgi?id=271524
