@@ -60,7 +60,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         throw error;
       }) : Promise.resolve(value);
     },
-    'return': function () {
+    return: function () {
       var stateCompletion = getStateOrEarlyExit(this);
       var state = stateCompletion.value;
       if (stateCompletion.exit) return state;

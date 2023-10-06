@@ -34,13 +34,13 @@ if (isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
 
   copyConstructorProperties(SymbolWrapper, NativeSymbol);
   // wrap Symbol.for for correct handling of empty string descriptions
-  var nativeFor = SymbolWrapper['for'];
-  SymbolWrapper['for'] = { 'for': function (key) {
+  var nativeFor = SymbolWrapper.for;
+  SymbolWrapper.for = { for: function (key) {
     var stringKey = toString(key);
     var symbol = call(nativeFor, this, stringKey);
     if (stringKey === '') EmptyStringDescriptionStore[symbol] = true;
     return symbol;
-  } }['for'];
+  } }.for;
   SymbolWrapper.prototype = SymbolPrototype;
   SymbolPrototype.constructor = SymbolWrapper;
 

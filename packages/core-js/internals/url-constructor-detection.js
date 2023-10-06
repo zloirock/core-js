@@ -13,13 +13,13 @@ module.exports = !fails(function () {
   var result = '';
   url.pathname = 'c%20d';
   params.forEach(function (value, key) {
-    params['delete']('b');
+    params.delete('b');
     result += key + value;
   });
-  params2['delete']('a', 2);
+  params2.delete('a', 2);
   // `undefined` case is a Chromium 117 bug
   // https://bugs.chromium.org/p/v8/issues/detail?id=14222
-  params2['delete']('b', undefined);
+  params2.delete('b', undefined);
   return (IS_PURE && (!url.toJSON || !params2.has('a', 1) || params2.has('a', 2) || !params2.has('a', undefined) || params2.has('b')))
     || (!params.size && IS_PURE)
     || !params.sort
