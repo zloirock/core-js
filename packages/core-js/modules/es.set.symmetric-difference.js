@@ -26,5 +26,5 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
       else add(result, e);
     });
     return result;
-  }
+  },
 });
