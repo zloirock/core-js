@@ -7,5 +7,5 @@ var iteratorWindow = require('../internals/iterator-window');
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   windows: function windows(windowSize /* , undersized */) {
     return iteratorWindow(this, windowSize, arguments.length < 2 ? undefined : arguments[1]);
-  }
+  },
 });
