@@ -8,9 +8,9 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var fails = require('../internals/fails');
 
+var create = Object.create;
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
 var $Array = Array;
 var ObjectPrototype = Object.prototype;

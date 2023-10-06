@@ -1,6 +1,5 @@
 import { GLOBAL } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
 import isIterable from 'core-js-pure/es/is-iterable';
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
@@ -12,8 +11,6 @@ if (karma) {
 }
 
 // for Babel template transform
-// eslint-disable-next-line es/no-object-create -- safe
-if (!Object.create) Object.create = create;
 // eslint-disable-next-line es/no-object-freeze -- safe
 if (!Object.freeze) Object.freeze = Object;
 

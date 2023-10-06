@@ -1,11 +1,11 @@
 'use strict';
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
-var create = require('../internals/object-create');
 var hasOwn = require('../internals/has-own-property');
 var toUSVString = require('../internals/to-usv-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
+var create = Object.create;
 var $URLSearchParams = URLSearchParams;
 var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var append = uncurryThis(URLSearchParamsPrototype.append);

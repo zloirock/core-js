@@ -15,11 +15,11 @@ var classof = require('../internals/classof');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
 var toUSVString = require('../internals/to-usv-string');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
+var create = Object.create;
 var NativeURLSearchParams = getBuiltIn('URLSearchParams');
 var nativeParamsToString = isCallable(NativeURLSearchParams) && uncurryThis(NativeURLSearchParams.prototype.toString);
 
