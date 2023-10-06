@@ -12,7 +12,7 @@ try {
     },
     return: function () {
       SAFE_CLOSING = true;
-    }
+    },
   };
   // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
   iteratorWithReturn[ITERATOR] = function () {
@@ -34,7 +34,7 @@ module.exports = function (exec, SKIP_CLOSING) {
       return {
         next: function () {
           return { done: ITERATION_SUPPORT = true };
-        }
+        },
       };
     };
     exec(object);

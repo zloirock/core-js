@@ -7,6 +7,6 @@ module.exports = fails(function () {
   // eslint-disable-next-line es/no-object-defineproperty -- required for testing
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
-    writable: false
+    writable: false,
   }).prototype !== 42;
 });

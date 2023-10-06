@@ -33,5 +33,5 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
     var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, this, this.length);
 
     return { read: result.read, written: result.written };
-  }
+  },
 });

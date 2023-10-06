@@ -13,5 +13,5 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
     return iterate(set, function (value) {
       if (!boundFunction(value, value, set)) return false;
     }, true) !== false;
-  }
+  },
 });

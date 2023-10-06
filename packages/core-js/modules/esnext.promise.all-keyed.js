@@ -53,5 +53,5 @@ $({ target: 'Promise', stat: true }, {
     });
     if (result.error) reject(result.value);
     return capability.promise;
-  }
+  },
 });

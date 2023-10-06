@@ -7,5 +7,5 @@ var $transfer = require('../internals/array-buffer-transfer');
 if ($transfer) $({ target: 'ArrayBuffer', proto: true }, {
   transfer: function transfer() {
     return $transfer(this, arguments.length ? arguments[0] : undefined, true);
-  }
+  },
 });

@@ -11,5 +11,5 @@ var FORCED = fails(function () { nativeGetOwnPropertyDescriptor(1); });
 $({ target: 'Object', stat: true, forced: FORCED }, {
   getOwnPropertyDescriptor: function getOwnPropertyDescriptor(it, key) {
     return nativeGetOwnPropertyDescriptor(toIndexedObject(it), key);
-  }
+  },
 });

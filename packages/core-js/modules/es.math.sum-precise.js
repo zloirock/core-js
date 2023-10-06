@@ -147,5 +147,5 @@ $({ target: 'Math', stat: true }, {
     }
 
     return hi;
-  }
+  },
 });

@@ -15,6 +15,6 @@ if (!('size' in URLSearchParamsPrototype)) {
       return count;
     },
     configurable: true,
-    enumerable: true
+    enumerable: true,
   });
 }

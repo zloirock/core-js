@@ -11,5 +11,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
       if (value === searchElement) return { key: key };
     }, true);
     return result && result.key;
-  }
+  },
 });

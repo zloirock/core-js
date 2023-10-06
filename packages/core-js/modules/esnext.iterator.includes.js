@@ -40,5 +40,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
       if (skipped < toSkip) skipped++;
       else if (sameValueZero(value, searchElement)) return stop();
     }, { IS_ITERATOR: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });

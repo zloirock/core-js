@@ -15,5 +15,5 @@ var FORCED = CHROME_BUG || !arrayMethodIsStrict('reduceRight');
 $({ target: 'Array', proto: true, forced: FORCED }, {
   reduceRight: function reduceRight(callbackfn /* , initialValue */) {
     return $reduceRight(this, callbackfn, arguments.length, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });

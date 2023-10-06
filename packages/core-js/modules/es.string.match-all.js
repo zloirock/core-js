@@ -44,7 +44,7 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
     string: string,
     global: $global,
     unicode: fullUnicode,
-    done: false
+    done: false,
   });
 }, REGEXP_STRING, function next() {
   var state = getInternalState(this);
@@ -96,7 +96,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
     S = toString(O);
     rx = new RegExp(regexp, 'g');
     return IS_PURE ? call($matchAll, rx, S) : rx[MATCH_ALL](S);
-  }
+  },
 });
 
 IS_PURE || MATCH_ALL in RegExpPrototype || defineBuiltIn(RegExpPrototype, MATCH_ALL, $matchAll);

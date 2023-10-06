@@ -45,7 +45,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (filterWithoutClosingOnEarlyError) return call(filterWithoutClosingOnEarlyError, this, predicate);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      predicate: predicate
+      predicate: predicate,
     });
-  }
+  },
 });

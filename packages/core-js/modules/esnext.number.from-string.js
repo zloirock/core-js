@@ -64,5 +64,5 @@ $({ target: 'Number', stat: true, forced: true }, {
       if (numberToString(mathNum, R) !== compareString) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
     return sign * mathNum;
-  }
+  },
 });
