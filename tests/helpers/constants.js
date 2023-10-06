@@ -61,14 +61,6 @@ export const STRICT_THIS = (function () {
 
 export const STRICT = !STRICT_THIS;
 
-export const FREEZING = !function () {
-  try {
-    return Object.isExtensible(Object.preventExtensions({}));
-  } catch {
-    return true;
-  }
-}();
-
 export const CORRECT_PROTOTYPE_GETTER = !function () {
   try {
     function F() { /* empty */ }
