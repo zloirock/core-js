@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -17,6 +16,7 @@ var NativeSuppressedError = globalThis.SuppressedError;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 var create = Object.create;
+var getPrototypeOf = Object.getPrototypeOf;
 
 // https://github.com/oven-sh/bun/issues/9282
 var WRONG_ARITY = !!NativeSuppressedError && NativeSuppressedError.length !== 3;
