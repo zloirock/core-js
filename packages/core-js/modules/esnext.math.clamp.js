@@ -9,5 +9,5 @@ var max = Math.max;
 $({ target: 'Math', stat: true, forced: true }, {
   clamp: function clamp(x, lower, upper) {
     return min(upper, max(lower, x));
-  }
+  },
 });

@@ -19,5 +19,5 @@ $({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('isS
     return iterateSimple(iterator, function (e) {
       if (!has(O, e)) return iteratorClose(iterator, 'normal', false);
     }) !== false;
-  }
+  },
 });

@@ -26,5 +26,5 @@ $({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS }, {
     } catch (error) {
       return false;
     }
-  }
+  },
 });

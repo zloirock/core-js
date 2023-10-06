@@ -9,5 +9,5 @@ var store = require('../internals/shared-store');
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2024 Denis Pushkarev (zloirock.ru)',
   license: 'https://github.com/zloirock/core-js/blob/v3.35.1/LICENSE',
-  source: 'https://github.com/zloirock/core-js'
+  source: 'https://github.com/zloirock/core-js',
 });

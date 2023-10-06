@@ -48,7 +48,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       iteratorClose(iterator, 'normal');
       return createIterResultObject(undefined, true);
-    }
+    },
   });
 };
 

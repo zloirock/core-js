@@ -11,5 +11,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     return iterate(aMap(this), function (value) {
       if (sameValueZero(value, searchElement)) return true;
     }, true) === true;
-  }
+  },
 });

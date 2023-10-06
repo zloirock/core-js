@@ -871,7 +871,7 @@ const noAsyncAwait = {
   'promise/prefer-await-to-then': OFF,
 };
 
-const useES3Syntax = {
+const useES5Syntax = {
   ...noAsyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
@@ -1537,7 +1537,7 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 5,
     },
-    rules: useES3Syntax,
+    rules: useES5Syntax,
   },
   {
     files: [
