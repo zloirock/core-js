@@ -1,9 +1,8 @@
 'use strict';
-var isArray = require('../internals/is-array');
-
 var $TypeError = TypeError;
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var isArray = Array.isArray;
 
 // Safari < 13 does not throw an error in this case
 var SILENT_ON_NON_WRITABLE_LENGTH_SET = !function () {
