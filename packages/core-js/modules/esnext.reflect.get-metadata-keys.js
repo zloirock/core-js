@@ -4,9 +4,9 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var $arrayUniqueBy = require('../internals/array-unique-by');
 
+var getPrototypeOf = Object.getPrototypeOf;
 var arrayUniqueBy = uncurryThis($arrayUniqueBy);
 var concat = uncurryThis([].concat);
 var ordinaryOwnMetadataKeys = ReflectMetadataModule.keys;
