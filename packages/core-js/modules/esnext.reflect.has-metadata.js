@@ -3,8 +3,8 @@
 var $ = require('../internals/export');
 var ReflectMetadataModule = require('../internals/reflect-metadata');
 var anObject = require('../internals/an-object');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 
+var getPrototypeOf = Object.getPrototypeOf;
 var ordinaryHasOwnMetadata = ReflectMetadataModule.has;
 var toMetadataKey = ReflectMetadataModule.toKey;
 
