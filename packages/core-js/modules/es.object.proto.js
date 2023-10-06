@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isObject = require('../internals/is-object');
 var isPossiblePrototype = require('../internals/is-possible-prototype');
@@ -15,7 +14,7 @@ var PROTO = '__proto__';
 
 // `Object.prototype.__proto__` accessor
 // https://tc39.es/ecma262/#sec-object.prototype.__proto__
-if (DESCRIPTORS && getPrototypeOf && setPrototypeOf && !(PROTO in ObjectPrototype)) try {
+if (getPrototypeOf && setPrototypeOf && !(PROTO in ObjectPrototype)) try {
   defineBuiltInAccessor(ObjectPrototype, PROTO, {
     configurable: true,
     get: function __proto__() {

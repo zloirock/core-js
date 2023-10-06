@@ -8,7 +8,6 @@ var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
@@ -300,8 +299,7 @@ URLSearchParamsState.prototype = {
 var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   anInstance(this, URLSearchParamsPrototype);
   var init = arguments.length > 0 ? arguments[0] : undefined;
-  var state = setInternalState(this, new URLSearchParamsState(init));
-  if (!DESCRIPTORS) this.size = state.entries.length;
+  setInternalState(this, new URLSearchParamsState(init));
 };
 
 var URLSearchParamsPrototype = URLSearchParamsConstructor.prototype;
@@ -313,7 +311,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
     push(state.entries, { key: $toString(name), value: $toString(value) });
-    if (!DESCRIPTORS) this.size++;
     state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
@@ -333,7 +330,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
         if (value !== undefined) break;
       } else index++;
     }
-    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.get` method
@@ -398,7 +394,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
       }
     }
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = entries.length;
     state.updateURL();
   },
   // `URLSearchParams.prototype.sort` method
@@ -446,7 +441,7 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 
 // `URLSearchParams.prototype.size` getter
 // https://github.com/whatwg/url/pull/734
-if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
+defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;
   },
