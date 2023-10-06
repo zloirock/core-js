@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import stringify from 'core-js-pure/es/json/stringify';
 import Symbol from 'core-js-pure/es/symbol';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -422,70 +422,68 @@ if (GLOBAL.JSON?.stringify) {
     num3.toJSON = () => ({ key: 7 });
     assert.same(stringify([num3]), '[{"key":7}]', 'value-tojson-result-4');
 
-    if (DESCRIPTORS) {
-      // This getter will be triggered during enumeration, but the property it adds should not be enumerated.
-      /* IE issue
-      const o = defineProperty({
-        p1: 'p1',
-        p2: 'p2',
-        p3: 'p3',
-      }, 'add', {
-        enumerable: true,
-        get() {
-          o.extra = 'extra';
-          return 'add';
-        },
-      });
-      o.p4 = 'p4';
-      o[2] = '2';
-      o[0] = '0';
-      o[1] = '1';
-      delete o.p1;
-      delete o.p3;
-      o.p1 = 'p1';
-      assert.same(stringify(o), '{"0":"0","1":"1","2":"2","p2":"p2","add":"add","p4":"p4","p1":"p1"}', 'property-order');
-      */
+    // This getter will be triggered during enumeration, but the property it adds should not be enumerated.
+    /* IE issue
+    const o = defineProperty({
+      p1: 'p1',
+      p2: 'p2',
+      p3: 'p3',
+    }, 'add', {
+      enumerable: true,
+      get() {
+        o.extra = 'extra';
+        return 'add';
+      },
+    });
+    o.p4 = 'p4';
+    o[2] = '2';
+    o[0] = '0';
+    o[1] = '1';
+    delete o.p1;
+    delete o.p3;
+    o.p1 = 'p1';
+    assert.same(stringify(o), '{"0":"0","1":"1","2":"2","p2":"p2","add":"add","p4":"p4","p1":"p1"}', 'property-order');
+    */
 
-      let getCalls = 0;
-      assert.same(stringify(defineProperty({}, 'key', {
-        enumerable: true,
-        get() {
-          getCalls += 1;
-          return true;
-        },
-      }), ['key', 'key']), '{"key":true}', 'replacer-array-duplicates-1');
-      assert.same(getCalls, 1, 'replacer-array-duplicates-2');
+    let getCalls = 0;
+    assert.same(stringify(defineProperty({}, 'key', {
+      enumerable: true,
+      get() {
+        getCalls += 1;
+        return true;
+      },
+    }), ['key', 'key']), '{"key":true}', 'replacer-array-duplicates-1');
+    assert.same(getCalls, 1, 'replacer-array-duplicates-2');
 
-      /* old WebKit bug - however, fixing of this is not in priority
-      const obj3 = defineProperty({}, 'a', {
-        enumerable: true,
-        get() {
-          delete this.b;
-          return 1;
-        },
-      });
-      obj3.b = 2;
-      assert.same(stringify(obj3, (key, value) => {
-        if (key === 'b') {
-          assert.same(value, undefined, 'replacer-function-object-deleted-property-1');
-          return '<replaced>';
-        } return value;
-      }), '{"a":1,"b":"<replaced>"}', 'replacer-function-object-deleted-property-2');
-      */
+    /* old WebKit bug - however, fixing of this is not in priority
+    const obj3 = defineProperty({}, 'a', {
+      enumerable: true,
+      get() {
+        delete this.b;
+        return 1;
+      },
+    });
+    obj3.b = 2;
+    assert.same(stringify(obj3, (key, value) => {
+      if (key === 'b') {
+        assert.same(value, undefined, 'replacer-function-object-deleted-property-1');
+        return '<replaced>';
+      } return value;
+    }), '{"a":1,"b":"<replaced>"}', 'replacer-function-object-deleted-property-2');
+    */
 
-      assert.throws(() => stringify({ key: defineProperty(Array(1), '0', {
-        get() { throw new EvalError('t262'); },
-      }) }), EvalError, 'value-array-abrupt');
+    assert.throws(() => stringify({ key: defineProperty(Array(1), '0', {
+      get() { throw new EvalError('t262'); },
+    }) }), EvalError, 'value-array-abrupt');
 
-      assert.throws(() => stringify(defineProperty({}, 'key', {
-        enumerable: true,
-        get() { throw new EvalError('t262'); },
-      })), EvalError, 'value-object-abrupt');
+    assert.throws(() => stringify(defineProperty({}, 'key', {
+      enumerable: true,
+      get() { throw new EvalError('t262'); },
+    })), EvalError, 'value-object-abrupt');
 
-      assert.throws(() => stringify(defineProperty({}, 'toJSON', {
-        get() { throw new EvalError('t262'); },
-      })), EvalError, 'value-tojson-abrupt-2');
-    }
+    assert.throws(() => stringify(defineProperty({}, 'toJSON', {
+      get() { throw new EvalError('t262'); },
+    })), EvalError, 'value-tojson-abrupt-2');
   });
 
   QUnit.test('Symbols & JSON.stringify', assert => {
@@ -502,11 +500,11 @@ if (GLOBAL.JSON?.stringify) {
     assert.same(stringify({
       symbol: symbol1,
     }), '{}', 'object value');
-    if (DESCRIPTORS) {
-      const object = { bar: 2 };
-      object[symbol1] = 1;
-      assert.same(stringify(object), '{"bar":2}', 'object key');
-    }
+
+    const object = { bar: 2 };
+    object[symbol1] = 1;
+    assert.same(stringify(object), '{"bar":2}', 'object key');
+
     assert.same(stringify(symbol1), undefined, 'symbol value');
     if (typeof symbol1 == 'symbol') {
       assert.same(stringify(Object(symbol1)), '{}', 'boxed symbol');
