@@ -37,7 +37,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         throw error;
       }
     },
-    'return': function () {
+    return: function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
       state.done = true;

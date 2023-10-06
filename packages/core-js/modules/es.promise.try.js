@@ -12,8 +12,8 @@ var Promise = globalThis.Promise;
 var ACCEPT_ARGUMENTS = false;
 // Avoiding the use of polyfills of the previous iteration of this proposal
 // that does not accept arguments of the callback
-var FORCED = !Promise || !Promise['try'] || perform(function () {
-  Promise['try'](function (argument) {
+var FORCED = !Promise || !Promise.try || perform(function () {
+  Promise.try(function (argument) {
     ACCEPT_ARGUMENTS = argument === 8;
   }, 8);
 }).error || !ACCEPT_ARGUMENTS;
@@ -21,7 +21,7 @@ var FORCED = !Promise || !Promise['try'] || perform(function () {
 // `Promise.try` method
 // https://tc39.es/ecma262/#sec-promise.try
 $({ target: 'Promise', stat: true, forced: FORCED }, {
-  'try': function (callbackfn /* , ...args */) {
+  try: function (callbackfn /* , ...args */) {
     var args = arguments.length > 1 ? slice(arguments, 1) : [];
     var promiseCapability = newPromiseCapabilityModule.f(this);
     var result = perform(function () {
