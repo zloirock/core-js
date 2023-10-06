@@ -53,7 +53,7 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
+$({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);
     var rawStrings = [];
