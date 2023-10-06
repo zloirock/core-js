@@ -2,7 +2,6 @@
 var call = require('../internals/function-call');
 var perform = require('../internals/perform');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -14,6 +13,7 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
+var create = Object.create;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
