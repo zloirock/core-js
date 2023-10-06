@@ -23,7 +23,6 @@ var classof = require('../internals/classof');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var $toString = require('../internals/to-string');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
@@ -38,6 +37,7 @@ var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
 var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
+var create = Object.create;
 
 var nativeFetch = safeGetBuiltIn('fetch');
 var NativeRequest = safeGetBuiltIn('Request');

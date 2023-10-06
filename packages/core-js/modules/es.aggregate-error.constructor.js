@@ -4,7 +4,6 @@ var isPrototypeOf = require('../internals/object-is-prototype-of');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var installErrorCause = require('../internals/install-error-cause');
@@ -15,6 +14,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
+var create = Object.create;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
