@@ -1,9 +1,9 @@
 'use strict';
 var hasOwn = require('./internals/has-own-property');
-var isArray = require('./internals/is-array');
 var isForced = require('./internals/is-forced');
 var shared = require('./internals/shared-store');
 
+var isArray = Array.isArray;
 var data = isForced.data;
 var normalize = isForced.normalize;
 var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
