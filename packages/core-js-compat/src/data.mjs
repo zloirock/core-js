@@ -1069,16 +1069,6 @@ export const data = {
     hermes: '0.4',
     safari: '9.0',
   },
-  // TODO: Remove from `core-js@4`
-  'es.object.create': {
-    chrome: '5',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '4.0',
-  },
   'es.object.define-getter': {
     chrome: '62',
     edge: '16',
