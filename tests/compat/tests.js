@@ -45,7 +45,7 @@ var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\
 var V8_PROTOTYPE_DEFINE_BUG = function () {
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
-    writable: false
+    writable: false,
   }).prototype === 42;
 };
 
@@ -69,7 +69,7 @@ var PROMISE_STATICS_ITERATION = function () {
       return {
         next: function () {
           return { done: ITERATION_SUPPORT = true };
-        }
+        },
       };
     };
     Promise.all(object).then(undefined, function () { /* empty */ });
@@ -129,7 +129,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
       },
       return: function () {
         SAFE_CLOSING = true;
-      }
+      },
     };
     iteratorWithReturn[Symbol.iterator] = function () {
       return this;
@@ -153,7 +153,7 @@ var TYPED_ARRAY_CONSTRUCTORS_LIST = {
   Int32Array: 4,
   Uint32Array: 4,
   Float32Array: 4,
-  Float64Array: 8
+  Float64Array: 8,
 };
 
 var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
@@ -176,7 +176,7 @@ var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
   var iterable = {
     next: function () {
       return { done: !!called++, value: 1 };
-    }
+    },
   };
   iterable[Symbol.iterator] = function () {
     return this;
@@ -231,9 +231,9 @@ function createSetLike(size) {
       return {
         next: function () {
           return { done: true };
-        }
+        },
       };
-    }
+    },
   };
 }
 
@@ -245,7 +245,7 @@ function createSetLikeWithInfinitySize(size) {
     },
     keys: function () {
       throw new Error('e');
-    }
+    },
   };
 }
 
@@ -290,9 +290,9 @@ function createSetMethodTestShouldGetKeysBeforeCloning(METHOD_NAME) {
             return function () {
               return { done: true };
             };
-          }
+          },
         });
-      }
+      },
     };
     var result = baseSet[METHOD_NAME](setLike);
 
@@ -327,7 +327,7 @@ function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
     try {
       Iterator.prototype[METHOD_NAME].call({
         next: function () { return { done: true }; },
-        return: function () { CLOSED = true; }
+        return: function () { CLOSED = true; },
       }, -1);
     } catch (error) {
       // https://bugs.webkit.org/show_bug.cgi?id=291195
@@ -773,17 +773,17 @@ GLOBAL.tests = {
   },
   'es.iterator.drop': [
     iteratorHelperThrowsErrorOnInvalidIterator('drop', 0),
-    checkIteratorClosingOnEarlyError('drop', RangeError)
+    checkIteratorClosingOnEarlyError('drop', RangeError),
   ],
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', TypeError),
   'es.iterator.filter': [
     iteratorHelperThrowsErrorOnInvalidIterator('filter', function () { /* empty */ }),
-    checkIteratorClosingOnEarlyError('filter', TypeError)
+    checkIteratorClosingOnEarlyError('filter', TypeError),
   ],
   'es.iterator.find': checkIteratorClosingOnEarlyError('find', TypeError),
   'es.iterator.flat-map': [
     iteratorHelperThrowsErrorOnInvalidIterator('flatMap', function () { /* empty */ }),
-    checkIteratorClosingOnEarlyError('flatMap', TypeError)
+    checkIteratorClosingOnEarlyError('flatMap', TypeError),
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
   'es.iterator.from': function () {
@@ -792,7 +792,7 @@ GLOBAL.tests = {
   },
   'es.iterator.map': [
     iteratorHelperThrowsErrorOnInvalidIterator('map', function () { /* empty */ }),
-    checkIteratorClosingOnEarlyError('map', TypeError)
+    checkIteratorClosingOnEarlyError('map', TypeError),
   ],
   'es.iterator.reduce': [checkIteratorClosingOnEarlyError('reduce', TypeError), function () {
     // fails on undefined initial parameter
@@ -821,7 +821,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [1, 2] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -992,9 +992,9 @@ GLOBAL.tests = {
       get: function () {
         Object.defineProperty(this, 'b', {
           value: 3,
-          enumerable: false
+          enumerable: false,
         });
-      }
+      },
     }), { b: 2 })).b !== 1) return false;
     var A = {};
     var B = {};
@@ -1264,7 +1264,7 @@ GLOBAL.tests = {
       global: 'g',
       ignoreCase: 'i',
       multiline: 'm',
-      sticky: 'y'
+      sticky: 'y',
     };
 
     if (INDICES_SUPPORT) pairs.hasIndices = 'd';
@@ -1296,7 +1296,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: 1 };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1325,9 +1325,9 @@ GLOBAL.tests = {
             var done = index++ > 1;
             if (baseSet.has(1)) baseSet.clear();
             return { done: done, value: 2 };
-          }
+          },
         };
-      }
+      },
     };
 
     var baseSet = new Set([1, 2, 3, 4]);
@@ -1350,11 +1350,11 @@ GLOBAL.tests = {
   }),
   'es.set.symmetric-difference': [
     createSetMethodTest('symmetricDifference'),
-    createSetMethodTestShouldGetKeysBeforeCloning('symmetricDifference')
+    createSetMethodTestShouldGetKeysBeforeCloning('symmetricDifference'),
   ],
   'es.set.union': [
     createSetMethodTest('union'),
-    createSetMethodTestShouldGetKeysBeforeCloning('union')
+    createSetMethodTestShouldGetKeysBeforeCloning('union'),
   ],
   'es.string.at': function () {
     return '𠮷'.at(-2) === '\uD842';
@@ -1511,39 +1511,39 @@ GLOBAL.tests = {
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.float64-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-clamped-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint16-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint32-array': [
     ARRAY_BUFFER_VIEWS_SUPPORT,
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.at': function () {
     return Int8Array.prototype.at;
@@ -1582,7 +1582,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.from;
-    }
+    },
   ],
   'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.includes;
@@ -1614,7 +1614,7 @@ GLOBAL.tests = {
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.of;
-    }
+    },
   ],
   'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.reduce;
@@ -1757,7 +1757,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: [key, 1] };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -1778,7 +1778,7 @@ GLOBAL.tests = {
     var iterable = {
       next: function () {
         return { done: !!called++, value: key };
-      }
+      },
     };
     iterable[Symbol.iterator] = function () {
       return this;
@@ -2128,7 +2128,7 @@ GLOBAL.tests = {
       StyleSheetList: 0,
       TextTrackCueList: 0,
       TextTrackList: 0,
-      TouchList: 0
+      TouchList: 0,
     };
     for (var collection in DOMIterables) {
       if (GLOBAL[collection]) {
@@ -2218,5 +2218,5 @@ GLOBAL.tests = {
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
-  }]
+  }],
 };

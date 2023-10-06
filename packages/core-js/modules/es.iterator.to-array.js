@@ -13,5 +13,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     var result = [];
     iterate(getIteratorDirect(anObject(this)), push, { that: result, IS_RECORD: true });
     return result;
-  }
+  },
 });
