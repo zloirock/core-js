@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
+import { STRICT } from '../helpers/constants.js';
 
 import flat from 'core-js-pure/es/array/flat';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -18,11 +18,9 @@ QUnit.test('Array#flat', assert => {
     assert.throws(() => flat(null), TypeError);
     assert.throws(() => flat(undefined), TypeError);
   }
-  if (DESCRIPTORS) {
-    assert.notThrows(() => flat(defineProperty({ length: -1 }, 0, {
-      get() {
-        throw new Error();
-      },
-    })).length === 0, 'uses ToLength');
-  }
+  assert.notThrows(() => flat(defineProperty({ length: -1 }, 0, {
+    get() {
+      throw new Error();
+    },
+  })).length === 0, 'uses ToLength');
 });
