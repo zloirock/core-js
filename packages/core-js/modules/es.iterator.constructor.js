@@ -4,7 +4,6 @@ var globalThis = require('../internals/global-this');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
 var isCallable = require('../internals/is-callable');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var createProperty = require('../internals/create-property');
 var fails = require('../internals/fails');
@@ -19,6 +18,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $TypeError = TypeError;
 var NativeIterator = globalThis[ITERATOR];
+var getPrototypeOf = Object.getPrototypeOf;
 
 // FF56- have non-standard global helper `Iterator`
 var FORCED = IS_PURE

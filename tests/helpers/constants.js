@@ -73,17 +73,6 @@ export const FREEZING = !function () {
   }
 }();
 
-export const CORRECT_PROTOTYPE_GETTER = !function () {
-  try {
-    function F() { /* empty */ }
-    F.prototype.constructor = null;
-    // eslint-disable-next-line es/no-object-getprototypeof -- detection
-    return Object.getPrototypeOf(new F()) !== F.prototype;
-  } catch {
-    return true;
-  }
-}();
-
 // FF < 23 bug
 export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = !function () {
   try {
