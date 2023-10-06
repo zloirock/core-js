@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE, PROTO, STRICT } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -19,7 +19,7 @@ QUnit.test('Promise', assert => {
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
+QUnit.test('Promise operations order', assert => {
   let $resolve, $resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';

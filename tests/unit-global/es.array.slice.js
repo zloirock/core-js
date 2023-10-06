@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#slice', assert => {
   const { slice } = Array.prototype;
@@ -37,7 +37,7 @@ QUnit.test('Array#slice', assert => {
   } };
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.slice().foo, 1, '@@species');
-  const descriptor = DESCRIPTORS && Object.getOwnPropertyDescriptor(Array, Symbol.species);
+  const descriptor = Object.getOwnPropertyDescriptor(Array, Symbol.species);
   if (descriptor && descriptor.configurable) {
     Object.defineProperty(Array, Symbol.species, { configurable: true, get: () => function () {
       return { foo: 1 };

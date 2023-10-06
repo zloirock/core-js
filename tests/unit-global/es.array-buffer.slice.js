@@ -1,5 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { DESCRIPTORS, NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG, NODE_EMPTY_DATA_VIEW_BUG } from '../helpers/constants.js';
+import { NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG, NODE_EMPTY_DATA_VIEW_BUG } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 
 QUnit.test('ArrayBuffer#slice', assert => {
@@ -42,14 +42,12 @@ QUnit.test('ArrayBuffer#slice', assert => {
     assert.throws(() => detached.slice({ valueOf() { return converted = true; } }), TypeError, 'detached receiver');
     assert.false(converted, 'the detachment is checked before the conversion of arguments');
   }
-  if (DESCRIPTORS) {
-    const shadowed = arrayToBuffer([1, 2, 3, 4]);
-    try {
-      // the length is an own non-configurable property in some old engines
-      Object.defineProperty(shadowed, 'byteLength', { value: 2 });
-    } catch { /* empty */ }
-    if (shadowed.byteLength === 2 && !NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG) {
-      assert.arrayEqual(bufferToArray(shadowed.slice(0, 4)), [1, 2, 3, 4], 'own byteLength does not replace the length');
-    }
+  const shadowed = arrayToBuffer([1, 2, 3, 4]);
+  try {
+    // the length is an own non-configurable property in some old engines
+    Object.defineProperty(shadowed, 'byteLength', { value: 2 });
+  } catch { /* empty */ }
+  if (shadowed.byteLength === 2 && !NODE_ARRAY_BUFFER_SLICE_OWN_LENGTH_BUG) {
+    assert.arrayEqual(bufferToArray(shadowed.slice(0, 4)), [1, 2, 3, 4], 'own byteLength does not replace the length');
   }
 });

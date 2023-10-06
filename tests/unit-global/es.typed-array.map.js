@@ -1,6 +1,6 @@
-import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants.js';
+import { TYPED_ARRAYS } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.map', assert => {
+QUnit.test('%TypedArrayPrototype%.map', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { map } = TypedArray.prototype;

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
+import { FREEZING } from '../helpers/constants.js';
 import rawJSON from 'core-js-pure/es/json/raw-json';
 import stringify from 'core-js-pure/es/json/stringify';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -20,7 +20,7 @@ QUnit.test('JSON.rawJSON', assert => {
   }), '1', 'created in toJSON');
   assert.same(calls, 1, 'toJSON called once');
 
-  if (DESCRIPTORS) {
+  {
     calls = 0;
     assert.same(stringify(defineProperty({}, 'a', {
       enumerable: true,

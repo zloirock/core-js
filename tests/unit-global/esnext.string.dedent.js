@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FREEZING, GLOBAL } from '../helpers/constants.js';
+import { FREEZING, GLOBAL } from '../helpers/constants.js';
 
 const freeze = Object.freeze || Object;
 
@@ -80,7 +80,7 @@ QUnit.test('String.dedent, template identity', assert => {
     assert.true(Object.isFrozen(result), 'cooked array is frozen');
     assert.true(Object.isFrozen(result.raw), 'raw array is frozen');
   }
-  if (DESCRIPTORS) {
+  {
     assert.nonEnumerable(result, 'raw');
     assert.nonWritable(result, 'raw');
     assert.nonConfigurable(result, 'raw');
@@ -167,7 +167,7 @@ QUnit.test('String.dedent, large raw length', assert => {
   for (const length of [0x100000000, 0x1FFFFFFFFFFFFF, Infinity]) {
     assert.throws(() => dedent({ raw: freeze({ length }) }), TypeError, 'invalid first element');
   }
-  if (DESCRIPTORS) {
+  {
     const error = new Error('first element');
     let lengthCalls = 0;
     const raw = freeze(Object.defineProperties({}, {

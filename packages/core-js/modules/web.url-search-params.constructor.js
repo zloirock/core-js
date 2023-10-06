@@ -8,7 +8,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var patchBody = require('../internals/url-search-params-body');
@@ -173,7 +172,6 @@ URLSearchParamsState.prototype = {
         : create(URLSearchParamsPrototype);
       setInternalState(that, this);
       this.fill();
-      if (!DESCRIPTORS) that.size = this.entries.length;
     } return that;
   },
   parseObject: function (object) {
@@ -248,7 +246,6 @@ URLSearchParamsState.prototype = {
   update: function () {
     this.entries.length = 0;
     this.parseQuery(this.url.query);
-    if (!DESCRIPTORS && this.facade) this.facade.size = this.entries.length;
     this.fill();
   },
   // writes a change of the list to the native object of the instance and to the URL: a native `method`
@@ -305,7 +302,6 @@ var URLSearchParamsConstructor = function URLSearchParams(/* init */) {
   setInternalState(that, state);
   state.listed = NATIVE_CARRIER;
   state.fill();
-  if (!DESCRIPTORS) that.size = state.entries.length;
   return that;
 };
 
@@ -322,7 +318,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var key = toUSVString(name);
     var val = toUSVString(value);
     push(state.entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = state.entries.length;
     state.commit(nativeAppend, key, val);
   },
   // `URLSearchParams.prototype.delete` method
@@ -346,7 +341,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     }
     var changed = writeIndex < entries.length;
     entries.length = writeIndex;
-    if (!DESCRIPTORS) this.size = entries.length;
     if (!changed) state.updateURL();
     // a removal by value that leaves no entry of the key is a removal by name
     else state.commit(!remains || NATIVE_DELETE_BY_VALUE ? nativeDelete : undefined, key, remains ? value : undefined);
@@ -414,7 +408,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
     }
     entries.length = writeIndex;
     if (!found) push(entries, { key: key, value: val });
-    if (!DESCRIPTORS) this.size = entries.length;
     state.commit(nativeSet, key, val);
   },
   // `URLSearchParams.prototype.sort` method
@@ -467,7 +460,7 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 
 // `URLSearchParams.prototype.size` getter
 // https://url.spec.whatwg.org/#dom-urlsearchparams-size
-if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
+defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;
   },

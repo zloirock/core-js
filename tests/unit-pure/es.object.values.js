@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FIREFOX_LEGACY_PROXY, OBJECT_NAMES_ORDER } from '../helpers/constants.js';
+import { FIREFOX_LEGACY_PROXY, OBJECT_NAMES_ORDER } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import assign from 'core-js-pure/es/object/assign';
@@ -35,7 +35,7 @@ QUnit.test('Object.values', assert => {
   } catch { /* empty */ }
 });
 
-if (DESCRIPTORS) QUnit.test('Object.values enumerability changes', assert => {
+QUnit.test('Object.values enumerability changes', assert => {
   for (const prototype of [Object.prototype, null]) {
     const source = create(prototype);
     const symbol = Symbol('enumerability');

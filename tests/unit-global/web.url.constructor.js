@@ -1,5 +1,5 @@
 /* eslint-disable unicorn/relative-url-style -- required for testing */
-import { BUN, DESCRIPTORS, GLOBAL, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
+import { BUN, GLOBAL, NODE, DENO, DENO_VERSION } from '../helpers/constants.js';
 import urlTestData from '../wpt-url-resources/urltestdata.js';
 import javascriptURLTestData from '../wpt-url-resources/urltestdata-javascript-only.js';
 import settersTestData from '../wpt-url-resources/setters.js';
@@ -286,15 +286,13 @@ QUnit.test('URL domain Punycode encoding: repeated and reordered code points', a
     assert.same(url.href, expected, 'absolute URL');
     assert.same(new URL(`//${ label }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
     assert.same(new URL(url.href).href, expected, 'serialization round trip');
-    if (DESCRIPTORS) {
-      const assigned = new URL('https://example.org/path?a=1#hash');
-      assigned.host = `${ label }.example:8080`;
-      assert.same(assigned.host, `${ encoded }.example:8080`, 'host setter');
-      assigned.hostname = `${ label }.test`;
-      assert.same(assigned.host, `${ encoded }.test:8080`, 'hostname setter preserves the port');
-      assigned.href = input;
-      assert.same(assigned.href, expected, 'href setter');
-    }
+    const assigned = new URL('https://example.org/path?a=1#hash');
+    assigned.host = `${ label }.example:8080`;
+    assert.same(assigned.host, `${ encoded }.example:8080`, 'host setter');
+    assigned.hostname = `${ label }.test`;
+    assert.same(assigned.host, `${ encoded }.test:8080`, 'hostname setter preserves the port');
+    assigned.href = input;
+    assert.same(assigned.href, expected, 'href setter');
   }
 });
 
@@ -314,15 +312,13 @@ QUnit.test('URL domain Punycode encoding: many distinct code points', assert => 
   assert.same(url.href, expected, 'absolute URL');
   assert.same(new URL(`//${ distinct }.example/path?a=1#hash`, 'https://example.org/').href, expected, 'relative URL');
   assert.same(new URL(url.href).href, expected, 'serialization round trip');
-  if (DESCRIPTORS) {
-    const assigned = new URL('https://example.org/path?a=1#hash');
-    assigned.host = `${ distinct }.example:8080`;
-    assert.same(assigned.host, `${ encodedDistinct }.example:8080`, 'host setter');
-    assigned.hostname = `${ distinct }.test`;
-    assert.same(assigned.host, `${ encodedDistinct }.test:8080`, 'hostname setter preserves the port');
-    assigned.href = input;
-    assert.same(assigned.href, expected, 'href setter');
-  }
+  const assigned = new URL('https://example.org/path?a=1#hash');
+  assigned.host = `${ distinct }.example:8080`;
+  assert.same(assigned.host, `${ encodedDistinct }.example:8080`, 'host setter');
+  assigned.hostname = `${ distinct }.test`;
+  assert.same(assigned.host, `${ encodedDistinct }.test:8080`, 'hostname setter preserves the port');
+  assigned.href = input;
+  assert.same(assigned.href, expected, 'href setter');
 });
 
 // Native encoders can use larger integers, so a correct result or a TypeError is allowed.
@@ -364,25 +360,23 @@ for (const [length, suffix] of [[16726, 't417146o'], [17000, 'yg88829o']]) {
     // https://crbug.com/819342
     // https://crbug.com/1018721
     QUnit.test(`URL domain Punycode overflow: ${ length }, ${ key } setter`, assert => {
-      if (DESCRIPTORS) {
-        const accepts = URL.canParse(`https://${ label }/`);
-        const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
-        const url = new URL(initial);
-        const params = url.searchParams;
-        let error;
-        try {
-          url[key] = value;
-        } catch (error_) {
-          error = error_;
-        }
-        if (key === 'href' && !accepts) assert.true(error instanceof TypeError, 'href failure is a TypeError');
-        else assert.same(error, undefined, 'a successful setter or rejected host setter does not throw');
-        assert.same(url.href, accepts ? expected : initial, 'a failed setter preserves the URL');
-        assert.same(url.searchParams, params, 'searchParams identity is preserved');
-        assert.same(String(params), accepts && key === 'href' ? 'b=2' : 'a=1', 'searchParams contents');
-        params.set('next', '3');
-        assert.same(url.search, accepts && key === 'href' ? '?b=2&next=3' : '?a=1&next=3', 'searchParams stays linked');
+      const accepts = URL.canParse(`https://${ label }/`);
+      const initial = 'https://user:pass@example.org:8080/path?a=1#hash';
+      const url = new URL(initial);
+      const params = url.searchParams;
+      let error;
+      try {
+        url[key] = value;
+      } catch (error_) {
+        error = error_;
       }
+      if (key === 'href' && !accepts) assert.true(error instanceof TypeError, 'href failure is a TypeError');
+      else assert.same(error, undefined, 'a successful setter or rejected host setter does not throw');
+      assert.same(url.href, accepts ? expected : initial, 'a failed setter preserves the URL');
+      assert.same(url.searchParams, params, 'searchParams identity is preserved');
+      assert.same(String(params), accepts && key === 'href' ? 'b=2' : 'a=1', 'searchParams contents');
+      params.set('next', '3');
+      assert.same(url.search, accepts && key === 'href' ? '?b=2&next=3' : '?a=1&next=3', 'searchParams stays linked');
     });
   }
 }
@@ -410,15 +404,13 @@ QUnit.test('URL domain ignored shorthand format controls', assert => {
     assert.same(URL.parse(input).href, expected, 'URL.parse');
     assert.true(URL.canParse(input), 'URL.canParse');
 
-    if (DESCRIPTORS) {
-      for (const key of ['host', 'hostname', 'href']) {
-        const url = new URL('https://base.example/path?key=value#hash');
-        const params = url.searchParams;
-        url[key] = key === 'href' ? input : hostname;
-        assert.same(url.href, expected, `${ key } setter`);
-        assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
-        assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
-      }
+    for (const key of ['host', 'hostname', 'href']) {
+      const url = new URL('https://base.example/path?key=value#hash');
+      const params = url.searchParams;
+      url[key] = key === 'href' ? input : hostname;
+      assert.same(url.href, expected, `${ key } setter`);
+      assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+      assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
     }
 
     assert.same(new URL(`https://1${ character }27.0.0.1/`).hostname, '127.0.0.1', 'ignored before IPv4 parsing');
@@ -453,15 +445,13 @@ QUnit.skip('URL domain ignored musical format controls', assert => {
     assert.same(URL.parse(input).href, expected, 'URL.parse');
     assert.true(URL.canParse(input), 'URL.canParse');
 
-    if (DESCRIPTORS) {
-      for (const key of ['host', 'hostname', 'href']) {
-        const url = new URL('https://base.example/path?key=value#hash');
-        const params = url.searchParams;
-        url[key] = key === 'href' ? input : hostname;
-        assert.same(url.href, expected, `${ key } setter`);
-        assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
-        assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
-      }
+    for (const key of ['host', 'hostname', 'href']) {
+      const url = new URL('https://base.example/path?key=value#hash');
+      const params = url.searchParams;
+      url[key] = key === 'href' ? input : hostname;
+      assert.same(url.href, expected, `${ key } setter`);
+      assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+      assert.same(String(params), 'key=value', `${ key } preserves searchParams contents`);
     }
 
     assert.same(new URL(`https://1${ character }27.0.0.1/`).hostname, '127.0.0.1', 'ignored before IPv4 parsing');
@@ -891,28 +881,26 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
     assert.throws(() => new URL(`http://${ input }/`), TypeError, 'invalid domain');
     assert.throws(() => new URL('b', `http://${ input }/`), TypeError, 'invalid base domain');
 
-    if (DESCRIPTORS) {
-      for (const [property, value, result] of [
-        ['href', `http://example.com/${ input }`, `http://example.com/${ expected }`],
-        // Native Chrome 67-92 and Edge 79-92 invalidate the URL instead of ignoring the value.
-        // https://crbug.com/819342
-        // https://crbug.com/1018721
-        ['host', input, 'example.com'],
-        ['hostname', input, 'example.com'],
-        // Native Chrome 67-92 and Edge 79-92 keep tabs and newlines in pathname, search and hash.
-        // https://crbug.com/1214932
-        // Native Firefox 57-117 also keeps them in pathname.
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=1818374
-        ['pathname', input, `/${ expected }`],
-        // Native Firefox 57-83 keeps tabs and newlines in search and hash.
-        // https://bugzilla.mozilla.org/show_bug.cgi?id=1324247
-        ['search', input, `?${ expected }`],
-        ['hash', input, `#${ expected }`],
-      ]) {
-        const target = new URL('http://example.com/');
-        target[property] = value;
-        assert.same(target[property], result, `${ property } setter`);
-      }
+    for (const [property, value, result] of [
+      ['href', `http://example.com/${ input }`, `http://example.com/${ expected }`],
+      // Native Chrome 67-92 and Edge 79-92 invalidate the URL instead of ignoring the value.
+      // https://crbug.com/819342
+      // https://crbug.com/1018721
+      ['host', input, 'example.com'],
+      ['hostname', input, 'example.com'],
+      // Native Chrome 67-92 and Edge 79-92 keep tabs and newlines in pathname, search and hash.
+      // https://crbug.com/1214932
+      // Native Firefox 57-117 also keeps them in pathname.
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1818374
+      ['pathname', input, `/${ expected }`],
+      // Native Firefox 57-83 keeps tabs and newlines in search and hash.
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1324247
+      ['search', input, `?${ expected }`],
+      ['hash', input, `#${ expected }`],
+    ]) {
+      const target = new URL('http://example.com/');
+      target[property] = value;
+      assert.same(target[property], result, `${ property } setter`);
     }
   }
 
@@ -920,7 +908,7 @@ QUnit.test('URL converts lone surrogates before removing tabs and newlines', ass
   assert.same(new URL('http://example.com/a\uD800b').pathname, '/a%EF%BF%BDb', 'lone surrogate without whitespace');
 });
 
-if (DESCRIPTORS) QUnit.test('URL setter value conversion before an early return', assert => {
+QUnit.test('URL setter value conversion before an early return', assert => {
   for (const [href, key] of [
     ['mailto:x', 'host'],
     ['mailto:x', 'hostname'],
@@ -953,7 +941,7 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before an early return'
 // Native Node >= 20.0.0 regressed for href; confirmed in 26.13.0 and 27 alpha.
 // https://github.com/nodejs/node/pull/47339
 // https://github.com/nodejs/node/issues/67344
-if (DESCRIPTORS) QUnit[NODE_NATIVE && NODE_VERSION >= 2000 ? 'skip' : 'test']('URL setter value conversion after receiver validation', assert => {
+QUnit[NODE_NATIVE && NODE_VERSION >= 2000 ? 'skip' : 'test']('URL setter value conversion after receiver validation', assert => {
   for (const key of ['href', 'protocol', 'username', 'password', 'host', 'hostname', 'port', 'pathname', 'search', 'hash']) {
     const setter = Object.getOwnPropertyDescriptor(URL.prototype, key).set;
     let calls = 0;
@@ -969,7 +957,7 @@ if (DESCRIPTORS) QUnit[NODE_NATIVE && NODE_VERSION >= 2000 ? 'skip' : 'test']('U
   }
 });
 
-if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state', assert => {
+QUnit.test('URL setter value conversion before changing state', assert => {
   const url = new URL('https://example.com/old/path?q=1#hash');
   const error = new Error('conversion');
   assert.throws(() => {
@@ -1008,121 +996,117 @@ if (DESCRIPTORS) QUnit.test('URL setter value conversion before changing state',
 QUnit.test('URL#href', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'href'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'href');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'href'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'href');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.href, 'http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    url.searchParams.append('foo', 'bar');
-    assert.same(url.href, 'http://zloirock.ru/?foo=bar');
+  url.searchParams.append('foo', 'bar');
+  assert.same(url.href, 'http://zloirock.ru/?foo=bar');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.href = 'https://測試';
-    assert.same(url.href, 'https://xn--g6w251d/', 'unicode parsing');
-    assert.same(String(url), 'https://xn--g6w251d/', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.href = 'https://測試';
+  assert.same(url.href, 'https://xn--g6w251d/', 'unicode parsing');
+  assert.same(String(url), 'https://xn--g6w251d/', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.href = 'https://xxпривет.тест';
-    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
-    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.href = 'https://xxпривет.тест';
+  assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+  assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.href = 'https://xxПРИВЕТ.тест';
-    assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
-    assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.href = 'https://xxПРИВЕТ.тест';
+  assert.same(url.href, 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
+  assert.same(String(url), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/');
-    url.href = 'http://0300.168.0xF0';
-    assert.same(url.href, 'http://192.168.0.240/');
-    assert.same(String(url), 'http://192.168.0.240/');
+  url = new URL('http://zloirock.ru/');
+  url.href = 'http://0300.168.0xF0';
+  assert.same(url.href, 'http://192.168.0.240/');
+  assert.same(String(url), 'http://192.168.0.240/');
 
-    url = new URL('http://zloirock.ru/');
-    url.href = 'http://[20:0:0:1:0:0:0:ff]';
-    assert.same(url.href, 'http://[20:0:0:1::ff]/');
-    assert.same(String(url), 'http://[20:0:0:1::ff]/');
+  url = new URL('http://zloirock.ru/');
+  url.href = 'http://[20:0:0:1:0:0:0:ff]';
+  assert.same(url.href, 'http://[20:0:0:1::ff]/');
+  assert.same(String(url), 'http://[20:0:0:1::ff]/');
 
-    url = new URL('http://zloirock.ru/');
-    url.href = 'http://0300.168.0xG0';
-    assert.same(url.href, 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
-    assert.same(String(url), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
+  url = new URL('http://zloirock.ru/');
+  url.href = 'http://0300.168.0xG0';
+  assert.same(url.href, 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
+  assert.same(String(url), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
-    url = new URL('http://192.168.0.240/');
-    url.href = 'file:///var/log/system.log';
-    assert.same(url.href, 'file:///var/log/system.log', 'file -> ip');
-    assert.same(String(url), 'file:///var/log/system.log', 'file -> ip');
+  url = new URL('http://192.168.0.240/');
+  url.href = 'file:///var/log/system.log';
+  assert.same(url.href, 'file:///var/log/system.log', 'file -> ip');
+  assert.same(String(url), 'file:///var/log/system.log', 'file -> ip');
 
-    url = new URL('file:///var/log/system.log');
-    url.href = 'http://0300.168.0xF0';
-    // Node 19.7
-    // https://github.com/nodejs/node/issues/46755
-    assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
-    assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
+  url = new URL('file:///var/log/system.log');
+  url.href = 'http://0300.168.0xF0';
+  // Node 19.7
+  // https://github.com/nodejs/node/issues/46755
+  assert.same(url.href, 'http://192.168.0.240/', 'file -> http');
+  assert.same(String(url), 'http://192.168.0.240/', 'file -> http');
 
-    assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
-    assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
-    assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = undefined, 'incorrect URL'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = '', 'incorrect URL'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = 'abc', 'incorrect URL'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = '//abc', 'incorrect URL'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:ff', 'incorrect IPv6'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = 'http://[20:0:0:1:0:0:0:fg]', 'incorrect IPv6'); // no error in Chrome
+  assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
+  assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
 
-    const href = 'https://user:pass@example.com:8080/path?q=1#fragment';
-    url = new URL(href);
-    const params = url.searchParams;
-    // fails in Chrome 92 (Windows), Firefox 57
-    // for (const invalid of ['https://evil.com:abc', 'http:', 'relative/path', 'http://[::1', 'http://a%b']) {
-    //   assert.throws(() => { url.href = invalid; }, TypeError, invalid);
-    //   assert.same(url.href, href, 'all URL components are preserved');
-    //   assert.same(url.origin, 'https://example.com:8080', 'origin is still readable');
-    //   assert.same(url.search, '?q=1');
-    //   assert.same(url.searchParams, params, 'searchParams identity is preserved');
-    //   assert.same(String(params), 'q=1', 'searchParams contents are preserved');
-    // }
+  const href = 'https://user:pass@example.com:8080/path?q=1#fragment';
+  url = new URL(href);
+  const params = url.searchParams;
+  // fails in Chrome 92 (Windows), Firefox 57
+  // for (const invalid of ['https://evil.com:abc', 'http:', 'relative/path', 'http://[::1', 'http://a%b']) {
+  //   assert.throws(() => { url.href = invalid; }, TypeError, invalid);
+  //   assert.same(url.href, href, 'all URL components are preserved');
+  //   assert.same(url.origin, 'https://example.com:8080', 'origin is still readable');
+  //   assert.same(url.search, '?q=1');
+  //   assert.same(url.searchParams, params, 'searchParams identity is preserved');
+  //   assert.same(String(params), 'q=1', 'searchParams contents are preserved');
+  // }
 
-    url.href = 'foo:/next?x=2';
-    assert.same(url.href, 'foo:/next?x=2', 'successful assignment replaces the URL');
-    assert.same(url.searchParams, params, 'successful assignment preserves searchParams identity');
-    assert.same(String(params), 'x=2');
-    params.set('x', '3');
-    assert.same(url.href, 'foo:/next?x=3', 'searchParams remains bound to the URL');
-    url.search = '?y=4';
-    assert.same(String(params), 'y=4', 'URL still updates the same searchParams');
+  url.href = 'foo:/next?x=2';
+  assert.same(url.href, 'foo:/next?x=2', 'successful assignment replaces the URL');
+  assert.same(url.searchParams, params, 'successful assignment preserves searchParams identity');
+  assert.same(String(params), 'x=2');
+  params.set('x', '3');
+  assert.same(url.href, 'foo:/next?x=3', 'searchParams remains bound to the URL');
+  url.search = '?y=4';
+  assert.same(String(params), 'y=4', 'URL still updates the same searchParams');
 
-    // failed in native Chrome 92 (Windows)
-    url = new URL('https://example.com/path');
-    assert.throws(() => { url.href = 'http:'; }, TypeError);
-    // fails in native Firefox 122 and 133-159
-    // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
-    // url.protocol = 'file:';
-    // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
+  // failed in native Chrome 92 (Windows)
+  url = new URL('https://example.com/path');
+  assert.throws(() => { url.href = 'http:'; }, TypeError);
+  // fails in native Firefox 122 and 133-159
+  // Firefox discards the file host: https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+  // url.protocol = 'file:';
+  // assert.same(url.href, 'file://example.com/path', 'failed assignment cannot create a file URL with a null host');
 
-    // failed in native Chrome 92 (Windows), Deno 1.10.3
-    url = new URL('https://example.com/path?q=1');
-    assert.throws(() => {
-      url.href = {
-        toString() {
-          url.hash = 'changed';
-          return 'https://evil.com:abc';
-        },
-      };
-    }, TypeError);
-    assert.same(url.href, 'https://example.com/path?q=1#changed');
+  // failed in native Chrome 92 (Windows), Deno 1.10.3
+  url = new URL('https://example.com/path?q=1');
+  assert.throws(() => {
+    url.href = {
+      toString() {
+        url.hash = 'changed';
+        return 'https://evil.com:abc';
+      },
+    };
+  }, TypeError);
+  assert.same(url.href, 'https://example.com/path?q=1#changed');
 
-    const error = new Error('conversion');
-    assert.throws(() => {
-      url.href = { toString() { throw error; } };
-    }, error);
-    assert.same(url.href, 'https://example.com/path?q=1#changed');
-  }
+  const error = new Error('conversion');
+  assert.throws(() => {
+    url.href = { toString() { throw error; } };
+  }, error);
+  assert.same(url.href, 'https://example.com/path?q=1#changed');
 
   // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
   // Chromium ~ 145 on Windows works differently
@@ -1135,14 +1119,12 @@ QUnit.test('URL#href', assert => {
 QUnit.test('URL#origin', assert => {
   const url = new URL('http://es6.zloirock.ru/tests.html');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'origin'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'origin'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
 
   assert.same(url.origin, 'http://es6.zloirock.ru');
 
@@ -1171,88 +1153,78 @@ QUnit.test('URL#origin', assert => {
 QUnit.test('URL#protocol', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'protocol'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'protocol');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'protocol'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'protocol');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.protocol, 'http:');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.protocol = 'https';
-    assert.same(url.protocol, 'https:');
-    assert.same(String(url), 'https://zloirock.ru/');
+  url = new URL('http://zloirock.ru/');
+  url.protocol = 'https';
+  assert.same(url.protocol, 'https:');
+  assert.same(String(url), 'https://zloirock.ru/');
 
-    // https://nodejs.org/api/url.html#url_special_schemes
-    // url = new URL('http://zloirock.ru/');
-    // url.protocol = 'fish';
-    // assert.same(url.protocol, 'http:');
-    // assert.same(url.href, 'http://zloirock.ru/');
-    // assert.same(String(url), 'http://zloirock.ru/');
+  // https://nodejs.org/api/url.html#url_special_schemes
+  // url = new URL('http://zloirock.ru/');
+  // url.protocol = 'fish';
+  // assert.same(url.protocol, 'http:');
+  // assert.same(url.href, 'http://zloirock.ru/');
+  // assert.same(String(url), 'http://zloirock.ru/');
 
-    url = new URL('http://zloirock.ru/');
-    url.protocol = '1http';
-    assert.same(url.protocol, 'http:');
-    assert.same(url.href, 'http://zloirock.ru/', 'incorrect scheme');
-    assert.same(String(url), 'http://zloirock.ru/', 'incorrect scheme');
+  url = new URL('http://zloirock.ru/');
+  url.protocol = '1http';
+  assert.same(url.protocol, 'http:');
+  assert.same(url.href, 'http://zloirock.ru/', 'incorrect scheme');
+  assert.same(String(url), 'http://zloirock.ru/', 'incorrect scheme');
 
-    // Chromium ~ 145 on Windows works differently
-    // url = new URL('file:foo');
-    // url.protocol = 'http:';
-    // assert.same(url.protocol, 'file:', 'file with empty host: protocol change blocked');
-  }
+  // Chromium ~ 145 on Windows works differently
+  // url = new URL('file:foo');
+  // url.protocol = 'http:';
+  // assert.same(url.protocol, 'file:', 'file with empty host: protocol change blocked');
 });
 
 QUnit.test('URL#username', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'username'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'username');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'username'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'username');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.username, '');
 
   url = new URL('http://username@zloirock.ru/');
   assert.same(url.username, 'username');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.username = 'username';
-    assert.same(url.username, 'username');
-    assert.same(String(url), 'http://username@zloirock.ru/');
+  url = new URL('http://zloirock.ru/');
+  url.username = 'username';
+  assert.same(url.username, 'username');
+  assert.same(String(url), 'http://username@zloirock.ru/');
 
-    // IPv4 address 0.0.0.0 (stored as number 0) should allow username
-    url = new URL('http://0.0.0.0/');
-    url.username = 'user';
-    assert.same(url.username, 'user', 'username settable on 0.0.0.0');
-    assert.same(String(url), 'http://user@0.0.0.0/', 'href correct after setting username on 0.0.0.0');
-  }
+  // IPv4 address 0.0.0.0 (stored as number 0) should allow username
+  url = new URL('http://0.0.0.0/');
+  url.username = 'user';
+  assert.same(url.username, 'user', 'username settable on 0.0.0.0');
+  assert.same(String(url), 'http://user@0.0.0.0/', 'href correct after setting username on 0.0.0.0');
 });
 
 QUnit.test('URL#password', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'password'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'password');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'password'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'password');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.password, '');
 
@@ -1262,99 +1234,93 @@ QUnit.test('URL#password', assert => {
   url = new URL('http://:password@zloirock.ru/'); // TypeError in FF
   assert.same(url.password, 'password');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.username = 'username';
-    url.password = 'password';
-    assert.same(url.password, 'password');
-    assert.same(String(url), 'http://username:password@zloirock.ru/');
+  url = new URL('http://zloirock.ru/');
+  url.username = 'username';
+  url.password = 'password';
+  assert.same(url.password, 'password');
+  assert.same(String(url), 'http://username:password@zloirock.ru/');
 
-    url = new URL('http://zloirock.ru/');
-    url.password = 'password';
-    assert.same(url.password, 'password'); // '' in FF
-    assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
-  }
+  url = new URL('http://zloirock.ru/');
+  url.password = 'password';
+  assert.same(url.password, 'password'); // '' in FF
+  assert.same(String(url), 'http://:password@zloirock.ru/'); // 'http://zloirock.ru/' in FF
 });
 
 QUnit.test('URL#host', assert => {
   let url = new URL('http://zloirock.ru:81/path');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'host'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'host');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'host'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'host');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.host, 'zloirock.ru:81');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru:81/path');
-    url.host = 'example.com:82';
-    assert.same(url.host, 'example.com:82');
-    assert.same(String(url), 'http://example.com:82/path');
+  url = new URL('http://zloirock.ru:81/path');
+  url.host = 'example.com:82';
+  assert.same(url.host, 'example.com:82');
+  assert.same(String(url), 'http://example.com:82/path');
 
-    url = new URL('http://zloirock.ru:81/path');
-    url.host = 'other?domain.com';
-    assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
+  url = new URL('http://zloirock.ru:81/path');
+  url.host = 'other?domain.com';
+  assert.same(String(url), 'http://other:81/path'); // 'http://other/?domain.com/path' in Safari
 
-    url = new URL('https://www.mydomain.com:8080/path/');
-    url.host = 'www.otherdomain.com:80';
-    assert.same(url.href, 'https://www.otherdomain.com:80/path/', 'set default port for another protocol');
+  url = new URL('https://www.mydomain.com:8080/path/');
+  url.host = 'www.otherdomain.com:80';
+  assert.same(url.href, 'https://www.otherdomain.com:80/path/', 'set default port for another protocol');
 
-    // url = new URL('https://www.mydomain.com:8080/path/');
-    // url.host = 'www.otherdomain.com:443';
-    // assert.same(url.href, 'https://www.otherdomain.com/path/', 'set default port');
+  // url = new URL('https://www.mydomain.com:8080/path/');
+  // url.host = 'www.otherdomain.com:443';
+  // assert.same(url.href, 'https://www.otherdomain.com/path/', 'set default port');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.host = '測試';
-    assert.same(url.host, 'xn--g6w251d', 'unicode parsing');
-    assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.host = '測試';
+  assert.same(url.host, 'xn--g6w251d', 'unicode parsing');
+  assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.host = 'xxпривет.тест';
-    assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
-    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.host = 'xxпривет.тест';
+  assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+  assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.host = 'xxПРИВЕТ.тест';
-    assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
-    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.host = 'xxПРИВЕТ.тест';
+  assert.same(url.host, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+  assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.host = '0300.168.0xF0';
-    assert.same(url.host, '192.168.0.240');
-    assert.same(String(url), 'http://192.168.0.240/foo');
+  url = new URL('http://zloirock.ru/foo');
+  url.host = '0300.168.0xF0';
+  assert.same(url.host, '192.168.0.240');
+  assert.same(String(url), 'http://192.168.0.240/foo');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.host = '[20:0:0:1:0:0:0:ff]';
-    assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
-    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
+  url = new URL('http://zloirock.ru/foo');
+  url.host = '[20:0:0:1:0:0:0:ff]';
+  assert.same(url.host, '[20:0:0:1::ff]'); // ':0' in Chrome, 'zloirock.ru' in Safari
+  assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://[20:0/foo' in Chrome, 'http://zloirock.ru/foo' in Safari
 
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
-    // url = new URL('file:///var/log/system.log');
-    // url.host = 'nnsc.nsf.net'; // does not work in FF
-    // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
-    // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+  // url = new URL('file:///var/log/system.log');
+  // url.host = 'nnsc.nsf.net'; // does not work in FF
+  // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
+  // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    url = new URL('http://zloirock.ru/');
-    url.host = '[20:0:0:1:0:0:0:ff';
-    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+  url = new URL('http://zloirock.ru/');
+  url.host = '[20:0:0:1:0:0:0:ff';
+  assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+  assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    url = new URL('http://zloirock.ru/');
-    url.host = '[20:0:0:1:0:0:0:fg]';
-    assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
-    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
+  url = new URL('http://zloirock.ru/');
+  url.host = '[20:0:0:1:0:0:0:fg]';
+  assert.same(url.host, 'zloirock.ru', 'incorrect IPv6'); // ':0' in Chrome
+  assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0/' in Chrome
 
-    url = new URL('http://zloirock.ru/');
-    url.host = 'a%b';
-    assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
-  }
+  url = new URL('http://zloirock.ru/');
+  url.host = 'a%b';
+  assert.same(url.host, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+  assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
 });
 
 QUnit.test('URL#hostname', assert => {
@@ -1365,134 +1331,124 @@ QUnit.test('URL#hostname', assert => {
 
   let url = new URL('http://zloirock.ru:81/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'hostname'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hostname');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'hostname'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hostname');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.hostname, 'zloirock.ru');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru:81/');
-    url.hostname = 'example.com';
-    assert.same(url.hostname, 'example.com');
-    assert.same(String(url), 'http://example.com:81/');
+  url = new URL('http://zloirock.ru:81/');
+  url.hostname = 'example.com';
+  assert.same(url.hostname, 'example.com');
+  assert.same(String(url), 'http://example.com:81/');
 
-    // Native Deno 1.46.3-2.5.7 also accept a port instead of ignoring the assignment.
-    // url = new URL('http://zloirock.ru:81/');
-    // url.hostname = 'example.com:82';
-    // assert.same(url.hostname, 'zloirock.ru', 'hostname with port is rejected'); // '' in Chrome 67
-    // assert.same(String(url), 'http://zloirock.ru:81/', 'hostname with port is rejected'); // 'http://example.com:82:81/' in Chrome 67
+  // Native Deno 1.46.3-2.5.7 also accept a port instead of ignoring the assignment.
+  // url = new URL('http://zloirock.ru:81/');
+  // url.hostname = 'example.com:82';
+  // assert.same(url.hostname, 'zloirock.ru', 'hostname with port is rejected'); // '' in Chrome 67
+  // assert.same(String(url), 'http://zloirock.ru:81/', 'hostname with port is rejected'); // 'http://example.com:82:81/' in Chrome 67
 
-    url = new URL('http://zloirock.ru/foo');
-    url.hostname = '測試';
-    assert.same(url.hostname, 'xn--g6w251d', 'unicode parsing');
-    assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.hostname = '測試';
+  assert.same(url.hostname, 'xn--g6w251d', 'unicode parsing');
+  assert.same(String(url), 'http://xn--g6w251d/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.hostname = 'xxпривет.тест';
-    assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
-    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.hostname = 'xxпривет.тест';
+  assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+  assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.hostname = 'xxПРИВЕТ.тест';
-    assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
-    assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
+  url = new URL('http://zloirock.ru/foo');
+  url.hostname = 'xxПРИВЕТ.тест';
+  assert.same(url.hostname, 'xn--xx-flcmn5bht.xn--e1aybc', 'unicode parsing');
+  assert.same(String(url), 'http://xn--xx-flcmn5bht.xn--e1aybc/foo', 'unicode parsing');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.hostname = '0300.168.0xF0';
-    assert.same(url.hostname, '192.168.0.240');
-    assert.same(String(url), 'http://192.168.0.240/foo');
+  url = new URL('http://zloirock.ru/foo');
+  url.hostname = '0300.168.0xF0';
+  assert.same(url.hostname, '192.168.0.240');
+  assert.same(String(url), 'http://192.168.0.240/foo');
 
-    url = new URL('http://zloirock.ru/foo');
-    url.hostname = '[20:0:0:1:0:0:0:ff]';
-    assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
-    assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
+  url = new URL('http://zloirock.ru/foo');
+  url.hostname = '[20:0:0:1:0:0:0:ff]';
+  assert.same(url.hostname, '[20:0:0:1::ff]'); // 'zloirock.ru' in Safari
+  assert.same(String(url), 'http://[20:0:0:1::ff]/foo'); // 'http://zloirock.ru/foo' in Safari
 
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
-    // url = new URL('file:///var/log/system.log');
-    // url.hostname = 'nnsc.nsf.net'; // does not work in FF
-    // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
-    // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+  // url = new URL('file:///var/log/system.log');
+  // url.hostname = 'nnsc.nsf.net'; // does not work in FF
+  // assert.same(url.hostname, 'nnsc.nsf.net', 'file');
+  // assert.same(String(url), 'file://nnsc.nsf.net/var/log/system.log', 'file');
 
-    url = new URL('http://zloirock.ru/');
-    url.hostname = '[20:0:0:1:0:0:0:ff';
-    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
+  url = new URL('http://zloirock.ru/');
+  url.hostname = '[20:0:0:1:0:0:0:ff';
+  assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+  assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff' in Chrome
 
-    url = new URL('http://zloirock.ru/');
-    url.hostname = '[20:0:0:1:0:0:0:fg]';
-    assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
-    assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
+  url = new URL('http://zloirock.ru/');
+  url.hostname = '[20:0:0:1:0:0:0:fg]';
+  assert.same(url.hostname, 'zloirock.ru', 'incorrect IPv6'); // '' in Chrome
+  assert.same(String(url), 'http://zloirock.ru/', 'incorrect IPv6'); // 'http://[20:0:0:1:0:0:0:ff/' in Chrome
 
-    url = new URL('http://zloirock.ru/');
-    url.hostname = 'a%b';
-    assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
-    assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
-  }
+  url = new URL('http://zloirock.ru/');
+  url.hostname = 'a%b';
+  assert.same(url.hostname, 'zloirock.ru', 'forbidden host code point'); // '' in Chrome, 'a%b' in FF
+  assert.same(String(url), 'http://zloirock.ru/', 'forbidden host code point'); // 'http://a%25b/' in Chrome, 'http://a%b/' in FF
 });
 
 QUnit.test('URL#port', assert => {
   let url = new URL('http://zloirock.ru:1337/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'port'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'port');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'port'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'port');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.port, '1337');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.port = 80;
-    assert.same(url.port, '');
-    assert.same(String(url), 'http://zloirock.ru/');
-    url.port = 1337;
-    assert.same(url.port, '1337');
-    assert.same(String(url), 'http://zloirock.ru:1337/');
-    // url.port = 'abcd';
-    // assert.same(url.port, '1337'); // '0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru:1337/'); // 'http://zloirock.ru:0/' in Chrome
-    // url.port = '5678abcd';
-    // assert.same(url.port, '5678'); // '1337' in FF
-    // assert.same(String(url), 'http://zloirock.ru:5678/'); // 'http://zloirock.ru:1337/"' in FF
-    url.port = 1234.5678;
-    assert.same(url.port, '1234');
-    assert.same(String(url), 'http://zloirock.ru:1234/');
-    // url.port = 1e10;
-    // assert.same(url.port, '1234'); // '0' in Chrome
-    // assert.same(String(url), 'http://zloirock.ru:1234/'); // 'http://zloirock.ru:0/' in Chrome
+  url = new URL('http://zloirock.ru/');
+  url.port = 80;
+  assert.same(url.port, '');
+  assert.same(String(url), 'http://zloirock.ru/');
+  url.port = 1337;
+  assert.same(url.port, '1337');
+  assert.same(String(url), 'http://zloirock.ru:1337/');
+  // url.port = 'abcd';
+  // assert.same(url.port, '1337'); // '0' in Chrome
+  // assert.same(String(url), 'http://zloirock.ru:1337/'); // 'http://zloirock.ru:0/' in Chrome
+  // url.port = '5678abcd';
+  // assert.same(url.port, '5678'); // '1337' in FF
+  // assert.same(String(url), 'http://zloirock.ru:5678/'); // 'http://zloirock.ru:1337/"' in FF
+  url.port = 1234.5678;
+  assert.same(url.port, '1234');
+  assert.same(String(url), 'http://zloirock.ru:1234/');
+  // url.port = 1e10;
+  // assert.same(url.port, '1234'); // '0' in Chrome
+  // assert.same(String(url), 'http://zloirock.ru:1234/'); // 'http://zloirock.ru:0/' in Chrome
 
-    // IPv4 address 0.0.0.0 (stored as number 0) should allow port
-    url = new URL('http://0.0.0.0/');
-    url.port = '8080';
-    assert.same(url.port, '8080', 'port settable on 0.0.0.0');
-    assert.same(String(url), 'http://0.0.0.0:8080/', 'href correct after setting port on 0.0.0.0');
-  }
+  // IPv4 address 0.0.0.0 (stored as number 0) should allow port
+  url = new URL('http://0.0.0.0/');
+  url.port = '8080';
+  assert.same(url.port, '8080', 'port settable on 0.0.0.0');
+  assert.same(String(url), 'http://0.0.0.0:8080/', 'href correct after setting port on 0.0.0.0');
 });
 
 QUnit.test('URL#pathname', assert => {
   let url = new URL('http://zloirock.ru/foo/bar');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'pathname'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'pathname');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'pathname'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'pathname');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.pathname, '/foo/bar');
 
@@ -1500,67 +1456,63 @@ QUnit.test('URL#pathname', assert => {
   // url = new URL('http://example.com/a^b');
   // assert.same(url.pathname, '/a%5Eb', 'caret in path is percent-encoded');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.pathname = 'bar/baz';
-    assert.same(url.pathname, '/bar/baz');
-    assert.same(String(url), 'http://zloirock.ru/bar/baz');
+  url = new URL('http://zloirock.ru/');
+  url.pathname = 'bar/baz';
+  assert.same(url.pathname, '/bar/baz');
+  assert.same(String(url), 'http://zloirock.ru/bar/baz');
 
-    /*
-    for (const [href, pathname, expected] of [
-      // Firefox discards nonempty file hosts when parsing these URLs.
-      // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
-      ['file://host/dir/file', 'C|', 'file://host/C:'], // fails in Chrome 95 (Windows), Chrome 155 (macOS), Firefox 157, Safari 27, Node 14.21.3, Deno 2.9.8, Bun 1.4.4
-      ['file://host/dir/file', '/C:/path', 'file://host/C:/path'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
-      ['file://host/dir/file?x#y', '///path', 'file://host///path?x#y'], // fails in Firefox 157, Node 14.21.3, Deno 2.9.8
-      ['file:///unicorn', '//\\/', 'file://////'], // fails in Chrome 155, Firefox 123, Node 14.21.3, Deno 2.9.8
-      ['file:///unicorn', '//monkey/..//', 'file://///'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
-    ]) {
-      url = new URL(href);
-      url.pathname = pathname;
-      assert.same(url.href, expected, pathname);
-      url.href = expected;
-      assert.same(url.href, expected, 'href setter');
-    }
-    */
+  /*
+  for (const [href, pathname, expected] of [
+    // Firefox discards nonempty file hosts when parsing these URLs.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1507354
+    ['file://host/dir/file', 'C|', 'file://host/C:'], // fails in Chrome 95 (Windows), Chrome 155 (macOS), Firefox 157, Safari 27, Node 14.21.3, Deno 2.9.8, Bun 1.4.4
+    ['file://host/dir/file', '/C:/path', 'file://host/C:/path'], // fails in Chrome 95 (Windows), Firefox 157, Node 14.21.3, Deno 2.9.8
+    ['file://host/dir/file?x#y', '///path', 'file://host///path?x#y'], // fails in Firefox 157, Node 14.21.3, Deno 2.9.8
+    ['file:///unicorn', '//\\/', 'file://////'], // fails in Chrome 155, Firefox 123, Node 14.21.3, Deno 2.9.8
+    ['file:///unicorn', '//monkey/..//', 'file://///'], // fails in Chrome 155, Node 14.21.3, Deno 2.9.8
+  ]) {
+    url = new URL(href);
+    url.pathname = pathname;
+    assert.same(url.href, expected, pathname);
+    url.href = expected;
+    assert.same(url.href, expected, 'href setter');
+  }
+  */
 
-    // fails in Chrome 129 (Windows), Firefox 132, Node 14.21.3
-    // for (const pathname of ['', '\t\n\r']) {
-    //   url = new URL('foo:/some/path?query#fragment');
-    //   url.pathname = pathname;
-    //   assert.same(url.href, 'foo:/?query#fragment');
-    //   assert.same(url.pathname, '/');
-    //   const parsed = new URL(url.href);
-    //   parsed.pathname = 'next';
-    //   assert.same(parsed.href, 'foo:/next?query#fragment', 'path remains hierarchical after parsing');
-    //   assert.same(new URL('child', url).href, 'foo:/child', 'URL remains usable as a base');
-    // }
+  // fails in Chrome 129 (Windows), Firefox 132, Node 14.21.3
+  // for (const pathname of ['', '\t\n\r']) {
+  //   url = new URL('foo:/some/path?query#fragment');
+  //   url.pathname = pathname;
+  //   assert.same(url.href, 'foo:/?query#fragment');
+  //   assert.same(url.pathname, '/');
+  //   const parsed = new URL(url.href);
+  //   parsed.pathname = 'next';
+  //   assert.same(parsed.href, 'foo:/next?query#fragment', 'path remains hierarchical after parsing');
+  //   assert.same(new URL('child', url).href, 'foo:/child', 'URL remains usable as a base');
+  // }
 
-    for (const [href, expected] of [
-      ['file:///some/path', 'file:///'],
-      // ['foo://somehost/some/path', 'foo://somehost'], // fails in Chrome 129 (Windows), Firefox 132, Safari 14, Deno 2.0.6
-      // ['foo:///some/path', 'foo://'], // fails in Chrome 129 (Windows), Firefox 157, Safari 14, Deno 2.9.8
-      ['foo:opaque', 'foo:opaque'],
-    ]) {
-      url = new URL(href);
-      url.pathname = '';
-      assert.same(url.href, expected, href);
-    }
+  for (const [href, expected] of [
+    ['file:///some/path', 'file:///'],
+    // ['foo://somehost/some/path', 'foo://somehost'], // fails in Chrome 129 (Windows), Firefox 132, Safari 14, Deno 2.0.6
+    // ['foo:///some/path', 'foo://'], // fails in Chrome 129 (Windows), Firefox 157, Safari 14, Deno 2.9.8
+    ['foo:opaque', 'foo:opaque'],
+  ]) {
+    url = new URL(href);
+    url.pathname = '';
+    assert.same(url.href, expected, href);
   }
 });
 
 QUnit.test('URL#search', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'search'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'search');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'search'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'search');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.search, '');
 
@@ -1592,51 +1544,45 @@ QUnit.test('URL#search', assert => {
   assert.same(new URL('x:a b c #d').pathname, 'a b c%20', 'only space before fragment encoded');
   */
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/?');
-    assert.same(url.search, '');
-    assert.same(String(url), 'http://zloirock.ru/?');
-    url.search = 'foo=bar';
-    assert.same(url.search, '?foo=bar');
-    assert.same(String(url), 'http://zloirock.ru/?foo=bar');
-    url.search = '?bar=baz';
-    assert.same(url.search, '?bar=baz');
-    assert.same(String(url), 'http://zloirock.ru/?bar=baz');
-    url.search = '';
-    assert.same(url.search, '');
-    assert.same(String(url), 'http://zloirock.ru/');
-  }
+  url = new URL('http://zloirock.ru/?');
+  assert.same(url.search, '');
+  assert.same(String(url), 'http://zloirock.ru/?');
+  url.search = 'foo=bar';
+  assert.same(url.search, '?foo=bar');
+  assert.same(String(url), 'http://zloirock.ru/?foo=bar');
+  url.search = '?bar=baz';
+  assert.same(url.search, '?bar=baz');
+  assert.same(String(url), 'http://zloirock.ru/?bar=baz');
+  url.search = '';
+  assert.same(url.search, '');
+  assert.same(String(url), 'http://zloirock.ru/');
 });
 
 QUnit.test('URL#searchParams', assert => {
   let url = new URL('http://zloirock.ru/?foo=bar&bar=baz');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'searchParams'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'searchParams');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'searchParams'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'searchParams');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
 
   assert.true(url.searchParams instanceof URLSearchParams);
   assert.same(url.searchParams.get('foo'), 'bar');
   assert.same(url.searchParams.get('bar'), 'baz');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/');
-    url.searchParams.append('foo', 'bar');
-    assert.same(String(url), 'http://zloirock.ru/?foo=bar');
+  url = new URL('http://zloirock.ru/');
+  url.searchParams.append('foo', 'bar');
+  assert.same(String(url), 'http://zloirock.ru/?foo=bar');
 
-    url = new URL('http://zloirock.ru/');
-    url.search = 'foo=bar';
-    assert.same(url.searchParams.get('foo'), 'bar');
+  url = new URL('http://zloirock.ru/');
+  url.search = 'foo=bar';
+  assert.same(url.searchParams.get('foo'), 'bar');
 
-    url = new URL('http://zloirock.ru/?foo=bar&bar=baz');
-    url.search = '';
-    assert.false(url.searchParams.has('foo'));
-  }
+  url = new URL('http://zloirock.ru/?foo=bar&bar=baz');
+  url.search = '';
+  assert.false(url.searchParams.has('foo'));
 });
 
 // Native Chrome 67-76 decodes invalid UTF-8 as Latin-1; fixed in 77.
@@ -1647,18 +1593,16 @@ QUnit.test('URL query invalid UTF-8 lead bytes', assert => {
       const input = `%${ lead }${ tail }`;
       const query = `${ input }=${ input }`;
       assert.same(new URL(`https://example.org/?${ query }`).searchParams.get(expected), expected, 'constructor');
-      if (DESCRIPTORS) {
-        for (const key of ['search', 'href']) {
-          const url = new URL('https://example.org/?old=value');
-          const params = url.searchParams;
-          url[key] = key === 'search' ? query : `https://example.org/?${ query }`;
-          assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
-          assert.same(params.get(expected), expected, `${ key } decodes the new query`);
-          assert.false(params.has('old'), `${ key } replaces the old query`);
-          params.set('next', '1');
-          const encoded = encodeURIComponent(expected);
-          assert.same(url.search, `?${ encoded }=${ encoded }&next=1`, 'searchParams stays linked');
-        }
+      for (const key of ['search', 'href']) {
+        const url = new URL('https://example.org/?old=value');
+        const params = url.searchParams;
+        url[key] = key === 'search' ? query : `https://example.org/?${ query }`;
+        assert.same(url.searchParams, params, `${ key } preserves searchParams identity`);
+        assert.same(params.get(expected), expected, `${ key } decodes the new query`);
+        assert.false(params.has('old'), `${ key } replaces the old query`);
+        params.set('next', '1');
+        const encoded = encodeURIComponent(expected);
+        assert.same(url.search, `?${ encoded }=${ encoded }&next=1`, 'searchParams stays linked');
       }
     }
   }
@@ -1667,15 +1611,13 @@ QUnit.test('URL query invalid UTF-8 lead bytes', assert => {
 QUnit.test('URL#hash', assert => {
   let url = new URL('http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    assert.false(hasOwnProperty.call(url, 'hash'));
-    const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hash');
-    // Deno 1.10 URL accessors are not enumerable.
-    assert.true(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-    assert.same(typeof descriptor.set, 'function');
-  }
+  assert.false(hasOwnProperty.call(url, 'hash'));
+  const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'hash');
+  // Deno 1.10 URL accessors are not enumerable.
+  assert.true(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+  assert.same(typeof descriptor.set, 'function');
 
   assert.same(url.hash, '');
 
@@ -1686,32 +1628,30 @@ QUnit.test('URL#hash', assert => {
   assert.same(url.hash, '');
   assert.same(String(url), 'http://zloirock.ru/#');
 
-  if (DESCRIPTORS) {
-    url = new URL('http://zloirock.ru/#');
-    url.hash = 'foo';
-    assert.same(url.hash, '#foo');
-    assert.same(String(url), 'http://zloirock.ru/#foo');
-    url.hash = '';
-    assert.same(url.hash, '');
-    assert.same(String(url), 'http://zloirock.ru/');
-    // url.hash = '#';
-    // assert.same(url.hash, '');
-    // assert.same(String(url), 'http://zloirock.ru/'); // 'http://zloirock.ru/#' in FF
-    url.hash = '#foo';
-    assert.same(url.hash, '#foo');
-    assert.same(String(url), 'http://zloirock.ru/#foo');
-    url.hash = '#foo#bar';
-    assert.same(url.hash, '#foo#bar');
-    assert.same(String(url), 'http://zloirock.ru/#foo#bar');
+  url = new URL('http://zloirock.ru/#');
+  url.hash = 'foo';
+  assert.same(url.hash, '#foo');
+  assert.same(String(url), 'http://zloirock.ru/#foo');
+  url.hash = '';
+  assert.same(url.hash, '');
+  assert.same(String(url), 'http://zloirock.ru/');
+  // url.hash = '#';
+  // assert.same(url.hash, '');
+  // assert.same(String(url), 'http://zloirock.ru/'); // 'http://zloirock.ru/#' in FF
+  url.hash = '#foo';
+  assert.same(url.hash, '#foo');
+  assert.same(String(url), 'http://zloirock.ru/#foo');
+  url.hash = '#foo#bar';
+  assert.same(url.hash, '#foo#bar');
+  assert.same(String(url), 'http://zloirock.ru/#foo#bar');
 
-    url = new URL('http://zloirock.ru/');
-    url.hash = 'абa';
-    assert.same(url.hash, '#%D0%B0%D0%B1a');
+  url = new URL('http://zloirock.ru/');
+  url.hash = 'абa';
+  assert.same(url.hash, '#%D0%B0%D0%B1a');
 
-    url = new URL('http://zloirock.ru/');
-    url.hash = '\uDC01\uD802a';
-    assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
-  }
+  url = new URL('http://zloirock.ru/');
+  url.hash = '\uDC01\uD802a';
+  assert.same(url.hash, '#%EF%BF%BD%EF%BF%BDa', 'unmatched surrogates');
 });
 
 QUnit.test('URL#toJSON', assert => {
@@ -1727,10 +1667,8 @@ QUnit.test('URL#toJSON', assert => {
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toJSON(), 'http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    url.searchParams.append('foo', 'bar');
-    assert.same(url.toJSON(), 'http://zloirock.ru/?foo=bar');
-  }
+  url.searchParams.append('foo', 'bar');
+  assert.same(url.toJSON(), 'http://zloirock.ru/?foo=bar');
 });
 
 QUnit.test('URL#toString', assert => {
@@ -1746,10 +1684,8 @@ QUnit.test('URL#toString', assert => {
   const url = new URL('http://zloirock.ru/');
   assert.same(url.toString(), 'http://zloirock.ru/');
 
-  if (DESCRIPTORS) {
-    url.searchParams.append('foo', 'bar');
-    assert.same(url.toString(), 'http://zloirock.ru/?foo=bar');
-  }
+  url.searchParams.append('foo', 'bar');
+  assert.same(url.toString(), 'http://zloirock.ru/?foo=bar');
 });
 
 // Deno 1.10 uses the Object tag for URL.
@@ -1793,10 +1729,6 @@ if (BUN || DENO_VERSION >= 101 || nodeFS) QUnit.test('URL in the APIs of the run
     const { format } = GLOBAL.process.getBuiltinModule('url');
     assert.same(format(new URL('https://example.com/path?query#hash'), { fragment: false }), 'https://example.com/path?query', 'url.format');
   }
-});
-
-QUnit.test('URL.sham', assert => {
-  assert.same(URL.sham, DESCRIPTORS ? undefined : true);
 });
 
 QUnit.test('WPT URL resources', assert => {
@@ -1856,7 +1788,7 @@ QUnit.skip('WPT URL constructor tests', assert => {
 });
 
 // see https://github.com/web-platform-tests/wpt/blob/master/url
-if (DESCRIPTORS) QUnit.skip('WPT URL setters tests', assert => {
+QUnit.skip('WPT URL setters tests', assert => {
   for (const setter in settersTestData) {
     if (setter === 'comment') continue;
     const testCases = settersTestData[setter];

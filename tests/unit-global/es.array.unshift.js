@@ -1,4 +1,4 @@
-import { DESCRIPTORS, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
 
 const { defineProperty, preventExtensions } = Object;
 
@@ -13,11 +13,9 @@ QUnit.test('Array#unshift', assert => {
   assert.same(unshift.call([1], 0), 2, 'proper result');
 
   let touched = false;
-  if (DESCRIPTORS) {
-    const accessor = () => { touched = true; };
-    unshift.call(defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
-    assert.false(touched, 'elements are not touched without arguments');
-  }
+  const accessor = () => { touched = true; };
+  unshift.call(defineProperty({ length: 1 }, 0, { get: accessor, set: accessor }));
+  assert.false(touched, 'elements are not touched without arguments');
 
   // an implementation that moves elements without arguments would iterate up to this length
   if (!touched) {
@@ -54,10 +52,8 @@ QUnit.test('Array#unshift', assert => {
       assert.throws(() => unshift.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
     }
 
-    if (DESCRIPTORS) {
-      assert.throws(() => unshift.call(preventExtensions([1]), 0), TypeError, 'non-extensible array');
-      assert.throws(() => unshift.call(defineProperty([1, 2], 1, { writable: false }), 0), TypeError, 'non-writable element');
-    }
+    assert.throws(() => unshift.call(preventExtensions([1]), 0), TypeError, 'non-extensible array');
+    assert.throws(() => unshift.call(defineProperty([1, 2], 1, { writable: false }), 0), TypeError, 'non-writable element');
 
     assert.throws(() => unshift.call(null), TypeError);
     assert.throws(() => unshift.call(undefined), TypeError);

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
 const { assign } = Object;
@@ -38,7 +38,7 @@ QUnit.test('Iterator.from', assert => {
   // Should not create observable `String` wrapper objects
   // https://github.com/tc39/test262/blob/main/test/built-ins/Iterator/from/iterable-primitives.js
   const descriptor = Object.getOwnPropertyDescriptor(String.prototype, Symbol.iterator);
-  if (DESCRIPTORS && descriptor) {
+  if (descriptor) {
     let observedType;
     // eslint-disable-next-line no-extend-native -- required for testing
     Object.defineProperty(String.prototype, Symbol.iterator, {

@@ -1,4 +1,4 @@
-import { GLOBAL, DESCRIPTORS, NODE, BUN, DENO, DENO_VERSION, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS } from '../helpers/constants.js';
+import { GLOBAL, NODE, BUN, DENO, DENO_VERSION, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS } from '../helpers/constants.js';
 import { createIterable, nativeSubclass, timeLimitedPromise } from '../helpers/helpers.js';
 
 const { create, defineProperty, getPrototypeOf, getOwnPropertyDescriptor } = Object;
@@ -417,7 +417,7 @@ QUnit.test('URLSearchParams sequence array element conversion', assert => {
 
 QUnit.test('URLSearchParams sequence conversion errors', assert => {
   for (const stage of ['next', 'done', 'value', 'string']) {
-    if (!DESCRIPTORS && (stage === 'done' || stage === 'value')) continue;
+    if (!(stage === 'done' || stage === 'value')) continue;
     const error = new Error(stage);
     let nextCalls = 0;
     let innerReturns = 0;
@@ -479,25 +479,23 @@ QUnit.test('URLSearchParams USVString record collisions', assert => {
     assert.arrayEqual(entries, [['\uFFFD', 'last'], ['middle', 'keep']], 'record collision preserves the first position and last value');
   }
 
-  if (DESCRIPTORS) {
-    const log = [];
-    const record = {};
-    for (const key of ['\uD800', '\uDC00']) defineProperty(record, key, {
-      enumerable: true,
-      get() {
-        log.push(key);
-        return {
-          toString() {
-            log.push('value');
-            return key;
-          },
-        };
-      },
-    });
-    const params = new URLSearchParams(record);
-    assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
-    assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
-  }
+  const log = [];
+  const record = {};
+  for (const key of ['\uD800', '\uDC00']) defineProperty(record, key, {
+    enumerable: true,
+    get() {
+      log.push(key);
+      return {
+        toString() {
+          log.push('value');
+          return key;
+        },
+      };
+    },
+  });
+  const params = new URLSearchParams(record);
+  assert.arrayEqual(log, ['\uD800', 'value', '\uDC00', 'value'], 'all colliding properties are read and converted');
+  assert.arrayEqual(params.getAll('\uFFFD'), ['\uFFFD'], 'colliding values are well-formed');
 });
 
 QUnit.test('URLSearchParams USVString methods', assert => {
@@ -580,33 +578,31 @@ QUnit.test('URLSearchParams record keys', assert => {
   if (!DENO_RECORD_SYMBOLS) assert.throws(() => new URLSearchParams({ [symbol]: 'value' }), TypeError, 'enumerable symbol key');
   assert.throws(() => new URLSearchParams({ [Symbol.iterator]: null, a: 1 }), TypeError, 'enumerable null iterator key');
 
-  if (DESCRIPTORS) {
-    let reads = 0;
-    const record = { a: 1 };
-    defineProperty(record, 'hidden', {
-      get() {
-        reads++;
-        return 'ignored';
-      },
-    });
-    defineProperty(record, symbol, {
-      configurable: true,
-      get() {
-        reads++;
-        return 'ignored';
-      },
-    });
-    assert.same(String(new URLSearchParams(record)), 'a=1', 'non-enumerable string and symbol keys are ignored');
-    assert.same(reads, 0, 'non-enumerable values are not read');
-    defineProperty(record, symbol, { enumerable: true });
-    if (!DENO_RECORD_SYMBOLS) {
-      assert.throws(() => new URLSearchParams(record), TypeError, 'symbol key conversion throws');
-      assert.same(reads, 0, 'key conversion precedes value access');
-    }
+  let reads = 0;
+  const record = { a: 1 };
+  defineProperty(record, 'hidden', {
+    get() {
+      reads++;
+      return 'ignored';
+    },
+  });
+  defineProperty(record, symbol, {
+    configurable: true,
+    get() {
+      reads++;
+      return 'ignored';
+    },
+  });
+  assert.same(String(new URLSearchParams(record)), 'a=1', 'non-enumerable string and symbol keys are ignored');
+  assert.same(reads, 0, 'non-enumerable values are not read');
+  defineProperty(record, symbol, { enumerable: true });
+  if (!DENO_RECORD_SYMBOLS) {
+    assert.throws(() => new URLSearchParams(record), TypeError, 'symbol key conversion throws');
+    assert.same(reads, 0, 'key conversion precedes value access');
   }
 });
 
-if (DESCRIPTORS && !DENO_RECORD_SYMBOLS) QUnit.test('URLSearchParams record property changes', assert => {
+if (!DENO_RECORD_SYMBOLS) QUnit.test('URLSearchParams record property changes', assert => {
   const record = {};
   defineProperty(record, 'a', {
     enumerable: true,
@@ -853,19 +849,17 @@ QUnit.test('URLSearchParams#delete', assert => {
   params.delete('a', '999');
   assert.same(String(params), 'a=1&b=2', 'no match leaves all entries intact');
 
-  if (DESCRIPTORS) {
-    let url = new URL('http://example.com/?param1&param2');
-    url.searchParams.delete('param1');
-    url.searchParams.delete('param2');
-    assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
-    assert.same(url.search, '', 'url.search does not have ?');
+  let url = new URL('http://example.com/?param1&param2');
+  url.searchParams.delete('param1');
+  url.searchParams.delete('param2');
+  assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
+  assert.same(url.search, '', 'url.search does not have ?');
 
-    url = new URL('http://example.com/?');
-    url.searchParams.delete('param1');
-    // fails in native Bun 0.3.0-0.5.8; it was a bug of old Safari too
-    // assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
-    assert.same(url.search, '', 'url.search does not have ?');
-  }
+  url = new URL('http://example.com/?');
+  url.searchParams.delete('param1');
+  // fails in native Bun 0.3.0-0.5.8; it was a bug of old Safari too
+  // assert.same(String(url), 'http://example.com/', 'url.href does not have ?');
+  assert.same(url.search, '', 'url.search does not have ?');
 
   assert.throws(() => {
     return new URLSearchParams('').delete();
@@ -888,7 +882,6 @@ for (const argument of ['name', 'value']) QUnit.test(`URLSearchParams#delete con
     ['a=1&b=2', 'append', ['a', '2'], 'b=2&a=2', true, true],
   ]) {
     for (const bound of [false, true]) {
-      if (bound && !DESCRIPTORS) continue;
       // These mutations can make native delete throw while updating the bound URL.
       if (bound && argument === 'value' && NODE_DELETE_VALUE && brokenValue && method !== 'append') continue;
       const url = bound ? new URL(`https://example.com/?${ input }`) : undefined;
@@ -974,13 +967,11 @@ QUnit.test('URLSearchParams#delete with many duplicates', assert => {
   assert.same(String(params), '', 'all entries removed');
   assert.same(params.size, 0, 'empty size');
 
-  if (DESCRIPTORS) {
-    const url = new URL(`https://example.com/?${ input }`);
-    url.searchParams.delete('a', 'remove');
-    assert.same(url.search, `?${ afterValue.join('&') }`, 'URL updated after deleting by value');
-    url.searchParams.delete('a');
-    assert.same(url.search, `?${ afterName.join('&') }`, 'URL updated after deleting by name');
-  }
+  const url = new URL(`https://example.com/?${ input }`);
+  url.searchParams.delete('a', 'remove');
+  assert.same(url.search, `?${ afterValue.join('&') }`, 'URL updated after deleting by value');
+  url.searchParams.delete('a');
+  assert.same(url.search, `?${ afterName.join('&') }`, 'URL updated after deleting by name');
 });
 
 QUnit.test('URLSearchParams#delete with interleaved keys', assert => {
@@ -1020,7 +1011,7 @@ QUnit.test('URLSearchParams#delete with interleaved keys', assert => {
   assert.deepEqual(iterator.next().value, ['prefix1', '1'], 'iterator after deletion');
 });
 
-if (DESCRIPTORS) QUnit.test('URLSearchParams#delete with value updates the URL', assert => {
+QUnit.test('URLSearchParams#delete with value updates the URL', assert => {
   for (const [query, name, value, expected] of [
     ['a=~%20b&b=%20', 'a', 'missing', 'a=%7E+b&b=+'],
     ['a=~%20b&b=%20', 'missing', 'value', 'a=%7E+b&b=+'],
@@ -1259,13 +1250,11 @@ QUnit.test('URLSearchParams#set with many duplicates', assert => {
   assert.same(String(params), `${ expected.join('&').replace('a=new', 'a=updated') }&missing=added`, 'single matching entry keeps its position');
   assert.deepEqual(iterator.next().value, ['item', '0'], 'existing iterator sees the remaining entries');
 
-  if (DESCRIPTORS) {
-    const url = new URL(`https://example.com/?${ input }`);
-    url.searchParams.set('a', 'new');
-    assert.same(url.search, `?${ expected.join('&') }`, 'URL updated after replacing duplicates');
-    url.searchParams.set('missing', 'added');
-    assert.same(url.search, `?${ expected.join('&') }&missing=added`, 'URL updated after appending');
-  }
+  const url = new URL(`https://example.com/?${ input }`);
+  url.searchParams.set('a', 'new');
+  assert.same(url.search, `?${ expected.join('&') }`, 'URL updated after replacing duplicates');
+  url.searchParams.set('missing', 'added');
+  assert.same(url.search, `?${ expected.join('&') }&missing=added`, 'URL updated after appending');
 });
 
 QUnit.test('URLSearchParams#sort', assert => {
@@ -1358,12 +1347,10 @@ QUnit.test('URLSearchParams#sort', assert => {
     });
   }
 
-  if (DESCRIPTORS) {
-    const url = new URL('http://example.com/?');
-    url.searchParams.sort();
-    assert.same(url.href, 'http://example.com/', 'Sorting non-existent params removes ? from URL');
-    assert.same(url.search, '', 'Sorting non-existent params removes ? from URL');
-  }
+  const url = new URL('http://example.com/?');
+  url.searchParams.sort();
+  assert.same(url.href, 'http://example.com/', 'Sorting non-existent params removes ? from URL');
+  assert.same(url.search, '', 'Sorting non-existent params removes ? from URL');
 });
 
 QUnit.test('URLSearchParams#toString', assert => {
@@ -1492,16 +1479,14 @@ QUnit.test('URLSearchParams#forEach', assert => {
   });
 
   // fails in Chrome 66-
-  if (DESCRIPTORS) {
-    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
-    params = url.searchParams;
-    result = '';
-    params.forEach((val, key) => {
-      url.search = 'x=1&y=2&z=3';
-      result += key + val;
-    });
-    assert.same(result, 'a1y2z3');
-  }
+  const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+  params = url.searchParams;
+  result = '';
+  params.forEach((val, key) => {
+    url.search = 'x=1&y=2&z=3';
+    result += key + val;
+  });
+  assert.same(result, 'a1y2z3');
 
   // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
@@ -1539,17 +1524,15 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.true(new URL('http://a.b/c').searchParams.entries().next().done, 'should be finished');
 
   // fails in Chrome 66-
-  if (DESCRIPTORS) {
-    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
-    iterator = url.searchParams.entries();
-    result = '';
-    while (!(entry = iterator.next()).done) {
-      const [key, value] = entry.value;
-      url.search = 'x=1&y=2&z=3';
-      result += key + value;
-    }
-    assert.same(result, 'a1y2z3');
+  const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+  iterator = url.searchParams.entries();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    const [key, value] = entry.value;
+    url.search = 'x=1&y=2&z=3';
+    result += key + value;
   }
+  assert.same(result, 'a1y2z3');
 
   // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
@@ -1563,7 +1546,7 @@ QUnit.test('URLSearchParams#entries', assert => {
   assert.same(result, 'a1c3');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().entries()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#keys', assert => {
@@ -1587,17 +1570,15 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.true(new URL('http://a.b/c').searchParams.keys().next().done, 'should be finished');
 
   // fails in Chrome 66-
-  if (DESCRIPTORS) {
-    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
-    iterator = url.searchParams.keys();
-    result = '';
-    while (!(entry = iterator.next()).done) {
-      const key = entry.value;
-      url.search = 'x=1&y=2&z=3';
-      result += key;
-    }
-    assert.same(result, 'ayz');
+  const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+  iterator = url.searchParams.keys();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    const key = entry.value;
+    url.search = 'x=1&y=2&z=3';
+    result += key;
   }
+  assert.same(result, 'ayz');
 
   // fails in Chrome 66-
   const params = new URLSearchParams('a=1&b=2&c=3');
@@ -1611,7 +1592,7 @@ QUnit.test('URLSearchParams#keys', assert => {
   assert.same(result, 'ac');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().keys()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#values', assert => {
@@ -1635,17 +1616,15 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.true(new URL('http://a.b/c').searchParams.values().next().done, 'should be finished');
 
   // fails in Chrome 66-
-  if (DESCRIPTORS) {
-    const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
-    iterator = url.searchParams.values();
-    result = '';
-    while (!(entry = iterator.next()).done) {
-      const { value } = entry;
-      url.search = 'x=x&y=y&z=z';
-      result += value;
-    }
-    assert.same(result, 'ayz');
+  const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
+  iterator = url.searchParams.values();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    const { value } = entry;
+    url.search = 'x=x&y=y&z=z';
+    result += value;
   }
+  assert.same(result, 'ayz');
 
   // fails in Chrome 66-
   const params = new URLSearchParams('a=1&b=2&c=3');
@@ -1659,7 +1638,7 @@ QUnit.test('URLSearchParams#values', assert => {
   assert.same(result, '13');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams().values()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit.test('URLSearchParams#@@iterator', assert => {
@@ -1690,17 +1669,15 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.true(new URL('http://a.b/c').searchParams[Symbol.iterator]().next().done, 'should be finished');
 
   // fails in Chrome 66-
-  if (DESCRIPTORS) {
-    const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
-    iterator = url.searchParams[Symbol.iterator]();
-    result = '';
-    while (!(entry = iterator.next()).done) {
-      const [key, value] = entry.value;
-      url.search = 'x=1&y=2&z=3';
-      result += key + value;
-    }
-    assert.same(result, 'a1y2z3');
+  const url = new URL('http://a.b/c?a=1&b=2&c=3&d=4');
+  iterator = url.searchParams[Symbol.iterator]();
+  result = '';
+  while (!(entry = iterator.next()).done) {
+    const [key, value] = entry.value;
+    url.search = 'x=1&y=2&z=3';
+    result += key + value;
   }
+  assert.same(result, 'a1y2z3');
 
   // fails in Chrome 66-
   params = new URLSearchParams('a=1&b=2&c=3');
@@ -1714,7 +1691,7 @@ QUnit.test('URLSearchParams#@@iterator', assert => {
   assert.same(result, 'a1c3');
 
   // Deno 1.10 keeps next on an ancestor of the iterator prototype.
-  if (DESCRIPTORS) assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
+  assert.true(getOwnPropertyDescriptor(getPrototypeOf(new URLSearchParams()[Symbol.iterator]()), 'next').enumerable, 'enumerable .next');
 });
 
 QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion', assert => {
@@ -1737,7 +1714,7 @@ QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after ex
   }
 });
 
-if (DESCRIPTORS) QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion and query replacement', assert => {
+QUnit[ITERATORS_STAY_DONE ? 'skip' : 'test']('URLSearchParams iterators after exhaustion and query replacement', assert => {
   for (const method of ['keys', 'values', 'entries', Symbol.iterator]) {
     const url = new URL('https://example.com/?a=1');
     const iterator = url.searchParams[method]();
@@ -1765,20 +1742,18 @@ QUnit.test('URLSearchParams#size', assert => {
   assert.true('size' in params);
   assert.same(params.size, 3);
 
-  if (DESCRIPTORS) {
-    assert.true('size' in URLSearchParams.prototype);
+  assert.true('size' in URLSearchParams.prototype);
 
-    const { enumerable, configurable, get } = getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
+  const { enumerable, configurable, get } = getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
 
-    assert.true(enumerable, 'enumerable');
-    // https://github.com/oven-sh/bun/issues/9251
-    if (!BUN) assert.true(configurable, 'configurable');
+  assert.true(enumerable, 'enumerable');
+  // https://github.com/oven-sh/bun/issues/9251
+  if (!BUN) assert.true(configurable, 'configurable');
 
-    // Deno 1.x implements this API in JavaScript without native-looking source strings.
-    if (!NODE && !DENO) assert.looksNative(get);
+  // Deno 1.x implements this API in JavaScript without native-looking source strings.
+  if (!NODE && !DENO) assert.looksNative(get);
 
-    assert.throws(() => get.call([]));
-  }
+  assert.throws(() => get.call([]));
 });
 
 QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
@@ -1814,16 +1789,14 @@ QUnit.test('URLSearchParams#size of URL#searchParams', assert => {
   // Deno 1.2-1.7.5 replaces the searchParams object when search or href changes.
   // Fixed in 1.8.0: https://github.com/denoland/deno/pull/9276
   // Regression tests: https://github.com/denoland/deno/pull/9639
-  if (DESCRIPTORS) {
-    url.search = '?x=1&y=2&z=3';
-    assert.same(params.size, 3, 'size after replacing search');
-    params.append('w', 4);
-    assert.same(params.size, 4, 'size after append following search replacement');
-    url.href = 'https://example.org/?x=1&x=2&x=3';
-    assert.same(params.size, 3, 'size after replacing href');
-    url.search = '';
-    assert.same(params.size, 0, 'size after clearing search');
-  }
+  url.search = '?x=1&y=2&z=3';
+  assert.same(params.size, 3, 'size after replacing search');
+  params.append('w', 4);
+  assert.same(params.size, 4, 'size after append following search replacement');
+  url.href = 'https://example.org/?x=1&x=2&x=3';
+  assert.same(params.size, 3, 'size after replacing href');
+  url.search = '';
+  assert.same(params.size, 0, 'size after clearing search');
 });
 
 // Deno 1.10 uses the Object tag for URLSearchParams.
@@ -1968,7 +1941,7 @@ if (typeof Request == 'function') {
     assert.throws(() => new Request(), 'requires an input');
   });
 
-  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Request, dictionary conversion', assert => {
+  QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Request, dictionary conversion', assert => {
     const body = new URLSearchParams('a=1');
     const calls = [];
     const method = { toString() {
@@ -2091,7 +2064,7 @@ if (typeof Response == 'function') {
     });
   });
 
-  if (DESCRIPTORS) QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Response, dictionary conversion', assert => {
+  QUnit[BUN_INIT_GETTERS ? 'skip' : 'test']('URLSearchParams with Response, dictionary conversion', assert => {
     const body = new URLSearchParams('a=1');
     const calls = [];
     const init = defineProperty({}, 'headers', { get() {
@@ -2199,7 +2172,7 @@ if (typeof fetch == 'function') QUnit[BUN_VERSION > 0 && BUN_VERSION < 5007 ? 's
   });
 });
 
-if (typeof fetch == 'function' && DESCRIPTORS) QUnit[BUN_FETCH_ERRORS ? 'skip' : 'test']('URLSearchParams with fetch, dictionary errors', assert => {
+if (typeof fetch == 'function') QUnit[BUN_FETCH_ERRORS ? 'skip' : 'test']('URLSearchParams with fetch, dictionary errors', assert => {
   const error = new Error('body getter');
   const init = defineProperty({}, 'body', { get() { throw error; } });
   return fetch('http://example.com/', init).then(() => {
@@ -2263,7 +2236,7 @@ if (TEST_SERVER) {
     }));
   });
 
-  if (typeof fetch == 'function' && DESCRIPTORS) QUnit.test('URLSearchParams with fetch, dictionary conversion', assert => {
+  if (typeof fetch == 'function') QUnit.test('URLSearchParams with fetch, dictionary conversion', assert => {
     assert.timeout?.(10000);
     const params = new URLSearchParams('a=1');
     let calls = 0;

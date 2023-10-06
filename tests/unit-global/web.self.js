@@ -1,11 +1,11 @@
 /* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- safe */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('self', assert => {
   assert.same(self, Object(self), 'is object');
   assert.same(self.Math, Math, 'contains globals');
   assert.true(Object.prototype.propertyIsEnumerable.call(GLOBAL, 'self'), 'enumerable');
-  if (DESCRIPTORS) {
+  {
     const descriptor = Object.getOwnPropertyDescriptor(self, 'self');
     // Non-configurable native self cannot be replaced in old WebKit.
     if (descriptor.configurable) {

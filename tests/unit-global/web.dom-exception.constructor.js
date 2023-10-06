@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NODE, DENO_VERSION } from '../helpers/constants.js';
+import { GLOBAL, NODE, DENO_VERSION } from '../helpers/constants.js';
 
 const errors = {
   IndexSizeError: { s: 'INDEX_SIZE_ERR', c: 1, m: 1 },
@@ -73,12 +73,10 @@ QUnit.test('DOMException', assert => {
   assert.throws(() => new DOMException(symbol, 'DataCloneError'), "new DOMException(Symbol(), 'DataCloneError')");
   // Deno 1.0 accepts a Symbol as the exception name.
   if (DENO_VERSION !== 100) assert.throws(() => new DOMException(42, symbol), 'new DOMException(42, Symbol())');
-  if (DESCRIPTORS) {
-    // assert.throws(() => DOMException.prototype.message, 'DOMException.prototype.message'); // FF55- , Safari 10.1 bug
-    // assert.throws(() => DOMException.prototype.name, 'DOMException.prototype.name'); // FF55-, Safari 10.1 bug bug
-    // assert.throws(() => DOMException.prototype.code, 'DOMException.prototype.code'); // Safari 10.1 bug
-    // assert.throws(() => DOMException.prototype.toString(), 'DOMException.prototype.toString()'); // FF55- bug
-  }
+  // assert.throws(() => DOMException.prototype.message, 'DOMException.prototype.message'); // FF55- , Safari 10.1 bug
+  // assert.throws(() => DOMException.prototype.name, 'DOMException.prototype.name'); // FF55-, Safari 10.1 bug bug
+  // assert.throws(() => DOMException.prototype.code, 'DOMException.prototype.code'); // Safari 10.1 bug
+  // assert.throws(() => DOMException.prototype.toString(), 'DOMException.prototype.toString()'); // FF55- bug
 });
 
 if (NODE && GLOBAL.MessageChannel) QUnit.test('DOMException, platform errors', assert => {

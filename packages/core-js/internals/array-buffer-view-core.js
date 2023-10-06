@@ -1,6 +1,5 @@
 'use strict';
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
-var DESCRIPTORS = require('../internals/descriptors');
 var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
@@ -87,7 +86,6 @@ var aTypedArrayConstructor = function (C) {
 };
 
 var exportTypedArrayMethod = function (KEY, property, forced, options) {
-  if (!DESCRIPTORS) return;
   if (forced) for (var ARRAY in TypedArrayConstructorsList) {
     var TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && hasOwn(TypedArrayConstructor.prototype, KEY)) try {
@@ -107,7 +105,6 @@ var exportTypedArrayMethod = function (KEY, property, forced, options) {
 
 var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   var ARRAY, TypedArrayConstructor;
-  if (!DESCRIPTORS) return;
   if (setPrototypeOf) {
     if (forced) for (ARRAY in TypedArrayConstructorsList) {
       TypedArrayConstructor = globalThis[ARRAY];
@@ -166,7 +163,7 @@ if (NATIVE_ARRAY_BUFFER_VIEWS && getPrototypeOf(Uint8ClampedArrayPrototype) !== 
   setPrototypeOf(Uint8ClampedArrayPrototype, TypedArrayPrototype);
 }
 
-if (DESCRIPTORS && !hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
+if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
   TYPED_ARRAY_TAG_REQUIRED = true;
   defineBuiltInAccessor(TypedArrayPrototype, TO_STRING_TAG, {
     configurable: true,

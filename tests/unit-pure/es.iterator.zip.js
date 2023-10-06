@@ -1,5 +1,4 @@
 import { createIterator, observableReturn } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 import from from 'core-js-pure/es/array/from';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -159,7 +158,7 @@ QUnit.test('Iterator.zip', assert => {
     assert.same(it1.returnCalls, 1, 'closes the remaining iterator when another return throws');
   }
 
-  if (DESCRIPTORS) {
+  {
     const expectedError = new Error('input value');
     const closed = [];
     const inner = createIterator([], {
@@ -192,7 +191,7 @@ QUnit.test('Iterator.zip', assert => {
 
   assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
   assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
-  if (DESCRIPTORS) {
+  {
     let valueRead = false;
     const exhausted = () => ({
       next() {

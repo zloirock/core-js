@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
 var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -22,7 +21,7 @@ var concat = uncurryThis([].concat);
 // https://tc39.es/ecma262/#sec-object.assign
 module.exports = !$assign || fails(function () {
   // should have correct order of operations (Edge bug)
-  if (DESCRIPTORS && $assign({ b: 1 }, $assign(defineProperty({}, 'a', {
+  if ($assign({ b: 1 }, $assign(defineProperty({}, 'a', {
     enumerable: true,
     get: function () {
       defineProperty(this, 'b', {
@@ -50,15 +49,15 @@ module.exports = !$assign || fails(function () {
   while (argumentsLength > index) {
     var S = IndexedObject(arguments[index++]);
     var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && objectGetPrototypeOf(S) === null;
-    var keys = DESCRIPTORS && NAMES_ORDER ? ownKeys(S) : objectKeys(S);
-    if ((!DESCRIPTORS || !NAMES_ORDER) && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));
+    var keys = NAMES_ORDER ? ownKeys(S) : objectKeys(S);
+    if (!NAMES_ORDER && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));
     var length = keys.length;
     var j = 0;
     var key, descriptor;
     while (length > j) {
       key = keys[j++];
-      descriptor = DESCRIPTORS && getOwnPropertyDescriptor(S, key);
-      if (!DESCRIPTORS || (descriptor ? descriptor.enumerable : IE_WORKAROUND && key in S)) T[key] = S[key];
+      descriptor = getOwnPropertyDescriptor(S, key);
+      if (descriptor ? descriptor.enumerable : IE_WORKAROUND && key in S) T[key] = S[key];
     }
   } return T;
 } : $assign;

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS, OBJECT_NAMES_ORDER, SAFARI_PROXY_SYMBOL_ORDER } from '../helpers/constants.js';
+import { FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS, OBJECT_NAMES_ORDER, SAFARI_PROXY_SYMBOL_ORDER } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import create from 'core-js-pure/es/object/create';
@@ -22,43 +22,43 @@ QUnit.test('Object.assign', assert => {
   assert.same(String(string), 'qwe');
   assert.same(string.q, 1);
   assert.same(assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug');
-  if (DESCRIPTORS) {
-    object = { baz: 1 };
-    assign(object, defineProperty({}, 'bar', {
-      get() {
-        return this.baz + 1;
-      },
-    }));
-    assert.same(object.bar, undefined, "assign don't copy descriptors");
-    object = { a: 'a' };
-    const c = Symbol('c');
-    const d = Symbol('d');
-    object[c] = 'c';
-    defineProperty(object, 'b', { value: 'b' });
-    defineProperty(object, d, { value: 'd' });
-    const object2 = assign({}, object);
-    assert.same(object2.a, 'a', 'a');
-    assert.same(object2.b, undefined, 'b');
-    assert.same(object2[c], 'c', 'c');
-    assert.same(object2[d], undefined, 'd');
-    try {
-      assert.same(Function('assign', `
-        return assign({ b: 1 }, { get a() {
-          delete this.b;
-        }, b: 2 });
-      `)(assign).b, 1);
-    } catch { /* empty */ }
-    try {
-      assert.same(Function('assign', `
-        return assign({ b: 1 }, { get a() {
-          Object.defineProperty(this, "b", {
-            value: 3,
-            enumerable: false
-          });
-        }, b: 2 });
-      `)(assign).b, 1);
-    } catch { /* empty */ }
-  }
+
+  object = { baz: 1 };
+  assign(object, defineProperty({}, 'bar', {
+    get() {
+      return this.baz + 1;
+    },
+  }));
+  assert.same(object.bar, undefined, "assign don't copy descriptors");
+  object = { a: 'a' };
+  const c = Symbol('c');
+  const d = Symbol('d');
+  object[c] = 'c';
+  defineProperty(object, 'b', { value: 'b' });
+  defineProperty(object, d, { value: 'd' });
+  const object2 = assign({}, object);
+  assert.same(object2.a, 'a', 'a');
+  assert.same(object2.b, undefined, 'b');
+  assert.same(object2[c], 'c', 'c');
+  assert.same(object2[d], undefined, 'd');
+  try {
+    assert.same(Function('assign', `
+      return assign({ b: 1 }, { get a() {
+        delete this.b;
+      }, b: 2 });
+    `)(assign).b, 1);
+  } catch { /* empty */ }
+  try {
+    assert.same(Function('assign', `
+      return assign({ b: 1 }, { get a() {
+        Object.defineProperty(this, "b", {
+          value: 3,
+          enumerable: false
+        });
+      }, b: 2 });
+    `)(assign).b, 1);
+  } catch { /* empty */ }
+
   string = 'abcdefghijklmnopqrst';
   const result = {};
   for (let i = 0, { length } = string; i < length; ++i) {
@@ -68,7 +68,7 @@ QUnit.test('Object.assign', assert => {
   assert.same(keys(assign({}, result)).join(''), string);
 });
 
-if (DESCRIPTORS) QUnit.test('Object.assign enumerability changes', assert => {
+QUnit.test('Object.assign enumerability changes', assert => {
   for (const prototype of [Object.prototype, null]) {
     const source = create(prototype);
     const symbol = Symbol('enumerability');

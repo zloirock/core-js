@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
+import { STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import map from 'core-js-pure/es/array/map';
@@ -31,7 +31,7 @@ QUnit.test('Array#map', assert => {
     return { foo: 1 };
   } };
   assert.same(map(array, Boolean).foo, 1, '@@species');
-  const descriptor = DESCRIPTORS && getOwnPropertyDescriptor(Array, Symbol.species);
+  const descriptor = getOwnPropertyDescriptor(Array, Symbol.species);
   if (descriptor && descriptor.configurable) {
     defineProperty(Array, Symbol.species, { configurable: true, get: () => function () {
       return { foo: 1 };
