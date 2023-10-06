@@ -10,5 +10,5 @@ var $Array = Array;
 $({ target: 'Array', proto: true }, {
   with: function (index, value) {
     return arrayWith(toIndexedObject(this), $Array, index, value);
-  }
+  },
 });

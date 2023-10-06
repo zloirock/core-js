@@ -49,7 +49,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       if (iterator) iteratorClose(iterator, 'normal');
       return createIterResultObject(undefined, true);
-    }
+    },
   });
 };
 

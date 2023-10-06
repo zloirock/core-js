@@ -18,7 +18,7 @@ var id = 0;
 var setMetadata = function (it) {
   defineProperty(it, METADATA, { value: {
     objectID: 'O' + id++, // object ID
-    weakData: {}          // weak collections IDs
+    weakData: {},          // weak collections IDs
   } });
 };
 
@@ -75,7 +75,7 @@ var enable = function () {
     };
 
     $({ target: 'Object', stat: true, forced: true }, {
-      getOwnPropertyNames: getOwnPropertyNamesExternalModule.f
+      getOwnPropertyNames: getOwnPropertyNamesExternalModule.f,
     });
   }
 };
@@ -84,7 +84,7 @@ var meta = module.exports = {
   enable: enable,
   fastKey: fastKey,
   getWeakData: getWeakData,
-  onFreeze: onFreeze
+  onFreeze: onFreeze,
 };
 
 hiddenKeys[METADATA] = true;
