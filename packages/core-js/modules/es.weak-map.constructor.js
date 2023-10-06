@@ -1,5 +1,4 @@
 'use strict';
-var FREEZING = require('../internals/freezing');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIns = require('../internals/define-built-ins');
@@ -19,9 +18,7 @@ var isExtensible = $Object.isExtensible;
 var isFrozen = $Object.isFrozen;
 // eslint-disable-next-line es/no-object-issealed -- safe
 var isSealed = $Object.isSealed;
-// eslint-disable-next-line es/no-object-freeze -- safe
 var freeze = $Object.freeze;
-// eslint-disable-next-line es/no-object-seal -- safe
 var seal = $Object.seal;
 
 var IS_IE11 = !globalThis.ActiveXObject && 'ActiveXObject' in globalThis;
@@ -41,7 +38,7 @@ var nativeSet = uncurryThis(WeakMapPrototype.set);
 
 // Chakra Edge bug: adding frozen arrays to WeakMap unfreeze them
 var hasMSEdgeFreezingBug = function () {
-  return FREEZING && fails(function () {
+  return fails(function () {
     var frozenArray = freeze([]);
     nativeSet(new $WeakMap(), frozenArray, 1);
     return !isFrozen(frozenArray);
