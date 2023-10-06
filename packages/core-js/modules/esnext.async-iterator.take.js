@@ -42,7 +42,7 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

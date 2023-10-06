@@ -16,5 +16,5 @@ $({ target: 'RegExp', stat: true, forced: true }, {
     var firstCode = charCodeAt(str, 0);
     // escape first DecimalDigit
     return (firstCode > 47 && firstCode < 58 ? '\\x3' : '') + replace(str, NEED_ESCAPING, '\\$&');
-  }
+  },
 });

@@ -10,5 +10,5 @@ var setImmediate = global.setImmediate ? schedulersFix(setTask, false) : setTask
 // `setImmediate` method
 // http://w3c.github.io/setImmediate/#si-setImmediate
 $({ global: true, bind: true, enumerable: true, forced: global.setImmediate !== setImmediate }, {
-  setImmediate: setImmediate
+  setImmediate: setImmediate,
 });

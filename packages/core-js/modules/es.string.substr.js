@@ -26,5 +26,5 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     if (intLength <= 0 || intLength === Infinity) return '';
     intEnd = min(intStart + intLength, size);
     return intStart >= intEnd ? '' : stringSlice(that, intStart, intEnd);
-  }
+  },
 });

@@ -15,5 +15,5 @@ $({ target: 'DataView', proto: true, forced: true }, {
     aDataView(this);
     var offset = toIndex(byteOffset);
     return setUint8(this, offset, toUint8Clamped(value));
-  }
+  },
 });

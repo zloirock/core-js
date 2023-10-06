@@ -527,5 +527,5 @@ $({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, for
     if (buffers) detachBuffers(buffers);
 
     return clone;
-  }
+  },
 });

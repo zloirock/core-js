@@ -36,5 +36,5 @@ $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE },
     while (first < fin) {
       setUint8(viewTarget, index++, getUint8(viewSource, first++));
     } return result;
-  }
+  },
 });

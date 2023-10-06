@@ -20,7 +20,7 @@ async function bundle({ bundled, minified, options = {} }) {
   if (!minified) return;
 
   const { code, map } = await minify(source, {
-    ecma: 3,
+    ecma: 5,
     safari10: true,
     keep_fnames: true,
     compress: {

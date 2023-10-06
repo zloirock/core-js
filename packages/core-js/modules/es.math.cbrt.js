@@ -11,5 +11,5 @@ $({ target: 'Math', stat: true }, {
   cbrt: function cbrt(x) {
     var n = +x;
     return sign(n) * pow(abs(n), 1 / 3);
-  }
+  },
 });

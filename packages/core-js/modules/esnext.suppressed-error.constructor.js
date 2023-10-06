@@ -36,11 +36,11 @@ else copyConstructorProperties($SuppressedError, $Error, { name: true });
 var SuppressedErrorPrototype = $SuppressedError.prototype = create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $SuppressedError),
   message: createPropertyDescriptor(1, ''),
-  name: createPropertyDescriptor(1, 'SuppressedError')
+  name: createPropertyDescriptor(1, 'SuppressedError'),
 });
 
 // `SuppressedError` constructor
 // https://github.com/tc39/proposal-explicit-resource-management
 $({ global: true, constructor: true, arity: 3 }, {
-  SuppressedError: $SuppressedError
+  SuppressedError: $SuppressedError,
 });

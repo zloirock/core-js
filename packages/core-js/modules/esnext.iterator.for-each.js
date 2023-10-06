@@ -16,5 +16,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     iterate(record, function (value) {
       fn(value, counter++);
     }, { IS_RECORD: true });
-  }
+  },
 });

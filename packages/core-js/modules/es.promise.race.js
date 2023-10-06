@@ -22,5 +22,5 @@ $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }
     });
     if (result.error) reject(result.value);
     return capability.promise;
-  }
+  },
 });
