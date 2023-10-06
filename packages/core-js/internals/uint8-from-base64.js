@@ -38,7 +38,7 @@ var decodeBase64Chunk = function (chunk, alphabet, throwOnExtraBits) {
   var chunkBytes = [
     (triplet >> 16) & 255,
     (triplet >> 8) & 255,
-    triplet & 255
+    triplet & 255,
   ];
 
   if (chunkLength === 2) {
