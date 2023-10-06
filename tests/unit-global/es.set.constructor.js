@@ -1,5 +1,5 @@
 /* eslint-disable sonarjs/no-element-overwrite -- required for testing */
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { createIterable, is, nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -62,12 +62,12 @@ QUnit.test('Set', assert => {
   assert.true(done);
   const object = {};
   new Set().add(object);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in results) keys.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+
+  const results = [];
+  for (const key in results) keys.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
+
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
@@ -256,14 +256,13 @@ QUnit.test('Set#size', assert => {
   const { size } = set;
   assert.same(typeof size, 'number', 'size is number');
   assert.same(size, 1, 'size is correct');
-  if (DESCRIPTORS) {
-    const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
-    const getter = sizeDescriptor && sizeDescriptor.get;
-    const setter = sizeDescriptor && sizeDescriptor.set;
-    assert.same(typeof getter, 'function', 'size is getter');
-    assert.same(typeof setter, 'undefined', 'size is not setter');
-    assert.throws(() => Set.prototype.size, TypeError);
-  }
+
+  const sizeDescriptor = getOwnPropertyDescriptor(Set.prototype, 'size');
+  const getter = sizeDescriptor && sizeDescriptor.get;
+  const setter = sizeDescriptor && sizeDescriptor.set;
+  assert.same(typeof getter, 'function', 'size is getter');
+  assert.same(typeof setter, 'undefined', 'size is not setter');
+  assert.throws(() => Set.prototype.size, TypeError);
 });
 
 QUnit.test('Set & -0', assert => {
