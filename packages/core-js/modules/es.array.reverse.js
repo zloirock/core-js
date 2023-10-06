@@ -1,8 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isArray = require('../internals/is-array');
 
+var isArray = Array.isArray;
 var nativeReverse = uncurryThis([].reverse);
 var test = [1, 2];
 
