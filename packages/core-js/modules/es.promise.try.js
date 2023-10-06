@@ -37,5 +37,5 @@ $({ target: 'Promise', stat: true, forced: FORCED }, {
     var reject = promiseCapability.reject;
     reject(result.value);
     return promiseCapability.promise;
-  }
+  },
 });

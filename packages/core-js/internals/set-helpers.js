@@ -10,5 +10,5 @@ module.exports = {
   add: uncurryThis(SetPrototype.add),
   has: uncurryThis(SetPrototype.has),
   remove: uncurryThis(SetPrototype.delete),
-  proto: SetPrototype
+  proto: SetPrototype,
 };

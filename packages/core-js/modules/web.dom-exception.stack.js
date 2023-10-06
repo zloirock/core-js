@@ -46,7 +46,7 @@ var FORCED_CONSTRUCTOR = ERROR_HAS_STACK && !BUGGY_DESCRIPTOR && !DOM_EXCEPTION_
 // `DOMException` constructor patch for `.stack` where it's required
 // https://webidl.spec.whatwg.org/#es-DOMException-specialness
 $({ global: true, constructor: true, forced: IS_PURE || FORCED_CONSTRUCTOR }, { // TODO: fix export logic
-  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException
+  DOMException: FORCED_CONSTRUCTOR ? $DOMException : NativeDOMException,
 });
 
 var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);

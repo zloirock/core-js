@@ -96,5 +96,5 @@ module.exports = {
   // `AsyncIterator.prototype.some` method
   some: createMethod(3),
   // `AsyncIterator.prototype.find` method
-  find: createMethod(4)
+  find: createMethod(4),
 };

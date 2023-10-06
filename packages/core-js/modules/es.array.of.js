@@ -24,5 +24,5 @@ $({ target: 'Array', stat: true, forced: ISNT_GENERIC }, {
     while (argumentsLength > index) createProperty(result, index, arguments[index++]);
     setArrayLength(result, argumentsLength);
     return result;
-  }
+  },
 });

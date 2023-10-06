@@ -31,7 +31,7 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
     global: 'g',
     ignoreCase: 'i',
     multiline: 'm',
-    sticky: 'y'
+    sticky: 'y',
   };
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';

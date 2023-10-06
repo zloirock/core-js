@@ -12,5 +12,5 @@ $({ target: 'Reflect', stat: true }, {
     var key = toPropertyKey(propertyKey);
     var descriptor = getOwnPropertyDescriptor(target, key);
     return descriptor && !descriptor.configurable ? false : delete target[key];
-  }
+  },
 });

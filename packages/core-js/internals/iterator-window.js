@@ -43,6 +43,6 @@ module.exports = function (O, windowSize, undersized) {
   return new IteratorProxy(getIteratorDirect(O), {
     windowSize: windowSize,
     buffer: [],
-    allowPartial: undersized === ALLOW_PARTIAL
+    allowPartial: undersized === ALLOW_PARTIAL,
   });
 };
