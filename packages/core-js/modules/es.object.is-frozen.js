@@ -16,6 +16,6 @@ $({ target: 'Object', stat: true, forced: FORCED }, {
   isFrozen: function isFrozen(it) {
     if (!isObject(it)) return true;
     if (ARRAY_BUFFER_NON_EXTENSIBLE && classof(it) === 'ArrayBuffer') return true;
-    return $isFrozen ? $isFrozen(it) : false;
+    return $isFrozen(it);
   },
 });
