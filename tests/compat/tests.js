@@ -1004,10 +1004,6 @@ GLOBAL.tests = {
     alphabet.split('').forEach(function (chr) { B[chr] = chr; });
     return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
-  // TODO: Remove from `core-js@4`
-  'es.object.create': function () {
-    return Object.create;
-  },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.define-properties': [V8_PROTOTYPE_DEFINE_BUG, function () {
     return Object.defineProperties;
