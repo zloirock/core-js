@@ -167,5 +167,5 @@ var encode = function (input) {
 
 module.exports = {
   decode: decode,
-  encode: encode
+  encode: encode,
 };

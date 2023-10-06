@@ -40,11 +40,11 @@ try {
           value: value,
           writable: true,
           configurable: true,
-          enumerable: true
+          enumerable: true,
         });
       },
       configurable: true,
-      enumerable: true
+      enumerable: true,
     });
     // Node vm contexts may pass a different receiver; capture it during initialization
     // the assignment preserves the read when minifying

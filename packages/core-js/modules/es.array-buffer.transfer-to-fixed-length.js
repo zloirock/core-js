@@ -8,5 +8,5 @@ var FORCED = require('../internals/array-buffer-transfer-forced');
 if ($transfer) $({ target: 'ArrayBuffer', proto: true, forced: FORCED }, {
   transferToFixedLength: function transferToFixedLength() {
     return $transfer(this, arguments.length ? arguments[0] : undefined, false);
-  }
+  },
 });

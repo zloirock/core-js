@@ -19,5 +19,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
       if (boundFunction(value, key, map)) set(newMap, key, value);
     });
     return newMap;
-  }
+  },
 });

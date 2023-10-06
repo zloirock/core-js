@@ -9,5 +9,5 @@ $({ target: 'Reflect', stat: true }, {
   isExtensible: function isExtensible(target) {
     anObject(target);
     return $isExtensible(target);
-  }
+  },
 });

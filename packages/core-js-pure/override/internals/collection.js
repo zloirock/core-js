@@ -37,7 +37,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     Constructor = wrapper(function (target, iterable) {
       setInternalState(anInstance(target, Prototype), {
         type: CONSTRUCTOR_NAME,
-        collection: new NativeConstructor()
+        collection: new NativeConstructor(),
       });
       if (!isNullOrUndefined(iterable)) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
     });
@@ -65,7 +65,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
       configurable: true,
       get: function () {
         return getInternalState(this).collection.size;
-      }
+      },
     });
   }
 

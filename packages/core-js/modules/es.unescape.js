@@ -42,5 +42,5 @@ $({ global: true }, {
       }
       result += chr;
     } return result;
-  }
+  },
 });

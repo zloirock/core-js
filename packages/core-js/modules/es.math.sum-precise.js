@@ -175,5 +175,5 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
     }
 
     return hi;
-  }
+  },
 });

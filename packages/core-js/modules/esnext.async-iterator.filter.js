@@ -60,7 +60,7 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
     anObject(this);
     aCallable(predicate);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      predicate: predicate
+      predicate: predicate,
     });
-  }
+  },
 });

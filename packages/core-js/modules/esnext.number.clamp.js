@@ -11,5 +11,5 @@ var $max = Math.max;
 $({ target: 'Number', proto: true, forced: true }, {
   clamp: function clamp(min, max) {
     return $min($max(thisNumberValue(this), aNumber(min)), aNumber(max));
-  }
+  },
 });
