@@ -1,15 +1,5 @@
 import defineProperty from 'core-js-pure/es/object/define-property';
 
-export const DESCRIPTORS = !!(() => {
-  try {
-    return defineProperty({}, 'a', {
-      get() {
-        return 7;
-      },
-    }).a === 7;
-  } catch { /* empty */ }
-})();
-
 export const GLOBAL = Function('return this')();
 
 export const NATIVE = GLOBAL.NATIVE || false;
@@ -95,7 +85,7 @@ export const CORRECT_PROTOTYPE_GETTER = !function () {
 }();
 
 // FF < 23 bug
-export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = DESCRIPTORS && !function () {
+export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = !function () {
   try {
     defineProperty([], 'length', { writable: false });
   } catch {

@@ -8,7 +8,6 @@ var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
-var DESCRIPTORS = require('../internals/descriptors');
 
 var ITERATOR = wellKnownSymbol('iterator');
 var ARRAY_ITERATOR = 'Array Iterator';
@@ -67,6 +66,6 @@ addToUnscopables('values');
 addToUnscopables('entries');
 
 // V8 ~ Chrome 45- bug
-if (!IS_PURE && DESCRIPTORS && values.name !== 'values') try {
+if (!IS_PURE && values.name !== 'values') try {
   defineProperty(values, 'name', { value: 'values' });
 } catch (error) { /* empty */ }
