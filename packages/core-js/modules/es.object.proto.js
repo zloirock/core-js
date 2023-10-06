@@ -26,6 +26,6 @@ if (getPrototypeOf && setPrototypeOf && !({}[PROTO] !== ObjectPrototype)) try {
       if (isPossiblePrototype(proto) && isObject(O)) {
         setPrototypeOf(O, proto);
       }
-    }
+    },
   });
 } catch (error) { /* empty */ }

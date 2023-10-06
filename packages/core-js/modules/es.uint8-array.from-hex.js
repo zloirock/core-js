@@ -9,5 +9,5 @@ var $fromHex = require('../internals/uint8-from-hex');
 if (globalThis.Uint8Array) $({ target: 'Uint8Array', stat: true }, {
   fromHex: function fromHex(string) {
     return $fromHex(aString(string)).bytes;
-  }
+  },
 });

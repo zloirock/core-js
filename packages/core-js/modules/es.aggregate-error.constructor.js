@@ -41,11 +41,11 @@ else copyConstructorProperties($AggregateError, $Error, { name: true });
 var AggregateErrorPrototype = $AggregateError.prototype = create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),
   message: createPropertyDescriptor(1, ''),
-  name: createPropertyDescriptor(1, 'AggregateError')
+  name: createPropertyDescriptor(1, 'AggregateError'),
 });
 
 // `AggregateError` constructor
 // https://tc39.es/ecma262/#sec-aggregate-error-constructor
 $({ global: true, constructor: true, arity: 2 }, {
-  AggregateError: $AggregateError
+  AggregateError: $AggregateError,
 });

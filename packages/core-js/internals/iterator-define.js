@@ -83,7 +83,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
     methods = {
       values: getIterationMethod(VALUES),
       keys: IS_SET ? defaultIterator : getIterationMethod(KEYS),
-      entries: getIterationMethod(ENTRIES)
+      entries: getIterationMethod(ENTRIES),
     };
     if (FORCED) for (KEY in methods) {
       if (BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME || !(KEY in IterablePrototype)) {

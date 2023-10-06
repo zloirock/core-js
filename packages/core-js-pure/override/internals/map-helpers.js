@@ -10,5 +10,5 @@ module.exports = {
   get: caller('get', 1),
   has: caller('has', 1),
   remove: caller('delete', 1),
-  proto: Map.prototype
+  proto: Map.prototype,
 };

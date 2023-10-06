@@ -46,5 +46,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     for (n = 0; k < fin; k++, n++) if (k in O) createProperty(result, n, O[k]);
     setArrayLength(result, n);
     return result;
-  }
+  },
 });

@@ -24,5 +24,5 @@ $({ target: 'String', stat: true }, {
       if (i === literalSegments) return join(elements, '');
       if (i < argumentsLength) push(elements, toString(arguments[i]));
     }
-  }
+  },
 });

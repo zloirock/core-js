@@ -25,5 +25,5 @@ var isClassConstructor = function (argument) {
 $({ target: 'Function', stat: true, sham: true, forced: true }, {
   isCallable: function isCallable(argument) {
     return $isCallable(argument) && !isClassConstructor(argument);
-  }
+  },
 });

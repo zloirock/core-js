@@ -39,5 +39,5 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
       else createProperty(obj, key, [value]);
     });
     return obj;
-  }
+  },
 });

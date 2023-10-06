@@ -14,5 +14,5 @@ $({ target: 'AsyncIterator', stat: true, forced: true }, {
     return isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new WrapAsyncIterator(iteratorRecord);
-  }
+  },
 });

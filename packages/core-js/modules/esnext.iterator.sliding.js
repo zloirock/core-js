@@ -7,5 +7,5 @@ var iteratorWindow = require('../internals/iterator-window');
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   sliding: function sliding(windowSize) {
     return iteratorWindow(this, windowSize, 'allow-partial');
-  }
+  },
 });
