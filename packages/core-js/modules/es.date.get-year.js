@@ -16,5 +16,5 @@ var getFullYear = uncurryThis(Date.prototype.getFullYear);
 $({ target: 'Date', proto: true, forced: FORCED }, {
   getYear: function getYear() {
     return getFullYear(this) - 1900;
-  }
+  },
 });

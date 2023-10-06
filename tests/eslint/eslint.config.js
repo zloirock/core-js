@@ -1124,7 +1124,7 @@ const noAsyncAwait = {
   'promise/prefer-await-to-then': OFF,
 };
 
-const useES3Syntax = {
+const useES5Syntax = {
   ...noAsyncAwait,
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
@@ -1150,8 +1150,6 @@ const useES3Syntax = {
   'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
-  // disallow trailing commas in multiline object literals
-  '@stylistic/comma-dangle': [ERROR, NEVER],
   // enforce the use of exponentiation (`**`) operator instead of other calculations
   'math/prefer-exponentiation-operator': OFF,
   // prefer lookarounds over capturing group that do not replace
@@ -2400,7 +2398,7 @@ export default [
     languageOptions: {
       ecmaVersion: 5,
     },
-    rules: useES3Syntax,
+    rules: useES5Syntax,
   },
   {
     files: [
