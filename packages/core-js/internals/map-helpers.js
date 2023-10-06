@@ -10,6 +10,6 @@ module.exports = {
   set: uncurryThis(MapPrototype.set),
   get: uncurryThis(MapPrototype.get),
   has: uncurryThis(MapPrototype.has),
-  remove: uncurryThis(MapPrototype['delete']),
+  remove: uncurryThis(MapPrototype.delete),
   proto: MapPrototype
 };
