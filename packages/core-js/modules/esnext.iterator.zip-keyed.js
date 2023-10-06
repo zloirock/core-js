@@ -11,7 +11,7 @@ var getModeOption = require('../internals/get-mode-option');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
 
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 var push = uncurryThis([].push);
 var THROW = 'throw';
