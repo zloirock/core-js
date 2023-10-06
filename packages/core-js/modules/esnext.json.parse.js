@@ -221,7 +221,7 @@ Context.prototype = {
     var chr = at(this.source, i);
     for (var j = 0; j < array.length; j++) if (array[j] === chr) return i;
     throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
-  }
+  },
 };
 
 var NO_SOURCE_SUPPORT = fails(function () {
@@ -244,5 +244,5 @@ var PROPER_BASE_PARSE = NATIVE_SYMBOL && !fails(function () {
 $({ target: 'JSON', stat: true, forced: NO_SOURCE_SUPPORT }, {
   parse: function parse(text, reviver) {
     return PROPER_BASE_PARSE && !isCallable(reviver) ? nativeParse(text) : $parse(text, reviver);
-  }
+  },
 });

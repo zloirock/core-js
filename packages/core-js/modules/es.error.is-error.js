@@ -33,5 +33,5 @@ $({ target: 'Error', stat: true, sham: true, forced: FORCED }, {
     if (!isObject(arg)) return false;
     var tag = classof(arg);
     return tag === ERROR || tag === DOM_EXCEPTION;
-  }
+  },
 });

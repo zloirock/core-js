@@ -15,5 +15,5 @@ $({ target: 'Object', stat: true, forced: FORCED }, {
   getOwnPropertySymbols: function getOwnPropertySymbols(it) {
     var $getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
     return $getOwnPropertySymbols ? $getOwnPropertySymbols(toObject(it)) : [];
-  }
+  },
 });

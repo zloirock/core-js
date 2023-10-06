@@ -91,7 +91,7 @@ NumberWrapper.prototype = NumberPrototype;
 if (FORCED && !IS_PURE) NumberPrototype.constructor = NumberWrapper;
 
 $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
-  Number: NumberWrapper
+  Number: NumberWrapper,
 });
 
 // Use `internal/copy-constructor-properties` helper in `core-js@4`

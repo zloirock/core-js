@@ -12,7 +12,7 @@ module.exports = function (METHOD_NAME, ExpectedError) {
   if (method) try {
     method.call({
       next: function () { return { done: true }; },
-      return: function () { CLOSED = true; }
+      return: function () { CLOSED = true; },
     }, -1);
   } catch (error) {
     // https://bugs.webkit.org/show_bug.cgi?id=291195

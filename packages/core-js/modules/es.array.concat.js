@@ -54,5 +54,5 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
     }
     A.length = n;
     return A;
-  }
+  },
 });

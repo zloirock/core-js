@@ -30,5 +30,5 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
       result += hex.length === 1 ? '0' + hex : hex;
     }
     return result;
-  }
+  },
 });

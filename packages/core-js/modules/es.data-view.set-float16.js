@@ -52,5 +52,5 @@ $({ target: 'DataView', proto: true }, {
       packFloat16(+value),
       arguments.length > 2 ? arguments[2] : false
     );
-  }
+  },
 });

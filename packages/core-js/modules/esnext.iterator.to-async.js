@@ -10,5 +10,5 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(anObject(this)))));
-  }
+  },
 });

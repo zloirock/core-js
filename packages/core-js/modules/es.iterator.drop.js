@@ -47,7 +47,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (dropWithoutClosingOnEarlyError) return call(dropWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

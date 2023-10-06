@@ -24,5 +24,5 @@ module.exports = {
   QuotaExceededError: { s: 'QUOTA_EXCEEDED_ERR', c: 22, m: 1 },
   TimeoutError: { s: 'TIMEOUT_ERR', c: 23, m: 1 },
   InvalidNodeTypeError: { s: 'INVALID_NODE_TYPE_ERR', c: 24, m: 1 },
-  DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 }
+  DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 },
 };

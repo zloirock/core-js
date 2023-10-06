@@ -63,5 +63,5 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
       bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
       if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output;
-  }
+  },
 });

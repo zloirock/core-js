@@ -17,5 +17,5 @@ $({ target: 'Date', proto: true, arity: 1, forced: FORCED }, {
     var O = toObject(this);
     var pv = toPrimitive(O, 'number');
     return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
-  }
+  },
 });

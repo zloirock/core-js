@@ -75,7 +75,7 @@ var addGetter = function (Constructor, key, getInternalState) {
     configurable: true,
     get: function () {
       return getInternalState(this)[key];
-    }
+    },
   });
 };
 
@@ -108,7 +108,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     setInternalState(this, {
       type: ARRAY_BUFFER,
       bytes: fill(Array(byteLength), 0),
-      byteLength: byteLength
+      byteLength: byteLength,
     });
   };
 
@@ -128,7 +128,7 @@ if (!NATIVE_ARRAY_BUFFER) {
       buffer: buffer,
       byteLength: byteLength,
       byteOffset: offset,
-      bytes: bufferState.bytes
+      bytes: bufferState.bytes,
     });
   };
 
@@ -189,7 +189,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setFloat64: function setFloat64(byteOffset, value /* , littleEndian */) {
       set(this, 8, byteOffset, packFloat64, value, arguments.length > 2 ? arguments[2] : false);
-    }
+    },
   });
 } else {
   var INCORRECT_ARRAY_BUFFER_NAME = PROPER_FUNCTION_NAME && NativeArrayBuffer.name !== ARRAY_BUFFER;
@@ -235,7 +235,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     },
     setUint8: function setUint8(byteOffset, value) {
       $setInt8(this, byteOffset, value << 24 >> 24);
-    }
+    },
   }, { unsafe: true });
 }
 
@@ -244,5 +244,5 @@ setToStringTag($DataView, DATA_VIEW);
 
 module.exports = {
   ArrayBuffer: $ArrayBuffer,
-  DataView: $DataView
+  DataView: $DataView,
 };
