@@ -718,10 +718,6 @@ GLOBAL.tests = {
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
   },
-  // TODO: Remove from `core-js@4`
-  'es.date.now': function () {
-    return Date.now;
-  },
   'es.date.set-year': function () {
     return Date.prototype.setYear;
   },
