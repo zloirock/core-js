@@ -221,7 +221,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
       reactions: new Queue(),
       rejection: false,
       state: PENDING,
-      value: null
+      value: null,
     });
   };
 
@@ -284,7 +284,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
 // `Promise` constructor
 // https://tc39.es/ecma262/#sec-promise-executor
 $({ global: true, constructor: true, wrap: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
-  Promise: PromiseConstructor
+  Promise: PromiseConstructor,
 });
 
 PromiseWrapper = path.Promise;

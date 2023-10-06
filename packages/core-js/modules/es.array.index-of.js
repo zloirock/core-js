@@ -19,5 +19,5 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
       // convert -0 to +0
       ? nativeIndexOf(this, searchElement, fromIndex) || 0
       : $indexOf(this, searchElement, fromIndex);
-  }
+  },
 });

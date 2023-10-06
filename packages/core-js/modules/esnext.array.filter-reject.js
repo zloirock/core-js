@@ -8,7 +8,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 $({ target: 'Array', proto: true, forced: true }, {
   filterReject: function filterReject(callbackfn /* , thisArg */) {
     return $filterReject(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });
 
 addToUnscopables('filterReject');
