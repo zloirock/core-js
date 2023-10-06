@@ -4,7 +4,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var create = require('../internals/object-create');
@@ -22,6 +21,7 @@ var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 
 var $String = String;
 var $TypeError = TypeError;
+var isArray = Array.isArray;
 var $stringify = getBuiltIn('JSON', 'stringify');
 var $BigInt = getBuiltIn('BigInt');
 var stringValueOf = uncurryThis(''.valueOf);
