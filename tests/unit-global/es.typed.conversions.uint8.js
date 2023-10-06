@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
+QUnit.test('Uint8 conversions', assert => {
   const uint8array = new Uint8Array(1);
   const dataview = new DataView(uint8array.buffer);
 
