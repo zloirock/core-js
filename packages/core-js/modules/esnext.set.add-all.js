@@ -11,5 +11,5 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
     for (var k = 0, len = arguments.length; k < len; k++) {
       add(set, arguments[k]);
     } return set;
-  }
+  },
 });

@@ -269,5 +269,5 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
     }
 
     return result;
-  }
+  },
 });

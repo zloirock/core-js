@@ -28,5 +28,5 @@ var FORCED = !($asinh
 // `Math.asinh` method
 // https://tc39.es/ecma262/#sec-math.asinh
 $({ target: 'Math', stat: true, forced: FORCED }, {
-  asinh: asinh
+  asinh: asinh,
 });

@@ -26,5 +26,5 @@ var getUint16 = uncurryThis(DataView.prototype.getUint16);
 $({ target: 'DataView', proto: true }, {
   getFloat16: function getFloat16(byteOffset /* , littleEndian */) {
     return unpackFloat16(getUint16(this, byteOffset, arguments.length > 1 ? arguments[1] : false));
-  }
+  },
 });

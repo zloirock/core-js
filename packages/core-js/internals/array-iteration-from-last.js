@@ -31,5 +31,5 @@ module.exports = {
   findLast: createMethod(0),
   // `Array.prototype.findLastIndex` method
   // https://tc39.es/ecma262/#sec-array.prototype.findlastindex
-  findLastIndex: createMethod(1)
+  findLastIndex: createMethod(1),
 };

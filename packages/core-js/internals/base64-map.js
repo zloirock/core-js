@@ -15,5 +15,5 @@ module.exports = {
   i2c: base64Alphabet,
   c2i: inverse(base64Alphabet),
   i2cUrl: base64UrlAlphabet,
-  c2iUrl: inverse(base64UrlAlphabet)
+  c2iUrl: inverse(base64UrlAlphabet),
 };

@@ -7,5 +7,5 @@ var $every = require('../internals/async-iterator-iteration').every;
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   every: function every(predicate) {
     return $every(this, predicate);
-  }
+  },
 });

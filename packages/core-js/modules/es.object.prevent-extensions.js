@@ -14,5 +14,5 @@ var FAILS_ON_PRIMITIVES = fails(function () { $preventExtensions(1); });
 $({ target: 'Object', stat: true, forced: FAILS_ON_PRIMITIVES, sham: !FREEZING }, {
   preventExtensions: function preventExtensions(it) {
     return $preventExtensions && isObject(it) ? $preventExtensions(onFreeze(it)) : it;
-  }
+  },
 });

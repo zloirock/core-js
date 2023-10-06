@@ -22,5 +22,5 @@ var FORCED = !($atanh
 // `Math.atanh` method
 // https://tc39.es/ecma262/#sec-math.atanh
 $({ target: 'Math', stat: true, forced: FORCED }, {
-  atanh: atanh
+  atanh: atanh,
 });

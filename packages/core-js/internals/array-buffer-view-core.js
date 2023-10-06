@@ -44,12 +44,12 @@ var TypedArrayConstructorsList = {
   Int32Array: 4,
   Uint32Array: 4,
   Float32Array: 4,
-  Float64Array: 8
+  Float64Array: 8,
 };
 
 var BigIntArrayConstructorsList = {
   BigInt64Array: 8,
-  BigUint64Array: 8
+  BigUint64Array: 8,
 };
 
 var isView = function isView(it) {
@@ -168,7 +168,7 @@ if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
     configurable: true,
     get: function () {
       return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
-    }
+    },
   });
   for (NAME in TypedArrayConstructorsList) if (globalThis[NAME]) {
     createNonEnumerableProperty(globalThis[NAME].prototype, TYPED_ARRAY_TAG, NAME);
@@ -186,5 +186,5 @@ module.exports = {
   isView: isView,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
-  TypedArrayPrototype: TypedArrayPrototype
+  TypedArrayPrototype: TypedArrayPrototype,
 };

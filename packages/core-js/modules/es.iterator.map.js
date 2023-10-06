@@ -38,7 +38,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (mapWithoutClosingOnEarlyError) return call(mapWithoutClosingOnEarlyError, this, mapper);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      mapper: mapper
+      mapper: mapper,
     });
-  }
+  },
 });

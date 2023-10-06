@@ -16,5 +16,5 @@ var OPTIONAL_ARGUMENTS_LIST = !fails(function () {
 $({ target: 'Reflect', stat: true, forced: OPTIONAL_ARGUMENTS_LIST }, {
   apply: function apply(target, thisArgument, argumentsList) {
     return functionApply(aCallable(target), thisArgument, anObject(argumentsList));
-  }
+  },
 });

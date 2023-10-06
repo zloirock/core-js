@@ -13,5 +13,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     return iterate(map, function (value, key) {
       if (boundFunction(value, key, map)) return true;
     }, true) === true;
-  }
+  },
 });

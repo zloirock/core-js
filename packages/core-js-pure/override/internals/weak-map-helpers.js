@@ -7,5 +7,5 @@ module.exports = {
   set: caller('set', 2),
   get: caller('get', 1),
   has: caller('has', 1),
-  remove: caller('delete', 1)
+  remove: caller('delete', 1),
 };

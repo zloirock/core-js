@@ -18,5 +18,5 @@ $({ target: 'Map', proto: true, real: true, arity: 1, forced: true }, {
       }, { AS_ENTRIES: true });
     }
     return map;
-  }
+  },
 });

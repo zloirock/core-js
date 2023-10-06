@@ -25,5 +25,5 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: INCORRECT_BEHAVIOR
   fromBase64: function fromBase64(string /* , options */) {
     var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, null, 0x1FFFFFFFFFFFFF);
     return arrayFromConstructorAndList(Uint8Array, result.bytes);
-  }
+  },
 });

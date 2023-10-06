@@ -9,5 +9,5 @@ $({ global: true, forced: true }, {
   compositeSymbol: function compositeSymbol() {
     if (arguments.length === 1 && typeof arguments[0] == 'string') return getBuiltIn('Symbol').for(arguments[0]);
     return apply(getCompositeKeyNode, null, arguments).get('symbol', getBuiltIn('Symbol'));
-  }
+  },
 });

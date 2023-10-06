@@ -41,5 +41,5 @@ $({ global: true }, {
         }
       }
     } return join(result, '');
-  }
+  },
 });
