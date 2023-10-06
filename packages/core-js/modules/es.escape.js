@@ -39,5 +39,5 @@ $({ global: true }, {
         }
       }
     } return result;
-  }
+  },
 });
