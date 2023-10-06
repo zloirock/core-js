@@ -21,5 +21,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     return precision === undefined
       ? nativeToPrecision(thisNumberValue(this))
       : nativeToPrecision(thisNumberValue(this), precision);
-  }
+  },
 });

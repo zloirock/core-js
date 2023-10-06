@@ -32,5 +32,5 @@ $({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS || WRONG_ARITY 
     } catch (error) {
       return false;
     }
-  }
+  },
 });

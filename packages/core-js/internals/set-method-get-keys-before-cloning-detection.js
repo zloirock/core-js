@@ -17,9 +17,9 @@ module.exports = function (METHOD_NAME) {
             return function () {
               return { done: true };
             };
-          }
+          },
         });
-      }
+      },
     };
     var result = baseSet[METHOD_NAME](setLike);
 

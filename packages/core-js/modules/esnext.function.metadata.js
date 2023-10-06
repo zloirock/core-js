@@ -9,6 +9,6 @@ var FunctionPrototype = Function.prototype;
 // https://github.com/tc39/proposal-decorator-metadata
 if (FunctionPrototype[METADATA] === undefined) {
   defineProperty(FunctionPrototype, METADATA, {
-    value: null
+    value: null,
   });
 }

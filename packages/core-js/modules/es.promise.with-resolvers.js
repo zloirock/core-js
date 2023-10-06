@@ -10,7 +10,7 @@ $({ target: 'Promise', stat: true }, {
     return {
       promise: promiseCapability.promise,
       resolve: promiseCapability.resolve,
-      reject: promiseCapability.reject
+      reject: promiseCapability.reject,
     };
-  }
+  },
 });
