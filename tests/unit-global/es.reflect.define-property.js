@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 QUnit.test('Reflect.defineProperty', assert => {
   const { defineProperty } = Reflect;
   const { getOwnPropertyDescriptor, create } = Object;
@@ -11,22 +9,22 @@ QUnit.test('Reflect.defineProperty', assert => {
   let object = {};
   assert.true(defineProperty(object, 'foo', { value: 123 }));
   assert.same(object.foo, 123);
-  if (DESCRIPTORS) {
-    object = {};
-    defineProperty(object, 'foo', {
-      value: 123,
-      enumerable: true,
-    });
-    assert.deepEqual(getOwnPropertyDescriptor(object, 'foo'), {
-      value: 123,
-      enumerable: true,
-      configurable: false,
-      writable: false,
-    });
-    assert.false(defineProperty(object, 'foo', {
-      value: 42,
-    }));
-  }
+
+  object = {};
+  defineProperty(object, 'foo', {
+    value: 123,
+    enumerable: true,
+  });
+  assert.deepEqual(getOwnPropertyDescriptor(object, 'foo'), {
+    value: 123,
+    enumerable: true,
+    configurable: false,
+    writable: false,
+  });
+  assert.false(defineProperty(object, 'foo', {
+    value: 42,
+  }));
+
   assert.throws(() => defineProperty(42, 'foo', {
     value: 42,
   }), TypeError, 'throws on primitive');
@@ -38,12 +36,7 @@ QUnit.test('Reflect.defineProperty', assert => {
   assert.throws(() => defineProperty({}, 'a', { set: 'str' }), TypeError, 'throws on non-callable setter');
   assert.throws(() => defineProperty({}, 'a', { get: null }), TypeError, 'throws on null getter');
   assert.throws(() => defineProperty({}, 'a', { get: false }), TypeError, 'throws on false getter');
-  if (DESCRIPTORS) {
-    assert.throws(() => defineProperty({}, 'a', { get() { /* empty */ }, value: 1 }), TypeError, 'throws on mixed accessor/data descriptor');
-    assert.true(defineProperty({}, 'a', { get: undefined }), 'undefined getter is valid');
-  }
-});
 
-QUnit.test('Reflect.defineProperty.sham flag', assert => {
-  assert.same(Reflect.defineProperty.sham, DESCRIPTORS ? undefined : true);
+  assert.throws(() => defineProperty({}, 'a', { get() { /* empty */ }, value: 1 }), TypeError, 'throws on mixed accessor/data descriptor');
+  assert.true(defineProperty({}, 'a', { get: undefined }), 'undefined getter is valid');
 });

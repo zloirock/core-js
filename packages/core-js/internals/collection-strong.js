@@ -9,7 +9,6 @@ var iterate = require('../internals/iterate');
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var setSpecies = require('../internals/set-species');
-var DESCRIPTORS = require('../internals/descriptors');
 var fastKey = require('../internals/internal-metadata').fastKey;
 var InternalStateModule = require('../internals/internal-state');
 
@@ -27,7 +26,6 @@ module.exports = {
         last: null,
         size: 0
       });
-      if (!DESCRIPTORS) that.size = 0;
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 
@@ -54,8 +52,7 @@ module.exports = {
         };
         if (!state.first) state.first = entry;
         if (previous) previous.next = entry;
-        if (DESCRIPTORS) state.size++;
-        else that.size++;
+        state.size++;
         // add to index
         if (index !== 'F') state.index[index] = entry;
       } return that;
@@ -88,8 +85,7 @@ module.exports = {
         }
         state.first = state.last = null;
         state.index = create(null);
-        if (DESCRIPTORS) state.size = 0;
-        else that.size = 0;
+        state.size = 0;
       },
       // `{ Map, Set }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-map.prototype.delete
@@ -107,8 +103,7 @@ module.exports = {
           if (next) next.previous = prev;
           if (state.first === entry) state.first = next;
           if (state.last === entry) state.last = prev;
-          if (DESCRIPTORS) state.size--;
-          else that.size--;
+          state.size--;
         } return !!entry;
       },
       // `{ Map, Set }.prototype.forEach(callbackfn, thisArg = undefined)` methods
@@ -151,7 +146,7 @@ module.exports = {
         return define(this, value = value === 0 ? 0 : value, value);
       }
     });
-    if (DESCRIPTORS) defineBuiltInAccessor(Prototype, 'size', {
+    defineBuiltInAccessor(Prototype, 'size', {
       configurable: true,
       get: function () {
         return getInternalState(this).size;
