@@ -1,9 +1,6 @@
 'use strict';
-require('../../modules/es.object.create');
-var path = require('../../internals/path');
-
-var Object = path.Object;
+var getBuiltIn = require('../../internals/get-built-in');
 
 module.exports = function create(P, D) {
-  return Object.create(P, D);
+  return getBuiltIn('Object', 'create')(P, D);
 };

@@ -1,7 +1,6 @@
 'use strict';
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var getMethod = require('../internals/get-method');
 var defineBuiltIns = require('../internals/define-built-ins');
 var InternalStateModule = require('../internals/internal-state');
@@ -11,6 +10,7 @@ var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
 var Promise = getBuiltIn('Promise');
+var create = Object.create;
 
 var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
 var setInternalState = InternalStateModule.set;

@@ -2,12 +2,12 @@
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
+var create = Object.create;
 var ITERATOR = wellKnownSymbol('iterator');
 var BUGGY_SAFARI_ITERATORS = false;
 
