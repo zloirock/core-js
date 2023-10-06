@@ -43,14 +43,14 @@ $({ target: 'Iterator', stat: true }, {
       var item = anObject(arguments[index]);
       iterables[index] = {
         iterable: item,
-        method: aCallable(getIteratorMethod(item))
+        method: aCallable(getIteratorMethod(item)),
       };
     }
     return new IteratorProxy({
       iterables: iterables,
       nextIterableIndex: 0,
       iterator: null,
-      next: null
+      next: null,
     });
-  }
+  },
 });
