@@ -587,16 +587,6 @@ export const data = {
     rhino: '1.8.0',
     safari: '10.0',
   },
-  // TODO: Remove from `core-js@4`
-  'es.date.to-string': {
-    chrome: '5',
-    firefox: '2',
-    hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '3.1',
-  },
   'es.disposable-stack.constructor': {
     bun: '1.3.0',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
