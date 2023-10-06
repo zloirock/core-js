@@ -1349,7 +1349,6 @@ const forbidESAnnexBBuiltIns = {
 };
 
 const forbidES5BuiltIns = {
-  'es/no-array-isarray': ERROR,
   'es/no-array-prototype-every': ERROR,
   'es/no-array-prototype-filter': ERROR,
   'es/no-array-prototype-foreach': ERROR,
