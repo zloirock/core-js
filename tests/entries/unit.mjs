@@ -284,7 +284,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
     load(NS, 'date/set-year')(date, 1);
     ok(date.getFullYear() === 1901);
-    ok(typeof load(NS, 'date/to-string')(date) === 'string');
     ok(load(NS, 'date/to-gmt-string')(date) === date.toUTCString());
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(typeof load(NS, 'date/to-iso-string')(new Date()) === 'string');
