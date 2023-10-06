@@ -17,7 +17,7 @@ $({ target: 'Array', proto: true }, {
     var k = 0;
     for (; k < len; k++) createProperty(A, k, O[len - k - 1]);
     return A;
-  }
+  },
 });
 
 addToUnscopables('toReversed');

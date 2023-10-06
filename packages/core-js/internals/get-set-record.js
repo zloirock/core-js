@@ -23,7 +23,7 @@ SetRecord.prototype = {
   },
   includes: function (it) {
     return call(this.has, this.set, it);
-  }
+  },
 };
 
 // `GetSetRecord` abstract operation

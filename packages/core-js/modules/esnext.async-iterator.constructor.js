@@ -30,5 +30,5 @@ if (IS_PURE || !hasOwn(AsyncIteratorPrototype, 'constructor') || AsyncIteratorPr
 // `AsyncIterator` constructor
 // https://github.com/tc39/proposal-async-iterator-helpers
 $({ global: true, constructor: true, forced: IS_PURE }, {
-  AsyncIterator: AsyncIteratorConstructor
+  AsyncIterator: AsyncIteratorConstructor,
 });

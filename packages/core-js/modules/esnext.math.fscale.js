@@ -9,5 +9,5 @@ var fround = require('../internals/math-fround');
 $({ target: 'Math', stat: true, forced: true }, {
   fscale: function fscale(x, inLow, inHigh, outLow, outHigh) {
     return fround(scale(x, inLow, inHigh, outLow, outHigh));
-  }
+  },
 });

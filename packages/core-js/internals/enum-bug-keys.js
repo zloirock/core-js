@@ -7,5 +7,5 @@ module.exports = [
   'propertyIsEnumerable',
   'toLocaleString',
   'toString',
-  'valueOf'
+  'valueOf',
 ];

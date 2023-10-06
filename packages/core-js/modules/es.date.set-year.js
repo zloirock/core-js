@@ -19,5 +19,5 @@ $({ target: 'Date', proto: true }, {
     var yi = toIntegerOrInfinity(y);
     var yyyy = yi >= 0 && yi <= 99 ? yi + 1900 : yi;
     return setFullYear(this, yyyy);
-  }
+  },
 });
