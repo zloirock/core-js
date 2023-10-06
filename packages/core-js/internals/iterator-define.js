@@ -5,7 +5,6 @@ var IS_PURE = require('../internals/is-pure');
 var FunctionName = require('../internals/function-name');
 var isCallable = require('../internals/is-callable');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var setToStringTag = require('../internals/set-to-string-tag');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -22,6 +21,8 @@ var ITERATOR = wellKnownSymbol('iterator');
 var KEYS = 'keys';
 var VALUES = 'values';
 var ENTRIES = 'entries';
+
+var getPrototypeOf = Object.getPrototypeOf;
 
 var returnThis = function () { return this; };
 
