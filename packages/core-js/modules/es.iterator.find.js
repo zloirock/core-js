@@ -16,5 +16,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop(value);
     }, { IS_RECORD: true, INTERRUPTED: true }).result;
-  }
+  },
 });

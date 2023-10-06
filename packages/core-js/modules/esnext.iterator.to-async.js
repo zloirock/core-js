@@ -11,5 +11,5 @@ var IS_PURE = require('../internals/is-pure');
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(anObject(this)))));
-  }
+  },
 });
