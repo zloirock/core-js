@@ -4,8 +4,7 @@ var base64Alphabet = commonAlphabet + '+/';
 var base64UrlAlphabet = commonAlphabet + '-_';
 
 var inverse = function (characters) {
-  // TODO: use `Object.create(null)` in `core-js@4`
-  var result = {};
+  var result = Object.create(null);
   var index = 0;
   for (; index < 64; index++) result[characters.charAt(index)] = index;
   return result;
