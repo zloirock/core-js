@@ -77,7 +77,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         anObject(resolved);
         return createIterResultObject(undefined, true);
       });
-    }
+    },
   });
 };
 

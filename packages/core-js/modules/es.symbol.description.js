@@ -50,10 +50,10 @@ if (isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
       var string = symbolDescriptiveString(symbol);
       var desc = NATIVE_SYMBOL ? stringSlice(string, 7, -1) : replace(string, regexp, '$1');
       return desc === '' ? undefined : desc;
-    }
+    },
   });
 
   $({ global: true, constructor: true, forced: true }, {
-    Symbol: SymbolWrapper
+    Symbol: SymbolWrapper,
   });
 }
