@@ -14,5 +14,5 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
   atanh: function atanh(x) {
     var n = +x;
     return n === 0 ? n : log((1 + n) / (1 - n)) / 2;
-  }
+  },
 });
