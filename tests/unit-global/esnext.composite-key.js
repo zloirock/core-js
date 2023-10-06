@@ -1,6 +1,4 @@
 
-import { FREEZING } from '../helpers/constants.js';
-
 const { getPrototypeOf, isFrozen } = Object;
 
 QUnit.test('compositeKey', assert => {
@@ -12,7 +10,7 @@ QUnit.test('compositeKey', assert => {
   assert.same(typeof key, 'object');
   assert.same({}.toString.call(key), '[object Object]');
   assert.same(getPrototypeOf(key), null);
-  if (FREEZING) assert.true(isFrozen(key));
+  assert.true(isFrozen(key));
 
   const a = ['a'];
   const b = ['b'];
