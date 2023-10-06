@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 
+var isArray = Array.isArray;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 
