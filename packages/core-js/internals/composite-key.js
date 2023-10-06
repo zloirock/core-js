@@ -3,13 +3,13 @@
 require('../modules/es.map.constructor');
 require('../modules/es.weak-map.constructor');
 var getBuiltIn = require('../internals/get-built-in');
-var create = require('../internals/object-create');
 var isObject = require('../internals/is-object');
 
 var $Object = Object;
 var $TypeError = TypeError;
 var Map = getBuiltIn('Map');
 var WeakMap = getBuiltIn('WeakMap');
+var create = Object.create;
 
 var Node = function () {
   // keys

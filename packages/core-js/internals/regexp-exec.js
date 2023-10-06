@@ -7,11 +7,11 @@ var toString = require('../internals/to-string');
 var regexpFlags = require('../internals/regexp-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var shared = require('../internals/shared');
-var create = require('../internals/object-create');
 var getInternalState = require('../internals/internal-state').get;
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
+var create = Object.create;
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
 var nativeExec = RegExp.prototype.exec;
 var patchedExec = nativeExec;
