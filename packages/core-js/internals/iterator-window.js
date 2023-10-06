@@ -40,6 +40,6 @@ module.exports = function (O, windowSize, sliding) {
   return new IteratorProxy(getIteratorDirect(O), {
     windowSize: windowSize,
     buffer: [],
-    sliding: sliding
+    sliding: sliding,
   });
 };
