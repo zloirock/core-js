@@ -55,7 +55,7 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      mapper: mapper
+      mapper: mapper,
     });
-  }
+  },
 });

@@ -31,5 +31,5 @@ $({ target: 'Observable', stat: true, forced: true }, {
       }, { IS_ITERATOR: true, INTERRUPTED: true });
       observer.complete();
     });
-  }
+  },
 });

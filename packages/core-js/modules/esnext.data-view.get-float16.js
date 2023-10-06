@@ -27,5 +27,5 @@ $({ target: 'DataView', proto: true }, {
   getFloat16: function getFloat16(byteOffset /* , littleEndian */) {
     var uint16 = getUint16(this, byteOffset, arguments.length > 1 ? arguments[1] : false);
     return unpackFloat16(uint16);
-  }
+  },
 });

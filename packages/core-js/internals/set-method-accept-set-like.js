@@ -11,9 +11,9 @@ var createSetLike = function (size) {
       return {
         next: function () {
           return { done: true };
-        }
+        },
       };
-    }
+    },
   };
 };
 
