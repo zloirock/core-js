@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
+QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   const { setFromHex } = Uint8Array.prototype;
   assert.isFunction(setFromHex);
   assert.arity(setFromHex, 1);

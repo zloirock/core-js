@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
-var DESCRIPTORS = require('../internals/descriptors');
 var globalThis = require('../internals/global-this');
 var path = require('../internals/path');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -97,14 +96,7 @@ $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
 
 // Use `internal/copy-constructor-properties` helper in `core-js@4`
 var copyConstructorProperties = function (target, source) {
-  for (var keys = DESCRIPTORS ? getOwnPropertyNames(source) : (
-    // ES3:
-    'MAX_VALUE,MIN_VALUE,NaN,NEGATIVE_INFINITY,POSITIVE_INFINITY,' +
-    // ES2015 (in case, if modules with ES2015 Number statics required before):
-    'EPSILON,MAX_SAFE_INTEGER,MIN_SAFE_INTEGER,isFinite,isInteger,isNaN,isSafeInteger,parseFloat,parseInt,' +
-    // ESNext
-    'fromString,range'
-  ).split(','), j = 0, key; keys.length > j; j++) {
+  for (var keys = getOwnPropertyNames(source), j = 0, key; keys.length > j; j++) {
     if (hasOwn(source, key = keys[j]) && !hasOwn(target, key)) {
       defineProperty(target, key, getOwnPropertyDescriptor(source, key));
     }
