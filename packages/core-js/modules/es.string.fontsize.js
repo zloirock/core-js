@@ -8,5 +8,5 @@ var forcedStringHTMLMethod = require('../internals/string-html-forced');
 $({ target: 'String', proto: true, forced: forcedStringHTMLMethod('fontsize') }, {
   fontsize: function fontsize(size) {
     return createHTML(this, 'font', 'size', size);
-  }
+  },
 });

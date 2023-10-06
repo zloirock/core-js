@@ -28,5 +28,5 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     var index = toLength(min(arguments.length > 1 ? arguments[1] : undefined, that.length));
     var search = toString(searchString);
     return stringSlice(that, index, index + search.length) === search;
-  }
+  },
 });
