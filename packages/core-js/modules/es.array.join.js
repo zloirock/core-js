@@ -15,5 +15,5 @@ var FORCED = ES3_STRINGS || !arrayMethodIsStrict('join', ',');
 $({ target: 'Array', proto: true, forced: FORCED }, {
   join: function join(separator) {
     return nativeJoin(toIndexedObject(this), separator === undefined ? ',' : separator);
-  }
+  },
 });

@@ -20,6 +20,6 @@ if (MISSED_STICKY) {
         return !!getInternalState(this).sticky;
       }
       throw new $TypeError('Incompatible receiver, RegExp required');
-    }
+    },
   });
 }

@@ -30,7 +30,7 @@ var environments = [
   'react-native',
   'rhino',
   'safari',
-  'samsung'
+  'samsung',
 ];
 
 var tableHeader = createElement('tr');
@@ -38,7 +38,7 @@ var columnHeaders = ['module', 'current'].concat(environments);
 
 for (var i = 0; i < columnHeaders.length; i++) {
   tableHeader.appendChild(createElement('th', {
-    innerHTML: columnHeaders[i].replace(/-/g, '<br />')
+    innerHTML: columnHeaders[i].replace(/-/g, '<br />'),
   }));
 }
 
@@ -59,20 +59,20 @@ for (var moduleName in tests) {
 
   var row = createElement('tr');
   var rowHeader = createElement('td', {
-    className: result
+    className: result,
   });
 
   rowHeader.appendChild(createElement('a', {
     href: "https://github.com/zloirock/core-js/blob/master/tests/compat/tests.js#:~:text='" + moduleName.replace(/-/g, '%2D') + "'",
     target: '_blank',
-    innerHTML: moduleName
+    innerHTML: moduleName,
   }));
 
   row.appendChild(rowHeader);
 
   row.appendChild(createElement('td', {
     innerHTML: result ? 'not&nbsp;required' : 'required',
-    className: result + ' data'
+    className: result + ' data',
   }));
 
   var moduleData = data[moduleName];
@@ -81,7 +81,7 @@ for (var moduleName in tests) {
     var environmentVersion = moduleData && moduleData[environments[j]];
     row.appendChild(createElement('td', {
       innerHTML: moduleData ? environmentVersion || 'no' : 'no&nbsp;data',
-      className: (moduleData ? !!environmentVersion : 'nodata') + ' data'
+      className: (moduleData ? !!environmentVersion : 'nodata') + ' data',
     }));
   }
 

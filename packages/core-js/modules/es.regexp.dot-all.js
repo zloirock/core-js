@@ -20,6 +20,6 @@ if (UNSUPPORTED_DOT_ALL) {
         return !!getInternalState(this).dotAll;
       }
       throw new $TypeError('Incompatible receiver, RegExp required');
-    }
+    },
   });
 }

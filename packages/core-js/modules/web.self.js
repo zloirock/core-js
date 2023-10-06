@@ -25,11 +25,11 @@ try {
           value: value,
           writable: true,
           configurable: true,
-          enumerable: true
+          enumerable: true,
         });
       },
       configurable: true,
-      enumerable: true
+      enumerable: true,
     });
   }
 } catch (error) { /* empty */ }

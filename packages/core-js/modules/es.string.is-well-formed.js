@@ -19,5 +19,5 @@ $({ target: 'String', proto: true }, {
       // unpaired surrogate
       if (charCode >= 0xDC00 || ++i >= length || (charCodeAt(S, i) & 0xFC00) !== 0xDC00) return false;
     } return true;
-  }
+  },
 });
