@@ -24,7 +24,7 @@ module.exports = {
         index: create(null),
         first: null,
         last: null,
-        size: 0
+        size: 0,
       });
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
@@ -48,7 +48,7 @@ module.exports = {
           value: value,
           previous: previous = state.last,
           next: null,
-          removed: false
+          removed: false,
         };
         if (!state.first) state.first = entry;
         if (previous) previous.next = entry;
@@ -124,7 +124,7 @@ module.exports = {
       // https://tc39.es/ecma262/#sec-set.prototype.has
       has: function has(key) {
         return !!getEntry(this, key);
-      }
+      },
     });
 
     defineBuiltIns(Prototype, IS_MAP ? {
@@ -138,19 +138,19 @@ module.exports = {
       // https://tc39.es/ecma262/#sec-map.prototype.set
       set: function set(key, value) {
         return define(this, key === 0 ? 0 : key, value);
-      }
+      },
     } : {
       // `Set.prototype.add(value)` method
       // https://tc39.es/ecma262/#sec-set.prototype.add
       add: function add(value) {
         return define(this, value = value === 0 ? 0 : value, value);
-      }
+      },
     });
     defineBuiltInAccessor(Prototype, 'size', {
       configurable: true,
       get: function () {
         return getInternalState(this).size;
-      }
+      },
     });
     return Constructor;
   },
@@ -173,7 +173,7 @@ module.exports = {
         target: iterated,
         state: getInternalCollectionState(iterated),
         kind: kind,
-        last: null
+        last: null,
       });
     }, function () {
       var state = getInternalIteratorState(this);
@@ -197,5 +197,5 @@ module.exports = {
     // https://tc39.es/ecma262/#sec-get-map-@@species
     // https://tc39.es/ecma262/#sec-get-set-@@species
     setSpecies(CONSTRUCTOR_NAME);
-  }
+  },
 };

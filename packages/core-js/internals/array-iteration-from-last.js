@@ -31,5 +31,5 @@ module.exports = {
   findLast: createMethod(0),
   // `Array.prototype.findLastIndex` method
   // https://github.com/tc39/proposal-array-find-from-last
-  findLastIndex: createMethod(1)
+  findLastIndex: createMethod(1),
 };

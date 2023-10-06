@@ -22,7 +22,7 @@ module.exports = function (O, key, value, options) {
       value: value,
       enumerable: false,
       configurable: !options.nonConfigurable,
-      writable: !options.nonWritable
+      writable: !options.nonWritable,
     });
   } return O;
 };

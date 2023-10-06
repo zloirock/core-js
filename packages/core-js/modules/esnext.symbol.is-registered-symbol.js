@@ -16,5 +16,5 @@ $({ target: 'Symbol', stat: true }, {
     } catch (error) {
       return false;
     }
-  }
+  },
 });

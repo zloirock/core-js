@@ -10,5 +10,5 @@ module.exports = {
   set: uncurryThis(WeakMapPrototype.set),
   get: uncurryThis(WeakMapPrototype.get),
   has: uncurryThis(WeakMapPrototype.has),
-  remove: uncurryThis(WeakMapPrototype.delete)
+  remove: uncurryThis(WeakMapPrototype.delete),
 };

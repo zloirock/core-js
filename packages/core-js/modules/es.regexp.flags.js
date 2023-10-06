@@ -8,7 +8,7 @@ var regExpFlagsGetterImplementation = require('../internals/regexp-flags');
 if (!regExpFlagsDetection.correct) {
   defineBuiltInAccessor(RegExp.prototype, 'flags', {
     configurable: true,
-    get: regExpFlagsGetterImplementation
+    get: regExpFlagsGetterImplementation,
   });
 
   regExpFlagsDetection.correct = true;

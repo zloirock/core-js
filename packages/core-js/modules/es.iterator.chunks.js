@@ -30,13 +30,13 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.chunks` method
-// https://tc39.es/ecma262/#sec-iterator.prototype.chunks
+// https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   chunks: function chunks(chunkSize) {
     anObject(this);
     chunkSizeValidation(chunkSize, this);
     return new IteratorProxy(getIteratorDirect(this), {
-      chunkSize: chunkSize
+      chunkSize: chunkSize,
     });
-  }
+  },
 });

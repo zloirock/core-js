@@ -11,6 +11,6 @@ if (!('detached' in ArrayBufferPrototype)) {
     configurable: true,
     get: function detached() {
       return isDetached(this);
-    }
+    },
   });
 }

@@ -7,5 +7,5 @@ var isRawJSON = require('../internals/is-raw-json');
 // https://tc39.es/proposal-json-parse-with-source/#sec-json.israwjson
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
-  isRawJSON: isRawJSON
+  isRawJSON: isRawJSON,
 });

@@ -28,5 +28,5 @@ if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true, forced: throws
     notDetached(this.buffer);
     var read = $fromHex(string, this).read;
     return { read: read, written: read / 2 };
-  }
+  },
 });

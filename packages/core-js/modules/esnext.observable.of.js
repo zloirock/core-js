@@ -20,5 +20,5 @@ $({ target: 'Observable', stat: true, forced: true }, {
         if (observer.closed) return;
       } observer.complete();
     });
-  }
+  },
 });
