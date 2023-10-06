@@ -1,7 +1,7 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
-import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants.js';
+import { REDEFINABLE_PROTO } from '../helpers/constants.js';
 
 QUnit.test('JSON.parse', assert => {
   const { parse } = JSON;
@@ -179,45 +179,43 @@ QUnit.test('JSON.parse', assert => {
   assert.true(hasOwn(obj1, 'b'), 'reviver-object-get-prop-from-prototype-2');
   assert.same(obj1.b, 3, 'reviver-object-get-prop-from-prototype-3');
 
-  if (DESCRIPTORS) {
-    const arr2 = parse('[1, 2]', function (key, value) {
-      if (key === '0') defineProperty(this, '1', { configurable: false });
-      if (key === '1') return 22;
-      return value;
-    });
-    assert.same(arr2[0], 1, 'reviver-array-non-configurable-prop-create-1');
-    assert.same(arr2[1], 2, 'reviver-array-non-configurable-prop-create-2');
+  const arr2 = parse('[1, 2]', function (key, value) {
+    if (key === '0') defineProperty(this, '1', { configurable: false });
+    if (key === '1') return 22;
+    return value;
+  });
+  assert.same(arr2[0], 1, 'reviver-array-non-configurable-prop-create-1');
+  assert.same(arr2[1], 2, 'reviver-array-non-configurable-prop-create-2');
 
-    const arr3 = parse('[1, 2]', function (key, value) {
-      if (key === '0') defineProperty(this, '1', { configurable: false });
-      if (key === '1') return;
-      return value;
-    });
-    assert.same(arr3[0], 1, 'reviver-array-non-configurable-prop-delete-1');
-    assert.true(hasOwn(arr3, '1'), 'reviver-array-non-configurable-prop-delete-2');
-    assert.same(arr3[1], 2, 'reviver-array-non-configurable-prop-delete-3');
+  const arr3 = parse('[1, 2]', function (key, value) {
+    if (key === '0') defineProperty(this, '1', { configurable: false });
+    if (key === '1') return;
+    return value;
+  });
+  assert.same(arr3[0], 1, 'reviver-array-non-configurable-prop-delete-1');
+  assert.true(hasOwn(arr3, '1'), 'reviver-array-non-configurable-prop-delete-2');
+  assert.same(arr3[1], 2, 'reviver-array-non-configurable-prop-delete-3');
 
-    const obj2 = parse('{"a": 1, "b": 2}', function (key, value) {
-      if (key === 'a') defineProperty(this, 'b', { configurable: false });
-      if (key === 'b') return 22;
-      return value;
-    });
-    assert.same(obj2.a, 1, 'reviver-object-non-configurable-prop-create-1');
-    assert.same(obj2.b, 2, 'reviver-object-non-configurable-prop-create-2');
+  const obj2 = parse('{"a": 1, "b": 2}', function (key, value) {
+    if (key === 'a') defineProperty(this, 'b', { configurable: false });
+    if (key === 'b') return 22;
+    return value;
+  });
+  assert.same(obj2.a, 1, 'reviver-object-non-configurable-prop-create-1');
+  assert.same(obj2.b, 2, 'reviver-object-non-configurable-prop-create-2');
 
-    const obj3 = parse('{"a": 1, "b": 2}', function (key, value) {
-      if (key === 'a') defineProperty(this, 'b', { configurable: false });
-      if (key === 'b') return;
-      return value;
-    });
-    assert.same(obj3.a, 1, 'reviver-object-non-configurable-prop-delete-1');
-    assert.true(hasOwn(obj3, 'b'), 'reviver-object-non-configurable-prop-delete-2');
-    assert.same(obj3.b, 2, 'reviver-object-non-configurable-prop-delete-3');
+  const obj3 = parse('{"a": 1, "b": 2}', function (key, value) {
+    if (key === 'a') defineProperty(this, 'b', { configurable: false });
+    if (key === 'b') return;
+    return value;
+  });
+  assert.same(obj3.a, 1, 'reviver-object-non-configurable-prop-delete-1');
+  assert.true(hasOwn(obj3, 'b'), 'reviver-object-non-configurable-prop-delete-2');
+  assert.same(obj3.b, 2, 'reviver-object-non-configurable-prop-delete-3');
 
-    assert.throws(() => parse('[0,0]', function () {
-      defineProperty(this, '1', { get: () => { throw new EvalError('t262'); } });
-    }), EvalError, 'reviver-get-name-err');
-  }
+  assert.throws(() => parse('[0,0]', function () {
+    defineProperty(this, '1', { get: () => { throw new EvalError('t262'); } });
+  }), EvalError, 'reviver-get-name-err');
 
   assert.throws(() => parse('0', () => { throw new EvalError('t262'); }), EvalError, 'reviver-call-err');
 

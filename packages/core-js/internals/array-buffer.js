@@ -1,7 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var FunctionName = require('../internals/function-name');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -111,10 +110,6 @@ if (!NATIVE_ARRAY_BUFFER) {
       bytes: fill(Array(byteLength), 0),
       byteLength: byteLength
     });
-    if (!DESCRIPTORS) {
-      this.byteLength = byteLength;
-      this.detached = false;
-    }
   };
 
   ArrayBufferPrototype = $ArrayBuffer[PROTOTYPE];
@@ -135,21 +130,14 @@ if (!NATIVE_ARRAY_BUFFER) {
       byteOffset: offset,
       bytes: bufferState.bytes
     });
-    if (!DESCRIPTORS) {
-      this.buffer = buffer;
-      this.byteLength = byteLength;
-      this.byteOffset = offset;
-    }
   };
 
   DataViewPrototype = $DataView[PROTOTYPE];
 
-  if (DESCRIPTORS) {
-    addGetter($ArrayBuffer, 'byteLength', getInternalArrayBufferState);
-    addGetter($DataView, 'buffer', getInternalDataViewState);
-    addGetter($DataView, 'byteLength', getInternalDataViewState);
-    addGetter($DataView, 'byteOffset', getInternalDataViewState);
-  }
+  addGetter($ArrayBuffer, 'byteLength', getInternalArrayBufferState);
+  addGetter($DataView, 'buffer', getInternalDataViewState);
+  addGetter($DataView, 'byteLength', getInternalDataViewState);
+  addGetter($DataView, 'byteOffset', getInternalDataViewState);
 
   defineBuiltIns(DataViewPrototype, {
     getInt8: function getInt8(byteOffset) {

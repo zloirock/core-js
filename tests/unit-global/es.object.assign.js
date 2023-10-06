@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 QUnit.test('Object.assign', assert => {
   const { assign, keys, defineProperty } = Object;
   assert.isFunction(assign);
@@ -19,43 +17,43 @@ QUnit.test('Object.assign', assert => {
   assert.same(String(string), 'qwe');
   assert.same(string.q, 1);
   assert.same(assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug');
-  if (DESCRIPTORS) {
-    object = { baz: 1 };
-    assign(object, defineProperty({}, 'bar', {
-      get() {
-        return this.baz + 1;
-      },
-    }));
-    assert.same(object.bar, undefined, "assign don't copy descriptors");
-    object = { a: 'a' };
-    const c = Symbol('c');
-    const d = Symbol('d');
-    object[c] = 'c';
-    defineProperty(object, 'b', { value: 'b' });
-    defineProperty(object, d, { value: 'd' });
-    const object2 = assign({}, object);
-    assert.same(object2.a, 'a', 'a');
-    assert.same(object2.b, undefined, 'b');
-    assert.same(object2[c], 'c', 'c');
-    assert.same(object2[d], undefined, 'd');
-    try {
-      assert.same(Function('assign', `
-        return assign({ b: 1 }, { get a() {
-          delete this.b;
-        }, b: 2 });
-      `)(assign).b, 1);
-    } catch { /* empty */ }
-    try {
-      assert.same(Function('assign', `
-        return assign({ b: 1 }, { get a() {
-          Object.defineProperty(this, "b", {
-            value: 3,
-            enumerable: false
-          });
-        }, b: 2 });
-      `)(assign).b, 1);
-    } catch { /* empty */ }
-  }
+
+  object = { baz: 1 };
+  assign(object, defineProperty({}, 'bar', {
+    get() {
+      return this.baz + 1;
+    },
+  }));
+  assert.same(object.bar, undefined, "assign don't copy descriptors");
+  object = { a: 'a' };
+  const c = Symbol('c');
+  const d = Symbol('d');
+  object[c] = 'c';
+  defineProperty(object, 'b', { value: 'b' });
+  defineProperty(object, d, { value: 'd' });
+  const object2 = assign({}, object);
+  assert.same(object2.a, 'a', 'a');
+  assert.same(object2.b, undefined, 'b');
+  assert.same(object2[c], 'c', 'c');
+  assert.same(object2[d], undefined, 'd');
+  try {
+    assert.same(Function('assign', `
+      return assign({ b: 1 }, { get a() {
+        delete this.b;
+      }, b: 2 });
+    `)(assign).b, 1);
+  } catch { /* empty */ }
+  try {
+    assert.same(Function('assign', `
+      return assign({ b: 1 }, { get a() {
+        Object.defineProperty(this, "b", {
+          value: 3,
+          enumerable: false
+        });
+      }, b: 2 });
+    `)(assign).b, 1);
+  } catch { /* empty */ }
+
   string = 'abcdefghijklmnopqrst';
   const result = {};
   for (let i = 0, { length } = string; i < length; ++i) {
