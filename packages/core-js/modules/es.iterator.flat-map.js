@@ -18,7 +18,7 @@ function throwsOnIteratorWithoutReturn() {
     // eslint-disable-next-line es/no-map, es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
     var it = Iterator.prototype.flatMap.call(new Map([[4, 5]]).entries(), function (v) { return v; });
     it.next();
-    it['return']();
+    it.return();
   } catch (error) {
     return true;
   }

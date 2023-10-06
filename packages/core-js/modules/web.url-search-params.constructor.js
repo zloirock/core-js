@@ -331,7 +331,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   },
   // `URLSearchParams.prototype.delete` method
   // https://url.spec.whatwg.org/#dom-urlsearchparams-delete
-  'delete': function (name /* , value */) {
+  delete: function (name /* , value */) {
     var state = getInternalParamsState(this);
     var length = validateArgumentsLength(arguments.length, 1);
     var entries = state.entries;
