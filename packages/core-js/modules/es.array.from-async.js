@@ -61,5 +61,5 @@ $({ target: 'Array', stat: true, forced: INCORRECT_CONSTRUCTURING }, {
         : new AsyncFromSyncIterator(getIteratorDirect(getIterator(items, usingSyncIterator)));
       resolve(toArray(iterator, mapfn, A));
     });
-  }
+  },
 });

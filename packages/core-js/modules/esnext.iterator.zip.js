@@ -88,5 +88,5 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
     }
 
     return iteratorZip(iters, mode, padding);
-  }
+  },
 });

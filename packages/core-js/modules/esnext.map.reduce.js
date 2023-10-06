@@ -24,5 +24,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     });
     if (noInitial) throw new $TypeError('Reduce of empty map with no initial value');
     return accumulator;
-  }
+  },
 });

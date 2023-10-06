@@ -10,5 +10,5 @@ var getUint8 = uncurryThis(DataView.prototype.getUint8);
 $({ target: 'DataView', proto: true, forced: true }, {
   getUint8Clamped: function getUint8Clamped(byteOffset) {
     return getUint8(this, byteOffset);
-  }
+  },
 });

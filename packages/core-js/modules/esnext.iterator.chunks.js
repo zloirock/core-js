@@ -38,7 +38,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
       return iteratorClose(O, 'throw', new $RangeError('chunkSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {
-      chunkSize: chunkSize
+      chunkSize: chunkSize,
     });
-  }
+  },
 });

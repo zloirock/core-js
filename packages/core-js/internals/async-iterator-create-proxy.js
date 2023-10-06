@@ -104,7 +104,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       }
 
       return closeOuterIterator();
-    }
+    },
   });
 };
 

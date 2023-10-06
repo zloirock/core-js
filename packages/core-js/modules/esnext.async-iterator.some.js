@@ -7,5 +7,5 @@ var $some = require('../internals/async-iterator-iteration').some;
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   some: function some(predicate) {
     return $some(this, predicate);
-  }
+  },
 });

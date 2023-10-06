@@ -58,5 +58,5 @@ module.exports = {
   get: ordinaryGetOwnMetadata,
   set: ordinaryDefineOwnMetadata,
   keys: ordinaryOwnMetadataKeys,
-  toKey: toMetadataKey
+  toKey: toMetadataKey,
 };

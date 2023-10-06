@@ -15,5 +15,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
       createProperty(result, index++, element);
     }, { IS_RECORD: true });
     return result;
-  }
+  },
 });

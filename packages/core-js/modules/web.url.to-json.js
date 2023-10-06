@@ -7,5 +7,5 @@ var call = require('../internals/function-call');
 $({ target: 'URL', proto: true, enumerable: true }, {
   toJSON: function toJSON() {
     return call(URL.prototype.toString, this);
-  }
+  },
 });
