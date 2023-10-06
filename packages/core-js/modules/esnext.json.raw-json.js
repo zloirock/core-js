@@ -45,7 +45,7 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
     setInternalState(obj, { type: 'RawJSON' });
     createProperty(obj, 'rawJSON', jsonString);
     return FREEZING ? freeze(obj) : obj;
-  }
+  },
 });
 
 // `JSON.stringify` method
@@ -80,5 +80,5 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
     }
 
     return result;
-  }
+  },
 });

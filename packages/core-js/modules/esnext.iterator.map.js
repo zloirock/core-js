@@ -22,7 +22,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     aCallable(mapper);
     return new IteratorProxy(getIteratorDirect(this), {
-      mapper: mapper
+      mapper: mapper,
     });
-  }
+  },
 });

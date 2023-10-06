@@ -28,5 +28,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     }, { IS_RECORD: true });
     if (noInitial) throw new $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
-  }
+  },
 });

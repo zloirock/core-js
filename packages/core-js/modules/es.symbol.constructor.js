@@ -74,7 +74,7 @@ var fallbackDefineProperty = function (O, P, Attributes) {
 
 var setSymbolDescriptor = fails(function () {
   return nativeObjectCreate(nativeDefineProperty({}, 'a', {
-    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
+    get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; },
   })).a !== 7;
 }) ? fallbackDefineProperty : nativeDefineProperty;
 
@@ -83,7 +83,7 @@ var wrap = function (tag, description) {
   setInternalState(symbol, {
     type: SYMBOL,
     tag: tag,
-    description: description
+    description: description,
   });
   return symbol;
 };
@@ -207,7 +207,7 @@ if (!NATIVE_SYMBOL) {
     configurable: true,
     get: function description() {
       return getInternalState(this).description;
-    }
+    },
   });
   if (!IS_PURE) {
     defineBuiltIn(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
@@ -215,7 +215,7 @@ if (!NATIVE_SYMBOL) {
 }
 
 $({ global: true, constructor: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !NATIVE_SYMBOL }, {
-  Symbol: $Symbol
+  Symbol: $Symbol,
 });
 
 $forEach(objectKeys(WellKnownSymbolsStore), function (name) {
@@ -224,7 +224,7 @@ $forEach(objectKeys(WellKnownSymbolsStore), function (name) {
 
 $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   useSetter: function () { USE_SETTER = true; },
-  useSimple: function () { USE_SETTER = false; }
+  useSimple: function () { USE_SETTER = false; },
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
@@ -239,13 +239,13 @@ $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   defineProperties: $defineProperties,
   // `Object.getOwnPropertyDescriptor` method
   // https://tc39.es/ecma262/#sec-object.getownpropertydescriptors
-  getOwnPropertyDescriptor: $getOwnPropertyDescriptor
+  getOwnPropertyDescriptor: $getOwnPropertyDescriptor,
 });
 
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.getOwnPropertyNames` method
   // https://tc39.es/ecma262/#sec-object.getownpropertynames
-  getOwnPropertyNames: $getOwnPropertyNames
+  getOwnPropertyNames: $getOwnPropertyNames,
 });
 
 // `Symbol.prototype[@@toPrimitive]` method

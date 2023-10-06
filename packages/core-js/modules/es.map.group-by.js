@@ -27,5 +27,5 @@ $({ target: 'Map', stat: true, forced: IS_PURE }, {
       else push(get(map, key), value);
     });
     return map;
-  }
+  },
 });

@@ -34,7 +34,7 @@ var FORCED = fails(function () {
     global: 'g',
     ignoreCase: 'i',
     multiline: 'm',
-    sticky: 'y'
+    sticky: 'y',
   };
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';
@@ -51,5 +51,5 @@ var FORCED = fails(function () {
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.flags
 if (FORCED) defineBuiltInAccessor(RegExpPrototype, 'flags', {
   configurable: true,
-  get: regExpFlags
+  get: regExpFlags,
 });

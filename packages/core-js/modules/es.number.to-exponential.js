@@ -98,5 +98,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     }
     m += 'e' + c + d;
     return s + m;
-  }
+  },
 });

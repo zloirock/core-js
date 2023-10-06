@@ -29,7 +29,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     aCallable(predicate);
     return new IteratorProxy(getIteratorDirect(this), {
-      predicate: predicate
+      predicate: predicate,
     });
-  }
+  },
 });

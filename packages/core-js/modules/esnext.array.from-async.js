@@ -50,5 +50,5 @@ $({ target: 'Array', stat: true }, {
         : new AsyncFromSyncIterator(getIteratorDirect(getIterator(O, usingSyncIterator)));
       resolve(toArray(iterator, mapfn, A));
     });
-  }
+  },
 });

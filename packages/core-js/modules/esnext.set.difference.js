@@ -26,5 +26,5 @@ $({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('dif
       if (has(O, e)) remove(result, e);
     });
     return result;
-  }
+  },
 });

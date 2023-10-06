@@ -23,5 +23,5 @@ $({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('sym
       else add(result, e);
     });
     return result;
-  }
+  },
 });

@@ -21,5 +21,5 @@ $({ target: 'RegExp', stat: true, forced: true }, {
       var hex = numberToString(charCodeAt(match, 0), 16);
       return hex.length < 3 ? '\\x' + padStart(hex, 2, '0') : '\\u' + padStart(hex, 4, '0');
     });
-  }
+  },
 });

@@ -46,5 +46,5 @@ var MS_EDGE_BUG = fails(function () {
 });
 
 $({ target: 'Reflect', stat: true, forced: MS_EDGE_BUG }, {
-  set: set
+  set: set,
 });

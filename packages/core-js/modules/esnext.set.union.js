@@ -18,5 +18,5 @@ $({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('uni
       add(result, it);
     });
     return result;
-  }
+  },
 });

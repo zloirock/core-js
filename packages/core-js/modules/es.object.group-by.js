@@ -26,5 +26,5 @@ $({ target: 'Object', stat: true }, {
       else obj[key] = [value];
     });
     return obj;
-  }
+  },
 });
