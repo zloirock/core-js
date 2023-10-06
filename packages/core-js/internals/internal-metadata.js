@@ -9,7 +9,6 @@ var getOwnPropertyNamesModule = require('../internals/object-get-own-property-na
 var getOwnPropertyNamesExternalModule = require('../internals/object-get-own-property-names-external');
 var isExtensible = require('../internals/object-is-extensible');
 var uid = require('../internals/uid');
-var FREEZING = require('../internals/freezing');
 
 var REQUIRED = false;
 var METADATA = uid('meta');
@@ -50,7 +49,7 @@ var getWeakData = function (it, create) {
 
 // add metadata on freeze-family methods calling
 var onFreeze = function (it) {
-  if (FREEZING && REQUIRED && isExtensible(it) && !hasOwn(it, METADATA)) setMetadata(it);
+  if (REQUIRED && isExtensible(it) && !hasOwn(it, METADATA)) setMetadata(it);
   return it;
 };
 
