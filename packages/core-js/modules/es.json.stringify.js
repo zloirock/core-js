@@ -6,7 +6,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof-raw');
@@ -21,8 +20,9 @@ var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 
 var $String = String;
 var $TypeError = TypeError;
+var create = Object.create;
 var isArray = Array.isArray;
-var $stringify = getBuiltIn('JSON', 'stringify');
+var $stringify = JSON.stringify;
 var $BigInt = getBuiltIn('BigInt');
 var stringValueOf = uncurryThis(''.valueOf);
 var booleanValueOf = uncurryThis(true.valueOf);
@@ -149,7 +149,7 @@ var createElementHolder = function (holder, key) {
         var elementToJSON = element.toJSON;
         if (isCallable(elementToJSON)) element = call(elementToJSON, element, key);
       } return element;
-    }
+    },
   };
 };
 
@@ -177,7 +177,7 @@ var createOrderedObject = function (value, propertyList, keyPrefix) {
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
+$({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = isCallable(replacer) ? replacer : undefined;
     var propertyList = replacerFunction ? undefined : getPropertyList(replacer);

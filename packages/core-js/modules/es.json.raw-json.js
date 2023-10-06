@@ -9,8 +9,8 @@ var createProperty = require('../internals/create-property');
 var setInternalState = require('../internals/internal-state').set;
 
 var $SyntaxError = SyntaxError;
-var parse = getBuiltIn('JSON', 'parse');
-var create = getBuiltIn('Object', 'create');
+var parse = JSON.parse;
+var create = Object.create;
 var freeze = getBuiltIn('Object', 'freeze');
 var at = uncurryThis(''.charAt);
 

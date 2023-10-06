@@ -15,10 +15,9 @@ var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
 var isArray = Array.isArray;
-var JSON = globalThis.JSON;
 var Number = globalThis.Number;
 var SyntaxError = globalThis.SyntaxError;
-var nativeParse = JSON && JSON.parse;
+var nativeParse = JSON.parse;
 var enumerableOwnProperties = getBuiltIn('Object', 'keys');
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
