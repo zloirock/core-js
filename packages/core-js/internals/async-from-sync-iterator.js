@@ -48,7 +48,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       asyncFromSyncIteratorContinuation(result, resolve, reject, state.iterator, true);
     });
   },
-  'return': function () {
+  return: function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
     var hasValue = arguments.length > 0;
@@ -60,7 +60,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
   },
-  'throw': function () {
+  throw: function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
     var hasValue = arguments.length > 0;
