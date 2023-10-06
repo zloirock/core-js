@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var isArray = require('../internals/is-array');
 
 var $TypeError = TypeError;
@@ -7,7 +6,7 @@ var $TypeError = TypeError;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 // Safari < 13 does not throw an error in this case
-var SILENT_ON_NON_WRITABLE_LENGTH_SET = DESCRIPTORS && !function () {
+var SILENT_ON_NON_WRITABLE_LENGTH_SET = !function () {
   // makes no sense without proper strict mode support
   if (this !== undefined) return true;
   try {

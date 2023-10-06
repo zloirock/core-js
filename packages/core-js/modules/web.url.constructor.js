@@ -2,7 +2,6 @@
 // TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.string.iterator');
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var globalThis = require('../internals/global-this');
 var bind = require('../internals/function-bind-context');
@@ -957,21 +956,7 @@ URLState.prototype = {
 var URLConstructor = function URL(url /* , base */) {
   var that = anInstance(this, URLPrototype);
   var base = validateArgumentsLength(arguments.length, 1) > 1 ? arguments[1] : undefined;
-  var state = setInternalState(that, new URLState(url, false, base));
-  if (!DESCRIPTORS) {
-    that.href = state.serialize();
-    that.origin = state.getOrigin();
-    that.protocol = state.getProtocol();
-    that.username = state.getUsername();
-    that.password = state.getPassword();
-    that.host = state.getHost();
-    that.hostname = state.getHostname();
-    that.port = state.getPort();
-    that.pathname = state.getPathname();
-    that.search = state.getSearch();
-    that.searchParams = state.getSearchParams();
-    that.hash = state.getHash();
-  }
+  setInternalState(that, new URLState(url, false, base));
 };
 
 var URLPrototype = URLConstructor.prototype;
@@ -989,44 +974,42 @@ var accessorDescriptor = function (getter, setter) {
   };
 };
 
-if (DESCRIPTORS) {
-  // `URL.prototype.href` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-href
-  defineBuiltInAccessor(URLPrototype, 'href', accessorDescriptor('serialize', 'setHref'));
-  // `URL.prototype.origin` getter
-  // https://url.spec.whatwg.org/#dom-url-origin
-  defineBuiltInAccessor(URLPrototype, 'origin', accessorDescriptor('getOrigin'));
-  // `URL.prototype.protocol` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-protocol
-  defineBuiltInAccessor(URLPrototype, 'protocol', accessorDescriptor('getProtocol', 'setProtocol'));
-  // `URL.prototype.username` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-username
-  defineBuiltInAccessor(URLPrototype, 'username', accessorDescriptor('getUsername', 'setUsername'));
-  // `URL.prototype.password` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-password
-  defineBuiltInAccessor(URLPrototype, 'password', accessorDescriptor('getPassword', 'setPassword'));
-  // `URL.prototype.host` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-host
-  defineBuiltInAccessor(URLPrototype, 'host', accessorDescriptor('getHost', 'setHost'));
-  // `URL.prototype.hostname` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-hostname
-  defineBuiltInAccessor(URLPrototype, 'hostname', accessorDescriptor('getHostname', 'setHostname'));
-  // `URL.prototype.port` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-port
-  defineBuiltInAccessor(URLPrototype, 'port', accessorDescriptor('getPort', 'setPort'));
-  // `URL.prototype.pathname` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-pathname
-  defineBuiltInAccessor(URLPrototype, 'pathname', accessorDescriptor('getPathname', 'setPathname'));
-  // `URL.prototype.search` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-search
-  defineBuiltInAccessor(URLPrototype, 'search', accessorDescriptor('getSearch', 'setSearch'));
-  // `URL.prototype.searchParams` getter
-  // https://url.spec.whatwg.org/#dom-url-searchparams
-  defineBuiltInAccessor(URLPrototype, 'searchParams', accessorDescriptor('getSearchParams'));
-  // `URL.prototype.hash` accessors pair
-  // https://url.spec.whatwg.org/#dom-url-hash
-  defineBuiltInAccessor(URLPrototype, 'hash', accessorDescriptor('getHash', 'setHash'));
-}
+// `URL.prototype.href` accessors pair
+// https://url.spec.whatwg.org/#dom-url-href
+defineBuiltInAccessor(URLPrototype, 'href', accessorDescriptor('serialize', 'setHref'));
+// `URL.prototype.origin` getter
+// https://url.spec.whatwg.org/#dom-url-origin
+defineBuiltInAccessor(URLPrototype, 'origin', accessorDescriptor('getOrigin'));
+// `URL.prototype.protocol` accessors pair
+// https://url.spec.whatwg.org/#dom-url-protocol
+defineBuiltInAccessor(URLPrototype, 'protocol', accessorDescriptor('getProtocol', 'setProtocol'));
+// `URL.prototype.username` accessors pair
+// https://url.spec.whatwg.org/#dom-url-username
+defineBuiltInAccessor(URLPrototype, 'username', accessorDescriptor('getUsername', 'setUsername'));
+// `URL.prototype.password` accessors pair
+// https://url.spec.whatwg.org/#dom-url-password
+defineBuiltInAccessor(URLPrototype, 'password', accessorDescriptor('getPassword', 'setPassword'));
+// `URL.prototype.host` accessors pair
+// https://url.spec.whatwg.org/#dom-url-host
+defineBuiltInAccessor(URLPrototype, 'host', accessorDescriptor('getHost', 'setHost'));
+// `URL.prototype.hostname` accessors pair
+// https://url.spec.whatwg.org/#dom-url-hostname
+defineBuiltInAccessor(URLPrototype, 'hostname', accessorDescriptor('getHostname', 'setHostname'));
+// `URL.prototype.port` accessors pair
+// https://url.spec.whatwg.org/#dom-url-port
+defineBuiltInAccessor(URLPrototype, 'port', accessorDescriptor('getPort', 'setPort'));
+// `URL.prototype.pathname` accessors pair
+// https://url.spec.whatwg.org/#dom-url-pathname
+defineBuiltInAccessor(URLPrototype, 'pathname', accessorDescriptor('getPathname', 'setPathname'));
+// `URL.prototype.search` accessors pair
+// https://url.spec.whatwg.org/#dom-url-search
+defineBuiltInAccessor(URLPrototype, 'search', accessorDescriptor('getSearch', 'setSearch'));
+// `URL.prototype.searchParams` getter
+// https://url.spec.whatwg.org/#dom-url-searchparams
+defineBuiltInAccessor(URLPrototype, 'searchParams', accessorDescriptor('getSearchParams'));
+// `URL.prototype.hash` accessors pair
+// https://url.spec.whatwg.org/#dom-url-hash
+defineBuiltInAccessor(URLPrototype, 'hash', accessorDescriptor('getHash', 'setHash'));
 
 // `URL.prototype.toJSON` method
 // https://url.spec.whatwg.org/#dom-url-tojson
@@ -1053,6 +1036,6 @@ if (NativeURL) {
 
 setToStringTag(URLConstructor, 'URL');
 
-$({ global: true, constructor: true, forced: !USE_NATIVE_URL, sham: !DESCRIPTORS }, {
+$({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
   URL: URLConstructor
 });
