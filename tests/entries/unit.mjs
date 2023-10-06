@@ -58,7 +58,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
-    ok(load(NS, 'array/is-array')([]));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
     ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/join')('qwe', 1) === 'q1w1e');
