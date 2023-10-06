@@ -11,7 +11,7 @@ var $Array = Array;
 $({ target: 'Array', proto: true }, {
   toReversed: function toReversed() {
     return arrayToReversed(toIndexedObject(this), $Array);
-  }
+  },
 });
 
 addToUnscopables('toReversed');
