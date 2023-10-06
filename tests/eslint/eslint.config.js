@@ -1455,7 +1455,6 @@ const forbidES5BuiltIns = {
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
   'es/no-array-prototype-some': ERROR,
-  'es/no-date-now': ERROR,
   'es/no-function-prototype-bind': ERROR,
   'es/no-json': ERROR,
   'es/no-object-create': ERROR,
@@ -1472,8 +1471,6 @@ const forbidES5BuiltIns = {
   'es/no-object-preventextensions': ERROR,
   'es/no-object-seal': ERROR,
   'es/no-string-prototype-trim': ERROR,
-  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
-  'unicorn/prefer-date-now': OFF,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': OFF,
 };
