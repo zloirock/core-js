@@ -6,7 +6,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
-var isArray = require('../internals/is-array');
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -22,6 +21,7 @@ var nativeParse = JSON && JSON.parse;
 var enumerableOwnProperties = getBuiltIn('Object', 'keys');
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var isArray = Array.isArray;
 var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
