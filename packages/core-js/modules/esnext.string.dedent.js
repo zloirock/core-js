@@ -1,5 +1,4 @@
 'use strict';
-var FREEZING = require('../internals/freezing');
 var $ = require('../internals/export');
 var makeBuiltIn = require('../internals/make-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -22,8 +21,7 @@ var weakMapSet = WeakMapHelpers.set;
 
 var $Array = Array;
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-freeze -- safe
-var freeze = Object.freeze || Object;
+var freeze = Object.freeze;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 var min = Math.min;
@@ -42,7 +40,7 @@ var INVALID_CLOSING_LINE = 'Invalid closing line';
 var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
   // https://github.com/tc39/proposal-string-dedent/issues/75
-  if (FREEZING && !isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
+  if (!isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
   if (weakMapHas(DedentMap, rawInput)) return weakMapGet(DedentMap, rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
