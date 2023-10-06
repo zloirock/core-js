@@ -17,11 +17,10 @@ var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
 var isArray = Array.isArray;
-var JSON = globalThis.JSON;
 var Reflect = globalThis.Reflect;
 var Number = globalThis.Number;
 var SyntaxError = globalThis.SyntaxError;
-var nativeParse = JSON && JSON.parse;
+var nativeParse = JSON.parse;
 var reflectDefineProperty = Reflect && Reflect.defineProperty;
 var reflectDeleteProperty = Reflect && Reflect.deleteProperty;
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
