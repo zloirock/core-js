@@ -873,8 +873,6 @@ const noAsyncAwait = {
 
 const useES3Syntax = {
   ...noAsyncAwait,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: false }],
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
@@ -901,8 +899,6 @@ const useES3Syntax = {
   'prefer-template': OFF,
   // disallow trailing commas in multiline object literals
   '@stylistic/js/comma-dangle': [ERROR, NEVER],
-  // require or disallow use of quotes around object literal property names
-  '@stylistic/js/quote-props': [ERROR, 'as-needed', { keywords: true }],
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
@@ -1539,7 +1535,7 @@ module.exports = [
       'tests/@(compat|worker)/*.js',
     ],
     languageOptions: {
-      ecmaVersion: 3,
+      ecmaVersion: 5,
     },
     rules: useES3Syntax,
   },
