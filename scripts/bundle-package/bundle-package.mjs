@@ -24,7 +24,6 @@ async function bundle({ bundled, minified, options = {} }) {
 
   const { code, map } = await minify(source, {
     ecma: 3,
-    ie8: true,
     safari10: true,
     keep_fnames: true,
     compress: {
