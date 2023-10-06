@@ -243,13 +243,13 @@ var serializeHost = function (host) {
 
 var C0ControlPercentEncodeSet = {};
 var fragmentPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
-  ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1
+  ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1,
 });
 var pathPercentEncodeSet = assign({}, fragmentPercentEncodeSet, {
-  '#': 1, '?': 1, '{': 1, '}': 1
+  '#': 1, '?': 1, '{': 1, '}': 1,
 });
 var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
-  '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1
+  '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1,
 });
 
 var percentEncode = function (chr, set) {
@@ -264,7 +264,7 @@ var specialSchemes = {
   http: 80,
   https: 443,
   ws: 80,
-  wss: 443
+  wss: 443,
 };
 
 // https://url.spec.whatwg.org/#windows-drive-letter
@@ -941,7 +941,7 @@ URLState.prototype = {
   },
   update: function () {
     this.query = this.searchParams.serialize() || null;
-  }
+  },
 };
 
 // `URL` constructor
@@ -963,7 +963,7 @@ var accessorDescriptor = function (getter, setter) {
       return getInternalURLState(this)[setter](value);
     },
     configurable: true,
-    enumerable: true
+    enumerable: true,
   };
 };
 
@@ -1030,5 +1030,5 @@ if (NativeURL) {
 setToStringTag(URLConstructor, 'URL');
 
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
-  URL: URLConstructor
+  URL: URLConstructor,
 });
