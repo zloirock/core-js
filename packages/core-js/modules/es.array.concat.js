@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isObject = require('../internals/is-object');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -13,6 +12,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var V8_VERSION = require('../internals/environment-v8-version');
 
 var IS_CONCAT_SPREADABLE = wellKnownSymbol('isConcatSpreadable');
+var isArray = Array.isArray;
 
 // We can't use this feature detection in V8 since it causes
 // deoptimization and serious performance degradation
