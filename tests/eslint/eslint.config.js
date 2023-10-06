@@ -1459,7 +1459,6 @@ const forbidES5BuiltIns = {
   'es/no-object-freeze': ERROR,
   'es/no-object-getownpropertydescriptor': ERROR,
   'es/no-object-getownpropertynames': ERROR,
-  'es/no-object-getprototypeof': ERROR,
   'es/no-object-isextensible': ERROR,
   'es/no-object-isfrozen': ERROR,
   'es/no-object-issealed': ERROR,
