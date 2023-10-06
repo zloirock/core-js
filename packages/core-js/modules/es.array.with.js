@@ -20,5 +20,5 @@ var INCORRECT_EXCEPTION_ON_COERCION_FAIL = (function () {
 $({ target: 'Array', proto: true, forced: INCORRECT_EXCEPTION_ON_COERCION_FAIL }, {
   with: function (index, value) {
     return arrayWith(toIndexedObject(this), $Array, index, value);
-  }
+  },
 });

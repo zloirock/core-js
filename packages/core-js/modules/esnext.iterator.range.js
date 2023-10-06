@@ -57,7 +57,7 @@ var $NumericRangeIterator = createIteratorConstructor(function NumericRangeItera
     inclusive: inclusiveEnd,
     hitsEnd: hitsEnd,
     currentCount: zero,
-    zero: zero
+    zero: zero,
   });
 }, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
@@ -87,7 +87,7 @@ var addGetter = function (key) {
     },
     set: function () { /* empty */ },
     configurable: true,
-    enumerable: false
+    enumerable: false,
   });
 };
 
@@ -103,5 +103,5 @@ $({ target: 'Iterator', stat: true, forced: true }, {
     if (typeof start == 'number') return new $NumericRangeIterator(start, end, option, 'number', 0, 1);
     if (typeof start == 'bigint') return new $NumericRangeIterator(start, end, option, 'bigint', BigInt(0), BigInt(1));
     throw new $TypeError('Incorrect Iterator.range arguments');
-  }
+  },
 });

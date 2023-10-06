@@ -17,5 +17,5 @@ $({ target: 'DataView', proto: true, forced: true }, {
       toIndex(byteOffset),
       toUint8Clamped(value)
     );
-  }
+  },
 });
