@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -15,6 +14,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 var create = Object.create;
+var getPrototypeOf = Object.getPrototypeOf;
 var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {

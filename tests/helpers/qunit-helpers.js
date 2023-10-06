@@ -5,8 +5,6 @@ import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
-// eslint-disable-next-line es/no-object-create -- safe
-if (!Object.create) Object.create = create;
 // eslint-disable-next-line es/no-object-freeze -- safe
 if (!Object.freeze) Object.freeze = Object;
 
