@@ -13,7 +13,7 @@ var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
 var IS_PURE = require('../internals/is-pure');
 
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 var push = uncurryThis([].push);
 var THROW = 'throw';
