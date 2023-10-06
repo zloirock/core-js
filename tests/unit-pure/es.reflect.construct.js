@@ -1,7 +1,8 @@
 import construct from 'core-js-pure/es/reflect/construct';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import isArray from 'core-js-pure/es/array/is-array';
+
+const { getPrototypeOf } = Object;
 
 QUnit.test('Reflect.construct', assert => {
   assert.isFunction(construct);

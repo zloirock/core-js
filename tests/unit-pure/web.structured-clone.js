@@ -9,7 +9,6 @@ import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
 import objectCreate from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
 import Symbol from 'core-js-pure/es/symbol';
 import Map from 'core-js-pure/es/map';
@@ -26,6 +25,8 @@ const FIREFOX_VERSION = +(/Firefox\/(\d+)/.exec(GLOBAL.navigator?.userAgent)?.[1
 // Firefox 4-6 report an inherited non-configurable accessor as own after deleting the shadowing property; fixed in Firefox 7.
 // https://bugzilla.mozilla.org/show_bug.cgi?id=637994
 const FIREFOX_INHERITED_AS_OWN = FIREFOX_VERSION >= 4 && FIREFOX_VERSION < 7;
+
+const { getPrototypeOf } = Object;
 
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {

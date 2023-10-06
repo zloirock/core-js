@@ -12,7 +12,6 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
 var assign = require('../internals/object-assign');
-var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var arraySlice = require('../internals/array-slice');
 var multibyte = require('../internals/string-multibyte');
@@ -35,6 +34,7 @@ var charAtMultibyte = multibyte.charAt;
 
 var NativeURL = globalThis.URL;
 var NativeURLPrototype = NativeURL && NativeURL.prototype;
+var getPrototypeOf = Object.getPrototypeOf;
 var TypeError = globalThis.TypeError;
 var parseInt = globalThis.parseInt;
 var floor = Math.floor;

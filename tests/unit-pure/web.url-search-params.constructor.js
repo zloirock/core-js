@@ -3,12 +3,12 @@ import { createIterable } from '../helpers/helpers.js';
 
 import create from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import Symbol from 'core-js-pure/es/symbol';
 import URL from 'core-js-pure/stable/url';
 import URLSearchParams from 'core-js-pure/stable/url-search-params';
 
+const { getPrototypeOf } = Object;
 const { Proxy } = GLOBAL;
 
 const USV_STRINGS = [

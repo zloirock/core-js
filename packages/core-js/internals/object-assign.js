@@ -4,7 +4,6 @@ var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var objectKeys = require('../internals/object-keys');
-var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
 var ownKeys = require('../internals/own-keys');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
@@ -15,6 +14,7 @@ var IndexedObject = require('../internals/indexed-object');
 var $assign = Object.assign;
 // eslint-disable-next-line es/no-object-defineproperty -- required for testing
 var defineProperty = Object.defineProperty;
+var getPrototypeOf = Object.getPrototypeOf;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
@@ -48,7 +48,7 @@ module.exports = !$assign || fails(function () {
   var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   while (argumentsLength > index) {
     var S = IndexedObject(arguments[index++]);
-    var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && objectGetPrototypeOf(S) === null;
+    var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && getPrototypeOf(S) === null;
     var keys = NAMES_ORDER ? ownKeys(S) : objectKeys(S);
     if (!NAMES_ORDER && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));
     var length = keys.length;
