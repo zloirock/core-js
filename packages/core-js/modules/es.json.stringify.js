@@ -5,7 +5,6 @@ var apply = require('../internals/function-apply');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
@@ -18,6 +17,7 @@ var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 
 var $String = String;
+var isArray = Array.isArray;
 var $stringify = getBuiltIn('JSON', 'stringify');
 var exec = uncurryThis(/./.exec);
 var charAt = uncurryThis(''.charAt);

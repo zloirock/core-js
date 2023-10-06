@@ -313,15 +313,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.array.is-array': {
-    chrome: '5',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '4.0',
-  },
   'es.array.iterator': {
     chrome: '66',
     edge: '15',
