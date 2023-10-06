@@ -39,7 +39,7 @@ $({ target: 'Array', proto: true }, {
     for (; k < newLen; k++) createProperty(A, k, O[k + actualDeleteCount - insertCount]);
 
     return A;
-  }
+  },
 });
 
 addToUnscopables('toSpliced');

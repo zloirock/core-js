@@ -23,5 +23,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     inserted = handler.insert(key, map);
     set(map, key, inserted);
     return inserted;
-  }
+  },
 });

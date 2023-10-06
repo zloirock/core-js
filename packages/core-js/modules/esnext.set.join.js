@@ -19,5 +19,5 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
       push(array, value);
     });
     return arrayJoin(array, sep);
-  }
+  },
 });

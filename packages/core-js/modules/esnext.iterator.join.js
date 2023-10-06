@@ -27,5 +27,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
       push(result, isNullOrUndefined(value) ? '' : $toString(value));
     }, { IS_ITERATOR: true });
     return $join(result, sep);
-  }
+  },
 });

@@ -24,7 +24,7 @@ exports.f = V8_PROTOTYPE_DEFINE_BUG ? function defineProperty(O, P, Attributes) 
       Attributes = {
         configurable: CONFIGURABLE in Attributes ? Attributes[CONFIGURABLE] : current[CONFIGURABLE],
         enumerable: ENUMERABLE in Attributes ? Attributes[ENUMERABLE] : current[ENUMERABLE],
-        writable: false
+        writable: false,
       };
     }
   } return $defineProperty(O, P, Attributes);

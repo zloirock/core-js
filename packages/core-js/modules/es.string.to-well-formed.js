@@ -39,5 +39,5 @@ $({ target: 'String', proto: true, forced: TO_STRING_CONVERSION_BUG }, {
         result[++i] = charAt(S, i);
       }
     } return join(result, '');
-  }
+  },
 });

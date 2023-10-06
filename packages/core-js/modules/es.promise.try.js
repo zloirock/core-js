@@ -29,5 +29,5 @@ $({ target: 'Promise', stat: true, forced: FORCED }, {
     });
     (result.error ? promiseCapability.reject : promiseCapability.resolve)(result.value);
     return promiseCapability.promise;
-  }
+  },
 });

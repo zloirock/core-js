@@ -51,7 +51,7 @@ SubscriptionState.prototype = {
   },
   isClosed: function () {
     return this.observer === null;
-  }
+  },
 };
 
 var Subscription = function (observer, subscriber) {
@@ -83,20 +83,20 @@ Subscription.prototype = defineBuiltIns({}, {
       subscriptionState.close();
       subscriptionState.clean();
     }
-  }
+  },
 });
 
 defineBuiltInAccessor(Subscription.prototype, 'closed', {
   configurable: true,
   get: function closed() {
     return getSubscriptionInternalState(this).isClosed();
-  }
+  },
 });
 
 var SubscriptionObserver = function (subscriptionState) {
   setInternalState(this, {
     type: SUBSCRIPTION_OBSERVER,
-    subscriptionState: subscriptionState
+    subscriptionState: subscriptionState,
   });
 };
 
@@ -139,21 +139,21 @@ SubscriptionObserver.prototype = defineBuiltIns({}, {
         hostReportErrors(error);
       } subscriptionState.clean();
     }
-  }
+  },
 });
 
 defineBuiltInAccessor(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function closed() {
     return getSubscriptionObserverInternalState(this).subscriptionState.isClosed();
-  }
+  },
 });
 
 var $Observable = function Observable(subscriber) {
   anInstance(this, ObservablePrototype);
   setInternalState(this, {
     type: OBSERVABLE,
-    subscriber: aCallable(subscriber)
+    subscriber: aCallable(subscriber),
   });
 };
 
@@ -165,15 +165,15 @@ defineBuiltIns(ObservablePrototype, {
     return new Subscription(isCallable(observer) ? {
       next: observer,
       error: length > 1 ? arguments[1] : undefined,
-      complete: length > 2 ? arguments[2] : undefined
+      complete: length > 2 ? arguments[2] : undefined,
     } : isObject(observer) ? observer : {}, getObservableInternalState(this).subscriber);
-  }
+  },
 });
 
 defineBuiltIn(ObservablePrototype, $$OBSERVABLE, function () { return this; });
 
 $({ global: true, constructor: true, forced: true }, {
-  Observable: $Observable
+  Observable: $Observable,
 });
 
 setSpecies(OBSERVABLE);

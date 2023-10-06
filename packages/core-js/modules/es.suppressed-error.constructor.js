@@ -52,7 +52,7 @@ else copyConstructorProperties($SuppressedError, $Error, { name: true });
 var SuppressedErrorPrototype = $SuppressedError.prototype = PATCH ? NativeSuppressedError.prototype : create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $SuppressedError),
   message: createPropertyDescriptor(1, ''),
-  name: createPropertyDescriptor(1, 'SuppressedError')
+  name: createPropertyDescriptor(1, 'SuppressedError'),
 });
 
 if (PATCH && !IS_PURE) SuppressedErrorPrototype.constructor = $SuppressedError;
@@ -60,5 +60,5 @@ if (PATCH && !IS_PURE) SuppressedErrorPrototype.constructor = $SuppressedError;
 // `SuppressedError` constructor
 // https://github.com/tc39/proposal-explicit-resource-management
 $({ global: true, constructor: true, arity: 3, forced: PATCH }, {
-  SuppressedError: $SuppressedError
+  SuppressedError: $SuppressedError,
 });

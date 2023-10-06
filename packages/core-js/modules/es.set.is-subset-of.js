@@ -20,5 +20,5 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
     return iterate(O, function (e) {
       if (!otherRec.includes(e)) return false;
     }, true) !== false;
-  }
+  },
 });

@@ -7,5 +7,5 @@ var $values = require('../internals/object-to-array').values;
 $({ target: 'Object', stat: true }, {
   values: function values(O) {
     return $values(O);
-  }
+  },
 });

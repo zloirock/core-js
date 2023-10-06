@@ -45,5 +45,5 @@ if (!isCallable(IteratorPrototype[ITERATOR])) {
 
 module.exports = {
   IteratorPrototype: IteratorPrototype,
-  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS
+  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS,
 };

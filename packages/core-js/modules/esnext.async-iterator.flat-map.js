@@ -81,7 +81,7 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
     aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

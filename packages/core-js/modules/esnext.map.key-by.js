@@ -18,5 +18,5 @@ $({ target: 'Map', stat: true, forced: true }, {
       call(setter, newMap, keyDerivative(element), element);
     });
     return newMap;
-  }
+  },
 });
