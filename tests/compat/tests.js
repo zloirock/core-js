@@ -88,7 +88,7 @@ var SYMBOLS_SUPPORT = function () {
 };
 
 var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
-  return Symbol['for'] && Symbol.keyFor;
+  return Symbol.for && Symbol.keyFor;
 }];
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
@@ -98,7 +98,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   var result = '';
   url.pathname = 'c%20d';
   searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+    searchParams.delete('b');
     result += key + value;
   });
   return searchParams.sort
@@ -130,7 +130,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
       next: function () {
         return { done: !!called++ };
       },
-      'return': function () {
+      return: function () {
         SAFE_CLOSING = true;
       }
     };
@@ -580,7 +580,7 @@ GLOBAL.tests = {
     }
   },
   'es.array.with': function () {
-    return []['with'];
+    return [].with;
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
@@ -935,7 +935,7 @@ GLOBAL.tests = {
   'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     // eslint-disable-next-line unicorn/no-thenable -- required for testing
-    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
+    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
   }],
   'es.promise.reject': PROMISES_SUPPORT,
   'es.promise.resolve': PROMISES_SUPPORT,
@@ -1442,7 +1442,7 @@ GLOBAL.tests = {
   },
   'es.typed-array.with': function () {
     try {
-      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
+      new Int8Array(1).with(2, { valueOf: function () { throw 8; } });
     } catch (error) {
       return error === 8;
     }
@@ -1976,10 +1976,10 @@ GLOBAL.tests = {
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     var params = new URLSearchParams('a=1&a=2&b=3');
-    params['delete']('a', 1);
+    params.delete('a', 1);
     // `undefined` case is a Chromium 117 bug
     // https://bugs.chromium.org/p/v8/issues/detail?id=14222
-    params['delete']('b', undefined);
+    params.delete('b', undefined);
     return params + '' === 'a=2';
   }],
   'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
