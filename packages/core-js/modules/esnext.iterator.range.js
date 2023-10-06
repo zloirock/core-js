@@ -7,7 +7,6 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
-var DESCRIPTORS = require('../internals/descriptors');
 
 var INCORRECT_RANGE = 'Incorrect Iterator.range arguments';
 var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
@@ -64,12 +63,6 @@ var $NumericRangeIterator = createIteratorConstructor(function NumericRangeItera
     currentCount: zero,
     zero: zero
   });
-  if (!DESCRIPTORS) {
-    this.start = start;
-    this.end = end;
-    this.step = step;
-    this.inclusive = inclusiveEnd;
-  }
 }, NUMERIC_RANGE_ITERATOR, function next() {
   var state = getInternalState(this);
   if (state.hitsEnd) return createIterResultObject(undefined, true);
@@ -102,12 +95,10 @@ var addGetter = function (key) {
   });
 };
 
-if (DESCRIPTORS) {
-  addGetter('start');
-  addGetter('end');
-  addGetter('inclusive');
-  addGetter('step');
-}
+addGetter('start');
+addGetter('end');
+addGetter('inclusive');
+addGetter('step');
 
 // `Iterator.range` method
 // https://github.com/tc39/proposal-iterator.range

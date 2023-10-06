@@ -1,6 +1,6 @@
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
+QUnit.test('Uint8Array.prototype.toHex', assert => {
   const { toHex } = Uint8Array.prototype;
   assert.isFunction(toHex);
   assert.arity(toHex, 0);
@@ -43,7 +43,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
   assert.same(new Uint8Array([102, 111, 111, 98, 97, 114]).toHex(), '666f6f626172');
 });
 
-if (DESCRIPTORS && typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toHex, resizable buffers', assert => {
+if (typeof ArrayBuffer.prototype.resize == 'function') QUnit.test('Uint8Array.prototype.toHex, resizable buffers', assert => {
   // https://issues.chromium.org/issues/454630441
   const rab = new ArrayBuffer(6, { maxByteLength: 12 });
   const tracking = new Uint8Array(rab);

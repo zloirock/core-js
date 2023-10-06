@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isObject = require('../internals/is-object');
 var isPossiblePrototype = require('../internals/is-possible-prototype');
@@ -17,7 +16,7 @@ var PROTO = '__proto__';
 // https://tc39.es/ecma262/#sec-object.prototype.__proto__
 // Deno 2.9+ patch this accessor, so we can't use `in` for feature detection,
 // and its getter throws under `node --disable-proto=throw`, so it's read inside `try`
-if (DESCRIPTORS && getPrototypeOf && setPrototypeOf) try {
+if (getPrototypeOf && setPrototypeOf) try {
   if ({}[PROTO] !== ObjectPrototype) defineBuiltInAccessor(ObjectPrototype, PROTO, {
     configurable: true,
     get: function __proto__() {

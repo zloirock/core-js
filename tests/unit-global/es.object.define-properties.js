@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 QUnit.test('Object.defineProperties', assert => {
   const { defineProperties } = Object;
   assert.isFunction(defineProperties);
@@ -13,15 +11,9 @@ QUnit.test('Object.defineProperties', assert => {
   assert.same(result.q, 42);
   assert.same(result.w, 33);
 
-  if (DESCRIPTORS) {
-    // eslint-disable-next-line prefer-arrow-callback -- required for testing
-    assert.same(defineProperties(function () { /* empty */ }, { prototype: {
-      value: 42,
-      writable: false,
-    } }).prototype, 42, 'function prototype with non-writable descriptor');
-  }
-});
-
-QUnit.test('Object.defineProperties.sham flag', assert => {
-  assert.same(Object.defineProperties.sham, DESCRIPTORS ? undefined : true);
+  // eslint-disable-next-line prefer-arrow-callback -- required for testing
+  assert.same(defineProperties(function () { /* empty */ }, { prototype: {
+    value: 42,
+    writable: false,
+  } }).prototype, 42, 'function prototype with non-writable descriptor');
 });

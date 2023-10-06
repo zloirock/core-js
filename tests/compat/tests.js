@@ -46,20 +46,6 @@ var ARRAY_BUFFER_TRANSFER_BUG = IS_NODE && /^(?:21\.|22\.[0-3]\.)/.test(versions
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
-var DESCRIPTORS_SUPPORT = function () {
-  return Object.defineProperty({}, 'a', {
-    get: function () { return 7; }
-  }).a === 7;
-};
-
-var DESCRIPTORS = function () {
-  try {
-    return DESCRIPTORS_SUPPORT();
-  } catch (error) {
-    return false;
-  }
-}();
-
 var V8_PROTOTYPE_DEFINE_BUG = function () {
   return Object.defineProperty(function () { /* empty */ }, 'prototype', {
     value: 42,
@@ -434,13 +420,11 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       !Error.isError(Object.create(Error.prototype));
   },
   'es.error.to-string': function () {
-    if (DESCRIPTORS) {
-      // Chrome 32- incorrectly call accessor
-      var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
-        return this === object;
-      } }));
-      if (Error.prototype.toString.call(object) !== 'true') return false;
-    }
+    // Chrome 32- incorrectly call accessor
+    var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
+      return this === object;
+    } }));
+    if (Error.prototype.toString.call(object) !== 'true') return false;
     // FF10- does not properly handle non-strings
     return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
       // IE8 does not properly handle defaults
@@ -1107,7 +1091,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     }
   },
   'es.object.assign': function () {
-    if (DESCRIPTORS && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
+    if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
       enumerable: true,
       get: function () {
         Object.defineProperty(this, 'b', {
@@ -1129,10 +1113,10 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Object.create;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG, function () {
+  'es.object.define-properties': [V8_PROTOTYPE_DEFINE_BUG, function () {
     return Object.defineProperties;
   }],
-  'es.object.define-property': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG],
+  'es.object.define-property': V8_PROTOTYPE_DEFINE_BUG,
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
@@ -1143,9 +1127,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.object.from-entries': function () {
     return Object.fromEntries;
   },
-  'es.object.get-own-property-descriptor': [DESCRIPTORS_SUPPORT, function () {
+  'es.object.get-own-property-descriptor': function () {
     return Object.getOwnPropertyDescriptor('qwe', '0');
-  }],
+  },
   'es.object.get-own-property-descriptors': function () {
     return Object.getOwnPropertyDescriptors;
   },
@@ -2293,7 +2277,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'web.self': function () {
     // eslint-disable-next-line no-restricted-globals -- safe
     if (self !== GLOBAL) return false;
-    if (!DESCRIPTORS) return true;
     var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
     return descriptor.get && descriptor.enumerable;
   },
