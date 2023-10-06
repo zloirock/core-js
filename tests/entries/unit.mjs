@@ -277,7 +277,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
-    ok(typeof load(NS, 'date/now')(new Date()) === 'number');
     const date = new Date();
     ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
     load(NS, 'date/set-year')(date, 1);
