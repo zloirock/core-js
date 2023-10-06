@@ -2,7 +2,6 @@
 // https://github.com/tc39/proposal-observable
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var DESCRIPTORS = require('../internals/descriptors');
 var setSpecies = require('../internals/set-species');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
@@ -48,12 +47,7 @@ SubscriptionState.prototype = {
     }
   },
   close: function () {
-    if (!DESCRIPTORS) {
-      var subscription = this.facade;
-      var subscriptionObserver = this.subscriptionObserver;
-      subscription.closed = true;
-      if (subscriptionObserver) subscriptionObserver.closed = true;
-    } this.observer = null;
+    this.observer = null;
   },
   isClosed: function () {
     return this.observer === null;
@@ -63,7 +57,6 @@ SubscriptionState.prototype = {
 var Subscription = function (observer, subscriber) {
   var subscriptionState = setInternalState(this, new SubscriptionState(observer));
   var start;
-  if (!DESCRIPTORS) this.closed = false;
   try {
     if (start = getMethod(observer, 'start')) call(start, observer, this);
   } catch (error) {
@@ -93,7 +86,7 @@ Subscription.prototype = defineBuiltIns({}, {
   }
 });
 
-if (DESCRIPTORS) defineBuiltInAccessor(Subscription.prototype, 'closed', {
+defineBuiltInAccessor(Subscription.prototype, 'closed', {
   configurable: true,
   get: function closed() {
     return getSubscriptionInternalState(this).isClosed();
@@ -105,7 +98,6 @@ var SubscriptionObserver = function (subscriptionState) {
     type: SUBSCRIPTION_OBSERVER,
     subscriptionState: subscriptionState
   });
-  if (!DESCRIPTORS) this.closed = false;
 };
 
 SubscriptionObserver.prototype = defineBuiltIns({}, {
@@ -150,7 +142,7 @@ SubscriptionObserver.prototype = defineBuiltIns({}, {
   }
 });
 
-if (DESCRIPTORS) defineBuiltInAccessor(SubscriptionObserver.prototype, 'closed', {
+defineBuiltInAccessor(SubscriptionObserver.prototype, 'closed', {
   configurable: true,
   get: function closed() {
     return getSubscriptionObserverInternalState(this).subscriptionState.isClosed();

@@ -1,5 +1,5 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Array.from', assert => {
@@ -114,31 +114,28 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
   assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    from.call(C, [1, 2, 3]);
-    assert.false(called, 'Should not call prototype accessors');
-  }
+
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  from.call(C, [1, 2, 3]);
+  assert.false(called, 'Should not call prototype accessors');
   // iterator should be closed when createProperty fails
-  if (DESCRIPTORS) {
-    let returnCalled = false;
-    const iterable = {
-      [Symbol.iterator]() {
-        return {
-          next() { return { value: 1, done: false }; },
-          return() { returnCalled = true; return { done: true }; },
-        };
-      },
-    };
-    const Frozen = function () { return Object.freeze([]); };
-    assert.throws(() => from.call(Frozen, iterable), TypeError, 'throws when createProperty fails');
-    assert.true(returnCalled, 'iterator is closed when createProperty throws');
-  }
+  let returnCalled = false;
+  const iterable = {
+    [Symbol.iterator]() {
+      return {
+        next() { return { value: 1, done: false }; },
+        return() { returnCalled = true; return { done: true }; },
+      };
+    },
+  };
+  const Frozen = function () { return Object.freeze([]); };
+  assert.throws(() => from.call(Frozen, iterable), TypeError, 'throws when createProperty fails');
+  assert.true(returnCalled, 'iterator is closed when createProperty throws');
   // mapfn callable check should happen before ToObject(items)
   assert.throws(() => from(null, 42), TypeError, 'non-callable mapfn with null items throws for mapfn');
 });

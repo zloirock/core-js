@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
@@ -12,7 +11,7 @@ var push = uncurryThis([].push);
 
 // in some IE versions, `propertyIsEnumerable` returns incorrect result on integer keys
 // of `null` prototype objects
-var IE_BUG = DESCRIPTORS && fails(function () {
+var IE_BUG = fails(function () {
   // eslint-disable-next-line es/no-object-create -- safe
   var O = Object.create(null);
   O[2] = 2;
@@ -31,7 +30,7 @@ var createMethod = function (TO_ENTRIES) {
     var key;
     while (length > i) {
       key = keys[i++];
-      if (!DESCRIPTORS || (IE_WORKAROUND ? key in O : propertyIsEnumerable(O, key))) {
+      if (IE_WORKAROUND ? key in O : propertyIsEnumerable(O, key)) {
         push(result, TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }
