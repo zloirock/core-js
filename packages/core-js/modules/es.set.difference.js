@@ -29,9 +29,9 @@ var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || fails(function () {
           var done = index++ > 1;
           if (baseSet.has(1)) baseSet.clear();
           return { done: done, value: 2 };
-        }
+        },
       };
-    }
+    },
   };
   // eslint-disable-next-line es/no-set -- testing
   var baseSet = new Set([1, 2, 3, 4]);
@@ -53,5 +53,5 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
       if (has(result, e)) remove(result, e);
     });
     return result;
-  }
+  },
 });

@@ -16,5 +16,5 @@ $({ target: 'Object', proto: true, forced: FORCED }, {
     do {
       if (desc = getOwnPropertyDescriptor(O, key)) return desc.get;
     } while (O = getPrototypeOf(O));
-  }
+  },
 });

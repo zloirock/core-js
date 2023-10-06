@@ -37,7 +37,7 @@ var $AsyncDisposableStack = function AsyncDisposableStack() {
   setInternalState(anInstance(this, AsyncDisposableStackPrototype), {
     type: ASYNC_DISPOSABLE_STACK,
     state: PENDING,
-    stack: []
+    stack: [],
   });
 };
 
@@ -108,14 +108,14 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     internalState.stack = [];
     internalState.state = DISPOSED;
     return newAsyncDisposableStack;
-  }
+  },
 });
 
 defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
   configurable: true,
   get: function disposed() {
     return getAsyncDisposableStackInternalState(this).state === DISPOSED;
-  }
+  },
 });
 
 defineBuiltIn(AsyncDisposableStackPrototype, ASYNC_DISPOSE, AsyncDisposableStackPrototype.disposeAsync, { name: 'disposeAsync' });
@@ -126,5 +126,5 @@ defineBuiltIn(AsyncDisposableStackPrototype, TO_STRING_TAG, ASYNC_DISPOSABLE_STA
 var SYNC_DISPOSE_RETURNING_PROMISE_RESOLUTION_BUG = V8_VERSION && V8_VERSION < 136;
 
 $({ global: true, constructor: true, forced: SYNC_DISPOSE_RETURNING_PROMISE_RESOLUTION_BUG }, {
-  AsyncDisposableStack: $AsyncDisposableStack
+  AsyncDisposableStack: $AsyncDisposableStack,
 });

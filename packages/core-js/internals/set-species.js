@@ -11,7 +11,7 @@ module.exports = function (CONSTRUCTOR_NAME) {
   if (Constructor && !Constructor[SPECIES]) {
     defineBuiltInAccessor(Constructor, SPECIES, {
       configurable: true,
-      get: function () { return this; }
+      get: function () { return this; },
     });
   }
 };

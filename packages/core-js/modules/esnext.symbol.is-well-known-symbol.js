@@ -35,5 +35,5 @@ $({ target: 'Symbol', stat: true, forced: true }, {
       }
     } catch (error) { /* empty */ }
     return false;
-  }
+  },
 });

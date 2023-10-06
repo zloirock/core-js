@@ -86,7 +86,7 @@ if (NATIVE_WEAK_MAP) if (IS_IE11) {
         nativeHas(this, key) ? nativeSet(this, key, value) : state.frozen.set(key, value);
       } else nativeSet(this, key, value);
       return this;
-    }
+    },
   });
 // Chakra Edge frozen keys fix
 } else if (hasMSEdgeFreezingBug()) {
@@ -100,6 +100,6 @@ if (NATIVE_WEAK_MAP) if (IS_IE11) {
       nativeSet(this, key, value);
       if (arrayIntegrityLevel) arrayIntegrityLevel(key);
       return this;
-    }
+    },
   });
 }

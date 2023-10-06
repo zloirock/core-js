@@ -17,7 +17,7 @@ var codePoints = {
   '\\f': '\f',
   '\\n': '\n',
   '\\r': '\r',
-  '\\t': '\t'
+  '\\t': '\t',
 };
 
 var IS_4_HEX_DIGITS = /^[\da-f]{4}$/i;
