@@ -95,6 +95,6 @@ module.exports = function (iters, mode, padding, finishResults) {
     openItersCount: iterCount,
     mode: mode,
     padding: padding,
-    finishResults: finishResults
+    finishResults: finishResults,
   });
 };

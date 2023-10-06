@@ -60,7 +60,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);
-    }
+    },
   });
 };
 
