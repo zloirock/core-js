@@ -12,15 +12,15 @@ var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructo
 // `Promise.prototype.catch` method
 // https://tc39.es/ecma262/#sec-promise.prototype.catch
 $({ target: 'Promise', proto: true, forced: FORCED_PROMISE_CONSTRUCTOR, real: true }, {
-  'catch': function (onRejected) {
+  catch: function (onRejected) {
     return this.then(undefined, onRejected);
   }
 });
 
 // makes sure that native promise-based APIs `Promise#catch` properly works with patched `Promise#then`
 if (!IS_PURE && isCallable(NativePromiseConstructor)) {
-  var method = getBuiltIn('Promise').prototype['catch'];
-  if (NativePromisePrototype['catch'] !== method) {
+  var method = getBuiltIn('Promise').prototype.catch;
+  if (NativePromisePrototype.catch !== method) {
     defineBuiltIn(NativePromisePrototype, 'catch', method, { unsafe: true });
   }
 }
