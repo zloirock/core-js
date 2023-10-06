@@ -6,5 +6,5 @@ var defineProperties = require('../internals/object-define-properties').f;
 // https://tc39.es/ecma262/#sec-object.defineproperties
 // eslint-disable-next-line es/no-object-defineproperties -- safe
 $({ target: 'Object', stat: true, forced: Object.defineProperties !== defineProperties }, {
-  defineProperties: defineProperties
+  defineProperties: defineProperties,
 });

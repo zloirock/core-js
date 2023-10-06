@@ -35,5 +35,5 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
     setInternalState(obj, { type: 'RawJSON' });
     createProperty(obj, 'rawJSON', jsonString);
     return FREEZING ? freeze(obj) : obj;
-  }
+  },
 });
