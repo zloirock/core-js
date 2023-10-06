@@ -6,7 +6,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
-var isArray = require('../internals/is-array');
 var hasOwn = require('../internals/has-own-property');
 var sameValue = require('../internals/same-value');
 var toString = require('../internals/to-string');
@@ -17,6 +16,7 @@ var fails = require('../internals/fails');
 var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
+var isArray = Array.isArray;
 var JSON = globalThis.JSON;
 var Reflect = globalThis.Reflect;
 var Number = globalThis.Number;
