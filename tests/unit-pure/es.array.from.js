@@ -1,5 +1,4 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 import Symbol from 'core-js-pure/es/symbol';
@@ -113,14 +112,13 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
   assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    from.call(C, [1, 2, 3]);
-    assert.false(called, 'Should not call prototype accessors');
-  }
+
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  from.call(C, [1, 2, 3]);
+  assert.false(called, 'Should not call prototype accessors');
 });
