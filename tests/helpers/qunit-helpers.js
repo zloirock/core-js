@@ -1,13 +1,10 @@
-import { DESCRIPTORS } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
-import defineProperties from 'core-js-pure/es/object/define-properties';
 import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
 if (!Object.freeze) Object.freeze = Object;
-if (!DESCRIPTORS) Object.defineProperties = defineProperties;
 
 const { getOwnPropertyDescriptor } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
@@ -23,14 +20,12 @@ assign(QUnit.assert, {
     this.ok(false, message);
   },
   enumerable(O, key, message) {
-    const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
+    const result = propertyIsEnumerable.call(O, key);
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is enumerable`,
     });
   },
   epsilon(a, b, EPSILON = 1e-11, message = null) {
@@ -101,36 +96,30 @@ assign(QUnit.assert, {
     });
   },
   nonConfigurable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.configurable;
+    const result = !getOwnPropertyDescriptor(O, key)?.configurable;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-configurable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`
-        : 'Configurability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`,
     });
   },
   nonEnumerable(O, key, message) {
-    const result = !DESCRIPTORS || !propertyIsEnumerable.call(O, key);
+    const result = !propertyIsEnumerable.call(O, key);
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-enumerable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`
-        : 'Enumerability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-enumerable`,
     });
   },
   nonWritable(O, key, message) {
-    const result = !DESCRIPTORS || !getOwnPropertyDescriptor(O, key)?.writable;
+    const result = !getOwnPropertyDescriptor(O, key)?.writable;
     this.pushResult({
       result,
       actual: result,
       expected: 'The property should be non-writable',
-      message: DESCRIPTORS
-        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`
-        : 'Writability is not applicable',
+      message: message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-writable`,
     });
   },
   notSame(actual, expected, message) {
