@@ -1,5 +1,4 @@
 'use strict';
-var create = require('../internals/object-create');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var defineBuiltIns = require('../internals/define-built-ins');
 var bind = require('../internals/function-bind-context');
@@ -14,6 +13,7 @@ var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
+var create = Object.create;
 
 module.exports = {
   getConstructor: function (wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER) {

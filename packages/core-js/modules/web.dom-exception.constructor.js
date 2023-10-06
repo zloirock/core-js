@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var tryNodeRequire = require('../internals/try-node-require');
 var getBuiltIn = require('../internals/get-built-in');
 var fails = require('../internals/fails');
-var create = require('../internals/object-create');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var defineProperty = require('../internals/object-define-property').f;
 var defineBuiltIn = require('../internals/define-built-in');
@@ -21,6 +20,7 @@ var IS_PURE = require('../internals/is-pure');
 var DOM_EXCEPTION = 'DOMException';
 var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var Error = getBuiltIn('Error');
+var create = Object.create;
 // NodeJS < 17.0 does not expose `DOMException` to global
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
   try {
