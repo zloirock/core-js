@@ -1,6 +1,5 @@
 /* eslint-disable sonarjs/no-element-overwrite -- required for testing */
 import { createIterable, is, nativeSubclass } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 import getIterator from 'core-js-pure/es/get-iterator';
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
@@ -46,12 +45,12 @@ QUnit.test('Map', assert => {
   assert.true(done);
   const object = {};
   new Map().set(object, 1);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in object) results.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+
+  const results = [];
+  for (const key in object) results.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
+
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);
@@ -246,14 +245,13 @@ QUnit.test('Map#size', assert => {
   const { size } = map;
   assert.same(typeof size, 'number', 'size is number');
   assert.same(size, 1, 'size is correct');
-  if (DESCRIPTORS) {
-    const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
-    const getter = sizeDescriptor && sizeDescriptor.get;
-    const setter = sizeDescriptor && sizeDescriptor.set;
-    assert.same(typeof getter, 'function', 'size is getter');
-    assert.same(typeof setter, 'undefined', 'size is not setter');
-    assert.throws(() => Map.prototype.size, TypeError);
-  }
+
+  const sizeDescriptor = getOwnPropertyDescriptor(Map.prototype, 'size');
+  const getter = sizeDescriptor && sizeDescriptor.get;
+  const setter = sizeDescriptor && sizeDescriptor.set;
+  assert.same(typeof getter, 'function', 'size is getter');
+  assert.same(typeof setter, 'undefined', 'size is not setter');
+  assert.throws(() => Map.prototype.size, TypeError);
 });
 
 QUnit.test('Map & -0', assert => {

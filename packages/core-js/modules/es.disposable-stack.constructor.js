@@ -1,7 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-explicit-resource-management
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var getBuiltIn = require('../internals/get-built-in');
 var aCallable = require('../internals/a-callable');
 var anInstance = require('../internals/an-instance');
@@ -38,8 +37,6 @@ var $DisposableStack = function DisposableStack() {
     state: PENDING,
     stack: []
   });
-
-  if (!DESCRIPTORS) this.disposed = false;
 };
 
 var DisposableStackPrototype = $DisposableStack.prototype;
@@ -49,7 +46,6 @@ defineBuiltIns(DisposableStackPrototype, {
     var internalState = getDisposableStackInternalState(this);
     if (internalState.state === DISPOSED) return;
     internalState.state = DISPOSED;
-    if (!DESCRIPTORS) this.disposed = true;
     var stack = internalState.stack;
     var i = stack.length;
     var thrown = false;
@@ -94,12 +90,11 @@ defineBuiltIns(DisposableStackPrototype, {
     getDisposableStackInternalState(newDisposableStack).stack = internalState.stack;
     internalState.stack = [];
     internalState.state = DISPOSED;
-    if (!DESCRIPTORS) this.disposed = true;
     return newDisposableStack;
   }
 });
 
-if (DESCRIPTORS) defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
+defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
   configurable: true,
   get: function disposed() {
     return getDisposableStackInternalState(this).state === DISPOSED;

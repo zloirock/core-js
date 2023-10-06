@@ -1,7 +1,7 @@
 import { createConversionChecker } from '../helpers/helpers.js';
-import { DESCRIPTORS, TYPED_ARRAYS } from '../helpers/constants.js';
+import { TYPED_ARRAYS } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.fill', assert => {
+QUnit.test('%TypedArrayPrototype%.fill', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { fill } = TypedArray.prototype;

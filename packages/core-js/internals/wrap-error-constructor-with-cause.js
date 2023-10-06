@@ -10,7 +10,6 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var installErrorCause = require('../internals/install-error-cause');
 var installErrorStack = require('../internals/error-stack-install');
-var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
@@ -46,7 +45,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   if (ERROR_NAME !== 'Error') {
     if (setPrototypeOf) setPrototypeOf(WrappedError, BaseError);
     else copyConstructorProperties(WrappedError, BaseError, { name: true });
-  } else if (DESCRIPTORS && STACK_TRACE_LIMIT in OriginalError) {
+  } else if (STACK_TRACE_LIMIT in OriginalError) {
     proxyAccessor(WrappedError, OriginalError, STACK_TRACE_LIMIT);
     proxyAccessor(WrappedError, OriginalError, 'prepareStackTrace');
   }
