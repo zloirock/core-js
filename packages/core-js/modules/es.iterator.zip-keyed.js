@@ -13,6 +13,7 @@ var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
 var IS_PURE = require('../internals/is-pure');
 
+var create = Object.create;
 var push = uncurryThis([].push);
 var THROW = 'throw';
 
@@ -60,7 +61,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
     }
 
     return iteratorZip(iters, mode, padding, function (results) {
-      var obj = getBuiltIn('Object', 'create')(null);
+      var obj = create(null);
       for (var j = 0; j < iterCount; j++) {
         createProperty(obj, keys[j], results[j]);
       }

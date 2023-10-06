@@ -2,7 +2,6 @@
 var globalThis = require('../internals/global-this');
 var shared = require('../internals/shared-store');
 var isCallable = require('../internals/is-callable');
-var create = require('../internals/object-create');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -27,7 +26,7 @@ if (PassedAsyncIteratorPrototype) {
 }
 
 if (!AsyncIteratorPrototype) AsyncIteratorPrototype = {};
-else if (IS_PURE) AsyncIteratorPrototype = create(AsyncIteratorPrototype);
+else if (IS_PURE) AsyncIteratorPrototype = Object.create(AsyncIteratorPrototype);
 
 if (!isCallable(AsyncIteratorPrototype[ASYNC_ITERATOR])) {
   defineBuiltIn(AsyncIteratorPrototype, ASYNC_ITERATOR, function () {

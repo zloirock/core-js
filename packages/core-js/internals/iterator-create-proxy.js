@@ -1,6 +1,5 @@
 'use strict';
 var call = require('../internals/function-call');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -13,6 +12,7 @@ var iteratorCloseAll = require('../internals/iterator-close-all');
 var cleanupState = require('../internals/iterator-cleanup-state');
 
 var $TypeError = TypeError;
+var create = Object.create;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';

@@ -6,9 +6,9 @@ var bind = require('../internals/function-bind');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
-var create = require('../internals/object-create');
 var fails = require('../internals/fails');
 
+var create = Object.create;
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
 var ObjectPrototype = Object.prototype;
 var push = [].push;
