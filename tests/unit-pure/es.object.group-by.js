@@ -1,7 +1,8 @@
 import { createIterable } from '../helpers/helpers.js';
 import groupBy from 'core-js-pure/es/object/group-by';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import entries from 'core-js-pure/es/object/entries';
+
+const { getPrototypeOf } = Object;
 
 QUnit.test('Object.groupBy', assert => {
   assert.isFunction(groupBy);
