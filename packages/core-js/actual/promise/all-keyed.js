@@ -1,7 +1,7 @@
 'use strict';
 require('../../modules/es.object.create');
 require('../../modules/es.object.to-string');
-require('../../modules/es.promise');
+require('../../modules/es.promise.constructor');
 require('../../modules/es.reflect.own-keys');
 require('../../modules/esnext.promise.all-keyed');
 var call = require('../../internals/function-call');
