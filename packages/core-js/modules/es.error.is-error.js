@@ -23,7 +23,7 @@ var FORCED = !$isError || !PROTOTYPE_SETTING_AVAILABLE || fails(function () {
     // eslint-disable-next-line es/no-error-cause -- detection
     !$isError(new $Error(ERROR, { cause: function () { /* empty */ } })) ||
     // instanceof-based and FF Error#stack-based implementations
-    $isError(getBuiltIn('Object', 'create')($Error.prototype));
+    $isError(Object.create($Error.prototype));
 });
 
 // `Error.isError` method

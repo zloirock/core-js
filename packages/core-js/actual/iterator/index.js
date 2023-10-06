@@ -1,6 +1,5 @@
 'use strict';
 var parent = require('../../stable/iterator');
-require('../../modules/es.object.create');
 require('../../modules/es.promise.constructor');
 require('../../modules/es.promise.catch');
 require('../../modules/es.promise.finally');
