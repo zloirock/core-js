@@ -12,7 +12,7 @@ try {
     },
     return: function () {
       SAFE_CLOSING = true;
-    }
+    },
   };
   iteratorWithReturn[ITERATOR] = function () {
     return this;
@@ -32,7 +32,7 @@ module.exports = function (exec, SKIP_CLOSING) {
       return {
         next: function () {
           return { done: ITERATION_SUPPORT = true };
-        }
+        },
       };
     };
     exec(object);
