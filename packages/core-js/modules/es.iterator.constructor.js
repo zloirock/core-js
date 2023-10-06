@@ -11,7 +11,6 @@ var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
-var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 var CONSTRUCTOR = 'constructor';
@@ -34,20 +33,18 @@ var IteratorConstructor = function Iterator() {
 };
 
 var defineIteratorPrototypeAccessor = function (key, value) {
-  if (DESCRIPTORS) {
-    defineBuiltInAccessor(IteratorPrototype, key, {
-      configurable: true,
-      get: function () {
-        return value;
-      },
-      set: function (replacement) {
-        anObject(this);
-        if (this === IteratorPrototype) throw new $TypeError("You can't redefine this property");
-        if (hasOwn(this, key)) this[key] = replacement;
-        else createProperty(this, key, replacement);
-      }
-    });
-  } else IteratorPrototype[key] = value;
+  defineBuiltInAccessor(IteratorPrototype, key, {
+    configurable: true,
+    get: function () {
+      return value;
+    },
+    set: function (replacement) {
+      anObject(this);
+      if (this === IteratorPrototype) throw new $TypeError("You can't redefine this property");
+      if (hasOwn(this, key)) this[key] = replacement;
+      else createProperty(this, key, replacement);
+    }
+  });
 };
 
 if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) defineIteratorPrototypeAccessor(TO_STRING_TAG, ITERATOR);

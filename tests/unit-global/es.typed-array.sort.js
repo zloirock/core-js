@@ -1,6 +1,6 @@
-import { DESCRIPTORS, STRICT, TYPED_ARRAYS } from '../helpers/constants.js';
+import { STRICT, TYPED_ARRAYS } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.sort', assert => {
+QUnit.test('%TypedArrayPrototype%.sort', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { sort } = TypedArray.prototype;

@@ -1,6 +1,6 @@
-import { DESCRIPTORS, NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
+import { NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('%TypedArray%.of', assert => {
+QUnit.test('%TypedArray%.of', assert => {
   // we can't implement %TypedArray% in all engines, so run all tests for each typed array constructor
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     assert.isFunction(TypedArray.of, `${ name }.of is function`);

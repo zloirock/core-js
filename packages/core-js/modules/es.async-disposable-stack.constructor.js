@@ -1,7 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-async-explicit-resource-management
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var getBuiltIn = require('../internals/get-built-in');
 var aCallable = require('../internals/a-callable');
 var anInstance = require('../internals/an-instance');
@@ -40,8 +39,6 @@ var $AsyncDisposableStack = function AsyncDisposableStack() {
     state: PENDING,
     stack: []
   });
-
-  if (!DESCRIPTORS) this.disposed = false;
 };
 
 var AsyncDisposableStackPrototype = $AsyncDisposableStack.prototype;
@@ -53,7 +50,6 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
       var internalState = getAsyncDisposableStackInternalState(asyncDisposableStack);
       if (internalState.state === DISPOSED) return resolve(undefined);
       internalState.state = DISPOSED;
-      if (!DESCRIPTORS) asyncDisposableStack.disposed = true;
       var stack = internalState.stack;
       var i = stack.length;
       var thrown = false;
@@ -111,12 +107,11 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     getAsyncDisposableStackInternalState(newAsyncDisposableStack).stack = internalState.stack;
     internalState.stack = [];
     internalState.state = DISPOSED;
-    if (!DESCRIPTORS) this.disposed = true;
     return newAsyncDisposableStack;
   }
 });
 
-if (DESCRIPTORS) defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
+defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
   configurable: true,
   get: function disposed() {
     return getAsyncDisposableStackInternalState(this).state === DISPOSED;
