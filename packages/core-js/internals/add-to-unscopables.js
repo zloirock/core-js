@@ -11,7 +11,7 @@ var ArrayPrototype = Array.prototype;
 if (ArrayPrototype[UNSCOPABLES] === undefined) {
   defineProperty(ArrayPrototype, UNSCOPABLES, {
     configurable: true,
-    value: create(null)
+    value: create(null),
   });
 }
 

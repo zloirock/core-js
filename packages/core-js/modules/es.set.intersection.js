@@ -39,5 +39,5 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
     }
 
     return result;
-  }
+  },
 });
