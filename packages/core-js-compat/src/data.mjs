@@ -497,16 +497,6 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
-  // TODO: Remove from `core-js@4`
-  'es.date.to-string': {
-    chrome: '5',
-    firefox: '2',
-    hermes: '0.1',
-    ie: '9',
-    opera: '10.50',
-    rhino: '1.7.13',
-    safari: '3.1',
-  },
   'es.escape': {
     chrome: '1',
     firefox: '1',
