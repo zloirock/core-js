@@ -43,7 +43,7 @@ var defineIteratorPrototypeAccessor = function (key, value) {
       if (this === IteratorPrototype) throw new $TypeError("You can't redefine this property");
       if (hasOwn(this, key)) this[key] = replacement;
       else createProperty(this, key, replacement);
-    }
+    },
   });
 };
 
@@ -58,5 +58,5 @@ IteratorConstructor.prototype = IteratorPrototype;
 // `Iterator` constructor
 // https://github.com/tc39/proposal-iterator-helpers
 $({ global: true, constructor: true, forced: FORCED }, {
-  Iterator: IteratorConstructor
+  Iterator: IteratorConstructor,
 });

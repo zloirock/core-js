@@ -27,7 +27,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

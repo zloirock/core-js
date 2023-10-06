@@ -36,7 +36,7 @@ var $AsyncDisposableStack = function AsyncDisposableStack() {
   setInternalState(anInstance(this, AsyncDisposableStackPrototype), {
     type: ASYNC_DISPOSABLE_STACK,
     state: PENDING,
-    stack: []
+    stack: [],
   });
 };
 
@@ -107,19 +107,19 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
     internalState.stack = [];
     internalState.state = DISPOSED;
     return newAsyncDisposableStack;
-  }
+  },
 });
 
 defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
   configurable: true,
   get: function disposed() {
     return getAsyncDisposableStackInternalState(this).state === DISPOSED;
-  }
+  },
 });
 
 defineBuiltIn(AsyncDisposableStackPrototype, ASYNC_DISPOSE, AsyncDisposableStackPrototype.disposeAsync, { name: 'disposeAsync' });
 defineBuiltIn(AsyncDisposableStackPrototype, TO_STRING_TAG, ASYNC_DISPOSABLE_STACK, { nonWritable: true });
 
 $({ global: true, constructor: true }, {
-  AsyncDisposableStack: $AsyncDisposableStack
+  AsyncDisposableStack: $AsyncDisposableStack,
 });
