@@ -1,6 +1,5 @@
 'use strict';
 require('../../modules/es.array.from');
-require('../../modules/es.array.is-array');
 require('../../modules/es.array.of');
 require('../../modules/es.array.at');
 require('../../modules/es.array.concat');

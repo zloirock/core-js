@@ -12,7 +12,6 @@ var fails = require('../internals/fails');
 var NATIVE_WEAK_MAP = require('../internals/weak-map-basic-detection');
 
 var $Object = Object;
-// eslint-disable-next-line es/no-array-isarray -- safe
 var isArray = Array.isArray;
 // eslint-disable-next-line es/no-object-isextensible -- safe
 var isExtensible = $Object.isExtensible;

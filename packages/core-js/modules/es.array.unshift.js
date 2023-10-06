@@ -1,13 +1,13 @@
 'use strict';
 var $ = require('../internals/export');
 var apply = require('../internals/function-apply');
-var isArray = require('../internals/is-array');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var setArrayLength = require('../internals/array-set-length');
 var deletePropertyOrThrow = require('../internals/delete-property-or-throw');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
+var isArray = Array.isArray;
 var nativeUnshift = [].unshift;
 // eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;

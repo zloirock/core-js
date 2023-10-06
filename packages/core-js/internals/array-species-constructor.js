@@ -1,5 +1,4 @@
 'use strict';
-var isArray = require('../internals/is-array');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -7,6 +6,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
+var isArray = Array.isArray;
 var ArrayPrototype = $Array.prototype;
 
 // `%Array%` of another realm: its `.prototype` is an array of that realm with `.constructor` pointing back

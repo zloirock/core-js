@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIndexedObject = require('../internals/to-indexed-object');
@@ -13,6 +12,7 @@ var nativeSlice = require('../internals/array-slice');
 var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var $Array = Array;
+var isArray = Array.isArray;
 var max = Math.max;
 
 // `Array.prototype.slice` method
