@@ -13,7 +13,6 @@ var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
 var forEach = require('../internals/array-iteration').forEach;
-var DESCRIPTORS = require('../internals/descriptors');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
@@ -28,7 +27,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var exported = {};
   var Constructor;
 
-  if (!DESCRIPTORS || !isCallable(NativeConstructor)
+  if (!isCallable(NativeConstructor)
     || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
   ) {
     // create collection constructor

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
+import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#flat', assert => {
   const { flat } = Array.prototype;
@@ -22,13 +22,11 @@ QUnit.test('Array#flat', assert => {
     assert.throws(() => flat.call(null), TypeError);
     assert.throws(() => flat.call(undefined), TypeError);
   }
-  if (DESCRIPTORS) {
-    assert.notThrows(() => flat.call(defineProperty({ length: -1 }, 0, {
-      enumerable: true,
-      get() {
-        throw new Error();
-      },
-    })).length === 0, 'uses ToLength');
-  }
+  assert.notThrows(() => flat.call(defineProperty({ length: -1 }, 0, {
+    enumerable: true,
+    get() {
+      throw new Error();
+    },
+  })).length === 0, 'uses ToLength');
   assert.true('flat' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
