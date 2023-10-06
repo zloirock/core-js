@@ -1,5 +1,5 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
-import { DESCRIPTORS, STRICT_THIS } from '../helpers/constants.js';
+import { STRICT_THIS } from '../helpers/constants.js';
 
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
@@ -143,7 +143,7 @@ QUnit.test('Array.fromAsync, array-like length and mapping', assert => {
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Array.fromAsync, array-like length is read once', assert => {
+QUnit.test('Array.fromAsync, array-like length is read once', assert => {
   const log = [];
   const arrayLike = Object.defineProperty({ 0: 1 }, 'length', {
     get() {
@@ -175,7 +175,7 @@ for (const [name, symbol, create] of [
     });
   });
 
-  if (DESCRIPTORS) QUnit.test(`Array.fromAsync, ${ name } iterator initialization`, assert => {
+  QUnit.test(`Array.fromAsync, ${ name } iterator initialization`, assert => {
     const log = [];
     const iterator = Object.defineProperty({}, 'next', {
       get() {
@@ -205,7 +205,7 @@ for (const [name, symbol, create] of [
 
   QUnit.test(`Array.fromAsync, ${ name } iterator step errors`, assert => {
     const phases = ['next', 'primitive'];
-    if (DESCRIPTORS) phases.push('done', 'value');
+    phases.push('done', 'value');
     if (name === 'async') phases.push('rejection');
     return Promise.all(phases.map(phase => {
       let closed = 0;

@@ -1,5 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { fromSource } from '../helpers/helpers.js';
 
 QUnit.test('ArrayBuffer#detached', assert => {
@@ -29,28 +29,26 @@ QUnit.test('ArrayBuffer#detached', assert => {
     assert.true(empty.detached, 'detached empty buffer');
   }
 
-  if (DESCRIPTORS) {
-    const { get, configurable, enumerable } = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, 'detached');
-    assert.same(configurable, true, 'configurable');
-    assert.same(enumerable, false, 'non-enumerable');
-    assert.isFunction(get);
-    assert.looksNative(get);
-    assert.throws(() => get.call(null), TypeError, 'non-generic-1');
-    assert.throws(() => get(), TypeError, 'non-generic-2');
-    assert.throws(() => get.call(1), TypeError, 'non-generic-3');
-    assert.throws(() => get.call(true), TypeError, 'non-generic-4');
-    assert.throws(() => get.call(''), TypeError, 'non-generic-5');
-    assert.throws(() => get.call({}), TypeError, 'non-generic-6');
-    if (fromSource('ArrayBuffer.prototype.byteLength') === 0) {
-      // In IE10-11 the prototype itself is an empty ArrayBuffer.
-      assert.false(get.call(ArrayBuffer.prototype), 'attached prototype buffer');
-    } else {
-      assert.throws(() => get.call(ArrayBuffer.prototype), TypeError, 'non-generic prototype');
-    }
-    assert.throws(() => get.call(Object.create(ArrayBuffer.prototype)), TypeError, 'non-generic inherited prototype');
-    assert.throws(() => get.call(new DataView(new ArrayBuffer(8))), TypeError, 'non-generic view');
-    if (typeof SharedArrayBuffer == 'function') {
-      assert.throws(() => get.call(new SharedArrayBuffer(8)), TypeError, 'non-generic-7');
-    }
+  const { get, configurable, enumerable } = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, 'detached');
+  assert.same(configurable, true, 'configurable');
+  assert.same(enumerable, false, 'non-enumerable');
+  assert.isFunction(get);
+  assert.looksNative(get);
+  assert.throws(() => get.call(null), TypeError, 'non-generic-1');
+  assert.throws(() => get(), TypeError, 'non-generic-2');
+  assert.throws(() => get.call(1), TypeError, 'non-generic-3');
+  assert.throws(() => get.call(true), TypeError, 'non-generic-4');
+  assert.throws(() => get.call(''), TypeError, 'non-generic-5');
+  assert.throws(() => get.call({}), TypeError, 'non-generic-6');
+  if (fromSource('ArrayBuffer.prototype.byteLength') === 0) {
+    // In IE10-11 the prototype itself is an empty ArrayBuffer.
+    assert.false(get.call(ArrayBuffer.prototype), 'attached prototype buffer');
+  } else {
+    assert.throws(() => get.call(ArrayBuffer.prototype), TypeError, 'non-generic prototype');
+  }
+  assert.throws(() => get.call(Object.create(ArrayBuffer.prototype)), TypeError, 'non-generic inherited prototype');
+  assert.throws(() => get.call(new DataView(new ArrayBuffer(8))), TypeError, 'non-generic view');
+  if (typeof SharedArrayBuffer == 'function') {
+    assert.throws(() => get.call(new SharedArrayBuffer(8)), TypeError, 'non-generic-7');
   }
 });

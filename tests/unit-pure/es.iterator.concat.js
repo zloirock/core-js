@@ -1,5 +1,4 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 import concat from 'core-js-pure/es/iterator/concat';
 import Iterator from 'core-js-pure/es/iterator';
@@ -119,7 +118,7 @@ QUnit.test('Iterator.concat, abrupt iterator steps', assert => {
   };
   check(() => { throw expectedError; }, isExpectedError, 'next throws');
   check(() => 42, TypeError, 'next returns a primitive');
-  if (DESCRIPTORS) {
+  {
     for (const key of ['done', 'value']) {
       check(() => defineProperty({ done: false }, key, {
         get() { throw expectedError; },

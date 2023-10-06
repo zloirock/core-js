@@ -3,7 +3,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
-var DESCRIPTORS = require('../internals/descriptors');
 var CONFIGURABLE_FUNCTION_NAME = require('../internals/function-name').CONFIGURABLE;
 var inspectSource = require('../internals/inspect-source');
 var InternalStateModule = require('../internals/internal-state');
@@ -17,7 +16,7 @@ var stringSlice = uncurryThis(''.slice);
 var replace = uncurryThis(''.replace);
 var join = uncurryThis([].join);
 
-var CONFIGURABLE_LENGTH = DESCRIPTORS && !fails(function () {
+var CONFIGURABLE_LENGTH = !fails(function () {
   return defineProperty(function () { /* empty */ }, 'length', { value: 8 }).length !== 8;
 });
 
@@ -30,15 +29,14 @@ var makeBuiltIn = module.exports = function (value, name, options) {
   if (options && options.getter) name = 'get ' + name;
   if (options && options.setter) name = 'set ' + name;
   if (!hasOwn(value, 'name') || (CONFIGURABLE_FUNCTION_NAME && value.name !== name)) {
-    if (DESCRIPTORS) defineProperty(value, 'name', { value: name, configurable: true });
-    else value.name = name;
+    defineProperty(value, 'name', { value: name, configurable: true });
   }
   if (CONFIGURABLE_LENGTH && options && hasOwn(options, 'arity') && value.length !== options.arity) {
     defineProperty(value, 'length', { value: options.arity });
   }
   try {
     if (options && hasOwn(options, 'constructor') && options.constructor) {
-      if (DESCRIPTORS) defineProperty(value, 'prototype', { writable: false });
+      defineProperty(value, 'prototype', { writable: false });
     // in V8 ~ Chrome 53, prototypes of some methods, like `Array.prototype.values`, are non-writable
     } else if (value.prototype) value.prototype = undefined;
   } catch (error) { /* empty */ }

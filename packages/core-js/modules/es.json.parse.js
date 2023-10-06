@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -94,13 +93,11 @@ var internalizeProperty = function (object, key, value, original) {
     return;
   }
   // exact Proxy semantics require correct Reflect operations
-  if (DESCRIPTORS) {
-    var descriptor = getOwnPropertyDescriptor(object, key);
-    if (descriptor && !descriptor.configurable) return;
-    if (!descriptor && value !== undefined) {
-      if (isExtensible && !isExtensible(object)) return;
-      if (isArray(object) && key >= object.length && !getOwnPropertyDescriptor(object, 'length').writable) return;
-    }
+  var descriptor = getOwnPropertyDescriptor(object, key);
+  if (descriptor && !descriptor.configurable) return;
+  if (!descriptor && value !== undefined) {
+    if (isExtensible && !isExtensible(object)) return;
+    if (isArray(object) && key >= object.length && !getOwnPropertyDescriptor(object, 'length').writable) return;
   }
   if (value === undefined) delete object[key];
   else createProperty(object, key, value);

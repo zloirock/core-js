@@ -1,5 +1,5 @@
 import { createIterator, createIterable } from '../helpers/helpers.js';
-import { DESCRIPTORS, STRICT, STRICT_THIS } from '../helpers/constants.js';
+import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap } = Iterator.prototype;
@@ -73,7 +73,7 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.true(closableSource.closed, 'source iterator closed on mapper error during execution');
 });
 
-if (DESCRIPTORS) QUnit.test('Iterator#flatMap, throwing source value getter', assert => {
+QUnit.test('Iterator#flatMap, throwing source value getter', assert => {
   const { flatMap } = Iterator.prototype;
   const error = new Error('value');
   let returnCalls = 0;

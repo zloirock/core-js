@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('Iterator.zip', assert => {
   const { zip } = Iterator;
@@ -157,7 +156,7 @@ QUnit.test('Iterator.zip', assert => {
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
 
-  if (DESCRIPTORS) {
+  {
     const expectedError = new Error('input value');
     const closed = [];
     const inner = createIterator([], {
@@ -190,7 +189,7 @@ QUnit.test('Iterator.zip', assert => {
 
   assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
   assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
-  if (DESCRIPTORS) {
+  {
     let valueRead = false;
     const exhausted = () => ({
       next() {
