@@ -18,6 +18,7 @@ var isArray = Array.isArray;
 var nativeParse = JSON.parse;
 var enumerableOwnProperties = Object.keys;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var isArray = Array.isArray;
 var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
