@@ -1,5 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 import defineProperty from 'core-js-pure/es/object/define-property';
 import of from 'core-js-pure/es/array/of';
 
@@ -14,14 +12,13 @@ QUnit.test('Array.of', assert => {
   assert.same(instance[0], 1);
   assert.same(instance[1], 2);
   assert.same(instance.length, 2);
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    of.call(C, 1, 2, 3);
-    assert.false(called, 'Should not call prototype accessors');
-  }
+
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  of.call(C, 1, 2, 3);
+  assert.false(called, 'Should not call prototype accessors');
 });

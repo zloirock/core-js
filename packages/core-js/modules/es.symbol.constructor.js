@@ -4,7 +4,6 @@ var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IS_PURE = require('../internals/is-pure');
-var DESCRIPTORS = require('../internals/descriptors');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
@@ -73,7 +72,7 @@ var fallbackDefineProperty = function (O, P, Attributes) {
   } return O;
 };
 
-var setSymbolDescriptor = DESCRIPTORS && fails(function () {
+var setSymbolDescriptor = fails(function () {
   return nativeObjectCreate(nativeDefineProperty({}, 'a', {
     get: function () { return nativeDefineProperty(this, 'a', { value: 7 }).a; }
   })).a !== 7;
@@ -86,7 +85,6 @@ var wrap = function (tag, description) {
     tag: tag,
     description: description
   });
-  if (!DESCRIPTORS) symbol.description = description;
   return symbol;
 };
 
@@ -112,7 +110,7 @@ var $defineProperties = function defineProperties(O, Properties) {
   var properties = toIndexedObject(Properties);
   var keys = objectKeys(properties).concat($getOwnPropertySymbols(properties));
   $forEach(keys, function (key) {
-    if (!DESCRIPTORS || call($propertyIsEnumerable, properties, key)) $defineProperty(O, key, properties[key]);
+    if (call($propertyIsEnumerable, properties, key)) $defineProperty(O, key, properties[key]);
   });
   return O;
 };
@@ -180,7 +178,7 @@ if (!NATIVE_SYMBOL) {
         fallbackDefineProperty($this, tag, descriptor);
       }
     };
-    if (DESCRIPTORS && USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
+    if (USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
     return wrap(tag, description);
   };
 
@@ -205,17 +203,15 @@ if (!NATIVE_SYMBOL) {
     return wrap(wellKnownSymbol(name), name);
   };
 
-  if (DESCRIPTORS) {
-    // https://tc39.es/ecma262/#sec-symbol.prototype.description
-    defineBuiltInAccessor(SymbolPrototype, 'description', {
-      configurable: true,
-      get: function description() {
-        return getInternalState(this).description;
-      }
-    });
-    if (!IS_PURE) {
-      defineBuiltIn(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
+  // https://tc39.es/ecma262/#sec-symbol.prototype.description
+  defineBuiltInAccessor(SymbolPrototype, 'description', {
+    configurable: true,
+    get: function description() {
+      return getInternalState(this).description;
     }
+  });
+  if (!IS_PURE) {
+    defineBuiltIn(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
   }
 }
 
@@ -232,7 +228,7 @@ $({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
   useSimple: function () { USE_SETTER = false; }
 });
 
-$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL, sham: !DESCRIPTORS }, {
+$({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.create` method
   // https://tc39.es/ecma262/#sec-object.create
   create: $create,
