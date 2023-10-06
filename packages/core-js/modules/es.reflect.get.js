@@ -21,5 +21,5 @@ function get(target, propertyKey /* , receiver */) {
 }
 
 $({ target: 'Reflect', stat: true }, {
-  get: get
+  get: get,
 });

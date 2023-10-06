@@ -38,7 +38,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
     }
     return new IteratorProxy(getIteratorDirect(O), {
       windowSize: windowSize,
-      buffer: []
+      buffer: [],
     });
-  }
+  },
 });
