@@ -619,7 +619,7 @@ const base = {
   'unicorn/prefer-set-size': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
   'unicorn/prefer-string-replace-all': ERROR,
-  // prefer `String#{ startsWith, endsWith }()` over RegExp#test()
+  // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': ERROR,
   // prefer `String#{ trimStart, trimEnd }()` over `String#{ trimLeft, trimRight }()`
   'unicorn/prefer-string-trim-start-end': ERROR,
@@ -945,8 +945,6 @@ const forbidES5BuiltIns = {
   'es/no-string-prototype-trim': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': OFF,
-  // prefer modern `Math` APIs over legacy patterns
-  'unicorn/prefer-modern-math-apis': OFF,
 };
 
 const forbidES2015BuiltIns = {
@@ -1007,7 +1005,9 @@ const forbidES2015BuiltIns = {
   'es/no-typed-arrays': ERROR,
   'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
-  // prefer `String#{ startsWith, endsWith }()` over RegExp#test()
+  // prefer modern `Math` APIs over legacy patterns
+  'unicorn/prefer-modern-math-apis': OFF,
+  // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
   'unicorn/prefer-string-starts-ends-with': OFF,
 };
 
