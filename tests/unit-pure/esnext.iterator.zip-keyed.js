@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
 import defineProperty from 'core-js-pure/actual/object/define-property';
 import from from 'core-js-pure/es/array/from';
@@ -26,7 +25,7 @@ QUnit.test('Iterator.zipKeyed', assert => {
   result = zipKeyed({ a: [0, 1, 2], b: [3, 4, 5, 6], c: [7, 8, 9] }, { mode: 'strict' });
   assert.throws(() => from(result), TypeError);
 
-  if (DESCRIPTORS) {
+  {
     let obj = {};
     defineProperty(obj, 'a', { get: () => [0, 1, 2], enumerable: true });
     defineProperty(obj, 'b', { get: () => [3, 4, 5], enumerable: true });
