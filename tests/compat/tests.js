@@ -82,7 +82,7 @@ var SYMBOLS_SUPPORT = function () {
 };
 
 var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
-  return Symbol['for'] && Symbol.keyFor;
+  return Symbol.for && Symbol.keyFor;
 }];
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
@@ -92,7 +92,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   var result = '';
   url.pathname = 'c%20d';
   searchParams.forEach(function (value, key) {
-    searchParams['delete']('b');
+    searchParams.delete('b');
     result += key + value;
   });
   return searchParams.sort
@@ -127,7 +127,7 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
       next: function () {
         return { done: !!called++ };
       },
-      'return': function () {
+      return: function () {
         SAFE_CLOSING = true;
       }
     };
@@ -327,7 +327,7 @@ function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
     try {
       Iterator.prototype[METHOD_NAME].call({
         next: function () { return { done: true }; },
-        'return': function () { CLOSED = true; }
+        return: function () { CLOSED = true; }
       }, -1);
     } catch (error) {
       // https://bugs.webkit.org/show_bug.cgi?id=291195
@@ -674,7 +674,7 @@ GLOBAL.tests = {
   'es.array.with': function () {
     // Incorrect exception thrown when index coercion fails in Firefox
     try {
-      []['with']({ valueOf: function () { throw 4; } }, null);
+      [].with({ valueOf: function () { throw 4; } }, null);
     } catch (error) {
       return error === 4;
     }
@@ -793,14 +793,14 @@ GLOBAL.tests = {
       try {
         var it = new Map([[4, 5]]).entries().flatMap(function (v) { return v; });
         it.next();
-        it['return']();
+        it.return();
         return true;
       } catch (error) { /* empty */ }
     }
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
   'es.iterator.from': function () {
-    Iterator.from({ 'return': null })['return']();
+    Iterator.from({ return: null }).return();
     return true;
   },
   'es.iterator.map': [
@@ -1132,7 +1132,7 @@ GLOBAL.tests = {
   'es.promise.catch': PROMISES_SUPPORT,
   'es.promise.finally': [PROMISES_SUPPORT, function () {
     // eslint-disable-next-line unicorn/no-thenable -- required for testing
-    return Promise.prototype['finally'].call({ then: function () { return this; } }, function () { /* empty */ });
+    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
   }],
   'es.promise.reject': PROMISES_SUPPORT,
   'es.promise.resolve': PROMISES_SUPPORT,
@@ -1150,7 +1150,7 @@ GLOBAL.tests = {
   }],
   'es.promise.try': [PROMISES_SUPPORT, function () {
     var ACCEPT_ARGUMENTS = false;
-    Promise['try'](function (argument) {
+    Promise.try(function (argument) {
       ACCEPT_ARGUMENTS = argument === 8;
     }, 8);
     return ACCEPT_ARGUMENTS;
@@ -1713,7 +1713,7 @@ GLOBAL.tests = {
   },
   'es.typed-array.with': [function () {
     try {
-      new Int8Array(1)['with'](2, { valueOf: function () { throw 8; } });
+      new Int8Array(1).with(2, { valueOf: function () { throw 8; } });
     } catch (error) {
       return error === 8;
     }
@@ -1722,8 +1722,7 @@ GLOBAL.tests = {
     // Copyright (C) 2025 André Bargull. All rights reserved.
     // This code is governed by the BSD license found in the LICENSE file.
     // https://github.com/tc39/test262/pull/4477/commits/bd47071722d914036280cdd795a6ac6046d1c6f9
-    var ta = new Int8Array(1);
-    var result = ta['with'](-0.5, 1);
+    var result = new Int8Array(1).with(-0.5, 1);
     return result[0] === 1;
   }],
   'es.uint8-array.from-base64': function () {
@@ -2221,10 +2220,10 @@ GLOBAL.tests = {
   'web.url-search-params.constructor': URL_AND_URL_SEARCH_PARAMS_SUPPORT,
   'web.url-search-params.delete': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     var params = new URLSearchParams('a=1&a=2&b=3');
-    params['delete']('a', 1);
+    params.delete('a', 1);
     // `undefined` case is a Chromium 117 bug
     // https://bugs.chromium.org/p/v8/issues/detail?id=14222
-    params['delete']('b', undefined);
+    params.delete('b', undefined);
     return params + '' === 'a=2';
   }],
   'web.url-search-params.has': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
