@@ -107,8 +107,8 @@ assign(QUnit.assert, {
       actual: result,
       expected: 'The property should be non-configurable',
       message: DESCRIPTORS
-        ? 'Configurability is not applicable'
-        : message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`,
+        ? message ?? `${ typeof key == 'symbol' ? 'property' : `'${ key }'` } is non-configurable`
+        : 'Configurability is not applicable',
     });
   },
   nonEnumerable(O, key, message) {
