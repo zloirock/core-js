@@ -61,5 +61,5 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
 
       loop();
     });
-  }
+  },
 });

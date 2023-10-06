@@ -48,7 +48,7 @@ var PolyfilledDOMException = FORCED_CONSTRUCTOR ? $DOMException : NativeDOMExcep
 // `DOMException` constructor patch for `.stack` where it's required
 // https://webidl.spec.whatwg.org/#es-DOMException-specialness
 $({ global: true, constructor: true, forced: IS_PURE || FORCED_CONSTRUCTOR }, { // TODO: fix export logic
-  DOMException: PolyfilledDOMException
+  DOMException: PolyfilledDOMException,
 });
 
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;

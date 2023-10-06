@@ -20,6 +20,6 @@ if (!FUNCTION_NAME_EXISTS) {
       } catch (error) {
         return '';
       }
-    }
+    },
   });
 }

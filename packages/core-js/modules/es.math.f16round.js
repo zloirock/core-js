@@ -11,5 +11,5 @@ var FLOAT16_MIN_VALUE = 6.103515625e-05;
 $({ target: 'Math', stat: true }, {
   f16round: function f16round(x) {
     return floatRound(x, FLOAT16_EPSILON, FLOAT16_MAX_VALUE, FLOAT16_MIN_VALUE);
-  }
+  },
 });

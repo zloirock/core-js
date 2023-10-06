@@ -112,7 +112,7 @@ var replacements = {
   '(': '%28',
   ')': '%29',
   '~': '%7E',
-  '%20': '+'
+  '%20': '+',
 };
 
 var replacer = function (match) {
@@ -128,7 +128,7 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
     type: URL_SEARCH_PARAMS_ITERATOR,
     target: getInternalParamsState(params).entries,
     index: 0,
-    kind: kind
+    kind: kind,
   });
 }, URL_SEARCH_PARAMS, function next() {
   var state = getInternalIteratorState(this);
@@ -227,7 +227,7 @@ URLSearchParamsState.prototype = {
           entry = split(attribute, '=');
           push(entries, {
             key: decodeQueryComponent(shift(entry)),
-            value: decodeQueryComponent(join(entry, '='))
+            value: decodeQueryComponent(join(entry, '=')),
           });
         }
       }
@@ -288,7 +288,7 @@ URLSearchParamsState.prototype = {
       entry = entries[index++];
       nativeAppend(this.facade, entry.key, entry.value);
     }
-  }
+  },
 };
 
 // `URLSearchParams` constructor
@@ -446,7 +446,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // `URLSearchParams.prototype.entries` method
   entries: function entries() {
     return new URLSearchParamsIterator(this, 'entries');
-  }
+  },
 }, { enumerable: true });
 
 // `URLSearchParams.prototype[@@iterator]` method
@@ -465,7 +465,7 @@ defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
     return getInternalParamsState(this).entries.length;
   },
   configurable: true,
-  enumerable: true
+  enumerable: true,
 });
 
 setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
@@ -474,7 +474,7 @@ setToStringTag(URLSearchParamsConstructor, URL_SEARCH_PARAMS);
 if (!USE_NATIVE_URL) patchBody(NATIVE_URL_CARRIER);
 
 $({ global: true, constructor: true, forced: !USE_NATIVE_URL }, {
-  URLSearchParams: URLSearchParamsConstructor
+  URLSearchParams: URLSearchParamsConstructor,
 });
 
 // the state of `searchParams` of the `URL` polyfill

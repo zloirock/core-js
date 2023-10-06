@@ -27,5 +27,5 @@ $({ target: 'URL', stat: true, enumerable: true, forced: FORCED }, {
     } catch (error) {
       return null;
     }
-  }
+  },
 });

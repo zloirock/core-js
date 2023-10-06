@@ -28,5 +28,5 @@ $({ target: 'String', stat: true, arity: 1, forced: INCORRECT_LENGTH }, {
         ? fromCharCode(code)
         : fromCharCode(((code -= 0x10000) >> 10) + 0xD800, code % 0x400 + 0xDC00);
     } return join(elements, '');
-  }
+  },
 });

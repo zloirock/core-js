@@ -62,5 +62,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     } else {
       result = sign + result;
     } return result;
-  }
+  },
 });

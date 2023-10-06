@@ -11,5 +11,5 @@ $({ target: 'Promise', stat: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
     var capabilityReject = capability.reject;
     capabilityReject(r);
     return capability.promise;
-  }
+  },
 });

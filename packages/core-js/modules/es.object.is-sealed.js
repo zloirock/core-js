@@ -17,5 +17,5 @@ $({ target: 'Object', stat: true, forced: FORCED }, {
     if (!isObject(it)) return true;
     if (ARRAY_BUFFER_NON_EXTENSIBLE && classof(it) === 'ArrayBuffer') return true;
     return $isSealed ? $isSealed(it) : false;
-  }
+  },
 });

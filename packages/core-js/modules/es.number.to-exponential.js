@@ -102,5 +102,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     }
     if (f !== 0) m = stringSlice(m, 0, 1) + '.' + stringSlice(m, 1);
     return s + m + 'e' + (e < 0 ? '-' : '+') + $String(abs(e));
-  }
+  },
 });

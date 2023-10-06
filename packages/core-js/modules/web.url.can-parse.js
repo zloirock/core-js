@@ -32,5 +32,5 @@ $({ target: 'URL', stat: true, enumerable: true, forced: !THROWS_WITHOUT_ARGUMEN
     } catch (error) {
       return false;
     }
-  }
+  },
 });

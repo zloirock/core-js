@@ -81,5 +81,5 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
     }
 
     return join(result, '');
-  }
+  },
 });

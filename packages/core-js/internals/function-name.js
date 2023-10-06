@@ -13,5 +13,5 @@ var CONFIGURABLE = EXISTS && getDescriptor(FunctionPrototype, 'name').configurab
 module.exports = {
   EXISTS: EXISTS,
   PROPER: PROPER,
-  CONFIGURABLE: CONFIGURABLE
+  CONFIGURABLE: CONFIGURABLE,
 };

@@ -12,5 +12,5 @@ var toString = getBuiltInPrototypeMethod('URL', 'toString');
 $({ target: 'URL', proto: true, enumerable: true }, {
   toJSON: function toJSON() {
     return call(toString, this);
-  }
+  },
 });

@@ -10,5 +10,5 @@ module.exports = {
   add: caller('add', 1),
   has: caller('has', 1),
   remove: caller('delete', 1),
-  proto: SetPrototype
+  proto: SetPrototype,
 };

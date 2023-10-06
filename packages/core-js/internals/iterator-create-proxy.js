@@ -79,7 +79,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         state.running = false;
       }
       return createIterResultObject(undefined, true);
-    }
+    },
   });
 };
 

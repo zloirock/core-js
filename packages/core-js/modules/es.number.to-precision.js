@@ -76,5 +76,5 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     if (e === p - 1) return s + m;
     if (e >= 0) return s + stringSlice(m, 0, e + 1) + '.' + stringSlice(m, e + 1);
     return s + '0.' + repeat('0', -(e + 1)) + m;
-  }
+  },
 });

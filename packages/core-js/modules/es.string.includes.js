@@ -17,5 +17,5 @@ $({ target: 'String', proto: true, forced: !correctIsRegExpLogic('includes') }, 
       toString(notARegExp(searchString)),
       arguments.length > 1 ? arguments[1] : undefined
     );
-  }
+  },
 });

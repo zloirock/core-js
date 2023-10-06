@@ -10,5 +10,5 @@ var STRICT_METHOD = arrayMethodIsStrict('every');
 $({ target: 'Array', proto: true, forced: !STRICT_METHOD }, {
   every: function every(callbackfn /* , thisArg */) {
     return $every(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });

@@ -66,5 +66,5 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
       block = block << 8 | charCode;
       output[outputIndex++] = charAt(map, 63 & block >> 8 - position % 1 * 8);
     } return join(output, '');
-  }
+  },
 });

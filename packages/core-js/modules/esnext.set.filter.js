@@ -19,5 +19,5 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
       if (boundFunction(value, value, set)) add(newSet, value);
     });
     return newSet;
-  }
+  },
 });

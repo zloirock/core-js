@@ -104,5 +104,5 @@ $({ target: 'Array', proto: true, forced: FORCED }, {
     while (index < arrayLength) deletePropertyOrThrow(array, index++);
 
     return array;
-  }
+  },
 });

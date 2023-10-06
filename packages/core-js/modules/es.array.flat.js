@@ -21,5 +21,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     var A = arraySpeciesCreate(O, 0);
     flattenIntoArray(A, O, O, sourceLen, 0, depthNum);
     return A;
-  }
+  },
 });

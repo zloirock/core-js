@@ -68,5 +68,5 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
         O[j] = arguments[j];
       }
     } return setArrayLength(O, len + argCount);
-  }
+  },
 });

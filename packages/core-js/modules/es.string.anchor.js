@@ -8,5 +8,5 @@ var forcedStringHTMLMethod = require('../internals/string-html-forced');
 $({ target: 'String', proto: true, forced: forcedStringHTMLMethod('anchor') }, {
   anchor: function anchor(name) {
     return createHTML(this, 'a', 'name', name);
-  }
+  },
 });

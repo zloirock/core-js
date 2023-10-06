@@ -68,7 +68,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

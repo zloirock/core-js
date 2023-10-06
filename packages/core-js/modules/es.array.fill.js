@@ -7,7 +7,7 @@ var addToUnscopables = require('../internals/add-to-unscopables');
 // https://tc39.es/ecma262/#sec-array.prototype.fill
 // eslint-disable-next-line es/no-array-prototype-fill -- safe
 $({ target: 'Array', proto: true, forced: [].fill !== fill }, {
-  fill: fill
+  fill: fill,
 });
 
 // https://tc39.es/ecma262/#sec-array.prototype-%symbol.unscopables%

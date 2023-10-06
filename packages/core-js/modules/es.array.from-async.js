@@ -107,5 +107,5 @@ $({ target: 'Array', stat: true, forced: FORCED }, {
 
       loop();
     });
-  }
+  },
 });

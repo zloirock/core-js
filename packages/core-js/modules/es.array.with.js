@@ -31,5 +31,5 @@ $({ target: 'Array', proto: true, forced: INCORRECT_EXCEPTION_ON_COERCION_FAIL }
     var k = 0;
     for (; k < len; k++) createProperty(A, k, k === actualIndex ? value : O[k]);
     return A;
-  }
+  },
 });

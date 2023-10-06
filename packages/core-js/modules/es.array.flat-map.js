@@ -29,5 +29,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT || BROKEN_ON_SPAR
     A = arraySpeciesCreate(O, 0);
     flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     return A;
-  }
+  },
 });

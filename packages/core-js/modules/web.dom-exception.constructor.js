@@ -51,7 +51,7 @@ var $DOMException = function DOMException() {
     type: DOM_EXCEPTION,
     name: name,
     message: message,
-    code: code
+    code: code,
   });
   if (HAS_STACK) {
     var error = new Error(message);
@@ -108,7 +108,7 @@ var PolyfilledDOMException = FORCED_CONSTRUCTOR ? $DOMException : NativeDOMExcep
 // `DOMException` constructor
 // https://webidl.spec.whatwg.org/#idl-DOMException
 $({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
-  DOMException: PolyfilledDOMException
+  DOMException: PolyfilledDOMException,
 });
 
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
