@@ -24,5 +24,5 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     if (intLength <= 0) return '';
     var intEnd = min(finalStart + intLength, size);
     return finalStart >= intEnd ? '' : stringSlice(that, finalStart, intEnd);
-  }
+  },
 });

@@ -31,5 +31,5 @@ $({ target: 'RegExp', proto: true, forced: !DELEGATES_TO_EXEC }, {
     if (result === null) return false;
     anObject(result);
     return true;
-  }
+  },
 });
