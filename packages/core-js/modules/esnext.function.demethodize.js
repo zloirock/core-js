@@ -8,5 +8,5 @@ var aCallable = require('../internals/a-callable');
 $({ target: 'Function', proto: true, forced: true }, {
   demethodize: function demethodize() {
     return uncurryThis(aCallable(this));
-  }
+  },
 });
