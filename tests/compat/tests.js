@@ -745,10 +745,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
     return Date.prototype[Symbol.toPrimitive];
   }],
-  // TODO: Remove from `core-js@4`
-  'es.date.to-string': function () {
-    return new Date(NaN).toString() === 'Invalid Date';
-  },
   'es.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },
