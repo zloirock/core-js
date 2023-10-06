@@ -16,6 +16,6 @@ $({ target: 'Object', stat: true, forced: FORCED }, {
   isSealed: function isSealed(it) {
     if (!isObject(it)) return true;
     if (ARRAY_BUFFER_NON_EXTENSIBLE && classof(it) === 'ArrayBuffer') return true;
-    return $isSealed ? $isSealed(it) : false;
+    return $isSealed(it);
   },
 });
