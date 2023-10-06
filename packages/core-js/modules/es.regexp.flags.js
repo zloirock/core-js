@@ -1,6 +1,5 @@
 'use strict';
 var global = require('../internals/global');
-var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var regExpFlags = require('../internals/regexp-flags');
 var fails = require('../internals/fails');
@@ -9,7 +8,7 @@ var fails = require('../internals/fails');
 var RegExp = global.RegExp;
 var RegExpPrototype = RegExp.prototype;
 
-var FORCED = DESCRIPTORS && fails(function () {
+var FORCED = fails(function () {
   var INDICES_SUPPORT = true;
   try {
     RegExp('.', 'd');
