@@ -1,5 +1,4 @@
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
 var FUNCTION_NAME_EXISTS = require('../internals/function-name').EXISTS;
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
@@ -12,7 +11,7 @@ var NAME = 'name';
 
 // Function instances `.name` property
 // https://tc39.es/ecma262/#sec-function-instances-name
-if (DESCRIPTORS && !FUNCTION_NAME_EXISTS) {
+if (!FUNCTION_NAME_EXISTS) {
   defineBuiltInAccessor(FunctionPrototype, NAME, {
     configurable: true,
     get: function () {

@@ -16,7 +16,6 @@ var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var clearErrorStack = require('../internals/error-stack-clear');
 var InternalStateModule = require('../internals/internal-state');
-var DESCRIPTORS = require('../internals/descriptors');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
@@ -55,11 +54,6 @@ var $DOMException = function DOMException() {
     message: message,
     code: code
   });
-  if (!DESCRIPTORS) {
-    this.name = name;
-    this.message = message;
-    this.code = code;
-  }
   if (HAS_STACK) {
     var error = new Error(message);
     error.name = DOM_EXCEPTION;
@@ -79,14 +73,12 @@ var getterFor = function (key) {
   });
 };
 
-if (DESCRIPTORS) {
-  // `DOMException.prototype.code` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
-  // `DOMException.prototype.message` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
-  // `DOMException.prototype.name` getter
-  defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
-}
+// `DOMException.prototype.code` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'code', getterFor('code'));
+// `DOMException.prototype.message` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'message', getterFor('message'));
+// `DOMException.prototype.name` getter
+defineBuiltInAccessor(DOMExceptionPrototype, 'name', getterFor('name'));
 
 defineProperty(DOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, $DOMException));
 
@@ -125,7 +117,7 @@ if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMExcep
   defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
 }
 
-if (INCORRECT_CODE && DESCRIPTORS && NativeDOMException === PolyfilledDOMException) {
+if (INCORRECT_CODE && NativeDOMException === PolyfilledDOMException) {
   defineBuiltInAccessor(PolyfilledDOMExceptionPrototype, 'code', createGetterDescriptor(function () {
     return codeFor(anObject(this).name);
   }));

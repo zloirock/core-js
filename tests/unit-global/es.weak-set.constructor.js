@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, NATIVE } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { createIterable, nativeSubclass } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -44,12 +44,12 @@ QUnit.test('WeakSet', assert => {
   assert.true(done);
   object = {};
   new WeakSet().add(object);
-  if (DESCRIPTORS) {
-    const results = [];
-    for (const key in object) results.push(key);
-    assert.arrayEqual(results, []);
-    assert.arrayEqual(keys(object), []);
-  }
+
+  const results = [];
+  for (const key in object) results.push(key);
+  assert.arrayEqual(results, []);
+  assert.arrayEqual(keys(object), []);
+
   assert.arrayEqual(getOwnPropertyNames(object), []);
   if (getOwnPropertySymbols) assert.arrayEqual(getOwnPropertySymbols(object), []);
   if (ownKeys) assert.arrayEqual(ownKeys(object), []);

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import { NODE } from '../helpers/constants.js';
 
 const errors = {
   IndexSizeError: { s: 'INDEX_SIZE_ERR', c: 1, m: 1 },
@@ -71,10 +71,8 @@ QUnit.test('DOMException', assert => {
   const symbol = Symbol('DOMException constructor test');
   assert.throws(() => new DOMException(symbol, 'DataCloneError'), "new DOMException(Symbol(), 'DataCloneError')");
   assert.throws(() => new DOMException(42, symbol), 'new DOMException(42, Symbol())');
-  if (DESCRIPTORS) {
-    // assert.throws(() => DOMException.prototype.message, 'DOMException.prototype.message'); // FF55- , Safari 10.1 bug
-    // assert.throws(() => DOMException.prototype.name, 'DOMException.prototype.name'); // FF55-, Safari 10.1 bug bug
-    // assert.throws(() => DOMException.prototype.code, 'DOMException.prototype.code'); // Safari 10.1 bug
-    // assert.throws(() => DOMException.prototype.toString(), 'DOMException.prototype.toString()'); // FF55- bug
-  }
+  // assert.throws(() => DOMException.prototype.message, 'DOMException.prototype.message'); // FF55- , Safari 10.1 bug
+  // assert.throws(() => DOMException.prototype.name, 'DOMException.prototype.name'); // FF55-, Safari 10.1 bug bug
+  // assert.throws(() => DOMException.prototype.code, 'DOMException.prototype.code'); // Safari 10.1 bug
+  // assert.throws(() => DOMException.prototype.toString(), 'DOMException.prototype.toString()'); // FF55- bug
 });
