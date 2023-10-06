@@ -8,7 +8,7 @@ var $Array = Array;
 // `Array.prototype.with` method
 // https://tc39.es/ecma262/#sec-array.prototype.with
 $({ target: 'Array', proto: true }, {
-  'with': function (index, value) {
+  with: function (index, value) {
     return arrayWith(toIndexedObject(this), $Array, index, value);
   }
 });

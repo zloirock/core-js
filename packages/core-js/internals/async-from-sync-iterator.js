@@ -35,7 +35,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       asyncFromSyncIteratorContinuation(result, resolve, reject);
     });
   },
-  'return': function () {
+  return: function () {
     var iterator = getInternalState(this).iterator;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
