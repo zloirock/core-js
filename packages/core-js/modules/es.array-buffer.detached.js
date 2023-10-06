@@ -19,6 +19,6 @@ if (!nativeGetter || !fails(function () {
     get: function detached() {
       arrayBufferByteLength(this);
       return isDetached(this);
-    }
+    },
   });
 }

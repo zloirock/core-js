@@ -9,5 +9,5 @@ module.exports = {
   WeakSet: WeakSet,
   add: uncurryThis(WeakSetPrototype.add),
   has: uncurryThis(WeakSetPrototype.has),
-  remove: uncurryThis(WeakSetPrototype.delete)
+  remove: uncurryThis(WeakSetPrototype.delete),
 };

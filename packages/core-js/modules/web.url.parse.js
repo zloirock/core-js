@@ -19,5 +19,5 @@ $({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
     } catch (error) {
       return null;
     }
-  }
+  },
 });

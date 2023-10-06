@@ -14,5 +14,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
       wasDeleted = remove(collection, arguments[k]);
       allDeleted = allDeleted && wasDeleted;
     } return !!allDeleted;
-  }
+  },
 });

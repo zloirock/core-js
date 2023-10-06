@@ -722,5 +722,5 @@ $({ global: true, enumerable: true, sham: !PROPER_TRANSFER, forced: FORCED_REPLA
     }
 
     return replacements ? replaceReferences(map, replacements, clone) : clone;
-  }
+  },
 });

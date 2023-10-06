@@ -13,5 +13,5 @@ $({ target: 'Reflect', stat: true }, {
     return function decorator(target, key) {
       ordinaryDefineOwnMetadata(metadataKey, metadataValue, anObject(target), toMetadataKey(key));
     };
-  }
+  },
 });

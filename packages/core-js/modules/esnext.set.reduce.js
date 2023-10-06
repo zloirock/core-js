@@ -24,5 +24,5 @@ $({ target: 'Set', proto: true, real: true, forced: true }, {
     });
     if (noInitial) throw new $TypeError('Reduce of empty set with no initial value');
     return accumulator;
-  }
+  },
 });

@@ -12,7 +12,7 @@ var $join = uncurryThis([].join);
 var push = uncurryThis([].push);
 
 // `Iterator.prototype.join` method
-// https://tc39.es/ecma262/#sec-iterator.prototype.join
+// https://github.com/tc39/proposal-iterator-join
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   join: function join(separator) {
     anObject(this);
@@ -27,5 +27,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
       push(result, isNullOrUndefined(value) ? '' : $toString(value));
     }, { IS_ITERATOR: true });
     return $join(result, sep);
-  }
+  },
 });

@@ -8,5 +8,5 @@ var forcedStringTrimMethod = require('../internals/string-trim-forced');
 $({ target: 'String', proto: true, forced: forcedStringTrimMethod('trim') }, {
   trim: function trim() {
     return $trim(this);
-  }
+  },
 });
