@@ -1,5 +1,6 @@
 import Promise from 'core-js-pure/es/promise';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+
+const { getPrototypeOf } = Object;
 
 QUnit.test('Promise.withResolvers', assert => {
   const { withResolvers } = Promise;

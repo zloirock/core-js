@@ -9,7 +9,6 @@ import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
 import objectCreate from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import keys from 'core-js-pure/es/object/keys';
 import Symbol from 'core-js-pure/es/symbol';
 import Map from 'core-js-pure/es/map';
@@ -19,6 +18,8 @@ import WeakMap from 'core-js-pure/es/weak-map';
 import WeakSet from 'core-js-pure/es/weak-set';
 import AggregateError from 'core-js-pure/es/aggregate-error';
 import DOMException from 'core-js-pure/stable/dom-exception';
+
+const { getPrototypeOf } = Object;
 
 QUnit.module('structuredClone', () => {
   QUnit.test('identity', assert => {

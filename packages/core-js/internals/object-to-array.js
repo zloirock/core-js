@@ -1,11 +1,11 @@
 'use strict';
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
-var objectGetPrototypeOf = require('../internals/object-get-prototype-of');
 var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
 var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
+var getPrototypeOf = Object.getPrototypeOf;
 var propertyIsEnumerable = uncurryThis($propertyIsEnumerable);
 var push = uncurryThis([].push);
 
@@ -22,7 +22,7 @@ var createMethod = function (TO_ENTRIES) {
   return function (it) {
     var O = toIndexedObject(it);
     var keys = objectKeys(O);
-    var IE_WORKAROUND = IE_BUG && objectGetPrototypeOf(O) === null;
+    var IE_WORKAROUND = IE_BUG && getPrototypeOf(O) === null;
     var length = keys.length;
     var i = 0;
     var result = [];
