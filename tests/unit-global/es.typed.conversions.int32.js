@@ -1,6 +1,6 @@
-import { DESCRIPTORS, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
+import { LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Int32 conversions', assert => {
+QUnit.test('Int32 conversions', assert => {
   const int32array = new Int32Array(1);
   const uint8array = new Uint8Array(int32array.buffer);
   const dataview = new DataView(int32array.buffer);

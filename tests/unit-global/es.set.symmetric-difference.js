@@ -1,4 +1,3 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
 import { createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#symmetricDifference', assert => {
@@ -63,7 +62,7 @@ QUnit.test('Set#symmetricDifference', assert => {
     assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
   }
 
-  if (DESCRIPTORS) {
+  {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     const baseSet = new Set();
