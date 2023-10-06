@@ -20,5 +20,5 @@ $({ global: true, enumerable: true, dontCallGetSet: true, forced: WRONG_ARITY },
   queueMicrotask: function queueMicrotask(fn) {
     validateArgumentsLength(arguments.length, 1);
     microtask(aCallable(fn));
-  }
+  },
 });

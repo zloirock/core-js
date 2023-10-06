@@ -23,5 +23,5 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     var value = isPresentInMap ? get(map, key) : aCallable(length > 2 ? arguments[2] : undefined)(key, map);
     set(map, key, callback(value, key, map));
     return map;
-  }
+  },
 });

@@ -32,5 +32,5 @@ $({ target: 'WeakMap', proto: true, real: true, forced: FORCED }, {
     var value = callbackfn(key);
     set(this, key, value);
     return value;
-  }
+  },
 });

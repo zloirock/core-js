@@ -22,5 +22,5 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     var relativeIndex = toIntegerOrInfinity(index);
     var k = relativeIndex >= 0 ? relativeIndex : len + relativeIndex;
     return (k < 0 || k >= len) ? undefined : charAt(S, k);
-  }
+  },
 });

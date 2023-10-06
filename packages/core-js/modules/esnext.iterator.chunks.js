@@ -36,7 +36,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
     anObject(this);
     chunkSizeValidation(chunkSize, this);
     return new IteratorProxy(getIteratorDirect(this), {
-      chunkSize: chunkSize
+      chunkSize: chunkSize,
     });
-  }
+  },
 });

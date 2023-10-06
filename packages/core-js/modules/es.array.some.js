@@ -10,5 +10,5 @@ var STRICT_METHOD = arrayMethodIsStrict('some');
 $({ target: 'Array', proto: true, forced: !STRICT_METHOD }, {
   some: function some(callbackfn /* , thisArg */) {
     return $some(this, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
-  }
+  },
 });
