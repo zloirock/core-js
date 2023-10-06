@@ -35,7 +35,7 @@ if (isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
 
   copyConstructorProperties(SymbolWrapper, NativeSymbol);
   // wrap Symbol.for for correct handling of empty string descriptions
-  var nativeFor = SymbolWrapper['for'];
+  var nativeFor = SymbolWrapper.for;
   defineBuiltIn(SymbolWrapper, 'for', function (key) {
     var stringKey = toString(key);
     var symbol = call(nativeFor, this, stringKey);

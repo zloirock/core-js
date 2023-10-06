@@ -46,7 +46,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         state.running = false;
       }
     },
-    'return': function () {
+    return: function () {
       var state = getInternalState(this);
       if (!IS_ITERATOR && state.running) throw new $TypeError(GENERATOR_IS_RUNNING);
       var iterator = state.iterator;
