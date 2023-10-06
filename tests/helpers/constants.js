@@ -64,15 +64,6 @@ export const STRICT_THIS = (function () {
 
 export const STRICT = !STRICT_THIS;
 
-export const FREEZING = !function () {
-  try {
-    // eslint-disable-next-line es/no-object-isextensible, es/no-object-preventextensions -- detection
-    return Object.isExtensible(Object.preventExtensions({}));
-  } catch {
-    return true;
-  }
-}();
-
 // FF < 23 bug
 export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = !function () {
   try {
