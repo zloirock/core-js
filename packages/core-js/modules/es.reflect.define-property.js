@@ -24,5 +24,5 @@ $({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE }, {
     } catch (error) {
       return false;
     }
-  }
+  },
 });

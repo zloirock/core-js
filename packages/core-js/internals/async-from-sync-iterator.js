@@ -54,7 +54,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       var result = anObject(call($return, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
-  }
+  },
 });
 
 module.exports = AsyncFromSyncIterator;

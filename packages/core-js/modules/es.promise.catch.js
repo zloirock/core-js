@@ -14,7 +14,7 @@ var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructo
 $({ target: 'Promise', proto: true, forced: FORCED_PROMISE_CONSTRUCTOR, real: true }, {
   catch: function (onRejected) {
     return this.then(undefined, onRejected);
-  }
+  },
 });
 
 // makes sure that native promise-based APIs `Promise#catch` properly works with patched `Promise#then`
