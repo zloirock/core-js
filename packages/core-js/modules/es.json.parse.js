@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
@@ -23,6 +22,7 @@ var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON.parse;
 var reflectDefineProperty = Reflect && Reflect.defineProperty;
 var reflectDeleteProperty = Reflect && Reflect.deleteProperty;
+var enumerableOwnProperties = Object.keys;
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 // eslint-disable-next-line es/no-object-isextensible -- safe
@@ -72,7 +72,7 @@ var internalize = function (holder, name, reviver, node) {
         internalizeProperty(val, i, internalize(val, '' + i, reviver, i < elementRecordsLen ? nodes[i] : undefined), unmodified);
       }
     } else {
-      keys = getBuiltIn('Object', 'keys')(val);
+      keys = enumerableOwnProperties(val);
       len = lengthOfArrayLike(keys);
       for (i = 0; i < len; i++) {
         P = keys[i];
