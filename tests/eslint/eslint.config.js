@@ -1451,11 +1451,9 @@ const forbidES5BuiltIns = {
   'es/no-object-defineproperties': ERROR,
   'es/no-object-defineproperty': ERROR,
   'es/no-object-getownpropertydescriptor': ERROR,
-  'es/no-object-getownpropertynames': ERROR,
   'es/no-object-isextensible': ERROR,
   'es/no-object-isfrozen': ERROR,
   'es/no-object-issealed': ERROR,
-  'es/no-object-keys': ERROR,
   'es/no-string-prototype-trim': ERROR,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': OFF,
