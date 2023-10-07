@@ -1327,8 +1327,6 @@ class Symbol {
   static unscopables: @@unscopables;
   static for(key: string): symbol;
   static keyFor(sym: symbol): string;
-  static useSimple(): void;
-  static useSetter(): void;
 }
 
 class Object {
@@ -1413,23 +1411,8 @@ Symbol().description;      // => undefined
 
 * We can't add new primitive type, `Symbol` returns object.
 * `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-* By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
-
-You can disable defining setters in `Object.prototype`. [Example](https://goo.gl/N5UD7J):
-```js
-Symbol.useSimple();
-let symbol1 = Symbol('symbol1');
-let object1 = {};
-object1[symbol1] = true;
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', w/o native Symbol
-
-Symbol.useSetter();
-let symbol2 = Symbol('symbol2');
-let object2 = {};
-object2[symbol2] = true;
-for (let key in object2) console.log(key); // nothing
-```
-* Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+* `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+* `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
 * Some problems possible with environment exotic objects (for example, IE `localStorage`).
 
 #### ECMAScript: Collections[⬆](#index)
