@@ -11,7 +11,6 @@ var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isSymbol = require('../internals/is-symbol');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
 var thisNumberValue = require('../internals/this-number-value');
@@ -22,6 +21,7 @@ var NativeNumber = global[NUMBER];
 var PureNumberNamespace = path[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
 var TypeError = global.TypeError;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 var stringSlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
