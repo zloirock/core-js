@@ -52,14 +52,12 @@ function checkModule(name, targets) {
 }
 
 module.exports = function ({
-  filter = null, // TODO: Obsolete, remove from `core-js@4`
   modules = null,
   exclude = [],
   targets = null,
   version = null,
   inverse = false,
 } = {}) {
-  if (modules === null || modules === undefined) modules = filter;
   if (exclude === null) exclude = [];
   inverse = !!inverse;
 
