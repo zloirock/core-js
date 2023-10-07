@@ -603,15 +603,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '1',
   },
-  'es.function.bind': {
-    chrome: '7',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    opera: '12',
-    rhino: '1.7.13',
-    safari: '5.1',
-  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',
