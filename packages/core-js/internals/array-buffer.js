@@ -40,6 +40,7 @@ var Array = global.Array;
 var RangeError = global.RangeError;
 var ObjectPrototype = Object.prototype;
 var getPrototypeOf = Object.getPrototypeOf;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 var fill = uncurryThis(arrayFill);
 var reverse = uncurryThis([].reverse);
 

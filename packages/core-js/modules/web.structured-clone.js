@@ -3,6 +3,7 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -41,7 +42,7 @@ var mapSet = MapHelpers.set;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
-var objectKeys = getBuiltIn('Object', 'keys');
+var objectKeys = Object.keys;
 var push = uncurryThis([].push);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.0.valueOf);
@@ -233,7 +234,7 @@ var structuredCloneInternal = function (value, map) {
         case 'CompileError':
         case 'LinkError':
         case 'RuntimeError':
-          cloned = new (getBuiltIn('WebAssembly', name))();
+          cloned = new (getBuiltInStaticMethod('WebAssembly', name))();
           break;
         default:
           cloned = new Error();
