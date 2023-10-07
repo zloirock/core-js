@@ -1572,8 +1572,6 @@ class Symbol {
   static unscopables: @@unscopables;
   static for(key: string): symbol;
   static keyFor(sym: symbol): string;
-  static useSimple(): void;
-  static useSetter(): void;
 }
 
 class Object {
@@ -1658,24 +1656,13 @@ Symbol('foo').description; // => 'foo'
 // eslint-disable-next-line symbol-description -- example
 Symbol().description;      // => undefined
 ```
-##### Caveats when using `Symbol` polyfill:[⬆](#index)
 
-- We can't add a new primitive type, `Symbol` returns an object.
-- `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
-
-You can disable defining setters in `Object.prototype`. [Example](https://core-js.io/playground#code=Symbol.useSimple%28%29%3B%0Alet+object1+%3D+%7B+%5BSymbol%28%27symbol1%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object1%29+console.log%28key%29%3B+%2F%2F+%3D%3E+%27Symbol%28symbol1%29_t.qamkg9f3q%27%2C+without+native+%60Symbol%60%0A%0ASymbol.useSetter%28%29%3B%0Alet+object2+%3D+%7B+%5BSymbol%28%27symbol2%27%29%5D%3A+true+%7D%3B%0Afor+%28let+key+in+object2%29+console.log%28key%29%3B+%2F%2F+nothing):
-```js
-Symbol.useSimple();
-let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', without native `Symbol`
-
-Symbol.useSetter();
-let object2 = { [Symbol('symbol2')]: true };
-for (let key in object2) console.log(key); // nothing
-```
-- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
-- Some problems are possible with environment exotic objects (for example, IE `localStorage`).
+> [!WARNING]
+> - We can't add a new primitive type, `Symbol` returns an object.
+> - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
+> - `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator does not work correctly with the `Symbol` polyfill: `Symbol() in {} // => true`.
+> - `core-js` does not add setters to `Object.prototype` for well-known symbols, so that something like `Symbol.iterator in foo` works correctly. It can cause problems with their enumerability.
+> - Some problems are possible with environment exotic objects (for example, IE `localStorage`).
 
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most cases and only fixes methods / constructors where required; in old environments, it uses a fast polyfill (O(1) lookup).
