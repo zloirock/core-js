@@ -48,12 +48,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'object/lookup-getter') == 'function');
     ok(typeof load(NS, 'object/lookup-setter') == 'function');
     ok('values' in load(NS, 'object'));
-    ok(load(NS, 'function/bind')(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
-    ok(load(NS, 'function/virtual/bind').call(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
     load(NS, 'function/name');
     load(NS, 'function/has-instance');
     load(NS, 'function');
@@ -369,12 +363,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof instanceAt('') == 'function');
     ok(instanceAt([]).call([1, 2, 3], 2) === 3);
     ok(instanceAt('').call('123', 2) === '3');
-
-    const instanceBind = load(NS, 'instance/bind');
-    ok(typeof instanceBind == 'function');
-    ok(instanceBind({}) === undefined);
-    ok(typeof instanceBind(it => it) == 'function');
-    ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
 
     const instanceCodePointAt = load(NS, 'instance/code-point-at');
     ok(typeof instanceCodePointAt == 'function');
