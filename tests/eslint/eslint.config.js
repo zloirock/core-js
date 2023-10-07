@@ -1452,7 +1452,6 @@ const forbidES5BuiltIns = {
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
   'es/no-array-prototype-some': ERROR,
-  'es/no-function-prototype-bind': ERROR,
   'es/no-object-defineproperties': ERROR,
   'es/no-object-defineproperty': ERROR,
   'es/no-object-getownpropertydescriptor': ERROR,
