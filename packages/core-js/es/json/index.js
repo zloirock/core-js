@@ -1,5 +1,4 @@
 'use strict';
-require('../../modules/es.object.keys');
 require('../../modules/es.date.to-json');
 require('../../modules/es.json.is-raw-json');
 require('../../modules/es.json.parse');
