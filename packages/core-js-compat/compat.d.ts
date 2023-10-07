@@ -26,10 +26,6 @@ type CompatOptions = {
   version?: string,
   /** inverse of the result, shows modules that are NOT required for the target environment */
   inverse?: boolean,
-  /**
-   * @deprecated use `modules` instead
-   */
-  filter?: Modules
 };
 
 type CompatOutput = {
