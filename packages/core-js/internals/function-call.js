@@ -1,8 +1,4 @@
 'use strict';
-var NATIVE_BIND = require('../internals/function-bind-native');
+var uncurryThis = require('../internals/function-uncurry-this');
 
-var call = Function.prototype.call;
-// eslint-disable-next-line es/no-function-prototype-bind -- safe
-module.exports = NATIVE_BIND ? call.bind(call) : function () {
-  return call.apply(call, arguments);
-};
+module.exports = uncurryThis(uncurryThis.call);

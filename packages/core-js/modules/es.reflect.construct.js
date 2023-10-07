@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var apply = require('../internals/function-apply');
-var bind = require('../internals/function-bind');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var aConstructor = require('../internals/a-constructor');
@@ -10,10 +9,11 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var fails = require('../internals/fails');
 
+var ObjectPrototype = Object.prototype;
 var create = Object.create;
 var nativeConstruct = getBuiltIn('Reflect', 'construct');
 var $Array = Array;
-var ObjectPrototype = Object.prototype;
+var bind = create.bind;
 var push = [].push;
 
 // `Reflect.construct` method
