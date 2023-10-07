@@ -226,6 +226,7 @@ Context.prototype = {
 var NO_SOURCE_SUPPORT = fails(function () {
   var unsafeInt = '9007199254740993';
   var source;
+  // eslint-disable-next-line es/no-json-parse-reviver-context-parameter -- detection
   nativeParse(unsafeInt, function (key, value, context) {
     source = context.source;
   });

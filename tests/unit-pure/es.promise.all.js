@@ -1,6 +1,5 @@
 import { createIterable } from '../helpers/helpers.js';
 
-import bind from 'core-js-pure/es/function/bind';
 import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
 import Promise from 'core-js-pure/es/promise';
 import Symbol from 'core-js-pure/es/symbol';
@@ -56,7 +55,7 @@ QUnit.test('Promise.all, subclassing', assert => {
   function SubPromise(executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   }
-  SubPromise.resolve = bind(resolve, Promise);
+  SubPromise.resolve = resolve.bind(Promise);
   assert.true(all.call(SubPromise, [1, 2, 3]) instanceof SubPromise, 'subclassing, `this` pattern');
 
   function FakePromise1() { /* empty */ }
@@ -66,7 +65,7 @@ QUnit.test('Promise.all, subclassing', assert => {
   function FakePromise3(executor) {
     executor(() => { /* empty */ }, null);
   }
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     all.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');
