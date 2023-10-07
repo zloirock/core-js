@@ -26,7 +26,6 @@ function normalizeSummary(unit = {}) {
 
 module.exports = async function ({
   modules = null,
-  blacklist = null, // TODO: Obsolete, remove from `core-js@4`
   exclude = [],
   targets = null,
   format = 'bundle',
@@ -40,7 +39,7 @@ module.exports = async function ({
   let script = banner;
   let code = '\n';
 
-  const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
+  const { list, targets: compatTargets } = compat({ targets, modules, exclude });
 
   if (list.length) {
     if (format === 'bundle') {
