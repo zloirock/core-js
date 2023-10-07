@@ -1,5 +1,4 @@
 import $try from 'core-js-pure/es/promise/try';
-import bind from 'core-js-pure/es/function/bind';
 import Promise from 'core-js-pure/es/promise';
 
 QUnit.test('Promise.try', assert => {
@@ -35,7 +34,7 @@ QUnit.test('Promise.try, subclassing', assert => {
   function SubPromise(executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   }
-  SubPromise.resolve = bind(resolve, Promise);
+  SubPromise.resolve = resolve.bind(Promise);
   assert.true(promiseTry.call(SubPromise, () => 42) instanceof SubPromise, 'subclassing, `this` pattern');
 
   function FakePromise1() { /* empty */ }
@@ -45,7 +44,7 @@ QUnit.test('Promise.try, subclassing', assert => {
   function FakePromise3(executor) {
     executor(() => { /* empty */ }, null);
   }
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     promiseTry.call(FakePromise1, () => 42);
   }, 'NewPromiseCapability validations, #1');
