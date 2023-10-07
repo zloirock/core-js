@@ -1,10 +1,10 @@
 'use strict';
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
-var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
 var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
+var objectKeys = Object.keys;
 var getPrototypeOf = Object.getPrototypeOf;
 var propertyIsEnumerable = uncurryThis($propertyIsEnumerable);
 var push = uncurryThis([].push);

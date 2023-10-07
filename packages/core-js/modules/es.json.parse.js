@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
@@ -18,7 +17,7 @@ var isArray = Array.isArray;
 var Number = globalThis.Number;
 var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON.parse;
-var enumerableOwnProperties = getBuiltIn('Object', 'keys');
+var enumerableOwnProperties = Object.keys;
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var at = uncurryThis(''.charAt);

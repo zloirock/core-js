@@ -2,7 +2,6 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var fails = require('../internals/fails');
-var objectKeys = require('../internals/object-keys');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
@@ -12,6 +11,7 @@ var IndexedObject = require('../internals/indexed-object');
 var $assign = Object.assign;
 // eslint-disable-next-line es/no-object-defineproperty -- required for testing
 var defineProperty = Object.defineProperty;
+var objectKeys = Object.keys;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
