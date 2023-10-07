@@ -623,11 +623,10 @@ Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 ```
 
 #### ECMAScript: Function[⬆](#index)
-Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
+Modules [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js).
 ```ts
 class Function {
   name: string;
-  bind(thisArg: any, ...args: Array<mixed>): Function;
   @@hasInstance(value: any): boolean;
 }
 ```
@@ -637,14 +636,10 @@ core-js/es|stable|actual|full/function
 core-js(-pure)/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
 core-js/es|stable|actual|full/function/has-instance
-core-js(-pure)/es|stable|actual|full/function/bind
-core-js(-pure)/es|stable|actual|full/function/virtual/bind
 ```
 [*Examples*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27%0A%0Aconsole.log.bind%28console%2C+42%29%2843%29%3B+%2F%2F+-%3E+42+43):
 ```js
 (function foo() { /* empty */ }).name; // => 'foo'
-
-console.log.bind(console, 42)(43); // -> 42 43
 ```
 
 #### ECMAScript: Error[⬆](#index)
