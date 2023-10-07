@@ -1476,8 +1476,6 @@ class Symbol {
   static unscopables: @@unscopables;
   static for(key: string): symbol;
   static keyFor(sym: symbol): string;
-  static useSimple(): void;
-  static useSetter(): void;
 }
 
 class Object {
@@ -1561,24 +1559,13 @@ Symbol('foo').description; // => 'foo'
 // eslint-disable-next-line symbol-description -- example
 Symbol().description;      // => undefined
 ```
-##### Caveats when using `Symbol` polyfill:[⬆](#index)
 
-- We can't add a new primitive type, `Symbol` returns an object.
-- `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
-
-You can disable defining setters in `Object.prototype`. [Example](https://tinyurl.com/2blse6aa):
-```js
-Symbol.useSimple();
-let object1 = { [Symbol('symbol1')]: true };
-for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', w/o native Symbol
-
-Symbol.useSetter();
-let object2 = { [Symbol('symbol2')]: true };
-for (let key in object2) console.log(key); // nothing
-```
-- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
-- Some problems are possible with environment exotic objects (for example, IE `localStorage`).
+> [!WARNING]
+> - We can't add a new primitive type, `Symbol` returns an object.
+> - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
+> - `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+> - `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+> - Some problems are possible with environment exotic objects (for example, IE `localStorage`).
 
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in the old environment uses fast polyfill (O(1) lookup).
