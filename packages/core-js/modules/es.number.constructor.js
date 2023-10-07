@@ -11,7 +11,6 @@ var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isSymbol = require('../internals/is-symbol');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var defineProperty = require('../internals/object-define-property').f;
 var thisNumberValue = require('../internals/this-number-value');
@@ -96,7 +95,7 @@ $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
 
 // Use `internal/copy-constructor-properties` helper in `core-js@4`
 var copyConstructorProperties = function (target, source) {
-  for (var keys = getOwnPropertyNames(source), j = 0, key; keys.length > j; j++) {
+  for (var keys = Object.getOwnPropertyNames(source), j = 0, key; keys.length > j; j++) {
     if (hasOwn(source, key = keys[j]) && !hasOwn(target, key)) {
       defineProperty(target, key, getOwnPropertyDescriptor(source, key));
     }

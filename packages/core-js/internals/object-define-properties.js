@@ -3,7 +3,8 @@ var V8_PROTOTYPE_DEFINE_BUG = require('../internals/v8-prototype-define-bug');
 var definePropertyModule = require('../internals/object-define-property');
 var anObject = require('../internals/an-object');
 var toIndexedObject = require('../internals/to-indexed-object');
-var objectKeys = require('../internals/object-keys');
+
+var objectKeys = Object.keys;
 
 // `Object.defineProperties` method
 // https://tc39.es/ecma262/#sec-object.defineproperties
