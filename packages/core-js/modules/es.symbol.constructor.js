@@ -13,7 +13,6 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var toPropertyKey = require('../internals/to-property-key');
 var $toString = require('../internals/to-string');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var objectKeys = require('../internals/object-keys');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var getOwnPropertyNamesExternal = require('../internals/object-get-own-property-names-external');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
@@ -49,6 +48,7 @@ var RangeError = globalThis.RangeError;
 var TypeError = globalThis.TypeError;
 var QObject = globalThis.QObject;
 var nativeObjectCreate = Object.create;
+var nativeObjectKeys = Object.keys;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
@@ -108,7 +108,7 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
 var $defineProperties = function defineProperties(O, Properties) {
   anObject(O);
   var properties = toIndexedObject(Properties);
-  var keys = objectKeys(properties).concat($getOwnPropertySymbols(properties));
+  var keys = nativeObjectKeys(properties).concat($getOwnPropertySymbols(properties));
   $forEach(keys, function (key) {
     if (call($propertyIsEnumerable, properties, key)) $defineProperty(O, key, properties[key]);
   });
@@ -219,7 +219,7 @@ $({ global: true, constructor: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !
   Symbol: $Symbol,
 });
 
-$forEach(objectKeys(WellKnownSymbolsStore), function (name) {
+$forEach(nativeObjectKeys(WellKnownSymbolsStore), function (name) {
   defineWellKnownSymbol(name);
 });
 
