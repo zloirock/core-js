@@ -223,11 +223,6 @@ $forEach(objectKeys(WellKnownSymbolsStore), function (name) {
   defineWellKnownSymbol(name);
 });
 
-$({ target: SYMBOL, stat: true, forced: !NATIVE_SYMBOL }, {
-  useSetter: function () { USE_SETTER = true; },
-  useSimple: function () { USE_SETTER = false; },
-});
-
 $({ target: 'Object', stat: true, forced: !NATIVE_SYMBOL }, {
   // `Object.create` method
   // https://tc39.es/ecma262/#sec-object.create
