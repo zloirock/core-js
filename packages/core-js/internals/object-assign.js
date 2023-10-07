@@ -3,7 +3,6 @@ var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
 var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
-var objectKeys = require('../internals/object-keys');
 var ownKeys = require('../internals/own-keys');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
@@ -14,6 +13,7 @@ var IndexedObject = require('../internals/indexed-object');
 var $assign = Object.assign;
 // eslint-disable-next-line es/no-object-defineproperty -- required for testing
 var defineProperty = Object.defineProperty;
+var objectKeys = Object.keys;
 var getPrototypeOf = Object.getPrototypeOf;
 var concat = uncurryThis([].concat);
 

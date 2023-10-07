@@ -4,9 +4,9 @@ var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
-var objectKeys = require('../internals/object-keys');
 var toIndexedObject = require('../internals/to-indexed-object');
 
+var objectKeys = Object.keys;
 var getPrototypeOf = Object.getPrototypeOf;
 var push = uncurryThis([].push);
 
