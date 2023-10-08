@@ -3,7 +3,6 @@ var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var isCallable = require('../internals/is-callable');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
@@ -63,7 +62,7 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.dontCallGetSet) {
-      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 
