@@ -32,7 +32,6 @@ var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 var defineSymbolToPrimitive = require('../internals/symbol-define-to-primitive');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
-var $forEach = require('../internals/array-iteration').forEach;
 
 var HIDDEN = sharedKey('hidden');
 var SYMBOL = 'Symbol';
@@ -53,6 +52,7 @@ var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
+var $forEach = uncurryThis([].forEach);
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
 
@@ -140,9 +140,8 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
 };
 
 var $getOwnPropertyNames = function getOwnPropertyNames(O) {
-  var names = nativeGetOwnPropertyNames(toIndexedObject(O));
   var result = [];
-  $forEach(names, function (key) {
+  nativeGetOwnPropertyNames(toIndexedObject(O)).forEach(function (key) {
     if (!hasOwn(AllSymbols, key) && !hasOwn(hiddenKeys, key)) push(result, key);
   });
   return result;
@@ -150,9 +149,8 @@ var $getOwnPropertyNames = function getOwnPropertyNames(O) {
 
 var $getOwnPropertySymbols = function (O) {
   var IS_OBJECT_PROTOTYPE = O === ObjectPrototype;
-  var names = nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toIndexedObject(O));
   var result = [];
-  $forEach(names, function (key) {
+  nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toIndexedObject(O)).forEach(function (key) {
     if (hasOwn(AllSymbols, key) && (!IS_OBJECT_PROTOTYPE || hasOwn(ObjectPrototype, key))) {
       push(result, AllSymbols[key]);
     }
@@ -220,7 +218,7 @@ $({ global: true, constructor: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !
   Symbol: $Symbol,
 });
 
-$forEach(nativeObjectKeys(WellKnownSymbolsStore), function (name) {
+nativeObjectKeys(WellKnownSymbolsStore).forEach(function (name) {
   defineWellKnownSymbol(name);
 });
 
