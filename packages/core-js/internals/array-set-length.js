@@ -1,6 +1,5 @@
 'use strict';
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var isArray = Array.isArray;
 
@@ -9,7 +8,6 @@ var SILENT_ON_NON_WRITABLE_LENGTH_SET = !function () {
   // makes no sense without proper strict mode support
   if (this !== undefined) return true;
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).length = 1;
   } catch (error) {
     return error instanceof TypeError;

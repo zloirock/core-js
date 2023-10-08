@@ -19,7 +19,6 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
   var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
 
   var addGetter = function (key, chr) {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty(O, key, { get: function () {
       calls += chr;
       return true;
@@ -38,7 +37,6 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
 
   for (var key in pairs) addGetter(key, pairs[key]);
 
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
   return result !== expected || calls !== expected;
