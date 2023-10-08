@@ -11,7 +11,6 @@ var IndexedObject = require('../internals/indexed-object');
 
 // eslint-disable-next-line es/no-object-assign -- safe
 var $assign = Object.assign;
-// eslint-disable-next-line es/no-object-defineproperty -- required for testing
 var defineProperty = Object.defineProperty;
 var objectKeys = Object.keys;
 var getPrototypeOf = Object.getPrototypeOf;
@@ -37,7 +36,6 @@ module.exports = !$assign || fails(function () {
   var symbol = Symbol('assign detection');
   var alphabet = 'abcdefghijklmnopqrst';
   A[symbol] = 7;
-  // eslint-disable-next-line es/no-array-prototype-foreach -- safe
   alphabet.split('').forEach(function (chr) { B[chr] = chr; });
   return $assign({}, A)[symbol] !== 7 || objectKeys($assign({}, B)).join('') !== alphabet;
 }) ? function assign(target, source) { // eslint-disable-line no-unused-vars -- required for `.length`

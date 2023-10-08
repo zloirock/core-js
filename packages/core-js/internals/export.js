@@ -1,12 +1,13 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineGlobalProperty = require('../internals/define-global-property');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var isForced = require('../internals/is-forced');
 var isObject = require('../internals/is-object');
+
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 /*
   options.target          - name of the target object

@@ -96,7 +96,7 @@ QUnit.test('Iterator.range', assert => {
 
   iterator = range(0, 5);
   for (const key of ['start', 'end', 'step', 'inclusive']) {
-    const descriptor = getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
+    const descriptor = Object.getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
     assert.isFunction(descriptor.get, key);
     assert.same(descriptor.set, undefined, `${ key } has no setter`);
     assert.false(descriptor.enumerable, key);
@@ -184,7 +184,7 @@ QUnit.test('Iterator.range', assert => {
 
     iterator = range(BigInt(0), BigInt(5));
     for (const key of ['start', 'end', 'step', 'inclusive']) {
-      const descriptor = getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
+      const descriptor = Object.getOwnPropertyDescriptor(getPrototypeOf(iterator), key);
       assert.isFunction(descriptor.get, key);
       assert.same(descriptor.set, undefined, `${ key } has no setter`);
       assert.false(descriptor.enumerable, key);

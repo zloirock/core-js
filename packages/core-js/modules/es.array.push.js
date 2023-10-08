@@ -16,7 +16,6 @@ var INCORRECT_TO_LENGTH = fails(function () {
 // https://github.com/mozilla/rhino/issues/2591
 var properErrorOnNonWritableLength = function () {
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).push();
   } catch (error) {
     return error instanceof TypeError;

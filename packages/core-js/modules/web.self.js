@@ -5,7 +5,6 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var fails = require('../internals/fails');
 
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var INCORRECT_VALUE = globalThis.self !== globalThis;
 var selfGlobalReceiver;
@@ -20,7 +19,6 @@ var validateReceiver = function (receiver) {
 // `self` getter
 // https://html.spec.whatwg.org/multipage/nav-history-apis.html#dom-self
 try {
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var descriptor = Object.getOwnPropertyDescriptor(globalThis, 'self');
   // some engines have `self`, but with incorrect descriptor or receiver checks
   // https://github.com/denoland/deno/issues/15765

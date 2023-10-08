@@ -23,7 +23,6 @@ var nativeParse = JSON.parse;
 var reflectDefineProperty = Reflect && Reflect.defineProperty;
 var reflectDeleteProperty = Reflect && Reflect.deleteProperty;
 var enumerableOwnProperties = Object.keys;
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 // eslint-disable-next-line es/no-object-isextensible -- safe
 var isExtensible = Object.isExtensible;

@@ -10,7 +10,6 @@ if (karma) {
   QUnit.testDone(() => karma.info({}));
 }
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor, es/no-object-getownpropertynames, es/no-object-getprototypeof -- safe
 const { getOwnPropertyDescriptor, getOwnPropertyNames, getPrototypeOf } = Object;
 const { toString, hasOwnProperty, propertyIsEnumerable } = Object.prototype;
 
