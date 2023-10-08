@@ -9,7 +9,6 @@ var IndexedObject = require('../internals/indexed-object');
 
 // eslint-disable-next-line es/no-object-assign -- safe
 var $assign = Object.assign;
-// eslint-disable-next-line es/no-object-defineproperty -- required for testing
 var defineProperty = Object.defineProperty;
 var objectKeys = Object.keys;
 var concat = uncurryThis([].concat);
