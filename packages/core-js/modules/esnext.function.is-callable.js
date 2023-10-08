@@ -5,7 +5,6 @@ var $isCallable = require('../internals/is-callable');
 var inspectSource = require('../internals/inspect-source');
 var hasOwn = require('../internals/has-own-property');
 
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var classRegExp = /^\s*class\b/;
 var exec = uncurryThis(classRegExp.exec);

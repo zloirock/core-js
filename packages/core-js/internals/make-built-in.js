@@ -10,7 +10,6 @@ var InternalStateModule = require('../internals/internal-state');
 var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
 var $String = String;
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var stringSlice = uncurryThis(''.slice);
 var replace = uncurryThis(''.replace);
