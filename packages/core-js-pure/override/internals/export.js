@@ -3,7 +3,6 @@ var global = require('../internals/global');
 var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var isCallable = require('../internals/is-callable');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
@@ -11,6 +10,8 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var hasOwn = require('../internals/has-own-property');
 // add debugging info
 require('../internals/shared-store');
+
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
