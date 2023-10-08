@@ -5,14 +5,12 @@ var globalThis = require('../internals/global-this');
 var path = require('../internals/path');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isForced = require('../internals/is-forced');
-var hasOwn = require('../internals/has-own-property');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isSymbol = require('../internals/is-symbol');
 var toPrimitive = require('../internals/to-primitive');
 var fails = require('../internals/fails');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
-var defineProperty = require('../internals/object-define-property').f;
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var thisNumberValue = require('../internals/this-number-value');
 var trim = require('../internals/string-trim').trim;
 
@@ -92,15 +90,6 @@ if (FORCED && !IS_PURE) NumberPrototype.constructor = NumberWrapper;
 $({ global: true, constructor: true, wrap: true, forced: FORCED }, {
   Number: NumberWrapper,
 });
-
-// Use `internal/copy-constructor-properties` helper in `core-js@4`
-var copyConstructorProperties = function (target, source) {
-  for (var keys = Object.getOwnPropertyNames(source), j = 0, key; keys.length > j; j++) {
-    if (hasOwn(source, key = keys[j]) && !hasOwn(target, key)) {
-      defineProperty(target, key, getOwnPropertyDescriptor(source, key));
-    }
-  }
-};
 
 if (IS_PURE && PureNumberNamespace) copyConstructorProperties(path[NUMBER], PureNumberNamespace);
 if (FORCED || IS_PURE) copyConstructorProperties(path[NUMBER], NativeNumber);

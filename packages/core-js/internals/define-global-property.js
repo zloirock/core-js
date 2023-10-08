@@ -1,7 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 
 module.exports = function (key, value) {
