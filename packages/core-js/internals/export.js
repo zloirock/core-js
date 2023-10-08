@@ -4,6 +4,8 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var defineBuiltIn = require('../internals/define-built-in');
 var defineGlobalProperty = require('../internals/define-global-property');
 
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+
 /*
   options.target         - name of the target object
   options.global         - target is the global object
