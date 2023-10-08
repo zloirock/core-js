@@ -17,7 +17,7 @@ var id = 0;
 var setMetadata = function (it) {
   defineProperty(it, METADATA, { value: {
     objectID: 'O' + id++, // object ID
-    weakData: {},          // weak collections IDs
+    weakData: {},         // weak collections IDs
   } });
 };
 
