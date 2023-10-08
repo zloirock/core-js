@@ -3,14 +3,12 @@ var globalThis = require('../internals/global-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 
 var $TypeError = TypeError;
-// eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var INCORRECT_VALUE = globalThis.self !== globalThis;
 
 // `self` getter
 // https://html.spec.whatwg.org/multipage/window-object.html#dom-self
 try {
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var descriptor = Object.getOwnPropertyDescriptor(globalThis, 'self');
   // some engines have `self`, but with incorrect descriptor
   // https://github.com/denoland/deno/issues/15765
