@@ -1451,7 +1451,6 @@ const forbidESAnnexBBuiltIns = {
 const forbidES5BuiltIns = {
   'es/no-array-prototype-every': ERROR,
   'es/no-array-prototype-filter': ERROR,
-  'es/no-array-prototype-foreach': ERROR,
   'es/no-array-prototype-indexof': ERROR,
   'es/no-array-prototype-lastindexof': ERROR,
   'es/no-array-prototype-map': ERROR,
