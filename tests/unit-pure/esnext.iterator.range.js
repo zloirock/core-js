@@ -68,7 +68,6 @@ QUnit.test('Iterator.range', assert => {
   assert.true(iterator.inclusive);
 
   iterator = range(0, 5);
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').get.call({}), TypeError);
 
   assert.throws(() => range(Infinity, 10, 0), RangeError);
@@ -126,7 +125,6 @@ QUnit.test('Iterator.range', assert => {
     assert.true(iterator.inclusive);
 
     iterator = range(BigInt(0), BigInt(5));
-    // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
     assert.throws(() => Object.getOwnPropertyDescriptor(iterator, 'start').get.call({}), TypeError);
 
     assert.throws(() => range(Infinity, BigInt(10), BigInt(0)), TypeError);

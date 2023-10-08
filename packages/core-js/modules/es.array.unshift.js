@@ -12,7 +12,6 @@ var INCORRECT_RESULT = [].unshift(0) !== 1;
 // V8 ~ Chrome < 71 and Safari <= 15.4, FF < 23 throws InternalError
 var properErrorOnNonWritableLength = function () {
   try {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
     Object.defineProperty([], 'length', { writable: false }).unshift();
   } catch (error) {
     return error instanceof TypeError;

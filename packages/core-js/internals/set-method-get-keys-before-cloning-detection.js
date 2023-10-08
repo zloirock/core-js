@@ -9,7 +9,6 @@ module.exports = function (METHOD_NAME) {
       size: 0,
       has: function () { return true; },
       keys: function () {
-        // eslint-disable-next-line es/no-object-defineproperty -- needed for test
         return Object.defineProperty({}, 'next', {
           get: function () {
             baseSet.clear();
