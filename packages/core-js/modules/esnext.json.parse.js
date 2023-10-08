@@ -17,7 +17,6 @@ var Number = globalThis.Number;
 var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON.parse;
 var enumerableOwnProperties = Object.keys;
-// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 var isArray = Array.isArray;
 var at = uncurryThis(''.charAt);
