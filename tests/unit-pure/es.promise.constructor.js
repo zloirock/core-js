@@ -45,7 +45,7 @@ QUnit.test('Promise operations order', assert => {
   const promise2 = new Promise(resolve => {
     $resolve2 = resolve;
   });
-  // eslint-disable-next-line es/no-object-defineproperty, unicorn/no-thenable -- required for testing
+  // eslint-disable-next-line unicorn/no-thenable -- required for testing
   $resolve2(Object.defineProperty({}, 'then', {
     get() {
       result += 'D';

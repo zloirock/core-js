@@ -10,7 +10,6 @@ var fails = require('../internals/fails');
 // https://github.com/oven-sh/bun/issues/9249
 var WRONG_ARITY = fails(function () {
   // getOwnPropertyDescriptor for prevent experimental warning in Node 11
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   return Object.getOwnPropertyDescriptor(globalThis, 'queueMicrotask').value.length !== 1;
 });
 
