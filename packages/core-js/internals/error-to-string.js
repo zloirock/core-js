@@ -7,7 +7,6 @@ var nativeErrorToString = Error.prototype.toString;
 
 var INCORRECT_TO_STRING = fails(function () {
   // Chrome 32- incorrectly call accessor
-  // eslint-disable-next-line es/no-object-defineproperty -- safe
   var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
     return this === object;
   } }));
