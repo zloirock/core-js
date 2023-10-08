@@ -11,7 +11,6 @@ var isObject = require('../internals/is-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
 var defineProperty = require('../internals/object-define-property').f;
-var forEach = require('../internals/array-iteration').forEach;
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
@@ -45,7 +44,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
-    forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
+    ['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'].forEach(function (KEY) {
       var IS_ADDER = KEY === 'add' || KEY === 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY === 'clear')) {
         createNonEnumerableProperty(Prototype, KEY, function (a, b) {
