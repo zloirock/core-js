@@ -43,7 +43,7 @@ var defineIteratorPrototypeAccessor = function (key, value) {
       if (this === IteratorPrototype) throw new $TypeError("You can't redefine this property");
       if (hasOwn(this, key)) this[key] = replacement;
       else createProperty(this, key, replacement);
-    }
+    },
   });
 };
 

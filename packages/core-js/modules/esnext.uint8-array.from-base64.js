@@ -71,5 +71,5 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
     }
 
     return arrayFromConstructorAndList(Uint8Array, bytes, byteLength);
-  }
+  },
 });

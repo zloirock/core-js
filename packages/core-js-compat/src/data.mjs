@@ -1857,24 +1857,6 @@ export const data = {
   'esnext.array-buffer.transfer': null,
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
-  'esnext.array-buffer.detached': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer-to-fixed-length': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
   'esnext.async-disposable-stack.constructor': {
   },
   'esnext.async-iterator.constructor': {
@@ -2052,7 +2034,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.group-by': null,
-  },
   'esnext.observable.constructor': {
   },
   'esnext.observable.from': {
