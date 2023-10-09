@@ -1,17 +1,14 @@
 'use strict';
-// eslint-disable-next-line es/no-object-hasown -- safe
-const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
-
-const VERSION_PATTERN = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/;
+const VERSION_PATTERN = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
 
 class SemVer {
   constructor(input) {
     const match = VERSION_PATTERN.exec(input);
     if (!match) throw new TypeError(`Invalid version: ${ input }`);
-    const [, $major, $minor, $patch] = match;
-    this.major = +$major;
-    this.minor = $minor ? +$minor : 0;
-    this.patch = $patch ? +$patch : 0;
+    const { major, minor, patch } = match.groups;
+    this.major = +major;
+    this.minor = +minor || 0;
+    this.patch = +patch || 0;
   }
   toString() {
     return `${ this.major }.${ this.minor }.${ this.patch }`;
@@ -58,7 +55,6 @@ function sortObjectByKey(object, fn) {
 module.exports = {
   compare,
   filterOutStabilizedProposals,
-  has,
   intersection,
   semver,
   sortObjectByKey,
