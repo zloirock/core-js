@@ -17,7 +17,6 @@ QUnit.test('Array#fill', assert => {
     assert.throws(() => fill(undefined, 0), TypeError);
   }
   if (DESCRIPTORS) {
-    // eslint-disable-next-line es/no-object-defineproperty -- required for testing
     assert.notThrows(() => fill(Object.defineProperty({
       length: -1,
     }, 0, {
