@@ -1,7 +1,10 @@
 'use strict';
 const browserslist = require('browserslist');
-const { compare, has } = require('./helpers');
+const { compare } = require('./helpers');
 const external = require('./external');
+
+const { entries, hasOwn } = Object;
+const { isArray } = Array;
 
 const aliases = new Map([
   ['and_chr', 'chrome-android'],
@@ -41,12 +44,6 @@ const validTargets = new Set([
   'yandex-android',
 ]);
 
-// TODO: Drop the fallback in core-js@4
-// eslint-disable-next-line node/no-unsupported-features/es-syntax, es/no-object-entries -- with a fallback
-const entries = Object.entries || function (object) {
-  return Object.keys(object).map(key => [key, object[key]]);
-};
-
 function toLowerKeys(object) {
   return entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
@@ -55,18 +52,15 @@ function toLowerKeys(object) {
 }
 
 module.exports = function (targets) {
-  targets = (typeof targets != 'object' || Array.isArray(targets))
+  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || isArray(targets))
     ? { browsers: targets } : toLowerKeys(targets);
 
-  const { browsers, esmodules, node } = targets;
-
-  // TODO: Use object rest in core-js@4
-  const list = entries(targets).filter(([key]) => key !== 'browsers' && key !== 'esmodules' && key !== 'node');
+  const list = entries(rest);
 
   const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
 
   if (browsers && normalizedESModules !== true) {
-    if (typeof browsers == 'string' || Array.isArray(browsers)) {
+    if (typeof browsers == 'string' || isArray(browsers)) {
       list.push(...browserslist(browsers, { mobileToDesktop: true }).map(it => it.split(' ')));
     } else {
       list.push(...entries(browsers));
@@ -82,7 +76,7 @@ module.exports = function (targets) {
   }
 
   const normalized = list.map(([engine, version]) => {
-    if (has(browserslist.aliases, engine)) {
+    if (hasOwn(browserslist.aliases, engine)) {
       engine = browserslist.aliases[engine];
     }
     if (aliases.has(engine)) {
@@ -111,7 +105,7 @@ module.exports = function (targets) {
   if (normalizedESModules === 'intersect') {
     const modulesData = external.modules;
     for (const [engine, version] of reduced) {
-      if (has(modulesData, engine)) {
+      if (hasOwn(modulesData, engine)) {
         if (compare(modulesData[engine], '>', version)) {
           reduced.set(engine, modulesData[engine]);
         }
