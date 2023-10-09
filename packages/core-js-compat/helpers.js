@@ -1,17 +1,14 @@
 'use strict';
-// eslint-disable-next-line es/no-object-hasown -- safe
-const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
-
 function semver(input) {
   if (input instanceof semver) return input;
   // eslint-disable-next-line new-cap -- ok
   if (!(this instanceof semver)) return new semver(input);
-  const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(input);
+  const match = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/.exec(input);
   if (!match) throw new TypeError(`Invalid version: ${ input }`);
-  const [, $major, $minor, $patch] = match;
-  this.major = +$major;
-  this.minor = $minor ? +$minor : 0;
-  this.patch = $patch ? +$patch : 0;
+  const { major, minor, patch } = match.groups;
+  this.major = parseInt(major, 10);
+  this.minor = minor ? parseInt(minor, 10) : 0;
+  this.patch = patch ? parseInt(patch, 10) : 0;
 }
 
 semver.prototype.toString = function () {
@@ -54,7 +51,6 @@ function sortObjectByKey(object, fn) {
 module.exports = {
   compare,
   filterOutStabilizedProposals,
-  has,
   intersection,
   semver,
   sortObjectByKey,

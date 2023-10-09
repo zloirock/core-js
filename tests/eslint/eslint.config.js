@@ -1174,49 +1174,15 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
-  // enforces the use of `catch()` on un-returned promises
-  'promise/catch-or-return': ERROR,
-  // disallow third-party modules which are hiding core modules
-  'node/no-hide-core-modules': OFF,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
-  // prefer promises
-  'node/prefer-promises/dns': OFF,
-  'node/prefer-promises/fs': OFF,
-  // prefer lookarounds over capturing group that do not replace
-  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
-  // enforce using named capture group in regular expression
-  'regexp/prefer-named-capture-group': OFF,
-  // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': OFF,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': OFF,
-  // prefer omitting the `catch` binding parameter
-  'unicorn/prefer-optional-catch-binding': OFF,
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': ERROR,
-  'es/no-shared-array-buffer': ERROR,
-  // disallow top-level `await`
-  'es/no-top-level-await': ERROR,
-  ...forbidES2018BuiltIns,
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
-  ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
-  ...disable(forbidES2016IntlBuiltIns),
-  ...disable(forbidES2017IntlBuiltIns),
-  ...forbidES2018IntlBuiltIns,
-  ...forbidES2020IntlBuiltIns,
-  ...forbidES2021IntlBuiltIns,
-  ...forbidES2022IntlBuiltIns,
+  'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
+  // prefer top-level await
+  'unicorn/prefer-top-level-await': ERROR,
 };
 
 const nodeDev = {
