@@ -1,10 +1,16 @@
 'use strict';
-const VERSION_PATTERN = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
+const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
+// eslint-disable-next-line redos/no-vulnerable -- ok
+const SEMVER_WITH_REQUIRED_MINOR = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
 
 class SemVer {
-  constructor(input) {
-    const match = VERSION_PATTERN.exec(input);
-    if (!match) throw new TypeError(`Invalid version: ${ input }`);
+  constructor(input, requiredMinor) {
+    const match = (requiredMinor ? SEMVER_WITH_REQUIRED_MINOR : SEMVER).exec(input);
+    if (!match) {
+      let message = `Invalid version: ${ input }`;
+      if (requiredMinor && SEMVER.test(input)) message += ', minor component required';
+      throw new TypeError(message);
+    }
     const { major, minor, patch } = match.groups;
     this.major = +major;
     this.minor = +minor || 0;
@@ -15,8 +21,8 @@ class SemVer {
   }
 }
 
-function semver(input) {
-  return input instanceof SemVer ? input : new SemVer(input);
+function semver(input, requiredMinor) {
+  return input instanceof SemVer ? input : new SemVer(input, requiredMinor);
 }
 
 function compare($a, operator, $b) {
