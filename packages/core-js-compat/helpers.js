@@ -1,10 +1,18 @@
 'use strict';
-function semver(input) {
+const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
+// eslint-disable-next-line redos/no-vulnerable -- ok
+const SEMVER_WITH_REQUIRED_MINOR = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
+
+function semver(input, requiredMinor) {
   if (input instanceof semver) return input;
   // eslint-disable-next-line new-cap -- ok
-  if (!(this instanceof semver)) return new semver(input);
-  const match = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/.exec(input);
-  if (!match) throw new TypeError(`Invalid version: ${ input }`);
+  if (!(this instanceof semver)) return new semver(input, requiredMinor);
+  const match = (requiredMinor ? SEMVER_WITH_REQUIRED_MINOR : SEMVER).exec(input);
+  if (!match) {
+    let message = `Invalid version: ${ input }`;
+    if (requiredMinor && SEMVER.test(input)) message += ', minor component required';
+    throw new TypeError(message);
+  }
   const { major, minor, patch } = match.groups;
   this.major = parseInt(major, 10);
   this.minor = minor ? parseInt(minor, 10) : 0;
