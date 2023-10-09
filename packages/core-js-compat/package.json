@@ -23,5 +23,8 @@
   "types": "index.d.ts",
   "dependencies": {
     "browserslist": "^4.22.3"
+  },
+  "engines": {
+    "node": "^18.12.0 || >=20.0.0"
   }
 }
