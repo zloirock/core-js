@@ -1,8 +1,4 @@
 const ignore = {
-  'core-js-builder': [
-    'mkdirp',
-    'webpack',
-  ],
   'tests/observables': [
     'moon-unit',
   ],
