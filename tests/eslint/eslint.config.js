@@ -1096,9 +1096,7 @@ const base = {
   'eslint-comments/require-description': ERROR,
 
   // suggest better alternatives to some dependencies
-  'depend/ban-dependencies': [ERROR, { allowed: [
-    'mkdirp', // TODO: drop from `core-js@4`
-  ] }],
+  'depend/ban-dependencies': ERROR,
 };
 
 const noAsyncAwait = {

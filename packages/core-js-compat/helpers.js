@@ -1,6 +1,6 @@
 'use strict';
 const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
-// eslint-disable-next-line redos/no-vulnerable -- ok
+// eslint-disable-next-line redos/no-vulnerable, sonarjs/slow-regex -- ok
 const SEMVER_WITH_REQUIRED_MINOR = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
 
 class SemVer {
