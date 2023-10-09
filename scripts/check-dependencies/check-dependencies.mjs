@@ -1,10 +1,6 @@
 import { cpus } from 'node:os';
 
 const ignore = {
-  'core-js-builder': [
-    'mkdirp',
-    'webpack',
-  ],
   'tests/observables': [
     'moon-unit',
   ],
