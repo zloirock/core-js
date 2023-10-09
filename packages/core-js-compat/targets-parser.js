@@ -98,7 +98,7 @@ module.exports = function (targets) {
   if (normalizedESModules === 'intersect') {
     const modulesData = external.modules;
     for (const [engine, version] of reduced) {
-      if (has(modulesData, engine)) {
+      if (hasOwn(modulesData, engine)) {
         if (compare(modulesData[engine], '>', version)) {
           reduced.set(engine, modulesData[engine]);
         }
