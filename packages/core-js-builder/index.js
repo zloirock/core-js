@@ -1,15 +1,9 @@
 'use strict';
 /* eslint-disable no-console -- output */
-const { promisify } = require('util');
-const fs = require('fs');
-// TODO: replace by `fs.promises` after dropping NodeJS < 10 support
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const writeFile = promisify(fs.writeFile);
-const { dirname, join } = require('path');
-const tmpdir = require('os').tmpdir();
-// TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
-const mkdirp = promisify(require('mkdirp'));
+const { promisify } = require('node:util');
+const { mkdir, readFile, unlink, writeFile } = require('node:fs/promises');
+const { dirname, join } = require('node:path');
+const tmpdir = require('node:os').tmpdir();
 const webpack = promisify(require('webpack'));
 const compat = require('core-js-compat/compat');
 const { banner } = require('./config');
@@ -35,7 +29,7 @@ module.exports = async function ({
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
-  const TITLE = filename !== null && filename !== undefined ? filename : '`core-js`';
+  const TITLE = filename ?? '`core-js`';
   let script = banner;
   let code = '\n';
 
@@ -95,7 +89,7 @@ module.exports = async function ({
   }
 
   if (!(filename === null || filename === undefined)) {
-    await mkdirp(dirname(filename));
+    await mkdir(dirname(filename), { recursive: true });
     await writeFile(filename, script);
   }
 
