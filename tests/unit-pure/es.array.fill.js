@@ -16,6 +16,7 @@ QUnit.test('Array#fill', assert => {
     assert.throws(() => fill(null, 0), TypeError);
     assert.throws(() => fill(undefined, 0), TypeError);
   }
+
   assert.notThrows(() => fill(Object.defineProperty({
     length: -1,
   }, 0, {
