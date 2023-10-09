@@ -17,7 +17,6 @@ QUnit.test('Array#fill', assert => {
     assert.throws(() => fill(undefined, 0), TypeError);
   }
   // Known Node 4 failure: native fill treats a negative length as unsigned.
-  // eslint-disable-next-line es/no-object-defineproperty -- required for testing
   assert.notThrows(() => fill(Object.defineProperty({
     length: -1,
   }, 0, {

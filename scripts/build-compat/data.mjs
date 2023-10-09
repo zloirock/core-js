@@ -4,7 +4,8 @@ import external from 'core-js-compat/src/external.mjs';
 import mappings from 'core-js-compat/src/mapping.mjs';
 import helpers from 'core-js-compat/helpers.js';
 
-const { compare, has, semver, sortObjectByKey } = helpers;
+const { compare, semver, sortObjectByKey } = helpers;
+const { hasOwn } = Object;
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
@@ -14,7 +15,7 @@ for (const scope of [data, external]) {
       const [engine, targetKey] = mappingKey.split('To')
         .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>-$<upper>').toLowerCase());
       const version = module[engine];
-      if (!version || has(module, targetKey)) return;
+      if (!version || hasOwn(module, targetKey)) return;
       const mapping = mappings[mappingKey];
       if (typeof mapping == 'function') {
         return module[targetKey] = String(mapping(version));
@@ -33,7 +34,7 @@ for (const scope of [data, external]) {
     }
     // Edge 79+ and Opera 15+ are Chromium: a version of the EdgeHTML / Presto lineage holds there
     // only while Chrome does not need a later one
-    if (!has(module, 'edge')) {
+    if (!hasOwn(module, 'edge')) {
       if (ie && chrome <= 79) {
         module.edge = '12';
       } else if (chrome) {
@@ -49,17 +50,17 @@ for (const scope of [data, external]) {
     map('ChromeToOpera');
     map('ChromeToChromeAndroid');
     map('ChromeToAndroid');
-    if (!has(module, 'android') && module['chrome-android']) {
+    if (!hasOwn(module, 'android') && module['chrome-android']) {
       // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/README.md#version-numbers-for-features-in-android-webview
       module.android = String(Math.max(module['chrome-android'], 37));
     }
-    if (!has(module, 'opera-android') && module.opera <= 42) {
+    if (!hasOwn(module, 'opera-android') && module.opera <= 42) {
       module['opera-android'] = module.opera;
     } else {
       map('ChromeAndroidToOperaAndroid');
     }
     map('ChromeAndroidToQuest');
-    if (!has(module, 'quest') && module['chrome-android'] >= 143) {
+    if (!hasOwn(module, 'quest') && module['chrome-android'] >= 143) {
       module.quest = String(Math.ceil(module['chrome-android'] / 2) * 2);
     }
     map('ChromeAndroidToSamsung');
@@ -68,7 +69,7 @@ for (const scope of [data, external]) {
     }
     map('FirefoxToFirefoxAndroid');
     map('SafariToIOS');
-    if (!has(module, 'ios') && has(module, 'safari')) {
+    if (!hasOwn(module, 'ios') && hasOwn(module, 'safari')) {
       module.ios = module.safari;
     }
     map('SafariToPhantom');
