@@ -39,10 +39,6 @@ const ignore = {
     '@babel/plugin-transform-template-literals',
     '@babel/plugin-transform-unicode-regex',
   ],
-  'core-js-builder': [
-    'mkdirp',
-    'webpack',
-  ],
   'scripts/bundle-tests': [
     // TODO: temporarily, to avoid issues with v4 refactoring
     '@babel/core',
