@@ -55,7 +55,7 @@ for (const scope of [data, external]) {
       map('ChromeAndroidToOperaAndroid');
     }
     map('ChromeAndroidToQuest');
-    if (!has(module, 'quest') && chrome >= 144) {
+    if (!hasOwn(module, 'quest') && chrome >= 144) {
       module.quest = Math.ceil(chrome / 2) * 2;
     }
     map('ChromeAndroidToSamsung');
