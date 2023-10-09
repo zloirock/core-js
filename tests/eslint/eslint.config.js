@@ -897,8 +897,6 @@ const useES5Syntax = {
   'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
-  // disallow trailing commas in multiline object literals
-  '@stylistic/js/comma-dangle': [ERROR, NEVER],
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression

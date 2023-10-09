@@ -24,5 +24,5 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
       result[i / 2] = parseInt(stringSlice(string, i, i + 2), 16);
     }
     return result;
-  }
+  },
 });

@@ -24,8 +24,7 @@
   "dependencies": {
     "core-js": "3.35.1",
     "core-js-compat": "3.35.1",
-    "mkdirp": ">=0.5.5 <1",
-    "webpack": ">=4.47.0 <5"
+    "webpack": "^5.89.0"
   },
   "engines": {
     "node": "^18.12.0 || >=20.0.0"

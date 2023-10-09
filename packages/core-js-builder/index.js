@@ -42,15 +42,11 @@ module.exports = async function ({
 
       await webpack({
         mode: 'none',
-        node: {
-          global: false,
-          process: false,
-          setImmediate: false,
-        },
+        node: false,
+        target: ['es5', 'node'],
         entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
         output: {
           filename: tempFileName,
-          hashFunction: 'md5',
           path: tmpdir,
         },
       });
