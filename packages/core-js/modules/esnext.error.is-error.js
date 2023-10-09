@@ -22,7 +22,7 @@ var FORCED = !$isError || !PROTOTYPE_SETTING_AVAILABLE || fails(function () {
     // eslint-disable-next-line es/no-error-cause -- detection
     !$isError(new $Error(ERROR, { cause: function () { /* empty */ } })) ||
     // instanceof-based and FF Error#stack-based implementations
-    $isError(getBuiltIn('Object', 'create')($Error.prototype));
+    $isError(Object.create($Error.prototype));
 });
 
 // `Error.isError` method
@@ -32,5 +32,5 @@ $({ target: 'Error', stat: true, sham: true, forced: FORCED }, {
     if (!isObject(arg)) return false;
     var tag = classof(arg);
     return tag === ERROR || tag === DOM_EXCEPTION;
-  }
+  },
 });

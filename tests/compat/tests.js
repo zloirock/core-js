@@ -251,7 +251,7 @@ function createSetLikeWithInfinitySize(size) {
     },
     keys: function () {
       throw new Error('e');
-    }
+    },
   };
 }
 

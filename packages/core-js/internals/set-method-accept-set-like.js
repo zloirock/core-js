@@ -25,7 +25,7 @@ var createSetLikeWithInfinitySize = function (size) {
     },
     keys: function () {
       throw new Error('e');
-    }
+    },
   };
 };
 
