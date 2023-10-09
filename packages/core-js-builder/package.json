@@ -24,7 +24,7 @@
   "dependencies": {
     "core-js": "3.44.0",
     "core-js-compat": "3.44.0",
-    "webpack": ">=4.47.0 <5"
+    "webpack": "^5.99.9"
   },
   "engines": {
     "node": "^18.12.0 || >=20.0.0"
