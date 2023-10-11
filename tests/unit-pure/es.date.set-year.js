@@ -1,4 +1,4 @@
-import setYear from 'core-js-pure/es/date/set-year';
+import setYear from '@core-js/pure/es/date/set-year';
 
 QUnit.test('Date#setYear', assert => {
   assert.isFunction(setYear);
