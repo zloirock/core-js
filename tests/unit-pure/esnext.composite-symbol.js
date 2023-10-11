@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/es/symbol';
-import compositeSymbol from 'core-js-pure/full/composite-symbol';
+import Symbol from '@core-js/pure/es/symbol';
+import compositeSymbol from '@core-js/pure/full/composite-symbol';
 
 QUnit.test('compositeSymbol', assert => {
   assert.isFunction(compositeSymbol);

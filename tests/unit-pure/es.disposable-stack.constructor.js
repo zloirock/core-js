@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import DisposableStack from 'core-js-pure/es/disposable-stack';
-import SuppressedError from 'core-js-pure/es/suppressed-error';
+import Symbol from '@core-js/pure/es/symbol';
+import DisposableStack from '@core-js/pure/es/disposable-stack';
+import SuppressedError from '@core-js/pure/es/suppressed-error';
 
 QUnit.test('DisposableStack constructor', assert => {
   assert.isFunction(DisposableStack);

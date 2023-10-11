@@ -1,6 +1,6 @@
-import assign from 'core-js-pure/es/object/assign';
-import isIterable from 'core-js-pure/es/is-iterable';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
+import assign from '@core-js/pure/es/object/assign';
+import isIterable from '@core-js/pure/es/is-iterable';
+import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 const { getOwnPropertyDescriptor, getOwnPropertyNames } = Object;

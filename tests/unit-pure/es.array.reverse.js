@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
-import reverse from 'core-js-pure/es/array/reverse';
+import reverse from '@core-js/pure/es/array/reverse';
 
 QUnit.test('Array#reverse', assert => {
   assert.isFunction(reverse);
