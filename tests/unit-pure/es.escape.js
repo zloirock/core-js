@@ -1,4 +1,4 @@
-import escape from 'core-js-pure/es/escape';
+import escape from '@core-js/pure/es/escape';
 
 QUnit.test('escape', assert => {
   assert.isFunction(escape);
