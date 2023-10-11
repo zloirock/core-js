@@ -1,6 +1,6 @@
-import compat from 'core-js-compat';
-import compat2 from 'core-js-compat/compat';
-import getModulesListForTargetVersion from 'core-js-compat/get-modules-list-for-target-version';
+import compat from '@core-js/compat';
+import compat2 from '@core-js/compat/compat';
+import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
 
 getModulesListForTargetVersion('3.0');
 compat.getModulesListForTargetVersion('3.0');
