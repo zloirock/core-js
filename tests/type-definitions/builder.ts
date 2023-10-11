@@ -49,7 +49,6 @@ await builder({
     ios: '1',
     opera: 1,
     'opera-android': '1',
-    phantom: 1,
     quest: '1',
     'react-native': 1,
     rhino: '1',
