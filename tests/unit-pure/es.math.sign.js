@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import sign from 'core-js-pure/es/math/sign';
+import sign from '@core-js/pure/es/math/sign';
 
 QUnit.test('Math.sign', assert => {
   assert.isFunction(sign);
