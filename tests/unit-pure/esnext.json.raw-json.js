@@ -1,7 +1,7 @@
-import rawJSON from 'core-js-pure/actual/json/raw-json';
-import stringify from 'core-js-pure/actual/json/stringify';
-import isFrozen from 'core-js-pure/es/object/is-frozen';
-import hasOwn from 'core-js-pure/es/object/has-own';
+import rawJSON from '@core-js/pure/actual/json/raw-json';
+import stringify from '@core-js/pure/actual/json/stringify';
+import isFrozen from '@core-js/pure/es/object/is-frozen';
+import hasOwn from '@core-js/pure/es/object/has-own';
 
 QUnit.test('JSON.rawJSON', assert => {
   assert.isFunction(rawJSON);
