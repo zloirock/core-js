@@ -471,7 +471,7 @@ It does not work with some features. Also, if you change the default behavior, e
 
 ### Custom build[⬆](#index)
 
-In some cases, it could be useful to exclude some `core-js` features or to generate a polyfill for target engines. You can use the [`core-js-builder`](/packages/core-js-builder) package for that.
+In some cases, it could be useful to exclude some `core-js` features or to generate a polyfill for target engines. You can use the [`@core-js/builder`](/packages/core-js-builder) package for that.
 
 ## Supported engines and compatibility data[⬆](#index)
 
