@@ -2,11 +2,11 @@
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
 import { GLOBAL } from '../helpers/constants.js';
-import stringify from 'core-js-pure/es/json/stringify';
-import Symbol from 'core-js-pure/es/symbol';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import keys from 'core-js-pure/es/object/keys';
-import values from 'core-js-pure/es/object/values';
+import stringify from '@core-js/pure/es/json/stringify';
+import Symbol from '@core-js/pure/es/symbol';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import keys from '@core-js/pure/es/object/keys';
+import values from '@core-js/pure/es/object/values';
 
 if (GLOBAL.JSON?.stringify) {
   QUnit.test('JSON.stringify', assert => {

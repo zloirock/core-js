@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import clamp from 'core-js-pure/full/math/clamp';
+import clamp from '@core-js/pure/full/math/clamp';
 
 QUnit.test('Math.clamp', assert => {
   assert.isFunction(clamp);
