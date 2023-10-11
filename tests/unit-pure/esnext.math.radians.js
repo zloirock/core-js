@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import radians from 'core-js-pure/full/math/radians';
+import radians from '@core-js/pure/full/math/radians';
 
 QUnit.test('Math.radians', assert => {
   assert.isFunction(radians);
