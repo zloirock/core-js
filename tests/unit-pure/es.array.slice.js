@@ -1,7 +1,7 @@
 import { GLOBAL } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import slice from 'core-js-pure/es/array/slice';
+import Symbol from '@core-js/pure/es/symbol';
+import slice from '@core-js/pure/es/array/slice';
 
 QUnit.test('Array#slice', assert => {
   assert.isFunction(slice);
