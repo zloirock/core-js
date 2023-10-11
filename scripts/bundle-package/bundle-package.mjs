@@ -1,6 +1,6 @@
 import { minify } from 'terser';
-import builder from 'core-js-builder';
-import config from 'core-js-builder/config.js';
+import builder from '@core-js/builder';
+import config from '@core-js/builder/config.js';
 
 function namedArg(name, fallback) {
   const idx = argv._.indexOf(name);
