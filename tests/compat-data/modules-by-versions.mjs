@@ -8,7 +8,7 @@ let ok = true;
 if (minor < 0 || patch < 0) { // ignore for pre-releases
   const zero = `${ major }.0`;
   const modulesByVersions = await fs.readJson('packages/core-js-compat/modules-by-versions.json');
-  const response = await fetch(`https://cdn.jsdelivr.net/npm/core-js-compat@${ major }.0.0/modules-by-versions.json`);
+  const response = await fetch(`https://cdn.jsdelivr.net/npm/@core-js/compat@${ major }.0.0/modules-by-versions.json`);
   const zeroVersionData = await response.json();
   const set = new Set(zeroVersionData[zero]);
   for (const mod of modulesByVersions[zero]) {
