@@ -1,7 +1,7 @@
 import { ok } from 'node:assert/strict';
 import builder from 'core-js-builder';
 
-const script = await builder({
+const { script } = await builder({
   modules: 'core-js/actual',
   exclude: [/from-async/, 'es.typed-array.with'],
   targets: { node: 16 },
