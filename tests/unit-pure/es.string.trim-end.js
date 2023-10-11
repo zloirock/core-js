@@ -1,7 +1,7 @@
 import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import trimEnd from 'core-js-pure/es/string/trim-end';
+import Symbol from '@core-js/pure/es/symbol';
+import trimEnd from '@core-js/pure/es/string/trim-end';
 
 QUnit.test('String#trimEnd', assert => {
   assert.isFunction(trimEnd);

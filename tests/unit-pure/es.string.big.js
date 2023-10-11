@@ -1,4 +1,4 @@
-import big from 'core-js-pure/es/string/big';
+import big from '@core-js/pure/es/string/big';
 
 QUnit.test('String#big', assert => {
   assert.isFunction(big);

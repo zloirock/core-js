@@ -1,5 +1,5 @@
-import freeze from 'core-js-pure/es/object/freeze';
-import isTemplateObject from 'core-js-pure/full/array/is-template-object';
+import freeze from '@core-js/pure/es/object/freeze';
+import isTemplateObject from '@core-js/pure/full/array/is-template-object';
 
 QUnit.test('Array.isTemplateObject', assert => {
   assert.isFunction(isTemplateObject);

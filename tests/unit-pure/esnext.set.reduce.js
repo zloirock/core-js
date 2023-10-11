@@ -1,4 +1,4 @@
-import Set from 'core-js-pure/full/set';
+import Set from '@core-js/pure/full/set';
 
 QUnit.test('Set#reduce', assert => {
   const { reduce } = Set.prototype;

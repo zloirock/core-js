@@ -1,8 +1,8 @@
 /* eslint-disable sonarjs/inconsistent-function-call -- required for testing */
-import globalThis from 'core-js-pure/es/global-this';
-import create from 'core-js-pure/es/object/create';
-import Number from 'core-js-pure/es/number';
-import Symbol from 'core-js-pure/es/symbol';
+import globalThis from '@core-js/pure/es/global-this';
+import create from '@core-js/pure/es/object/create';
+import Number from '@core-js/pure/es/number';
+import Symbol from '@core-js/pure/es/symbol';
 
 const NativeNumber = globalThis.Number;
 const whitespaces = ' \t\u000B\f\u00A0\uFEFF\n\r\u2028\u2029\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000';
