@@ -1,8 +1,8 @@
 import { createAsyncIterable, createIterable } from '../helpers/helpers.js';
 import { STRICT_THIS } from '../helpers/constants.js';
 
-import Promise from 'core-js-pure/es/promise';
-import fromAsync from 'core-js-pure/actual/array/from-async';
+import Promise from '@core-js/pure/es/promise';
+import fromAsync from '@core-js/pure/actual/array/from-async';
 
 QUnit.test('Array.fromAsync', assert => {
   assert.isFunction(fromAsync);

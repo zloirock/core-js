@@ -1,4 +1,4 @@
-import sup from 'core-js-pure/es/string/sup';
+import sup from '@core-js/pure/es/string/sup';
 
 QUnit.test('String#sup', assert => {
   assert.isFunction(sup);

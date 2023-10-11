@@ -1,5 +1,5 @@
-import escape from 'core-js-pure/full/regexp/escape';
-import Symbol from 'core-js-pure/es/symbol';
+import escape from '@core-js/pure/full/regexp/escape';
+import Symbol from '@core-js/pure/es/symbol';
 import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('RegExp.escape', assert => {
