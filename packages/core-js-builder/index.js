@@ -89,5 +89,5 @@ module.exports = async function ({
     await writeFile(filename, script);
   }
 
-  return script;
+  return { script };
 };
