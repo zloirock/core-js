@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
-import Map from 'core-js-pure/actual/map';
-import from from 'core-js-pure/es/array/from';
+import Map from '@core-js/pure/actual/map';
+import from from '@core-js/pure/es/array/from';
 
 QUnit.test('Map#getOrInsertComputed', assert => {
   const { getOrInsertComputed } = Map.prototype;
