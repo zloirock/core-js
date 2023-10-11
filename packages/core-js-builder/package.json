@@ -23,7 +23,7 @@
   "types": "index.d.ts",
   "dependencies": {
     "core-js": "3.39.0",
-    "core-js-compat": "3.39.0",
+    "@core-js/compat": "3.39.0",
     "webpack": "^5.95.0"
   },
   "engines": {
