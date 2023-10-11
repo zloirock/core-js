@@ -1,5 +1,3 @@
-import Promise from 'core-js-pure/es/promise';
-
 QUnit.test('Promise.try', assert => {
   assert.isFunction(Promise.try);
   assert.arity(Promise.try, 1);

@@ -1,5 +1,5 @@
-import $try from 'core-js-pure/es/promise/try';
-import Promise from 'core-js-pure/es/promise';
+import $try from '@core-js/pure/es/promise/try';
+import Promise from '@core-js/pure/es/promise';
 
 QUnit.test('Promise.try', assert => {
   assert.isFunction(Promise.try);
