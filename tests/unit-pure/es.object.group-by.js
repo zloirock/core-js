@@ -1,6 +1,7 @@
 import { createIterable } from '../helpers/helpers.js';
-import groupBy from 'core-js-pure/es/object/group-by';
-import entries from 'core-js-pure/es/object/entries';
+
+import groupBy from '@core-js/pure/es/object/group-by';
+import entries from '@core-js/pure/es/object/entries';
 
 const { getPrototypeOf } = Object;
 
