@@ -14,7 +14,7 @@ In some cases, it could be useful to exclude some [`core-js`](https://core-js.io
 ```js
 import builder from 'core-js-builder';
 
-const bundle = await builder({
+const { script } = await builder({
   // entry / module / namespace / an array of them, by default - all `core-js` modules
   modules: ['core-js/actual', /^esnext\.reflect\./],
   // entries / modules / namespaces to exclude, by default - empty list
