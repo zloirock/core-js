@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import toSorted from 'core-js-pure/es/array/to-sorted';
+import Symbol from '@core-js/pure/es/symbol';
+import toSorted from '@core-js/pure/es/array/to-sorted';
 
 QUnit.test('Array#toSorted', assert => {
   assert.isFunction(toSorted);

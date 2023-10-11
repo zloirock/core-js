@@ -1,6 +1,6 @@
-import Promise from 'core-js-pure/es/promise';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
+import Promise from '@core-js/pure/es/promise';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 
 export function is(a, b) {
   // eslint-disable-next-line no-self-compare -- NaN check

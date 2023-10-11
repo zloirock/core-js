@@ -1,7 +1,7 @@
 import { createSetLike } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import Set from 'core-js-pure/es/set';
+import from from '@core-js/pure/es/array/from';
+import Set from '@core-js/pure/es/set';
 
 QUnit.test('Set#intersection', assert => {
   const { intersection } = Set.prototype;

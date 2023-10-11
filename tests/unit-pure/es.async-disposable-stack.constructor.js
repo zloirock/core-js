@@ -1,9 +1,9 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
-import AsyncDisposableStack from 'core-js-pure/es/async-disposable-stack';
-import SuppressedError from 'core-js-pure/es/suppressed-error';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
+import AsyncDisposableStack from '@core-js/pure/es/async-disposable-stack';
+import SuppressedError from '@core-js/pure/es/suppressed-error';
 
 QUnit.test('AsyncDisposableStack constructor', assert => {
   assert.isFunction(AsyncDisposableStack);
