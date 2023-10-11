@@ -5,7 +5,7 @@ const { mkdir, readFile, unlink, writeFile } = require('node:fs/promises');
 const { dirname, join } = require('node:path');
 const tmpdir = require('node:os').tmpdir();
 const webpack = promisify(require('webpack'));
-const compat = require('core-js-compat/compat');
+const compat = require('@core-js/compat/compat');
 const { banner } = require('./config');
 
 function normalizeSummary(unit = {}) {
