@@ -1,5 +1,5 @@
 import { ok } from 'node:assert/strict';
-import builder from 'core-js-builder';
+import builder from '@core-js/builder';
 
 const { script } = await builder({
   modules: 'core-js/actual',
