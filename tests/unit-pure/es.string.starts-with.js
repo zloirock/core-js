@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import startsWith from 'core-js-pure/es/string/starts-with';
+import Symbol from '@core-js/pure/es/symbol';
+import startsWith from '@core-js/pure/es/string/starts-with';
 
 QUnit.test('String#startsWith', assert => {
   assert.isFunction(startsWith);

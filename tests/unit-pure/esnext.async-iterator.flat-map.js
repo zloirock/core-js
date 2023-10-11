@@ -1,9 +1,9 @@
 import { createIterator, createIterable } from '../helpers/helpers.js';
 import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
-import AsyncIterator from 'core-js-pure/actual/async-iterator';
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
+import AsyncIterator from '@core-js/pure/actual/async-iterator';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('AsyncIterator#flatMap', assert => {
   const { flatMap } = AsyncIterator.prototype;
