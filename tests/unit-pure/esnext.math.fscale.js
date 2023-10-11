@@ -1,7 +1,7 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import fround from 'core-js-pure/full/math/fround';
-import fscale from 'core-js-pure/full/math/fscale';
+import fround from '@core-js/pure/full/math/fround';
+import fscale from '@core-js/pure/full/math/fscale';
 
 QUnit.test('Math.fscale', assert => {
   assert.isFunction(fscale);

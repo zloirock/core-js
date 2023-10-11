@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/es/symbol';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Function#@@hasInstance', assert => {
   assert.true(Symbol.hasInstance in Function.prototype);

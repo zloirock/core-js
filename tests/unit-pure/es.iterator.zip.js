@@ -1,10 +1,10 @@
 import { createIterator } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import zip from 'core-js-pure/es/iterator/zip';
+import from from '@core-js/pure/es/array/from';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import zip from '@core-js/pure/es/iterator/zip';
 
 QUnit.test('Iterator.zip', assert => {
   assert.isFunction(zip);

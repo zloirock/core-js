@@ -1,7 +1,7 @@
 import { createIterable } from '../helpers/helpers.js';
 
-import toArray from 'core-js-pure/es/array/from';
-import Set from 'core-js-pure/full/set';
+import toArray from '@core-js/pure/es/array/from';
+import Set from '@core-js/pure/full/set';
 
 QUnit.test('Set.from', assert => {
   const { from } = Set;
