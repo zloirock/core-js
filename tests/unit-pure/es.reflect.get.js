@@ -1,6 +1,6 @@
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import get from 'core-js-pure/es/reflect/get';
+import create from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import get from '@core-js/pure/es/reflect/get';
 
 QUnit.test('Reflect.get', assert => {
   assert.isFunction(get);
