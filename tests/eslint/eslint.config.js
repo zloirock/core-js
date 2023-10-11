@@ -16,7 +16,7 @@ const pluginRegExp = require('eslint-plugin-regexp');
 const pluginSonarJS = require('eslint-plugin-sonarjs');
 const pluginStylisticJS = require('@stylistic/eslint-plugin-js');
 const pluginUnicorn = require('eslint-plugin-unicorn');
-const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+const PACKAGES_NODE_VERSIONS = require('@core-js/builder/package').engines.node;
 
 const DEV_NODE_VERSIONS = '^18.12';
 

@@ -122,7 +122,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-compat-tools
   ```
-- `core-js-builder` tests:
+- `@core-js/builder` tests:
   ```sh
   npx run-s prepare test-builder
   ```
