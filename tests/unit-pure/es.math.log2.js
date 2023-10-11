@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import log2 from 'core-js-pure/es/math/log2';
+import log2 from '@core-js/pure/es/math/log2';
 
 QUnit.test('Math.log2', assert => {
   assert.isFunction(log2);

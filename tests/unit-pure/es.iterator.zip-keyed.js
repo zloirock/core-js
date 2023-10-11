@@ -1,15 +1,14 @@
 import { createIterator } from '../helpers/helpers.js';
 
-import defineProperty from 'core-js-pure/es/object/define-property';
-import from from 'core-js-pure/es/array/from';
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import Symbol from 'core-js-pure/es/symbol';
-import Iterator from 'core-js-pure/es/iterator';
-import zipKeyed from 'core-js-pure/es/iterator/zip-keyed';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
+import Symbol from '@core-js/pure/es/symbol';
+import Iterator from '@core-js/pure/es/iterator';
+import zipKeyed from '@core-js/pure/es/iterator/zip-keyed';
 
 function nullProto(obj) {
-  return assign(create(null), obj);
+  return assign(Object.create(null), obj);
 }
 
 QUnit.test('Iterator.zipKeyed', assert => {

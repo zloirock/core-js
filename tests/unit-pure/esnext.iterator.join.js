@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
-import Iterator from 'core-js-pure/actual/iterator';
-import Symbol from 'core-js-pure/es/symbol';
+import Iterator from '@core-js/pure/actual/iterator';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Iterator#join', assert => {
   const { join } = Iterator.prototype;

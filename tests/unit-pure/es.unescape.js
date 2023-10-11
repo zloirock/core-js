@@ -1,4 +1,4 @@
-import unescape from 'core-js-pure/es/unescape';
+import unescape from '@core-js/pure/es/unescape';
 
 QUnit.test('unescape', assert => {
   assert.isFunction(unescape);

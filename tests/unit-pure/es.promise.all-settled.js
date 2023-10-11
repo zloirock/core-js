@@ -1,9 +1,9 @@
 import { createIterable } from '../helpers/helpers.js';
 
-import $allSettled from 'core-js-pure/es/promise/all-settled';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
+import $allSettled from '@core-js/pure/es/promise/all-settled';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.allSettled', assert => {
   assert.isFunction(Promise.allSettled);
