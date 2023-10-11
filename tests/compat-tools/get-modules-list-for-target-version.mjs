@@ -1,5 +1,5 @@
 import { deepEqual, throws } from 'node:assert/strict';
-import getModulesListForTargetVersion from 'core-js-compat/get-modules-list-for-target-version.js';
+import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version.js';
 
 const modules = await fs.readJson('packages/core-js-compat/modules.json');
 const modulesByVersions = await fs.readJson('packages/core-js-compat/modules-by-versions.json');
