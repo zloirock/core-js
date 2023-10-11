@@ -1,9 +1,6 @@
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import set from 'core-js-pure/es/reflect/set';
+import set from '@core-js/pure/es/reflect/set';
 
-const { getPrototypeOf } = Object;
+const { create, defineProperty, getOwnPropertyDescriptor, getPrototypeOf } = Object;
 
 QUnit.test('Reflect.set', assert => {
   assert.isFunction(set);
