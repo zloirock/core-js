@@ -9,7 +9,7 @@ module.exports = function (raw) {
   }
   const corejs = semver(raw, true);
   if (corejs.major !== 3) {
-    throw new RangeError('This version of `core-js-compat` works only with `core-js@3`');
+    throw new RangeError('This version of `@core-js/compat` works only with `core-js@3`');
   }
   const result = [];
   for (const version of Object.keys(modulesByVersions)) {

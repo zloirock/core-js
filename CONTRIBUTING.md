@@ -24,9 +24,9 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 
 [A simple example of adding a new polyfill.](https://github.com/zloirock/core-js/pull/1294/files)
 
-## How to update `core-js-compat` data
+## How to update `@core-js/compat` data
 
-For updating `core-js-compat` data:
+For updating `@core-js/compat` data:
 
 - If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/compat/`](http://zloirock.github.io/core-js/compat/)) and you will see what `core-js` modules are required for this browser.
 
@@ -118,7 +118,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-entries
   ```
-- `core-js-compat` tools tests:
+- `@core-js/compat` tools tests:
   ```sh
   npx run-s prepare test-compat-tools
   ```
