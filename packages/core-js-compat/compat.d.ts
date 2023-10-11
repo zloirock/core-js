@@ -20,7 +20,7 @@ type CompatOptions = {
   modules?: Modules,
   /** entry / module / namespace / an array of them to exclude, by default - empty list */
   exclude?: Modules,
-  /** optional browserslist or core-js-compat format query */
+  /** optional browserslist or `@core-js/compat` format query */
   targets?: Targets | BrowserslistQuery,
   /** used `core-js` version, by default the latest */
   version?: string,
