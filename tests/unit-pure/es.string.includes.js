@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import includes from 'core-js-pure/es/string/includes';
+import Symbol from '@core-js/pure/es/symbol';
+import includes from '@core-js/pure/es/string/includes';
 
 QUnit.test('String#includes', assert => {
   assert.isFunction(includes);

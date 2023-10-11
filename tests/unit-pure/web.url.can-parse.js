@@ -1,4 +1,4 @@
-import canParse from 'core-js-pure/stable/url/can-parse';
+import canParse from '@core-js/pure/stable/url/can-parse';
 
 QUnit.test('URL.canParse', assert => {
   assert.isFunction(canParse);
