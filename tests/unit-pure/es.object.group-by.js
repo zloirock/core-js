@@ -1,7 +1,8 @@
 import { createIterable } from '../helpers/helpers.js';
-import groupBy from 'core-js-pure/es/object/group-by';
-import entries from 'core-js-pure/es/object/entries';
-import Symbol from 'core-js-pure/full/symbol';
+
+import groupBy from '@core-js/pure/es/object/group-by';
+import entries from '@core-js/pure/es/object/entries';
+import Symbol from '@core-js/pure/full/symbol';
 
 const { getPrototypeOf } = Object;
 

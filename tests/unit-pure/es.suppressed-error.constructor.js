@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/throw-new-error, sonarjs/inconsistent-function-call -- testing */
-import SuppressedError from 'core-js-pure/es/suppressed-error';
-import Symbol from 'core-js-pure/es/symbol';
-import toString from 'core-js-pure/es/object/to-string';
+import SuppressedError from '@core-js/pure/es/suppressed-error';
+import Symbol from '@core-js/pure/es/symbol';
+import toString from '@core-js/pure/es/object/to-string';
 
 QUnit.test('SuppressedError', assert => {
   assert.isFunction(SuppressedError);

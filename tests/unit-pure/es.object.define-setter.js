@@ -1,8 +1,8 @@
 /* eslint-disable id-match -- unification with global tests */
 import { STRICT } from '../helpers/constants.js';
 
-import __defineGetter__ from 'core-js-pure/es/object/define-getter';
-import __defineSetter__ from 'core-js-pure/es/object/define-setter';
+import __defineGetter__ from '@core-js/pure/es/object/define-getter';
+import __defineSetter__ from '@core-js/pure/es/object/define-setter';
 
 QUnit.test('Object#__defineSetter__', assert => {
   assert.isFunction(__defineSetter__);

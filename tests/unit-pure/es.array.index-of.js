@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
-import indexOf from 'core-js-pure/es/array/index-of';
+import indexOf from '@core-js/pure/es/array/index-of';
 
 QUnit.test('Array#indexOf', assert => {
   assert.isFunction(indexOf);

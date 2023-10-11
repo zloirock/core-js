@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/actual/symbol';
+import Symbol from '@core-js/pure/actual/symbol';
 
 QUnit.test('Symbol.metadata', assert => {
   assert.true('metadata' in Symbol, 'Symbol.metadata available');

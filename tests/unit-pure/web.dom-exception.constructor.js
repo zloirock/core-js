@@ -1,6 +1,6 @@
 import { NODE } from '../helpers/constants.js';
-import DOMException from 'core-js-pure/stable/dom-exception';
-import Symbol from 'core-js-pure/es/symbol';
+import DOMException from '@core-js/pure/stable/dom-exception';
+import Symbol from '@core-js/pure/es/symbol';
 
 const errors = {
   IndexSizeError: { s: 'INDEX_SIZE_ERR', c: 1, m: 1 },

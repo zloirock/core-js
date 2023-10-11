@@ -4,15 +4,15 @@
 import { GLOBAL, NODE, BUN } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
-import structuredClone from 'core-js-pure/stable/structured-clone';
-import from from 'core-js-pure/es/array/from';
-import assign from 'core-js-pure/es/object/assign';
-import keys from 'core-js-pure/es/object/keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Map from 'core-js-pure/es/map';
-import Set from 'core-js-pure/es/set';
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import DOMException from 'core-js-pure/stable/dom-exception';
+import structuredClone from '@core-js/pure/stable/structured-clone';
+import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
+import keys from '@core-js/pure/es/object/keys';
+import Symbol from '@core-js/pure/es/symbol';
+import Map from '@core-js/pure/es/map';
+import Set from '@core-js/pure/es/set';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import DOMException from '@core-js/pure/stable/dom-exception';
 
 const { getPrototypeOf } = Object;
 

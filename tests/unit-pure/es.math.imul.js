@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import imul from 'core-js-pure/es/math/imul';
+import imul from '@core-js/pure/es/math/imul';
 
 QUnit.test('Math.imul', assert => {
   assert.isFunction(imul);
