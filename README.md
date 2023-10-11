@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/core-js-bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/core-js-bundle)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@core-js/bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@core-js/bundle)
 
 </div>
 
@@ -223,10 +223,10 @@ npm install --save core-js@3.45.1
 // version without global namespace pollution
 npm install --save core-js-pure@3.45.1
 // bundled global version
-npm install --save core-js-bundle@3.45.1
+npm install --save @core-js/bundle@3.45.1
 ```
 
-Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
+Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/@core-js/bundle).
 
 ### `postinstall` message[⬆](#index)
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
