@@ -2,13 +2,13 @@
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-proxy, unicorn/escape-case -- testing */
 import { FREEZING, GLOBAL, REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, REDEFINABLE_PROTO } from '../helpers/constants.js';
-import parse from 'core-js-pure/es/json/parse';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
-import hasOwn from 'core-js-pure/es/object/has-own';
-import keys from 'core-js-pure/es/object/keys';
-import Symbol from 'core-js-pure/es/symbol';
+import parse from '@core-js/pure/es/json/parse';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
+import preventExtensions from '@core-js/pure/es/object/prevent-extensions';
+import hasOwn from '@core-js/pure/es/object/has-own';
+import keys from '@core-js/pure/es/object/keys';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('JSON.parse', assert => {
   assert.isFunction(parse);

@@ -1,7 +1,7 @@
 import { includes } from '../helpers/helpers.js';
 
-import freeze from 'core-js-pure/es/object/freeze';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import freeze from '@core-js/pure/es/object/freeze';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.isFunction(getOwnPropertyNames);

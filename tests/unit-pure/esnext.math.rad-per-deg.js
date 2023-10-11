@@ -1,5 +1,5 @@
-import RAD_PER_DEG from 'core-js-pure/full/math/rad-per-deg';
-import MathNamespace from 'core-js-pure/full/math';
+import RAD_PER_DEG from '@core-js/pure/full/math/rad-per-deg';
+import MathNamespace from '@core-js/pure/full/math';
 
 QUnit.test('Math.RAD_PER_DEG', assert => {
   assert.same(MathNamespace.RAD_PER_DEG, RAD_PER_DEG);

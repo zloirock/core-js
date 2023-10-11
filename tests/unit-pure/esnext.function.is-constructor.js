@@ -1,4 +1,4 @@
-import isConstructor from 'core-js-pure/full/function/is-constructor';
+import isConstructor from '@core-js/pure/full/function/is-constructor';
 import { GLOBAL } from '../helpers/constants.js';
 import { fromSource } from '../helpers/helpers.js';
 

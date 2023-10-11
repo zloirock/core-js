@@ -1,5 +1,5 @@
-import construct from 'core-js-pure/es/reflect/construct';
-import isArray from 'core-js-pure/es/array/is-array';
+import construct from '@core-js/pure/es/reflect/construct';
+import isArray from '@core-js/pure/es/array/is-array';
 
 const { getPrototypeOf } = Object;
 

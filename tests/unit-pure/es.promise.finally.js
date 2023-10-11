@@ -1,4 +1,4 @@
-import Promise from 'core-js-pure/es/promise';
+import Promise from '@core-js/pure/es/promise';
 
 QUnit.test('Promise#finally', assert => {
   assert.isFunction(Promise.prototype.finally);
