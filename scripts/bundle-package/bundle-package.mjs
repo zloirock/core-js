@@ -12,14 +12,14 @@ function log(kind, name, code) {
 }
 
 async function bundle({ bundled, minified, options = {} }) {
-  const source = await builder({ modules: 'core-js/full', ...options });
+  const { script } = await builder({ modules: 'core-js/full', ...options });
 
-  log('bundling', bundled, source);
-  await fs.writeFile(`${ PATH }${ bundled }.js`, source);
+  log('bundling', bundled, script);
+  await fs.writeFile(`${ PATH }${ bundled }.js`, script);
 
   if (!minified) return;
 
-  const { code, map } = await minify(source, {
+  const { code, map } = await minify(script, {
     ecma: 5,
     safari10: true,
     keep_fnames: true,
