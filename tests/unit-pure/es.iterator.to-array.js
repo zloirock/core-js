@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import Iterator from 'core-js-pure/es/iterator';
+import Iterator from '@core-js/pure/es/iterator';
 
 QUnit.test('Iterator#toArray', assert => {
   const { toArray } = Iterator.prototype;

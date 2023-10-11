@@ -9,7 +9,7 @@ var getOwnPropertyDescriptor = require('../internals/object-get-own-property-des
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 
 // `Promise.allSettledKeyed` method

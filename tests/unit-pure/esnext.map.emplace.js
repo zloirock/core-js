@@ -1,4 +1,4 @@
-import Map from 'core-js-pure/full/map';
+import Map from '@core-js/pure/full/map';
 
 QUnit.test('Map#emplace', assert => {
   const { emplace } = Map.prototype;

@@ -1,8 +1,8 @@
 import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
-import AsyncIterator from 'core-js-pure/actual/async-iterator';
-import Symbol from 'core-js-pure/es/symbol';
+import AsyncIterator from '@core-js/pure/actual/async-iterator';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('AsyncIterator#take', assert => {
   const { take } = AsyncIterator.prototype;

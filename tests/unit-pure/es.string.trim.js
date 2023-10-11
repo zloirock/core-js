@@ -1,6 +1,6 @@
 import { STRICT, WHITESPACES } from '../helpers/constants.js';
 
-import trim from 'core-js-pure/es/string/trim';
+import trim from '@core-js/pure/es/string/trim';
 
 QUnit.test('String#trim', assert => {
   assert.isFunction(trim);
