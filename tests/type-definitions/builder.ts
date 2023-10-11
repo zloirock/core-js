@@ -1,4 +1,4 @@
-import builder from 'core-js-builder';
+import builder from '@core-js/builder';
 
 const a: Promise<string> = builder({ targets: { node: 17 } });
 const b: string = await builder({ targets: { node: 17 } });
