@@ -1,6 +1,6 @@
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import create from 'core-js-pure/es/object/create';
+import getPrototypeOf from '@core-js/pure/es/object/get-prototype-of';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import create from '@core-js/pure/es/object/create';
 
 QUnit.test('Object.create', assert => {
   function getPropertyNames(object) {

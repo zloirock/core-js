@@ -1,6 +1,6 @@
 /* eslint-disable es/no-bigint -- safe */
-import from from 'core-js-pure/es/array/from';
-import range from 'core-js-pure/full/iterator/range';
+import from from '@core-js/pure/es/array/from';
+import range from '@core-js/pure/full/iterator/range';
 
 QUnit.test('Iterator.range', assert => {
   assert.isFunction(range);

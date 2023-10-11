@@ -1,17 +1,17 @@
 import { GLOBAL } from '../helpers/constants.js';
 
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import defineProperties from 'core-js-pure/es/object/define-properties';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import keys from 'core-js-pure/es/object/keys';
-import ownKeys from 'core-js-pure/es/reflect/own-keys';
-import Map from 'core-js-pure/es/map';
-import Set from 'core-js-pure/es/set';
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
+import create from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import defineProperties from '@core-js/pure/es/object/define-properties';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from '@core-js/pure/es/object/get-own-property-symbols';
+import keys from '@core-js/pure/es/object/keys';
+import ownKeys from '@core-js/pure/es/reflect/own-keys';
+import Map from '@core-js/pure/es/map';
+import Set from '@core-js/pure/es/set';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Symbol', assert => {
   assert.isFunction(Symbol);

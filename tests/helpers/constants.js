@@ -1,4 +1,4 @@
-import defineProperty from 'core-js-pure/es/object/define-property';
+import defineProperty from '@core-js/pure/es/object/define-property';
 
 export const GLOBAL = Function('return this')();
 

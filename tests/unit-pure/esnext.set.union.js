@@ -1,7 +1,7 @@
 import { createSetLike } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import Set from 'core-js-pure/actual/set';
+import from from '@core-js/pure/es/array/from';
+import Set from '@core-js/pure/actual/set';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;

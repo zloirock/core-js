@@ -1,8 +1,8 @@
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import splice from 'core-js-pure/es/array/splice';
-import defineProperty from 'core-js-pure/es/object/define-property';
+import Symbol from '@core-js/pure/es/symbol';
+import splice from '@core-js/pure/es/array/splice';
+import defineProperty from '@core-js/pure/es/object/define-property';
 
 QUnit.test('Array#splice', assert => {
   assert.isFunction(splice);
