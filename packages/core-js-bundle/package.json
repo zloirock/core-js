@@ -1,5 +1,5 @@
 {
-  "name": "core-js-bundle",
+  "name": "@core-js/bundle",
   "version": "3.45.1",
   "type": "commonjs",
   "description": "Standard library",
