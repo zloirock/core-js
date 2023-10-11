@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import asinh from 'core-js-pure/es/math/asinh';
+import asinh from '@core-js/pure/es/math/asinh';
 
 QUnit.test('Math.asinh', assert => {
   assert.isFunction(asinh);

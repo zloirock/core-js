@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
-import every from 'core-js-pure/es/array/every';
+import every from '@core-js/pure/es/array/every';
 
 QUnit.test('Array#every', assert => {
   assert.isFunction(every);

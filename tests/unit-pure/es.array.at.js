@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
-import at from 'core-js-pure/es/array/at';
+import at from '@core-js/pure/es/array/at';
 
 QUnit.test('Array#at', assert => {
   assert.isFunction(at);

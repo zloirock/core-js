@@ -4,20 +4,20 @@
 import { GLOBAL, NODE, BUN, DENO, DENO_VERSION } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
-import structuredClone from 'core-js-pure/stable/structured-clone';
-import from from 'core-js-pure/es/array/from';
-import assign from 'core-js-pure/es/object/assign';
-import objectCreate from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import keys from 'core-js-pure/es/object/keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Map from 'core-js-pure/es/map';
-import Promise from 'core-js-pure/es/promise';
-import Set from 'core-js-pure/es/set';
-import WeakMap from 'core-js-pure/es/weak-map';
-import WeakSet from 'core-js-pure/es/weak-set';
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import DOMException from 'core-js-pure/stable/dom-exception';
+import structuredClone from '@core-js/pure/stable/structured-clone';
+import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
+import objectCreate from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import keys from '@core-js/pure/es/object/keys';
+import Symbol from '@core-js/pure/es/symbol';
+import Map from '@core-js/pure/es/map';
+import Promise from '@core-js/pure/es/promise';
+import Set from '@core-js/pure/es/set';
+import WeakMap from '@core-js/pure/es/weak-map';
+import WeakSet from '@core-js/pure/es/weak-set';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import DOMException from '@core-js/pure/stable/dom-exception';
 
 const { getPrototypeOf } = Object;
 

@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import hypot from 'core-js-pure/es/math/hypot';
+import hypot from '@core-js/pure/es/math/hypot';
 
 QUnit.test('Math.hypot', assert => {
   const { sqrt } = Math;
