@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/es/symbol';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Symbol.asyncIterator', assert => {
   assert.true('asyncIterator' in Symbol, 'Symbol.asyncIterator available');
