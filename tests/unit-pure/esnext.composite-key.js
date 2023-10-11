@@ -1,5 +1,5 @@
-import { getPrototypeOf, isFrozen } from 'core-js-pure/es/object';
-import compositeKey from 'core-js-pure/full/composite-key';
+import { getPrototypeOf, isFrozen } from '@core-js/pure/es/object';
+import compositeKey from '@core-js/pure/full/composite-key';
 
 QUnit.test('compositeKey', assert => {
   assert.isFunction(compositeKey);
