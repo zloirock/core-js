@@ -1,5 +1,5 @@
 {
-  "name": "core-js-builder",
+  "name": "@core-js/builder",
   "version": "3.46.0",
   "type": "commonjs",
   "description": "core-js builder",
