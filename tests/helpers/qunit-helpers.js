@@ -1,7 +1,7 @@
 import { GLOBAL } from './constants.js';
-import assign from 'core-js-pure/es/object/assign';
-import isIterable from 'core-js-pure/es/is-iterable';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import assign from '@core-js/pure/es/object/assign';
+import isIterable from '@core-js/pure/es/is-iterable';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // Karma buffers 50 results over HTTP polling. Report completed tests so slow batches do not time out.

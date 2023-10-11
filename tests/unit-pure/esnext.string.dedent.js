@@ -1,10 +1,10 @@
-import defineProperties from 'core-js-pure/es/object/define-properties';
-import isFrozen from 'core-js-pure/es/object/is-frozen';
+import defineProperties from '@core-js/pure/es/object/define-properties';
+import isFrozen from '@core-js/pure/es/object/is-frozen';
 import { FREEZING, GLOBAL } from '../helpers/constants.js';
-import Symbol from 'core-js-pure/es/symbol';
-import cooked from 'core-js-pure/full/string/cooked';
-import dedent from 'core-js-pure/full/string/dedent';
-import freeze from 'core-js-pure/es/object/freeze';
+import Symbol from '@core-js/pure/es/symbol';
+import cooked from '@core-js/pure/full/string/cooked';
+import dedent from '@core-js/pure/full/string/dedent';
+import freeze from '@core-js/pure/es/object/freeze';
 
 QUnit.test('String.dedent', assert => {
   assert.isFunction(dedent);

@@ -1,10 +1,10 @@
 import { FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS, OBJECT_NAMES_ORDER, SAFARI_PROXY_SYMBOL_ORDER } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import keys from 'core-js-pure/es/object/keys';
-import assign from 'core-js-pure/es/object/assign';
+import Symbol from '@core-js/pure/es/symbol';
+import create from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import keys from '@core-js/pure/es/object/keys';
+import assign from '@core-js/pure/es/object/assign';
 
 QUnit.test('Object.assign', assert => {
   assert.isFunction(assign);

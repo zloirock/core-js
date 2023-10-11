@@ -1,10 +1,9 @@
 /* eslint-disable es/no-bigint -- safe */
 import { MAX_SAFE_INTEGER, STRICT } from '../helpers/constants.js';
-import from from 'core-js-pure/es/array/from';
-import range from 'core-js-pure/full/iterator/range';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
-import TO_STRING_TAG from 'core-js-pure/es/symbol/to-string-tag';
+import from from '@core-js/pure/es/array/from';
+import range from '@core-js/pure/full/iterator/range';
+import getPrototypeOf from '@core-js/pure/es/object/get-prototype-of';
+import TO_STRING_TAG from '@core-js/pure/es/symbol/to-string-tag';
 
 QUnit.test('Iterator.range', assert => {
   assert.isFunction(range);

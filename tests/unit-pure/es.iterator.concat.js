@@ -1,10 +1,10 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import concat from 'core-js-pure/es/iterator/concat';
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
+import concat from '@core-js/pure/es/iterator/concat';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import from from '@core-js/pure/es/array/from';
+import defineProperty from '@core-js/pure/es/object/define-property';
 
 QUnit.test('Iterator.concat', assert => {
   assert.isFunction(concat);

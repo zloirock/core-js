@@ -5,9 +5,9 @@ import javascriptURLTestData from '../wpt-url-resources/urltestdata-javascript-o
 import settersTestData from '../wpt-url-resources/setters.js';
 import toASCIITestData from '../wpt-url-resources/toascii.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import URL from 'core-js-pure/stable/url';
-import URLSearchParams from 'core-js-pure/stable/url-search-params';
+import Symbol from '@core-js/pure/es/symbol';
+import URL from '@core-js/pure/stable/url';
+import URLSearchParams from '@core-js/pure/stable/url-search-params';
 
 const { hasOwnProperty } = Object.prototype;
 

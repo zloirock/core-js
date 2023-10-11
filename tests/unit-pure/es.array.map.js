@@ -1,9 +1,9 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import map from 'core-js-pure/es/array/map';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
+import Symbol from '@core-js/pure/es/symbol';
+import map from '@core-js/pure/es/array/map';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
 
 QUnit.test('Array#map', assert => {
   assert.isFunction(map);

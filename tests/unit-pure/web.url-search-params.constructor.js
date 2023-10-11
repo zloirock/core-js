@@ -1,12 +1,12 @@
 import { GLOBAL, NODE, BUN, DENO_VERSION, FIREFOX_LEGACY_PROXY, FIREFOX_SPLIT_OWN_KEYS } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
-import create from 'core-js-pure/es/object/create';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import Symbol from 'core-js-pure/es/symbol';
-import URL from 'core-js-pure/stable/url';
-import URLSearchParams from 'core-js-pure/stable/url-search-params';
+import create from '@core-js/pure/es/object/create';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
+import Symbol from '@core-js/pure/es/symbol';
+import URL from '@core-js/pure/stable/url';
+import URLSearchParams from '@core-js/pure/stable/url-search-params';
 
 const { getPrototypeOf } = Object;
 const { Proxy } = GLOBAL;

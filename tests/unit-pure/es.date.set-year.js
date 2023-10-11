@@ -1,5 +1,5 @@
-import setYear from 'core-js-pure/es/date/set-year';
-import isNaN from 'core-js-pure/es/number/is-nan';
+import setYear from '@core-js/pure/es/date/set-year';
+import isNaN from '@core-js/pure/es/number/is-nan';
 
 QUnit.test('Date#setYear', assert => {
   assert.isFunction(setYear);

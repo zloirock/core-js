@@ -1,4 +1,4 @@
-import anchor from 'core-js-pure/es/string/anchor';
+import anchor from '@core-js/pure/es/string/anchor';
 
 QUnit.test('String#anchor', assert => {
   assert.isFunction(anchor);

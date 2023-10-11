@@ -1,8 +1,9 @@
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
 
-import unshift from 'core-js-pure/es/array/virtual/unshift';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
+import unshift from '@core-js/pure/es/array/virtual/unshift';
+
+const { defineProperty } = Object;
+import preventExtensions from '@core-js/pure/es/object/prevent-extensions';
 
 QUnit.test('Array#unshift', assert => {
   assert.isFunction(unshift);

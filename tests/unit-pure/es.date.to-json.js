@@ -1,5 +1,5 @@
-import toISOString from 'core-js-pure/es/date/to-iso-string';
-import toJSON from 'core-js-pure/es/date/to-json';
+import toISOString from '@core-js/pure/es/date/to-iso-string';
+import toJSON from '@core-js/pure/es/date/to-json';
 
 QUnit.test('Date#toJSON', assert => {
   assert.isFunction(toJSON);

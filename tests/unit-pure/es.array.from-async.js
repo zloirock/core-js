@@ -1,14 +1,14 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
 import { STRICT_THIS } from '../helpers/constants.js';
 
-import Promise from 'core-js-pure/es/promise';
-import fromAsync from 'core-js-pure/es/array/from-async';
-// import Iterator from 'core-js-pure/actual/iterator';
+import Promise from '@core-js/pure/es/promise';
+import fromAsync from '@core-js/pure/es/array/from-async';
+// import Iterator from '@core-js/pure/es/iterator';
 
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import map from 'core-js-pure/es/array/virtual/map';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import map from '@core-js/pure/es/array/virtual/map';
 
 QUnit.test('Array.fromAsync', assert => {
   assert.isFunction(fromAsync);

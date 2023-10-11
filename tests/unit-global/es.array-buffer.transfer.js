@@ -1,5 +1,5 @@
 /* eslint-disable es/no-shared-array-buffer -- testing */
-import V8_VERSION from 'core-js-pure/internals/environment-v8-version';
+import V8_VERSION from '@core-js/pure/internals/environment-v8-version';
 import { GLOBAL } from '../helpers/constants.js';
 import { arrayToBuffer, bufferToArray } from '../helpers/helpers.js';
 

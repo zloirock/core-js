@@ -1,6 +1,6 @@
-import construct from 'core-js-pure/es/reflect/construct';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import isArray from 'core-js-pure/es/array/is-array';
+import construct from '@core-js/pure/es/reflect/construct';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import isArray from '@core-js/pure/es/array/is-array';
 
 const { getPrototypeOf } = Object;
 

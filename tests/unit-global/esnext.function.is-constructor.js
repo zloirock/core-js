@@ -1,6 +1,6 @@
 import { GLOBAL } from '../helpers/constants.js';
 import { fromSource } from '../helpers/helpers.js';
-import pureIsConstructor from 'core-js-pure/full/function/is-constructor';
+import pureIsConstructor from '@core-js/pure/full/function/is-constructor';
 
 QUnit.test('Function.isConstructor', assert => {
   const { isConstructor } = Function;
