@@ -1,8 +1,8 @@
 /* eslint-disable unicorn/throw-new-error, sonarjs/inconsistent-function-call -- required for testing */
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import Symbol from 'core-js-pure/es/symbol';
-import toString from 'core-js-pure/es/object/to-string';
-import create from 'core-js-pure/es/object/create';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import Symbol from '@core-js/pure/es/symbol';
+import toString from '@core-js/pure/es/object/to-string';
+import create from '@core-js/pure/es/object/create';
 
 QUnit.test('AggregateError', assert => {
   assert.isFunction(AggregateError);
