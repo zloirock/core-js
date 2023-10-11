@@ -1,5 +1,5 @@
 import { deepEqual, ok } from 'node:assert/strict';
-import compat from 'core-js-compat/compat.js';
+import compat from '@core-js/compat/compat.js';
 
 deepEqual(compat({
   modules: [
