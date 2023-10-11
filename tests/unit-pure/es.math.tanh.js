@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import tanh from 'core-js-pure/es/math/tanh';
+import tanh from '@core-js/pure/es/math/tanh';
 
 QUnit.test('Math.tanh', assert => {
   assert.isFunction(tanh);

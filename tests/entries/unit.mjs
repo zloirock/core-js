@@ -13,7 +13,7 @@ function load(...components) {
   return require(path);
 }
 
-for (PATH of ['core-js-pure', 'core-js']) {
+for (PATH of ['@core-js/pure', 'core-js']) {
   for (const NS of ['es', 'stable', 'actual', 'full']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);

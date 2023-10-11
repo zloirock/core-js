@@ -1,9 +1,9 @@
 /* eslint-disable id-match -- unification with global tests */
 import { STRICT } from '../helpers/constants.js';
 
-import create from 'core-js-pure/es/object/create';
-import __defineGetter__ from 'core-js-pure/es/object/define-getter';
-import __lookupGetter__ from 'core-js-pure/es/object/lookup-getter';
+import create from '@core-js/pure/es/object/create';
+import __defineGetter__ from '@core-js/pure/es/object/define-getter';
+import __lookupGetter__ from '@core-js/pure/es/object/lookup-getter';
 
 QUnit.test('Object#__lookupGetter__', assert => {
   assert.isFunction(__lookupGetter__);

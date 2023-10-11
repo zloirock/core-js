@@ -1,18 +1,18 @@
 /* eslint-disable sonarjs/no-element-overwrite -- required for testing */
 import { createIterable, is, nativeSubclass } from '../helpers/helpers.js';
 
-import getIterator from 'core-js-pure/es/get-iterator';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/es/array/from';
-import freeze from 'core-js-pure/es/object/freeze';
-import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import keys from 'core-js-pure/es/object/keys';
-import ownKeys from 'core-js-pure/es/reflect/own-keys';
-import Symbol from 'core-js-pure/es/symbol';
-import Map from 'core-js-pure/es/map';
-import Set from 'core-js-pure/es/set';
+import getIterator from '@core-js/pure/es/get-iterator';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import from from '@core-js/pure/es/array/from';
+import freeze from '@core-js/pure/es/object/freeze';
+import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-descriptor';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from '@core-js/pure/es/object/get-own-property-symbols';
+import keys from '@core-js/pure/es/object/keys';
+import ownKeys from '@core-js/pure/es/reflect/own-keys';
+import Symbol from '@core-js/pure/es/symbol';
+import Map from '@core-js/pure/es/map';
+import Set from '@core-js/pure/es/set';
 
 QUnit.test('Set', assert => {
   assert.isFunction(Set);

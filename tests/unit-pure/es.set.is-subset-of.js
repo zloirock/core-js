@@ -1,6 +1,6 @@
 import { createSetLike } from '../helpers/helpers.js';
 
-import Set from 'core-js-pure/es/set';
+import Set from '@core-js/pure/es/set';
 
 QUnit.test('Set#isSubsetOf', assert => {
   const { isSubsetOf } = Set.prototype;
