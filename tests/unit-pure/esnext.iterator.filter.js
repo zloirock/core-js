@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers.js';
 import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
-import Iterator from 'core-js-pure/actual/iterator';
+import Iterator from '@core-js/pure/actual/iterator';
 
 QUnit.test('Iterator#filter', assert => {
   const { filter } = Iterator.prototype;

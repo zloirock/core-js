@@ -1,6 +1,6 @@
-import AsyncIterator from 'core-js-pure/full/async-iterator';
-import Symbol from 'core-js-pure/full/symbol';
-import create from 'core-js-pure/es/object/create';
+import AsyncIterator from '@core-js/pure/full/async-iterator';
+import Symbol from '@core-js/pure/full/symbol';
+import create from '@core-js/pure/es/object/create';
 
 QUnit.test('AsyncIterator#@@asyncDispose', assert => {
   const asyncDispose = AsyncIterator.prototype[Symbol.asyncDispose];

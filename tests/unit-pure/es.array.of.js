@@ -1,5 +1,5 @@
-import defineProperty from 'core-js-pure/es/object/define-property';
-import of from 'core-js-pure/es/array/of';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import of from '@core-js/pure/es/array/of';
 
 QUnit.test('Array.of', assert => {
   assert.isFunction(of);
