@@ -1,5 +1,5 @@
 import semver from 'semver';
-import mapping from 'core-js-compat/src/mapping.mjs';
+import mapping from '@core-js/compat/src/mapping.mjs';
 
 const { coerce, cmp } = semver;
 let updated = true;
