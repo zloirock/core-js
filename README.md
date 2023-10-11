@@ -227,7 +227,7 @@ npm install --save core-js@3.51.0
 # version without global namespace pollution
 npm install --save core-js-pure@3.51.0
 # bundled global version
-npm install --save core-js-bundle@3.51.0
+npm install --save @core-js/bundle@3.51.0
 ```
 
 ### `postinstall` message[⬆](#index)
