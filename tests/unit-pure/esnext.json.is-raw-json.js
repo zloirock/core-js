@@ -1,7 +1,7 @@
-import isRawJSON from 'core-js-pure/actual/json/is-raw-json';
-import rawJSON from 'core-js-pure/actual/json/raw-json';
-import freeze from 'core-js-pure/es/object/freeze';
-import Symbol from 'core-js-pure/es/symbol';
+import isRawJSON from '@core-js/pure/actual/json/is-raw-json';
+import rawJSON from '@core-js/pure/actual/json/raw-json';
+import freeze from '@core-js/pure/es/object/freeze';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('JSON.rawJSON', assert => {
   assert.isFunction(isRawJSON);

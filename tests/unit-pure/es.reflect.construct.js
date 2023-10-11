@@ -1,4 +1,4 @@
-import construct from 'core-js-pure/es/reflect/construct';
+import construct from '@core-js/pure/es/reflect/construct';
 
 const { getPrototypeOf } = Object;
 

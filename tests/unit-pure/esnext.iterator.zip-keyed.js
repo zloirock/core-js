@@ -1,9 +1,9 @@
 import { createIterator } from '../helpers/helpers.js';
 
-import defineProperty from 'core-js-pure/actual/object/define-property';
-import from from 'core-js-pure/es/array/from';
-import Symbol from 'core-js-pure/full/symbol';
-import zipKeyed from 'core-js-pure/full/iterator/zip-keyed';
+import defineProperty from '@core-js/pure/actual/object/define-property';
+import from from '@core-js/pure/es/array/from';
+import Symbol from '@core-js/pure/full/symbol';
+import zipKeyed from '@core-js/pure/full/iterator/zip-keyed';
 
 QUnit.test('Iterator.zipKeyed', assert => {
   assert.isFunction(zipKeyed);
