@@ -1,5 +1,5 @@
 {
-  "name": "core-js-pure",
+  "name": "@core-js/pure",
   "version": "3.48.0",
   "type": "commonjs",
   "description": "Standard library",
