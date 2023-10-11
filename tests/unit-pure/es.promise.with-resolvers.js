@@ -1,4 +1,4 @@
-import Promise from 'core-js-pure/es/promise';
+import Promise from '@core-js/pure/es/promise';
 
 const { getPrototypeOf } = Object;
 

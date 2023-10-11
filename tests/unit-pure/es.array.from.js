@@ -1,11 +1,12 @@
 /* eslint-disable prefer-rest-params -- required for testing */
 import { createIterable } from '../helpers/helpers.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import freeze from 'core-js-pure/es/object/freeze';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/es/array/from';
+import Symbol from '@core-js/pure/es/symbol';
+import freeze from '@core-js/pure/es/object/freeze';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import from from '@core-js/pure/es/array/from';
+
+const { defineProperty } = Object;
 
 QUnit.test('Array.from', assert => {
   assert.isFunction(from);

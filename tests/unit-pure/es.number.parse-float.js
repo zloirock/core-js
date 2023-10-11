@@ -1,6 +1,6 @@
 import { WHITESPACES } from '../helpers/constants.js';
 
-import parseFloat from 'core-js-pure/es/number/parse-float';
+import parseFloat from '@core-js/pure/es/number/parse-float';
 
 QUnit.test('Number.parseFloat', assert => {
   assert.isFunction(parseFloat);
