@@ -1,6 +1,6 @@
 /* eslint-disable @stylistic/max-len -- ok*/
-import escape from 'core-js-pure/es/regexp/escape';
-import fromCodePoint from 'core-js-pure/es/string/from-code-point';
+import escape from '@core-js/pure/es/regexp/escape';
+import fromCodePoint from '@core-js/pure/es/string/from-code-point';
 import { WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('RegExp.escape', assert => {

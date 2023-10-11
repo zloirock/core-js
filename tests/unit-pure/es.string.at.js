@@ -1,7 +1,7 @@
 import { STRICT } from '../helpers/constants.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import at from 'core-js-pure/es/string/at';
+import Symbol from '@core-js/pure/es/symbol';
+import at from '@core-js/pure/es/string/at';
 
 QUnit.test('String#at', assert => {
   assert.isFunction(at);

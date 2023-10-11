@@ -1,7 +1,7 @@
-import Symbol from 'core-js-pure/es/symbol';
-import cooked from 'core-js-pure/full/string/cooked';
-import dedent from 'core-js-pure/full/string/dedent';
-import freeze from 'core-js-pure/es/object/freeze';
+import Symbol from '@core-js/pure/es/symbol';
+import cooked from '@core-js/pure/full/string/cooked';
+import dedent from '@core-js/pure/full/string/dedent';
+import freeze from '@core-js/pure/es/object/freeze';
 
 QUnit.test('String.dedent', assert => {
   assert.isFunction(dedent);

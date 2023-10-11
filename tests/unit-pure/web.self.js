@@ -1,4 +1,4 @@
-import self from 'core-js-pure/stable/self';
+import self from '@core-js/pure/stable/self';
 
 QUnit.test('self', assert => {
   assert.same(self, Object(self), 'is object');

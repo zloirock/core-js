@@ -1,4 +1,4 @@
-import WeakMap from 'core-js-pure/es/weak-map';
+import WeakMap from '@core-js/pure/es/weak-map';
 
 QUnit.test('WeakMap#getOrInsert', assert => {
   const { getOrInsert } = WeakMap.prototype;
