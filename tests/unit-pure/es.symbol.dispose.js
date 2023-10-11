@@ -1,4 +1,4 @@
-import Symbol from 'core-js-pure/es/symbol';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Symbol.dispose', assert => {
   assert.true('dispose' in Symbol, 'Symbol.dispose available');

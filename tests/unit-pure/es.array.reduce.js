@@ -1,6 +1,6 @@
 import { STRICT } from '../helpers/constants.js';
 
-import reduce from 'core-js-pure/es/array/reduce';
+import reduce from '@core-js/pure/es/array/reduce';
 
 QUnit.test('Array#reduce', assert => {
   assert.isFunction(reduce);

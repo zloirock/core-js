@@ -1,10 +1,9 @@
 /* eslint-disable prefer-rest-params -- required for testing */
 import { createIterable } from '../helpers/helpers.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/es/array/from';
+import Symbol from '@core-js/pure/es/symbol';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import from from '@core-js/pure/es/array/from';
 
 QUnit.test('Array.from', assert => {
   assert.isFunction(from);
@@ -114,7 +113,7 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
 
   let called = false;
-  defineProperty(C.prototype, 0, {
+  Object.defineProperty(C.prototype, 0, {
     set() {
       called = true;
     },
