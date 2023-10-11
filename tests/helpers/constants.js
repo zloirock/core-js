@@ -1,4 +1,4 @@
-import defineProperty from 'core-js-pure/es/object/define-property';
+const { defineProperty } = Object;
 
 export const GLOBAL = Function('return this')();
 
@@ -54,7 +54,7 @@ export let REDEFINABLE_PROTO = false;
 
 try {
   // Chrome 27- bug, also a bug for native `JSON.parse`
-  defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
+  Object.defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
   REDEFINABLE_PROTO = true;
 } catch { /* empty */ }
 

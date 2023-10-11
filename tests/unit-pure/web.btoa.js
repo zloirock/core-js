@@ -1,5 +1,5 @@
 // based on https://github.com/davidchambers/Base64.js/blob/master/test/base64.js
-import btoa from 'core-js-pure/stable/btoa';
+import btoa from '@core-js/pure/stable/btoa';
 
 QUnit.test('btoa', assert => {
   assert.isFunction(btoa);

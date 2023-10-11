@@ -1,8 +1,8 @@
-import ownKeys from 'core-js-pure/es/reflect/own-keys';
-import keys from 'core-js-pure/es/object/keys';
-import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
-import getOwnPropertySymbols from 'core-js-pure/es/object/get-own-property-symbols';
-import freeze from 'core-js-pure/es/object/freeze';
+import ownKeys from '@core-js/pure/es/reflect/own-keys';
+import keys from '@core-js/pure/es/object/keys';
+import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names';
+import getOwnPropertySymbols from '@core-js/pure/es/object/get-own-property-symbols';
+import freeze from '@core-js/pure/es/object/freeze';
 
 QUnit.test('Object.freeze', assert => {
   assert.isFunction(freeze);

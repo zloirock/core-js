@@ -1,4 +1,4 @@
-import substr from 'core-js-pure/es/string/substr';
+import substr from '@core-js/pure/es/string/substr';
 import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('String#substr', assert => {

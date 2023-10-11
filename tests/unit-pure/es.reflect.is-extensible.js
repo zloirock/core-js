@@ -1,5 +1,5 @@
-import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
-import isExtensible from 'core-js-pure/es/reflect/is-extensible';
+import preventExtensions from '@core-js/pure/es/object/prevent-extensions';
+import isExtensible from '@core-js/pure/es/reflect/is-extensible';
 
 QUnit.test('Reflect.isExtensible', assert => {
   assert.isFunction(isExtensible);

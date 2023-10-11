@@ -1,8 +1,7 @@
 import { createSetLike } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import Set from 'core-js-pure/es/set';
+import from from '@core-js/pure/es/array/from';
+import Set from '@core-js/pure/es/set';
 
 QUnit.test('Set#union', assert => {
   const { union } = Set.prototype;
@@ -34,7 +33,7 @@ QUnit.test('Set#union', assert => {
       size: 0,
       has() { return true; },
       keys() {
-        return defineProperty({}, 'next', { get() {
+        return Object.defineProperty({}, 'next', { get() {
           baseSet.clear();
           baseSet.add(4);
           return function () {

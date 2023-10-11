@@ -1,4 +1,4 @@
-import toPrecision from 'core-js-pure/es/number/to-precision';
+import toPrecision from '@core-js/pure/es/number/to-precision';
 
 QUnit.test('Number#toPrecision', assert => {
   assert.isFunction(toPrecision);

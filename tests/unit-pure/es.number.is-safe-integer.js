@@ -1,6 +1,8 @@
 import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
-import create from 'core-js-pure/es/object/create';
-import isSafeInteger from 'core-js-pure/es/number/is-safe-integer';
+
+import isSafeInteger from '@core-js/pure/es/number/is-safe-integer';
+
+const { create } = Object;
 
 QUnit.test('Number.isSafeInteger', assert => {
   assert.isFunction(isSafeInteger);

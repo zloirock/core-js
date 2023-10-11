@@ -1,6 +1,7 @@
-import Iterator from 'core-js-pure/es/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import create from 'core-js-pure/es/object/create';
+import Iterator from '@core-js/pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+
+const { create } = Object;
 
 QUnit.test('Iterator#@@dispose', assert => {
   const dispose = Iterator.prototype[Symbol.dispose];

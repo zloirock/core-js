@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js-pure.svg)](https://www.npmjs.com/package/core-js-pure) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/pure.svg)](https://www.npmjs.com/package/@core-js/pure) [![@core-js/pure downloads](https://img.shields.io/npm/dm/@core-js/pure.svg?label=npm%20i%20@core-js/pure)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
 
 </div>
 
@@ -70,12 +70,12 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 
 *Or use it without global namespace pollution*:
 ```js
-import Promise from 'core-js-pure/actual/promise';
-import Set from 'core-js-pure/actual/set';
-import Iterator from 'core-js-pure/actual/iterator';
-import from from 'core-js-pure/actual/array/from';
-import flatMap from 'core-js-pure/actual/array/flat-map';
-import structuredClone from 'core-js-pure/actual/structured-clone';
+import Promise from '@core-js/pure/actual/promise';
+import Set from '@core-js/pure/actual/set';
+import Iterator from '@core-js/pure/actual/iterator';
+import from from '@core-js/pure/actual/array/from';
+import flatMap from '@core-js/pure/actual/array/flat-map';
+import structuredClone from '@core-js/pure/actual/structured-clone';
 
 Promise.try(() => 42).then(it => console.log(it)); // => 42
 

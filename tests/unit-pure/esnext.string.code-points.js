@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/es/symbol';
-import codePoints from 'core-js-pure/full/string/code-points';
+import Symbol from '@core-js/pure/es/symbol';
+import codePoints from '@core-js/pure/full/string/code-points';
 
 QUnit.test('String#codePoints', assert => {
   assert.isFunction(codePoints);

@@ -1,4 +1,4 @@
-import clamp from 'core-js-pure/full/number/clamp';
+import clamp from '@core-js/pure/full/number/clamp';
 
 QUnit.test('Number#clamp', assert => {
   assert.isFunction(clamp);

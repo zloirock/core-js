@@ -1,6 +1,6 @@
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import values from 'core-js-pure/es/object/values';
+import assign from '@core-js/pure/es/object/assign';
+import create from '@core-js/pure/es/object/create';
+import values from '@core-js/pure/es/object/values';
 
 QUnit.test('Object.values', assert => {
   assert.isFunction(values);

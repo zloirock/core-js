@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import cbrt from 'core-js-pure/es/math/cbrt';
+import cbrt from '@core-js/pure/es/math/cbrt';
 
 QUnit.test('Math.cbrt', assert => {
   assert.isFunction(cbrt);

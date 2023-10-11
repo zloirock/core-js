@@ -1,7 +1,7 @@
 import { createIterator, nativeSubclass } from '../helpers/helpers.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import Iterator from 'core-js-pure/es/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import Iterator from '@core-js/pure/es/iterator';
 
 QUnit.test('Iterator', assert => {
   assert.isFunction(Iterator);

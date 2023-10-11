@@ -1,4 +1,4 @@
-import demethodize from 'core-js-pure/full/function/demethodize';
+import demethodize from '@core-js/pure/full/function/demethodize';
 
 QUnit.test('Function#demethodize', assert => {
   assert.isFunction(demethodize);

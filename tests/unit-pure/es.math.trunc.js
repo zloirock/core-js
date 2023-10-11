@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import trunc from 'core-js-pure/es/math/trunc';
+import trunc from '@core-js/pure/es/math/trunc';
 
 QUnit.test('Math.trunc', assert => {
   assert.isFunction(trunc);
