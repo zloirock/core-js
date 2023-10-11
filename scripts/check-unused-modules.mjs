@@ -1,5 +1,5 @@
 import konan from 'konan';
-import { modules, ignored } from 'core-js-compat/src/data.mjs';
+import { modules, ignored } from '@core-js/compat/src/data.mjs';
 
 async function jsModulesFrom(path) {
   const directory = await fs.readdir(path);
