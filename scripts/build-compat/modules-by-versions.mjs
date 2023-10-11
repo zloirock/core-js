@@ -1,5 +1,5 @@
-import { modules } from 'core-js-compat/src/data.mjs';
-import modulesByVersions from 'core-js-compat/src/modules-by-versions.mjs';
+import { modules } from '@core-js/compat/src/data.mjs';
+import modulesByVersions from '@core-js/compat/src/modules-by-versions.mjs';
 
 const defaults = new Set(modules);
 
