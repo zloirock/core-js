@@ -19,6 +19,7 @@ const [core, pure, bundle] = await Promise.all([
   getStat('core-js'),
   ALL && getStat('core-js-pure'),
   ALL && getStat('core-js-bundle'),
+  ALL && getStat('@core-js/pure'),
   ALL && getStat('@core-js/bundle'),
 ]);
 

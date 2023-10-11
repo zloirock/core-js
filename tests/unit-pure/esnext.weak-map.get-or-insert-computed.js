@@ -1,5 +1,5 @@
 import { STRICT } from '../helpers/constants.js';
-import WeakMap from 'core-js-pure/actual/weak-map';
+import WeakMap from '@core-js/pure/actual/weak-map';
 
 QUnit.test('WeakMap#getOrInsertComputed', assert => {
   const { getOrInsertComputed } = WeakMap.prototype;

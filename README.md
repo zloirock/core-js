@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![core-js-pure downloads](https://img.shields.io/npm/dm/core-js-pure.svg?label=npm%20i%20core-js-pure)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=@core-js/compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@core-js/bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@core-js/bundle)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18) [![@core-js/pure downloads](https://img.shields.io/npm/dm/@core-js/pure.svg?label=npm%20i%20@core-js/pure)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@core-js/bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@core-js/bundle)
 
 </div>
 
@@ -77,12 +77,12 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 
 *Or use it without global namespace pollution*:
 ```js
-import Promise from 'core-js-pure/actual/promise';
-import Set from 'core-js-pure/actual/set';
-import Iterator from 'core-js-pure/actual/iterator';
-import from from 'core-js-pure/actual/array/from';
-import flatMap from 'core-js-pure/actual/array/flat-map';
-import structuredClone from 'core-js-pure/actual/structured-clone';
+import Promise from '@core-js/pure/actual/promise';
+import Set from '@core-js/pure/actual/set';
+import Iterator from '@core-js/pure/actual/iterator';
+import from from '@core-js/pure/actual/array/from';
+import flatMap from '@core-js/pure/actual/array/flat-map';
+import structuredClone from '@core-js/pure/actual/structured-clone';
 
 Promise.try(() => 42).then(it => console.log(it)); // => 42
 
@@ -224,7 +224,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 // global version
 npm install --save core-js@3.46.0
 // version without global namespace pollution
-npm install --save core-js-pure@3.46.0
+npm install --save @core-js/pure@3.46.0
 // bundled global version
 npm install --save @core-js/bundle@3.46.0
 ```
@@ -267,10 +267,10 @@ import "core-js/stable/set";
 // only stable ES features required for `Set`:
 import "core-js/es/set";
 // the same without global namespace pollution:
-import Set from "core-js-pure/full/set";
-import Set from "core-js-pure/actual/set";
-import Set from "core-js-pure/stable/set";
-import Set from "core-js-pure/es/set";
+import Set from "@core-js/pure/full/set";
+import Set from "@core-js/pure/actual/set";
+import Set from "@core-js/pure/stable/set";
+import Set from "@core-js/pure/es/set";
 
 // if you want to polyfill just the required methods:
 import "core-js/full/set/intersection";
@@ -297,8 +297,8 @@ import "core-js/stage/2";
 #### CommonJS and prototype methods without global namespace pollution[⬆](#index)
 In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
 ```ts
-import fill from 'core-js-pure/actual/array/virtual/fill';
-import findIndex from 'core-js-pure/actual/array/virtual/find-index';
+import fill from '@core-js/pure/actual/array/virtual/fill';
+import findIndex from '@core-js/pure/actual/array/virtual/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
@@ -395,12 +395,13 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 
 #### `@babel/runtime`[⬆](#index)
 
-[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with the `@core-js/pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+
 ```js
-import from from 'core-js-pure/stable/array/from';
-import flat from 'core-js-pure/stable/array/flat';
-import Set from 'core-js-pure/stable/set';
-import Promise from 'core-js-pure/stable/promise';
+import from from '@core-js/pure/stable/array/from';
+import flat from '@core-js/pure/stable/array/flat';
+import Set from '@core-js/pure/stable/set';
+import Promise from '@core-js/pure/stable/promise';
 
 from(new Set([1, 2, 3, 2, 1]));
 flat([1, [2, 3], [4, [5]]], 2);
@@ -3821,15 +3822,15 @@ function getIteratorMethod(value: any): Function | void;
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js-pure/es|stable|actual|full/is-iterable
-core-js-pure/es|stable|actual|full/get-iterator
-core-js-pure/es|stable|actual|full/get-iterator-method
+@core-js/pure/es|stable|actual|full/is-iterable
+@core-js/pure/es|stable|actual|full/get-iterator
+@core-js/pure/es|stable|actual|full/get-iterator-method
 ```
 *Examples*:
 ```js
-import isIterable from 'core-js-pure/actual/is-iterable';
-import getIterator from 'core-js-pure/actual/get-iterator';
-import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
+import isIterable from '@core-js/pure/actual/is-iterable';
+import getIterator from '@core-js/pure/actual/get-iterator';
+import getIteratorMethod from '@core-js/pure/actual/get-iterator-method';
 
 let list = (function () {
   // eslint-disable-next-line prefer-rest-params -- example
