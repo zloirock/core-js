@@ -1,4 +1,4 @@
-import type compat from "core-js-compat";
+import type compat from "@core-js/compat";
 
 type Format = 'bundle' | 'esm' | 'cjs';
 

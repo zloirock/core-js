@@ -1,4 +1,4 @@
-import { modules } from 'core-js-compat/src/data.mjs';
+import { modules } from '@core-js/compat/src/data.mjs';
 
 async function generateNamespaceIndex(ns, filter) {
   return fs.writeFile(`./packages/core-js/${ ns }/index.js`, `'use strict';\n${ modules
