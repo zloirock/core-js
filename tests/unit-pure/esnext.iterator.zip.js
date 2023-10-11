@@ -1,7 +1,7 @@
 import { createIterator } from '../helpers/helpers.js';
 
-import from from 'core-js-pure/es/array/from';
-import zip from 'core-js-pure/full/iterator/zip';
+import from from '@core-js/pure/es/array/from';
+import zip from '@core-js/pure/full/iterator/zip';
 
 QUnit.test('Iterator.zip', assert => {
   assert.isFunction(zip);

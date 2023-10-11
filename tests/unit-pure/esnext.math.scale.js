@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import scale from 'core-js-pure/full/math/scale';
+import scale from '@core-js/pure/full/math/scale';
 
 QUnit.test('Math.scale', assert => {
   assert.isFunction(scale);
