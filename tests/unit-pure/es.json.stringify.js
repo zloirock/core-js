@@ -1,7 +1,6 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable es/no-bigint,unicorn/no-hex-escape -- testing */
-import { GLOBAL } from '../helpers/constants.js';
 import stringify from '@core-js/pure/es/json/stringify';
 import Symbol from '@core-js/pure/es/symbol';
 import values from '@core-js/pure/es/object/values';
@@ -190,19 +189,19 @@ QUnit.test('JSON.stringify', assert => {
 
   assert.same(stringify(obj5, null, ''), stringify(obj5), 'space-string-1');
   assert.same(stringify(obj5, null, '  '), `{
-"a1": {
-  "b1": [
-    1,
-    2,
-    3,
-    4
-  ],
-  "b2": {
-    "c1": 1,
-    "c2": 2
-  }
-},
-"a2": "a2"
+  "a1": {
+    "b1": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "b2": {
+      "c1": 1,
+      "c2": 2
+    }
+  },
+  "a2": "a2"
 }`, 'space-string-2');
 
   assert.same(stringify(obj5), stringify(obj5, null, null), 'space-wrong-type-1');
