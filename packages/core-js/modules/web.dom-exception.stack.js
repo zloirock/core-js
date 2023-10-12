@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
-var defineProperty = require('../internals/object-define-property').f;
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -15,6 +14,7 @@ var IS_PURE = require('../internals/is-pure');
 var DOM_EXCEPTION = 'DOMException';
 var Error = getBuiltIn('Error');
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
+var defineProperty = Object.defineProperty;
 
 var $DOMException = function DOMException() {
   anInstance(this, DOMExceptionPrototype);

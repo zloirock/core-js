@@ -11,11 +11,11 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
-var defineProperty = require('../internals/object-define-property').f;
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
+var defineProperty = Object.defineProperty;
 
 module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
