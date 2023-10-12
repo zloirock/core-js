@@ -59,7 +59,7 @@
     "u": "npm run update-version"
   },
   "devDependencies": {
-    "@babel/core": "^7.23.0",
+    "@babel/core": "^7.23.2",
     "@babel/plugin-transform-arrow-functions": "^7.22.5",
     "@babel/plugin-transform-block-scoped-functions": "^7.22.5",
     "@babel/plugin-transform-block-scoping": "^7.23.0",
