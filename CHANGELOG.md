@@ -2,7 +2,7 @@
 ##### Unreleased
 - Compat data improvements:
   - [`String.prototype.{ isWellFormed, toWellFormed }`](https://github.com/tc39/proposal-is-usv-string) marked as [supported from FF119](https://bugzilla.mozilla.org/show_bug.cgi?id=1850755)
-  - Added React Native 0.73 Hermes compat data
+  - Added React Native 0.73 Hermes compat data, mainly fixes of [some issues](https://github.com/facebook/hermes/issues/770)
 
 ##### [3.33.0 - 2023.10.02](https://github.com/zloirock/core-js/releases/tag/v3.33.0)
 - Re-introduced [`RegExp` escaping stage 2 proposal](https://github.com/tc39/proposal-regex-escaping), September 2023 TC39 meeting:
