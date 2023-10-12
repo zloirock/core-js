@@ -18,8 +18,7 @@ var $RangeError = RangeError;
 var $TypeError = TypeError;
 
 var $NumericRangeIterator = createIteratorConstructor(function NumericRangeIterator(start, end, option, type, zero, one) {
-  // TODO: Drop the first `typeof` check after removing legacy methods in `core-js@4`
-  if (typeof start != type || (end !== Infinity && end !== -Infinity && typeof end != type)) {
+  if (end !== Infinity && end !== -Infinity && typeof end != type) {
     throw new $TypeError(INCORRECT_RANGE);
   }
   if (start === Infinity || start === -Infinity) {
