@@ -1,7 +1,4 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.map.constructor');
-require('../modules/es.weak-map.constructor');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var shared = require('../internals/shared');
