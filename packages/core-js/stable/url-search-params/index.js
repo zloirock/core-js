@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.array.iterator');
 require('../../modules/web.url-search-params.constructor');
 require('../../modules/web.url-search-params.delete');
 require('../../modules/web.url-search-params.has');
