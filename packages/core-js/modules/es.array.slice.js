@@ -15,7 +15,7 @@ var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
-var isArray = Array.isArray;
+var isArray = $Array.isArray;
 var max = Math.max;
 
 // `Array.prototype.slice` method
