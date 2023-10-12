@@ -1,7 +1,4 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.array.iterator');
-require('../modules/es.string.from-code-point');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
@@ -47,6 +44,7 @@ var HeadersPrototype = Headers && Headers.prototype;
 var TypeError = globalThis.TypeError;
 var encodeURIComponent = globalThis.encodeURIComponent;
 var fromCharCode = String.fromCharCode;
+// dependency: es.string.from-code-point
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
