@@ -5,7 +5,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
-var isArray = Array.isArray;
+var isArray = $Array.isArray;
 
 // a part of `ArraySpeciesCreate` abstract operation
 // https://tc39.es/ecma262/#sec-arrayspeciescreate

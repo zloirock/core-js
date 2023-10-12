@@ -3,7 +3,6 @@ var toIndexedObject = require('../internals/to-indexed-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');
 var InternalStateModule = require('../internals/internal-state');
-var defineProperty = require('../internals/object-define-property').f;
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -67,5 +66,5 @@ addToUnscopables('entries');
 
 // V8 ~ Chrome 45- bug
 if (!IS_PURE && values.name !== 'values') try {
-  defineProperty(values, 'name', { value: 'values' });
+  Object.defineProperty(values, 'name', { value: 'values' });
 } catch (error) { /* empty */ }
