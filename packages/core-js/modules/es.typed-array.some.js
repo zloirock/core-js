@@ -1,7 +1,8 @@
 'use strict';
+var uncurryThis = require('../internals/function-uncurry-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var $some = require('../internals/array-iteration').some;
 
+var $some = uncurryThis([].some);
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
