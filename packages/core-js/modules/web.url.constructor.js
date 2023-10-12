@@ -1,17 +1,14 @@
 'use strict';
-// TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
-require('../modules/es.string.iterator');
 var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var globalThis = require('../internals/global-this');
+var getBuiltIn = require('../internals/get-built-in');
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var anInstance = require('../internals/an-instance');
 var hasOwn = require('../internals/has-own-property');
-var assign = require('../internals/object-assign');
-var arrayFrom = require('../internals/array-from');
 var arraySlice = require('../internals/array-slice');
 var codeAt = require('../internals/string-multibyte').codeAt;
 var toASCII = require('../internals/string-punycode-to-ascii');
@@ -29,6 +26,8 @@ var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
 var parseInt = globalThis.parseInt;
+var assign = getBuiltIn('Object', 'assign');
+var arrayFrom = getBuiltIn('Array', 'from');
 var floor = Math.floor;
 var pow = Math.pow;
 var charAt = uncurryThis(''.charAt);
