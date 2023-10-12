@@ -1,6 +1,6 @@
 import konan from 'konan';
 import { modules } from '@core-js/compat/src/data.mjs';
-import helpers from '@core-js/compat/helpers.js';
+import { intersection, sortObjectByKey } from '@core-js/compat/helpers.js';
 
 async function getModulesForEntryPoint(path, parent) {
   const entry = new URL(path, parent);
@@ -17,7 +17,7 @@ async function getModulesForEntryPoint(path, parent) {
     return getModulesForEntryPoint(dependency, entry);
   }));
 
-  return helpers.intersection(result.flat(), modules);
+  return intersection(result.flat(), modules);
 }
 
 const entriesList = await glob([
@@ -29,10 +29,9 @@ const entriesList = await glob([
   'packages/core-js/proposals/**/*.js',
   'packages/core-js/stable/**/*.js',
   'packages/core-js/stage/**/*.js',
-  'packages/core-js/web/**/*.js',
 ]);
 
-const entriesMap = helpers.sortObjectByKey(Object.fromEntries(await Promise.all(entriesList.map(async file => {
+const entriesMap = sortObjectByKey(Object.fromEntries(await Promise.all(entriesList.map(async file => {
   // TODO: store entries without the package name in `core-js@4`
   const entry = file.replace(/\.js$/, '').replace(/\/index$/, '');
   return [entry.slice(9), await getModulesForEntryPoint(`../../${ entry }`, import.meta.url)];
