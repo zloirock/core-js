@@ -1,5 +1,7 @@
 'use strict';
 var parent = require('../../actual/reflect');
+require('../../modules/es.map.constructor');
+require('../../modules/es.weak-map.constructor');
 require('../../modules/esnext.reflect.define-metadata');
 require('../../modules/esnext.reflect.delete-metadata');
 require('../../modules/esnext.reflect.get-metadata');
