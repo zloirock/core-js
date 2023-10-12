@@ -5,6 +5,7 @@ var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/object-to-string');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+var defineProperty = Object.defineProperty;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (it, TAG, STATIC, SET_METHOD) {
