@@ -1,10 +1,9 @@
 'use strict';
 // based on https://github.com/mathiasbynens/punycode.js/blob/main/punycode.js
-// TODO: in core-js@4, replace the direct /modules/ require with an implicit dependency
-require('../modules/es.array.sort');
 var uncurryThis = require('../internals/function-uncurry-this');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 
+// dependency: es.array.sort
 var arraySort = uncurryThis(getBuiltInPrototypeMethod('Array', 'sort'));
 
 var maxInt = 2147483647; // aka. 0x7FFFFFFF or 2^31-1

@@ -1,18 +1,17 @@
 'use strict';
-// TODO: in core-js@4, replace direct /modules/ requires with implicit dependencies
-require('../modules/es.string.from-code-point');
-require('../modules/es.string.to-well-formed');
 var getBuiltIn = require('../internals/get-built-in');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
+// dependency: es.string.from-code-point
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
+// dependency: es.string.to-well-formed
 var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
 
 var FALLBACK_REPLACER = '\uFFFD';

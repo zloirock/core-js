@@ -1,7 +1,4 @@
 'use strict';
-// TODO: in core-js@4, replace the direct /modules/ requires with implicit dependencies
-require('../modules/es.array.iterator');
-require('../modules/es.reflect.own-keys');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
@@ -43,6 +40,7 @@ var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_I
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
+// dependency: es.reflect.own-keys
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
 var TypeError = globalThis.TypeError;
 var NativeURL = globalThis.URL;
