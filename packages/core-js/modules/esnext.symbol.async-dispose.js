@@ -1,7 +1,6 @@
 'use strict';
 var global = require('../internals/global');
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
-var defineProperty = require('../internals/object-define-property').f;
 
 var Symbol = global.Symbol;
 
@@ -15,6 +14,6 @@ if (Symbol) {
   // https://github.com/nodejs/node/issues/48699
   // and incorrect descriptor from some transpilers and userland helpers
   if (descriptor.enumerable && descriptor.configurable && descriptor.writable) {
-    defineProperty(Symbol, 'asyncDispose', { value: descriptor.value, enumerable: false, configurable: false, writable: false });
+    Object.defineProperty(Symbol, 'asyncDispose', { value: descriptor.value, enumerable: false, configurable: false, writable: false });
   }
 }
