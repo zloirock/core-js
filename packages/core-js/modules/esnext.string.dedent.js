@@ -7,7 +7,6 @@ var anObject = require('../internals/an-object');
 var toObject = require('../internals/to-object');
 var isCallable = require('../internals/is-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var defineProperty = require('../internals/object-define-property').f;
 var createArrayFromList = require('../internals/array-slice');
 var WeakMapHelpers = require('../internals/weak-map-helpers');
 var cooked = require('../internals/string-cooked');
@@ -21,6 +20,7 @@ var weakMapSet = WeakMapHelpers.set;
 
 var $Array = Array;
 var $TypeError = TypeError;
+var defineProperty = Object.defineProperty;
 var freeze = Object.freeze;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
