@@ -8,7 +8,7 @@ for (const version of Object.values(modulesByVersions)) {
 }
 
 await fs.writeJson('packages/core-js-compat/modules-by-versions.json', {
-  '3.0': [...defaults],
+  '4.0': [...defaults],
   ...modulesByVersions,
 }, { spaces: '  ' });
 
