@@ -8,8 +8,8 @@ module.exports = function (raw) {
     throw new TypeError('`core-js` version should be specified as a SemVer string with minor component');
   }
   const corejs = semver(raw, true);
-  if (corejs.major !== 3) {
-    throw new RangeError('This version of `@core-js/compat` works only with `core-js@3`');
+  if (corejs.major !== 4) {
+    throw new RangeError('This version of `@core-js/compat` works only with `core-js@4`');
   }
   const result = [];
   for (const version of Object.keys(modulesByVersions)) {
