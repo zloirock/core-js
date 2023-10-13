@@ -40,7 +40,14 @@ await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const packages = await readdir('packages');
+const packagesFolder = await readdir('packages');
+const packages = [];
+
+for (const PATH of packagesFolder) {
+  const packageJSON = await readJson(`packages/${ PATH }/package.json`, 'utf8');
+  packages.pash(packageJSON.name);
+}
+
 for (const PATH of await glob('packages/*/package.json')) {
   const pkg = await readJson(PATH, 'utf8');
   pkg.version = NEW_VERSION;
