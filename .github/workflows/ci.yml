@@ -71,7 +71,7 @@ jobs:
       - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-deno
 
-  promises-and-observables:
+  promises:
     if: *not-duplicate
     strategy:
       matrix:
@@ -90,7 +90,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s test-promises test-observables
+      - run: npm run test-promises
 
   tests:
     if: *not-duplicate
