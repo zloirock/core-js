@@ -43,10 +43,6 @@ const ignore = {
     // TODO: temporarily, to avoid issues with v4 refactoring
     '@babel/core',
   ],
-  'tests/observables': [
-    '@babel/cli',
-    'moon-unit',
-  ],
 };
 
 const pkgs = await glob([
