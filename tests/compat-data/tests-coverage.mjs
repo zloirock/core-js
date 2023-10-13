@@ -9,9 +9,6 @@ const modulesSet = new Set([
 const tested = new Set(Object.keys(globalThis.tests));
 
 const ignore = new Set([
-  'esnext.observable.constructor',
-  'esnext.observable.from',
-  'esnext.observable.of',
   'esnext.reflect.define-metadata',
   'esnext.reflect.delete-metadata',
   'esnext.reflect.get-metadata',
