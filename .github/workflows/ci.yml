@@ -46,7 +46,7 @@ jobs:
       - run: npm ci
       - run: npx run-s bundle test-unit-bun
 
-  promises-and-observables:
+  promises:
     strategy:
       matrix:
         node:
@@ -64,7 +64,7 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npx run-s test-promises test-observables
+      - run: npm run test-promises
 
   tests:
     strategy:
