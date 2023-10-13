@@ -41,12 +41,10 @@ const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const packagesFolder = await readdir('packages');
-const packages = [];
-
-for (const PATH of packagesFolder) {
-  const packageJSON = await readJson(`packages/${ PATH }/package.json`, 'utf8');
-  packages.push(packageJSON.name);
-}
+const packages = await Promise.all(packagesFolder.map(async PATH => {
+  const { name } = await readJson(`packages/${ PATH }/package.json`, 'utf8');
+  return name;
+}));
 
 for (const PATH of await glob('packages/*/package.json')) {
   const pkg = await readJson(PATH, 'utf8');
