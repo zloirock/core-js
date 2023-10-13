@@ -729,10 +729,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
-    ok('from' in load(NS, 'observable'));
-    ok(typeof load(NS, 'observable/constructor') == 'function');
-    ok(typeof load(NS, 'observable/from') == 'function');
-    ok(typeof load(NS, 'observable/of') == 'function');
     ok(typeof load(NS, 'reflect/define-metadata') == 'function');
     ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
     ok(typeof load(NS, 'reflect/get-metadata') == 'function');
@@ -763,7 +759,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/matcher'));
-    ok(load(NS, 'symbol/observable'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
@@ -833,7 +828,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');
-  load('proposals/observable');
   load('proposals/pattern-matching');
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
