@@ -2044,9 +2044,6 @@ GLOBAL.tests = {
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;
   },
-  'esnext.symbol.observable': function () {
-    return Symbol.observable;
-  },
   'esnext.typed-array.filter-reject': function () {
     return Int8Array.prototype.filterReject;
   },
