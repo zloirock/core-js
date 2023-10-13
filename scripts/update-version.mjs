@@ -45,7 +45,7 @@ const packages = [];
 
 for (const PATH of packagesFolder) {
   const packageJSON = await readJson(`packages/${ PATH }/package.json`, 'utf8');
-  packages.pash(packageJSON.name);
+  packages.push(packageJSON.name);
 }
 
 for (const PATH of await glob('packages/*/package.json')) {
