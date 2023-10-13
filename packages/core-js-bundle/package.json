@@ -1,6 +1,6 @@
 {
   "name": "@core-js/bundle",
-  "version": "3.46.0",
+  "version": "4.0.0-alpha.0",
   "type": "commonjs",
   "description": "Standard library",
   "keywords": [
