@@ -1,6 +1,6 @@
 {
   "name": "@core-js/builder",
-  "version": "3.44.0",
+  "version": "4.0.0-alpha.0",
   "type": "commonjs",
   "description": "core-js builder",
   "repository": {
@@ -22,9 +22,9 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "3.44.0",
-    "@core-js/compat": "3.44.0",
-    "webpack": "^5.99.9"
+    "core-js": "4.0.0-alpha.0",
+    "@core-js/compat": "4.0.0-alpha.0",
+    "webpack": "^5.100.1"
   },
   "engines": {
     "node": "^18.12.0 || >=20.0.0"
