@@ -12,8 +12,4 @@ export default {
     // eslint-plugin-sonarjs does not work with typescript@7
     typescript: 'minor',
   },
-  'tests/observables': {
-    '@babel/cli': 'minor',
-    'moon-unit': 'patch',
-  },
 };
