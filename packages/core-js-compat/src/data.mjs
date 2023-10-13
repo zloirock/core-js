@@ -2668,12 +2668,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.object.group-by': null,
-  'esnext.observable.constructor': {
-  },
-  'esnext.observable.from': {
-  },
-  'esnext.observable.of': {
-  },
   'esnext.promise.all-keyed': {
     firefox: '155',
   },
@@ -2754,8 +2748,6 @@ export const data = {
   },
   'esnext.symbol.metadata': {
     deno: '1.40.4',
-  },
-  'esnext.symbol.observable': {
   },
   'esnext.typed-array.filter-reject': {
   },
