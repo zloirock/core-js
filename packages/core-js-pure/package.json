@@ -1,6 +1,7 @@
 {
   "name": "core-js-pure",
   "version": "3.33.0",
+  "type": "commonjs",
   "description": "Standard library",
   "keywords": [
     "ES3",
