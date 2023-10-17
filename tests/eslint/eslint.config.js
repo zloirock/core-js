@@ -683,6 +683,8 @@ const base = {
   'regexp/confusing-quantifier': ERROR,
   // enforce consistent escaping of control characters
   'regexp/control-character-escape': ERROR,
+  // enforce single grapheme in string literal
+  'regexp/grapheme-string-literal': ERROR,
   // enforce consistent usage of hexadecimal escape
   'regexp/hexadecimal-escape': [ERROR, NEVER],
   // enforce into your favorite case
@@ -712,6 +714,8 @@ const base = {
   'regexp/no-empty-group': ERROR,
   // disallow empty lookahead assertion or empty lookbehind assertion
   'regexp/no-empty-lookarounds-assertion': ERROR,
+  // reports empty string literals in character classes
+  'regexp/no-empty-string-literal': ERROR,
   // disallow escape backspace `([\b])`
   'regexp/no-escape-backspace': ERROR,
   // disallow unnecessary nested lookaround assertions
@@ -768,6 +772,10 @@ const base = {
   'regexp/no-useless-quantifier': ERROR,
   // disallow unnecessary range of characters by using a hyphen
   'regexp/no-useless-range': ERROR,
+  // reports any unnecessary set operands
+  'regexp/no-useless-set-operand': ERROR,
+  // reports the string alternatives of a single character in `\q{...}`, it can be placed outside `\q{...}`
+  'regexp/no-useless-string-literal': ERROR,
   // disallow unnecessary `{n,m}`` quantifier
   'regexp/no-useless-two-nums-quantifier': ERROR,
   // disallow quantifiers with a maximum of zero
@@ -812,6 +820,8 @@ const base = {
   'regexp/prefer-unicode-codepoint-escapes': ERROR,
   // enforce using `\w`
   'regexp/prefer-w': ERROR,
+  // aims to optimize patterns by simplifying set operations in character classes (with v flag)
+  'regexp/simplify-set-operations': ERROR,
   // sort alternatives if order doesn't matter
   'regexp/sort-alternatives': ERROR,
   // enforces elements order in character class
