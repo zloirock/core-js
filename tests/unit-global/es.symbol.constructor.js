@@ -32,6 +32,13 @@ QUnit.test('Symbol', assert => {
   }
 });
 
+QUnit.test('Symbol as global key', assert => {
+  const TEXT = 'test global symbol key';
+  const symbol = Symbol(TEXT);
+  GLOBAL[symbol] = TEXT;
+  assert.same(GLOBAL[symbol], TEXT, TEXT);
+});
+
 QUnit.test('Well-known Symbols', assert => {
   const wks = [
     'hasInstance',

@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 
 import create from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -29,6 +29,13 @@ QUnit.test('Symbol', assert => {
     for (const key in object) count++;
     assert.same(count, 0, 'object[Symbol()] is not enumerable');
   }
+});
+
+QUnit.test('Symbol as global key', assert => {
+  const TEXT = 'test global symbol key';
+  const symbol = Symbol(TEXT);
+  GLOBAL[symbol] = TEXT;
+  assert.same(GLOBAL[symbol], TEXT, TEXT);
 });
 
 QUnit.test('Well-known Symbols', assert => {
