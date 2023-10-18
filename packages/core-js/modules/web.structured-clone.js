@@ -3,6 +3,7 @@ var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var fails = require('../internals/fails');
@@ -321,7 +322,7 @@ var structuredCloneInternal = function (value, map) {
         case 'CompileError':
         case 'LinkError':
         case 'RuntimeError':
-          cloned = new (getBuiltIn('WebAssembly', name))();
+          cloned = new (getBuiltInStaticMethod('WebAssembly', name))();
           break;
         default:
           cloned = new Error();
