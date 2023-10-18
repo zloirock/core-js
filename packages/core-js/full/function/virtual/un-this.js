@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/esnext.function.un-this');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Function').unThis;
+module.exports = getBuiltInPrototypeMethod('Function', 'unThis');

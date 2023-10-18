@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.array.for-each');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').forEach;
+module.exports = getBuiltInPrototypeMethod('Array', 'forEach');

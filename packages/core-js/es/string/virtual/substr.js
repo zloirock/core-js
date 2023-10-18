@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.substr');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').substr;
+module.exports = getBuiltInPrototypeMethod('String', 'substr');

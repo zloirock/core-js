@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.array.map');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').map;
+module.exports = getBuiltInPrototypeMethod('Array', 'map');

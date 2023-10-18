@@ -1,6 +1,6 @@
 'use strict';
 // TODO: Remove from `core-js@4`
 require('../../../modules/esnext.array.filter-out');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').filterOut;
+module.exports = getBuiltInPrototypeMethod('Array', 'filterOut');

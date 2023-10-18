@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/esnext.array.group-by');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').groupBy;
+module.exports = getBuiltInPrototypeMethod('Array', 'groupBy');

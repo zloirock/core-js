@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/esnext.function.demethodize');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Function').demethodize;
+module.exports = getBuiltInPrototypeMethod('Function', 'demethodize');

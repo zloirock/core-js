@@ -1,6 +1,6 @@
 'use strict';
 require('../../../modules/es.array.iterator');
 require('../../../modules/es.object.to-string');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').entries;
+module.exports = getBuiltInPrototypeMethod('Array', 'entries');

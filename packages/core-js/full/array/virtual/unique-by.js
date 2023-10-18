@@ -1,6 +1,6 @@
 'use strict';
 require('../../../modules/es.map');
 require('../../../modules/esnext.array.unique-by');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').uniqueBy;
+module.exports = getBuiltInPrototypeMethod('Array', 'uniqueBy');

@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.link');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').link;
+module.exports = getBuiltInPrototypeMethod('String', 'link');

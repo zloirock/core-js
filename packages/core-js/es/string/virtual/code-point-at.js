@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.code-point-at');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').codePointAt;
+module.exports = getBuiltInPrototypeMethod('String', 'codePointAt');

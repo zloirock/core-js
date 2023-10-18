@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.array.copy-within');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').copyWithin;
+module.exports = getBuiltInPrototypeMethod('Array', 'copyWithin');

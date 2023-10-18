@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/esnext.array.filter-reject');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').filterReject;
+module.exports = getBuiltInPrototypeMethod('Array', 'filterReject');

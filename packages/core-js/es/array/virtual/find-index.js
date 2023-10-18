@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.array.find-index');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').findIndex;
+module.exports = getBuiltInPrototypeMethod('Array', 'findIndex');

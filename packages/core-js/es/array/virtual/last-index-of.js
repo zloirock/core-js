@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.array.last-index-of');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Array').lastIndexOf;
+module.exports = getBuiltInPrototypeMethod('Array', 'lastIndexOf');

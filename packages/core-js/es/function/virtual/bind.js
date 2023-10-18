@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.function.bind');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Function').bind;
+module.exports = getBuiltInPrototypeMethod('Function', 'bind');

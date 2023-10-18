@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.sup');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').sup;
+module.exports = getBuiltInPrototypeMethod('String', 'sup');

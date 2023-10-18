@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.trim-start');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').trimLeft;
+module.exports = getBuiltInPrototypeMethod('String', 'trimLeft');

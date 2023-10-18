@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.number.to-precision');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('Number').toPrecision;
+module.exports = getBuiltInPrototypeMethod('Number', 'toPrecision');

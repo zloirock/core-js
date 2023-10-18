@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.repeat');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').repeat;
+module.exports = getBuiltInPrototypeMethod('String', 'repeat');

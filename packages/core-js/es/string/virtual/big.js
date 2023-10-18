@@ -1,5 +1,5 @@
 'use strict';
 require('../../../modules/es.string.big');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').big;
+module.exports = getBuiltInPrototypeMethod('String', 'big');

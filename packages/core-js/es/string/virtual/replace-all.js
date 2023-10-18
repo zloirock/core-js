@@ -2,6 +2,6 @@
 require('../../../modules/es.regexp.exec');
 require('../../../modules/es.string.replace');
 require('../../../modules/es.string.replace-all');
-var entryVirtual = require('../../../internals/entry-virtual');
+var getBuiltInPrototypeMethod = require('../../../internals/get-built-in-prototype-method');
 
-module.exports = entryVirtual('String').replaceAll;
+module.exports = getBuiltInPrototypeMethod('String', 'replaceAll');
