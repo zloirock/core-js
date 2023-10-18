@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var apply = require('../internals/function-apply');
 var aConstructor = require('../internals/a-constructor');
 var anObject = require('../internals/an-object');
@@ -9,7 +9,7 @@ var fails = require('../internals/fails');
 
 var ObjectPrototype = Object.prototype;
 var create = Object.create;
-var nativeConstruct = getBuiltIn('Reflect', 'construct');
+var nativeConstruct = getBuiltInStaticMethod('Reflect', 'construct');
 var bind = create.bind;
 var push = [].push;
 
