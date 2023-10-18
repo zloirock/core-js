@@ -8,14 +8,14 @@ var getIterator = require('../internals/get-iterator');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
-var getVirtual = require('../internals/entry-virtual');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var toArray = require('../internals/async-iterator-iteration').toArray;
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-var arrayIterator = uncurryThis(getVirtual('Array').values);
+var arrayIterator = uncurryThis(getBuiltInPrototypeMethod('Array', 'values'));
 var arrayIteratorNext = uncurryThis(arrayIterator([]).next);
 
 var safeArrayIterator = function () {
