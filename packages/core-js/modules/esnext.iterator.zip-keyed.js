@@ -5,7 +5,7 @@ var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var createProperty = require('../internals/create-property');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
@@ -14,7 +14,8 @@ var iteratorZip = require('../internals/iterator-zip');
 var IS_PURE = require('../internals/is-pure');
 
 var create = Object.create;
-var ownKeys = getBuiltIn('Reflect', 'ownKeys');
+// dependency: es.reflect.own-keys
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 var push = uncurryThis([].push);
 var THROW = 'throw';
 
