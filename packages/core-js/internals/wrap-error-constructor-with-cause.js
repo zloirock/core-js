@@ -1,5 +1,6 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var hasOwn = require('../internals/has-own-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -17,7 +18,7 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
   var OPTIONS_POSITION = IS_AGGREGATE_ERROR ? 2 : 1;
   var path = FULL_NAME.split('.');
   var ERROR_NAME = path[path.length - 1];
-  var OriginalError = getBuiltIn.apply(null, path);
+  var OriginalError = path.length > 1 ? getBuiltInStaticMethod(path[0], path[1]) : getBuiltIn(path[0]);
 
   if (!OriginalError) return;
 
