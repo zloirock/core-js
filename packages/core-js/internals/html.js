@@ -1,4 +1,4 @@
 'use strict';
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 
-module.exports = getBuiltIn('document', 'documentElement');
+module.exports = getBuiltInStaticMethod('document', 'documentElement');

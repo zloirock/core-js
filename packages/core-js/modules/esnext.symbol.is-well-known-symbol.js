@@ -3,13 +3,14 @@
 var $ = require('../internals/export');
 var shared = require('../internals/shared');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isSymbol = require('../internals/is-symbol');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var Symbol = getBuiltIn('Symbol');
 var $isWellKnownSymbol = Symbol.isWellKnownSymbol;
-var getOwnPropertyNames = getBuiltIn('Object', 'getOwnPropertyNames');
+var getOwnPropertyNames = getBuiltInStaticMethod('Object', 'getOwnPropertyNames');
 var thisSymbolValue = uncurryThis(Symbol.prototype.valueOf);
 var WellKnownSymbolsStore = shared('wks');
 
