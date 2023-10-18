@@ -118,7 +118,7 @@ var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params
     index: 0,
     kind: kind
   });
-}, 'Iterator', function next() {
+}, URL_SEARCH_PARAMS, function next() {
   var state = getInternalIteratorState(this);
   var target = state.target;
   var index = state.index++;
