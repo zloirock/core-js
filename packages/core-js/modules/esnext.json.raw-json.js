@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
@@ -15,8 +15,8 @@ var setInternalState = require('../internals/internal-state').set;
 
 var $String = String;
 var $SyntaxError = SyntaxError;
-var parse = getBuiltIn('JSON', 'parse');
-var $stringify = getBuiltIn('JSON', 'stringify');
+var parse = getBuiltInStaticMethod('JSON', 'parse');
+var $stringify = getBuiltInStaticMethod('JSON', 'stringify');
 var create = Object.create;
 var freeze = Object.freeze;
 var at = uncurryThis(''.charAt);
