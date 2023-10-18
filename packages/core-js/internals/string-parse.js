@@ -1,10 +1,10 @@
 'use strict';
 // adapted from https://github.com/jridgewell/string-dedent
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var stringIndexOf = uncurryThis(''.indexOf);
