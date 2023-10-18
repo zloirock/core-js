@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
@@ -41,7 +41,7 @@ var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
 // dependency: es.reflect.own-keys
-var ownKeys = getBuiltIn('Reflect', 'ownKeys');
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 var TypeError = globalThis.TypeError;
 var NativeURL = globalThis.URL;
 var NativeURLSearchParams = globalThis.URLSearchParams;

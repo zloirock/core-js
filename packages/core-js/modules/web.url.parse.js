@@ -1,13 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var fails = require('../internals/fails');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var toString = require('../internals/to-string');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 
 var URL = getBuiltIn('URL');
-var nativeParse = getBuiltIn('URL', 'parse');
+var nativeParse = getBuiltInStaticMethod('URL', 'parse');
 
 // Deno 2.9.8 still uses `new this(...)` and throws when `parse` is detached.
 // https://github.com/denoland/deno/issues/37104

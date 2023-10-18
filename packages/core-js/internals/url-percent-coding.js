@@ -1,11 +1,11 @@
 'use strict';
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
 // dependency: es.string.from-code-point
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
