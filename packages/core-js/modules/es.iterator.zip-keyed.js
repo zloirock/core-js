@@ -5,7 +5,7 @@ var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var createProperty = require('../internals/create-property');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
@@ -28,7 +28,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
 
     var iters = [];
     var padding = [];
-    var allKeys = getBuiltIn('Reflect', 'ownKeys')(iterables);
+    var allKeys = getBuiltInStaticMethod('Reflect', 'ownKeys')(iterables);
     var keys = [];
     var propertyIsEnumerable = propertyIsEnumerableModule.f;
     var i, key, value;
