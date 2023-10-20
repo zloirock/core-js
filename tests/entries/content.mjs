@@ -126,7 +126,6 @@ superset('core-js/full/url', /^web\.url(?:\.|$)/);
 superset('core-js/full/url-search-params', /^web\.url-search-params/);
 superset('core-js/full/weak-map', /^(?:es|esnext)\.weak-map/);
 superset('core-js/full/weak-set', /^(?:es|esnext)\.weak-set/);
-subset('core-js/stage/pre', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/0', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/1', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/2', /^(?:es\.|esnext\.)/);
