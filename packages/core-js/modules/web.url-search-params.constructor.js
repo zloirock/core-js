@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
@@ -45,7 +45,7 @@ var TypeError = globalThis.TypeError;
 var encodeURIComponent = globalThis.encodeURIComponent;
 var fromCharCode = String.fromCharCode;
 // dependency: es.string.from-code-point
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
