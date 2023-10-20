@@ -9,15 +9,7 @@ const modulesSet = new Set([
 const tested = new Set(Object.keys(globalThis.tests));
 
 const ignore = new Set([
-  'esnext.reflect.define-metadata',
-  'esnext.reflect.delete-metadata',
-  'esnext.reflect.get-metadata',
-  'esnext.reflect.get-metadata-keys',
-  'esnext.reflect.get-own-metadata',
-  'esnext.reflect.get-own-metadata-keys',
-  'esnext.reflect.has-metadata',
-  'esnext.reflect.has-own-metadata',
-  'esnext.reflect.metadata',
+  // empty
 ]);
 
 const missed = modules.filter(it => !(tested.has(it) || tested.has(it.replace(/^esnext\./, 'es.')) || ignore.has(it)));
