@@ -11,15 +11,6 @@ const tested = new Set(Object.keys(globalThis.tests));
 const ignore = new Set([
   'esnext.iterator.sliding',
   'esnext.map.emplace',
-  'esnext.reflect.define-metadata',
-  'esnext.reflect.delete-metadata',
-  'esnext.reflect.get-metadata',
-  'esnext.reflect.get-metadata-keys',
-  'esnext.reflect.get-own-metadata',
-  'esnext.reflect.get-own-metadata-keys',
-  'esnext.reflect.has-metadata',
-  'esnext.reflect.has-own-metadata',
-  'esnext.reflect.metadata',
   'esnext.weak-map.emplace',
 ]);
 
