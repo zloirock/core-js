@@ -1,7 +1,7 @@
 /**
- * core-js 3.33.0
+ * core-js 3.33.1
  * © 2014-2023 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.33.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.33.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -1028,10 +1028,10 @@ var store = __webpack_require__(36);
 (module.exports = function (key, value) {
   return store[key] || (store[key] = value !== undefined ? value : {});
 })('versions', []).push({
-  version: '3.33.0',
+  version: '3.33.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2023 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.33.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.33.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -2990,11 +2990,11 @@ var uncurryThis = __webpack_require__(13);
 var aCallable = __webpack_require__(30);
 var toIndexedObject = __webpack_require__(11);
 var arrayFromConstructorAndList = __webpack_require__(112);
-var getVirtual = __webpack_require__(113);
+var getBuiltInPrototypeMethod = __webpack_require__(113);
 var addToUnscopables = __webpack_require__(101);
 
 var $Array = Array;
-var sort = uncurryThis(getVirtual('Array').sort);
+var sort = uncurryThis(getBuiltInPrototypeMethod('Array', 'sort'));
 
 // `Array.prototype.toSorted` method
 // https://tc39.es/ecma262/#sec-array.prototype.tosorted
@@ -3035,8 +3035,8 @@ module.exports = function (Constructor, list) {
 
 var global = __webpack_require__(3);
 
-module.exports = function (CONSTRUCTOR) {
-  return global[CONSTRUCTOR].prototype;
+module.exports = function (CONSTRUCTOR, METHOD) {
+  return global[CONSTRUCTOR].prototype[METHOD];
 };
 
 
@@ -5483,14 +5483,14 @@ var getIterator = __webpack_require__(96);
 var getIteratorDirect = __webpack_require__(186);
 var getIteratorMethod = __webpack_require__(97);
 var getMethod = __webpack_require__(29);
-var getVirtual = __webpack_require__(113);
 var getBuiltIn = __webpack_require__(23);
+var getBuiltInPrototypeMethod = __webpack_require__(113);
 var wellKnownSymbol = __webpack_require__(33);
 var AsyncFromSyncIterator = __webpack_require__(182);
 var toArray = __webpack_require__(187).toArray;
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-var arrayIterator = uncurryThis(getVirtual('Array').values);
+var arrayIterator = uncurryThis(getBuiltInPrototypeMethod('Array', 'values'));
 var arrayIteratorNext = uncurryThis(arrayIterator([]).next);
 
 var safeArrayIterator = function () {
@@ -9109,7 +9109,7 @@ var uncurryThis = __webpack_require__(13);
 var getUint8 = uncurryThis(DataView.prototype.getUint8);
 
 // `DataView.prototype.getUint8Clamped` method
-// https://github.com/tc39/proposal-dataview-get-set-uint8c
+// https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 $({ target: 'DataView', proto: true, forced: true }, {
   getUint8Clamped: function getUint8Clamped(byteOffset) {
     return getUint8(this, byteOffset);
@@ -9228,7 +9228,7 @@ var $TypeError = TypeError;
 var setUint8 = uncurryThis(DataView.prototype.setUint8);
 
 // `DataView.prototype.setUint8Clamped` method
-// https://github.com/tc39/proposal-dataview-get-set-uint8c
+// https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 $({ target: 'DataView', proto: true, forced: true }, {
   setUint8Clamped: function setUint8Clamped(byteOffset, value) {
     if (classof(this) !== 'DataView') throw new $TypeError('Incorrect receiver');
@@ -14003,7 +14003,6 @@ defineWellKnownSymbol('matcher');
 
 "use strict";
 
-// TODO: Remove from `core-js@4`
 var defineWellKnownSymbol = __webpack_require__(414);
 
 // `Symbol.metadata` well-known symbol
@@ -14017,6 +14016,7 @@ defineWellKnownSymbol('metadata');
 
 "use strict";
 
+// TODO: Remove from `core-js@4`
 var defineWellKnownSymbol = __webpack_require__(414);
 
 // `Symbol.metadataKey` well-known symbol
@@ -14646,7 +14646,6 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
 var DESCRIPTORS = __webpack_require__(5);
 var fails = __webpack_require__(6);
 var anObject = __webpack_require__(46);
-var create = __webpack_require__(87);
 var normalizeStringArgument = __webpack_require__(75);
 
 var nativeErrorToString = Error.prototype.toString;
@@ -14654,8 +14653,8 @@ var nativeErrorToString = Error.prototype.toString;
 var INCORRECT_TO_STRING = fails(function () {
   if (DESCRIPTORS) {
     // Chrome 32- incorrectly call accessor
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
-    var object = create(Object.defineProperty({}, 'name', { get: function () {
+    // eslint-disable-next-line es/no-object-create, es/no-object-defineproperty -- safe
+    var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
       return this === object;
     } }));
     if (nativeErrorToString.call(object) !== 'true') return true;

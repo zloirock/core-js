@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.33.1 - 2023.10.20](https://github.com/zloirock/core-js/releases/tag/v3.33.1)
 - Added one more workaround of possible error with `Symbol` polyfill on global object, [#1289](https://github.com/zloirock/core-js/issues/1289#issuecomment-1768411444)
 - Directly specified `type: commonjs` in `package.json` of all packages to avoid potential breakage in future Node versions, see [this issue](https://github.com/nodejs/TSC/issues/1445)
 - Prevented potential issue with lack of some dependencies after automatic optimization polyfills of some methods in the pure version
