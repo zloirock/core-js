@@ -36,7 +36,6 @@ jobs:
     strategy:
       matrix:
         node:
-          - 16.13
           - 18.12
           - 20
     runs-on: ubuntu-latest
@@ -57,7 +56,6 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - 16.13
           - 18.12
           - 20
     runs-on: ${{ matrix.os }}
