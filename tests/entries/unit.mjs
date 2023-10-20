@@ -729,15 +729,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
-    ok(typeof load(NS, 'reflect/define-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-metadata-keys') == 'function');
-    ok(typeof load(NS, 'reflect/get-own-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-own-metadata-keys') == 'function');
-    ok(typeof load(NS, 'reflect/has-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/metadata') == 'function');
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
@@ -833,7 +824,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/promise-any');
   load('proposals/promise-finally');
   load('proposals/promise-with-resolvers');
-  load('proposals/reflect-metadata');
   load('proposals/regexp-dotall-flag');
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
@@ -856,7 +846,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('stage/2');
   load('stage/1');
   load('stage/0');
-  load('stage/pre');
 
   for (const key in entries) {
     if (key.startsWith('core-js/modules/')) {
