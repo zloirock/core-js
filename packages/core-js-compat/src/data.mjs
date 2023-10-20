@@ -2498,35 +2498,6 @@ export const data = {
   'esnext.promise.try': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.with-resolvers': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.define-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.delete-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-metadata-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-own-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.get-own-metadata-keys': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.has-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.has-own-metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.reflect.metadata': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.regexp.escape': null,
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {
