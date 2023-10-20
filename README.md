@@ -196,8 +196,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
-    - [Pre-stage 0 proposals](#pre-stage-0-proposals)
-      - [`Reflect` metadata](#reflect-metadata)
   - [Web standards](#web-standards)
     - [`self`](#self)
     - [`structuredClone`](#structuredclone)
@@ -3401,48 +3399,6 @@ Function.isConstructor({});                          // => false
 Function.isConstructor(function () { /* empty */ }); // => true
 Function.isConstructor(() => { /* empty */ });       // => false
 Function.isConstructor(class { /* empty */ });       // => true
-```
-
-#### Pre-stage 0 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/pre
-```
-##### [`Reflect` metadata](https://github.com/rbuckton/reflect-metadata)[⬆](#index)
-Modules [`esnext.reflect.define-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.define-metadata.js), [`esnext.reflect.delete-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.delete-metadata.js), [`esnext.reflect.get-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.get-metadata.js), [`esnext.reflect.get-metadata-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.get-metadata-keys.js), [`esnext.reflect.get-own-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.get-own-metadata.js), [`esnext.reflect.get-own-metadata-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.get-own-metadata-keys.js), [`esnext.reflect.has-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.has-metadata.js), [`esnext.reflect.has-own-metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.has-own-metadata.js) and [`esnext.reflect.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.reflect.metadata.js).
-```ts
-namespace Reflect {
-  defineMetadata(metadataKey: any, metadataValue: any, target: Object, propertyKey?: PropertyKey): void;
-  getMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
-  getOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): any;
-  hasMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  hasOwnMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  deleteMetadata(metadataKey: any, target: Object, propertyKey?: PropertyKey): boolean;
-  getMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
-  getOwnMetadataKeys(target: Object, propertyKey?: PropertyKey): Array<mixed>;
-  metadata(metadataKey: any, metadataValue: any): decorator(target: Object, targetKey?: PropertyKey) => void;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/reflect-metadata
-core-js(-pure)/full/reflect/define-metadata
-core-js(-pure)/full/reflect/delete-metadata
-core-js(-pure)/full/reflect/get-metadata
-core-js(-pure)/full/reflect/get-metadata-keys
-core-js(-pure)/full/reflect/get-own-metadata
-core-js(-pure)/full/reflect/get-own-metadata-keys
-core-js(-pure)/full/reflect/has-metadata
-core-js(-pure)/full/reflect/has-own-metadata
-core-js(-pure)/full/reflect/metadata
-```
-[*Examples*](https://tinyurl.com/27t6a5ya):
-```js
-let object = {};
-Reflect.defineMetadata('foo', 'bar', object);
-Reflect.ownKeys(object);               // => []
-Reflect.getOwnMetadataKeys(object);    // => ['foo']
-Reflect.getOwnMetadata('foo', object); // => 'bar'
 ```
 
 ### Web standards[⬆](#index)
