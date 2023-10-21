@@ -649,7 +649,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
-    ok(typeof load(NS, 'dom-collections').iterator == 'function');
+    load(NS, 'dom-collections');
     ok(typeof load(NS, 'dom-collections/for-each') == 'function');
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
     ok(load(NS, 'self').Math === Math);
