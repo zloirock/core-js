@@ -3,7 +3,7 @@
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.1.0",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^8.51.0",
+    "eslint": "^8.52.0",
     "eslint-plugin-array-func": "^4.0.0",
     "eslint-plugin-es-x": "^7.2.0",
     "eslint-plugin-filenames": "^1.3.2",
