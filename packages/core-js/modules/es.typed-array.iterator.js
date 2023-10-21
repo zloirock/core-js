@@ -1,16 +1,20 @@
 'use strict';
 var globalThis = require('../internals/global-this');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var ArrayIterators = require('../modules/es.array.iterator');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var getArrayIteratorMethod = function (METHOD_NAME) {
+  return uncurryThis(getBuiltInPrototypeMethod('Array', METHOD_NAME));
+};
 
 var ITERATOR = wellKnownSymbol('iterator');
 var Uint8Array = globalThis.Uint8Array;
-var arrayValues = uncurryThis(ArrayIterators.values);
-var arrayKeys = uncurryThis(ArrayIterators.keys);
-var arrayEntries = uncurryThis(ArrayIterators.entries);
+var arrayValues = getArrayIteratorMethod('values');
+var arrayKeys = getArrayIteratorMethod('keys');
+var arrayEntries = getArrayIteratorMethod('entries');
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var TypedArrayPrototype = Uint8Array && Uint8Array.prototype;
