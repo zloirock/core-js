@@ -21,7 +21,7 @@ var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
 // https://tc39.es/ecma262/#sec-array.prototype-@@iterator
 // `CreateArrayIterator` internal method
 // https://tc39.es/ecma262/#sec-createarrayiterator
-module.exports = defineIterator(Array, 'Array', function (iterated, kind) {
+defineIterator(Array, 'Array', function (iterated, kind) {
   setInternalState(this, {
     type: ARRAY_ITERATOR,
     target: toIndexedObject(iterated), // target
