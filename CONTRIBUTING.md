@@ -110,10 +110,6 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare test-promises
   ```
-- [ECMAScript `Observable` test case](https://github.com/tc39/proposal-observable):
-  ```sh
-  npx run-s prepare test-observables
-  ```
 - CommonJS entry points tests:
   ```sh
   npx run-s prepare test-entries
