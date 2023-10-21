@@ -86,6 +86,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       keys: IS_SET ? defaultIterator : getIterationMethod(KEYS),
       entries: getIterationMethod(ENTRIES),
     };
+
     if (FORCED) for (KEY in methods) {
       if (BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME || !(KEY in IterablePrototype)) {
         defineBuiltIn(IterablePrototype, KEY, methods[KEY]);
@@ -97,7 +98,6 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
   if ((!IS_PURE || FORCED) && IterablePrototype[ITERATOR] !== defaultIterator) {
     defineBuiltIn(IterablePrototype, ITERATOR, defaultIterator, { name: DEFAULT });
   }
-  Iterators[NAME] = defaultIterator;
 
-  return methods;
+  Iterators[NAME] = defaultIterator;
 };
