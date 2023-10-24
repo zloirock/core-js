@@ -22,7 +22,7 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
-var arrayBufferTransfer = require('../internals/array-buffer-transfer');
+var detachTransferable = require('../internals/detach-transferable');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
@@ -63,7 +63,7 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
     var set1 = new global.Set([7]);
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation(Object(7));
-    return set2 === set1 || !set2.has(7) || typeof number != 'object' || +number !== 7;
+    return set2 === set1 || !set2.has(7) || !isObject(number) || +number !== 7;
   }) && structuredCloneImplementation;
 };
 
@@ -145,7 +145,7 @@ var createDataTransfer = function () {
 };
 
 var cloneBuffer = function (value, map, $type) {
-  if (mapHas(map, value)) return mapGet(map, value);
+  if (map && mapHas(map, value)) return mapGet(map, value);
 
   var type = $type || classof(value);
   var clone, length, options, source, target, i;
@@ -159,10 +159,10 @@ var cloneBuffer = function (value, map, $type) {
 
     // `ArrayBuffer#slice` is not available in IE10
     // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && typeof value.slice != 'function') throwUnpolyfillable('ArrayBuffer');
+    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throws in `DataView` and `.slice`
     try {
-      if (typeof value.slice == 'function' && !value.resizable) {
+      if (isCallable(value.slice) && !value.resizable) {
         clone = value.slice(0);
       } else {
         length = value.byteLength;
@@ -179,7 +179,7 @@ var cloneBuffer = function (value, map, $type) {
     }
   }
 
-  mapSet(map, value, clone);
+  if (map) mapSet(map, value, clone);
 
   return clone;
 };
@@ -597,11 +597,14 @@ var tryToTransferBuffers = function (transfer, map) {
 
     if (mapHas(map, value)) throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
 
-    if (arrayBufferTransfer) {
-      transferred = arrayBufferTransfer(value, undefined, true);
-    } else {
-      if (!isCallable(value.transfer)) throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+    if (PROPER_STRUCTURED_CLONE_TRANSFER) {
+      transferred = nativeRestrictedStructuredClone(value, { transfer: [value] });
+    } else if (isCallable(value.transfer)) {
       transferred = value.transfer();
+    } else {
+      if (!detachTransferable) throwUnpolyfillable('ArrayBuffer', TRANSFERRING);
+      transferred = cloneBuffer(value);
+      detachTransferable(value);
     }
 
     mapSet(map, value, transferred);
