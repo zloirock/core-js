@@ -17,7 +17,7 @@ const pluginSonarJS = require('eslint-plugin-sonarjs');
 const pluginUnicorn = require('eslint-plugin-unicorn');
 const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 
-const DEV_NODE_VERSIONS = '^16.13';
+const DEV_NODE_VERSIONS = '^18.12';
 
 const ERROR = 'error';
 const OFF = 'off';
@@ -1240,8 +1240,8 @@ const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
   ...disable(forbidModernESBuiltIns),
-  'es/no-regexp-d-flag': ERROR,
   ...forbidES2023BuiltIns,
+  'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
