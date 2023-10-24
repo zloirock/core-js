@@ -37,7 +37,7 @@ jobs:
       matrix:
         node:
           - 18.12
-          - 20
+          - 20.9
           - 21
     runs-on: ubuntu-latest
     steps:
@@ -58,7 +58,7 @@ jobs:
           - macos-latest
         node:
           - 18.12
-          - 20
+          - 20.9
           - 21
     runs-on: ${{ matrix.os }}
     steps:
