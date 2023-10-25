@@ -1,6 +1,6 @@
 'use strict';
+require('../../modules/es.array.for-each');
 require('../../modules/web.dom-collections.for-each');
-var uncurryThis = require('../../internals/function-uncurry-this');
-var forEach = require('../../internals/array-for-each');
+var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = uncurryThis(forEach);
+module.exports = entryUnbind('Array', 'forEach');
