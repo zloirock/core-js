@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Simplified `structuredClone` polyfill, avoided second tree pass in cases of transferring
+- Added support of `SuppressedError` to `structuredClone` polyfill
 - Removed unspecified unnecessary `ArrayBuffer` and `DataView` dependencies of `structuredClone` lack of which could cause errors in some entries in IE10-
 - Compat data improvements:
   - Updated Opera Android 78 compat data mapping

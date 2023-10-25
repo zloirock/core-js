@@ -2,7 +2,7 @@
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var global = require('../internals/global');
-var getBuiltin = require('../internals/get-built-in');
+var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -31,18 +31,9 @@ var Object = global.Object;
 var Array = global.Array;
 var Date = global.Date;
 var Error = global.Error;
-var EvalError = global.EvalError;
-var RangeError = global.RangeError;
-var ReferenceError = global.ReferenceError;
-var SyntaxError = global.SyntaxError;
 var TypeError = global.TypeError;
-var URIError = global.URIError;
 var PerformanceMark = global.PerformanceMark;
-var WebAssembly = global.WebAssembly;
-var CompileError = WebAssembly && WebAssembly.CompileError || Error;
-var LinkError = WebAssembly && WebAssembly.LinkError || Error;
-var RuntimeError = WebAssembly && WebAssembly.RuntimeError || Error;
-var DOMException = getBuiltin('DOMException');
+var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
 var mapGet = MapHelpers.get;
@@ -50,7 +41,7 @@ var mapSet = MapHelpers.set;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
-var objectKeys = getBuiltin('Object', 'keys');
+var objectKeys = getBuiltIn('Object', 'keys');
 var push = uncurryThis([].push);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.0.valueOf);
@@ -227,34 +218,21 @@ var structuredCloneInternal = function (value, map) {
       name = value.name;
       switch (name) {
         case 'AggregateError':
-          cloned = new (getBuiltin('AggregateError'))([]);
+          cloned = new (getBuiltIn(name))([]);
           break;
         case 'EvalError':
-          cloned = new EvalError();
-          break;
         case 'RangeError':
-          cloned = new RangeError();
-          break;
         case 'ReferenceError':
-          cloned = new ReferenceError();
-          break;
+        case 'SuppressedError':
         case 'SyntaxError':
-          cloned = new SyntaxError();
-          break;
         case 'TypeError':
-          cloned = new TypeError();
-          break;
         case 'URIError':
-          cloned = new URIError();
+          cloned = new (getBuiltIn(name))();
           break;
         case 'CompileError':
-          cloned = new CompileError();
-          break;
         case 'LinkError':
-          cloned = new LinkError();
-          break;
         case 'RuntimeError':
-          cloned = new RuntimeError();
+          cloned = new (getBuiltIn('WebAssembly', name))();
           break;
         default:
           cloned = new Error();
@@ -435,6 +413,9 @@ var structuredCloneInternal = function (value, map) {
       }
       if (name === 'AggregateError') {
         cloned.errors = structuredCloneInternal(value.errors, map);
+      } else if (name === 'SuppressedError') {
+        cloned.error = structuredCloneInternal(value.error, map);
+        cloned.suppressed = structuredCloneInternal(value.suppressed, map);
       } // break omitted
     case 'DOMException':
       if (ERROR_STACK_INSTALLABLE) {
