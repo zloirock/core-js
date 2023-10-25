@@ -1,9 +1,11 @@
 'use strict';
 var globalThis = require('../internals/global-this');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var DOMIterables = require('../internals/dom-iterables');
 var DOMTokenListPrototype = require('../internals/dom-token-list-prototype');
-var forEach = require('../internals/array-for-each');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+
+var forEach = getBuiltInPrototypeMethod('Array', 'forEach');
 
 var handlePrototype = function (CollectionPrototype) {
   // some Chrome versions have non-configurable methods on DOMTokenList
