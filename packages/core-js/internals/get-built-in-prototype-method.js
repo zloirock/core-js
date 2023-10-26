@@ -2,5 +2,7 @@
 var global = require('../internals/global');
 
 module.exports = function (CONSTRUCTOR, METHOD) {
-  return global[CONSTRUCTOR].prototype[METHOD];
+  var Constructor = global[CONSTRUCTOR];
+  var Prototype = Constructor && Constructor.prototype;
+  return Prototype && Prototype[METHOD];
 };
