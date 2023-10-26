@@ -10,7 +10,7 @@ var thisSymbolValue = uncurryThis(Symbol.prototype.valueOf);
 // `Symbol.isRegisteredSymbol` method
 // https://tc39.es/proposal-symbol-predicates/#sec-symbol-isregisteredsymbol
 $({ target: 'Symbol', stat: true }, {
-  isRegisteredSymbol: Symbol.isRegisteredSymbol || function isRegisteredSymbol(value) {
+  isRegisteredSymbol: function isRegisteredSymbol(value) {
     try {
       return keyFor(thisSymbolValue(value)) !== undefined;
     } catch (error) {
