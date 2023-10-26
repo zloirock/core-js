@@ -10,7 +10,7 @@ var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
 
-module.exports = function from(obj) {
+module.exports = function (obj) {
   var object = anObject(obj);
   var alreadyAsync = true;
   var method = getMethod(object, ASYNC_ITERATOR);
