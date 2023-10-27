@@ -105,7 +105,7 @@ QUnit.test('URLSearchParams', assert => {
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
     { input: { c: 'x', a: '?' }, output: [['c', 'x'], ['a', '?']], name: 'object with two keys' },
     { input: [['c', 'x'], ['a', '?']], output: [['c', 'x'], ['a', '?']], name: 'array with two keys' },
-    // eslint-disable-next-line max-len -- ignore
+    // eslint-disable-next-line @stylistic/js/max-len -- ignore
     // !!! { input: { 'a\0b': '42', 'c\uD83D': '23', dሴ: 'foo' }, output: [['a\0b', '42'], ['c\uFFFD', '23'], ['d\u1234', 'foo']], name: 'object with NULL, non-ASCII, and surrogate keys' },
   ];
 
