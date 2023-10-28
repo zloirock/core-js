@@ -24,13 +24,11 @@ $({ target: 'Number', stat: true, forced: true }, {
     var sign = 1;
     if (typeof string != 'string') throw new $TypeError(INVALID_NUMBER_REPRESENTATION);
     if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
-    if (string === 'NaN') return NaN;
     if (charAt(string, 0) === '-') {
       sign = -1;
       string = stringSlice(string, 1);
-      if (!string.length || string === '0') throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+      if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
-    if (string === 'Infinity') return sign * Infinity;
     var R = radix === undefined ? 10 : toIntegerOrInfinity(radix);
     if (R < 2 || R > 36) throw new $RangeError(INVALID_RADIX);
     if (!exec(valid, string)) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);

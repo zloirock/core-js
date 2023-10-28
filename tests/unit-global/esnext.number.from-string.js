@@ -17,13 +17,6 @@ QUnit.test('Number.fromString', assert => {
   }
   assert.throws(() => fromString('10', -4294967294), RangeError, 'Radix uses ToInteger #1');
 
-  assert.same(fromString('NaN'), NaN);
-  assert.same(fromString('NaN', 2), NaN);
-  assert.same(fromString('Infinity'), Infinity);
-  assert.same(fromString('Infinity', 2), Infinity);
-  assert.same(fromString('-Infinity'), -Infinity);
-  assert.same(fromString('-Infinity', 2), -Infinity);
-
   assert.same(fromString('10', 2.5), 2, 'Radix uses ToInteger #2');
   assert.same(fromString('42'), 42);
   assert.same(fromString('42', 10), 42);
@@ -33,8 +26,8 @@ QUnit.test('Number.fromString', assert => {
 
   assert.same(fromString('0'), 0);
   assert.same(fromString('0', 2), 0);
-  assert.throws(() => fromString('-0'), SyntaxError);
-  assert.throws(() => fromString('-0', 2), SyntaxError);
+  assert.same(fromString('-0'), -0);
+  assert.same(fromString('-0', 2), -0);
 
   assert.throws(() => fromString('0xc0ffee'), SyntaxError);
   assert.throws(() => fromString('0o755'), SyntaxError);
