@@ -9,30 +9,35 @@ var INVALID_RADIX = 'Invalid radix';
 var $RangeError = RangeError;
 var $SyntaxError = SyntaxError;
 var $TypeError = TypeError;
-var valid = /^[\da-z]+$/;
+var pow = Math.pow;
+var valid = /^[\d.a-z]+$/;
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(valid.exec);
 var numberToString = uncurryThis(1.0.toString);
 var stringSlice = uncurryThis(''.slice);
+var split = uncurryThis(''.split);
 
 // `Number.fromString` method
 // https://github.com/tc39/proposal-number-fromstring
 $({ target: 'Number', stat: true, forced: true }, {
   fromString: function fromString(string, radix) {
     var sign = 1;
-    var R, mathNum;
     if (typeof string != 'string') throw new $TypeError(INVALID_NUMBER_REPRESENTATION);
     if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    if (string === 'NaN') return NaN;
     if (charAt(string, 0) === '-') {
       sign = -1;
       string = stringSlice(string, 1);
-      if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+      if (!string.length || string === '0') throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     }
-    R = radix === undefined ? 10 : toIntegerOrInfinity(radix);
+    if (string === 'Infinity') return sign * Infinity;
+    var R = radix === undefined ? 10 : toIntegerOrInfinity(radix);
     if (R < 2 || R > 36) throw new $RangeError(INVALID_RADIX);
-    if (!exec(valid, string) || numberToString(mathNum = parseInt(string, R), R) !== string) {
-      throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
-    }
+    if (!exec(valid, string)) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    var parts = split(string, '.');
+    var mathNum = parseInt(parts[0], R);
+    if (parts.length > 1) mathNum += parseInt(parts[1], R) / pow(R, parts[1].length);
+    if (numberToString(mathNum, R) !== string) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     return sign * mathNum;
   }
 });
