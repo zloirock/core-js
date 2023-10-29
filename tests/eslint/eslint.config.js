@@ -14,7 +14,7 @@ const pluginQUnit = require('eslint-plugin-qunit');
 const pluginReDoS = require('eslint-plugin-redos');
 const pluginRegExp = require('eslint-plugin-regexp');
 const pluginSonarJS = require('eslint-plugin-sonarjs');
-const pluginStylisticJS = require('@stylistic/eslint-plugin');
+const pluginStylisticJS = require('@stylistic/eslint-plugin-js');
 const pluginUnicorn = require('eslint-plugin-unicorn');
 const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
 
