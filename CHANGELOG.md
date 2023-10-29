@@ -6,6 +6,7 @@
 - Fixed handling of fractional number part in [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 - Compat data improvements:
   - Updated Opera Android 78 compat data mapping
+  - Added Electron 29 compat data mapping
 
 ##### [3.33.1 - 2023.10.20](https://github.com/zloirock/core-js/releases/tag/v3.33.1)
 - Added one more workaround of possible error with `Symbol` polyfill on global object, [#1289](https://github.com/zloirock/core-js/issues/1289#issuecomment-1768411444)
