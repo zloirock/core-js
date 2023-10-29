@@ -2519,6 +2519,7 @@ export const data = {
   },
   'web.url.can-parse': {
     bun: '1.0.2',
+    chrome: '120',
     deno: '1.33.2',
     firefox: '115',
     node: '20.1.0',

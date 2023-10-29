@@ -5,6 +5,7 @@
 - Removed unspecified unnecessary `ArrayBuffer` and `DataView` dependencies of `structuredClone` lack of which could cause errors in some entries in IE10-
 - Fixed handling of fractional number part in [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 - Compat data improvements:
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) marked as [supported from Chromium 120](https://bugs.chromium.org/p/chromium/issues/detail?id=1425839)
   - Updated Opera Android 78 compat data mapping
   - Added Electron 29 compat data mapping
 
