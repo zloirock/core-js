@@ -6116,7 +6116,9 @@
     "firefox": "119",
     "firefox-android": "119",
     "node": "21.0",
-    "opera": "103"
+    "opera": "103",
+    "opera-android": "78",
+    "opera_mobile": "78"
   },
   "esnext.map.includes": {},
   "esnext.map.key-by": {},
@@ -6181,7 +6183,9 @@
     "firefox": "119",
     "firefox-android": "119",
     "node": "21.0",
-    "opera": "103"
+    "opera": "103",
+    "opera-android": "78",
+    "opera_mobile": "78"
   },
   "esnext.observable": {},
   "esnext.observable.constructor": {},
@@ -6819,12 +6823,18 @@
     "samsung": "9.0"
   },
   "web.url.can-parse": {
+    "android": "120",
     "bun": "1.0.2",
+    "chrome": "120",
+    "chrome-android": "120",
     "deno": "1.33.2",
+    "edge": "120",
+    "electron": "29.0",
     "firefox": "115",
     "firefox-android": "115",
     "ios": "17.0",
     "node": "20.1.0",
+    "opera": "106",
     "safari": "17.0"
   },
   "web.url.to-json": {

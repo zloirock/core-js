@@ -209,11 +209,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ### Installation:[⬆](#index)
 ```sh
 // global version
-npm install --save core-js@3.33.1
+npm install --save core-js@3.33.2
 // version without global namespace pollution
-npm install --save core-js-pure@3.33.1
+npm install --save core-js-pure@3.33.2
 // bundled global version
-npm install --save core-js-bundle@3.33.1
+npm install --save core-js-bundle@3.33.2
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
