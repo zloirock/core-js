@@ -18,6 +18,7 @@
     "zxi": "zx scripts/zxi.mjs",
     "prepare": "npm run zxi scripts/prepare.mjs",
     "prepare-monorepo": "node scripts/prepare-monorepo.mjs",
+    "build-entries": "npm run zxi time scripts/build-entries/index.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
     "build-website": "npm run zxi time website/index.mjs",
     "build-website-local": "npm run zxi time website/build-local.mjs",
