@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Simplified `structuredClone` polyfill, avoided second tree pass in cases of transferring
-- Added support of `SuppressedError` to `structuredClone` polyfill
+- Added support of [`SuppressedError`](https://github.com/tc39/proposal-explicit-resource-management#the-suppressederror-error) to `structuredClone` polyfill
 - Removed unspecified unnecessary `ArrayBuffer` and `DataView` dependencies of `structuredClone` lack of which could cause errors in some entries in IE10-
 - Fixed handling of fractional number part in [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)
 - Compat data improvements:
