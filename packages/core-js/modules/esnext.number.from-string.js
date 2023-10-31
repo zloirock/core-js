@@ -2,13 +2,13 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
-var parseInt = require('../internals/number-parse-int');
 
 var INVALID_NUMBER_REPRESENTATION = 'Invalid number representation';
 var INVALID_RADIX = 'Invalid radix';
 var $RangeError = RangeError;
 var $SyntaxError = SyntaxError;
 var $TypeError = TypeError;
+var $parseInt = parseInt;
 var pow = Math.pow;
 var valid = /^[\d.a-z]+$/;
 var charAt = uncurryThis(''.charAt);
@@ -33,8 +33,8 @@ $({ target: 'Number', stat: true, forced: true }, {
     if (R < 2 || R > 36) throw new $RangeError(INVALID_RADIX);
     if (!exec(valid, string)) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     var parts = split(string, '.');
-    var mathNum = parseInt(parts[0], R);
-    if (parts.length > 1) mathNum += parseInt(parts[1], R) / pow(R, parts[1].length);
+    var mathNum = $parseInt(parts[0], R);
+    if (parts.length > 1) mathNum += $parseInt(parts[1], R) / pow(R, parts[1].length);
     if (numberToString(mathNum, R) !== string) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     return sign * mathNum;
   }
