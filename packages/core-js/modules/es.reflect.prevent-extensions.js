@@ -9,8 +9,7 @@ $({ target: 'Reflect', stat: true }, {
   preventExtensions: function preventExtensions(target) {
     anObject(target);
     try {
-      var objectPreventExtensions = getBuiltInStaticMethod('Object', 'preventExtensions');
-      if (objectPreventExtensions) objectPreventExtensions(target);
+      getBuiltInStaticMethod('Object', 'preventExtensions')(target);
       return true;
     } catch (error) {
       return false;
