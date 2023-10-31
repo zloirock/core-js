@@ -1,6 +1,6 @@
 {
   "name": "scripts/bundle-package",
   "devDependencies": {
-    "terser": "^5.23.0"
+    "terser": "^5.24.0"
   }
 }
