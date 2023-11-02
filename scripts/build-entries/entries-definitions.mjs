@@ -498,6 +498,63 @@ export const features = {
     modules: ['es.number.to-precision'],
     template: $virtual({ namespace: 'Number', method: 'toPrecision' }),
   },
+  'reflect/index': {
+    modules: [/^(?:es|esnext)\.reflect\./],
+    template: $namespace({ namespace: 'Reflect' }),
+  },
+  'reflect/apply': {
+    modules: ['es.reflect.apply'],
+    template: $static({ namespace: 'Reflect', method: 'apply' }),
+  },
+  'reflect/construct': {
+    modules: ['es.reflect.construct'],
+    template: $static({ namespace: 'Reflect', method: 'construct' }),
+  },
+  'reflect/define-property': {
+    modules: ['es.reflect.define-property'],
+    template: $static({ namespace: 'Reflect', method: 'defineProperty' }),
+  },
+  'reflect/delete-property': {
+    modules: ['es.reflect.delete-property'],
+    template: $static({ namespace: 'Reflect', method: 'deleteProperty' }),
+  },
+  'reflect/get-own-property-descriptor': {
+    modules: ['es.reflect.get-own-property-descriptor'],
+    template: $static({ namespace: 'Reflect', method: 'getOwnPropertyDescriptor' }),
+  },
+  'reflect/get-prototype-of': {
+    modules: ['es.reflect.get-prototype-of'],
+    template: $static({ namespace: 'Reflect', method: 'getPrototypeOf' }),
+  },
+  'reflect/get': {
+    modules: ['es.reflect.get'],
+    template: $static({ namespace: 'Reflect', method: 'get' }),
+  },
+  'reflect/has': {
+    modules: ['es.reflect.has'],
+    template: $static({ namespace: 'Reflect', method: 'has' }),
+  },
+  'reflect/is-extensible': {
+    modules: ['es.reflect.is-extensible'],
+    template: $static({ namespace: 'Reflect', method: 'isExtensible' }),
+  },
+  'reflect/own-keys': {
+    modules: ['es.reflect.own-keys'],
+    template: $static({ namespace: 'Reflect', method: 'ownKeys' }),
+  },
+  'reflect/prevent-extensions': {
+    modules: ['es.reflect.prevent-extensions'],
+    template: $static({ namespace: 'Reflect', method: 'preventExtensions' }),
+  },
+  'reflect/set-prototype-of': {
+    modules: ['es.reflect.set-prototype-of'],
+    template: $static({ namespace: 'Reflect', method: 'setPrototypeOf' }),
+  },
+  'reflect/set': {
+    modules: ['es.reflect.set'],
+    template: $static({ namespace: 'Reflect', method: 'set' }),
+  },
+  // 'reflect/to-string-tag' ???
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
     template: $helper({ name: 'get-iterator' }),
