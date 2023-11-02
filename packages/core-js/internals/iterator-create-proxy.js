@@ -64,6 +64,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
 var WrapForValidIteratorPrototype = createIteratorProxyPrototype(true);
 var IteratorHelperPrototype = createIteratorProxyPrototype(false);
 
+// dependency: es.object.to-string
 createNonEnumerableProperty(IteratorHelperPrototype, TO_STRING_TAG, 'Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR, RETURN_HANDLER_RESULT) {
