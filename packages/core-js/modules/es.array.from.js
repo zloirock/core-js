@@ -31,6 +31,7 @@ $({ target: 'Array', stat: true, forced: INCORRECT_ITERATION }, {
     var mapping = mapfn !== undefined;
     if (mapping) mapfn = bind(mapfn, argumentsLength > 2 ? arguments[2] : undefined);
     var O = toObject(arrayLike);
+    // dependency: es.string.iterator
     var iteratorMethod = getIteratorMethod(O);
     var index = 0;
     var length, result, step, iterator, next, value;
