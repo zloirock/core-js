@@ -1,6 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
+// dependency: es.set.constructor
 // eslint-disable-next-line es/no-set -- safe
 var SetPrototype = Set.prototype;
 

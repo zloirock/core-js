@@ -17,9 +17,9 @@ async function buildEntry(entry, template, modulesWithoutDependencies, filter) {
 
 for (const [entry, { modules, template }] of Object.entries(features)) {
   const es = modules.es ?? [];
-  const stable = [...es, ...(modules.stable ?? [])];
-  const actual = [...stable, ...(modules.actual ?? [])];
-  const full = [...actual, ...(modules.full ?? [])];
+  const stable = [...es, ...modules.stable ?? []];
+  const actual = [...stable, ...modules.actual ?? []];
+  const full = [...actual, ...modules.full ?? []];
   await buildEntry(`es/${ entry }`, template, es, /^es\./);
   await buildEntry(`stable/${ entry }`, template, stable, /^(?:es|web)\./);
   await buildEntry(`actual/${ entry }`, template, actual);

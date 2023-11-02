@@ -3,7 +3,9 @@ var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 
+// dependency: es.symbol.constructor
 var Symbol = getBuiltIn('Symbol');
+// dependency: es.symbol.key-for
 var keyFor = Symbol.keyFor;
 var thisSymbolValue = uncurryThis(Symbol.prototype.valueOf);
 

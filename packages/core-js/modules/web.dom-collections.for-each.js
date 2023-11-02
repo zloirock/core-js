@@ -5,6 +5,7 @@ var DOMIterables = require('../internals/dom-iterables');
 var DOMTokenListPrototype = require('../internals/dom-token-list-prototype');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 
+// dependency: es.array.for-each
 var forEach = getBuiltInPrototypeMethod('Array', 'forEach');
 
 var handlePrototype = function (CollectionPrototype) {
