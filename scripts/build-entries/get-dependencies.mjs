@@ -10,11 +10,11 @@ const DIRECTIVE = /^ *\/\/ dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)
 
 const cache = new Map();
 
-function unique(array) {
+export function unique(array) {
   return [...new Set(array)];
 }
 
-function sort(list) {
+export function sort(list) {
   const set = new Set(list);
   return modules.filter(it => set.has(it));
 }
