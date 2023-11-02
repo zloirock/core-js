@@ -37,6 +37,7 @@ var NativeURLPrototype = NativeURL && NativeURL.prototype;
 var getPrototypeOf = Object.getPrototypeOf;
 var TypeError = globalThis.TypeError;
 var parseInt = globalThis.parseInt;
+// dependency: es.object.assign
 var assign = getBuiltInStaticMethod('Object', 'assign');
 var floor = Math.floor;
 var pow = Math.pow;

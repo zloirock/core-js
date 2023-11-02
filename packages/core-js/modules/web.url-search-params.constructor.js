@@ -174,6 +174,7 @@ URLSearchParamsState.prototype = {
   },
   parseObject: function (object) {
     var entries = this.entries;
+    // dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var index = 0;
     var iterator, next, step, entryIterator, entryNext, pair;

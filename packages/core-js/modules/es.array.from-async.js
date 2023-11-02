@@ -15,7 +15,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
 var toArray = require('../internals/async-iterator-iteration').toArray;
-
 var fails = require('../internals/fails');
 var V8_VERSION = require('../internals/environment-v8-version');
 var ENVIRONMENT = require('../internals/environment');
@@ -63,10 +62,15 @@ $({ target: 'Array', stat: true, forced: FORCED }, {
     var argumentsLength = arguments.length;
     var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
     var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
+    // dependency: es.promise.constructor
+    // dependency: es.promise.catch
+    // dependency: es.promise.finally
     var Promise = getBuiltIn('Promise');
     return new Promise(function (resolve, reject) {
       if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
       var usingAsyncIterator = getMethod(items, ASYNC_ITERATOR);
+      // dependency: es.array.iterator
+      // dependency: es.string.iterator
       var usingSyncIterator = usingAsyncIterator === undefined ? getIteratorMethod(items) : undefined;
       if (usingAsyncIterator !== undefined || usingSyncIterator !== undefined) {
         var iterator = usingAsyncIterator !== undefined

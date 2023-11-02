@@ -14,6 +14,9 @@ $({ target: 'Map', stat: true, forced: true }, {
     var newMap = new C();
     aCallable(keyDerivative);
     var setter = aCallable(newMap.set);
+    // dependency: es.array.iterator
+    // dependency: es.string.iterator
+    // dependency: web.dom-collections.iterator
     iterate(iterable, function (element) {
       call(setter, newMap, keyDerivative(element), element);
     });
