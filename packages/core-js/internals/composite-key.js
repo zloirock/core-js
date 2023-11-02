@@ -4,7 +4,9 @@ var isObject = require('../internals/is-object');
 
 var $Object = Object;
 var $TypeError = TypeError;
+// dependency: es.map.constructor
 var Map = getBuiltIn('Map');
+// dependency: es.weak-map.constructor
 var WeakMap = getBuiltIn('WeakMap');
 var create = Object.create;
 
