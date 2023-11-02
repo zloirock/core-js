@@ -54,10 +54,3 @@ export async function getListOfDependencies(paths) {
   }
   return sort(unique(dependencies).filter(it => it.startsWith('modules/')).map(it => it.slice(8)));
 }
-
-// TODO: drop it later
-if (process.env.DEBUG_GET_DEPENDENCIES) {
-  console.time('DEBUG_GET_DEPENDENCIES');
-  for (const module of modules) console.log(module, await getListOfDependencies(module));
-  console.timeEnd('DEBUG_GET_DEPENDENCIES');
-}
