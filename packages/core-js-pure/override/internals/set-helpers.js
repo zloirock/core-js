@@ -2,6 +2,7 @@
 var getBuiltIn = require('../internals/get-built-in');
 var caller = require('../internals/caller');
 
+// dependency: es.set.constructor
 var Set = getBuiltIn('Set');
 var SetPrototype = Set.prototype;
 
