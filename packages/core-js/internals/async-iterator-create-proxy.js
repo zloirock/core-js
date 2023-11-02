@@ -11,6 +11,11 @@ var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
+// dependency: es.promise.constructor
+// dependency: es.promise.catch
+// dependency: es.promise.finally
+// dependency: es.promise.reject
+// dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 var create = Object.create;
 
@@ -111,6 +116,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
 var WrapForValidAsyncIteratorPrototype = createAsyncIteratorProxyPrototype(true);
 var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
 
+// dependency: es.object.to-string
 createNonEnumerableProperty(AsyncIteratorHelperPrototype, TO_STRING_TAG, 'Async Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR) {

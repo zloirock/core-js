@@ -3,6 +3,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var caller = require('../internals/caller');
 
 module.exports = {
+  // dependency: es.weak-set.constructor
   WeakSet: getBuiltIn('WeakSet'),
   add: caller('add', 1),
   has: caller('has', 1),

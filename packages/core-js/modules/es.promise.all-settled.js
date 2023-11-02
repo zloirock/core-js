@@ -20,6 +20,7 @@ $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }
       var values = [];
       var counter = 0;
       var remaining = 1;
+      // dependency: es.array.iterator
       iterate(iterable, function (promise) {
         var index = counter++;
         var alreadyCalled = false;
