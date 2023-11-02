@@ -11,7 +11,12 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
 var addDisposableResource = require('../internals/add-disposable-resource');
 
+// dependency: es.promise.constructor
+// dependency: es.promise.catch
+// dependency: es.promise.finally
+// dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
+// dependency: esnext.suppressed-error.constructor
 var SuppressedError = getBuiltIn('SuppressedError');
 var $ReferenceError = ReferenceError;
 
@@ -118,6 +123,7 @@ defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
 });
 
 defineBuiltIn(AsyncDisposableStackPrototype, ASYNC_DISPOSE, AsyncDisposableStackPrototype.disposeAsync, { name: 'disposeAsync' });
+// dependency: es.object.to-string
 defineBuiltIn(AsyncDisposableStackPrototype, TO_STRING_TAG, ASYNC_DISPOSABLE_STACK, { nonWritable: true });
 
 $({ global: true, constructor: true }, {

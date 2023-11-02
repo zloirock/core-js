@@ -47,7 +47,10 @@ var defineIteratorPrototypeAccessor = function (key, value) {
   });
 };
 
-if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) defineIteratorPrototypeAccessor(TO_STRING_TAG, ITERATOR);
+if (!hasOwn(IteratorPrototype, TO_STRING_TAG)) {
+  // dependency: es.object.to-string
+  defineIteratorPrototypeAccessor(TO_STRING_TAG, ITERATOR);
+}
 
 if (FORCED || !hasOwn(IteratorPrototype, CONSTRUCTOR) || IteratorPrototype[CONSTRUCTOR] === Object) {
   defineIteratorPrototypeAccessor(CONSTRUCTOR, IteratorConstructor);
