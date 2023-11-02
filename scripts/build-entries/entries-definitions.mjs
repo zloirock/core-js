@@ -13,9 +13,309 @@ export const features = {
     modules: ['es.array.at'],
     template: $virtual({ namespace: 'Array', method: 'at' }),
   },
+  'array/concat': {
+    modules: ['es.array.concat'],
+    template: $prototype({ namespace: 'Array', method: 'concat' }),
+  },
+  'array/virtual/concat': {
+    modules: ['es.array.concat'],
+    template: $virtual({ namespace: 'Array', method: 'concat' }),
+  },
+  'array/copy-within': {
+    modules: ['es.array.copy-within'],
+    template: $prototype({ namespace: 'Array', method: 'copyWithin' }),
+  },
+  'array/virtual/copy-within': {
+    modules: ['es.array.copy-within'],
+    template: $virtual({ namespace: 'Array', method: 'copyWithin' }),
+  },
+  'array/entries': {
+    modules: ['es.array.iterator'],
+    template: $prototype({ namespace: 'Array', method: 'entries' }),
+  },
+  'array/virtual/entries': {
+    modules: ['es.array.iterator'],
+    template: $virtual({ namespace: 'Array', method: 'entries' }),
+  },
+  'array/every': {
+    modules: ['es.array.every'],
+    template: $prototype({ namespace: 'Array', method: 'every' }),
+  },
+  'array/virtual/every': {
+    modules: ['es.array.every'],
+    template: $virtual({ namespace: 'Array', method: 'every' }),
+  },
+  'array/fill': {
+    modules: ['es.array.fill'],
+    template: $prototype({ namespace: 'Array', method: 'fill' }),
+  },
+  'array/virtual/fill': {
+    modules: ['es.array.fill'],
+    template: $virtual({ namespace: 'Array', method: 'fill' }),
+  },
+  'array/filter': {
+    modules: ['es.array.filter'],
+    template: $prototype({ namespace: 'Array', method: 'filter' }),
+  },
+  'array/virtual/filter': {
+    modules: ['es.array.filter'],
+    template: $virtual({ namespace: 'Array', method: 'filter' }),
+  },
+  'array/filter-reject': {
+    modules: ['esnext.array.filter-reject'],
+    template: $prototype({ namespace: 'Array', method: 'filterReject' }),
+  },
+  'array/virtual/filter-reject': {
+    modules: ['esnext.array.filter-reject'],
+    template: $virtual({ namespace: 'Array', method: 'filterReject' }),
+  },
+  'array/find': {
+    modules: ['es.array.find'],
+    template: $prototype({ namespace: 'Array', method: 'find' }),
+  },
+  'array/virtual/find': {
+    modules: ['es.array.find'],
+    template: $virtual({ namespace: 'Array', method: 'find' }),
+  },
+  'array/find-index': {
+    modules: ['es.array.find-index'],
+    template: $prototype({ namespace: 'Array', method: 'findIndex' }),
+  },
+  'array/virtual/find-index': {
+    modules: ['es.array.find-index'],
+    template: $virtual({ namespace: 'Array', method: 'findIndex' }),
+  },
+  'array/find-last': {
+    modules: ['es.array.find-last'],
+    template: $prototype({ namespace: 'Array', method: 'findLast' }),
+  },
+  'array/virtual/find-last': {
+    modules: ['es.array.find-last'],
+    template: $virtual({ namespace: 'Array', method: 'findLast' }),
+  },
+  'array/find-last-index': {
+    modules: ['es.array.find-last-index'],
+    template: $prototype({ namespace: 'Array', method: 'findLastIndex' }),
+  },
+  'array/virtual/find-last-index': {
+    modules: ['es.array.find-last-index'],
+    template: $virtual({ namespace: 'Array', method: 'findLastIndex' }),
+  },
+  'array/flat': {
+    modules: ['es.array.flat', 'es.array.unscopables.flat'],
+    template: $prototype({ namespace: 'Array', method: 'flat' }),
+  },
+  'array/virtual/flat': {
+    modules: ['es.array.flat', 'es.array.unscopables.flat'],
+    template: $virtual({ namespace: 'Array', method: 'flat' }),
+  },
+  'array/flat-map': {
+    modules: ['es.array.flat-map', 'es.array.unscopables.flat-map'],
+    template: $prototype({ namespace: 'Array', method: 'flatMap' }),
+  },
+  'array/virtual/flat-map': {
+    modules: ['es.array.flat-map', 'es.array.unscopables.flat-map'],
+    template: $virtual({ namespace: 'Array', method: 'flatMap' }),
+  },
+  'array/for-each': {
+    modules: ['es.array.for-each'],
+    template: $prototype({ namespace: 'Array', method: 'forEach' }),
+  },
+  'array/virtual/for-each': {
+    modules: ['es.array.for-each'],
+    template: $virtual({ namespace: 'Array', method: 'forEach' }),
+  },
   'array/from': {
     modules: ['es.array.from'],
     template: $static({ namespace: 'Array', method: 'from' }),
+  },
+  'array/from-async': {
+    modules: ['esnext.array.from-async'],
+    template: $static({ namespace: 'Array', method: 'fromAsync' }),
+  },
+  'array/includes': {
+    modules: ['es.array.includes'],
+    template: $prototype({ namespace: 'Array', method: 'includes' }),
+  },
+  'array/virtual/includes': {
+    modules: ['es.array.includes'],
+    template: $virtual({ namespace: 'Array', method: 'includes' }),
+  },
+  'array/index-of': {
+    modules: ['es.array.index-of'],
+    template: $prototype({ namespace: 'Array', method: 'indexOf' }),
+  },
+  'array/virtual/index-of': {
+    modules: ['es.array.index-of'],
+    template: $virtual({ namespace: 'Array', method: 'indexOf' }),
+  },
+  'array/is-template-object': {
+    modules: ['esnext.array.is-template-object'],
+    template: $static({ namespace: 'Array', method: 'isTemplateObject' }),
+  },
+  'array/iterator': {
+    modules: ['es.array.iterator'],
+    template: $prototype({ namespace: 'Array', method: 'values' }),
+  },
+  'array/virtual/iterator': {
+    modules: ['es.array.iterator'],
+    template: $virtual({ namespace: 'Array', method: 'values' }),
+  },
+  'array/join': {
+    modules: ['es.array.join'],
+    template: $prototype({ namespace: 'Array', method: 'join' }),
+  },
+  'array/virtual/join': {
+    modules: ['es.array.join'],
+    template: $virtual({ namespace: 'Array', method: 'join' }),
+  },
+  'array/keys': {
+    modules: ['es.array.iterator'],
+    template: $prototype({ namespace: 'Array', method: 'keys' }),
+  },
+  'array/virtual/keys': {
+    modules: ['es.array.iterator'],
+    template: $virtual({ namespace: 'Array', method: 'keys' }),
+  },
+  'array/last-index-of': {
+    modules: ['es.array.last-index-of'],
+    template: $prototype({ namespace: 'Array', method: 'lastIndexOf' }),
+  },
+  'array/virtual/last-index-of': {
+    modules: ['es.array.last-index-of'],
+    template: $virtual({ namespace: 'Array', method: 'lastIndexOf' }),
+  },
+  'array/map': {
+    modules: ['es.array.map'],
+    template: $prototype({ namespace: 'Array', method: 'map' }),
+  },
+  'array/virtual/map': {
+    modules: ['es.array.map'],
+    template: $virtual({ namespace: 'Array', method: 'map' }),
+  },
+  'array/of': {
+    modules: ['es.array.of'],
+    template: $static({ namespace: 'Array', method: 'of' }),
+  },
+  'array/push': {
+    modules: ['es.array.push'],
+    template: $prototype({ namespace: 'Array', method: 'push' }),
+  },
+  'array/virtual/push': {
+    modules: ['es.array.push'],
+    template: $virtual({ namespace: 'Array', method: 'push' }),
+  },
+  'array/reduce': {
+    modules: ['es.array.reduce'],
+    template: $prototype({ namespace: 'Array', method: 'reduce' }),
+  },
+  'array/virtual/reduce': {
+    modules: ['es.array.reduce'],
+    template: $virtual({ namespace: 'Array', method: 'reduce' }),
+  },
+  'array/reduce-right': {
+    modules: ['es.array.reduce-right'],
+    template: $prototype({ namespace: 'Array', method: 'reduceRight' }),
+  },
+  'array/virtual/reduce-right': {
+    modules: ['es.array.reduce-right'],
+    template: $virtual({ namespace: 'Array', method: 'reduceRight' }),
+  },
+  'array/reverse': {
+    modules: ['es.array.reverse'],
+    template: $prototype({ namespace: 'Array', method: 'reverse' }),
+  },
+  'array/virtual/reverse': {
+    modules: ['es.array.reverse'],
+    template: $virtual({ namespace: 'Array', method: 'reverse' }),
+  },
+  'array/slice': {
+    modules: ['es.array.slice'],
+    template: $prototype({ namespace: 'Array', method: 'slice' }),
+  },
+  'array/virtual/slice': {
+    modules: ['es.array.slice'],
+    template: $virtual({ namespace: 'Array', method: 'slice' }),
+  },
+  'array/some': {
+    modules: ['es.array.some'],
+    template: $prototype({ namespace: 'Array', method: 'some' }),
+  },
+  'array/virtual/some': {
+    modules: ['es.array.some'],
+    template: $virtual({ namespace: 'Array', method: 'some' }),
+  },
+  'array/sort': {
+    modules: ['es.array.sort'],
+    template: $prototype({ namespace: 'Array', method: 'sort' }),
+  },
+  'array/virtual/sort': {
+    modules: ['es.array.sort'],
+    template: $virtual({ namespace: 'Array', method: 'sort' }),
+  },
+  'array/splice': {
+    modules: ['es.array.splice'],
+    template: $prototype({ namespace: 'Array', method: 'splice' }),
+  },
+  'array/virtual/splice': {
+    modules: ['es.array.splice'],
+    template: $virtual({ namespace: 'Array', method: 'splice' }),
+  },
+  'array/to-reversed': {
+    modules: ['es.array.to-reversed'],
+    template: $prototype({ namespace: 'Array', method: 'toReversed' }),
+  },
+  'array/virtual/to-reversed': {
+    modules: ['es.array.to-reversed'],
+    template: $virtual({ namespace: 'Array', method: 'toReversed' }),
+  },
+  'array/to-sorted': {
+    modules: ['es.array.to-sorted'],
+    template: $prototype({ namespace: 'Array', method: 'toSorted' }),
+  },
+  'array/virtual/to-sorted': {
+    modules: ['es.array.to-sorted'],
+    template: $virtual({ namespace: 'Array', method: 'toSorted' }),
+  },
+  'array/to-spliced': {
+    modules: ['es.array.to-spliced'],
+    template: $prototype({ namespace: 'Array', method: 'toSpliced' }),
+  },
+  'array/virtual/to-spliced': {
+    modules: ['es.array.to-spliced'],
+    template: $virtual({ namespace: 'Array', method: 'toSpliced' }),
+  },
+  'array/unshift': {
+    modules: ['es.array.unshift'],
+    template: $prototype({ namespace: 'Array', method: 'unshift' }),
+  },
+  'array/virtual/unshift': {
+    modules: ['es.array.unshift'],
+    template: $virtual({ namespace: 'Array', method: 'unshift' }),
+  },
+  'array/unique-by': {
+    modules: ['esnext.array.unique-by'],
+    template: $prototype({ namespace: 'Array', method: 'uniqueBy' }),
+  },
+  'array/virtual/unique-by': {
+    modules: ['esnext.array.unique-by'],
+    template: $virtual({ namespace: 'Array', method: 'uniqueBy' }),
+  },
+  'array/values': {
+    modules: ['es.array.iterator'],
+    template: $prototype({ namespace: 'Array', method: 'values' }),
+  },
+  'array/virtual/values': {
+    modules: ['es.array.iterator'],
+    template: $virtual({ namespace: 'Array', method: 'values' }),
+  },
+  'array/with': {
+    modules: ['es.array.with'],
+    template: $prototype({ namespace: 'Array', method: 'with' }),
+  },
+  'array/virtual/with': {
+    modules: ['es.array.with'],
+    template: $virtual({ namespace: 'Array', method: 'with' }),
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
