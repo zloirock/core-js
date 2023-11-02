@@ -32,6 +32,7 @@
     "compat-hermes": "zx tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "zx tests/compat/rhino-adapter.mjs --version=1.7.14",
+    "debug-get-dependencies": "npm run zxi time ./scripts/build-entries/debug-get-dependencies.mjs",
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
     "test": "run-s prepare test-raw",
