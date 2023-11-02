@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var scale = require('../internals/math-scale');
 
+// dependency: es.math.fround
 var fround = getBuiltInStaticMethod('Math', 'fround');
 
 // `Math.fscale` method

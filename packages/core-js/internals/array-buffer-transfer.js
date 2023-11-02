@@ -11,7 +11,9 @@ var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = globalThis.structuredClone;
+// dependency: es.array-buffer.constructor
 var ArrayBuffer = globalThis.ArrayBuffer;
+// dependency: es.data-view.constructor
 var DataView = globalThis.DataView;
 var Uint8Array = globalThis.Uint8Array;
 var TypeError = globalThis.TypeError;

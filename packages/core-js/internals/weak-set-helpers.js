@@ -1,6 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
+// dependency: es.weak-set.constructor
 // eslint-disable-next-line es/no-weak-set -- safe
 var WeakSetPrototype = WeakSet.prototype;
 
