@@ -1,6 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
+// dependency: es.weak-map.constructor
 // eslint-disable-next-line es/no-weak-map -- safe
 var WeakMapPrototype = WeakMap.prototype;
 
