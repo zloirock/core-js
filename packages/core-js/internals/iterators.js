@@ -1,2 +1,2 @@
 'use strict';
-module.exports = Object.create ? Object.create(null) : {};
+module.exports = Object.create(null);
