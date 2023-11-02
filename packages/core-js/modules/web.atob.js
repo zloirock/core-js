@@ -13,6 +13,8 @@ var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
+// dependency: web.dom-exception.constructor
+var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var $Array = Array;
 var fromCharCode = String.fromCharCode;
@@ -58,7 +60,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     length = string.length;
     var lenmod = length & 3;
     if (lenmod === 1 || exec(disallowed, string)) {
-      throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
+      throw new DOMException('The string is not correctly encoded', 'InvalidCharacterError');
     }
     // (length >> 2) is equivalent for length / 4 floored; * 3 then multiplies the
     // number of bytes for full quanta
