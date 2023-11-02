@@ -19,6 +19,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var mapping = mapfn !== undefined;
   if (mapping) aCallable(mapfn);
   var O = toObject(source);
+  // dependency: es.string.iterator
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
   if (iteratorMethod && !isArrayIteratorMethod(iteratorMethod)) {

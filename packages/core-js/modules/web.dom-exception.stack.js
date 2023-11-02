@@ -13,6 +13,7 @@ var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
 var Error = getBuiltIn('Error');
+// dependency: web.dom-exception.constructor
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
 var defineProperty = Object.defineProperty;
 

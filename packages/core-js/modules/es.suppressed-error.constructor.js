@@ -37,6 +37,7 @@ var $SuppressedError = function SuppressedError(error, suppressed, message) {
       : setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
   } else {
     that = isInstance ? this : create(SuppressedErrorPrototype);
+    // dependency: es.object.to-string
     createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
