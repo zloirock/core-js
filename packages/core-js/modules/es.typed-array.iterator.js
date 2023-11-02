@@ -7,6 +7,7 @@ var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var getArrayIteratorMethod = function (METHOD_NAME) {
+  // dependency: es.array.iterator
   return uncurryThis(getBuiltInPrototypeMethod('Array', METHOD_NAME));
 };
 

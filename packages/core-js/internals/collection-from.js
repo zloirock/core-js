@@ -14,6 +14,9 @@ module.exports = function (C, adder, ENTRY) {
     var boundFunction = mapping ? bind(mapFn, length > 2 ? arguments[2] : undefined) : undefined;
     var result = new C();
     var n = 0;
+    // dependency: es.array.iterator
+    // dependency: es.string.iterator
+    // dependency: web.dom-collections.iterator
     iterate(O, function (nextItem) {
       var entry = mapping ? boundFunction(nextItem, n++) : nextItem;
       if (ENTRY) adder(result, anObject(entry)[0], entry[1]);
