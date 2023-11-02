@@ -160,6 +160,7 @@ var cloneBuffer = function (value, map, $type) {
       } else {
         length = value.byteLength;
         options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
+        // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
         clone = new ArrayBuffer(length, options);
         source = new DataView(value);
         target = new DataView(clone);

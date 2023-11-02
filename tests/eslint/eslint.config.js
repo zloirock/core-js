@@ -1096,6 +1096,7 @@ const forbidES2024BuiltIns = {
   'es/no-atomics-waitasync': ERROR,
   'es/no-string-prototype-iswellformed-towellformed': ERROR,
   'es/no-regexp-v-flag': ERROR,
+  'es/no-resizable-and-growable-arraybuffers': ERROR,
 };
 
 const forbidES2016IntlBuiltIns = {

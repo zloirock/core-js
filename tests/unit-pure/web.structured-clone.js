@@ -191,6 +191,7 @@ QUnit.module('structuredClone', () => {
       QUnit.test('Resizable ArrayBuffer', assert => {
         const array = [1, 2, 3, 4, 5, 6, 7, 8];
 
+        // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
         let buffer = new ArrayBuffer(8, { maxByteLength: 16 });
         new Int8Array(buffer).set(array);
         let copy = structuredClone(buffer);
@@ -203,6 +204,7 @@ QUnit.module('structuredClone', () => {
         assert.arrayEqual(bufferToArray(copy), array, 'non-resizable-ab-1');
         assert.false(copy.resizable, 'non-resizable-ab-1');
 
+        // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
         buffer = new ArrayBuffer(8, { maxByteLength: 16 });
         let tarray = new Int8Array(buffer);
         tarray.set(array);
