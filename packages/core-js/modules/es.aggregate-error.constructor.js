@@ -24,12 +24,14 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
     that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype);
   } else {
     that = isInstance ? this : create(AggregateErrorPrototype);
+    // dependency: es.object.to-string
     createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
   }
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
   installErrorStack(that, $AggregateError, that.stack, 1);
   if (arguments.length > 2) installErrorCause(that, arguments[2]);
   var errorsArray = [];
+  // dependency: es.array.iterator
   iterate(errors, push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
   return that;
