@@ -3,6 +3,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var caller = require('../internals/caller');
 
 module.exports = {
+  // dependency: es.weak-map.constructor
   WeakMap: getBuiltIn('WeakMap'),
   set: caller('set', 2),
   get: caller('get', 1),

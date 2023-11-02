@@ -26,7 +26,9 @@ var getInternalSearchParamsState = URLSearchParamsModule.getState;
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
 var parseInt = globalThis.parseInt;
+// dependency: es.object.assign
 var assign = getBuiltInStaticMethod('Object', 'assign');
+// dependency: es.array.from
 var arrayFrom = getBuiltInStaticMethod('Array', 'from');
 var floor = Math.floor;
 var pow = Math.pow;
