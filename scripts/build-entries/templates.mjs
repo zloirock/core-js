@@ -42,10 +42,12 @@ export const $namespace = t(p => dedent`
   module.exports = path.${ p.namespace };
 `);
 
-export const $path = t(p => dedent`
+export const $helper = t(p => dedent`
   ${ importModules(p.modules, p.level) }
 
-  var path = ${ importInternal('path', p.level) }
+  var $export = ${ importInternal(p.name, p.level) }
 
-  module.exports = path;
-`)();
+  module.exports = $export;
+`);
+
+export const $path = $helper({ name: 'path' });
