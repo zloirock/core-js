@@ -9,12 +9,15 @@ var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = global.structuredClone;
+// dependency: es.array-buffer.constructor
 var ArrayBuffer = global.ArrayBuffer;
+// dependency: es.data-view.constructor
 var DataView = global.DataView;
 var TypeError = global.TypeError;
 var min = Math.min;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataViewPrototype = DataView.prototype;
+// dependency: es.array-buffer.slice
 var slice = uncurryThis(ArrayBufferPrototype.slice);
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
 var maxByteLength = uncurryThisAccessor(ArrayBufferPrototype, 'maxByteLength', 'get');

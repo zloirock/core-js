@@ -2,6 +2,7 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 
+// dependency: es.array-buffer.constructor
 var slice = uncurryThis(ArrayBuffer.prototype.slice);
 
 module.exports = function (O) {

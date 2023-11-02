@@ -34,6 +34,7 @@ var Date = global.Date;
 var Error = global.Error;
 var TypeError = global.TypeError;
 var PerformanceMark = global.PerformanceMark;
+// dependency: web.dom-exception.constructor
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
@@ -433,6 +434,7 @@ var tryToTransfer = function (rawTransfer, map) {
 
   var transfer = [];
 
+  // dependency: es.array.iterator
   iterate(rawTransfer, function (value) {
     push(transfer, anObject(value));
   });
