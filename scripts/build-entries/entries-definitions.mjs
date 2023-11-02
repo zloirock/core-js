@@ -1,4 +1,4 @@
-import { $prototype, $virtual, $static, $namespace } from './templates.mjs';
+import { $prototype, $virtual, $static, $namespace, $helper } from './templates.mjs';
 
 export const features = {
   'array/index': {
@@ -497,6 +497,18 @@ export const features = {
   'number/virtual/to-precision': {
     modules: ['es.number.to-precision'],
     template: $virtual({ namespace: 'Number', method: 'toPrecision' }),
+  },
+  'get-iterator': {
+    modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
+    template: $helper({ name: 'get-iterator' }),
+  },
+  'get-iterator-method': {
+    modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
+    template: $helper({ name: 'get-iterator-method' }),
+  },
+  'is-iterable': {
+    modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
+    template: $helper({ name: 'is-iterable' }),
   },
 };
 
