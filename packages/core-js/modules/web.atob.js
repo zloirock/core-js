@@ -13,6 +13,8 @@ var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
+// dependency: web.dom-exception.constructor
+var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
@@ -56,7 +58,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     }
     length = string.length;
     if (length % 4 === 1 || exec(disallowed, string)) {
-      throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
+      throw new DOMException('The string is not correctly encoded', 'InvalidCharacterError');
     }
     while (position < length) {
       chr = charAt(string, position++);

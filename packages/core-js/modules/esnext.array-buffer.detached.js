@@ -2,6 +2,7 @@
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isDetached = require('../internals/array-buffer-is-detached');
 
+// dependency: es.array-buffer.constructor
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 
 if (!('detached' in ArrayBufferPrototype)) {
