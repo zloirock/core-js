@@ -16,6 +16,7 @@ $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }
     var reject = capability.reject;
     var result = perform(function () {
       var $promiseResolve = aCallable(C.resolve);
+      // dependency: es.array.iterator
       iterate(iterable, function (promise) {
         call($promiseResolve, C, promise).then(capability.resolve, reject);
       });

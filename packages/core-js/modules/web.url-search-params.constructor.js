@@ -251,6 +251,7 @@ URLSearchParamsState.prototype = {
   },
   parseObject: function (object) {
     var entries = this.entries;
+    // dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var iterator, next, step, entryIterator, entryNext, first, second;
 
