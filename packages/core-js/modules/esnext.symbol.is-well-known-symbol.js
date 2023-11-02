@@ -7,6 +7,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var isSymbol = require('../internals/is-symbol');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+// dependency: es.symbol.constructor
 var Symbol = getBuiltIn('Symbol');
 var $isWellKnownSymbol = Symbol.isWellKnownSymbol;
 var getOwnPropertyNames = Object.getOwnPropertyNames;

@@ -1,6 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
+// dependency: es.map.constructor
 // eslint-disable-next-line es/no-map -- safe
 var MapPrototype = Map.prototype;
 

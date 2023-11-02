@@ -20,6 +20,7 @@ var AsyncIteratorConstructor = function AsyncIterator() {
 AsyncIteratorConstructor.prototype = AsyncIteratorPrototype;
 
 if (!hasOwn(AsyncIteratorPrototype, TO_STRING_TAG)) {
+  // dependency: es.object.to-string
   createNonEnumerableProperty(AsyncIteratorPrototype, TO_STRING_TAG, 'AsyncIterator');
 }
 

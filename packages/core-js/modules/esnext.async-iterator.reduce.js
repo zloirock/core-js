@@ -8,6 +8,10 @@ var getBuiltIn = require('../internals/get-built-in');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
+// dependency: es.promise.constructor
+// dependency: es.promise.catch
+// dependency: es.promise.finally
+// dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
