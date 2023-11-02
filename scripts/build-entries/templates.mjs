@@ -2,9 +2,9 @@ import dedent from 'dedent';
 
 const t = template => declared => processed => `'use strict';\n${ template({ ...processed, ...declared }) }\n`;
 
-const importInternal = (module, level) => `require('${ '../'.repeat(level) }internals/${ module }');`;
+const importInternal = (module, level) => `require('${ level ? '../'.repeat(level) : './' }internals/${ module }');`;
 
-const importModule = (module, level) => `require('${ '../'.repeat(level) }modules/${ module }');`;
+const importModule = (module, level) => `require('${ level ? '../'.repeat(level) : './' }modules/${ module }');`;
 
 const importModules = (modules, level) => modules.map(it => importModule(it, level)).join('\n');
 
@@ -41,3 +41,11 @@ export const $namespace = t(p => dedent`
 
   module.exports = path.${ p.namespace };
 `);
+
+export const $path = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var path = ${ importInternal('path', p.level) }
+
+  module.exports = path;
+`)();
