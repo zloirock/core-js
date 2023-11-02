@@ -6,6 +6,9 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 
 module.exports = function (obj, stringHandling) {
   if (!stringHandling || typeof obj !== 'string') anObject(obj);
+  // dependency: es.array.iterator
+  // dependency: es.string.iterator
+  // dependency: web.dom-collections.iterator
   var method = getIteratorMethod(obj);
   return getIteratorDirect(anObject(method !== undefined ? call(method, obj) : obj));
 };

@@ -8,6 +8,7 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
+// dependency: es.array.iterator
 var ArrayValues = getBuiltInPrototypeMethod('Array', 'values');
 
 var handlePrototype = function (CollectionPrototype, COLLECTION_NAME) {
@@ -20,6 +21,7 @@ var handlePrototype = function (CollectionPrototype, COLLECTION_NAME) {
     }
     setToStringTag(CollectionPrototype, COLLECTION_NAME, true);
     if (DOMIterables[COLLECTION_NAME]) ['entries', 'keys', 'values'].forEach(function (METHOD_NAME) {
+      // dependency: es.array.iterator
       var method = getBuiltInPrototypeMethod('Array', METHOD_NAME);
       // some Chrome versions have non-configurable methods on DOMTokenList
       if (CollectionPrototype[METHOD_NAME] !== method) try {
