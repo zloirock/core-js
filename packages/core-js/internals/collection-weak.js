@@ -64,6 +64,8 @@ module.exports = {
         id: id++,
         frozen: null,
       });
+      // dependency: es.array.iterator
+      // dependency: web.dom-collections.iterator
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 
