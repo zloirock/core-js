@@ -6,6 +6,7 @@ var fails = require('../internals/fails');
 var wrapErrorConstructorWithCause = require('../internals/wrap-error-constructor-with-cause');
 
 var AGGREGATE_ERROR = 'AggregateError';
+// dependency: es.aggregate-error.constructor
 var $AggregateError = getBuiltIn(AGGREGATE_ERROR);
 
 var FORCED = !fails(function () {

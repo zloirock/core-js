@@ -13,6 +13,7 @@ $({ target: 'Map', proto: true, real: true, arity: 1, forced: true }, {
     var argumentsLength = arguments.length;
     var i = 0;
     while (i < argumentsLength) {
+      // dependency: es.array.iterator
       iterate(arguments[i++], function (key, value) {
         set(map, key, value);
       }, { AS_ENTRIES: true });
