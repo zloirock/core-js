@@ -15,6 +15,8 @@ const ESSet = new Set(ESModules);
 const StableSet = new Set(StableModules);
 const ActualSet = new Set(ActualModules);
 
+let built = 0;
+
 async function buildEntry(entry, template, modules, filter) {
   if (filter) modules = modules.filter(it => filter.has(it));
   if (!modules.length) return;
@@ -25,6 +27,7 @@ async function buildEntry(entry, template, modules, filter) {
   const filepath = `./packages/core-js/$test$/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
   await writeFile(filepath, file);
+  built++;
 }
 
 for (const [entry, { modules, template }] of Object.entries(features)) {
@@ -43,3 +46,5 @@ await buildEntry('stable/index', $path, StableModules, StableSet);
 await buildEntry('actual/index', $path, ActualModules);
 await buildEntry('full/index', $path, AllModules);
 await buildEntry('index', $path, ActualModules);
+
+echo(chalk.green(`built ${ chalk.cyan(built) } entries`));
