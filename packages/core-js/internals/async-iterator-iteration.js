@@ -12,6 +12,12 @@ var setArrayLength = require('../internals/array-set-length');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
+// dependency: es.promise.constructor
+// dependency: es.promise.catch
+// dependency: es.promise.finally
+// dependency: es.promise.resolve
+var Promise = getBuiltIn('Promise');
+
 var createMethod = function (TYPE) {
   var IS_TO_ARRAY = TYPE === 0;
   var IS_FOR_EACH = TYPE === 1;
@@ -22,7 +28,6 @@ var createMethod = function (TYPE) {
     var MAPPING = fn !== undefined;
     if (MAPPING || !IS_TO_ARRAY) aCallable(fn);
     var record = getIteratorDirect(object);
-    var Promise = getBuiltIn('Promise');
     var iterator = record.iterator;
     var next = record.next;
     var counter = 0;
