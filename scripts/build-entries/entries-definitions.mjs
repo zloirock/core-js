@@ -126,6 +126,78 @@ export const features = {
     modules: ['es.math.trunc'],
     template: $static({ namespace: 'Math', method: 'trunc' }),
   },
+  'number/index': {
+    modules: [/^(?:es|esnext)\.number\./],
+    template: $namespace({ namespace: 'Number' }),
+  },
+  'number/constructor': {
+    modules: ['es.number.constructor'],
+    template: $namespace({ namespace: 'Number' }),
+  },
+  'number/epsilon': {
+    modules: ['es.number.epsilon'],
+    template: $static({ namespace: 'Number', method: 'EPSILON' }),
+  },
+  'number/from-string': {
+    modules: ['esnext.number.from-string'],
+    template: $static({ namespace: 'Number', method: 'fromString' }),
+  },
+  'number/is-finite': {
+    modules: ['es.number.is-finite'],
+    template: $static({ namespace: 'Number', method: 'isFinite' }),
+  },
+  'number/is-integer': {
+    modules: ['es.number.is-integer'],
+    template: $static({ namespace: 'Number', method: 'isInteger' }),
+  },
+  'number/is-nan': {
+    modules: ['es.number.is-nan'],
+    template: $static({ namespace: 'Number', method: 'isNaN' }),
+  },
+  'number/is-safe-integer': {
+    modules: ['es.number.is-safe-integer'],
+    template: $static({ namespace: 'Number', method: 'isSafeInteger' }),
+  },
+  'number/max-safe-integer': {
+    modules: ['es.number.max-safe-integer'],
+    template: $static({ namespace: 'Number', method: 'MAX_SAFE_INTEGER' }),
+  },
+  'number/min-safe-integer': {
+    modules: ['es.number.min-safe-integer'],
+    template: $static({ namespace: 'Number', method: 'MIN_SAFE_INTEGER' }),
+  },
+  'number/parse-float': {
+    modules: ['es.number.parse-float'],
+    template: $static({ namespace: 'Number', method: 'parseFloat' }),
+  },
+  'number/parse-int': {
+    modules: ['es.number.parse-int'],
+    template: $static({ namespace: 'Number', method: 'parseInt' }),
+  },
+  'number/to-exponential': {
+    modules: ['es.number.to-exponential'],
+    template: $prototype({ namespace: 'Number', method: 'toExponential' }),
+  },
+  'number/virtual/to-exponential': {
+    modules: ['es.number.to-exponential'],
+    template: $virtual({ namespace: 'Number', method: 'toExponential' }),
+  },
+  'number/to-fixed': {
+    modules: ['es.number.to-fixed'],
+    template: $prototype({ namespace: 'Number', method: 'toFixed' }),
+  },
+  'number/virtual/to-fixed': {
+    modules: ['es.number.to-fixed'],
+    template: $virtual({ namespace: 'Number', method: 'toFixed' }),
+  },
+  'number/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $prototype({ namespace: 'Number', method: 'toPrecision' }),
+  },
+  'number/virtual/to-precision': {
+    modules: ['es.number.to-precision'],
+    template: $virtual({ namespace: 'Number', method: 'toPrecision' }),
+  },
 };
 
 export const proposals = {
