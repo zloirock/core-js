@@ -1,4 +1,4 @@
-import { $prototype, $virtual, $static, $namespace, $helper } from './templates.mjs';
+import { $prototype, $virtual, $static, $namespace, $helper, $justImport } from './templates.mjs';
 
 export const features = {
   'array/index': {
@@ -316,6 +316,32 @@ export const features = {
   'array/virtual/with': {
     modules: ['es.array.with'],
     template: $virtual({ namespace: 'Array', method: 'with' }),
+  },
+  'function/index': {
+    modules: [/^(?:es|esnext)\.function\./],
+    template: $namespace({ namespace: 'Function' }),
+  },
+  'function/demethodize': {
+    modules: ['esnext.function.demethodize'],
+    template: $prototype({ namespace: 'Function', method: 'demethodize' }),
+  },
+  'function/virtual/demethodize': {
+    modules: ['esnext.function.demethodize'],
+    template: $virtual({ namespace: 'Function', method: 'demethodize' }),
+  },
+  // 'function/has-instance' ???
+  'function/is-callable': {
+    modules: ['esnext.function.is-callable'],
+    template: $static({ namespace: 'Function', method: 'isCallable' }),
+  },
+  'function/is-constructor': {
+    modules: ['esnext.function.is-constructor'],
+    template: $static({ namespace: 'Function', method: 'isConstructor' }),
+  },
+  // 'function/metadata' ???
+  'function/name': {
+    modules: ['es.function.name'],
+    template: $justImport, // <- ???
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
