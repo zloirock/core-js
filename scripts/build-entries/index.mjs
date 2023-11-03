@@ -17,9 +17,9 @@ const ActualSet = new Set(ActualModules);
 
 let built = 0;
 
-async function buildEntry(entry, template, modules, filter) {
+async function buildEntry(entry, template, modules, filter, enforce) {
   if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
-  if (!modules.length) return;
+  if (!enforce && !modules.length) return;
   const level = entry.split('/').length - 1;
   modules = await getListOfDependencies(modules);
   if (filter) modules = modules.filter(it => filter.has(it));
@@ -30,11 +30,11 @@ async function buildEntry(entry, template, modules, filter) {
   built++;
 }
 
-for (const [entry, { modules, template }] of Object.entries(features)) {
-  await buildEntry(`es/${ entry }`, template, modules, ESSet);
-  await buildEntry(`stable/${ entry }`, template, modules, StableSet);
-  await buildEntry(`actual/${ entry }`, template, modules, ActualSet);
-  await buildEntry(`full/${ entry }`, template, modules);
+for (const [entry, { modules, template, enforce }] of Object.entries(features)) {
+  await buildEntry(`es/${ entry }`, template, modules, ESSet, enforce);
+  await buildEntry(`stable/${ entry }`, template, modules, StableSet, enforce);
+  await buildEntry(`actual/${ entry }`, template, modules, ActualSet, enforce);
+  await buildEntry(`full/${ entry }`, template, modules, null, enforce);
 }
 for (const [name, { modules }] of Object.entries(proposals)) {
   await buildEntry(`proposals/${ name }`, $justImport, modules);
