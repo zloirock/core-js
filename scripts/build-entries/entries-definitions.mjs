@@ -1,4 +1,4 @@
-import { $prototype, $virtual, $static, $namespace, $helper, $justImport } from './templates.mjs';
+import { $prototype, $virtual, $static, $patchableStatic, $namespace, $helper, $justImport } from './templates.mjs';
 
 export const features = {
   'array/index': {
@@ -523,6 +523,143 @@ export const features = {
   'number/virtual/to-precision': {
     modules: ['es.number.to-precision'],
     template: $virtual({ namespace: 'Number', method: 'toPrecision' }),
+  },
+  'object/index': {
+    modules: [/^(?:es|esnext)\.object\./],
+    template: $namespace({ name: 'Object' }),
+  },
+  'object/assign': {
+    modules: ['es.object.assign'],
+    template: $static({ namespace: 'Object', method: 'assign' }),
+  },
+  'object/create': {
+    modules: [],
+    template: $patchableStatic({ namespace: 'Object', method: 'create' }),
+    enforce: true,
+  },
+  'object/define-property': {
+    modules: ['es.object.define-property'],
+    template: $patchableStatic({ namespace: 'Object', method: 'defineProperty' }),
+  },
+  'object/define-properties': {
+    modules: ['es.object.define-properties'],
+    template: $patchableStatic({ namespace: 'Object', method: 'defineProperties' }),
+  },
+  'object/define-getter': {
+    modules: ['es.object.define-getter'],
+    template: $prototype({ namespace: 'Object', method: '__defineGetter__' }),
+  },
+  'object/virtual/define-getter': {
+    modules: ['es.object.define-getter'],
+    template: $virtual({ namespace: 'Object', method: '__defineGetter__' }),
+  },
+  'object/define-setter': {
+    modules: ['es.object.define-setter'],
+    template: $prototype({ namespace: 'Object', method: '__defineSetter__' }),
+  },
+  'object/virtual/define-setter': {
+    modules: ['es.object.define-setter'],
+    template: $virtual({ namespace: 'Object', method: '__defineSetter__' }),
+  },
+  'object/entries': {
+    modules: ['es.object.entries'],
+    template: $static({ namespace: 'Object', method: 'entries' }),
+  },
+  'object/freeze': {
+    modules: ['es.object.freeze'],
+    template: $static({ namespace: 'Object', method: 'freeze' }),
+  },
+  'object/from-entries': {
+    modules: ['es.object.from-entries'],
+    template: $static({ namespace: 'Object', method: 'fromEntries' }),
+  },
+  'object/get-own-property-descriptor': {
+    modules: ['es.object.get-own-property-descriptor'],
+    template: $patchableStatic({ namespace: 'Object', method: 'getOwnPropertyDescriptor' }),
+  },
+  'object/get-own-property-descriptors': {
+    modules: ['es.object.get-own-property-descriptors'],
+    template: $static({ namespace: 'Object', method: 'getOwnPropertyDescriptors' }),
+  },
+  'object/get-own-property-names': {
+    modules: ['es.object.get-own-property-names'],
+    template: $patchableStatic({ namespace: 'Object', method: 'getOwnPropertyNames' }),
+  },
+  'object/get-own-property-symbols': {
+    modules: ['es.object.get-own-property-symbols'],
+    template: $static({ namespace: 'Object', method: 'getOwnPropertySymbols' }),
+  },
+  'object/get-prototype-of': {
+    modules: ['es.object.get-prototype-of'],
+    template: $static({ namespace: 'Object', method: 'getPrototypeOf' }),
+  },
+  'object/has-own': {
+    modules: ['es.object.has-own'],
+    template: $static({ namespace: 'Object', method: 'hasOwn' }),
+  },
+  'object/is': {
+    modules: ['es.object.is'],
+    template: $static({ namespace: 'Object', method: 'is' }),
+  },
+  'object/is-extensible': {
+    modules: ['es.object.is-extensible'],
+    template: $static({ namespace: 'Object', method: 'isExtensible' }),
+  },
+  'object/is-frozen': {
+    modules: ['es.object.is-frozen'],
+    template: $static({ namespace: 'Object', method: 'isFrozen' }),
+  },
+  'object/is-sealed': {
+    modules: ['es.object.is-sealed'],
+    template: $static({ namespace: 'Object', method: 'isSealed' }),
+  },
+  'object/keys': {
+    modules: ['es.object.keys'],
+    template: $static({ namespace: 'Object', method: 'keys' }),
+  },
+  'object/lookup-getter': {
+    modules: ['es.object.lookup-getter'],
+    template: $prototype({ namespace: 'Object', method: '__lookupGetter__' }),
+  },
+  'object/virtual/lookup-getter': {
+    modules: ['es.object.lookup-getter'],
+    template: $virtual({ namespace: 'Object', method: '__lookupGetter__' }),
+  },
+  'object/lookup-setter': {
+    modules: ['es.object.lookup-setter'],
+    template: $prototype({ namespace: 'Object', method: '__lookupSetter__' }),
+  },
+  'object/virtual/lookup-setter': {
+    modules: ['es.object.lookup-setter'],
+    template: $virtual({ namespace: 'Object', method: '__lookupSetter__' }),
+  },
+  'object/prevent-extensions': {
+    modules: ['es.object.prevent-extensions'],
+    template: $static({ namespace: 'Object', method: 'preventExtensions' }),
+  },
+  'object/proto': {
+    modules: ['es.object.proto'],
+    template: $justImport,
+  },
+  'object/seal': {
+    modules: ['es.object.seal'],
+    template: $static({ namespace: 'Object', method: 'seal' }),
+  },
+  'object/set-prototype-of': {
+    modules: ['es.object.set-prototype-of'],
+    template: $static({ namespace: 'Object', method: 'setPrototypeOf' }),
+  },
+  'object/to-string': {
+    modules: ['es.object.to-string'],
+    template: $prototype({ namespace: 'Object', method: 'toString' }),
+  },
+  'object/virtual/to-string': {
+    modules: ['es.object.to-string'],
+    template: $virtual({ namespace: 'Object', method: 'toString' }),
+  },
+  'object/values': {
+    modules: ['es.object.values'],
+    template: $static({ namespace: 'Object', method: 'values' }),
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
