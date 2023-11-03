@@ -3,7 +3,7 @@ import { $prototype, $virtual, $static, $namespace, $helper, $justImport } from 
 export const features = {
   'array/index': {
     modules: [/^(?:es|esnext)\.array\./],
-    template: $namespace({ namespace: 'Array' }),
+    template: $namespace({ name: 'Array' }),
   },
   'array/at': {
     modules: ['es.array.at'],
@@ -319,7 +319,7 @@ export const features = {
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
-    template: $namespace({ namespace: 'Function' }),
+    template: $namespace({ name: 'Function' }),
   },
   'function/demethodize': {
     modules: ['esnext.function.demethodize'],
@@ -345,7 +345,7 @@ export const features = {
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
-    template: $namespace({ namespace: 'Math' }),
+    template: $namespace({ name: 'Math' }),
   },
   'math/acosh': {
     modules: ['es.math.acosh'],
@@ -454,11 +454,11 @@ export const features = {
   },
   'number/index': {
     modules: [/^(?:es|esnext)\.number\./],
-    template: $namespace({ namespace: 'Number' }),
+    template: $namespace({ name: 'Number' }),
   },
   'number/constructor': {
     modules: ['es.number.constructor'],
-    template: $namespace({ namespace: 'Number' }),
+    template: $namespace({ name: 'Number' }),
   },
   'number/epsilon': {
     modules: ['es.number.epsilon'],
@@ -526,7 +526,7 @@ export const features = {
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
-    template: $namespace({ namespace: 'Reflect' }),
+    template: $namespace({ name: 'Reflect' }),
   },
   'reflect/apply': {
     modules: ['es.reflect.apply'],
@@ -583,7 +583,7 @@ export const features = {
   // 'reflect/to-string-tag' ???
   'string/index': {
     modules: [/^(?:es|esnext)\.string\./],
-    template: $namespace({ namespace: 'String' }),
+    template: $namespace({ name: 'String' }),
   },
   'string/anchor': {
     modules: ['es.string.anchor'],
@@ -882,6 +882,70 @@ export const features = {
   'string/virtual/trim-start': {
     modules: ['es.string.trim-start'],
     template: $virtual({ namespace: 'String', method: 'trimStart' }),
+  },
+  atob: {
+    modules: ['web.atob'],
+    template: $namespace({ name: 'atob' }),
+  },
+  btoa: {
+    modules: ['web.btoa'],
+    template: $namespace({ name: 'btoa' }),
+  },
+  'clear-immediate': {
+    modules: ['web.clear-immediate'],
+    template: $namespace({ name: 'clearImmediate' }),
+  },
+  'composite-key': {
+    modules: ['esnext.composite-key'],
+    template: $namespace({ name: 'compositeKey' }),
+  },
+  'composite-symbol': {
+    modules: ['esnext.composite-symbol'],
+    template: $namespace({ name: 'compositeSymbol' }),
+  },
+  escape: {
+    modules: ['es.escape'],
+    template: $namespace({ name: 'escape' }),
+  },
+  'global-this': {
+    modules: ['es.global-this'],
+    template: $namespace({ name: 'globalThis' }),
+  },
+  'parse-float': {
+    modules: ['es.parse-float'],
+    template: $namespace({ name: 'parseFloat' }),
+  },
+  'parse-int': {
+    modules: ['es.parse-int'],
+    template: $namespace({ name: 'parseInt' }),
+  },
+  'queue-microtask': {
+    modules: ['web.queue-microtask'],
+    template: $namespace({ name: 'queueMicrotask' }),
+  },
+  self: {
+    modules: ['web.self'],
+    template: $namespace({ name: 'self' }),
+  },
+  'set-immediate': {
+    modules: ['web.set-immediate'],
+    template: $namespace({ name: 'setImmediate' }),
+  },
+  'set-interval': {
+    modules: ['web.set-interval'],
+    template: $namespace({ name: 'setInterval' }),
+  },
+  'set-timeout': {
+    modules: ['web.set-timeout'],
+    template: $namespace({ name: 'setTimeout' }),
+  },
+  'structured-clone': {
+    modules: ['web.structured-clone'],
+    template: $namespace({ name: 'structuredClone' }),
+  },
+  unescape: {
+    modules: ['es.unescape'],
+    template: $namespace({ name: 'unescape' }),
   },
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
