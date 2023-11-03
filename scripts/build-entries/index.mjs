@@ -18,7 +18,7 @@ const ActualSet = new Set(ActualModules);
 let built = 0;
 
 async function buildEntry(entry, template, modules, filter) {
-  if (filter) modules = modules.filter(it => filter.has(it));
+  if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
   if (!modules.length) return;
   const level = entry.split('/').length - 1;
   modules = await getListOfDependencies(modules);
@@ -36,7 +36,6 @@ for (const [entry, { modules, template }] of Object.entries(features)) {
   await buildEntry(`actual/${ entry }`, template, modules, ActualSet);
   await buildEntry(`full/${ entry }`, template, modules);
 }
-
 for (const [name, { modules }] of Object.entries(proposals)) {
   await buildEntry(`proposals/${ name }`, $justImport, modules);
 }
@@ -46,5 +45,4 @@ await buildEntry('stable/index', $path, StableModules, StableSet);
 await buildEntry('actual/index', $path, ActualModules);
 await buildEntry('full/index', $path, AllModules);
 await buildEntry('index', $path, ActualModules);
-
 echo(chalk.green(`built ${ chalk.cyan(built) } entries`));
