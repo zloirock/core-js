@@ -34,6 +34,34 @@ export const $static = t(p => dedent`
   module.exports = path.${ p.namespace }.${ p.method };
 `);
 
+export const $patchableStatic = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+  var apply = ${ importInternal('apply', p.level) }
+
+  module.exports = function () {
+    return apply(getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'), this, arguments);
+  };
+`);
+
+export const $patchableStaticWithContext = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var getBuiltIn = ${ importInternal('get-built-in', p.level) }
+  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+  var isCallable = ${ importInternal('is-callable', p.level) }
+  var apply = ${ importInternal('apply', p.level) }
+
+  module.exports = function () {
+    return apply(
+      getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'),
+      isCallable(this) ? this : getBuiltIn('${ p.namespace }'),
+      arguments
+    );
+  };
+`);
+
 export const $namespace = t(p => dedent`
   ${ importModules(p.modules, p.level) }
 
