@@ -581,6 +581,308 @@ export const features = {
     template: $static({ namespace: 'Reflect', method: 'set' }),
   },
   // 'reflect/to-string-tag' ???
+  'string/index': {
+    modules: [/^(?:es|esnext)\.string\./],
+    template: $namespace({ namespace: 'String' }),
+  },
+  'string/anchor': {
+    modules: ['es.string.anchor'],
+    template: $prototype({ namespace: 'String', method: 'anchor' }),
+  },
+  'string/virtual/anchor': {
+    modules: ['es.string.anchor'],
+    template: $virtual({ namespace: 'String', method: 'anchor' }),
+  },
+  'string/at': {
+    modules: ['es.string.at'],
+    template: $prototype({ namespace: 'String', method: 'at' }),
+  },
+  'string/virtual/at': {
+    modules: ['es.string.at'],
+    template: $virtual({ namespace: 'String', method: 'at' }),
+  },
+  'string/big': {
+    modules: ['es.string.big'],
+    template: $prototype({ namespace: 'String', method: 'big' }),
+  },
+  'string/virtual/big': {
+    modules: ['es.string.big'],
+    template: $virtual({ namespace: 'String', method: 'big' }),
+  },
+  'string/blink': {
+    modules: ['es.string.blink'],
+    template: $prototype({ namespace: 'String', method: 'blink' }),
+  },
+  'string/virtual/blink': {
+    modules: ['es.string.blink'],
+    template: $virtual({ namespace: 'String', method: 'blink' }),
+  },
+  'string/bold': {
+    modules: ['es.string.bold'],
+    template: $prototype({ namespace: 'String', method: 'bold' }),
+  },
+  'string/virtual/bold': {
+    modules: ['es.string.bold'],
+    template: $virtual({ namespace: 'String', method: 'bold' }),
+  },
+  'string/code-point-at': {
+    modules: ['es.string.code-point-at'],
+    template: $prototype({ namespace: 'String', method: 'codePointAt' }),
+  },
+  'string/virtual/code-point-at': {
+    modules: ['es.string.code-point-at'],
+    template: $virtual({ namespace: 'String', method: 'codePointAt' }),
+  },
+  'string/code-points': {
+    modules: ['esnext.string.code-points'],
+    template: $prototype({ namespace: 'String', method: 'codePoints' }),
+  },
+  'string/virtual/code-points': {
+    modules: ['esnext.string.code-points'],
+    template: $virtual({ namespace: 'String', method: 'codePoints' }),
+  },
+  'string/cooked': {
+    modules: ['esnext.string.cooked'],
+    template: $static({ namespace: 'String', method: 'cooked' }),
+  },
+  'string/dedent': {
+    modules: ['esnext.string.dedent'],
+    template: $static({ namespace: 'String', method: 'dedent' }),
+  },
+  'string/ends-with': {
+    modules: ['es.string.ends-with'],
+    template: $prototype({ namespace: 'String', method: 'endsWith' }),
+  },
+  'string/virtual/ends-with': {
+    modules: ['es.string.ends-with'],
+    template: $virtual({ namespace: 'String', method: 'endsWith' }),
+  },
+  'string/fixed': {
+    modules: ['es.string.fixed'],
+    template: $prototype({ namespace: 'String', method: 'fixed' }),
+  },
+  'string/virtual/fixed': {
+    modules: ['es.string.fixed'],
+    template: $virtual({ namespace: 'String', method: 'fixed' }),
+  },
+  'string/fontcolor': {
+    modules: ['es.string.fontcolor'],
+    template: $prototype({ namespace: 'String', method: 'fontcolor' }),
+  },
+  'string/virtual/fontcolor': {
+    modules: ['es.string.fontcolor'],
+    template: $virtual({ namespace: 'String', method: 'fontcolor' }),
+  },
+  'string/fontsize': {
+    modules: ['es.string.fontsize'],
+    template: $prototype({ namespace: 'String', method: 'fontsize' }),
+  },
+  'string/virtual/fontsize': {
+    modules: ['es.string.fontsize'],
+    template: $virtual({ namespace: 'String', method: 'fontsize' }),
+  },
+  'string/from-code-point': {
+    modules: ['es.string.from-code-point'],
+    template: $static({ namespace: 'String', method: 'fromCodePoint' }),
+  },
+  'string/includes': {
+    modules: ['es.string.includes'],
+    template: $prototype({ namespace: 'String', method: 'includes' }),
+  },
+  'string/virtual/includes': {
+    modules: ['es.string.includes'],
+    template: $virtual({ namespace: 'String', method: 'includes' }),
+  },
+  'string/is-well-formed': {
+    modules: ['es.string.is-well-formed'],
+    template: $prototype({ namespace: 'String', method: 'isWellFormed' }),
+  },
+  'string/virtual/is-well-formed': {
+    modules: ['es.string.is-well-formed'],
+    template: $virtual({ namespace: 'String', method: 'isWellFormed' }),
+  },
+  // string/iterator !!!
+  // string/virtual/iterator !!!
+  'string/link': {
+    modules: ['es.string.link'],
+    template: $prototype({ namespace: 'String', method: 'link' }),
+  },
+  'string/virtual/link': {
+    modules: ['es.string.link'],
+    template: $virtual({ namespace: 'String', method: 'link' }),
+  },
+  'string/match': {
+    modules: ['es.string.match'],
+    template: $prototype({ namespace: 'String', method: 'match' }),
+  },
+  'string/virtual/match': {
+    modules: ['es.string.match'],
+    template: $virtual({ namespace: 'String', method: 'match' }),
+  },
+  'string/match-all': {
+    modules: ['es.string.match-all'],
+    template: $prototype({ namespace: 'String', method: 'matchAll' }),
+  },
+  'string/virtual/match-all': {
+    modules: ['es.string.match-all'],
+    template: $virtual({ namespace: 'String', method: 'matchAll' }),
+  },
+  'string/pad-end': {
+    modules: ['es.string.pad-end'],
+    template: $prototype({ namespace: 'String', method: 'padEnd' }),
+  },
+  'string/virtual/pad-end': {
+    modules: ['es.string.pad-end'],
+    template: $virtual({ namespace: 'String', method: 'padEnd' }),
+  },
+  'string/pad-start': {
+    modules: ['es.string.pad-start'],
+    template: $prototype({ namespace: 'String', method: 'padStart' }),
+  },
+  'string/virtual/pad-start': {
+    modules: ['es.string.pad-start'],
+    template: $virtual({ namespace: 'String', method: 'padStart' }),
+  },
+  'string/raw': {
+    modules: ['es.string.raw'],
+    template: $static({ namespace: 'String', method: 'raw' }),
+  },
+  'string/repeat': {
+    modules: ['es.string.repeat'],
+    template: $prototype({ namespace: 'String', method: 'repeat' }),
+  },
+  'string/virtual/repeat': {
+    modules: ['es.string.repeat'],
+    template: $virtual({ namespace: 'String', method: 'repeat' }),
+  },
+  'string/replace': {
+    modules: ['es.string.replace'],
+    template: $prototype({ namespace: 'String', method: 'replace' }),
+  },
+  'string/virtual/replace': {
+    modules: ['es.string.replace'],
+    template: $virtual({ namespace: 'String', method: 'replace' }),
+  },
+  'string/replace-all': {
+    modules: ['es.string.replace-all'],
+    template: $prototype({ namespace: 'String', method: 'replaceAll' }),
+  },
+  'string/virtual/replace-all': {
+    modules: ['es.string.replace-all'],
+    template: $virtual({ namespace: 'String', method: 'replaceAll' }),
+  },
+  'string/search': {
+    modules: ['es.string.search'],
+    template: $prototype({ namespace: 'String', method: 'search' }),
+  },
+  'string/virtual/search': {
+    modules: ['es.string.search'],
+    template: $virtual({ namespace: 'String', method: 'search' }),
+  },
+  'string/small': {
+    modules: ['es.string.small'],
+    template: $prototype({ namespace: 'String', method: 'small' }),
+  },
+  'string/virtual/small': {
+    modules: ['es.string.small'],
+    template: $virtual({ namespace: 'String', method: 'small' }),
+  },
+  'string/split': {
+    modules: ['es.string.split'],
+    template: $prototype({ namespace: 'String', method: 'split' }),
+  },
+  'string/virtual/split': {
+    modules: ['es.string.split'],
+    template: $virtual({ namespace: 'String', method: 'split' }),
+  },
+  'string/starts-with': {
+    modules: ['es.string.starts-with'],
+    template: $prototype({ namespace: 'String', method: 'startsWith' }),
+  },
+  'string/virtual/starts-with': {
+    modules: ['es.string.starts-with'],
+    template: $virtual({ namespace: 'String', method: 'startsWith' }),
+  },
+  'string/strike': {
+    modules: ['es.string.strike'],
+    template: $prototype({ namespace: 'String', method: 'strike' }),
+  },
+  'string/virtual/strike': {
+    modules: ['es.string.strike'],
+    template: $virtual({ namespace: 'String', method: 'strike' }),
+  },
+  'string/sub': {
+    modules: ['es.string.sub'],
+    template: $prototype({ namespace: 'String', method: 'sub' }),
+  },
+  'string/virtual/sub': {
+    modules: ['es.string.sub'],
+    template: $virtual({ namespace: 'String', method: 'sub' }),
+  },
+  'string/substr': {
+    modules: ['es.string.substr'],
+    template: $prototype({ namespace: 'String', method: 'substr' }),
+  },
+  'string/virtual/substr': {
+    modules: ['es.string.substr'],
+    template: $virtual({ namespace: 'String', method: 'substr' }),
+  },
+  'string/sup': {
+    modules: ['es.string.sup'],
+    template: $prototype({ namespace: 'String', method: 'sup' }),
+  },
+  'string/virtual/sup': {
+    modules: ['es.string.sup'],
+    template: $virtual({ namespace: 'String', method: 'sup' }),
+  },
+  'string/to-well-formed': {
+    modules: ['es.string.to-well-formed'],
+    template: $prototype({ namespace: 'String', method: 'toWellFormed' }),
+  },
+  'string/virtual/to-well-formed': {
+    modules: ['es.string.to-well-formed'],
+    template: $virtual({ namespace: 'String', method: 'toWellFormed' }),
+  },
+  'string/trim': {
+    modules: ['es.string.trim'],
+    template: $prototype({ namespace: 'String', method: 'trim' }),
+  },
+  'string/virtual/trim': {
+    modules: ['es.string.trim'],
+    template: $virtual({ namespace: 'String', method: 'trim' }),
+  },
+  'string/trim-end': {
+    modules: ['es.string.trim-end'],
+    template: $prototype({ namespace: 'String', method: 'trimEnd' }),
+  },
+  'string/virtual/trim-end': {
+    modules: ['es.string.trim-end'],
+    template: $virtual({ namespace: 'String', method: 'trimEnd' }),
+  },
+  'string/trim-left': {
+    modules: ['es.string.trim-left'],
+    template: $prototype({ namespace: 'String', method: 'trimLeft' }),
+  },
+  'string/virtual/trim-left': {
+    modules: ['es.string.trim-left'],
+    template: $virtual({ namespace: 'String', method: 'trimLeft' }),
+  },
+  'string/trim-right': {
+    modules: ['es.string.trim-right'],
+    template: $prototype({ namespace: 'String', method: 'trimRight' }),
+  },
+  'string/virtual/trim-right': {
+    modules: ['es.string.trim-right'],
+    template: $virtual({ namespace: 'String', method: 'trimRight' }),
+  },
+  'string/trim-start': {
+    modules: ['es.string.trim-start'],
+    template: $prototype({ namespace: 'String', method: 'trimStart' }),
+  },
+  'string/virtual/trim-start': {
+    modules: ['es.string.trim-start'],
+    template: $virtual({ namespace: 'String', method: 'trimStart' }),
+  },
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
     template: $helper({ name: 'get-iterator' }),
