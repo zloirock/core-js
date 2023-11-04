@@ -1,6 +1,10 @@
 import { $prototype, $virtual, $static, $patchableStatic, $namespace, $helper, $justImport } from './templates.mjs';
 
 export const features = {
+  'aggregate-error/index': {
+    modules: [/^(?:es|esnext)\.aggregate-error\./],
+    template: $namespace({ name: 'AggregateError' }),
+  },
   'array/index': {
     modules: [/^(?:es|esnext)\.array\./],
     template: $namespace({ name: 'Array' }),
@@ -316,6 +320,22 @@ export const features = {
   'array/virtual/with': {
     modules: ['es.array.with'],
     template: $virtual({ namespace: 'Array', method: 'with' }),
+  },
+  'dom-exception/index': {
+    modules: [/^web\.dom-exception\./],
+    template: $namespace({ name: 'DOMException' }),
+  },
+  'error/index': {
+    modules: [/^(?:es|esnext)\.error\./],
+    template: $namespace({ name: 'Error' }),
+  },
+  'error/to-string': {
+    modules: ['es.error.to-string'],
+    template: $prototype({ namespace: 'Error', method: 'toString' }),
+  },
+  'error/virtual/to-string': {
+    modules: ['es.error.to-string'],
+    template: $virtual({ namespace: 'Error', method: 'toString' }),
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
@@ -1019,6 +1039,10 @@ export const features = {
   'string/virtual/trim-start': {
     modules: ['es.string.trim-start'],
     template: $virtual({ namespace: 'String', method: 'trimStart' }),
+  },
+  'suppressed-error/index': {
+    modules: [/^(?:es|esnext)\.suppressed-error\./],
+    template: $namespace({ name: 'SuppressedError' }),
   },
   atob: {
     modules: ['web.atob'],
