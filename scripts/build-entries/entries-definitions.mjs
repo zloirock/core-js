@@ -490,7 +490,7 @@ export const features = {
     template: $virtual({ namespace: 'Map', method: 'findKey' }),
   },
   'map/from': {
-    modules: ['esnext.map.from', 'es.map.constructor'],
+    modules: ['esnext.map.from'],
     template: $staticWithContext({ namespace: 'Map', method: 'from' }),
   },
   'map/group-by': {
@@ -542,7 +542,7 @@ export const features = {
     template: $virtual({ namespace: 'Map', method: 'merge' }),
   },
   'map/of': {
-    modules: ['esnext.map.of', 'es.map.constructor'],
+    modules: ['esnext.map.of'],
     template: $staticWithContext({ namespace: 'Map', method: 'of' }),
   },
   'map/reduce': {
@@ -988,6 +988,146 @@ export const features = {
     template: $static({ namespace: 'Reflect', method: 'set' }),
   },
   // 'reflect/to-string-tag' ???
+  'set/index': {
+    modules: [/^(?:es|esnext)\.set\./],
+    template: $namespace({ name: 'Set' }),
+  },
+  'set/add-all': {
+    modules: ['esnext.set.add-all'],
+    template: $prototype({ namespace: 'Set', method: 'addAll' }),
+  },
+  'set/virtual/add-all': {
+    modules: ['esnext.set.add-all'],
+    template: $virtual({ namespace: 'Set', method: 'addAll' }),
+  },
+  'set/delete-all': {
+    modules: ['esnext.set.delete-all'],
+    template: $prototype({ namespace: 'Set', method: 'deleteAll' }),
+  },
+  'set/virtual/delete-all': {
+    modules: ['esnext.set.delete-all'],
+    template: $virtual({ namespace: 'Set', method: 'deleteAll' }),
+  },
+  'set/difference': {
+    modules: ['esnext.set.difference'],
+    template: $prototype({ namespace: 'Set', method: 'difference' }),
+  },
+  'set/virtual/difference': {
+    modules: ['esnext.set.difference'],
+    template: $virtual({ namespace: 'Set', method: 'difference' }),
+  },
+  'set/every': {
+    modules: ['esnext.set.every'],
+    template: $prototype({ namespace: 'Set', method: 'every' }),
+  },
+  'set/virtual/every': {
+    modules: ['esnext.set.every'],
+    template: $virtual({ namespace: 'Set', method: 'every' }),
+  },
+  'set/filter': {
+    modules: ['esnext.set.filter'],
+    template: $prototype({ namespace: 'Set', method: 'filter' }),
+  },
+  'set/virtual/filter': {
+    modules: ['esnext.set.filter'],
+    template: $virtual({ namespace: 'Set', method: 'filter' }),
+  },
+  'set/find': {
+    modules: ['esnext.set.find'],
+    template: $prototype({ namespace: 'Set', method: 'find' }),
+  },
+  'set/virtual/find': {
+    modules: ['esnext.set.find'],
+    template: $virtual({ namespace: 'Set', method: 'find' }),
+  },
+  'set/from': {
+    modules: ['esnext.set.from'],
+    template: $staticWithContext({ namespace: 'Set', method: 'from' }),
+  },
+  'set/intersection': {
+    modules: ['esnext.set.intersection'],
+    template: $prototype({ namespace: 'Set', method: 'intersection' }),
+  },
+  'set/virtual/intersection': {
+    modules: ['esnext.set.intersection'],
+    template: $virtual({ namespace: 'Set', method: 'intersection' }),
+  },
+  'set/is-disjoint-from': {
+    modules: ['esnext.set.is-disjoint-from'],
+    template: $prototype({ namespace: 'Set', method: 'isDisjointFrom' }),
+  },
+  'set/virtual/is-disjoint-from': {
+    modules: ['esnext.set.is-disjoint-from'],
+    template: $virtual({ namespace: 'Set', method: 'isDisjointFrom' }),
+  },
+  'set/is-subset-of': {
+    modules: ['esnext.set.is-subset-of'],
+    template: $prototype({ namespace: 'Set', method: 'isSubsetOf' }),
+  },
+  'set/virtual/is-subset-of': {
+    modules: ['esnext.set.is-subset-of'],
+    template: $virtual({ namespace: 'Set', method: 'isSubsetOf' }),
+  },
+  'set/is-superset-of': {
+    modules: ['esnext.set.is-superset-of'],
+    template: $prototype({ namespace: 'Set', method: 'isSupersetOf' }),
+  },
+  'set/virtual/is-superset-of': {
+    modules: ['esnext.set.is-superset-of'],
+    template: $virtual({ namespace: 'Set', method: 'isSupersetOf' }),
+  },
+  'set/join': {
+    modules: ['esnext.set.join'],
+    template: $prototype({ namespace: 'Set', method: 'join' }),
+  },
+  'set/virtual/join': {
+    modules: ['esnext.set.join'],
+    template: $virtual({ namespace: 'Set', method: 'join' }),
+  },
+  'set/map': {
+    modules: ['esnext.set.map'],
+    template: $prototype({ namespace: 'Set', method: 'map' }),
+  },
+  'set/virtual/map': {
+    modules: ['esnext.set.map'],
+    template: $virtual({ namespace: 'Set', method: 'map' }),
+  },
+  'set/of': {
+    modules: ['esnext.set.of'],
+    template: $staticWithContext({ namespace: 'Set', method: 'of' }),
+  },
+  'set/reduce': {
+    modules: ['esnext.set.reduce'],
+    template: $prototype({ namespace: 'Set', method: 'reduce' }),
+  },
+  'set/virtual/reduce': {
+    modules: ['esnext.set.reduce'],
+    template: $virtual({ namespace: 'Set', method: 'reduce' }),
+  },
+  'set/some': {
+    modules: ['esnext.set.some'],
+    template: $prototype({ namespace: 'Set', method: 'some' }),
+  },
+  'set/virtual/some': {
+    modules: ['esnext.set.some'],
+    template: $virtual({ namespace: 'Set', method: 'some' }),
+  },
+  'set/symmetric-difference': {
+    modules: ['esnext.set.symmetric-difference'],
+    template: $prototype({ namespace: 'Set', method: 'symmetricDifference' }),
+  },
+  'set/virtual/symmetric-difference': {
+    modules: ['esnext.set.symmetric-difference'],
+    template: $virtual({ namespace: 'Set', method: 'symmetricDifference' }),
+  },
+  'set/union': {
+    modules: ['esnext.set.union'],
+    template: $prototype({ namespace: 'Set', method: 'union' }),
+  },
+  'set/virtual/union': {
+    modules: ['esnext.set.union'],
+    template: $virtual({ namespace: 'Set', method: 'union' }),
+  },
   'string/index': {
     modules: [/^(?:es|esnext)\.string\./],
     template: $namespace({ name: 'String' }),
