@@ -330,6 +330,51 @@ export const features = {
     modules: ['es.array.with'],
     template: $virtual({ namespace: 'Array', method: 'with' }),
   },
+  'date/index': {
+    modules: [/^(?:es|esnext)\.date\./],
+    template: $namespace({ name: 'Date' }),
+  },
+  'date/get-year': {
+    modules: ['es.date.get-year'],
+    template: $prototype({ namespace: 'Date', method: 'getYear' }),
+  },
+  'date/virtual/get-year': {
+    modules: ['es.date.get-year'],
+    template: $virtual({ namespace: 'Date', method: 'getYear' }),
+  },
+  'date/set-year': {
+    modules: ['es.date.set-year'],
+    template: $prototype({ namespace: 'Date', method: 'setYear' }),
+  },
+  'date/virtual/set-year': {
+    modules: ['es.date.set-year'],
+    template: $virtual({ namespace: 'Date', method: 'setYear' }),
+  },
+  'date/to-gmt-string': {
+    modules: ['es.date.to-gmt-string'],
+    template: $prototype({ namespace: 'Date', method: 'toGMTString' }),
+  },
+  'date/virtual/to-gmt-string': {
+    modules: ['es.date.to-gmt-string'],
+    template: $virtual({ namespace: 'Date', method: 'toGMTString' }),
+  },
+  'date/to-iso-string': {
+    modules: ['es.date.to-iso-string'],
+    template: $prototype({ namespace: 'Date', method: 'toISOString' }),
+  },
+  'date/virtual/to-iso-string': {
+    modules: ['es.date.to-iso-string'],
+    template: $virtual({ namespace: 'Date', method: 'toISOString' }),
+  },
+  'date/to-json': {
+    modules: ['es.date.to-json'],
+    template: $prototype({ namespace: 'Date', method: 'toJSON' }),
+  },
+  'date/virtual/to-json': {
+    modules: ['es.date.to-json'],
+    template: $virtual({ namespace: 'Date', method: 'toJSON' }),
+  },
+  // date/to-primitive ???
   'dom-exception/index': {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
