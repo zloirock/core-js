@@ -363,6 +363,26 @@ export const features = {
     modules: ['es.function.name'],
     template: $justImport, // <- ???
   },
+  'json/index': {
+    modules: [/^(?:es|esnext)\.json\./],
+    template: $namespace({ name: 'JSON' }),
+  },
+  'json/is-raw-json': {
+    modules: ['esnext.json.is-raw-json'],
+    template: $static({ namespace: 'JSON', method: 'isRawJSON' }),
+  },
+  'json/parse': {
+    modules: ['esnext.json.is-raw-json'],
+    template: $static({ namespace: 'JSON', method: 'parse' }),
+  },
+  'json/raw-json': {
+    modules: ['esnext.json.raw-json'],
+    template: $static({ namespace: 'JSON', method: 'rawJSON' }),
+  },
+  'json/stringify': {
+    modules: ['es.json.stringify'],
+    template: $patchableStatic({ namespace: 'JSON', method: 'stringify' }),
+  },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
     template: $namespace({ name: 'Math' }),
