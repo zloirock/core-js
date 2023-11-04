@@ -437,6 +437,138 @@ export const features = {
     modules: ['es.json.stringify'],
     template: $patchableStatic({ namespace: 'JSON', method: 'stringify' }),
   },
+  'map/index': {
+    modules: [/^(?:es|esnext)\.map\./],
+    template: $namespace({ name: 'Map' }),
+  },
+  'map/delete-all': {
+    modules: ['esnext.map.delete-all'],
+    template: $prototype({ namespace: 'Map', method: 'deleteAll' }),
+  },
+  'map/virtual/delete-all': {
+    modules: ['esnext.map.delete-all'],
+    template: $virtual({ namespace: 'Map', method: 'deleteAll' }),
+  },
+  'map/emplace': {
+    modules: ['esnext.map.emplace'],
+    template: $prototype({ namespace: 'Map', method: 'emplace' }),
+  },
+  'map/virtual/emplace': {
+    modules: ['esnext.map.emplace'],
+    template: $virtual({ namespace: 'Map', method: 'emplace' }),
+  },
+  'map/every': {
+    modules: ['esnext.map.every'],
+    template: $prototype({ namespace: 'Map', method: 'every' }),
+  },
+  'map/virtual/every': {
+    modules: ['esnext.map.every'],
+    template: $virtual({ namespace: 'Map', method: 'every' }),
+  },
+  'map/filter': {
+    modules: ['esnext.map.filter'],
+    template: $prototype({ namespace: 'Map', method: 'filter' }),
+  },
+  'map/virtual/filter': {
+    modules: ['esnext.map.filter'],
+    template: $virtual({ namespace: 'Map', method: 'filter' }),
+  },
+  'map/find': {
+    modules: ['esnext.map.find'],
+    template: $prototype({ namespace: 'Map', method: 'find' }),
+  },
+  'map/virtual/find': {
+    modules: ['esnext.map.find'],
+    template: $virtual({ namespace: 'Map', method: 'find' }),
+  },
+  'map/find-key': {
+    modules: ['esnext.map.find-key'],
+    template: $prototype({ namespace: 'Map', method: 'findKey' }),
+  },
+  'map/virtual/find-key': {
+    modules: ['esnext.map.find-key'],
+    template: $virtual({ namespace: 'Map', method: 'findKey' }),
+  },
+  'map/from': {
+    modules: ['esnext.map.from', 'es.map.constructor'],
+    template: $staticWithContext({ namespace: 'Map', method: 'from' }),
+  },
+  'map/group-by': {
+    modules: ['esnext.map.group-by'],
+    template: $static({ namespace: 'Map', method: 'groupBy' }),
+  },
+  'map/includes': {
+    modules: ['esnext.map.includes'],
+    template: $prototype({ namespace: 'Map', method: 'includes' }),
+  },
+  'map/virtual/includes': {
+    modules: ['esnext.map.includes'],
+    template: $virtual({ namespace: 'Map', method: 'includes' }),
+  },
+  'map/key-by': {
+    modules: ['esnext.map.key-by', 'es.map.constructor'],
+    template: $staticWithContext({ namespace: 'Map', method: 'keyBy' }),
+  },
+  'map/key-of': {
+    modules: ['esnext.map.key-of'],
+    template: $prototype({ namespace: 'Map', method: 'keyOf' }),
+  },
+  'map/virtual/key-of': {
+    modules: ['esnext.map.key-of'],
+    template: $virtual({ namespace: 'Map', method: 'keyOf' }),
+  },
+  'map/map-keys': {
+    modules: ['esnext.map.map-keys'],
+    template: $prototype({ namespace: 'Map', method: 'mapKeys' }),
+  },
+  'map/virtual/map-keys': {
+    modules: ['esnext.map.map-keys'],
+    template: $virtual({ namespace: 'Map', method: 'mapKeys' }),
+  },
+  'map/map-values': {
+    modules: ['esnext.map.map-values'],
+    template: $prototype({ namespace: 'Map', method: 'mapValues' }),
+  },
+  'map/virtual/map-values': {
+    modules: ['esnext.map.map-values'],
+    template: $virtual({ namespace: 'Map', method: 'mapValues' }),
+  },
+  'map/merge': {
+    modules: ['esnext.map.merge'],
+    template: $prototype({ namespace: 'Map', method: 'merge' }),
+  },
+  'map/virtual/merge': {
+    modules: ['esnext.map.merge'],
+    template: $virtual({ namespace: 'Map', method: 'merge' }),
+  },
+  'map/of': {
+    modules: ['esnext.map.of', 'es.map.constructor'],
+    template: $staticWithContext({ namespace: 'Map', method: 'of' }),
+  },
+  'map/reduce': {
+    modules: ['esnext.map.reduce'],
+    template: $prototype({ namespace: 'Map', method: 'reduce' }),
+  },
+  'map/virtual/reduce': {
+    modules: ['esnext.map.reduce'],
+    template: $virtual({ namespace: 'Map', method: 'reduce' }),
+  },
+  'map/some': {
+    modules: ['esnext.map.some'],
+    template: $prototype({ namespace: 'Map', method: 'some' }),
+  },
+  'map/virtual/some': {
+    modules: ['esnext.map.some'],
+    template: $virtual({ namespace: 'Map', method: 'some' }),
+  },
+  'map/update': {
+    modules: ['esnext.map.update'],
+    template: $prototype({ namespace: 'Map', method: 'update' }),
+  },
+  'map/virtual/update': {
+    modules: ['esnext.map.update'],
+    template: $virtual({ namespace: 'Map', method: 'update' }),
+  },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
     template: $namespace({ name: 'Math' }),
