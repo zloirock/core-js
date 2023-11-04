@@ -1,4 +1,13 @@
-import { $prototype, $virtual, $static, $patchableStatic, $namespace, $helper, $justImport } from './templates.mjs';
+import {
+  $prototype,
+  $virtual,
+  $static,
+  $staticWithContext,
+  $patchableStatic,
+  $namespace,
+  $helper,
+  $justImport,
+} from './templates.mjs';
 
 export const features = {
   'aggregate-error/index': {
@@ -700,6 +709,50 @@ export const features = {
   'object/values': {
     modules: ['es.object.values'],
     template: $static({ namespace: 'Object', method: 'values' }),
+  },
+  'promise/index': {
+    modules: [/^(?:es|esnext)\.promise\./],
+    template: $namespace({ name: 'Promise' }),
+  },
+  'promise/all': {
+    modules: ['es.promise.constructor', 'es.promise.all'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'all' }),
+  },
+  'promise/all-settled': {
+    modules: ['es.promise.constructor', 'es.promise.all-settled'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'allSettled' }),
+  },
+  'promise/any': {
+    modules: ['es.promise.constructor', 'es.promise.any'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'any' }),
+  },
+  'promise/catch': {
+    modules: ['es.promise.constructor', 'es.promise.catch'],
+    template: $prototype({ namespace: 'Promise', method: 'catch' }),
+  },
+  'promise/virtual/catch': {
+    modules: ['es.promise.constructor', 'es.promise.catch'],
+    template: $virtual({ namespace: 'Promise', method: 'catch' }),
+  },
+  'promise/finally': {
+    modules: ['es.promise.constructor', 'es.promise.finally'],
+    template: $prototype({ namespace: 'Promise', method: 'finally' }),
+  },
+  'promise/virtual/finally': {
+    modules: ['es.promise.constructor', 'es.promise.finally'],
+    template: $virtual({ namespace: 'Promise', method: 'finally' }),
+  },
+  'promise/race': {
+    modules: ['es.promise.constructor', 'es.promise.race'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'race' }),
+  },
+  'promise/reject': {
+    modules: ['es.promise.constructor', 'es.promise.reject'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'reject' }),
+  },
+  'promise/resolve': {
+    modules: ['es.promise.constructor', 'es.promise.resolve'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],

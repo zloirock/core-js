@@ -44,6 +44,21 @@ export const $static = t(p => dedent`
   module.exports = path.${ p.namespace }.${ p.method };
 `);
 
+export const $staticWithContext = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var getBuiltIn = ${ importInternal('get-built-in', p.level) }
+  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+  var isCallable = ${ importInternal('is-callable', p.level) }
+  var apply = ${ importInternal('function-apply', p.level) }
+
+  var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.method }');
+
+  module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
+    return apply(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }'), arguments);
+  };
+`);
+
 export const $patchableStatic = t(p => dedent`
   ${ importModules(p.modules, p.level) }
 
@@ -52,23 +67,6 @@ export const $patchableStatic = t(p => dedent`
 
   module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
     return apply(getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'), this, arguments);
-  };
-`);
-
-export const $patchableStaticWithContext = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
-
-  var getBuiltIn = ${ importInternal('get-built-in', p.level) }
-  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
-  var isCallable = ${ importInternal('is-callable', p.level) }
-  var apply = ${ importInternal('function-apply', p.level) }
-
-  module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
-    return apply(
-      getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'),
-      isCallable(this) ? this : getBuiltIn('${ p.namespace }'),
-      arguments
-    );
   };
 `);
 
