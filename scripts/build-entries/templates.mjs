@@ -8,6 +8,16 @@ const importModule = (module, level) => `require('${ level ? '../'.repeat(level)
 
 const importModules = (modules, level) => modules.map(it => importModule(it, level)).join('\n');
 
+function isAllowedFunctionName(name) {
+  try {
+    // eslint-disable-next-line no-new-func -- safe
+    Function(`function ${ name }() { /* empty */ }`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const $justImport = t(p => importModules(p.modules, p.level))();
 
 export const $virtual = t(p => dedent`
@@ -40,7 +50,7 @@ export const $patchableStatic = t(p => dedent`
   var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
   var apply = ${ importInternal('function-apply', p.level) }
 
-  module.exports = function () {
+  module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
     return apply(getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'), this, arguments);
   };
 `);
@@ -53,7 +63,7 @@ export const $patchableStaticWithContext = t(p => dedent`
   var isCallable = ${ importInternal('is-callable', p.level) }
   var apply = ${ importInternal('function-apply', p.level) }
 
-  module.exports = function () {
+  module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
     return apply(
       getBuiltInStaticMethod('${ p.namespace }', '${ p.method }'),
       isCallable(this) ? this : getBuiltIn('${ p.namespace }'),
