@@ -325,7 +325,7 @@ export const features = {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
   },
-  'error/index': {
+  'error/index': { // < - path ??
     modules: [/^(?:es|esnext)\.error\./],
     template: $namespace({ name: 'Error' }),
   },
@@ -372,7 +372,7 @@ export const features = {
     template: $static({ namespace: 'JSON', method: 'isRawJSON' }),
   },
   'json/parse': {
-    modules: ['esnext.json.is-raw-json'],
+    modules: ['esnext.json.parse'],
     template: $static({ namespace: 'JSON', method: 'parse' }),
   },
   'json/raw-json': {
@@ -689,11 +689,11 @@ export const features = {
     modules: ['es.object.set-prototype-of'],
     template: $static({ namespace: 'Object', method: 'setPrototypeOf' }),
   },
-  'object/to-string': {
+  'object/to-string': { // <- !!!
     modules: ['es.object.to-string'],
     template: $prototype({ namespace: 'Object', method: 'toString' }),
   },
-  'object/virtual/to-string': {
+  'object/virtual/to-string': { // <- !!!
     modules: ['es.object.to-string'],
     template: $virtual({ namespace: 'Object', method: 'toString' }),
   },
