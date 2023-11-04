@@ -1064,6 +1064,26 @@ export const features = {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
     template: $namespace({ name: 'SuppressedError' }),
   },
+  'url/index': {
+    modules: [/^web\.url\./],
+    template: $namespace({ name: 'URL' }),
+  },
+  'url/can-parse': {
+    modules: ['web.url.can-parse'],
+    template: $static({ namespace: 'URL', method: 'canParse' }),
+  },
+  'url/to-json': { // <- ???
+    modules: ['web.url.to-json'],
+    template: $prototype({ namespace: 'URL', method: 'toJSON' }),
+  },
+  'url/virtual/to-json': {
+    modules: ['web.url.to-json'],
+    template: $virtual({ namespace: 'URL', method: 'toJSON' }),
+  },
+  'url-search-params/index': { // <- O_o
+    modules: [/^web\.url-search-params\./],
+    template: $namespace({ name: 'URLSearchParams' }),
+  },
   atob: {
     modules: ['web.atob'],
     template: $namespace({ name: 'atob' }),
