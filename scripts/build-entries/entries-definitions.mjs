@@ -1454,6 +1454,34 @@ export const features = {
     modules: [/^web\.url-search-params\./],
     template: $namespace({ name: 'URLSearchParams' }),
   },
+  'weak-map/index': {
+    modules: [/^(?:es|esnext)\.weak-map\./],
+    template: $namespace({ name: 'WeakMap' }),
+  },
+  'weak-map/delete-all': {
+    modules: ['esnext.weak-map.delete-all'],
+    template: $prototype({ namespace: 'WeakMap', method: 'deleteAll' }),
+  },
+  'weak-map/virtual/delete-all': {
+    modules: ['esnext.weak-map.delete-all'],
+    template: $virtual({ namespace: 'WeakMap', method: 'deleteAll' }),
+  },
+  'weak-map/emplace': {
+    modules: ['esnext.weak-map.emplace'],
+    template: $prototype({ namespace: 'WeakMap', method: 'emplace' }),
+  },
+  'weak-map/virtual/emplace': {
+    modules: ['esnext.weak-map.emplace'],
+    template: $virtual({ namespace: 'WeakMap', method: 'emplace' }),
+  },
+  'weak-map/from': {
+    modules: ['esnext.weak-map.from'],
+    template: $staticWithContext({ namespace: 'WeakMap', method: 'from' }),
+  },
+  'weak-map/of': {
+    modules: ['esnext.weak-map.of'],
+    template: $staticWithContext({ namespace: 'WeakMap', method: 'of' }),
+  },
   atob: {
     modules: ['web.atob'],
     template: $namespace({ name: 'atob' }),
