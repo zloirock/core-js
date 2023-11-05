@@ -1482,6 +1482,34 @@ export const features = {
     modules: ['esnext.weak-map.of'],
     template: $staticWithContext({ namespace: 'WeakMap', method: 'of' }),
   },
+  'weak-set/index': {
+    modules: [/^(?:es|esnext)\.weak-set\./],
+    template: $namespace({ name: 'WeakSet' }),
+  },
+  'weak-set/add-all': {
+    modules: ['esnext.weak-set.add-all'],
+    template: $prototype({ namespace: 'WeakSet', method: 'addAll' }),
+  },
+  'weak-set/virtual/add-all': {
+    modules: ['esnext.weak-set.add-all'],
+    template: $virtual({ namespace: 'WeakSet', method: 'addAll' }),
+  },
+  'weak-set/delete-all': {
+    modules: ['esnext.weak-set.delete-all'],
+    template: $prototype({ namespace: 'WeakSet', method: 'deleteAll' }),
+  },
+  'weak-set/virtual/delete-all': {
+    modules: ['esnext.weak-set.delete-all'],
+    template: $virtual({ namespace: 'WeakSet', method: 'deleteAll' }),
+  },
+  'weak-set/from': {
+    modules: ['esnext.weak-set.from'],
+    template: $staticWithContext({ namespace: 'WeakSet', method: 'from' }),
+  },
+  'weak-set/of': {
+    modules: ['esnext.weak-set.of'],
+    template: $staticWithContext({ namespace: 'WeakSet', method: 'of' }),
+  },
   atob: {
     modules: ['web.atob'],
     template: $namespace({ name: 'atob' }),
