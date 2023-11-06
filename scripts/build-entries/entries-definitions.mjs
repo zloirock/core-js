@@ -330,6 +330,103 @@ export const features = {
     modules: ['es.array.with'],
     template: $virtual({ namespace: 'Array', method: 'with' }),
   },
+  'async-iterator/index': {
+    modules: [/^(?:es|esnext)\.async-iterator\./],
+    template: $namespace({ name: 'AsyncIterator' }),
+  },
+  // 'async-iterator/async-dispose' ???
+  'async-iterator/drop': {
+    modules: ['esnext.async-iterator.drop'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'drop' }),
+  },
+  'async-iterator/virtual/drop': {
+    modules: ['esnext.async-iterator.drop'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'drop' }),
+  },
+  'async-iterator/every': {
+    modules: ['esnext.async-iterator.every'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'every' }),
+  },
+  'async-iterator/virtual/every': {
+    modules: ['esnext.async-iterator.every'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'every' }),
+  },
+  'async-iterator/filter': {
+    modules: ['esnext.async-iterator.filter'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'filter' }),
+  },
+  'async-iterator/virtual/filter': {
+    modules: ['esnext.async-iterator.filter'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'filter' }),
+  },
+  'async-iterator/find': {
+    modules: ['esnext.async-iterator.find'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'find' }),
+  },
+  'async-iterator/virtual/find': {
+    modules: ['esnext.async-iterator.find'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'find' }),
+  },
+  'async-iterator/flat-map': {
+    modules: ['esnext.async-iterator.flat-map'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'flatMap' }),
+  },
+  'async-iterator/virtual/flat-map': {
+    modules: ['esnext.async-iterator.flat-map'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'flatMap' }),
+  },
+  'async-iterator/for-each': {
+    modules: ['esnext.async-iterator.for-each'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'forEach' }),
+  },
+  'async-iterator/virtual/for-each': {
+    modules: ['esnext.async-iterator.for-each'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'forEach' }),
+  },
+  'async-iterator/from': {
+    modules: ['esnext.async-iterator.from'],
+    template: $static({ namespace: 'AsyncIterator', method: 'from' }),
+  },
+  'async-iterator/map': {
+    modules: ['esnext.async-iterator.map'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'map' }),
+  },
+  'async-iterator/virtual/map': {
+    modules: ['esnext.async-iterator.map'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'map' }),
+  },
+  'async-iterator/reduce': {
+    modules: ['esnext.async-iterator.reduce'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'reduce' }),
+  },
+  'async-iterator/virtual/reduce': {
+    modules: ['esnext.async-iterator.reduce'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'reduce' }),
+  },
+  'async-iterator/some': {
+    modules: ['esnext.async-iterator.some'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'some' }),
+  },
+  'async-iterator/virtual/some': {
+    modules: ['esnext.async-iterator.some'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'some' }),
+  },
+  'async-iterator/take': {
+    modules: ['esnext.async-iterator.take'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'take' }),
+  },
+  'async-iterator/virtual/take': {
+    modules: ['esnext.async-iterator.take'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'take' }),
+  },
+  'async-iterator/to-array': {
+    modules: ['esnext.async-iterator.to-array'],
+    template: $prototype({ namespace: 'AsyncIterator', method: 'toArray' }),
+  },
+  'async-iterator/virtual/to-array': {
+    modules: ['esnext.async-iterator.to-array'],
+    template: $virtual({ namespace: 'AsyncIterator', method: 'toArray' }),
+  },
   'date/index': {
     modules: [/^(?:es|esnext)\.date\./],
     template: $namespace({ name: 'Date' }),
@@ -472,7 +569,7 @@ export const features = {
   },
   'iterator/from': {
     modules: ['esnext.iterator.from'],
-    template: $static({ namespace: 'JSON', method: 'from' }),
+    template: $static({ namespace: 'Iterator', method: 'from' }),
   },
   'iterator/map': {
     modules: ['esnext.iterator.map'],
@@ -484,7 +581,7 @@ export const features = {
   },
   'iterator/range': {
     modules: ['esnext.iterator.range'],
-    template: $static({ namespace: 'JSON', method: 'range' }),
+    template: $static({ namespace: 'Iterator', method: 'range' }),
   },
   'iterator/reduce': {
     modules: ['esnext.iterator.reduce'],
