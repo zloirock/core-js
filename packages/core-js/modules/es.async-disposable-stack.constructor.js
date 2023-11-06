@@ -9,6 +9,8 @@ var defineBuiltIns = require('../internals/define-built-ins');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var InternalStateModule = require('../internals/internal-state');
+// dependency: esnext.async-iterator.async-dispose
+// dependency: esnext.iterator.dispose
 var addDisposableResource = require('../internals/add-disposable-resource');
 var V8_VERSION = require('../internals/environment-v8-version');
 
