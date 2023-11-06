@@ -10,7 +10,7 @@ const DIRECTIVE = /^ *\/\/ dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)
 
 const cache = new Map();
 
-export function unique(array) {
+function unique(array) {
   return [...new Set(array)];
 }
 
