@@ -334,6 +334,10 @@ export const features = {
     modules: [/^(?:es|esnext)\.async-iterator\./],
     template: $namespace({ name: 'AsyncIterator' }),
   },
+  'async-disposable-stack/index': {
+    modules: [/^(?:es|esnext)\.async-disposable-stack\./],
+    template: $namespace({ name: 'AsyncDisposableStack' }),
+  },
   // 'async-iterator/async-dispose' ???
   'async-iterator/drop': {
     modules: ['esnext.async-iterator.drop'],
@@ -470,6 +474,10 @@ export const features = {
   'date/virtual/to-json': {
     modules: ['es.date.to-json'],
     template: $virtual({ namespace: 'Date', method: 'toJSON' }),
+  },
+  'disposable-stack/index': {
+    modules: [/^(?:es|esnext)\.disposable-stack\./],
+    template: $namespace({ name: 'DisposableStack' }),
   },
   // date/to-primitive ???
   'dom-exception/index': {
