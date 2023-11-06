@@ -445,7 +445,7 @@ QUnit.module('structuredClone', () => {
   });
 
   // FileList
-  if (fromSource('new File(["test"], "foo.txt")') && fromSource('new DataTransfer()')) QUnit.test('FileList', assert => {
+  if (fromSource('new File(["test"], "foo.txt")') && fromSource('"items" in DataTransfer.prototype')) QUnit.test('FileList', assert => {
     const transfer = new DataTransfer();
     transfer.items.add(new File(['test'], 'foo.txt'));
     cloneObjectTest(
