@@ -417,6 +417,115 @@ export const features = {
     modules: ['es.function.name'],
     template: $justImport, // <- ???
   },
+  'iterator/index': {
+    modules: [/^(?:es|esnext)\.iterator\./],
+    template: $namespace({ name: 'Iterator' }),
+  },
+  // 'iterator/dispose' ???
+  'iterator/drop': {
+    modules: ['esnext.iterator.drop'],
+    template: $prototype({ namespace: 'Iterator', method: 'drop' }),
+  },
+  'iterator/virtual/drop': {
+    modules: ['esnext.iterator.drop'],
+    template: $virtual({ namespace: 'Iterator', method: 'drop' }),
+  },
+  'iterator/every': {
+    modules: ['esnext.iterator.every'],
+    template: $prototype({ namespace: 'Iterator', method: 'every' }),
+  },
+  'iterator/virtual/every': {
+    modules: ['esnext.iterator.every'],
+    template: $virtual({ namespace: 'Iterator', method: 'every' }),
+  },
+  'iterator/filter': {
+    modules: ['esnext.iterator.filter'],
+    template: $prototype({ namespace: 'Iterator', method: 'filter' }),
+  },
+  'iterator/virtual/filter': {
+    modules: ['esnext.iterator.filter'],
+    template: $virtual({ namespace: 'Iterator', method: 'filter' }),
+  },
+  'iterator/find': {
+    modules: ['esnext.iterator.find'],
+    template: $prototype({ namespace: 'Iterator', method: 'find' }),
+  },
+  'iterator/virtual/find': {
+    modules: ['esnext.iterator.find'],
+    template: $virtual({ namespace: 'Iterator', method: 'find' }),
+  },
+  'iterator/flat-map': {
+    modules: ['esnext.iterator.flat-map'],
+    template: $prototype({ namespace: 'Iterator', method: 'flatMap' }),
+  },
+  'iterator/virtual/flat-map': {
+    modules: ['esnext.iterator.flat-map'],
+    template: $virtual({ namespace: 'Iterator', method: 'flatMap' }),
+  },
+  'iterator/for-each': {
+    modules: ['esnext.iterator.for-each'],
+    template: $prototype({ namespace: 'Iterator', method: 'forEach' }),
+  },
+  'iterator/virtual/for-each': {
+    modules: ['esnext.iterator.for-each'],
+    template: $virtual({ namespace: 'Iterator', method: 'forEach' }),
+  },
+  'iterator/from': {
+    modules: ['esnext.iterator.from'],
+    template: $static({ namespace: 'JSON', method: 'from' }),
+  },
+  'iterator/map': {
+    modules: ['esnext.iterator.map'],
+    template: $prototype({ namespace: 'Iterator', method: 'map' }),
+  },
+  'iterator/virtual/map': {
+    modules: ['esnext.iterator.map'],
+    template: $virtual({ namespace: 'Iterator', method: 'map' }),
+  },
+  'iterator/range': {
+    modules: ['esnext.iterator.range'],
+    template: $static({ namespace: 'JSON', method: 'range' }),
+  },
+  'iterator/reduce': {
+    modules: ['esnext.iterator.reduce'],
+    template: $prototype({ namespace: 'Iterator', method: 'reduce' }),
+  },
+  'iterator/virtual/reduce': {
+    modules: ['esnext.iterator.reduce'],
+    template: $virtual({ namespace: 'Iterator', method: 'reduce' }),
+  },
+  'iterator/some': {
+    modules: ['esnext.iterator.some'],
+    template: $prototype({ namespace: 'Iterator', method: 'some' }),
+  },
+  'iterator/virtual/some': {
+    modules: ['esnext.iterator.some'],
+    template: $virtual({ namespace: 'Iterator', method: 'some' }),
+  },
+  'iterator/take': {
+    modules: ['esnext.iterator.take'],
+    template: $prototype({ namespace: 'Iterator', method: 'take' }),
+  },
+  'iterator/virtual/take': {
+    modules: ['esnext.iterator.take'],
+    template: $virtual({ namespace: 'Iterator', method: 'take' }),
+  },
+  'iterator/to-array': {
+    modules: ['esnext.iterator.to-array'],
+    template: $prototype({ namespace: 'Iterator', method: 'toArray' }),
+  },
+  'iterator/virtual/to-array': {
+    modules: ['esnext.iterator.to-array'],
+    template: $virtual({ namespace: 'Iterator', method: 'toArray' }),
+  },
+  'iterator/to-async': {
+    modules: ['esnext.iterator.to-async'],
+    template: $prototype({ namespace: 'Iterator', method: 'toAsync' }),
+  },
+  'iterator/virtual/to-async': {
+    modules: ['esnext.iterator.to-async'],
+    template: $virtual({ namespace: 'Iterator', method: 'toAsync' }),
+  },
   'json/index': {
     modules: [/^(?:es|esnext)\.json\./],
     template: $namespace({ name: 'JSON' }),
