@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed an issue getting the global object on Duktape, [#1303](https://github.com/zloirock/core-js/issues/1303)
+- Some internal untangling
 - Compat data improvements:
   - Added [Deno 1.38](https://deno.com/blog/v1.38) compat data mapping
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as [supported from Deno 1.38](https://github.com/denoland/deno/pull/21048)
