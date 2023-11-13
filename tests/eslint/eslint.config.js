@@ -332,7 +332,7 @@ const base = {
   // enforce one newline at the end of files
   '@stylistic/js/eol-last': [ERROR, ALWAYS],
   // disallow space between function identifier and application
-  '@stylistic/js/func-call-spacing': ERROR,
+  '@stylistic/js/function-call-spacing': ERROR,
   // require spacing around the `*` in `function *` expressions
   '@stylistic/js/generator-star-spacing': [ERROR, 'both'],
   // enforce the location of arrow function bodies
