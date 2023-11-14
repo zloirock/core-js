@@ -4,6 +4,7 @@
   - Added [Deno 1.38](https://deno.com/blog/v1.38) compat data mapping
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as [supported from Deno 1.38](https://github.com/denoland/deno/pull/21048)
   - [`Symbol.{ dispose, asyncDispose }`](https://github.com/tc39/proposal-explicit-resource-management) marked as [supported from Deno 1.38](https://github.com/denoland/deno/pull/20845)
+  - Added Opera Android 79 compat data mapping
   - Added Oculus Quest Browser 30 compat data mapping
   - Updated Electron 28 and 29 compat data mapping
 
