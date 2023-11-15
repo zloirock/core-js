@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed an issue getting the global object on Duktape, [#1303](https://github.com/zloirock/core-js/issues/1303)
+- Avoid sharing internal `[[DedentMap]]` from [`String.dedent` proposal](https://github.com/tc39/proposal-string-dedent) between `core-js` instances before stabilization of the proposal
 - Some internal untangling
 - Compat data improvements:
   - Added [Deno 1.38](https://deno.com/blog/v1.38) compat data mapping

@@ -1,8 +1,6 @@
 'use strict';
 var FREEZING = require('../internals/freezing');
 var $ = require('../internals/export');
-var shared = require('../internals/shared');
-var getBuiltIn = require('../internals/get-built-in');
 var makeBuiltIn = require('../internals/make-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var apply = require('../internals/function-apply');
@@ -12,18 +10,15 @@ var isCallable = require('../internals/is-callable');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var defineProperty = require('../internals/object-define-property').f;
 var createArrayFromList = require('../internals/array-slice-simple');
+var WeakMapHelpers = require('../internals/weak-map-helpers');
 var cooked = require('../internals/string-cooked');
 var parse = require('../internals/string-parse');
 var whitespaces = require('../internals/whitespaces');
 
-var WeakMap = getBuiltIn('WeakMap');
-var globalDedentRegistry = shared('GlobalDedentRegistry', new WeakMap());
-
-/* eslint-disable no-self-assign -- prototype methods protection */
-globalDedentRegistry.has = globalDedentRegistry.has;
-globalDedentRegistry.get = globalDedentRegistry.get;
-globalDedentRegistry.set = globalDedentRegistry.set;
-/* eslint-enable no-self-assign -- prototype methods protection */
+var DedentMap = new WeakMapHelpers.WeakMap();
+var weakMapGet = WeakMapHelpers.get;
+var weakMapHas = WeakMapHelpers.has;
+var weakMapSet = WeakMapHelpers.set;
 
 var $Array = Array;
 var $TypeError = TypeError;
@@ -48,14 +43,14 @@ var dedentTemplateStringsArray = function (template) {
   var rawInput = template.raw;
   // https://github.com/tc39/proposal-string-dedent/issues/75
   if (FREEZING && !isFrozen(rawInput)) throw new $TypeError('Raw template should be frozen');
-  if (globalDedentRegistry.has(rawInput)) return globalDedentRegistry.get(rawInput);
+  if (weakMapHas(DedentMap, rawInput)) return weakMapGet(DedentMap, rawInput);
   var raw = dedentStringsArray(rawInput);
   var cookedArr = cookStrings(raw);
   defineProperty(cookedArr, 'raw', {
     value: freeze(raw)
   });
   freeze(cookedArr);
-  globalDedentRegistry.set(rawInput, cookedArr);
+  weakMapSet(DedentMap, rawInput, cookedArr);
   return cookedArr;
 };
 
