@@ -88,7 +88,6 @@
     "@babel/plugin-transform-private-methods": "^7.25.7",
     "@babel/plugin-transform-private-property-in-object": "^7.25.7",
     "@babel/plugin-transform-property-literals": "^7.25.7",
-    "@babel/plugin-transform-reserved-words": "^7.25.7",
     "@babel/plugin-transform-shorthand-properties": "^7.25.7",
     "@babel/plugin-transform-spread": "^7.25.7",
     "@babel/plugin-transform-template-literals": "^7.25.7",
