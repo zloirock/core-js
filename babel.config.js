@@ -31,7 +31,6 @@ module.exports = {
     ['@babel/transform-private-methods'],
     ['@babel/transform-private-property-in-object'],
     ['@babel/transform-regexp-modifiers'],
-    ['@babel/transform-reserved-words'],
     ['@babel/transform-shorthand-properties'],
     ['@babel/transform-spread'],
     ['@babel/transform-template-literals'],
