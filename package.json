@@ -98,7 +98,6 @@
     "@babel/plugin-transform-property-literals": "^7.27.1",
     "@babel/plugin-transform-regenerator": "^7.29.0",
     "@babel/plugin-transform-regexp-modifiers": "^7.28.6",
-    "@babel/plugin-transform-reserved-words": "^7.27.1",
     "@babel/plugin-transform-shorthand-properties": "^7.27.1",
     "@babel/plugin-transform-spread": "^7.28.6",
     "@babel/plugin-transform-template-literals": "^7.27.1",
