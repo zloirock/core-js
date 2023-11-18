@@ -2,9 +2,9 @@
   "name": "tests/eslint",
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.1.0",
-    "@stylistic/eslint-plugin-js": "^1.3.0",
+    "@stylistic/eslint-plugin-js": "^1.4.0",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^8.53.0",
+    "eslint": "^8.54.0",
     "eslint-plugin-array-func": "^4.0.0",
     "eslint-plugin-es-x": "^7.3.0",
     "eslint-plugin-filenames": "^1.3.2",
