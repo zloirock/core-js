@@ -24,8 +24,8 @@ const archive = await jszip.loadAsync(await response.arrayBuffer());
 const file = await archive.file('top-1m.csv.deprecated').async('string');
 const BANNER_LINES = 8;
 const sites = file
-  .split('\n')
-  .slice(BANNER_LINES, limit + BANNER_LINES)
+  .split('\n', limit + BANNER_LINES)
+  .slice(BANNER_LINES)
   .map(line => line.match(/^\d+,(?<site>.+)$/).groups.site)
   .reverse();
 echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) / 1e3) } seconds\n${ gray('-'.repeat(120)) }`));
