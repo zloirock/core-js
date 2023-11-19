@@ -5778,6 +5778,7 @@
   "esnext.suppressed-error.constructor": {},
   "esnext.array.from-async": {
     "bun": "0.3.0",
+    "deno": "1.38",
     "firefox": "115",
     "firefox-android": "115",
     "ios": "16.4",
@@ -6116,9 +6117,11 @@
     "firefox": "119",
     "firefox-android": "119",
     "node": "21.0",
+    "oculus": "30.0",
     "opera": "103",
     "opera-android": "78",
-    "opera_mobile": "78"
+    "opera_mobile": "78",
+    "quest": "30.0"
   },
   "esnext.map.includes": {},
   "esnext.map.key-by": {},
@@ -6183,9 +6186,11 @@
     "firefox": "119",
     "firefox-android": "119",
     "node": "21.0",
+    "oculus": "30.0",
     "opera": "103",
     "opera-android": "78",
-    "opera_mobile": "78"
+    "opera_mobile": "78",
+    "quest": "30.0"
   },
   "esnext.observable": {},
   "esnext.observable.constructor": {},
@@ -6237,6 +6242,7 @@
     "bun": "0.7.1",
     "chrome": "119",
     "chrome-android": "119",
+    "deno": "1.38",
     "edge": "119",
     "electron": "28.0",
     "opera": "105"
@@ -6365,9 +6371,11 @@
     "samsung": "22.0"
   },
   "esnext.symbol.async-dispose": {
+    "deno": "1.38",
     "node": "20.5.0"
   },
   "esnext.symbol.dispose": {
+    "deno": "1.38",
     "node": "20.5.0"
   },
   "esnext.symbol.is-registered-symbol": {},
@@ -6829,7 +6837,7 @@
     "chrome-android": "120",
     "deno": "1.33.2",
     "edge": "120",
-    "electron": "29.0",
+    "electron": "28.0",
     "firefox": "115",
     "firefox-android": "115",
     "ios": "17.0",
@@ -6908,7 +6916,11 @@
     "firefox-android": "115",
     "ios": "17.0",
     "node": "20.2.0",
+    "oculus": "30.0",
     "opera": "104",
+    "opera-android": "79",
+    "opera_mobile": "79",
+    "quest": "30.0",
     "safari": "17.0"
   },
   "web.url-search-params.has": {
@@ -6922,7 +6934,11 @@
     "firefox-android": "115",
     "ios": "17.0",
     "node": "20.2.0",
+    "oculus": "30.0",
     "opera": "104",
+    "opera-android": "79",
+    "opera_mobile": "79",
+    "quest": "30.0",
     "safari": "17.0"
   },
   "web.url-search-params.size": {
