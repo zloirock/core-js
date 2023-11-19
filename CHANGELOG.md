@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as shipped from FF121
 
 ##### [3.33.3 - 2023.11.20](https://github.com/zloirock/core-js/releases/tag/v3.33.3)
 - Fixed an issue getting the global object on Duktape, [#1303](https://github.com/zloirock/core-js/issues/1303)
