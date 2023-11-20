@@ -1929,7 +1929,6 @@ export const proposals = {
   'collection-methods': {
     stage: 1,
     modules: [
-      'esnext.map.group-by',
       'esnext.map.key-by',
       'esnext.map.delete-all',
       'esnext.map.every',
