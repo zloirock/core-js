@@ -3,7 +3,6 @@ var parent = require('./4');
 
 require('../proposals/array-buffer-transfer');
 require('../proposals/array-from-async-stage-2');
-require('../proposals/array-grouping-v2');
 require('../proposals/decorator-metadata-v2');
 require('../proposals/explicit-resource-management');
 require('../proposals/float16');

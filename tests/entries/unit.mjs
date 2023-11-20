@@ -27,6 +27,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'object/get-own-property-names')({ q: 42 })[0] === 'q');
     ok(load(NS, 'object/get-own-property-symbols')({ [Symbol('getOwnPropertySymbols test')]: 42 }).length === 1);
     ok(load(NS, 'object/get-prototype-of')([]) === Array.prototype);
+    ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok(load(NS, 'object/has-own')({ foo: 42 }, 'foo'));
     ok(load(NS, 'object/is')(NaN, NaN));
     ok(load(NS, 'object/is-extensible')({}));
@@ -307,6 +308,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/async-iterator'));
     load(NS, 'symbol/description');
     const Map = load(NS, 'map');
+    ok(load(NS, 'map/group-by')([], it => it) instanceof load(NS, 'map'));
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
@@ -693,10 +695,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
-    ok(load(NS, 'map/group-by')([], it => it) instanceof load(NS, 'map'));
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
-    ok(load(NS, 'object/group-by')([1, 2, 3, 4, 5], it => it % 2 === 0 ? 'even' : 'odd').odd.length === 3);
     ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
     ok(load(NS, 'set/intersection')(new Set([1, 2, 3]), new Set([1, 3, 4])).size === 2);
     ok(load(NS, 'set/is-disjoint-from')(new Set([1, 2, 3]), new Set([4, 5, 6])));

@@ -223,4 +223,8 @@ export default {
   3.33: [
     'esnext.regexp.escape',
   ],
+  3.34: [
+    'es.map.group-by',
+    'es.object.group-by',
+  ],
 };
