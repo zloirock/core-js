@@ -6,6 +6,11 @@
     - `Map.groupBy` method
   - Moved to stable ES, [November 2023 TC39 meeting](https://github.com/tc39/proposal-array-grouping/issues/60)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers):
+  - Method:
+    - `Promise.withResolvers`
+  - Moved to stable ES, November 2023 TC39 meeting
+  - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - Some minor `atob` / `btoa` improvements
 - Compat data improvements:
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as shipped from FF121

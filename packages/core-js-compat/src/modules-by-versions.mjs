@@ -226,5 +226,6 @@ export default {
   3.34: [
     'es.map.group-by',
     'es.object.group-by',
+    'es.promise.with-resolvers',
   ],
 };

@@ -1166,6 +1166,11 @@ export const data = {
     rhino: '1.7.14',
     safari: '11.0',
   },
+  'es.promise.with-resolvers': {
+    bun: '0.7.1',
+    chrome: '119',
+    firefox: '121',
+  },
   'es.reflect.apply': {
     chrome: '49',
     edge: '15',
@@ -2167,11 +2172,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': {
   },
-  'esnext.promise.with-resolvers': {
-    bun: '0.7.1',
-    chrome: '119',
-    firefox: '121',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.promise.with-resolvers': null,
   // TODO: Remove from `core-js@4`
   'esnext.reflect.define-metadata': {
   },
@@ -2597,6 +2599,7 @@ export const renamed = new Map([
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
+  ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
