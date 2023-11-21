@@ -908,6 +908,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/array-buffer-base64');
   load('proposals/array-buffer-transfer');
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');

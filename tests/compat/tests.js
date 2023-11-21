@@ -1830,6 +1830,12 @@ GLOBAL.tests = {
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
   },
+  'esnext.uint8-array.from-hex': function () {
+    return Uint8Array.fromHex;
+  },
+  'esnext.uint8-array.to-hex': function () {
+    return Uint8Array.prototype.toHex;
+  },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
   },
