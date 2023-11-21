@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Some minor `atob` / `btoa` improvements
 - Compat data improvements:
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as shipped from FF121
 

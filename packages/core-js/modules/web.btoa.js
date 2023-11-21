@@ -13,23 +13,27 @@ var $btoa = getBuiltIn('btoa');
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
-var NO_ARG_RECEIVING_CHECK = !!$btoa && !fails(function () {
+var BASIC = !!$btoa && !fails(function () {
+  return $btoa('hi') !== 'aGk=';
+});
+
+var NO_ARG_RECEIVING_CHECK = BASIC && !fails(function () {
   $btoa();
 });
 
-var WRONG_ARG_CONVERSION = !!$btoa && fails(function () {
+var WRONG_ARG_CONVERSION = BASIC && fails(function () {
   return $btoa(null) !== 'bnVsbA==';
 });
 
-var WRONG_ARITY = !!$btoa && $btoa.length !== 1;
+var WRONG_ARITY = BASIC && $btoa.length !== 1;
 
 // `btoa` method
 // https://html.spec.whatwg.org/multipage/webappapis.html#dom-btoa
-$({ global: true, bind: true, enumerable: true, forced: NO_ARG_RECEIVING_CHECK || WRONG_ARG_CONVERSION || WRONG_ARITY }, {
+$({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVING_CHECK || WRONG_ARG_CONVERSION || WRONG_ARITY }, {
   btoa: function btoa(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (NO_ARG_RECEIVING_CHECK || WRONG_ARG_CONVERSION || WRONG_ARITY) return call($btoa, global, toString(data));
+    if (BASIC) return call($btoa, global, toString(data));
     var string = toString(data);
     var output = '';
     var position = 0;
