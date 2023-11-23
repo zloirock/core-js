@@ -2238,8 +2238,8 @@ class Map {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-grouping-v2
-core-js(-pure)/full/map/group-by
-core-js(-pure)/full/object/group-by
+core-js(-pure)/actual|full/map/group-by
+core-js(-pure)/actual|full/object/group-by
 ```
 [*Examples*](https://is.gd/3a0PbH):
 ```js
@@ -2260,7 +2260,7 @@ class Array {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-from-async-stage-2
-core-js(-pure)/full/array/from-async
+core-js(-pure)/actual|full/array/from-async
 ```
 [*Example*](https://goo.gl/Jt7SsD):
 ```js
@@ -2311,7 +2311,7 @@ class Promise {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-with-resolvers
-core-js(-pure)/full/promise/with-resolvers
+core-js(-pure)/actual|full/promise/with-resolvers
 ```
 [*Examples*](https://tinyurl.com/2gx4t3xu):
 ```js
