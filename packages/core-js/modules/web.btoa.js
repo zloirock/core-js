@@ -7,7 +7,7 @@ var call = require('../internals/function-call');
 var fails = require('../internals/fails');
 var toString = require('../internals/to-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
-var itoc = require('../internals/base64-map').itoc;
+var i2c = require('../internals/base64-map').i2c;
 
 var $btoa = getBuiltIn('btoa');
 var charAt = uncurryThis(''.charAt);
@@ -37,7 +37,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     var string = toString(data);
     var output = '';
     var position = 0;
-    var map = itoc;
+    var map = i2c;
     var block, charCode;
     while (charAt(string, position) || (map = '=', position % 1)) {
       charCode = charCodeAt(string, position += 3 / 4);

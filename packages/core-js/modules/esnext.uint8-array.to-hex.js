@@ -9,7 +9,7 @@ var numberToString = uncurryThis(1.0.toString);
 
 // `Uint8Array..prototype.toHex` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
+if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: true }, {
   toHex: function toHex() {
     anUint8Array(this);
     var result = '';

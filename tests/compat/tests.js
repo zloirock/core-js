@@ -1830,8 +1830,14 @@ GLOBAL.tests = {
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
   },
+  'esnext.uint8-array.from-base64': function () {
+    return Uint8Array.fromBase64;
+  },
   'esnext.uint8-array.from-hex': function () {
     return Uint8Array.fromHex;
+  },
+  'esnext.uint8-array.to-base64': function () {
+    return Uint8Array.prototype.toBase64;
   },
   'esnext.uint8-array.to-hex': function () {
     return Uint8Array.prototype.toHex;

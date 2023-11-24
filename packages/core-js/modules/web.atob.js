@@ -7,7 +7,7 @@ var call = require('../internals/function-call');
 var fails = require('../internals/fails');
 var toString = require('../internals/to-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
-var ctoi = require('../internals/base64-map').ctoi;
+var c2i = require('../internals/base64-map').c2i;
 
 var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
@@ -60,7 +60,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     }
     while (position < length) {
       chr = charAt(string, position++);
-      bs = bc % 4 ? bs * 64 + ctoi[chr] : ctoi[chr];
+      bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
       if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output;
   }
