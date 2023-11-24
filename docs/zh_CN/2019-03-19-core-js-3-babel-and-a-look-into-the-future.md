@@ -368,7 +368,7 @@ string.matchAll(/something/g);
 ```js
 import _Set from "@babel/runtime-corejs/core-js-stable/set";
 
-new _set([1, 2, 3, 2, 1]);
+new _Set([1, 2, 3, 2, 1]);
 string.matchAll(/something/g);
 ```
 
