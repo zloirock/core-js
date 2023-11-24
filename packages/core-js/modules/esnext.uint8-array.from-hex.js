@@ -7,7 +7,7 @@ var aString = require('../internals/a-string');
 var Uint8Array = global.Uint8Array;
 var SyntaxError = global.SyntaxError;
 var parseInt = global.parseInt;
-var NOT_HEX = /[^\da-z]/i;
+var NOT_HEX = /[^\da-f]/i;
 var exec = uncurryThis(NOT_HEX.exec);
 var stringSlice = uncurryThis(''.slice);
 
