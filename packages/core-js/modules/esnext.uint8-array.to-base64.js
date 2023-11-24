@@ -17,8 +17,9 @@ var BASE64 = 'base64';
 // `Uint8Array..prototype.toBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
 if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: true }, {
-  toBase64: function toBase64(options) {
+  toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
+    var options = arguments.length ? arguments[0] : undefined;
     if (options !== undefined && !isObject(options)) throw new TypeError('Incorrect options');
     var $alphabet = options && options.alphabet;
     if ($alphabet === undefined) $alphabet = BASE64;
