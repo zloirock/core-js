@@ -1070,9 +1070,13 @@ for (const NS of ['actual', 'full', 'features']) {
 
 for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/from-async');
+  load(NS, 'typed-array/from-base64');
+  load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/group-by');
+  load(NS, 'typed-array/to-base64');
+  load(NS, 'typed-array/to-hex');
   load(NS, 'typed-array/unique-by');
 }
 
