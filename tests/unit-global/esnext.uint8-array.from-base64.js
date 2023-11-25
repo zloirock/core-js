@@ -14,6 +14,9 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.fromBase64', assert => {
 
   assert.deepEqual(fromBase64('SGVsbG8gV29ybGQ='), array, 'proper result');
 
+  assert.throws(() => fromBase64('1234', null), TypeError, 'incorrect options argument #1');
+  assert.throws(() => fromBase64('1234', 1), TypeError, 'incorrect options argument #2');
+
   assert.throws(() => fromBase64('1234', { alphabet: 'base32' }), TypeError, 'incorrect encoding');
 
   assert.deepEqual(fromBase64('12/3'), new Uint8Array([215, 111, 247]), 'encoding #1');
