@@ -19,8 +19,7 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
     var stringLength = string.length;
     if (stringLength % 2) throw new SyntaxError('String should have an even number of characters');
     if (exec(NOT_HEX, string)) throw new SyntaxError('String should only contain hex characters');
-    var resultLength = stringLength / 2;
-    var result = new Uint8Array(resultLength);
+    var result = new Uint8Array(stringLength / 2);
     for (var i = 0; i < stringLength; i += 2) {
       result[i / 2] = parseInt(stringSlice(string, i, i + 2), 16);
     }
