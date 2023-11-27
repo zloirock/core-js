@@ -1859,7 +1859,7 @@ export const proposals = {
     stage: 3,
     modules: [
       'esnext.map.group-by',
-      'esnext.object.group-by',
+      'es.object.group-by',
     ],
   },
   // https://github.com/tc39/proposal-Array.prototype.includes
