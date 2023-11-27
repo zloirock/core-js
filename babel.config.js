@@ -1,16 +1,13 @@
 'use strict';
 module.exports = {
-  // use transforms which does not use ES5+ builtins
+  // use transforms which does not use ES6+ builtins
   plugins: [
     ['@babel/proposal-regexp-modifiers'],
-    ['@babel/transform-member-expression-literals'],
-    ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
     ['@babel/transform-block-scoped-functions'],
     ['@babel/transform-block-scoping'],
     // it seems `setClassMethods` unlike `loose` does not work
     ['@babel/transform-classes', { loose: true }],
-    // private instance props in IE8- only with polyfills
     ['@babel/transform-class-properties'],
     ['@babel/transform-class-static-block'],
     ['@babel/transform-computed-properties'],
