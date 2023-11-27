@@ -2444,8 +2444,6 @@ export const data = {
   'esnext.map.get-or-insert-computed': {
     bun: '1.2.20',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
   'esnext.map.key-by': {
@@ -2807,7 +2805,6 @@ export const renamed = new Map([
   ['esnext.iterator.some', 'es.iterator.some'],
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
-  ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.promise.try', 'es.promise.try'],
