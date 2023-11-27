@@ -73,7 +73,6 @@
     "@babel/plugin-transform-for-of": "^7.24.1",
     "@babel/plugin-transform-literals": "^7.24.1",
     "@babel/plugin-transform-logical-assignment-operators": "^7.24.1",
-    "@babel/plugin-transform-member-expression-literals": "^7.24.1",
     "@babel/plugin-transform-modules-commonjs": "^7.24.1",
     "@babel/plugin-transform-new-target": "^7.24.1",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.24.1",
