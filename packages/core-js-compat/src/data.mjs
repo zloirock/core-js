@@ -1972,8 +1972,6 @@ export const data = {
   },
   'esnext.map.from': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
   'esnext.map.key-by': {
@@ -2345,7 +2343,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
 ]);
 
