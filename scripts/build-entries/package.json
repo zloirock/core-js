@@ -1,6 +1,6 @@
 {
   "name": "scripts/build-entries",
   "devDependencies": {
-    "dedent": "^1.6.0"
+    "dedent": "^1.7.0"
   }
 }
