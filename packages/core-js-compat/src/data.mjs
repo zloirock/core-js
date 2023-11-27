@@ -2462,8 +2462,6 @@ export const data = {
     firefox: '144',
     safari: '26.2',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
   'esnext.map.key-by': {
@@ -2833,7 +2831,6 @@ export const renamed = new Map([
   ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
   ['esnext.json.parse', 'es.json.parse'],
   ['esnext.json.raw-json', 'es.json.raw-json'],
-  ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.promise.try', 'es.promise.try'],
