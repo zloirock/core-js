@@ -2101,8 +2101,6 @@ export const data = {
   },
   'esnext.map.from': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
   'esnext.map.key-by': {
@@ -2458,7 +2456,6 @@ export const renamed = new Map([
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
 ]);
 
