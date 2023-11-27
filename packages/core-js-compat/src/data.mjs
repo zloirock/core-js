@@ -584,6 +584,10 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
+  'es.map.group-by': {
+    chrome: '117',
+    firefox: '119',
+  },
   'es.math.acosh': {
     chrome: '54',
     edge: '13',
@@ -943,6 +947,10 @@ export const data = {
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '9.0',
+  },
+  'es.object.group-by': {
+    chrome: '117',
+    firefox: '119',
   },
   'es.object.has-own': {
     chrome: '93',
@@ -2064,10 +2072,8 @@ export const data = {
   },
   'esnext.map.from': {
   },
-  'esnext.map.group-by': {
-    chrome: '117',
-    firefox: '119',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.map.group-by': null,
   'esnext.map.includes': {
   },
   'esnext.map.key-by': {
@@ -2143,10 +2149,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.object.iterate-values': {
   },
-  'esnext.object.group-by': {
-    chrome: '117',
-    firefox: '119',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.object.group-by': null,
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'esnext.observable': {
   },
@@ -2588,7 +2592,9 @@ export const renamed = new Map([
   ['esnext.array.with', 'es.array.with'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.global-this', 'es.global-this'],
+  ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.has-own', 'es.object.has-own'],
+  ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
   ['esnext.string.is-well-formed', 'es.string.is-well-formed'],

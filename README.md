@@ -134,6 +134,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array.prototype.flat` / `Array.prototype.flatMap`](#arrayprototypeflat--arrayprototypeflatmap)
       - [`Array` find from last](#array-find-from-last)
       - [Change `Array` by copy](#change-array-by-copy)
+      - [`Array` grouping](#array-grouping)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
       - [`Object.fromEntries`](#objectfromentries)
       - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
@@ -153,7 +154,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed unicode strings](#well-formed-unicode-strings)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` helpers](#iterator-helpers)
-      - [`Array` grouping](#array-grouping)
       - [`Array.fromAsync`](#arrayfromasync)
       - [New `Set` methods](#new-set-methods)
       - [`Promise.withResolvers`](#promisewithresolvers)
@@ -458,7 +458,7 @@ core-js(-pure)
 core-js(-pure)/es
 ```
 #### ECMAScript: Object[⬆](#index)
-Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js), [`es.object.define-getter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-getter.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-property.js), [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-properties.js), [`es.object.define-setter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-setter.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.lookup-setter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.lookup-setter.js), [`es.object.lookup-getter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.lookup-getter.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.proto`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.proto.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js).
+Modules [`es.object.assign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.assign.js), [`es.object.create`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.create.js), [`es.object.define-getter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-getter.js), [`es.object.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-property.js), [`es.object.define-properties`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-properties.js), [`es.object.define-setter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.define-setter.js), [`es.object.entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.entries.js), [`es.object.freeze`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.freeze.js), [`es.object.from-entries`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.from-entries.js), [`es.object.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptor.js), [`es.object.get-own-property-descriptors`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-descriptors.js), [`es.object.get-own-property-names`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-own-property-names.js), [`es.object.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.get-prototype-of.js), [`es.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.group-by.js), [`es.object.has-own`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.has-own.js), [`es.object.is`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is.js), [`es.object.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-extensible.js), [`es.object.is-frozen`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-frozen.js), [`es.object.is-sealed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.is-sealed.js), [`es.object.keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.keys.js), [`es.object.lookup-setter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.lookup-setter.js), [`es.object.lookup-getter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.lookup-getter.js), [`es.object.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.prevent-extensions.js), [`es.object.proto`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.proto.js), [`es.object.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.to-string.js), [`es.object.seal`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.seal.js), [`es.object.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.set-prototype-of.js), [`es.object.values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.object.values.js).
 
 ```js
 class Object {
@@ -479,6 +479,7 @@ class Object {
   static getOwnPropertyDescriptors(object: any): { [property: PropertyKey]: PropertyDescriptor };
   static getOwnPropertyNames(object: any): Array<string>;
   static getPrototypeOf(object: any): Object | null;
+  static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
   static hasOwn(object: object, key: PropertyKey): boolean;
   static is(value1: any, value2: any): boolean;
   static isExtensible(object: any): boolean;
@@ -503,6 +504,7 @@ core-js(-pure)/es|stable|actual|full/object/define-property
 core-js(-pure)/es|stable|actual|full/object/define-properties
 core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptor
 core-js(-pure)/es|stable|actual|full/object/get-own-property-descriptors
+core-js(-pure)/es|stable|actual|full/object/group-by
 core-js(-pure)/es|stable|actual|full/object/has-own
 core-js(-pure)/es|stable|actual|full/object/keys
 core-js(-pure)/es|stable|actual|full/object/values
@@ -522,7 +524,7 @@ core-js(-pure)/es|stable|actual|full/object/define-setter
 core-js(-pure)/es|stable|actual|full/object/lookup-getter
 core-js(-pure)/es|stable|actual|full/object/lookup-setter
 ```
-[*Examples*](https://is.gd/udzZq0):
+*Examples*:
 ```js
 let foo = { q: 1, w: 2 };
 let bar = { e: 3, r: 4 };
@@ -581,6 +583,8 @@ Object.fromEntries(units.entries()); // => { unit101: Unit { id: 101 }, unit102:
 Object.hasOwn({ foo: 42 }, 'foo'); // => true
 Object.hasOwn({ foo: 42 }, 'bar'); // => false
 Object.hasOwn({}, 'toString');     // => false
+
+Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
 ```
 
 #### ECMAScript: Function[⬆](#index)
@@ -1425,7 +1429,7 @@ for (let key in object2) console.log(key); // nothing
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map[⬆](#index)
-Module [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js).
+Modules [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
 ```js
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -1440,13 +1444,15 @@ class Map {
   entries(): Iterator<[key, value]>;
   @@iterator(): Iterator<[key, value]>;
   readonly attribute size: number;
+  static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/map
+core-js(-pure)/es|stable|actual|full/map/group-by
 ```
-[*Examples*](https://goo.gl/GWR7NI):
+[*Examples*](https://tinyurl.com/yn2w5s8v):
 ```js
 let array = [1];
 
@@ -1478,6 +1484,10 @@ for (let [key, value] of map.entries()) {
   console.log(key);                                 // => 'a', 'b', 'c'
   console.log(value);                               // => 1, 2, 3
 }
+
+const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
+map.get(1); // => [1, 3, 5]
+map.get(0); // => [2, 4]
 ```
 #### Set[⬆](#index)
 Module [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js).
@@ -1972,6 +1982,20 @@ core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with
 ```
+##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
+```js
+class Object {
+  static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
+}
+
+class Map {
+  static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-grouping-v2
+```
 ##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
 ```js
 class Object {
@@ -2223,32 +2247,6 @@ Iterator.from({
 
 ###### Caveats:[⬆](#index)
 - For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
-
-##### [`Array` grouping](https://github.com/tc39/proposal-array-grouping)[⬆](#index)
-Modules [`esnext.object.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.group-by.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js).
-```js
-class Object {
-  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };
-}
-
-class Map {
-  groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-grouping-v2
-core-js(-pure)/actual|full/map/group-by
-core-js(-pure)/actual|full/object/group-by
-```
-[*Examples*](https://is.gd/3a0PbH):
-```js
-Object.groupBy([1, 2, 3, 4, 5], it => it % 2); // => { 1: [1, 3, 5], 0: [2, 4] }
-
-const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
-map.get(1); // => [1, 3, 5]
-map.get(0); // => [2, 4]
-````
 
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
@@ -2744,7 +2742,7 @@ new Observable(observer => {
 });
 ```
 ##### [New collections methods](https://github.com/tc39/proposal-collection-methods)[⬆](#index)
-Modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.group-by.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
+Modules [`esnext.set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.add-all.js), [`esnext.set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.delete-all.js), [`esnext.set.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.every.js), [`esnext.set.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.filter.js), [`esnext.set.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.find.js), [`esnext.set.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.join.js), [`esnext.set.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.map.js), [`esnext.set.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.reduce.js), [`esnext.set.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.some.js), [`esnext.map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.delete-all.js), [`esnext.map.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.every.js), [`esnext.map.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.filter.js), [`esnext.map.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find.js), [`esnext.map.find-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.find-key.js), [`esnext.map.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.includes.js), [`esnext.map.key-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-by.js), [`esnext.map.key-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.key-of.js), [`esnext.map.map-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-keys.js), [`esnext.map.map-values`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.map-values.js), [`esnext.map.merge`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.merge.js), [`esnext.map.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.reduce.js), [`esnext.map.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.some.js), [`esnext.map.update`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.update.js), [`esnext.weak-set.add-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.add-all.js), [`esnext.weak-set.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.delete-all.js), [`esnext.weak-map.delete-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.delete-all.js)
 ##### [`.of` and `.from` methods on collection constructors](https://github.com/tc39/proposal-setmap-offrom)[⬆](#index)
 Modules [`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
 ```js
@@ -2763,7 +2761,6 @@ class Set {
 }
 
 class Map {
-  static groupBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
   static of(...args: Array<[key, value]>): Map;
   static from(iterable: Iterable<mixed>, mapFn?: (value: any, index: number) => [key: any, value: any], thisArg?: any): Map;
   static keyBy(iterable: Iterable<mixed>, callbackfn?: (value: any) => any): Map;
@@ -2816,7 +2813,6 @@ core-js(-pure)/full/map/filter
 core-js(-pure)/full/map/find
 core-js(-pure)/full/map/find-key
 core-js(-pure)/full/map/from
-core-js(-pure)/full/map/group-by
 core-js(-pure)/full/map/includes
 core-js(-pure)/full/map/key-by
 core-js(-pure)/full/map/key-of

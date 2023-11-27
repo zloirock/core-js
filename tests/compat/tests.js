@@ -694,6 +694,9 @@ GLOBAL.tests = {
       && map.has(0)
       && map[Symbol.toStringTag];
   }],
+  'es.map.group-by': function () {
+    return Map.groupBy;
+  },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
@@ -879,6 +882,9 @@ GLOBAL.tests = {
   }],
   'es.object.get-prototype-of': function () {
     return Object.getPrototypeOf('qwe');
+  },
+  'es.object.group-by': function () {
+    return Object.groupBy;
   },
   'es.object.has-own': function () {
     return Object.hasOwn;
@@ -1678,9 +1684,6 @@ GLOBAL.tests = {
   'esnext.map.from': function () {
     return Map.from;
   },
-  'esnext.map.group-by': function () {
-    return Map.groupBy;
-  },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
   },
@@ -1740,9 +1743,6 @@ GLOBAL.tests = {
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
-  },
-  'esnext.object.group-by': function () {
-    return Object.groupBy;
   },
   'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
