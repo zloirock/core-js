@@ -4,7 +4,7 @@
   - Methods:
     - `Object.groupBy` method
     - `Map.groupBy` method
-  - Moved to stable ES, November 2023 TC39 meeting
+  - Moved to stable ES, [November 2023 TC39 meeting](https://github.com/tc39/proposal-array-grouping/issues/60)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Some minor `atob` / `btoa` improvements
 - Compat data improvements:
