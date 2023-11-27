@@ -708,7 +708,7 @@ export const features = {
     template: $staticWithContext({ namespace: 'Map', method: 'from' }),
   },
   'map/group-by': {
-    modules: ['esnext.map.group-by'],
+    modules: ['es.map.group-by'],
     template: $static({ namespace: 'Map', method: 'groupBy' }),
   },
   'map/includes': {
@@ -1032,6 +1032,10 @@ export const features = {
   'object/get-prototype-of': {
     modules: ['es.object.get-prototype-of'],
     template: $static({ namespace: 'Object', method: 'getPrototypeOf' }),
+  },
+  'object/group-by': {
+    modules: ['es.object.group-by'],
+    template: $static({ namespace: 'Object', method: 'groupBy' }),
   },
   'object/has-own': {
     modules: ['es.object.has-own'],
@@ -1858,7 +1862,7 @@ export const proposals = {
   'array-grouping': {
     stage: 3,
     modules: [
-      'esnext.map.group-by',
+      'es.map.group-by',
       'es.object.group-by',
     ],
   },
