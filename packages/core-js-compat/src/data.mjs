@@ -2489,8 +2489,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.with-resolvers': null,
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {
@@ -2812,7 +2810,6 @@ export const renamed = new Map([
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.promise.try', 'es.promise.try'],
-  ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.regexp.escape', 'es.regexp.escape'],
   ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
