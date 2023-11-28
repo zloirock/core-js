@@ -9,7 +9,7 @@
 - [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers):
   - Method:
     - `Promise.withResolvers`
-  - Moved to stable ES, November 2023 TC39 meeting
+  - Moved to stable ES, [November 2023 TC39 meeting](https://twitter.com/robpalmer2/status/1729216597623976407)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - Some minor `atob` / `btoa` improvements
 - Compat data improvements:
