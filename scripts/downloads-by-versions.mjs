@@ -9,10 +9,9 @@ const downloadsByMajor = {};
 let total = 0;
 
 async function getStat(pkg) {
-  const res = await fetch(`https://www.npmjs.com/package/${ pkg }`);
-  const html = await res.text();
-  const { json } = html.match(/>window\.__context__ = (?<json>[^<]+)<\//).groups;
-  return JSON.parse(json).context.versionsDownloads;
+  const res = await fetch(`https://api.npmjs.org/versions/${ encodeURIComponent(pkg) }/last-week`);
+  const { downloads } = await res.json();
+  return downloads;
 }
 
 const [core, pure, bundle] = await Promise.all([
