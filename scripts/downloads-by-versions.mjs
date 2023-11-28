@@ -26,10 +26,10 @@ for (let [patch, downloads] of Object.entries(core)) {
   const version = coerce(patch);
   const { major } = version;
   const minor = `${ major }.${ version.minor }`;
-  if (ALL) downloads += (pure[patch] || 0) + (bundle[patch] || 0);
+  if (ALL) downloads += (pure[patch] ?? 0) + (bundle[patch] ?? 0);
   downloadsByPatch[patch] = downloads;
-  downloadsByMinor[minor] = (downloadsByMinor[minor] || 0) + downloads;
-  downloadsByMajor[major] = (downloadsByMajor[major] || 0) + downloads;
+  downloadsByMinor[minor] = (downloadsByMinor[minor] ?? 0) + downloads;
+  downloadsByMajor[major] = (downloadsByMajor[major] ?? 0) + downloads;
   total += downloads;
 }
 
