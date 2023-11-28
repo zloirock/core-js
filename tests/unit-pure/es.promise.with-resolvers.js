@@ -1,4 +1,4 @@
-import Promise from 'core-js-pure/full/promise';
+import Promise from 'core-js-pure/es/promise';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 
 QUnit.test('Promise.withResolvers', assert => {

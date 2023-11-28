@@ -1,13 +1,6 @@
 'use strict';
-require('../../modules/es.promise');
+var parent = require('../../stable/promise/with-resolvers');
+// TODO: Remove from `core-js@4`
 require('../../modules/esnext.promise.with-resolvers');
-var call = require('../../internals/function-call');
-var isCallable = require('../../internals/is-callable');
-var path = require('../../internals/path');
 
-var Promise = path.Promise;
-var promiseWithResolvers = Promise.withResolvers;
-
-module.exports = function withResolvers() {
-  return call(promiseWithResolvers, isCallable(this) ? this : Promise);
-};
+module.exports = parent;

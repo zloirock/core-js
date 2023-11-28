@@ -963,6 +963,9 @@ GLOBAL.tests = {
   }],
   'es.promise.reject': PROMISES_SUPPORT,
   'es.promise.resolve': PROMISES_SUPPORT,
+  'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
+    return Promise.withResolvers;
+  }],
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
@@ -1744,9 +1747,6 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
-  'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
-    return Promise.withResolvers;
-  }],
   'esnext.regexp.escape': function () {
     return RegExp.escape;
   },

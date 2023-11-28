@@ -148,6 +148,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Promise.allSettled`](#promiseallsettled)
       - [`Promise.any`](#promiseany)
       - [`Promise.prototype.finally`](#promiseprototypefinally)
+      - [`Promise.withResolvers`](#promisewithresolvers)
       - [`Symbol.asyncIterator` for asynchronous iteration](#symbolasynciterator-for-asynchronous-iteration)
       - [`Symbol.prototype.description`](#symbolprototypedescription)
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
@@ -156,7 +157,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Iterator` helpers](#iterator-helpers)
       - [`Array.fromAsync`](#arrayfromasync)
       - [New `Set` methods](#new-set-methods)
-      - [`Promise.withResolvers`](#promisewithresolvers)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Float16` methods](#float16-methods)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
@@ -1143,19 +1143,20 @@ core-js(-pure)/es|stable|actual|full/date/to-primitive
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js) and [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js).
+Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
 ```js
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
   then(onFulfilled: Function, onRejected: Function): Promise;
   catch(onRejected: Function): Promise;
   finally(onFinally: Function): Promise;
-  static resolve(x: any): Promise;
-  static reject(r: any): Promise;
   static all(iterable: Iterable): Promise;
   static allSettled(iterable: Iterable): Promise;
   static any(promises: Iterable): Promise;
   static race(iterable: Iterable): Promise;
+  static reject(r: any): Promise;
+  static resolve(x: any): Promise;
+  static withResolvers(): { promise: Promise, resolve: function, reject: function };
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -1164,6 +1165,7 @@ core-js(-pure)/es|stable|actual|full/promise
 core-js(-pure)/es|stable|actual|full/promise/all-settled
 core-js(-pure)/es|stable|actual|full/promise/any
 core-js(-pure)/es|stable|actual|full/promise/finally
+core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
 Basic [*example*](https://goo.gl/vGrtUC):
 ```js
@@ -1240,6 +1242,12 @@ Promise.any([
   Promise.reject(2),
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+```
+`Promise.withResolvers` [*examples*](https://tinyurl.com/2gx4t3xu):
+```js
+const d = Promise.withResolvers();
+d.resolve(42);
+d.promise.then(console.log); // => 42
 ```
 [Example](https://goo.gl/wnQS4j) with async functions:
 ```js
@@ -2145,6 +2153,16 @@ class Promise {
 ```js
 core-js/proposals/promise-finally
 ```
+##### [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers)[⬆](#index)
+```js
+class Promise {
+  static withResolvers(): { promise: Promise, resolve: function, reject: function };
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-with-resolvers
+```
 ##### [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)[⬆](#index)
 ```js
 class Symbol {
@@ -2297,25 +2315,6 @@ new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 
 new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
 new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
-```
-
-##### [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers)[⬆](#index)
-Module [`esnext.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.with-resolvers.js)
-```js
-class Promise {
-  static withResolvers(): { promise: Promise, resolve: function, reject: function };
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/promise-with-resolvers
-core-js(-pure)/actual|full/promise/with-resolvers
-```
-[*Examples*](https://tinyurl.com/2gx4t3xu):
-```js
-const d = Promise.withResolvers();
-d.resolve(42);
-d.promise.then(console.log); // => 42
 ```
 
 ##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
