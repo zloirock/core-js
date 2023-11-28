@@ -1860,7 +1860,7 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-array-grouping
   'array-grouping': {
-    stage: 3,
+    stage: 4,
     modules: [
       'es.map.group-by',
       'es.object.group-by',
@@ -2175,9 +2175,9 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-promise-with-resolvers
   'promise-with-resolvers': {
-    stage: 3,
+    stage: 4,
     modules: [
-      'esnext.promise.with-resolvers',
+      'es.promise.with-resolvers',
     ],
   },
   // https://github.com/tc39/proposal-regexp-dotall-flag
