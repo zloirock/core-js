@@ -11,6 +11,7 @@
     - `Promise.withResolvers`
   - Moved to stable ES, [November 2023 TC39 meeting](https://twitter.com/robpalmer2/status/1729216597623976407)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
+- Fixed `@@toStringTag` property descriptors on DOM collections, [#1312](https://github.com/zloirock/core-js/issues/1312)
 - Some minor `atob` / `btoa` improvements
 - Compat data improvements:
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as shipped from FF121

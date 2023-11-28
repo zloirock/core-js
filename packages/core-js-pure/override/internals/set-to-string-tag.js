@@ -9,8 +9,8 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (it, TAG, STATIC, SET_METHOD) {
-  if (it) {
-    var target = STATIC ? it : it.prototype;
+  var target = STATIC ? it : it && it.prototype;
+  if (target) {
     if (!hasOwn(target, TO_STRING_TAG)) {
       defineProperty(target, TO_STRING_TAG, { configurable: true, value: TAG });
     }
