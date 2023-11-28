@@ -2149,7 +2149,6 @@ export const data = {
     bun: '1.1.22',
     chrome: '128',
   },
-  'esnext.promise.with-resolvers': null,
   'esnext.regexp.escape': {
     bun: '1.1.22',
   },
@@ -2456,7 +2455,6 @@ export const renamed = new Map([
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
