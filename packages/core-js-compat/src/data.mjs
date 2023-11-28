@@ -2199,8 +2199,6 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.with-resolvers': null,
   'esnext.regexp.escape': {
     bun: '1.1.22',
   },
@@ -2522,7 +2520,6 @@ export const renamed = new Map([
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
   ['esnext.promise.try', 'es.promise.try'],
-  ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
