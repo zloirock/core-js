@@ -1,7 +1,6 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
 var uncurryThis = require('../internals/function-uncurry-this');
-var IndexedObject = require('../internals/indexed-object');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var arraySpeciesCreate = require('../internals/array-species-create');
@@ -19,15 +18,14 @@ var createMethod = function (TYPE) {
   var NO_HOLES = TYPE === 5 || IS_FIND_INDEX;
   return function ($this, callbackfn, that, specificCreate) {
     var O = toObject($this);
-    var self = IndexedObject(O);
-    var length = lengthOfArrayLike(self);
+    var length = lengthOfArrayLike(O);
     var boundFunction = bind(callbackfn, that);
     var index = 0;
     var create = specificCreate || arraySpeciesCreate;
     var target = IS_MAP ? create($this, length) : IS_FILTER || IS_FILTER_REJECT ? create($this, 0) : undefined;
     var value, result;
-    for (;length > index; index++) if (NO_HOLES || index in self) {
-      value = self[index];
+    for (;length > index; index++) if (NO_HOLES || index in O) {
+      value = O[index];
       result = boundFunction(value, index, O);
       if (TYPE) {
         if (IS_MAP) target[index] = result; // map
