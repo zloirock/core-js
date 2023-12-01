@@ -3,8 +3,8 @@ var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var toObject = require('../internals/to-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
-var toIndexedObject = require('../internals/to-indexed-object');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var createProperty = require('../internals/create-property');
 
@@ -16,7 +16,7 @@ var min = Math.min;
 // https://tc39.es/ecma262/#sec-array.prototype.tospliced
 $({ target: 'Array', proto: true }, {
   toSpliced: function toSpliced(start, deleteCount /* , ...items */) {
-    var O = toIndexedObject(this);
+    var O = toObject(this);
     var len = lengthOfArrayLike(O);
     var actualStart = toAbsoluteIndex(start, len);
     var argumentsLength = arguments.length;
