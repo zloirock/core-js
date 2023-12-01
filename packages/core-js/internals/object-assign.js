@@ -7,13 +7,13 @@ var ownKeys = require('../internals/own-keys');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var toObject = require('../internals/to-object');
-var IndexedObject = require('../internals/indexed-object');
 
+var $Object = Object;
 // eslint-disable-next-line es/no-object-assign -- safe
-var $assign = Object.assign;
-var defineProperty = Object.defineProperty;
-var objectKeys = Object.keys;
-var getPrototypeOf = Object.getPrototypeOf;
+var $assign = $Object.assign;
+var defineProperty = $Object.defineProperty;
+var objectKeys = $Object.keys;
+var getPrototypeOf = $Object.getPrototypeOf;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
@@ -45,7 +45,7 @@ module.exports = !$assign || fails(function () {
   var getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
   var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   while (argumentsLength > index) {
-    var S = IndexedObject(arguments[index++]);
+    var S = $Object(arguments[index++]);
     var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && getPrototypeOf(S) === null;
     var keys = NAMES_ORDER ? ownKeys(S) : objectKeys(S);
     if (!NAMES_ORDER && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));

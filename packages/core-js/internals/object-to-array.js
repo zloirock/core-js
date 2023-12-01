@@ -4,7 +4,7 @@ var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 
 var objectKeys = Object.keys;
 var getPrototypeOf = Object.getPrototypeOf;
@@ -13,7 +13,7 @@ var push = uncurryThis([].push);
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
   return function (it) {
-    var O = toIndexedObject(it);
+    var O = toObject(it);
     var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && getPrototypeOf(O) === null;
     var keys = NAMES_ORDER ? getOwnPropertyNamesModule.f(O) : objectKeys(O);
     var length = keys.length;
