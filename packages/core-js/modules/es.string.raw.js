@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
-var toIndexedObject = require('../internals/to-indexed-object');
 var toObject = require('../internals/to-object');
 var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -13,7 +12,7 @@ var join = uncurryThis([].join);
 // https://tc39.es/ecma262/#sec-string.raw
 $({ target: 'String', stat: true }, {
   raw: function raw(template) {
-    var rawTemplate = toIndexedObject(toObject(template).raw);
+    var rawTemplate = toObject(toObject(template).raw);
     var literalSegments = lengthOfArrayLike(rawTemplate);
     if (!literalSegments) return '';
     var argumentsLength = arguments.length;
