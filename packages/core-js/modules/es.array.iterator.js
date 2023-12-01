@@ -1,5 +1,5 @@
 'use strict';
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
 var Iterators = require('../internals/iterators');
 var InternalStateModule = require('../internals/internal-state');
@@ -24,7 +24,7 @@ var getInternalState = InternalStateModule.getterFor(ARRAY_ITERATOR);
 defineIterator(Array, 'Array', function (iterated, kind) {
   setInternalState(this, {
     type: ARRAY_ITERATOR,
-    target: toIndexedObject(iterated), // target
+    target: toObject(iterated), // target
     index: 0,                          // next index
     kind: kind,                        // kind
   });
