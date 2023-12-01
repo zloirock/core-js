@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var createProperty = require('../internals/create-property');
 
 var $Array = Array;
@@ -22,7 +22,7 @@ var INCORRECT_EXCEPTION_ON_COERCION_FAIL = (function () {
 // https://tc39.es/ecma262/#sec-array.prototype.with
 $({ target: 'Array', proto: true, forced: INCORRECT_EXCEPTION_ON_COERCION_FAIL }, {
   with: function (index, value) {
-    var O = toIndexedObject(this);
+    var O = toObject(this);
     var len = lengthOfArrayLike(O);
     var relativeIndex = toIntegerOrInfinity(index);
     var actualIndex = relativeIndex < 0 ? len + relativeIndex : relativeIndex;
