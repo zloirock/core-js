@@ -1,6 +1,6 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 
@@ -11,7 +11,7 @@ var join = uncurryThis([].join);
 // `String.cooked` method
 // https://tc39.es/proposal-string-cooked/
 module.exports = function cooked(template /* , ...substitutions */) {
-  var cookedTemplate = toIndexedObject(template);
+  var cookedTemplate = toObject(template);
   var literalSegments = lengthOfArrayLike(cookedTemplate);
   if (!literalSegments) return '';
   var argumentsLength = arguments.length;
