@@ -1,7 +1,7 @@
 'use strict';
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
 var objectKeys = Object.keys;
@@ -20,7 +20,7 @@ var IE_BUG = fails(function () {
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
   return function (it) {
-    var O = toIndexedObject(it);
+    var O = toObject(it);
     var keys = objectKeys(O);
     var IE_WORKAROUND = IE_BUG && getPrototypeOf(O) === null;
     var length = keys.length;
