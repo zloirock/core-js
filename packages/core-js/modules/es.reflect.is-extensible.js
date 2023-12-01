@@ -7,7 +7,6 @@ var $isExtensible = require('../internals/object-is-extensible');
 // https://tc39.es/ecma262/#sec-reflect.isextensible
 $({ target: 'Reflect', stat: true }, {
   isExtensible: function isExtensible(target) {
-    anObject(target);
-    return $isExtensible(target);
+    return $isExtensible(anObject(target));
   },
 });
