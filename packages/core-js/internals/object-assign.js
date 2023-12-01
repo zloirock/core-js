@@ -5,12 +5,12 @@ var fails = require('../internals/fails');
 var getOwnPropertySymbolsModule = require('../internals/object-get-own-property-symbols');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var toObject = require('../internals/to-object');
-var IndexedObject = require('../internals/indexed-object');
 
+var $Object = Object;
 // eslint-disable-next-line es/no-object-assign -- safe
-var $assign = Object.assign;
-var defineProperty = Object.defineProperty;
-var objectKeys = Object.keys;
+var $assign = $Object.assign;
+var defineProperty = $Object.defineProperty;
+var objectKeys = $Object.keys;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
@@ -42,7 +42,7 @@ module.exports = !$assign || fails(function () {
   var getOwnPropertySymbols = getOwnPropertySymbolsModule.f;
   var propertyIsEnumerable = propertyIsEnumerableModule.f;
   while (argumentsLength > index) {
-    var S = IndexedObject(arguments[index++]);
+    var S = $Object(arguments[index++]);
     var keys = getOwnPropertySymbols ? concat(objectKeys(S), getOwnPropertySymbols(S)) : objectKeys(S);
     var length = keys.length;
     var j = 0;
