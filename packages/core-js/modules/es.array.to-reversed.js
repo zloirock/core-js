@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
+var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var toIndexedObject = require('../internals/to-indexed-object');
 var createProperty = require('../internals/create-property');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
@@ -11,7 +11,7 @@ var $Array = Array;
 // https://tc39.es/ecma262/#sec-array.prototype.toreversed
 $({ target: 'Array', proto: true }, {
   toReversed: function toReversed() {
-    var O = toIndexedObject(this);
+    var O = toObject(this);
     var len = lengthOfArrayLike(O);
     var A = new $Array(len);
     var k = 0;
