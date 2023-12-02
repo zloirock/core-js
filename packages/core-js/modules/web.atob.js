@@ -52,7 +52,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var output = '';
     var position = 0;
     var bc = 0;
-    var length, chr, bs;
+    var length, char, bs;
     if (string.length % 4 === 0) {
       string = replace(string, finalEq, '');
     }
@@ -61,8 +61,8 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
       throw new DOMException('The string is not correctly encoded', 'InvalidCharacterError');
     }
     while (position < length) {
-      chr = charAt(string, position++);
-      bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
+      char = charAt(string, position++);
+      bs = bc % 4 ? bs * 64 + c2i[char] : c2i[char];
       if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output;
   },
