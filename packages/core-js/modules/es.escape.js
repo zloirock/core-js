@@ -27,13 +27,13 @@ $({ global: true }, {
     var length = str.length;
     var result = $Array(length);
     var index;
-    var chr, code;
+    var char, code;
     for (index = 0; index < length; index++) {
-      chr = charAt(str, index);
-      if (exec(raw, chr)) {
-        result[index] = chr;
+      char = charAt(str, index);
+      if (exec(raw, char)) {
+        result[index] = char;
       } else {
-        code = charCodeAt(chr, 0);
+        code = charCodeAt(char, 0);
         if (code < 256) {
           result[index] = '%' + toUpperCase(hex(code, 2));
         } else {
