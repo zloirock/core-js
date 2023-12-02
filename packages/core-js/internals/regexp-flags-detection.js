@@ -18,9 +18,9 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
   var calls = '';
   var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
 
-  var addGetter = function (key, chr) {
+  var addGetter = function (key, char) {
     Object.defineProperty(O, key, { get: function () {
-      calls += chr;
+      calls += char;
       return true;
     } });
   };
