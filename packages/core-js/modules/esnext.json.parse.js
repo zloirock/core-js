@@ -98,9 +98,9 @@ Context.prototype = {
     var source = this.source;
     var i = this.skip(IS_WHITESPACE, this.index);
     var fork = this.fork(i);
-    var chr = at(source, i);
-    if (exec(IS_NUMBER_START, chr)) return fork.number();
-    switch (chr) {
+    var char = at(source, i);
+    if (exec(IS_NUMBER_START, char)) return fork.number();
+    switch (char) {
       case '{':
         return fork.object();
       case '[':
@@ -113,7 +113,7 @@ Context.prototype = {
         return fork.keyword(false);
       case 'n':
         return fork.keyword(null);
-    } throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
+    } throw new SyntaxError('Unexpected character: "' + char + '" at: ' + i);
   },
   node: function (type, value, start, end, nodes) {
     return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
@@ -141,11 +141,11 @@ Context.prototype = {
       createProperty(nodes, key, result);
       createProperty(object, key, result.value);
       i = this.until([',', '}'], result.end);
-      var chr = at(source, i);
-      if (chr === ',') {
+      var char = at(source, i);
+      if (char === ',') {
         expectKeypair = true;
         i++;
-      } else if (chr === '}') {
+      } else if (char === '}') {
         i++;
         break;
       }
@@ -215,9 +215,9 @@ Context.prototype = {
   },
   until: function (array, i) {
     i = this.skip(IS_WHITESPACE, i);
-    var chr = at(this.source, i);
-    for (var j = 0; j < array.length; j++) if (array[j] === chr) return i;
-    throw new SyntaxError('Unexpected character: "' + chr + '" at: ' + i);
+    var char = at(this.source, i);
+    for (var j = 0; j < array.length; j++) if (array[j] === char) return i;
+    throw new SyntaxError('Unexpected character: "' + char + '" at: ' + i);
   },
 };
 

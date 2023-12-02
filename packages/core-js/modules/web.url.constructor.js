@@ -115,19 +115,19 @@ var parseIPv6 = function (input) {
   var pointer = 0;
   var value, length, numbersSeen, ipv4Piece, number, swaps, swap;
 
-  var chr = function () {
+  var char = function () {
     return charAt(input, pointer);
   };
 
-  if (chr() === ':') {
+  if (char() === ':') {
     if (charAt(input, 1) !== ':') return;
     pointer += 2;
     pieceIndex++;
     compress = pieceIndex;
   }
-  while (chr()) {
+  while (char()) {
     if (pieceIndex === 8) return;
-    if (chr() === ':') {
+    if (char() === ':') {
       if (compress !== null) return;
       pointer++;
       pieceIndex++;
@@ -135,25 +135,25 @@ var parseIPv6 = function (input) {
       continue;
     }
     value = length = 0;
-    while (length < 4 && exec(HEX, chr())) {
-      value = value * 16 + parseInt(chr(), 16);
+    while (length < 4 && exec(HEX, char())) {
+      value = value * 16 + parseInt(char(), 16);
       pointer++;
       length++;
     }
-    if (chr() === '.') {
+    if (char() === '.') {
       if (length === 0) return;
       pointer -= length;
       if (pieceIndex > 6) return;
       numbersSeen = 0;
-      while (chr()) {
+      while (char()) {
         ipv4Piece = null;
         if (numbersSeen > 0) {
-          if (chr() === '.' && numbersSeen < 4) pointer++;
+          if (char() === '.' && numbersSeen < 4) pointer++;
           else return;
         }
-        if (!exec(DIGIT, chr())) return;
-        while (exec(DIGIT, chr())) {
-          number = parseInt(chr(), 10);
+        if (!exec(DIGIT, char())) return;
+        while (exec(DIGIT, char())) {
+          number = parseInt(char(), 10);
           if (ipv4Piece === null) ipv4Piece = number;
           else if (ipv4Piece === 0) return;
           else ipv4Piece = ipv4Piece * 10 + number;
@@ -166,10 +166,10 @@ var parseIPv6 = function (input) {
       }
       if (numbersSeen !== 4) return;
       break;
-    } else if (chr() === ':') {
+    } else if (char() === ':') {
       pointer++;
-      if (!chr()) return;
-    } else if (chr()) return;
+      if (!char()) return;
+    } else if (char()) return;
     address[pieceIndex++] = value;
   }
   if (compress !== null) {
@@ -250,9 +250,9 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
   '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1,
 });
 
-var percentEncode = function (chr, set) {
-  var code = codeAt(chr, 0);
-  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : encodeURIComponent(chr);
+var percentEncode = function (char, set) {
+  var code = codeAt(char, 0);
+  return code > 0x20 && code < 0x7F && !hasOwn(set, char) ? char : encodeURIComponent(char);
 };
 
 // https://url.spec.whatwg.org/#special-scheme
@@ -344,7 +344,7 @@ URLState.prototype = {
     var seenAt = false;
     var seenBracket = false;
     var seenPasswordToken = false;
-    var codePoints, chr, bufferCodePoints, failure;
+    var codePoints, char, bufferCodePoints, failure;
 
     input = $toString(input);
 
@@ -367,11 +367,11 @@ URLState.prototype = {
     codePoints = arrayFrom(input);
 
     while (pointer <= codePoints.length) {
-      chr = codePoints[pointer];
+      char = codePoints[pointer];
       switch (state) {
         case SCHEME_START:
-          if (chr && exec(ALPHA, chr)) {
-            buffer += toLowerCase(chr);
+          if (char && exec(ALPHA, char)) {
+            buffer += toLowerCase(char);
             state = SCHEME;
           } else if (!stateOverride) {
             state = NO_SCHEME;
@@ -380,9 +380,9 @@ URLState.prototype = {
           break;
 
         case SCHEME:
-          if (chr && (exec(ALPHANUMERIC, chr) || chr === '+' || chr === '-' || chr === '.')) {
-            buffer += toLowerCase(chr);
-          } else if (chr === ':') {
+          if (char && (exec(ALPHANUMERIC, char) || char === '+' || char === '-' || char === '.')) {
+            buffer += toLowerCase(char);
+          } else if (char === ':') {
             if (stateOverride && (
               (url.isSpecial() !== hasOwn(specialSchemes, buffer)) ||
               (buffer === 'file' && (url.includesCredentials() || url.port !== null)) ||
@@ -417,8 +417,8 @@ URLState.prototype = {
           break;
 
         case NO_SCHEME:
-          if (!base || (base.cannotBeABaseURL && chr !== '#')) return INVALID_SCHEME;
-          if (base.cannotBeABaseURL && chr === '#') {
+          if (!base || (base.cannotBeABaseURL && char !== '#')) return INVALID_SCHEME;
+          if (base.cannotBeABaseURL && char === '#') {
             url.scheme = base.scheme;
             url.path = arraySlice(base.path);
             url.query = base.query;
@@ -431,7 +431,7 @@ URLState.prototype = {
           continue;
 
         case SPECIAL_RELATIVE_OR_AUTHORITY:
-          if (chr === '/' && codePoints[pointer + 1] === '/') {
+          if (char === '/' && codePoints[pointer + 1] === '/') {
             state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
             pointer++;
           } else {
@@ -440,7 +440,7 @@ URLState.prototype = {
           } break;
 
         case PATH_OR_AUTHORITY:
-          if (chr === '/') {
+          if (char === '/') {
             state = AUTHORITY;
             break;
           } else {
@@ -450,16 +450,16 @@ URLState.prototype = {
 
         case RELATIVE:
           url.scheme = base.scheme;
-          if (chr === EOF) {
+          if (char === EOF) {
             url.username = base.username;
             url.password = base.password;
             url.host = base.host;
             url.port = base.port;
             url.path = arraySlice(base.path);
             url.query = base.query;
-          } else if (chr === '/' || (chr === '\\' && url.isSpecial())) {
+          } else if (char === '/' || (char === '\\' && url.isSpecial())) {
             state = RELATIVE_SLASH;
-          } else if (chr === '?') {
+          } else if (char === '?') {
             url.username = base.username;
             url.password = base.password;
             url.host = base.host;
@@ -467,7 +467,7 @@ URLState.prototype = {
             url.path = arraySlice(base.path);
             url.query = '';
             state = QUERY;
-          } else if (chr === '#') {
+          } else if (char === '#') {
             url.username = base.username;
             url.password = base.password;
             url.host = base.host;
@@ -488,9 +488,9 @@ URLState.prototype = {
           } break;
 
         case RELATIVE_SLASH:
-          if (url.isSpecial() && (chr === '/' || chr === '\\')) {
+          if (url.isSpecial() && (char === '/' || char === '\\')) {
             state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
-          } else if (chr === '/') {
+          } else if (char === '/') {
             state = AUTHORITY;
           } else {
             url.username = base.username;
@@ -503,18 +503,18 @@ URLState.prototype = {
 
         case SPECIAL_AUTHORITY_SLASHES:
           state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
-          if (chr !== '/' || charAt(buffer, pointer + 1) !== '/') continue;
+          if (char !== '/' || charAt(buffer, pointer + 1) !== '/') continue;
           pointer++;
           break;
 
         case SPECIAL_AUTHORITY_IGNORE_SLASHES:
-          if (chr !== '/' && chr !== '\\') {
+          if (char !== '/' && char !== '\\') {
             state = AUTHORITY;
             continue;
           } break;
 
         case AUTHORITY:
-          if (chr === '@') {
+          if (char === '@') {
             if (seenAt) buffer = '%40' + buffer;
             seenAt = true;
             bufferCodePoints = arrayFrom(buffer);
@@ -530,14 +530,14 @@ URLState.prototype = {
             }
             buffer = '';
           } else if (
-            chr === EOF || chr === '/' || chr === '?' || chr === '#' ||
-            (chr === '\\' && url.isSpecial())
+            char === EOF || char === '/' || char === '?' || char === '#' ||
+            (char === '\\' && url.isSpecial())
           ) {
             if (seenAt && buffer === '') return INVALID_AUTHORITY;
             pointer -= arrayFrom(buffer).length + 1;
             buffer = '';
             state = HOST;
-          } else buffer += chr;
+          } else buffer += char;
           break;
 
         case HOST:
@@ -545,7 +545,7 @@ URLState.prototype = {
           if (stateOverride && url.scheme === 'file') {
             state = FILE_HOST;
             continue;
-          } else if (chr === ':' && !seenBracket) {
+          } else if (char === ':' && !seenBracket) {
             if (buffer === '') return INVALID_HOST;
             failure = url.parseHost(buffer);
             if (failure) return failure;
@@ -553,8 +553,8 @@ URLState.prototype = {
             state = PORT;
             if (stateOverride === HOSTNAME) return;
           } else if (
-            chr === EOF || chr === '/' || chr === '?' || chr === '#' ||
-            (chr === '\\' && url.isSpecial())
+            char === EOF || char === '/' || char === '?' || char === '#' ||
+            (char === '\\' && url.isSpecial())
           ) {
             if (url.isSpecial() && buffer === '') return INVALID_HOST;
             if (stateOverride && buffer === '' && (url.includesCredentials() || url.port !== null)) return;
@@ -565,17 +565,17 @@ URLState.prototype = {
             if (stateOverride) return;
             continue;
           } else {
-            if (chr === '[') seenBracket = true;
-            else if (chr === ']') seenBracket = false;
-            buffer += chr;
+            if (char === '[') seenBracket = true;
+            else if (char === ']') seenBracket = false;
+            buffer += char;
           } break;
 
         case PORT:
-          if (exec(DIGIT, chr)) {
-            buffer += chr;
+          if (exec(DIGIT, char)) {
+            buffer += char;
           } else if (
-            chr === EOF || chr === '/' || chr === '?' || chr === '#' ||
-            (chr === '\\' && url.isSpecial()) ||
+            char === EOF || char === '/' || char === '?' || char === '#' ||
+            (char === '\\' && url.isSpecial()) ||
             stateOverride
           ) {
             if (buffer !== '') {
@@ -592,9 +592,9 @@ URLState.prototype = {
 
         case FILE:
           url.scheme = 'file';
-          if (chr === '/' || chr === '\\') state = FILE_SLASH;
+          if (char === '/' || char === '\\') state = FILE_SLASH;
           else if (base && base.scheme === 'file') {
-            switch (chr) {
+            switch (char) {
               case EOF:
                 url.host = base.host;
                 url.path = arraySlice(base.path);
@@ -628,7 +628,7 @@ URLState.prototype = {
           } break;
 
         case FILE_SLASH:
-          if (chr === '/' || chr === '\\') {
+          if (char === '/' || char === '\\') {
             state = FILE_HOST;
             break;
           }
@@ -640,7 +640,7 @@ URLState.prototype = {
           continue;
 
         case FILE_HOST:
-          if (chr === EOF || chr === '/' || chr === '\\' || chr === '?' || chr === '#') {
+          if (char === EOF || char === '/' || char === '\\' || char === '?' || char === '#') {
             if (!stateOverride && isWindowsDriveLetter(buffer)) {
               state = PATH;
             } else if (buffer === '') {
@@ -655,37 +655,37 @@ URLState.prototype = {
               buffer = '';
               state = PATH_START;
             } continue;
-          } else buffer += chr;
+          } else buffer += char;
           break;
 
         case PATH_START:
           if (url.isSpecial()) {
             state = PATH;
-            if (chr !== '/' && chr !== '\\') continue;
-          } else if (!stateOverride && chr === '?') {
+            if (char !== '/' && char !== '\\') continue;
+          } else if (!stateOverride && char === '?') {
             url.query = '';
             state = QUERY;
-          } else if (!stateOverride && chr === '#') {
+          } else if (!stateOverride && char === '#') {
             url.fragment = '';
             state = FRAGMENT;
-          } else if (chr !== EOF) {
+          } else if (char !== EOF) {
             state = PATH;
-            if (chr !== '/') continue;
+            if (char !== '/') continue;
           } break;
 
         case PATH:
           if (
-            chr === EOF || chr === '/' ||
-            (chr === '\\' && url.isSpecial()) ||
-            (!stateOverride && (chr === '?' || chr === '#'))
+            char === EOF || char === '/' ||
+            (char === '\\' && url.isSpecial()) ||
+            (!stateOverride && (char === '?' || char === '#'))
           ) {
             if (isDoubleDot(buffer)) {
               url.shortenPath();
-              if (chr !== '/' && !(chr === '\\' && url.isSpecial())) {
+              if (char !== '/' && !(char === '\\' && url.isSpecial())) {
                 push(url.path, '');
               }
             } else if (isSingleDot(buffer)) {
-              if (chr !== '/' && !(chr === '\\' && url.isSpecial())) {
+              if (char !== '/' && !(char === '\\' && url.isSpecial())) {
                 push(url.path, '');
               }
             } else {
@@ -696,45 +696,45 @@ URLState.prototype = {
               push(url.path, buffer);
             }
             buffer = '';
-            if (url.scheme === 'file' && (chr === EOF || chr === '?' || chr === '#')) {
+            if (url.scheme === 'file' && (char === EOF || char === '?' || char === '#')) {
               while (url.path.length > 1 && url.path[0] === '') {
                 shift(url.path);
               }
             }
-            if (chr === '?') {
+            if (char === '?') {
               url.query = '';
               state = QUERY;
-            } else if (chr === '#') {
+            } else if (char === '#') {
               url.fragment = '';
               state = FRAGMENT;
             }
           } else {
-            buffer += percentEncode(chr, pathPercentEncodeSet);
+            buffer += percentEncode(char, pathPercentEncodeSet);
           } break;
 
         case CANNOT_BE_A_BASE_URL_PATH:
-          if (chr === '?') {
+          if (char === '?') {
             url.query = '';
             state = QUERY;
-          } else if (chr === '#') {
+          } else if (char === '#') {
             url.fragment = '';
             state = FRAGMENT;
-          } else if (chr !== EOF) {
-            url.path[0] += percentEncode(chr, C0ControlPercentEncodeSet);
+          } else if (char !== EOF) {
+            url.path[0] += percentEncode(char, C0ControlPercentEncodeSet);
           } break;
 
         case QUERY:
-          if (!stateOverride && chr === '#') {
+          if (!stateOverride && char === '#') {
             url.fragment = '';
             state = FRAGMENT;
-          } else if (chr !== EOF) {
-            if (chr === "'" && url.isSpecial()) url.query += '%27';
-            else if (chr === '#') url.query += '%23';
-            else url.query += percentEncode(chr, C0ControlPercentEncodeSet);
+          } else if (char !== EOF) {
+            if (char === "'" && url.isSpecial()) url.query += '%27';
+            else if (char === '#') url.query += '%23';
+            else url.query += percentEncode(char, C0ControlPercentEncodeSet);
           } break;
 
         case FRAGMENT:
-          if (chr !== EOF) url.fragment += percentEncode(chr, fragmentPercentEncodeSet);
+          if (char !== EOF) url.fragment += percentEncode(char, fragmentPercentEncodeSet);
           break;
       }
 
