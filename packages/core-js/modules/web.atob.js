@@ -53,7 +53,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var string = replace(toString(data), whitespaces, '');
     var position = 0;
     var bc = 0;
-    var length, chr, bs;
+    var length, char, bs;
     if (!(string.length & 3)) {
       string = replace(string, finalEq, '');
     }
@@ -69,8 +69,8 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var output = new $Array((length >> 2) * 3 + (lenmod ? lenmod - 1 : 0));
     var outputIndex = 0;
     while (position < length) {
-      chr = charAt(string, position++);
-      bs = bc & 3 ? (bs << 6) + c2i[chr] : c2i[chr];
+      char = charAt(string, position++);
+      bs = bc & 3 ? (bs << 6) + c2i[char] : c2i[char];
       if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
     }
     return join(output, '');

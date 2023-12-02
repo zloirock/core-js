@@ -119,15 +119,15 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = charAt(json, i);
-      if (chr === '"') {
+      var char = charAt(json, i);
+      if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         result += slice(string, 0, MARK_LENGTH) === MARK
           ? rawStrings[slice(string, MARK_LENGTH)]
           : '"' + string + '"';
         i = end;
-      } else result += chr;
+      } else result += char;
     }
 
     return result;
