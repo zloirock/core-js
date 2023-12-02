@@ -236,15 +236,15 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = charAt(json, i);
-      if (chr === '"') {
+      var char = charAt(json, i);
+      if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         if (slice(string, 0, RAW_MARK_LENGTH) === RAW_MARK) result += rawStrings[slice(string, RAW_MARK_LENGTH)];
         else if (slice(string, 0, KEY_MARK_LENGTH) === KEY_MARK) result += '"' + slice(string, KEY_MARK_LENGTH) + '"';
         else result += '"' + string + '"';
         i = end;
-      } else result += chr;
+      } else result += char;
     }
 
     return result;
