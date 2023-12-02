@@ -25,13 +25,13 @@ $({ global: true }, {
     var result = '';
     var length = str.length;
     var index = 0;
-    var chr, code;
+    var char, code;
     while (index < length) {
-      chr = charAt(str, index++);
-      if (exec(raw, chr)) {
-        result += chr;
+      char = charAt(str, index++);
+      if (exec(raw, char)) {
+        result += char;
       } else {
-        code = charCodeAt(chr, 0);
+        code = charCodeAt(char, 0);
         if (code < 256) {
           result += '%' + hex(code, 2);
         } else {
