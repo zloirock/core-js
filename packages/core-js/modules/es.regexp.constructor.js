@@ -53,21 +53,21 @@ var handleDotAll = function (string) {
   var index = 0;
   var result = '';
   var brackets = false;
-  var chr;
+  var char;
   for (; index < length; index++) {
-    chr = charAt(string, index);
-    if (chr === '\\') {
-      result += chr + charAt(string, ++index);
+    char = charAt(string, index);
+    if (char === '\\') {
+      result += char + charAt(string, ++index);
       continue;
     }
-    if (!brackets && chr === '.') {
+    if (!brackets && char === '.') {
       result += '[\\s\\S]';
     } else {
-      if (chr === '[') {
+      if (char === '[') {
         brackets = true;
-      } else if (chr === ']') {
+      } else if (char === ']') {
         brackets = false;
-      } result += chr;
+      } result += char;
     }
   } return result;
 };
@@ -82,24 +82,24 @@ var handleNCG = function (string) {
   var ncg = false;
   var groupid = 0;
   var groupname = '';
-  var chr;
+  var char;
   for (; index < length; index++) {
-    chr = charAt(string, index);
-    if (chr === '\\') {
-      chr += charAt(string, ++index);
+    char = charAt(string, index);
+    if (char === '\\') {
+      char += charAt(string, ++index);
       // use `\x5c` for escaped backslash to avoid corruption by `\k<name>` to `\N` replacement below
-      if (!ncg && charAt(chr, 1) === '\\') {
+      if (!ncg && charAt(char, 1) === '\\') {
         result += '\\x5c';
         continue;
       }
-    } else if (chr === ']') {
+    } else if (char === ']') {
       brackets = false;
     } else if (!brackets) switch (true) {
-      case chr === '[':
+      case char === '[':
         brackets = true;
         break;
-      case chr === '(':
-        result += chr;
+      case char === '(':
+        result += char;
         if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
@@ -108,7 +108,7 @@ var handleNCG = function (string) {
           groupid++;
         }
         continue;
-      case chr === '>' && ncg:
+      case char === '>' && ncg:
         if (groupname === '' || hasOwn(names, groupname)) {
           throw new SyntaxError('Invalid capture group name');
         }
@@ -118,8 +118,8 @@ var handleNCG = function (string) {
         groupname = '';
         continue;
     }
-    if (ncg) groupname += chr;
-    else result += chr;
+    if (ncg) groupname += char;
+    else result += char;
   }
   // convert `\k<name>` backreferences to numbered backreferences
   for (var ni = 0; ni < named.length; ni++) {
