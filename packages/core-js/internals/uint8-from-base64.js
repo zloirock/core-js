@@ -20,8 +20,8 @@ var floor = Math.floor;
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
   for (;index < length; index++) {
-    var chr = at(string, index);
-    if (chr !== ' ' && chr !== '\t' && chr !== '\n' && chr !== '\f' && chr !== '\r') break;
+    var char = at(string, index);
+    if (char !== ' ' && char !== '\t' && char !== '\n' && char !== '\f' && char !== '\r') break;
   } return index;
 };
 
@@ -109,9 +109,9 @@ module.exports = function (string, options, into, maxLength) {
       read = stringLength;
       break;
     }
-    var chr = at(string, index);
+    var char = at(string, index);
     ++index;
-    if (chr === '=') {
+    if (char === '=') {
       if (chunk.length < 2) {
         throw new SyntaxError('Padding is too early');
       }
@@ -135,7 +135,7 @@ module.exports = function (string, options, into, maxLength) {
       read = stringLength;
       break;
     }
-    if (!hasOwn(alphabet, chr)) {
+    if (!hasOwn(alphabet, char)) {
       throw new SyntaxError('Unexpected character');
     }
     var remainingBytes = maxLength - written;
@@ -144,7 +144,7 @@ module.exports = function (string, options, into, maxLength) {
       break;
     }
 
-    chunk += chr;
+    chunk += char;
     if (chunk.length === 4) {
       written = writeBytes(bytes, decodeBase64Chunk(chunk, alphabet, false), written);
       chunk = '';
