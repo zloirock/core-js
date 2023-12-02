@@ -28,8 +28,8 @@ module.exports = function (source, i) {
   var unterminated = true;
   var value = '';
   while (i < source.length) {
-    var chr = at(source, i);
-    if (chr === '\\') {
+    var char = at(source, i);
+    if (char === '\\') {
       var twoChars = slice(source, i, i + 2);
       if (hasOwn(codePoints, twoChars)) {
         value += codePoints[twoChars];
@@ -41,13 +41,13 @@ module.exports = function (source, i) {
         value += fromCharCode($parseInt(fourHexDigits, 16));
         i += 4;
       } else throw new $SyntaxError('Unknown escape sequence: "' + twoChars + '"');
-    } else if (chr === '"') {
+    } else if (char === '"') {
       unterminated = false;
       i++;
       break;
     } else {
-      if (exec(IS_C0_CONTROL_CODE, chr)) throw new $SyntaxError('Bad control character in string literal at: ' + i);
-      value += chr;
+      if (exec(IS_C0_CONTROL_CODE, char)) throw new $SyntaxError('Bad control character in string literal at: ' + i);
+      value += char;
       i++;
     }
   }
