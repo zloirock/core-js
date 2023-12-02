@@ -19,10 +19,10 @@ $({ global: true }, {
     var result = '';
     var length = str.length;
     var index = 0;
-    var chr, part;
+    var char, part;
     while (index < length) {
-      chr = charAt(str, index++);
-      if (chr === '%') {
+      char = charAt(str, index++);
+      if (char === '%') {
         if (charAt(str, index) === 'u') {
           part = stringSlice(str, index + 1, index + 5);
           if (exec(hex4, part)) {
@@ -39,7 +39,7 @@ $({ global: true }, {
           }
         }
       }
-      result += chr;
+      result += char;
     } return result;
   },
 });
