@@ -52,7 +52,7 @@ var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
 var nativePropertyIsEnumerable = propertyIsEnumerableModule.f;
-var $forEach = uncurryThis([].forEach);
+var forEach = uncurryThis([].forEach);
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
 
@@ -110,7 +110,7 @@ var $defineProperties = function defineProperties(O, Properties) {
   anObject(O);
   var properties = toObject(Properties);
   var keys = concat(nativeObjectKeys(properties), $getOwnPropertySymbols(properties));
-  $forEach(keys, function (key) {
+  forEach(keys, function (key) {
     if (call($propertyIsEnumerable, properties, key)) $defineProperty(O, key, properties[key]);
   });
   return O;
@@ -141,7 +141,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
 
 var $getOwnPropertyNames = function getOwnPropertyNames(O) {
   var result = [];
-  nativeGetOwnPropertyNames(toObject(O)).forEach(function (key) {
+  forEach(nativeGetOwnPropertyNames(toObject(O)), function (key) {
     if (!hasOwn(AllSymbols, key) && !hasOwn(hiddenKeys, key)) push(result, key);
   });
   return result;
@@ -150,7 +150,7 @@ var $getOwnPropertyNames = function getOwnPropertyNames(O) {
 var $getOwnPropertySymbols = function (O) {
   var IS_OBJECT_PROTOTYPE = O === ObjectPrototype;
   var result = [];
-  nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toObject(O)).forEach(function (key) {
+  forEach(nativeGetOwnPropertyNames(IS_OBJECT_PROTOTYPE ? ObjectPrototypeSymbols : toObject(O)), function (key) {
     if (hasOwn(AllSymbols, key) && (!IS_OBJECT_PROTOTYPE || hasOwn(ObjectPrototype, key))) {
       push(result, AllSymbols[key]);
     }
@@ -218,7 +218,7 @@ $({ global: true, constructor: true, wrap: true, forced: !NATIVE_SYMBOL, sham: !
   Symbol: $Symbol,
 });
 
-nativeObjectKeys(WellKnownSymbolsStore).forEach(function (name) {
+forEach(nativeObjectKeys(WellKnownSymbolsStore), function (name) {
   defineWellKnownSymbol(name);
 });
 
