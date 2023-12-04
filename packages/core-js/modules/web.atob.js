@@ -6,7 +6,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var fails = require('../internals/fails');
 var toString = require('../internals/to-string');
-var hasOwn = require('../internals/has-own-property');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var ctoi = require('../internals/base64-map').ctoi;
 
@@ -51,18 +50,18 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var output = '';
     var position = 0;
     var bc = 0;
-    var chr, bs;
+    var length, chr, bs;
     if (string.length % 4 === 0) {
       string = replace(string, finalEq, '');
     }
-    if (string.length % 4 === 1 || exec(disallowed, string)) {
+    length = string.length;
+    if (length % 4 === 1 || exec(disallowed, string)) {
       throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
     }
-    while (chr = charAt(string, position++)) {
-      if (hasOwn(ctoi, chr)) {
-        bs = bc % 4 ? bs * 64 + ctoi[chr] : ctoi[chr];
-        if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
-      }
+    while (position < length) {
+      chr = charAt(string, position++);
+      bs = bc % 4 ? bs * 64 + ctoi[chr] : ctoi[chr];
+      if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output;
   }
 });
