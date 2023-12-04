@@ -227,5 +227,9 @@ export default {
     'es.map.group-by',
     'es.object.group-by',
     'es.promise.with-resolvers',
+    'esnext.uint8-array.from-base64',
+    'esnext.uint8-array.from-hex',
+    'esnext.uint8-array.to-base64',
+    'esnext.uint8-array.to-hex',
   ],
 };

@@ -2343,6 +2343,14 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.with': null,
+  'esnext.uint8-array.from-base64': {
+  },
+  'esnext.uint8-array.from-hex': {
+  },
+  'esnext.uint8-array.to-base64': {
+  },
+  'esnext.uint8-array.to-hex': {
+  },
   'esnext.weak-map.delete-all': {
   },
   'esnext.weak-map.from': {

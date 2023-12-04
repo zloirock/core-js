@@ -2,8 +2,8 @@
 ##### Unreleased
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Methods:
-    - `Object.groupBy` method
-    - `Map.groupBy` method
+    - `Object.groupBy`
+    - `Map.groupBy`
   - Moved to stable ES, [November 2023 TC39 meeting](https://github.com/tc39/proposal-array-grouping/issues/60)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [`Promise.withResolvers` proposal](https://github.com/tc39/proposal-promise-with-resolvers):
@@ -11,6 +11,12 @@
     - `Promise.withResolvers`
   - Moved to stable ES, [November 2023 TC39 meeting](https://twitter.com/robpalmer2/status/1729216597623976407)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
+- Added [`Uint8Array` to / from base64 and hex stage 2 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+  - Methods:
+    - `Uint8Array.fromBase64`
+    - `Uint8Array.fromHex`
+    - `Uint8Array.prototype.toBase64`
+    - `Uint8Array.prototype.toHex`
 - Fixed `@@toStringTag` property descriptors on DOM collections, [#1312](https://github.com/zloirock/core-js/issues/1312)
 - Fixed the order of arguments validation in `Array` iteration methods, [#1313](https://github.com/zloirock/core-js/issues/1313)
 - Some minor `atob` / `btoa` improvements

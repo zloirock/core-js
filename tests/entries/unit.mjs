@@ -908,6 +908,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/array-is-template-object');
   load('proposals/array-last');
   load('proposals/array-unique');
+  load('proposals/array-buffer-base64');
   load('proposals/array-buffer-transfer');
   load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
@@ -1069,9 +1070,13 @@ for (const NS of ['actual', 'full', 'features']) {
 
 for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/from-async');
+  load(NS, 'typed-array/from-base64');
+  load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/filter-out');
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/group-by');
+  load(NS, 'typed-array/to-base64');
+  load(NS, 'typed-array/to-hex');
   load(NS, 'typed-array/unique-by');
 }
 
