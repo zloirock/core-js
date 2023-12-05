@@ -2004,8 +2004,6 @@ export const data = {
   },
   'esnext.math.scale': {
   },
-  'esnext.math.signbit': {
-  },
   'esnext.regexp.escape': {
   },
   'esnext.set.add-all': {

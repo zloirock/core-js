@@ -179,7 +179,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`Math` extensions](#math-extensions)
-      - [`Math.signbit`](#mathsignbit)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
@@ -2933,26 +2932,6 @@ core-js(-pure)/full/math/fscale
 core-js(-pure)/full/math/rad-per-deg
 core-js(-pure)/full/math/radians
 core-js(-pure)/full/math/scale
-```
-##### [`Math.signbit`](https://github.com/tc39/proposal-Math.signbit)[⬆](#index)
-Module [`esnext.math.signbit`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.signbit.js)
-```js
-namespace Math {
-  signbit(x: number): boolean;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/math-signbit
-core-js(-pure)/full/math/signbit
-```
-[*Examples*](https://goo.gl/rPWbzZ):
-```js
-Math.signbit(NaN); // => false
-Math.signbit(1);   // => false
-Math.signbit(-1);  // => true
-Math.signbit(0);   // => false
-Math.signbit(-0);  // => true
 ```
 ##### [`String.cooked`](https://github.com/tc39/proposal-string-cooked)[⬆](#index)
 Module [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
