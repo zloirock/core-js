@@ -4,7 +4,6 @@ var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
-var hasOwn = require('../internals/has-own-property');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
@@ -50,8 +49,8 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
 
     var at = function (shift) {
       var char = input[i + shift];
-      if (!hasOwn(alphabet, char)) throw new SyntaxError('Bad char in input: "' + char + '"');
-      return alphabet[char] << (18 - 6 * shift);
+      if (char in alphabet) return alphabet[char] << (18 - 6 * shift);
+      throw new SyntaxError('Bad char in input: "' + char + '"');
     };
 
     for (; i < inputLength; i += 4) {
