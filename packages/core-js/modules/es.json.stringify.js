@@ -116,7 +116,7 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var char = charAt(json, i);
+      var char = json[i];
       if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
