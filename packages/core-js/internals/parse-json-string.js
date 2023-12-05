@@ -5,7 +5,6 @@ var hasOwn = require('../internals/has-own-property');
 var $SyntaxError = SyntaxError;
 var $parseInt = parseInt;
 var fromCharCode = String.fromCharCode;
-var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 
@@ -28,7 +27,7 @@ module.exports = function (source, i) {
   var unterminated = true;
   var value = '';
   while (i < source.length) {
-    var char = at(source, i);
+    var char = source[i];
     if (char === '\\') {
       var twoChars = slice(source, i, i + 2);
       if (hasOwn(codePoints, twoChars)) {
