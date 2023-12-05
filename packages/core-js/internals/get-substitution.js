@@ -22,7 +22,7 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
   }
   return replace(replacement, symbols, function (match, ch) {
     var capture;
-    switch (charAt(ch, 0)) {
+    switch (ch[0]) {
       case '$': return '$';
       case '&': return matched;
       case '`': return stringSlice(str, 0, position);
