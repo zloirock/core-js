@@ -2414,19 +2414,7 @@ export const data = {
   },
   'esnext.map.update': {
   },
-  'esnext.math.deg-per-rad': {
-  },
-  'esnext.math.degrees': {
-  },
-  'esnext.math.fscale': {
-  },
   'esnext.math.f16round': null,
-  'esnext.math.rad-per-deg': {
-  },
-  'esnext.math.radians': {
-  },
-  'esnext.math.scale': {
-  },
   'esnext.math.sum-precise': {
     bun: '1.2.18',
     firefox: '137',
