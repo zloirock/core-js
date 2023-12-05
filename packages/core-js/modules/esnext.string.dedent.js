@@ -25,7 +25,6 @@ var freeze = Object.freeze;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 var min = Math.min;
-var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
 var split = uncurryThis(''.split);
 var exec = uncurryThis(/./.exec);
@@ -116,7 +115,7 @@ var commonLeadingIndentation = function (a, b) {
   if (b === undefined || a === b) return a;
   var i = 0;
   for (var len = min(a.length, b.length); i < len; i++) {
-    if (charAt(a, i) !== charAt(b, i)) break;
+    if (a[i] !== b[i]) break;
   }
   return stringSlice(a, 0, i);
 };
