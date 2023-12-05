@@ -17,7 +17,6 @@ var finalEq = /[=]{1,2}$/;
 var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var fromCharCode = String.fromCharCode;
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var exec = uncurryThis(disallowed.exec);
 
@@ -61,7 +60,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
       throw new DOMException('The string is not correctly encoded', 'InvalidCharacterError');
     }
     while (position < length) {
-      char = charAt(string, position++);
+      char = string[position++];
       bs = bc % 4 ? bs * 64 + c2i[char] : c2i[char];
       if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output;
