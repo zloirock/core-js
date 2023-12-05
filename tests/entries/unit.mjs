@@ -711,8 +711,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(!load(NS, 'function/is-callable')(class { /* empty */ }));
-    ok(!load(NS, 'function/is-constructor')(it => it));
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
     ok(typeof load(NS, 'iterator/sliding') == 'function');
@@ -826,7 +824,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/extractors');
   load('proposals/float16');
   load('proposals/function-demethodize');
-  load('proposals/function-is-callable-is-constructor');
   load('proposals/global-this');
   load('proposals/is-error');
   load('proposals/iterator-helpers');
