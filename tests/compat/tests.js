@@ -2057,9 +2057,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.math.scale': function () {
     return Math.scale;
   },
-  'esnext.math.signbit': function () {
-    return Math.signbit;
-  },
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
   },
