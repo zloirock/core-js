@@ -2540,19 +2540,7 @@ export const data = {
   },
   'esnext.map.update': {
   },
-  'esnext.math.deg-per-rad': {
-  },
-  'esnext.math.degrees': {
-  },
-  'esnext.math.fscale': {
-  },
   'esnext.math.f16round': null,
-  'esnext.math.rad-per-deg': {
-  },
-  'esnext.math.radians': {
-  },
-  'esnext.math.scale': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.math.sum-precise': null,
   'esnext.number.clamp': {
