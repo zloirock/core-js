@@ -1,6 +1,5 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
 var hasOwn = require('../internals/has-own-property');
@@ -13,12 +12,11 @@ var base64UrlAlphabet = base64Map.c2iUrl;
 
 var SyntaxError = globalThis.SyntaxError;
 var TypeError = globalThis.TypeError;
-var at = uncurryThis(''.charAt);
 
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
   for (;index < length; index++) {
-    var char = at(string, index);
+    var char = string[index];
     if (char !== ' ' && char !== '\t' && char !== '\n' && char !== '\f' && char !== '\r') break;
   } return index;
 };
@@ -30,10 +28,10 @@ var decodeBase64Chunk = function (chunk, alphabet, throwOnExtraBits) {
     chunk += chunkLength === 2 ? 'AA' : 'A';
   }
 
-  var triplet = (alphabet[at(chunk, 0)] << 18)
-    + (alphabet[at(chunk, 1)] << 12)
-    + (alphabet[at(chunk, 2)] << 6)
-    + alphabet[at(chunk, 3)];
+  var triplet = (alphabet[chunk[0]] << 18)
+    + (alphabet[chunk[1]] << 12)
+    + (alphabet[chunk[2]] << 6)
+    + alphabet[chunk[3]];
 
   var chunkBytes = [
     (triplet >> 16) & 255,
@@ -107,7 +105,7 @@ module.exports = function (string, options, into, maxLength) {
       read = stringLength;
       break;
     }
-    var char = at(string, index);
+    var char = string[index];
     ++index;
     if (char === '=') {
       if (chunk.length < 2) {
@@ -121,7 +119,7 @@ module.exports = function (string, options, into, maxLength) {
           }
           throw new SyntaxError('Malformed padding: only one =');
         }
-        if (at(string, index) === '=') {
+        if (string[index] === '=') {
           ++index;
           index = skipAsciiWhitespace(string, index);
         }
