@@ -11,6 +11,7 @@
     - `Promise.withResolvers`
   - Moved to stable ES, [November 2023 TC39 meeting](https://twitter.com/robpalmer2/status/1729216597623976407)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
+- Fixed a web incompatibility issue of [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers), [proposal-iterator-helpers/287](https://github.com/tc39/proposal-iterator-helpers/pull/287) and some following changes, November 2023 TC39 meeting
 - Added [`Uint8Array` to / from base64 and hex stage 2 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
   - Methods:
     - `Uint8Array.fromBase64`
