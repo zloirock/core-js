@@ -44,7 +44,6 @@ var RegExp = global.RegExp;
 var TypeError = global.TypeError;
 var decodeURIComponent = global.decodeURIComponent;
 var encodeURIComponent = global.encodeURIComponent;
-var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -128,7 +127,7 @@ var URLSearchParamsState = function (init) {
 
   if (init !== undefined) {
     if (isObject(init)) this.parseObject(init);
-    else this.parseQuery(typeof init == 'string' ? charAt(init, 0) === '?' ? stringSlice(init, 1) : init : $toString(init));
+    else this.parseQuery(typeof init == 'string' ? init && init[0] === '?' ? stringSlice(init, 1) : init : $toString(init));
   }
 };
 

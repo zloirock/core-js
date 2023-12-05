@@ -20,7 +20,6 @@ var parse = getBuiltInStaticMethod('JSON', 'parse');
 var $stringify = getBuiltInStaticMethod('JSON', 'stringify');
 var create = Object.create;
 var freeze = Object.freeze;
-var at = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
@@ -36,7 +35,7 @@ var IS_WHITESPACE = /^[\t\n\r ]$/;
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {
     var jsonString = toString(text);
-    if (jsonString === '' || exec(IS_WHITESPACE, at(jsonString, 0)) || exec(IS_WHITESPACE, at(jsonString, jsonString.length - 1))) {
+    if (jsonString === '' || exec(IS_WHITESPACE, jsonString[0]) || exec(IS_WHITESPACE, jsonString[jsonString.length - 1])) {
       throw new $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
@@ -68,7 +67,7 @@ $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var char = at(json, i);
+      var char = json[i];
       if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
