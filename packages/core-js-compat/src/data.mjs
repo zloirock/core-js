@@ -1988,21 +1988,7 @@ export const data = {
   },
   'esnext.map.update': {
   },
-  'esnext.math.clamp': {
-  },
-  'esnext.math.deg-per-rad': {
-  },
-  'esnext.math.degrees': {
-  },
-  'esnext.math.fscale': {
-  },
   'esnext.math.f16round': {
-  },
-  'esnext.math.rad-per-deg': {
-  },
-  'esnext.math.radians': {
-  },
-  'esnext.math.scale': {
   },
   'esnext.regexp.escape': {
   },

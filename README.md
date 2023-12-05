@@ -178,7 +178,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
-      - [`Math` extensions](#math-extensions)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
@@ -2909,30 +2908,6 @@ view.setUint8Clamped(0, 100500);
 console.log(view.getUint8Clamped(0)); // => 255
 ```
 
-##### [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)[⬆](#index)
-Modules [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.deg-per-rad`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.deg-per-rad.js), [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.rad-per-deg`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.rad-per-deg.js), [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.scale.js)
-```js
-namespace Math {
-  DEG_PER_RAD: number;
-  RAD_PER_DEG: number;
-  clamp(x: number, lower: number, upper: number): number;
-  degrees(radians: number): number;
-  fscale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
-  radians(degrees: number): number;
-  scale(x: number, inLow: number, inHigh: number, outLow: number, outHigh: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/math-extensions
-core-js(-pure)/full/math/clamp
-core-js(-pure)/full/math/deg-per-rad
-core-js(-pure)/full/math/degrees
-core-js(-pure)/full/math/fscale
-core-js(-pure)/full/math/rad-per-deg
-core-js(-pure)/full/math/radians
-core-js(-pure)/full/math/scale
-```
 ##### [`String.cooked`](https://github.com/tc39/proposal-string-cooked)[⬆](#index)
 Module [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 ```js
