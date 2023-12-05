@@ -509,14 +509,6 @@ export const features = {
     template: $virtual({ namespace: 'Function', method: 'demethodize' }),
   },
   // 'function/has-instance' ???
-  'function/is-callable': {
-    modules: ['esnext.function.is-callable'],
-    template: $static({ namespace: 'Function', method: 'isCallable' }),
-  },
-  'function/is-constructor': {
-    modules: ['esnext.function.is-constructor'],
-    template: $static({ namespace: 'Function', method: 'isConstructor' }),
-  },
   // 'function/metadata' ???
   'function/name': {
     modules: ['es.function.name'],
@@ -2022,14 +2014,6 @@ export const proposals = {
     stage: 0,
     modules: [
       'esnext.function.demethodize',
-    ],
-  },
-  // https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md
-  'function-is-callable-is-constructor': {
-    stage: 0,
-    modules: [
-      'esnext.function.is-callable',
-      'esnext.function.is-constructor',
     ],
   },
   // https://github.com/tc39/proposal-global
