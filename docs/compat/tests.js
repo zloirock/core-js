@@ -694,6 +694,9 @@ GLOBAL.tests = {
       && map.has(0)
       && map[Symbol.toStringTag];
   }],
+  'es.map.group-by': function () {
+    return Map.groupBy;
+  },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
@@ -880,6 +883,9 @@ GLOBAL.tests = {
   'es.object.get-prototype-of': function () {
     return Object.getPrototypeOf('qwe');
   },
+  'es.object.group-by': function () {
+    return Object.groupBy;
+  },
   'es.object.has-own': function () {
     return Object.hasOwn;
   },
@@ -957,6 +963,9 @@ GLOBAL.tests = {
   }],
   'es.promise.reject': PROMISES_SUPPORT,
   'es.promise.resolve': PROMISES_SUPPORT,
+  'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
+    return Promise.withResolvers;
+  }],
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
@@ -1678,9 +1687,6 @@ GLOBAL.tests = {
   'esnext.map.from': function () {
     return Map.from;
   },
-  'esnext.map.group-by': function () {
-    return Map.groupBy;
-  },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
   },
@@ -1741,12 +1747,6 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
-  'esnext.object.group-by': function () {
-    return Object.groupBy;
-  },
-  'esnext.promise.with-resolvers': [PROMISES_SUPPORT, function () {
-    return Promise.withResolvers;
-  }],
   'esnext.regexp.escape': function () {
     return RegExp.escape;
   },
@@ -1829,6 +1829,18 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
+  },
+  'esnext.uint8-array.from-base64': function () {
+    return Uint8Array.fromBase64;
+  },
+  'esnext.uint8-array.from-hex': function () {
+    return Uint8Array.fromHex;
+  },
+  'esnext.uint8-array.to-base64': function () {
+    return Uint8Array.prototype.toBase64;
+  },
+  'esnext.uint8-array.to-hex': function () {
+    return Uint8Array.prototype.toHex;
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

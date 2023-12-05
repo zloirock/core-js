@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.34.0 - 2023.12.06](https://github.com/zloirock/core-js/releases/tag/v3.34.0)
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
   - Methods:
     - `Object.groupBy`

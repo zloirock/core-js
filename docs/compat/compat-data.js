@@ -1836,6 +1836,22 @@
     "safari": "10.0",
     "samsung": "5.0"
   },
+  "es.map.group-by": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "deno": "1.37",
+    "edge": "117",
+    "electron": "27.0",
+    "firefox": "119",
+    "firefox-android": "119",
+    "node": "21.0",
+    "oculus": "30.0",
+    "opera": "103",
+    "opera-android": "78",
+    "opera_mobile": "78",
+    "quest": "30.0"
+  },
   "es.math.acosh": {
     "android": "54",
     "bun": "0.1.1",
@@ -2874,6 +2890,22 @@
     "safari": "9.0",
     "samsung": "4.0"
   },
+  "es.object.group-by": {
+    "android": "117",
+    "chrome": "117",
+    "chrome-android": "117",
+    "deno": "1.37",
+    "edge": "117",
+    "electron": "27.0",
+    "firefox": "119",
+    "firefox-android": "119",
+    "node": "21.0",
+    "oculus": "30.0",
+    "opera": "103",
+    "opera-android": "78",
+    "opera_mobile": "78",
+    "quest": "30.0"
+  },
   "es.object.has-own": {
     "android": "93",
     "bun": "0.1.1",
@@ -3450,6 +3482,18 @@
     "rhino": "1.7.14",
     "safari": "11.0",
     "samsung": "9.0"
+  },
+  "es.promise.with-resolvers": {
+    "android": "119",
+    "bun": "0.7.1",
+    "chrome": "119",
+    "chrome-android": "119",
+    "deno": "1.38",
+    "edge": "119",
+    "electron": "28.0",
+    "firefox": "121",
+    "firefox-android": "121",
+    "opera": "105"
   },
   "es.reflect.apply": {
     "android": "49",
@@ -6245,6 +6289,8 @@
     "deno": "1.38",
     "edge": "119",
     "electron": "28.0",
+    "firefox": "121",
+    "firefox-android": "121",
     "opera": "105"
   },
   "esnext.reflect.define-metadata": {},
@@ -6519,6 +6565,10 @@
     "safari": "16.4",
     "samsung": "21.0"
   },
+  "esnext.uint8-array.from-base64": {},
+  "esnext.uint8-array.from-hex": {},
+  "esnext.uint8-array.to-base64": {},
+  "esnext.uint8-array.to-hex": {},
   "esnext.weak-map.delete-all": {},
   "esnext.weak-map.from": {},
   "esnext.weak-map.of": {},
