@@ -1840,12 +1840,6 @@ GLOBAL.tests = {
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
   },
-  'esnext.function.is-callable': function () {
-    return Function.isCallable;
-  },
-  'esnext.function.is-constructor': function () {
-    return Function.isConstructor;
-  },
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
