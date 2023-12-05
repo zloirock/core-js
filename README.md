@@ -180,7 +180,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
-      - [`Number.fromString`](#numberfromstring)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
@@ -2946,19 +2945,6 @@ core-js/full/dataview/set-uint8-clamped
 const view = new DataView(new ArrayBuffer(1));
 view.setUint8Clamped(0, 100500);
 console.log(view.getUint8Clamped(0)); // => 255
-```
-
-##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
-Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
-```js
-class Number {
-  fromString(string: string, radix: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/number-from-string
-core-js(-pure)/full/number/from-string
 ```
 
 ##### [`String.cooked`](https://github.com/tc39/proposal-string-cooked)[⬆](#index)
