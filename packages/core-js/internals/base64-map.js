@@ -6,7 +6,7 @@ var base64UrlAlphabet = commonAlphabet + '-_';
 var inverse = function (characters) {
   var result = Object.create(null);
   var index = 0;
-  for (; index < 64; index++) result[characters.charAt(index)] = index;
+  for (; index < 64; index++) result[characters[index]] = index;
   return result;
 };
 
