@@ -3,7 +3,6 @@ var global = require('../internals/global');
 var apply = require('../internals/function-apply');
 var bind = require('../internals/function-bind');
 var isCallable = require('../internals/is-callable');
-var hasOwn = require('../internals/has-own-property');
 var fails = require('../internals/fails');
 var html = require('../internals/html');
 var arraySlice = require('../internals/array-slice');
@@ -20,7 +19,7 @@ var Function = global.Function;
 var MessageChannel = global.MessageChannel;
 var String = global.String;
 var counter = 0;
-var queue = {};
+var queue = Object.create(null);
 var ONREADYSTATECHANGE = 'onreadystatechange';
 var $location, defer, channel, port;
 
@@ -30,8 +29,8 @@ fails(function () {
 });
 
 var run = function (id) {
-  if (hasOwn(queue, id)) {
-    var fn = queue[id];
+  var fn = queue[id];
+  if (fn) {
     delete queue[id];
     fn();
   }
