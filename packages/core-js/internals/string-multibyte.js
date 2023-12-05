@@ -4,7 +4,6 @@ var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var stringSlice = uncurryThis(''.slice);
 
@@ -19,7 +18,7 @@ var createMethod = function (CONVERT_TO_STRING) {
     return first < 0xD800 || first > 0xDBFF || position + 1 === size
       || (second = charCodeAt(S, position + 1)) < 0xDC00 || second > 0xDFFF
         ? CONVERT_TO_STRING
-          ? charAt(S, position)
+          ? S[position]
           : first
         : CONVERT_TO_STRING
           ? stringSlice(S, position, position + 2)
