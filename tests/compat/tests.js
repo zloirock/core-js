@@ -1874,24 +1874,6 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
-  'esnext.math.deg-per-rad': function () {
-    return Math.DEG_PER_RAD;
-  },
-  'esnext.math.degrees': function () {
-    return Math.degrees;
-  },
-  'esnext.math.fscale': function () {
-    return Math.fscale;
-  },
-  'esnext.math.rad-per-deg': function () {
-    return Math.RAD_PER_DEG;
-  },
-  'esnext.math.radians': function () {
-    return Math.radians;
-  },
-  'esnext.math.scale': function () {
-    return Math.scale;
-  },
   'esnext.math.sum-precise': function () {
     return Math.sumPrecise;
   },
