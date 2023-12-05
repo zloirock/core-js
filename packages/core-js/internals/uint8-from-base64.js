@@ -2,7 +2,6 @@
 var globalThis = require('../internals/global-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
-var hasOwn = require('../internals/has-own-property');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 var notDetached = require('../internals/array-buffer-not-detached');
@@ -131,7 +130,7 @@ module.exports = function (string, options, into, maxLength) {
       read = stringLength;
       break;
     }
-    if (!hasOwn(alphabet, char)) {
+    if (!(char in alphabet)) {
       throw new SyntaxError('Unexpected character');
     }
     var remainingBytes = maxLength - written;
