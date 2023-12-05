@@ -18,6 +18,7 @@
     - `Uint8Array.fromHex`
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
+- Relaxed some specific cases of [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring) validation before clarification of [proposal-number-fromstring/24](https://github.com/tc39/proposal-number-fromstring/issues/24)
 - Fixed `@@toStringTag` property descriptors on DOM collections, [#1312](https://github.com/zloirock/core-js/issues/1312)
 - Fixed the order of arguments validation in `Array` iteration methods, [#1313](https://github.com/zloirock/core-js/issues/1313)
 - Some minor `atob` / `btoa` improvements

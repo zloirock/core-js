@@ -35,7 +35,7 @@ $({ target: 'Number', stat: true, forced: true }, {
     var parts = split(string, '.');
     var mathNum = $parseInt(parts[0], R);
     if (parts.length > 1) mathNum += $parseInt(parts[1], R) / pow(R, parts[1].length);
-    if (numberToString(mathNum, R) !== string) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    if (R === 10 && numberToString(mathNum, R) !== string) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
     return sign * mathNum;
   }
 });
