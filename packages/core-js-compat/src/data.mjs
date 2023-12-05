@@ -2471,8 +2471,6 @@ export const data = {
   },
   'esnext.math.scale': {
   },
-  'esnext.math.signbit': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.math.sum-precise': null,
   'esnext.number.clamp': {
