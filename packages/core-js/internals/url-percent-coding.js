@@ -8,7 +8,6 @@ var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
-var charAt = uncurryThis(''.charAt);
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 // dependency: es.string.to-well-formed
@@ -32,10 +31,10 @@ var decode = function (input) {
   var i = 0;
 
   while (i < length) {
-    var decodedChar = charAt(input, i);
+    var decodedChar = input[i];
 
     if (decodedChar === '%') {
-      if (charAt(input, i + 1) === '%' || i + 3 > length) {
+      if (input[i + 1] === '%' || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -68,7 +67,7 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length || charAt(input, i) !== '%') break;
+          if (i + 3 > length || input[i] !== '%') break;
 
           var nextByte = parseHexOctet(input, i + 1);
 

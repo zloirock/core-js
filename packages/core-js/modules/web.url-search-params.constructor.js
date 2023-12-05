@@ -42,13 +42,12 @@ var percentEncode = percentCoding.encode;
 
 // dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
-var TypeError = globalThis.TypeError;
+var $TypeError = TypeError;
 var NativeURL = globalThis.URL;
 var NativeURLSearchParams = globalThis.URLSearchParams;
 var NativeURLSearchParamsPrototype = NativeURLSearchParams && NativeURLSearchParams.prototype;
 var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
-var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -150,7 +149,7 @@ var URLSearchParamsState = function (init) {
     if (isObject(init)) this.parseObject(init);
     else {
       var query = toUSVString(init);
-      this.parseQuery(charAt(query, 0) === '?' ? stringSlice(query, 1) : query);
+      this.parseQuery(query[0] === '?' ? stringSlice(query, 1) : query);
     }
   }
 };
@@ -195,7 +194,7 @@ URLSearchParamsState.prototype = {
       // Web IDL converts the entire sequence before URLSearchParams checks pair lengths.
       while (index < sequence.length) {
         pair = sequence[index++];
-        if (pair.length !== 2) throw new TypeError('Expected sequence with length 2');
+        if (pair.length !== 2) throw new $TypeError('Expected sequence with length 2');
         push(entries, { key: pair[0], value: pair[1] });
       }
     } else {
