@@ -20,7 +20,6 @@ var $String = String;
 var isArray = Array.isArray;
 var $stringify = JSON.stringify;
 var exec = uncurryThis(/./.exec);
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var replace = uncurryThis(''.replace);
 var slice = uncurryThis(''.slice);
@@ -63,8 +62,8 @@ var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (
 } : $stringify;
 
 var fixIllFormedJSON = function (match, offset, string) {
-  var prev = charAt(string, offset - 1);
-  var next = charAt(string, offset + 1);
+  var prev = string[offset - 1];
+  var next = string[offset + 1];
   if (
     (exec(leadingSurrogates, match) && !exec(trailingSurrogates, next)) ||
     (exec(trailingSurrogates, match) && !exec(leadingSurrogates, prev))
@@ -119,7 +118,7 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var char = charAt(json, i);
+      var char = json[i];
       if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
