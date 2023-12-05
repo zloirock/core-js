@@ -2022,8 +2022,6 @@ export const data = {
   },
   'esnext.math.signbit': {
   },
-  'esnext.number.from-string': {
-  },
   'esnext.regexp.escape': {
   },
   'esnext.set.add-all': {
