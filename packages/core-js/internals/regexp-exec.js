@@ -15,7 +15,6 @@ var create = Object.create;
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
 var nativeExec = RegExp.prototype.exec;
 var patchedExec = nativeExec;
-var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
@@ -76,7 +75,7 @@ if (PATCH) {
 
       strCopy = stringSlice(str, re.lastIndex);
       // Support anchored sticky behavior.
-      var prevChar = re.lastIndex > 0 && charAt(str, re.lastIndex - 1);
+      var prevChar = re.lastIndex > 0 && str[re.lastIndex - 1];
       if (re.lastIndex > 0 &&
         (!re.multiline || re.multiline && prevChar !== '\n' && prevChar !== '\r' && prevChar !== '\u2028' && prevChar !== '\u2029')) {
         source = '(?: ' + source + ')';
