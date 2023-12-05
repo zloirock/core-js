@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/prefer-top-level-await -- false positive */
 import semver from 'semver';
 
 const { coerce, cmp } = semver;

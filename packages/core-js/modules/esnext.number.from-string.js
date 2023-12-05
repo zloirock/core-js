@@ -11,7 +11,6 @@ var $TypeError = TypeError;
 var $parseInt = parseInt;
 var pow = Math.pow;
 var valid = /^[0-9a-z]+(\.[0-9a-z]+)?$/;
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var exec = uncurryThis(valid.exec);
 var numberToString = uncurryThis(1.1.toString);
@@ -41,7 +40,7 @@ $({ target: 'Number', stat: true, forced: true }, {
     var sign = 1;
     if (typeof string != 'string') throw new $TypeError(INVALID_NUMBER_REPRESENTATION);
     if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
-    if (charAt(string, 0) === '-') {
+    if (string[0] === '-') {
       sign = -1;
       string = stringSlice(string, 1);
       if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
@@ -56,7 +55,7 @@ $({ target: 'Number', stat: true, forced: true }, {
       var compareString = string;
       if (parts.length > 1) {
         var fraction = parts[1];
-        while (fraction.length && charAt(fraction, fraction.length - 1) === '0') {
+        while (fraction.length && fraction[fraction.length - 1] === '0') {
           fraction = stringSlice(fraction, 0, -1);
         }
         compareString = fraction.length ? parts[0] + '.' + fraction : parts[0];
