@@ -18,7 +18,6 @@ var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var $Array = Array;
 var fromCharCode = String.fromCharCode;
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var join = uncurryThis([].join);
 var exec = uncurryThis(disallowed.exec);
@@ -69,7 +68,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var output = new $Array((length >> 2) * 3 + (lenmod ? lenmod - 1 : 0));
     var outputIndex = 0;
     while (position < length) {
-      char = charAt(string, position++);
+      char = string[position++];
       bs = bc & 3 ? (bs << 6) + c2i[char] : c2i[char];
       if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
     }
