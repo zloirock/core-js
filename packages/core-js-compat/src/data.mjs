@@ -2186,10 +2186,6 @@ export const data = {
   },
   'esnext.function.demethodize': {
   },
-  'esnext.function.is-callable': {
-  },
-  'esnext.function.is-constructor': {
-  },
   'esnext.function.metadata': {
   },
   // TODO: Remove from `core-js@4`
