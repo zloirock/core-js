@@ -2610,8 +2610,6 @@ export const data = {
   'esnext.math.sum-precise': null,
   'esnext.number.clamp': {
   },
-  'esnext.number.from-string': {
-  },
   'esnext.promise.all-keyed': {
     firefox: '155',
   },

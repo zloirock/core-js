@@ -2069,9 +2069,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
   },
-  'esnext.number.from-string': function () {
-    return Number.fromString;
-  },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
   },
