@@ -50,9 +50,9 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
     var inputLength = input.length;
 
     var at = function (shift) {
-      var chr = charAt(input, i + shift);
-      if (!hasOwn(alphabet, chr)) throw new SyntaxError('Bad char in input: "' + chr + '"');
-      return alphabet[chr] << (18 - 6 * shift);
+      var char = charAt(input, i + shift);
+      if (!hasOwn(alphabet, char)) throw new SyntaxError('Bad char in input: "' + char + '"');
+      return alphabet[char] << (18 - 6 * shift);
     };
 
     for (; i < inputLength; i += 4) {
