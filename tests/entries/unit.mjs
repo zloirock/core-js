@@ -731,7 +731,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
-    ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
@@ -818,7 +817,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/map-emplace');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
-  load('proposals/number-from-string');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');

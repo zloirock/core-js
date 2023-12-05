@@ -178,7 +178,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
-      - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
       - [`Math.signbit`](#mathsignbit)
       - [`String.cooked`](#stringcooked)
@@ -2912,18 +2911,6 @@ view.setUint8Clamped(0, 100500);
 console.log(view.getUint8Clamped(0)); // => 255
 ```
 
-##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
-Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
-```js
-class Number {
-  fromString(string: string, radix: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/number-from-string
-core-js(-pure)/full/number/from-string
-```
 ##### [`Math` extensions](https://github.com/rwaldron/proposal-math-extensions)[⬆](#index)
 Modules [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js), [`esnext.math.deg-per-rad`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.deg-per-rad.js), [`esnext.math.degrees`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.degrees.js), [`esnext.math.fscale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.fscale.js), [`esnext.math.rad-per-deg`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.rad-per-deg.js), [`esnext.math.radians`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.radians.js) and [`esnext.math.scale`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.scale.js)
 ```js

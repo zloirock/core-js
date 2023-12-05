@@ -1710,9 +1710,6 @@ GLOBAL.tests = {
   'esnext.math.signbit': function () {
     return Math.signbit;
   },
-  'esnext.number.from-string': function () {
-    return Number.fromString;
-  },
   'esnext.regexp.escape': function () {
     return RegExp.escape;
   },
