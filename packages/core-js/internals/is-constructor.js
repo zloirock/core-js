@@ -12,7 +12,7 @@ var constructorRegExp = /^\s*(?:class|function)\b/;
 var exec = uncurryThis(constructorRegExp.exec);
 var INCORRECT_TO_STRING = !constructorRegExp.test(noop);
 
-var isConstructorModern = function isConstructor(argument) {
+var isConstructorModern = function (argument) {
   if (!isCallable(argument)) return false;
   try {
     construct(noop, [], argument);
@@ -22,7 +22,7 @@ var isConstructorModern = function isConstructor(argument) {
   }
 };
 
-var isConstructorLegacy = function isConstructor(argument) {
+var isConstructorLegacy = function (argument) {
   if (!isCallable(argument)) return false;
   switch (classof(argument)) {
     case 'AsyncFunction':
@@ -38,8 +38,6 @@ var isConstructorLegacy = function isConstructor(argument) {
     return true;
   }
 };
-
-isConstructorLegacy.sham = true;
 
 // `IsConstructor` abstract operation
 // https://tc39.es/ecma262/#sec-isconstructor
