@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
@@ -34,20 +33,19 @@ var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
 var setInternalState = InternalStateModule.set;
 var getInternalParamsState = InternalStateModule.getterFor(URL_SEARCH_PARAMS);
 var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_ITERATOR);
-var create = Object.create;
 
 var nativeFetch = safeGetBuiltIn('fetch');
 var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
-var TypeError = globalThis.TypeError;
-var encodeURIComponent = globalThis.encodeURIComponent;
+var $TypeError = TypeError;
+var $encodeURIComponent = encodeURIComponent;
+var create = Object.create;
 var fromCharCode = String.fromCharCode;
 // dependency: es.string.from-code-point
 var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $parseInt = parseInt;
-var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -113,10 +111,10 @@ var decode = function (input) {
   var i = 0;
 
   while (i < length) {
-    var decodedChar = charAt(input, i);
+    var decodedChar = input[i];
 
     if (decodedChar === '%') {
-      if (charAt(input, i + 1) === '%' || i + 3 > length) {
+      if (input[i + 1] === '%' || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -148,7 +146,7 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length || charAt(input, i) !== '%') break;
+          if (i + 3 > length || input[i] !== '%') break;
 
           var nextByte = parseHexOctet(input, i + 1);
 
@@ -208,7 +206,7 @@ var replacer = function (match) {
 };
 
 var serialize = function (it) {
-  return replace(encodeURIComponent(it), find, replacer);
+  return replace($encodeURIComponent(it), find, replacer);
 };
 
 var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params, kind) {
@@ -239,7 +237,7 @@ var URLSearchParamsState = function (init) {
 
   if (init !== undefined) {
     if (isObject(init)) this.parseObject(init);
-    else this.parseQuery(typeof init == 'string' ? charAt(init, 0) === '?' ? stringSlice(init, 1) : init : $toString(init));
+    else this.parseQuery(typeof init == 'string' ? init && init[0] === '?' ? stringSlice(init, 1) : init : $toString(init));
   }
 };
 
@@ -265,7 +263,7 @@ URLSearchParamsState.prototype = {
           (first = call(entryNext, entryIterator)).done ||
           (second = call(entryNext, entryIterator)).done ||
           !call(entryNext, entryIterator).done
-        ) throw new TypeError('Expected sequence with length 2');
+        ) throw new $TypeError('Expected sequence with length 2');
         push(entries, { key: $toString(first.value), value: $toString(second.value) });
       }
     } else for (var key in object) if (hasOwn(object, key)) {
