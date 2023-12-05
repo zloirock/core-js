@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
-var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var createProperty = require('../internals/create-property');
 var setInternalState = require('../internals/internal-state').set;
@@ -10,7 +9,6 @@ var $SyntaxError = SyntaxError;
 var parse = JSON.parse;
 var create = Object.create;
 var freeze = Object.freeze;
-var at = uncurryThis(''.charAt);
 
 var ERROR_MESSAGE = 'Unacceptable as raw JSON';
 
@@ -24,7 +22,7 @@ var isWhitespace = function (it) {
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {
     var jsonString = toString(text);
-    if (jsonString === '' || isWhitespace(at(jsonString, 0)) || isWhitespace(at(jsonString, jsonString.length - 1))) {
+    if (jsonString === '' || isWhitespace(jsonString[0]) || isWhitespace(jsonString[jsonString.length - 1])) {
       throw new $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
