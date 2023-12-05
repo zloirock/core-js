@@ -904,10 +904,6 @@ export const features = {
     modules: ['es.number.epsilon'],
     template: $static({ namespace: 'Number', method: 'EPSILON' }),
   },
-  'number/from-string': {
-    modules: ['esnext.number.from-string'],
-    template: $static({ namespace: 'Number', method: 'fromString' }),
-  },
   'number/is-finite': {
     modules: ['es.number.is-finite'],
     template: $static({ namespace: 'Number', method: 'isFinite' }),
@@ -2113,13 +2109,6 @@ export const proposals = {
     stage: 1,
     modules: [
       'esnext.math.signbit',
-    ],
-  },
-  // https://github.com/tc39/proposal-number-fromstring
-  'number-from-string': {
-    stage: 1,
-    modules: [
-      'esnext.number.from-string',
     ],
   },
   // https://github.com/tc39/proposal-object-from-entries
