@@ -21,6 +21,7 @@
 - Relaxed some specific cases of [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring) validation before clarification of [proposal-number-fromstring/24](https://github.com/tc39/proposal-number-fromstring/issues/24)
 - Fixed `@@toStringTag` property descriptors on DOM collections, [#1312](https://github.com/zloirock/core-js/issues/1312)
 - Fixed the order of arguments validation in `Array` iteration methods, [#1313](https://github.com/zloirock/core-js/issues/1313)
+- Fixed `RegExp` named capture groups object prototype (should be `null`)
 - Some minor `atob` / `btoa` improvements
 - Compat data improvements:
   - [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers) marked as shipped from FF121

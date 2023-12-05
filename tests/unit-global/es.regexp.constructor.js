@@ -3,6 +3,8 @@
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
+const { getPrototypeOf } = Object;
+
 if (DESCRIPTORS) {
   QUnit.test('RegExp constructor', assert => {
     const Symbol = GLOBAL.Symbol || {};
@@ -80,6 +82,7 @@ if (DESCRIPTORS) {
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     assert.same(RegExp('(b)').exec('b').groups, undefined, 'NCG #2');
     const { groups } = RegExp('foo:(?<foo>\\w+),bar:(?<bar>\\w+)').exec('foo:abc,bar:def');
+    assert.same(getPrototypeOf(groups), null, 'null prototype');
     assert.deepEqual(groups, { foo: 'abc', bar: 'def' }, 'NCG #3');
     // fails in Safari
     // assert.same(Object.getPrototypeOf(groups), null, 'NCG #4');
