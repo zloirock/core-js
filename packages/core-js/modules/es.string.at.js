@@ -1,12 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
-var uncurryThis = require('../internals/function-uncurry-this');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toString = require('../internals/to-string');
 var fails = require('../internals/fails');
-
-var charAt = uncurryThis(''.charAt);
 
 var FORCED = fails(function () {
   // eslint-disable-next-line es/no-string-prototype-at -- safe
@@ -21,6 +18,6 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     var len = S.length;
     var relativeIndex = toIntegerOrInfinity(index);
     var k = relativeIndex >= 0 ? relativeIndex : len + relativeIndex;
-    return (k < 0 || k >= len) ? undefined : charAt(S, k);
+    return (k < 0 || k >= len) ? undefined : S[k];
   },
 });
