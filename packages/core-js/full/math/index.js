@@ -8,7 +8,6 @@ require('../../modules/esnext.math.fscale');
 require('../../modules/esnext.math.rad-per-deg');
 require('../../modules/esnext.math.radians');
 require('../../modules/esnext.math.scale');
-require('../../modules/esnext.math.signbit');
 require('../../modules/esnext.math.sum-precise');
 
 module.exports = parent;
