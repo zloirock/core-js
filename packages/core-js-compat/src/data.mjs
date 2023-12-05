@@ -2232,8 +2232,6 @@ export const data = {
   },
   'esnext.math.sum-precise': {
   },
-  'esnext.number.from-string': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
   'esnext.regexp.escape': {
