@@ -199,7 +199,6 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
       - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
-      - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
   - [Web standards](#web-standards)
     - [`self`](#self)
     - [`structuredClone`](#structuredclone)
@@ -3619,36 +3618,6 @@ core-js(-pure)/full/function/virtual/demethodize
 const slice = Array.prototype.slice.demethodize();
 
 slice([1, 2, 3], 1); // => [2, 3]
-```
-##### [`Function.{ isCallable, isConstructor }`](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)[⬆](#index)
-
-Modules [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js), [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js).
-```ts
-class Function {
-  static isCallable(value: any): boolean;
-  static isConstructor(value: any): boolean;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/function-is-callable-is-constructor
-core-js(-pure)/full/function/is-callable
-core-js(-pure)/full/function/is-constructor
-```
-[*Examples*](https://core-js.io/playground#code=%2F%2A+eslint-disable+prefer-arrow-callback+--+example+%2A%2F%0AFunction.isCallable%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isCallable%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isCallable%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true%0AFunction.isCallable%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0A%0AFunction.isConstructor%28null%29%3B++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28%7B%7D%29%3B++++++++++++++++++++++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28function+%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+%2F%2F+%3D%3E+true%0AFunction.isConstructor%28%28%29+%3D%3E+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+false%0AFunction.isConstructor%28class+%7B+%2F%2A+empty+%2A%2F+%7D%29%3B+++++++%2F%2F+%3D%3E+true):
-```js
-/* eslint-disable prefer-arrow-callback -- example */
-Function.isCallable(null);                        // => false
-Function.isCallable({});                          // => false
-Function.isCallable(function () { /* empty */ }); // => true
-Function.isCallable(() => { /* empty */ });       // => true
-Function.isCallable(class { /* empty */ });       // => false
-
-Function.isConstructor(null);                        // => false
-Function.isConstructor({});                          // => false
-Function.isConstructor(function () { /* empty */ }); // => true
-Function.isConstructor(() => { /* empty */ });       // => false
-Function.isConstructor(class { /* empty */ });       // => true
 ```
 
 ### Web standards[⬆](#index)
