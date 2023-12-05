@@ -795,10 +795,6 @@ export const features = {
     modules: ['es.math.cbrt'],
     template: $static({ namespace: 'Math', method: 'cbrt' }),
   },
-  'math/clamp': {
-    modules: ['esnext.math.clamp'],
-    template: $static({ namespace: 'Math', method: 'clamp' }),
-  },
   'math/clz32': {
     modules: ['es.math.clz32'],
     template: $static({ namespace: 'Math', method: 'clz32' }),
@@ -807,14 +803,6 @@ export const features = {
     modules: ['es.math.cosh'],
     template: $static({ namespace: 'Math', method: 'cosh' }),
   },
-  'math/deg-per-rad': {
-    modules: ['esnext.math.deg-per-rad'],
-    template: $static({ namespace: 'Math', method: 'DEG_PER_RAD' }),
-  },
-  'math/degrees': {
-    modules: ['esnext.math.degrees'],
-    template: $static({ namespace: 'Math', method: 'degrees' }),
-  },
   'math/expm1': {
     modules: ['es.math.expm1'],
     template: $static({ namespace: 'Math', method: 'expm1' }),
@@ -822,10 +810,6 @@ export const features = {
   'math/fround': {
     modules: ['es.math.fround'],
     template: $static({ namespace: 'Math', method: 'fround' }),
-  },
-  'math/fscale': {
-    modules: ['esnext.math.fscale'],
-    template: $static({ namespace: 'Math', method: 'fscale' }),
   },
   'math/f16round': {
     modules: ['esnext.math.f16round'],
@@ -850,18 +834,6 @@ export const features = {
   'math/log2': {
     modules: ['es.math.log2'],
     template: $static({ namespace: 'Math', method: 'log2' }),
-  },
-  'math/rad-per-deg': {
-    modules: ['esnext.math.rad-per-deg'],
-    template: $static({ namespace: 'Math', method: 'RAD_PER_DEG' }),
-  },
-  'math/radians': {
-    modules: ['esnext.math.radians'],
-    template: $static({ namespace: 'Math', method: 'radians' }),
-  },
-  'math/scale': {
-    modules: ['esnext.math.scale'],
-    template: $static({ namespace: 'Math', method: 'scale' }),
   },
   'math/sign': {
     modules: ['es.math.sign'],
@@ -2069,19 +2041,6 @@ export const proposals = {
     modules: [
       'esnext.map.emplace',
       'esnext.weak-map.emplace',
-    ],
-  },
-  // https://github.com/rwaldron/proposal-math-extensions
-  'math-extensions': {
-    stage: 1,
-    modules: [
-      'esnext.math.clamp',
-      'esnext.math.deg-per-rad',
-      'esnext.math.degrees',
-      'esnext.math.fscale',
-      'esnext.math.rad-per-deg',
-      'esnext.math.radians',
-      'esnext.math.scale',
     ],
   },
   // https://github.com/tc39/proposal-object-from-entries
