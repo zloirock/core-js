@@ -2439,8 +2439,6 @@ export const data = {
   },
   'esnext.number.clamp': {
   },
-  'esnext.number.from-string': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
   'esnext.set.add-all': {

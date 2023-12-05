@@ -741,7 +741,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
-    ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
     ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
@@ -843,7 +842,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/math-sum');
-  load('proposals/number-from-string');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');
