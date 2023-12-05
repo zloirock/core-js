@@ -1792,9 +1792,6 @@ GLOBAL.tests = {
   'esnext.math.sum-precise': function () {
     return Math.sumPrecise;
   },
-  'esnext.number.from-string': function () {
-    return Number.fromString;
-  },
   'esnext.regexp.escape': function () {
     return RegExp.escape('ab') === '\\x61b';
   },
