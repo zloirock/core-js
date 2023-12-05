@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var exec = uncurryThis(/./.exec);
 var numberToString = uncurryThis(1.1.toString);
@@ -29,7 +28,7 @@ $({ global: true }, {
     var index;
     var char, code;
     for (index = 0; index < length; index++) {
-      char = charAt(str, index);
+      char = str[index++];
       if (exec(raw, char)) {
         result[index] = char;
       } else {
