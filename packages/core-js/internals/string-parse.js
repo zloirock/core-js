@@ -77,7 +77,7 @@ module.exports = function (raw) {
       // Escaped line terminators just skip the char.
       case '\r':
         // Treat `\r\n` as a single terminator.
-        if (i < raw.length && charAt(raw, i) === '\n') ++i;
+        if (charAt(raw, i) === '\n') ++i;
       // break omitted
       case '\n':
       case '\u2028':
@@ -98,7 +98,7 @@ module.exports = function (raw) {
       // Unicode escapes contain either 4 chars, or an unlimited number between `{` and `}`.
       // The hex value must not overflow 0x10FFFF.
       case 'u':
-        if (i < raw.length && charAt(raw, i) === '{') {
+        if (charAt(raw, i) === '{') {
           var end = stringIndexOf(raw, '}', ++i);
           if (end === -1) return;
           n = parseHex(raw, i, end);
