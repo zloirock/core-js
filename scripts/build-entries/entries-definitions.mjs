@@ -867,10 +867,6 @@ export const features = {
     modules: ['es.math.sign'],
     template: $static({ namespace: 'Math', method: 'sign' }),
   },
-  'math/signbit': {
-    modules: ['esnext.math.signbit'],
-    template: $static({ namespace: 'Math', method: 'signbit' }),
-  },
   'math/sinh': {
     modules: ['es.math.sinh'],
     template: $static({ namespace: 'Math', method: 'sinh' }),
@@ -2086,13 +2082,6 @@ export const proposals = {
       'esnext.math.rad-per-deg',
       'esnext.math.radians',
       'esnext.math.scale',
-    ],
-  },
-  // https://github.com/tc39/proposal-Math.signbit
-  'math-signbit': {
-    stage: 1,
-    modules: [
-      'esnext.math.signbit',
     ],
   },
   // https://github.com/tc39/proposal-object-from-entries
