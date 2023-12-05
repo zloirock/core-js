@@ -14,7 +14,6 @@ var base64UrlAlphabet = base64Map.c2iUrl;
 
 var Uint8Array = global.Uint8Array;
 var SyntaxError = global.SyntaxError;
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
 var push = uncurryThis([].push);
@@ -50,7 +49,7 @@ if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
     var inputLength = input.length;
 
     var at = function (shift) {
-      var char = charAt(input, i + shift);
+      var char = input[i + shift];
       if (!hasOwn(alphabet, char)) throw new SyntaxError('Bad char in input: "' + char + '"');
       return alphabet[char] << (18 - 6 * shift);
     };
