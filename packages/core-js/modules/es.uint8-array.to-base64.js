@@ -2,8 +2,8 @@
 /* eslint-disable no-useless-assignment -- false positive for [index++] syntax */
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
+var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
 var base64Map = require('../internals/base64-map');
@@ -13,8 +13,6 @@ var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;
 var $floor = Math.floor;
 var $ceil = Math.ceil;
-
-var charAt = uncurryThis(''.charAt);
 
 var Uint8Array = globalThis.Uint8Array;
 var $Array = globalThis.Array;
@@ -46,7 +44,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
     var triplet;
 
     var at = function (shift) {
-      return charAt(alphabet, (triplet >> (6 * shift)) & 63);
+      return alphabet[(triplet >> (6 * shift)) & 63];
     };
 
     for (; i + 2 < length; i += 3) {

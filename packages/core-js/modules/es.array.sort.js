@@ -57,8 +57,8 @@ var STABLE_SORT = !fails(function () {
   test.sort(function (a, b) { return b.v - a.v; });
 
   for (index = 0; index < test.length; index++) {
-    char = test[index].k.charAt(0);
-    if (result.charAt(result.length - 1) !== char) result += char;
+    char = test[index].k[0];
+    if (result[result.length - 1] !== char) result += char;
   }
 
   return result !== 'DGBEFHACIJK';
