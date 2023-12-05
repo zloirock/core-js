@@ -2209,25 +2209,11 @@ export const data = {
   },
   'esnext.map.update': {
   },
-  'esnext.math.clamp': {
-  },
-  'esnext.math.deg-per-rad': {
-  },
-  'esnext.math.degrees': {
-  },
-  'esnext.math.fscale': {
-  },
   'esnext.math.f16round': {
     bun: '1.1.23',
     deno: '1.43',
     firefox: '129',
     safari: '18.2',
-  },
-  'esnext.math.rad-per-deg': {
-  },
-  'esnext.math.radians': {
-  },
-  'esnext.math.scale': {
   },
   'esnext.math.sum-precise': {
   },
