@@ -2450,10 +2450,6 @@ export const data = {
   'esnext.error.is-error': null,
   'esnext.function.demethodize': {
   },
-  'esnext.function.is-callable': {
-  },
-  'esnext.function.is-constructor': {
-  },
   'esnext.function.metadata': {
   },
   // TODO: Remove from `core-js@4`
