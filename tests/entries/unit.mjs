@@ -732,7 +732,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'math/rad-per-deg') === 180 / Math.PI);
     ok(load(NS, 'math/radians')(180) === Math.PI);
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
-    ok(load(NS, 'math/signbit')(-2) === true);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
@@ -837,7 +836,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/map-upsert');
   load('proposals/math-clamp');
   load('proposals/math-extensions');
-  load('proposals/math-signbit');
   load('proposals/math-sum');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');

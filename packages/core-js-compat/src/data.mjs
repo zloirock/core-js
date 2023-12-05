@@ -2427,8 +2427,6 @@ export const data = {
   },
   'esnext.math.scale': {
   },
-  'esnext.math.signbit': {
-  },
   'esnext.math.sum-precise': {
     bun: '1.2.18',
     firefox: '137',

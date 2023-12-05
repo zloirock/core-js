@@ -1892,9 +1892,6 @@ GLOBAL.tests = {
   'esnext.math.scale': function () {
     return Math.scale;
   },
-  'esnext.math.signbit': function () {
-    return Math.signbit;
-  },
   'esnext.math.sum-precise': function () {
     return Math.sumPrecise;
   },
