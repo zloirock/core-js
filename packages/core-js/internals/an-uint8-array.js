@@ -1,5 +1,5 @@
 'use strict';
-var classof = require('../internals/classof-raw');
+var classof = require('../internals/classof');
 
 var $TypeError = TypeError;
 
