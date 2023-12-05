@@ -11,7 +11,6 @@ var $TypeError = TypeError;
 var $parseInt = parseInt;
 var pow = Math.pow;
 var valid = /^[\d.a-z]+$/;
-var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(valid.exec);
 var numberToString = uncurryThis(1.1.toString);
 var stringSlice = uncurryThis(''.slice);
@@ -24,7 +23,7 @@ $({ target: 'Number', stat: true, forced: true }, {
     var sign = 1;
     if (typeof string != 'string') throw new $TypeError(INVALID_NUMBER_REPRESENTATION);
     if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
-    if (charAt(string, 0) === '-') {
+    if (string[0] === '-') {
       sign = -1;
       string = stringSlice(string, 1);
       if (!string.length) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
