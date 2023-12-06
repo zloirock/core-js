@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import __defineGetter__ from '@core-js/pure/es/object/define-getter';
 import __defineSetter__ from '@core-js/pure/es/object/define-setter';
 
@@ -14,8 +12,7 @@ QUnit.test('Object#__defineGetter__', assert => {
   object.key = 44;
   assert.same(object.key, 42, 'works with setter #1');
   assert.same(object.foo, 43, 'works with setter #2');
-  if (STRICT) {
-    assert.throws(() => __defineGetter__(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
-    assert.throws(() => __defineGetter__(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
-  }
+
+  assert.throws(() => __defineGetter__(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
+  assert.throws(() => __defineGetter__(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
 });

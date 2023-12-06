@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Promise from '@core-js/pure/es/promise';
 import Set from '@core-js/pure/es/set';
 import Iterator from '@core-js/pure/actual/iterator';
@@ -11,10 +9,8 @@ QUnit.test('Iterator#toAsync', assert => {
   assert.isFunction(toAsync);
   assert.arity(toAsync, 0);
 
-  if (STRICT) {
-    assert.throws(() => toAsync.call(undefined), TypeError);
-    assert.throws(() => toAsync.call(null), TypeError);
-  }
+  assert.throws(() => toAsync.call(undefined), TypeError);
+  assert.throws(() => toAsync.call(null), TypeError);
 
   return Iterator.from([1, 2, 3]).toAsync().map(it => Promise.resolve(it)).toArray().then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
