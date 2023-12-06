@@ -910,7 +910,7 @@ export const features = {
     enforce: true,
   },
   'object/define-property': {
-    modules: ['es.object.define-property'],
+    modules: [],
     template: $patchableStatic({ namespace: 'Object', method: 'defineProperty' }),
   },
   'object/define-properties': {
