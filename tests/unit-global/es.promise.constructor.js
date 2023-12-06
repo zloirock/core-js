@@ -1,4 +1,4 @@
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 const { setPrototypeOf, create } = Object;
@@ -14,7 +14,7 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    if (STRICT) assert.same(this, undefined, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
 });
 
