@@ -272,14 +272,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '12.0',
   },
-  'es.array.for-each': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.array.from': {
     chrome: '51',
     edge: '15',
