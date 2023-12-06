@@ -1847,9 +1847,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return false;
     }
   },
-  'es.unescape': function () {
-    return unescape;
-  },
   'es.weak-map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = Object.freeze([]);
     var called = 0;
