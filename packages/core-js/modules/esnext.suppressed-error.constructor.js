@@ -2,28 +2,18 @@
 var $ = require('../internals/export');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var installErrorStack = require('../internals/error-stack-install');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
-var wellKnownSymbol = require('../internals/well-known-symbol');
 
-var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
 
 var $SuppressedError = function SuppressedError(error, suppressed, message) {
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
-  var that;
-  if (setPrototypeOf) {
-    that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
-  } else {
-    that = isInstance ? this : create(SuppressedErrorPrototype);
-    // dependency: es.object.to-string
-    createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
-  }
+  var that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
   installErrorStack(that, $SuppressedError, that.stack, 1);
   createNonEnumerableProperty(that, 'error', error);
@@ -31,8 +21,7 @@ var $SuppressedError = function SuppressedError(error, suppressed, message) {
   return that;
 };
 
-if (setPrototypeOf) setPrototypeOf($SuppressedError, $Error);
-else copyConstructorProperties($SuppressedError, $Error, { name: true });
+setPrototypeOf($SuppressedError, $Error);
 
 var SuppressedErrorPrototype = $SuppressedError.prototype = create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $SuppressedError),
