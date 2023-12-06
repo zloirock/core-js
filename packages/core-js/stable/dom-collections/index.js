@@ -1,5 +1,4 @@
 'use strict';
-require('../../modules/es.array.for-each');
 require('../../modules/es.array.iterator');
 require('../../modules/es.object.to-string');
 require('../../modules/web.dom-collections.for-each');
