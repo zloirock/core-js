@@ -1996,9 +1996,6 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.string.code-points': function () {
-    return String.prototype.codePoints;
-  },
   'esnext.string.cooked': function () {
     return String.cooked;
   },
