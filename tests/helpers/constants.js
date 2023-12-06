@@ -47,9 +47,6 @@ export const LITTLE_ENDIAN = (() => {
   }
 })();
 
-// eslint-disable-next-line es/no-object-setprototypeof -- detection
-export const PROTO = !!Object.setPrototypeOf || '__proto__' in Object.prototype;
-
 export let REDEFINABLE_PROTO = false;
 
 try {
