@@ -1,6 +1,4 @@
 /* eslint-disable prefer-regex-literals, regexp/sort-flags, regexp/no-useless-flag -- required for testing */
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('RegExp#toString', assert => {
   const { toString } = RegExp.prototype;
   assert.isFunction(toString);
@@ -23,13 +21,12 @@ QUnit.test('RegExp#toString', assert => {
     flags: 'bar',
   }), '/foo/bar');
   assert.same(toString.call({}), '/undefined/undefined');
-  if (STRICT) {
-    assert.throws(() => toString.call(7));
-    assert.throws(() => toString.call('a'));
-    assert.throws(() => toString.call(false));
-    assert.throws(() => toString.call(null));
-    assert.throws(() => toString.call(undefined));
-  }
+
+  assert.throws(() => toString.call(7));
+  assert.throws(() => toString.call('a'));
+  assert.throws(() => toString.call(false));
+  assert.throws(() => toString.call(null));
+  assert.throws(() => toString.call(undefined));
 
   assert.throws(() => toString.call({
     source: Symbol('RegExp#toString test'),

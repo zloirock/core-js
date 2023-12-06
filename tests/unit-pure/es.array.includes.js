@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import includes from '@core-js/pure/es/array/includes';
 
 QUnit.test('Array#includes', assert => {
@@ -15,8 +13,7 @@ QUnit.test('Array#includes', assert => {
   assert.false(includes(array, {}));
   assert.true(includes(Array(1), undefined));
   assert.true(includes([NaN], NaN));
-  if (STRICT) {
-    assert.throws(() => includes(null, 0), TypeError);
-    assert.throws(() => includes(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => includes(null, 0), TypeError);
+  assert.throws(() => includes(undefined, 0), TypeError);
 });
