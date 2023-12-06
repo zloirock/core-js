@@ -430,13 +430,6 @@ GLOBAL.tests = {
   'es.array.copy-within': function () {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
-  'es.array.every': function () {
-    try {
-      Array.prototype.every.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.every;
-  },
   'es.array.fill': function () {
     return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
   },
