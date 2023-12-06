@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import replaceAll from '@core-js/pure/es/string/replace-all';
 
@@ -36,10 +34,8 @@ QUnit.test('String#replaceAll', assert => {
   assert.throws(() => replaceAll('a', symbol, 'b'), 'throws on symbol argument 1');
   assert.throws(() => replaceAll('a', 'b', symbol), 'throws on symbol argument 2');
 
-  if (STRICT) {
-    assert.throws(() => replaceAll(null, 'a', 'b'), TypeError);
-    assert.throws(() => replaceAll(undefined, 'a', 'b'), TypeError);
-  }
+  assert.throws(() => replaceAll(null, 'a', 'b'), TypeError);
+  assert.throws(() => replaceAll(undefined, 'a', 'b'), TypeError);
 
   assert.throws(() => replaceAll('b.b.b.b.b', /\./, 'a'), TypeError);
   assert.same(replaceAll('b.b.b.b.b', /\./g, 'a'), 'babababab');

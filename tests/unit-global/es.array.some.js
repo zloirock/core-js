@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#some', assert => {
   const { some } = Array.prototype;
   assert.isFunction(some);
@@ -31,8 +29,7 @@ QUnit.test('Array#some', assert => {
   assert.same(result, '012');
   array = [1, 2, 3];
   assert.false(array.some((value, key, that) => that !== array));
-  if (STRICT) {
-    assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
-  }
+
+  assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
 });

@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#toWellFormed', assert => {
   const { toWellFormed } = String.prototype;
   assert.isFunction(toWellFormed);
@@ -31,10 +29,8 @@ QUnit.test('String#toWellFormed', assert => {
 
   assert.same(toWellFormed.call(1), '1', 'conversion #2');
 
-  if (STRICT) {
-    assert.throws(() => toWellFormed.call(null), TypeError, 'coercible #1');
-    assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');
-  }
+  assert.throws(() => toWellFormed.call(null), TypeError, 'coercible #1');
+  assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');
 
   assert.throws(() => toWellFormed.call(Symbol('toWellFormed test')), 'throws on symbol context');
 });

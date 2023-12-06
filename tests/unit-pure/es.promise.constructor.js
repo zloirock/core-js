@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 import Promise from '@core-js/pure/es/promise';
 import Symbol from '@core-js/pure/es/symbol';
@@ -10,7 +10,7 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    if (STRICT) assert.same(this, undefined, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
   assert.throws(() => {
     // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing

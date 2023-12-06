@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 import Iterator from '@core-js/pure/es/iterator';
@@ -17,10 +16,8 @@ QUnit.test('Iterator#take', assert => {
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), 0).toArray(), [], 'zero');
   assert.arrayEqual(take.call(createIterator([1, 2, 3]), Infinity).toArray(), [1, 2, 3], 'Infinity');
 
-  if (STRICT) {
-    assert.throws(() => take.call(undefined, 1), TypeError);
-    assert.throws(() => take.call(null, 1), TypeError);
-  }
+  assert.throws(() => take.call(undefined, 1), TypeError);
+  assert.throws(() => take.call(null, 1), TypeError);
 
   assert.throws(() => take.call({}, 1).next(), TypeError);
   assert.throws(() => take.call([], 1).next(), TypeError);

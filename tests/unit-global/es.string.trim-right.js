@@ -1,5 +1,5 @@
 /* eslint-disable unicorn/prefer-string-trim-start-end -- required for testing */
-import { STRICT, WHITESPACES } from '../helpers/constants.js';
+import { WHITESPACES } from '../helpers/constants.js';
 
 QUnit.test('String#trimRight', assert => {
   const { trimRight } = String.prototype;
@@ -14,8 +14,6 @@ QUnit.test('String#trimRight', assert => {
 
   assert.throws(() => trimRight.call(Symbol('trimRight test')), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => trimRight.call(null, 0), TypeError);
-    assert.throws(() => trimRight.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => trimRight.call(null, 0), TypeError);
+  assert.throws(() => trimRight.call(undefined, 0), TypeError);
 });

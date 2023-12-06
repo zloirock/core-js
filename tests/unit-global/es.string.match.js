@@ -1,6 +1,6 @@
 // TODO: fix escaping in regexps
 /* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -196,9 +196,10 @@ QUnit.test('RegExp#@@match basic behavior', assert => {
 });
 
 QUnit.test('String#match delegates to @@match', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-array-prototype-properties -- @@match */
   object[Symbol.match] = function (it) {
     return { value: it };
   };
@@ -210,6 +211,7 @@ QUnit.test('String#match delegates to @@match', assert => {
   };
   assert.same(string.match(regexp).value, string);
   assert.same(''.match.call(number, regexp).value, number);
+  /* eslint-enable es/no-nonstandard-array-prototype-properties -- @@match */
 });
 
 QUnit.test('RegExp#@@match delegates to exec', assert => {
