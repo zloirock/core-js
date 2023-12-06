@@ -4,6 +4,8 @@ var fails = require('../internals/fails');
 var toObject = require('../internals/to-object');
 var toPrimitive = require('../internals/to-primitive');
 
+var $isFinite = isFinite;
+
 var FORCED = fails(function () {
   return new Date(NaN).toJSON() !== null
     || Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) !== 1;
@@ -16,6 +18,6 @@ $({ target: 'Date', proto: true, arity: 1, forced: FORCED }, {
   toJSON: function toJSON(key) {
     var O = toObject(this);
     var pv = toPrimitive(O, 'number');
-    return typeof pv == 'number' && !isFinite(pv) ? null : O.toISOString();
+    return typeof pv == 'number' && !$isFinite(pv) ? null : O.toISOString();
   },
 });
