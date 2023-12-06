@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
@@ -28,10 +28,8 @@ QUnit.test('String#startsWith', assert => {
     assert.throws(() => startsWith.call('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => startsWith.call(null, '.'), TypeError);
-    assert.throws(() => startsWith.call(undefined, '.'), TypeError);
-  }
+  assert.throws(() => startsWith.call(null, '.'), TypeError);
+  assert.throws(() => startsWith.call(undefined, '.'), TypeError);
 
   const regexp = /./;
   assert.throws(() => '/./'.startsWith(regexp), TypeError);

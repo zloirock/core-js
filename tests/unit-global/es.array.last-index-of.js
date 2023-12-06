@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#lastIndexOf', assert => {
   const { lastIndexOf } = Array.prototype;
   assert.isFunction(lastIndexOf);
@@ -16,8 +14,7 @@ QUnit.test('Array#lastIndexOf', assert => {
   assert.same(-1, [NaN].lastIndexOf(NaN));
   assert.same(1, [1, 2, 3].concat(Array(2)).lastIndexOf(2));
   assert.same(0, [1].lastIndexOf(1, -0), "shouldn't return negative zero");
-  if (STRICT) {
-    assert.throws(() => lastIndexOf.call(null, 0), TypeError);
-    assert.throws(() => lastIndexOf.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => lastIndexOf.call(null, 0), TypeError);
+  assert.throws(() => lastIndexOf.call(undefined, 0), TypeError);
 });

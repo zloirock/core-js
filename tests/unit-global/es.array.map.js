@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#map', assert => {
   const { map } = Array.prototype;
   assert.isFunction(map);
@@ -21,10 +19,10 @@ QUnit.test('Array#map', assert => {
   assert.deepEqual([2, 2, 2], [1, 2, 3].map(function () {
     return +this;
   }, 2));
-  if (STRICT) {
-    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
-    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-  }
+
+  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {
