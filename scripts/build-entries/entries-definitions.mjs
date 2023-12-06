@@ -234,14 +234,6 @@ export const features = {
     modules: ['es.array.slice'],
     template: $virtual({ namespace: 'Array', method: 'slice' }),
   },
-  'array/some': {
-    modules: ['es.array.some'],
-    template: $prototype({ namespace: 'Array', method: 'some' }),
-  },
-  'array/virtual/some': {
-    modules: ['es.array.some'],
-    template: $virtual({ namespace: 'Array', method: 'some' }),
-  },
   'array/sort': {
     modules: ['es.array.sort'],
     template: $prototype({ namespace: 'Array', method: 'sort' }),
