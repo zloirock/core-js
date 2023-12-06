@@ -156,9 +156,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'error/is-error')(new Error()));
-    ok(load(NS, 'error/to-string')(new Error('a')) === 'Error: a');
-    ok(load(NS, 'error/to-string')({ name: 'Custom', message: 'a' }) === 'Custom: a');
-    throws(() => load(NS, 'error/to-string')(null), TypeError);
     ok(new (load(NS, 'error').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));

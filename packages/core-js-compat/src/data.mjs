@@ -162,14 +162,6 @@ export const data = {
     rhino: '1.9.0',
     safari: '27.3',
   },
-  'es.error.to-string': {
-    chrome: '33',
-    firefox: '11',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '8.0',
-  },
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
