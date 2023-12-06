@@ -1,6 +1,5 @@
 'use strict';
 require('../../modules/es.object.assign');
-require('../../modules/es.object.define-properties');
 require('../../modules/es.object.entries');
 require('../../modules/es.object.freeze');
 require('../../modules/es.object.from-entries');
