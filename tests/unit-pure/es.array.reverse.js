@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import reverse from '@core-js/pure/es/array/reverse';
 
 QUnit.test('Array#reverse', assert => {
@@ -11,8 +9,7 @@ QUnit.test('Array#reverse', assert => {
   }
   fn();
   assert.arrayEqual(a, [3.3, 2.2, 1]);
-  if (STRICT) {
-    assert.throws(() => reverse(null, () => { /* empty */ }, 1), TypeError);
-    assert.throws(() => reverse(undefined, () => { /* empty */ }, 1), TypeError);
-  }
+
+  assert.throws(() => reverse(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reverse(undefined, () => { /* empty */ }, 1), TypeError);
 });
