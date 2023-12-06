@@ -42,12 +42,6 @@ var IS_DENO = typeof Deno == 'object' && Deno && typeof Deno.version == 'object'
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
-var DESCRIPTORS_SUPPORT = function () {
-  return Object.defineProperty({}, 'a', {
-    get: function () { return 7; },
-  }).a === 7;
-};
-
 var PROMISES_SUPPORT = function () {
   var promise = new Promise(function (resolve) { resolve(1); });
   var empty = function () { /* empty */ };
@@ -772,7 +766,7 @@ GLOBAL.tests = {
     }
   },
   'es.object.assign': function () {
-    if (DESCRIPTORS_SUPPORT && Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
+    if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
       enumerable: true,
       get: function () {
         Object.defineProperty(this, 'b', {
@@ -790,10 +784,12 @@ GLOBAL.tests = {
     return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
+  'es.object.define-properties': function () {
     return Object.defineProperties;
-  }],
-  'es.object.define-property': DESCRIPTORS_SUPPORT,
+  },
+  'es.object.define-property': function () {
+    return Object.defineProperty;
+  },
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
@@ -804,9 +800,9 @@ GLOBAL.tests = {
   'es.object.from-entries': function () {
     return Object.fromEntries;
   },
-  'es.object.get-own-property-descriptor': [DESCRIPTORS_SUPPORT, function () {
+  'es.object.get-own-property-descriptor': function () {
     return Object.getOwnPropertyDescriptor('qwe', '0');
-  }],
+  },
   'es.object.get-own-property-descriptors': function () {
     return Object.getOwnPropertyDescriptors;
   },
@@ -1846,7 +1842,6 @@ GLOBAL.tests = {
   'web.self': function () {
     // eslint-disable-next-line no-restricted-globals -- safe
     if (self !== GLOBAL) return false;
-    if (!DESCRIPTORS_SUPPORT) return true;
     var descriptor = Object.getOwnPropertyDescriptor(GLOBAL, 'self');
     return descriptor.get && descriptor.enumerable;
   },
