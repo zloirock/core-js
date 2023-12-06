@@ -707,9 +707,6 @@ GLOBAL.tests = {
   'es.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
   },
-  'es.escape': function () {
-    return escape;
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],
