@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import lastIndexOf from '@core-js/pure/es/array/last-index-of';
 
 QUnit.test('Array#lastIndexOf', assert => {
@@ -13,8 +11,7 @@ QUnit.test('Array#lastIndexOf', assert => {
   assert.same(-1, lastIndexOf([NaN], NaN));
   assert.same(1, lastIndexOf([1, 2, 3].concat(Array(2)), 2));
   assert.same(0, lastIndexOf([1], 1, -0), "shouldn't return negative zero");
-  if (STRICT) {
-    assert.throws(() => lastIndexOf(null, 0), TypeError);
-    assert.throws(() => lastIndexOf(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => lastIndexOf(null, 0), TypeError);
+  assert.throws(() => lastIndexOf(undefined, 0), TypeError);
 });
