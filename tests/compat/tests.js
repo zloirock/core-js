@@ -473,13 +473,6 @@ GLOBAL.tests = {
   'es.array.flat-map': function () {
     return Array.prototype.flatMap;
   },
-  'es.array.for-each': function () {
-    try {
-      Array.prototype.forEach.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.forEach;
-  },
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
     return Array(1).includes()
