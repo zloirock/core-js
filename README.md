@@ -1222,11 +1222,10 @@ Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
 #### ECMAScript: Date[⬆](#index)
 ES5 features with fixes. Modules: [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js).
 
-Annex B methods. Modules: [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js), [`es.date.set-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.set-year.js).
+Annex B methods. Modules: [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js).
 ```ts
 class Date {
   getYear(): int;
-  setYear(year: int): number;
   toJSON(): string;
   @@toPrimitive(hint: 'default' | 'number' | 'string'): string | number;
   static now(): number;
@@ -1235,9 +1234,7 @@ class Date {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/es|stable|actual|full/date
-core-js(-pure)/es|stable|actual|full/date/now
 core-js(-pure)/es|stable|actual|full/date/get-year
-core-js(-pure)/es|stable|actual|full/date/set-year
 core-js(-pure)/es|stable|actual|full/date/to-json
 core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
