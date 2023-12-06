@@ -965,13 +965,6 @@ GLOBAL.tests = {
         && 1000000000000000128.0.toFixed(0) === '1000000000000000128';
     }
   },
-  'es.number.to-precision': function () {
-    try {
-      Number.prototype.toPrecision.call({});
-    } catch (error) {
-      return 1.0.toPrecision(undefined) === '1';
-    }
-  },
   'es.object.assign': function () {
     if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
       enumerable: true,
