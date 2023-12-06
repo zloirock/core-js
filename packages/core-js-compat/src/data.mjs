@@ -1174,18 +1174,6 @@ export const data = {
     rhino: '1.8.1', // '1.7.13',
     safari: '13.1', // '7.1',
   },
-  'es.number.to-precision': {
-    // up to 100 digits
-    chrome: '62', // '26',
-    // rounding of exact integer ties
-    firefox: '87', // '4',
-    hermes: '0.1.1', // '0.1',
-    // ie: '8',
-    // Rhino 1.8.1+ loses digits of numbers with leading zeros, Rhino 1.8.0- has broken subnormals
-    // https://github.com/mozilla/rhino/issues/2586
-    // rhino: '1.7.13',
-    safari: '13.1', // '7.1',
-  },
   'es.object.assign': {
     chrome: '49',
     // order of operations bug

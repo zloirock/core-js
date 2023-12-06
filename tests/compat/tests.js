@@ -1172,25 +1172,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
         && 5.054e-321.toFixed(0) === '0';
     }
   },
-  'es.number.to-precision': function () {
-    try {
-      Number.prototype.toPrecision.call({});
-    } catch (error) {
-      Infinity.toPrecision(Infinity);
-      NaN.toPrecision(Infinity);
-      1.0.toPrecision(100);
-      return 1.0.toPrecision(undefined) === '1'
-        // IE11-, Chakra-based Edge
-        && 1.255.toPrecision(3) === '1.25'
-        // FF86-
-        && (12345).toPrecision(4) === '1.235e+4'
-        && (25).toPrecision(1) === '3e+1'
-        // Rhino 1.8.1+
-        && 0.03125.toPrecision(21) === '0.0312500000000000000000'
-        // Rhino 1.8.0-
-        && 2.5e-323.toPrecision(1) === '2e-323';
-    }
-  },
   'es.object.assign': function () {
     if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
       enumerable: true,
