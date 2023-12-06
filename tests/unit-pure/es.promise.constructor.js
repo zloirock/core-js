@@ -1,4 +1,4 @@
-import { GLOBAL, PROTO, STRICT } from '../helpers/constants.js';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
 
 import Promise from '@core-js/pure/es/promise';
 import Symbol from '@core-js/pure/es/symbol';
@@ -117,7 +117,7 @@ QUnit.test('Promise#@@toStringTag', assert => {
   assert.same(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
 });
 
-if (PROTO) QUnit.test('Promise subclassing', assert => {
+QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);
