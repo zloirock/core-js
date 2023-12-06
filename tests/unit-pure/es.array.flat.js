@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import flat from '@core-js/pure/es/array/flat';
 
 QUnit.test('Array#flat', assert => {
@@ -13,10 +11,10 @@ QUnit.test('Array#flat', assert => {
   assert.deepEqual(flat(array, 3), [1, 2, 3, 4, 5, 6]);
   assert.deepEqual(flat(array, -1), array);
   assert.deepEqual(flat(array, Infinity), [1, 2, 3, 4, 5, 6]);
-  if (STRICT) {
-    assert.throws(() => flat(null), TypeError);
-    assert.throws(() => flat(undefined), TypeError);
-  }
+
+  assert.throws(() => flat(null), TypeError);
+  assert.throws(() => flat(undefined), TypeError);
+
   assert.notThrows(() => flat(Object.defineProperty({ length: -1 }, 0, {
     get() {
       throw new Error();
