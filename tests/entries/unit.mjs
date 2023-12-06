@@ -304,7 +304,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'regexp/test')(/a/, 'cat') === true);
     ok(load(NS, 'regexp/test')(/a/, 'dog') === false);
     load(NS, 'regexp');
-    ok(load(NS, 'unescape')('%21q2%u0444') === '!q2ф');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
