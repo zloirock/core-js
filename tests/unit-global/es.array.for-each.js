@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#forEach', assert => {
   const { forEach } = Array.prototype;
   assert.isFunction(forEach);
@@ -43,12 +41,11 @@ QUnit.test('Array#forEach', assert => {
     result += key;
   });
   assert.same(result, '5');
-  if (STRICT) {
-    assert.throws(() => {
-      forEach.call(null, () => { /* empty */ });
-    }, TypeError);
-    assert.throws(() => {
-      forEach.call(undefined, () => { /* empty */ });
-    }, TypeError);
-  }
+
+  assert.throws(() => {
+    forEach.call(null, () => { /* empty */ });
+  }, TypeError);
+  assert.throws(() => {
+    forEach.call(undefined, () => { /* empty */ });
+  }, TypeError);
 });

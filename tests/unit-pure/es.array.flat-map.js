@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import flatMap from '@core-js/pure/es/array/flat-map';
 
 QUnit.test('Array#flatMap', assert => {
@@ -19,10 +17,10 @@ QUnit.test('Array#flatMap', assert => {
     assert.same(this, context, 'correct callback context');
     return value;
   }, context);
-  if (STRICT) {
-    assert.throws(() => flatMap(null, it => it), TypeError);
-    assert.throws(() => flatMap(undefined, it => it), TypeError);
-  }
+
+  assert.throws(() => flatMap(null, it => it), TypeError);
+  assert.throws(() => flatMap(undefined, it => it), TypeError);
+
   assert.notThrows(() => flatMap({ length: -1 }, () => {
     throw new Error();
   }).length === 0, 'uses ToLength');

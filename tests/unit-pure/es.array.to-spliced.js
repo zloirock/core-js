@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import toSpliced from '@core-js/pure/es/array/to-spliced';
 
@@ -14,10 +12,8 @@ QUnit.test('Array#toSpliced', assert => {
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2, -2), [1, 2, 3, 4, 5]);
   assert.deepEqual(toSpliced([1, 2, 3, 4, 5], 2, 2, 6, 7), [1, 2, 6, 7, 5]);
 
-  if (STRICT) {
-    assert.throws(() => toSpliced(null), TypeError);
-    assert.throws(() => toSpliced(undefined), TypeError);
-  }
+  assert.throws(() => toSpliced(null), TypeError);
+  assert.throws(() => toSpliced(undefined), TypeError);
 
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor

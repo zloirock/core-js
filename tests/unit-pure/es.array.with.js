@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import withAt from '@core-js/pure/es/array/with';
 
@@ -15,10 +13,8 @@ QUnit.test('Array#with', assert => {
   assert.throws(() => withAt([1, 2, 3, 4, 5], 5, 6), RangeError);
   assert.throws(() => withAt([1, 2, 3, 4, 5], -6, 6), RangeError);
 
-  if (STRICT) {
-    assert.throws(() => withAt(null, 1, 2), TypeError);
-    assert.throws(() => withAt(undefined, 1, 2), TypeError);
-  }
+  assert.throws(() => withAt(null, 1, 2), TypeError);
+  assert.throws(() => withAt(undefined, 1, 2), TypeError);
 
   array = [1, 2];
   // eslint-disable-next-line object-shorthand -- constructor
