@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import assign from '@core-js/pure/es/object/assign';
 import matchAll from '@core-js/pure/es/string/match-all';
@@ -98,7 +96,7 @@ QUnit.test('String#matchAll', assert => {
     value: undefined,
     done: true,
   });
-  /* IE8- issue
+
   iterator = matchAll('abc', /\B/g);
   assert.isIterator(iterator);
   assert.isIterable(iterator);
@@ -120,7 +118,7 @@ QUnit.test('String#matchAll', assert => {
     value: undefined,
     done: true,
   });
-  */
+
   data = [null, undefined, NaN, 42, {}, []];
   for (const target of data) {
     assert.notThrows(() => matchAll('', target), `Not throws on ${ target } as the first argument`);
@@ -132,8 +130,6 @@ QUnit.test('String#matchAll', assert => {
     assert.throws(() => matchAll('a', Symbol('matchAll test')), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
-    assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');
-  }
+  assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
+  assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');
 });

@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 const { from } = Array;
@@ -26,12 +25,10 @@ QUnit.test('Iterator#sliding', assert => {
   assert.deepEqual(result.return(), { done: true, value: undefined }, '.return with active inner iterator result');
   assert.deepEqual(result.next(), { done: true, value: undefined }, '.next on closed iterator');
 
-  if (STRICT) {
-    assert.throws(() => sliding.call('', 1), TypeError, 'iterable non-object this');
-    assert.throws(() => sliding.call(undefined, 1), TypeError, 'non-iterable-object this #1');
-    assert.throws(() => sliding.call(null, 1), TypeError, 'non-iterable-object this #2');
-    assert.throws(() => sliding.call(5, 1), TypeError, 'non-iterable-object this #3');
-  }
+  assert.throws(() => sliding.call('', 1), TypeError, 'iterable non-object this');
+  assert.throws(() => sliding.call(undefined, 1), TypeError, 'non-iterable-object this #1');
+  assert.throws(() => sliding.call(null, 1), TypeError, 'non-iterable-object this #2');
+  assert.throws(() => sliding.call(5, 1), TypeError, 'non-iterable-object this #3');
 
   assert.throws(() => sliding.call(it), RangeError, 'throws on empty argument');
   assert.throws(() => sliding.call(it, -1), RangeError, 'throws on negative argument');

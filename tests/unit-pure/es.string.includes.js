@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import includes from '@core-js/pure/es/string/includes';
 
@@ -16,10 +14,8 @@ QUnit.test('String#includes', assert => {
     assert.throws(() => includes('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => includes(null, '.'), TypeError);
-    assert.throws(() => includes(undefined, '.'), TypeError);
-  }
+  assert.throws(() => includes(null, '.'), TypeError);
+  assert.throws(() => includes(undefined, '.'), TypeError);
 
   const re = /./;
   assert.throws(() => includes('/./', re), TypeError);

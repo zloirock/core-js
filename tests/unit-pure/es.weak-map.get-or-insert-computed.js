@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import WeakMap from '@core-js/pure/es/weak-map';
 
 QUnit.test('WeakMap#getOrInsertComputed', assert => {
@@ -24,7 +23,7 @@ QUnit.test('WeakMap#getOrInsertComputed', assert => {
 
   map = new WeakMap([[a, 2]]);
   map.getOrInsertComputed(b, function (key) {
-    if (STRICT) assert.same(this, undefined, 'correct handler in callback');
+    assert.same(this, undefined, 'correct handler in callback');
     assert.same(arguments.length, 1, 'correct number of callback arguments');
     assert.same(key, b, 'correct key in callback');
   });

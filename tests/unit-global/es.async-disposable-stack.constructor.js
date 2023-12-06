@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('AsyncDisposableStack constructor', assert => {
   assert.isFunction(AsyncDisposableStack);
   assert.arity(AsyncDisposableStack, 0);
@@ -58,7 +56,7 @@ QUnit.test('AsyncDisposableStack#adopt', assert => {
 
   assert.same(stack.adopt(resource, function (arg) {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 1);
     assert.same(arg, resource);
   }), resource);
@@ -81,7 +79,7 @@ QUnit.test('AsyncDisposableStack#defer', assert => {
 
   assert.same(stack.defer(function () {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 0);
   }), undefined);
 

@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Date#@@toPrimitive', assert => {
   const toPrimitive = Date.prototype[Symbol.toPrimitive];
   assert.isFunction(toPrimitive);
@@ -16,10 +14,9 @@ QUnit.test('Date#@@toPrimitive', assert => {
   for (const value of data) {
     assert.throws(() => new Date()[Symbol.toPrimitive](value), TypeError, `throws on ${ value } as a hint`);
   }
-  if (STRICT) {
-    data = [1, false, 'string', null, undefined];
-    for (const value of data) {
-      assert.throws(() => toPrimitive.call(value, 'string'), TypeError, `throws on ${ value } as \`this\``);
-    }
+
+  data = [1, false, 'string', null, undefined];
+  for (const value of data) {
+    assert.throws(() => toPrimitive.call(value, 'string'), TypeError, `throws on ${ value } as \`this\``);
   }
 });
