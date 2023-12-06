@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import at from '@core-js/pure/es/array/at';
 
 QUnit.test('Array#at', assert => {
@@ -20,8 +18,7 @@ QUnit.test('Array#at', assert => {
   assert.same(1, at([1, 2, 3], -0));
   assert.same(undefined, at(Array(1), 0));
   assert.same(1, at({ 0: 1, length: 1 }, 0));
-  if (STRICT) {
-    assert.throws(() => at(null, 0), TypeError);
-    assert.throws(() => at(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => at(null, 0), TypeError);
+  assert.throws(() => at(undefined, 0), TypeError);
 });

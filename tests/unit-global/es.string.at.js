@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#at', assert => {
   const { at } = String.prototype;
   assert.isFunction(at);
@@ -26,8 +24,6 @@ QUnit.test('String#at', assert => {
 
   assert.throws(() => at.call(Symbol('at test'), 0), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => at.call(null, 0), TypeError);
-    assert.throws(() => at.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => at.call(null, 0), TypeError);
+  assert.throws(() => at.call(undefined, 0), TypeError);
 });

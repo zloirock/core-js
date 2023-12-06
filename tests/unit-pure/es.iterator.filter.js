@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import Iterator from '@core-js/pure/es/iterator';
 import from from '@core-js/pure/es/array/from';
@@ -14,16 +13,14 @@ QUnit.test('Iterator#filter', assert => {
   assert.arrayEqual(filter.call(createIterator([1, 2, 3]), it => it % 2).toArray(), [1, 3], 'basic functionality');
 
   from(filter.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
   }));
 
-  if (STRICT) {
-    assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => filter.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => filter.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => filter.call({}, () => { /* empty */ }).next(), TypeError);
   assert.throws(() => filter.call([], () => { /* empty */ }).next(), TypeError);

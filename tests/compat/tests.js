@@ -742,7 +742,7 @@ GLOBAL.tests = {
   'es.iterator.some': checkIteratorClosingOnEarlyError('some', TypeError),
   'es.iterator.take': [
     iteratorHelperThrowsErrorOnInvalidIterator('take', 1),
-    checkIteratorClosingOnEarlyError('take', RangeError)
+    checkIteratorClosingOnEarlyError('take', RangeError),
   ],
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;

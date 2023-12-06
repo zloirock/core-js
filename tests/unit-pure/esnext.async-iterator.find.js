@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import AsyncIterator from '@core-js/pure/actual/async-iterator';
 
@@ -10,10 +9,8 @@ QUnit.test('AsyncIterator#find', assert => {
   assert.arity(find, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'find');
 
-  if (STRICT) {
-    assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => find.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => find.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => find.call(createIterator([1]), null), TypeError);
@@ -33,7 +30,7 @@ QUnit.test('AsyncIterator#find', assert => {
   }).then(() => {
     assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return find.call(createIterator([1]), function (arg, counter) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(counter, 0, 'counter');

@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import codePointAt from '@core-js/pure/es/string/code-point-at';
 
 QUnit.test('String#codePointAt', assert => {
@@ -59,8 +57,6 @@ QUnit.test('String#codePointAt', assert => {
     assert.throws(() => codePointAt(Symbol('codePointAt test'), 1), 'throws on symbol context');
   }
 
-  if (STRICT) {
-    assert.throws(() => codePointAt(null, 0), TypeError);
-    assert.throws(() => codePointAt(undefined, 0), TypeError);
-  }
+  assert.throws(() => codePointAt(null, 0), TypeError);
+  assert.throws(() => codePointAt(undefined, 0), TypeError);
 });
