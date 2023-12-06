@@ -638,7 +638,6 @@ Modules [`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/b
 class Error {
   static isError(value: any): boolean;
   constructor(message: string, { cause: any }): %Error%;
-  toString(): string; // different fixes
 }
 
 class [
@@ -674,7 +673,6 @@ class SuppressedError extends Error {
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
 core-js(-pure)/es|stable|actual|full/error/is-error
-core-js/es|stable|actual|full/error/to-string
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js(-pure)/es|stable|actual|full/suppressed-error
 ```
@@ -689,8 +687,6 @@ aggregate.errors[1] === error2; // => true
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here is what went wrong', { cause });
 error.cause === cause; // => true
-
-Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
 [*Example*](https://core-js.io/playground#code=Error.isError%28new+Error%28%27error%27%29%29%3B+%2F%2F+%3D%3E+true%0AError.isError%28new+TypeError%28%27error%27%29%29%3B+%2F%2F+%3D%3E+true%0AError.isError%28new+DOMException%28%27error%27%29%29%3B+%2F%2F+%3D%3E+true%0A%0AError.isError%28null%29%3B+%2F%2F+%3D%3E+false%0AError.isError%28%7B%7D%29%3B+%2F%2F+%3D%3E+false%0AError.isError%28Object.create%28Error.prototype%29%29%3B+%2F%2F+%3D%3E+false):
