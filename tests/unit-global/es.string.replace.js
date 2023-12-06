@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals, regexp/no-unused-capturing-group, unicorn/prefer-string-replace-all -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -149,8 +149,8 @@ QUnit.test('RegExp#@@replace basic behavior', assert => {
 });
 
 QUnit.test('String.replace delegates to @@replace', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
   object[Symbol.replace] = function (a, b) {
     return { a, b };
