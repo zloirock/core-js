@@ -593,9 +593,6 @@ GLOBAL.tests = {
   'es.date.to-primitive': [SYMBOLS_SUPPORT, function () {
     return Date.prototype[Symbol.toPrimitive];
   }],
-  'es.escape': function () {
-    return escape;
-  },
   'es.function.has-instance': [SYMBOLS_SUPPORT, function () {
     return Symbol.hasInstance in Function.prototype;
   }],
