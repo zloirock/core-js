@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import assign from '@core-js/pure/es/object/assign';
 import matchAll from '@core-js/pure/es/string/match-all';
@@ -128,8 +126,6 @@ QUnit.test('String#matchAll', assert => {
 
   assert.throws(() => matchAll(Symbol('matchAll test'), /./), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
-    assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');
-  }
+  assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
+  assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');
 });
