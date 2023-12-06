@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#with', assert => {
   const { with: withAt } = Array.prototype;
 
@@ -19,10 +17,8 @@ QUnit.test('Array#with', assert => {
   assert.throws(() => [1, 2, 3, 4, 5].with(5, 6), RangeError);
   assert.throws(() => [1, 2, 3, 4, 5].with(-6, 6), RangeError);
 
-  if (STRICT) {
-    assert.throws(() => withAt.call(null, 1, 2), TypeError);
-    assert.throws(() => withAt.call(undefined, 1, 2), TypeError);
-  }
+  assert.throws(() => withAt.call(null, 1, 2), TypeError);
+  assert.throws(() => withAt.call(undefined, 1, 2), TypeError);
 
   array = [1, 2];
   // eslint-disable-next-line object-shorthand -- constructor

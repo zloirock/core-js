@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('AsyncIterator#toArray', assert => {
@@ -10,10 +9,8 @@ QUnit.test('AsyncIterator#toArray', assert => {
   assert.looksNative(toArray);
   assert.nonEnumerable(AsyncIterator.prototype, 'toArray');
 
-  if (STRICT) {
-    assert.throws(() => toArray.call(undefined), TypeError);
-    assert.throws(() => toArray.call(null), TypeError);
-  }
+  assert.throws(() => toArray.call(undefined), TypeError);
+  assert.throws(() => toArray.call(null), TypeError);
 
   return toArray.call(createIterator([1, 2, 3])).then(it => {
     assert.arrayEqual(it, [1, 2, 3]);
