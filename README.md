@@ -501,7 +501,7 @@ class Object {
   static keys(object: any): Array<string>;
   static preventExtensions(object: any): any;
   static seal(object: any): any;
-  static setPrototypeOf(target: any, prototype: Object | null): any; // required __proto__ - IE11+
+  static setPrototypeOf(target: any, prototype: Object | null): any;
   static values(object: any): Array<mixed>;
 }
 ```
@@ -1138,13 +1138,12 @@ Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
 ```
-Modules [`es.number.epsilon`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.epsilon.js), [`es.number.is-finite`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-finite.js), [`es.number.is-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-integer.js), [`es.number.is-nan`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-nan.js), [`es.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-safe-integer.js), [`es.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.max-safe-integer.js), [`es.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.min-safe-integer.js), [`es.number.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-float.js), [`es.number.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-int.js), [`es.number.to-exponential`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-exponential.js), [`es.number.to-fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-fixed.js), [`es.number.to-precision`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-precision.js), [`es.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-int.js), [`es.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-float.js).
+Modules [`es.number.epsilon`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.epsilon.js), [`es.number.is-finite`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-finite.js), [`es.number.is-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-integer.js), [`es.number.is-nan`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-nan.js), [`es.number.is-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.is-safe-integer.js), [`es.number.max-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.max-safe-integer.js), [`es.number.min-safe-integer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.min-safe-integer.js), [`es.number.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-float.js), [`es.number.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.parse-int.js), [`es.number.to-exponential`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-exponential.js), [`es.number.to-fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.to-fixed.js), [`es.parse-int`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-int.js), [`es.parse-float`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.parse-float.js).
 ```ts
 class Number {
   constructor(value: any): number;
   toExponential(digits: number): string;
   toFixed(digits: number): string;
-  toPrecision(precision: number): string;
   static isFinite(number: any): boolean;
   static isNaN(number: any): boolean;
   static isInteger(number: any): boolean;
@@ -1174,7 +1173,6 @@ core-js(-pure)/es|stable|actual|full/number/max-safe-integer
 core-js(-pure)/es|stable|actual|full/number/min-safe-integer
 core-js(-pure)/es|stable|actual|full/number(/virtual)/to-exponential
 core-js(-pure)/es|stable|actual|full/number(/virtual)/to-fixed
-core-js(-pure)/es|stable|actual|full/number(/virtual)/to-precision
 core-js(-pure)/es|stable|actual|full/parse-float
 core-js(-pure)/es|stable|actual|full/parse-int
 ```
@@ -2097,7 +2095,7 @@ namespace Reflect {
   ownKeys(target: Object): Array<string | symbol>;
   preventExtensions(target: Object): boolean;
   set(target: Object, propertyKey: PropertyKey, V: any, receiver?: any): boolean;
-  setPrototypeOf(target: Object, proto: Object | null): boolean; // required __proto__ - IE11+
+  setPrototypeOf(target: Object, proto: Object | null): boolean;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)

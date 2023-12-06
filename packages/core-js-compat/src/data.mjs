@@ -1088,14 +1088,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.number.to-precision': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '8',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.object.assign': {
     chrome: '49',
     // order of operations bug
