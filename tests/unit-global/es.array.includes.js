@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#includes', assert => {
   const { includes } = Array.prototype;
   assert.isFunction(includes);
@@ -18,9 +16,9 @@ QUnit.test('Array#includes', assert => {
   assert.false(array.includes({}));
   assert.true(Array(1).includes(undefined));
   assert.true([NaN].includes(NaN));
-  if (STRICT) {
-    assert.throws(() => includes.call(null, 0), TypeError);
-    assert.throws(() => includes.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => includes.call(null, 0), TypeError);
+  assert.throws(() => includes.call(undefined, 0), TypeError);
+
   assert.true('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
