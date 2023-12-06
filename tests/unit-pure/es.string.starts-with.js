@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import startsWith from '@core-js/pure/es/string/starts-with';
 
@@ -24,10 +22,8 @@ QUnit.test('String#startsWith', assert => {
     assert.throws(() => startsWith('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => startsWith(null, '.'), TypeError);
-    assert.throws(() => startsWith(undefined, '.'), TypeError);
-  }
+  assert.throws(() => startsWith(null, '.'), TypeError);
+  assert.throws(() => startsWith(undefined, '.'), TypeError);
 
   const regexp = /./;
   assert.throws(() => startsWith('/./', regexp), TypeError);
