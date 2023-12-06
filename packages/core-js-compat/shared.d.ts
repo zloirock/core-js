@@ -16,7 +16,6 @@ export type Target =
   | 'node'
   | 'opera'
   | 'opera-android'
-  | 'phantom'
   | 'quest'
   | 'react-native'
   | 'rhino'
