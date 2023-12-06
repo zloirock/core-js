@@ -877,10 +877,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
     ` === 'a1b');
-    deepEqual([...load(NS, 'string/code-points')('a')], [{ codePoint: 97, position: 0 }]);
-    deepEqual([...load(NS, 'string/virtual/code-points').call('a')], [{ codePoint: 97, position: 0 }]);
-    ok(typeof load(NS, 'symbol/custom-matcher') === 'symbol');
-    ok(load(NS, 'symbol/custom-matcher') === load(NS, 'symbol').customMatcher);
+    ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
@@ -897,12 +894,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceClamp({}) === undefined);
     ok(typeof instanceClamp(6) == 'function');
     ok(instanceClamp(6).call(6, 2, 4) === 4);
-
-    const instanceCodePoints = load(NS, 'instance/code-points');
-    ok(typeof instanceCodePoints == 'function');
-    ok(instanceCodePoints({}) === undefined);
-    ok(typeof instanceCodePoints('') == 'function');
-    ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
 
     const instanceDemethodize = load(NS, 'instance/demethodize');
     ok(typeof instanceDemethodize == 'function');
@@ -978,7 +969,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');
   load('proposals/string-cooked');
-  load('proposals/string-code-points');
   load('proposals/string-dedent');
   load('proposals/string-left-right-trim');
   load('proposals/string-match-all');

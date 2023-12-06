@@ -8,5 +8,4 @@ require('../proposals/collection-of-from');
 require('../proposals/data-view-get-set-uint8-clamped');
 require('../proposals/keys-composition');
 require('../proposals/pattern-matching');
-require('../proposals/string-code-points');
 require('../proposals/string-cooked');
