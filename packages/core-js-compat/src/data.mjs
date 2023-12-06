@@ -2165,15 +2165,6 @@ export const data = {
     // It should truncate a negative fractional index to zero, but instead throws an error
     safari: '26.0', // '16.4',
   },
-  'es.unescape': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
   'es.weak-map.constructor': {
     chrome: '51',
     // adding frozen arrays to WeakMap unfreeze them
