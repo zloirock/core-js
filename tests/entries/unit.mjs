@@ -209,7 +209,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'string/small') == 'function');
     ok(typeof load(NS, 'string/strike') == 'function');
     ok(typeof load(NS, 'string/sub') == 'function');
-    ok(load(NS, 'string/substr')('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/sup') == 'function');
     ok(typeof load(NS, 'string/replace-all') == 'function');
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
@@ -242,7 +241,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'string/virtual/small') == 'function');
     ok(typeof load(NS, 'string/virtual/strike') == 'function');
     ok(typeof load(NS, 'string/virtual/sub') == 'function');
-    ok(load(NS, 'string/virtual/substr').call('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/virtual/sup') == 'function');
     ok(load(NS, 'string/virtual/pad-start').call('a', 3) === '  a');
     ok(load(NS, 'string/virtual/pad-end').call('a', 3) === 'a  ');
