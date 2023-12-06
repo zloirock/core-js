@@ -696,9 +696,6 @@ GLOBAL.tests = {
   'es.date.set-year': function () {
     return Date.prototype.setYear;
   },
-  'es.date.to-gmt-string': function () {
-    return Date.prototype.toGMTString;
-  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
