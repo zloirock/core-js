@@ -183,10 +183,6 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
   }
 };
 
-var ARRAY_BUFFER_SUPPORT = function () {
-  return ArrayBuffer && DataView;
-};
-
 var TYPED_ARRAY_CONSTRUCTORS_LIST = {
   Int8Array: 1,
   Uint8Array: 1,
@@ -201,7 +197,7 @@ var TYPED_ARRAY_CONSTRUCTORS_LIST = {
 
 var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
   for (var constructor in TYPED_ARRAY_CONSTRUCTORS_LIST) if (!GLOBAL[constructor]) return false;
-  return ARRAY_BUFFER_SUPPORT();
+  return true;
 };
 
 var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
@@ -678,7 +674,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return error === 4;
     }
   },
-  'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
+  'es.array-buffer.constructor': function () {
     try {
       return !ArrayBuffer(1);
     } catch (error) { /* empty */ }
@@ -689,11 +685,11 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     new ArrayBuffer(1.5);
     new ArrayBuffer(NaN);
     return ArrayBuffer.length === 1 && ArrayBuffer.name === 'ArrayBuffer';
-  }],
-  'es.array-buffer.is-view': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.array-buffer.is-view': function () {
     return ArrayBuffer.isView;
-  }],
-  'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
+  },
+  'es.array-buffer.slice': [function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }, function () {
     // V8 ~ Chrome < 52 and Safari < 14.1 return an empty buffer for a detached one
@@ -724,7 +720,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array-buffer.transfer-to-fixed-length': function () {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
-  'es.data-view.constructor': [ARRAY_BUFFER_SUPPORT, function () {
+  'es.data-view.constructor': [function () {
     // NodeJS 0.11.4 and iOS Safari 7.x truncate large values incorrectly.
     var view = new DataView(new ArrayBuffer(2));
     view.setInt8(0, 2147483648);
@@ -738,12 +734,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return true;
     }
   }],
-  'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
+  'es.data-view.get-float16': function () {
     return DataView.prototype.getFloat16;
-  }],
-  'es.data-view.set-float16': [ARRAY_BUFFER_SUPPORT, function () {
+  },
+  'es.data-view.set-float16': function () {
     return DataView.prototype.setFloat16;
-  }],
+  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
@@ -2035,12 +2031,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
-  'esnext.data-view.get-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+  'esnext.data-view.get-uint8-clamped': function () {
     return DataView.prototype.getUint8Clamped;
-  }],
-  'esnext.data-view.set-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
+  },
+  'esnext.data-view.set-uint8-clamped': function () {
     return DataView.prototype.setUint8Clamped;
-  }],
+  },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
   },
