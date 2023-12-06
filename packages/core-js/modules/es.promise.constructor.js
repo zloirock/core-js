@@ -275,9 +275,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
     } catch (error) { /* empty */ }
 
     // make `instanceof Promise` work for native promise-based APIs
-    if (setPrototypeOf) {
-      setPrototypeOf(NativePromisePrototype, PromisePrototype);
-    }
+    setPrototypeOf(NativePromisePrototype, PromisePrototype);
   }
 }
 

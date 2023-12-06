@@ -177,7 +177,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
       while (index < length) addElement(that, index++);
     });
 
-    if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
+    setPrototypeOf(TypedArrayConstructor, TypedArray);
     TypedArrayConstructorPrototype = TypedArrayConstructor.prototype = create(TypedArrayPrototype);
   } else if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
     TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, $length) {
@@ -194,7 +194,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
       }(), dummy, TypedArrayConstructor);
     });
 
-    if (setPrototypeOf) setPrototypeOf(TypedArrayConstructor, TypedArray);
+    setPrototypeOf(TypedArrayConstructor, TypedArray);
     getOwnPropertyNames(NativeTypedArrayConstructor).forEach(function (key) {
       if (!(key in TypedArrayConstructor)) {
         createNonEnumerableProperty(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
