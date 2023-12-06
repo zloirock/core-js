@@ -582,15 +582,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '1',
   },
-  'es.date.to-iso-string': {
-    chrome: '26',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=649575
-    firefox: '6',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.date.to-json': {
     chrome: '26',
     firefox: '4',
