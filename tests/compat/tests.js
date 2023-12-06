@@ -717,13 +717,6 @@ GLOBAL.tests = {
   'es.date.to-gmt-string': function () {
     return Date.prototype.toGMTString;
   },
-  'es.date.to-iso-string': function () {
-    try {
-      new Date(NaN).toISOString();
-    } catch (error) {
-      return new Date(-5e13 - 1).toISOString() === '0385-07-25T07:06:39.999Z';
-    }
-  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
