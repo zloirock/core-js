@@ -1724,14 +1724,6 @@ export const features = {
     modules: ['web.set-immediate'],
     template: $namespace({ name: 'setImmediate' }),
   },
-  'set-interval': {
-    modules: ['web.set-interval'],
-    template: $namespace({ name: 'setInterval' }),
-  },
-  'set-timeout': {
-    modules: ['web.set-timeout'],
-    template: $namespace({ name: 'setTimeout' }),
-  },
   'structured-clone': {
     modules: ['web.structured-clone'],
     template: $namespace({ name: 'structuredClone' }),

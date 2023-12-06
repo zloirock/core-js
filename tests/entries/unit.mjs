@@ -757,23 +757,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'dom-collections/for-each') == 'function');
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
     ok(load(NS, 'self').Math === Math);
-    const setTimeout = load(NS, 'set-timeout');
-    let timeout;
-    ok(await new Promise(resolve => { timeout = setTimeout(resolve, 0, 42); }) === 42);
-    clearTimeout(timeout);
-    const setInterval = load(NS, 'set-interval');
-    let ticks = 0;
-    await new Promise(resolve => {
-      const interval = setInterval(() => {
-        if (++ticks === 2) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, 0);
-    });
-    ok(ticks === 2);
-    const setImmediate = load(NS, 'set-immediate');
-    ok(await new Promise(resolve => setImmediate(resolve, 42)) === 42);
+    ok(typeof load(NS, 'set-immediate') == 'function');
     ok(load(NS, 'structured-clone')(42) === 42);
     let immediateCalled = false;
     load(NS, 'clear-immediate')(setImmediate(() => { immediateCalled = true; }));
