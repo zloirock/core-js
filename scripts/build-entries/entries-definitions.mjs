@@ -451,14 +451,6 @@ export const features = {
     modules: ['es.date.set-year'],
     template: $virtual({ namespace: 'Date', method: 'setYear' }),
   },
-  'date/to-gmt-string': {
-    modules: ['es.date.to-gmt-string'],
-    template: $prototype({ namespace: 'Date', method: 'toGMTString' }),
-  },
-  'date/virtual/to-gmt-string': {
-    modules: ['es.date.to-gmt-string'],
-    template: $virtual({ namespace: 'Date', method: 'toGMTString' }),
-  },
   'date/to-json': {
     modules: ['es.date.to-json'],
     template: $prototype({ namespace: 'Date', method: 'toJSON' }),
