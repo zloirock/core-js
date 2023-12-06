@@ -1,5 +1,4 @@
 import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
-import { STRICT_THIS } from '../helpers/constants.js';
 
 import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
@@ -31,7 +30,7 @@ QUnit.test('Array.fromAsync', assert => {
   return fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'async iterable and mapfn');
     return fromAsync(createAsyncIterable([1]), function (arg, index) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(index, 0, 'index');
@@ -47,7 +46,7 @@ QUnit.test('Array.fromAsync', assert => {
   }).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'iterable and async mapfn');
     return fromAsync(createIterable([1]), function (arg, index) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(index, 0, 'index');

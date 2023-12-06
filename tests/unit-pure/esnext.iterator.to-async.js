@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT } from '../helpers/constants.js';
 
 import Promise from '@core-js/pure/es/promise';
 import Set from '@core-js/pure/es/set';
@@ -15,10 +14,8 @@ QUnit.test('Iterator#toAsync', assert => {
   assert.arity(toAsync, 0);
   assert.name(toAsync, 'toAsync');
 
-  if (STRICT) {
-    assert.throws(() => toAsync.call(undefined), TypeError);
-    assert.throws(() => toAsync.call(null), TypeError);
-  }
+  assert.throws(() => toAsync.call(undefined), TypeError);
+  assert.throws(() => toAsync.call(null), TypeError);
 
   const closableIterator = {
     closed: false,

@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#join', assert => {
@@ -26,7 +25,7 @@ QUnit.test('Iterator#join', assert => {
   assert.strictEqual(join.call(createIterator([1, undefined, 3]), '-'), '1--3', 'skips undefined values');
   assert.strictEqual(join.call(createIterator([])), '', 'empty iterator');
 
-  if (STRICT) {
+  {
     assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
     assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
     assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
