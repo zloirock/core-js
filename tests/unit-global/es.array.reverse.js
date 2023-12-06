@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#reverse', assert => {
   const { reverse } = Array.prototype;
   assert.isFunction(reverse);
@@ -14,8 +12,7 @@ QUnit.test('Array#reverse', assert => {
   }
   fn();
   assert.arrayEqual(a, [3.3, 2.2, 1]);
-  if (STRICT) {
-    assert.throws(() => reverse.call(null, () => { /* empty */ }, 1), TypeError);
-    assert.throws(() => reverse.call(undefined, () => { /* empty */ }, 1), TypeError);
-  }
+
+  assert.throws(() => reverse.call(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reverse.call(undefined, () => { /* empty */ }, 1), TypeError);
 });

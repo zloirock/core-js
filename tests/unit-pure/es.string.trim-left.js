@@ -1,4 +1,4 @@
-import { STRICT, WHITESPACES } from '../helpers/constants.js';
+import { WHITESPACES } from '../helpers/constants.js';
 
 import Symbol from '@core-js/pure/es/symbol';
 import trimLeft from '@core-js/pure/es/string/trim-left';
@@ -11,8 +11,6 @@ QUnit.test('String#trimLeft', assert => {
 
   assert.throws(() => trimLeft(Symbol('trimLeft test')), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => trimLeft(null, 0), TypeError);
-    assert.throws(() => trimLeft(undefined, 0), TypeError);
-  }
+  assert.throws(() => trimLeft(null, 0), TypeError);
+  assert.throws(() => trimLeft(undefined, 0), TypeError);
 });

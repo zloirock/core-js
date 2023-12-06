@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#padEnd', assert => {
   const { padEnd } = String.prototype;
   assert.isFunction(padEnd);
@@ -19,8 +17,6 @@ QUnit.test('String#padEnd', assert => {
   assert.throws(() => padEnd.call(symbol, 10, 'a'), 'throws on symbol context');
   assert.throws(() => padEnd.call('a', 10, symbol), 'throws on symbol argument');
 
-  if (STRICT) {
-    assert.throws(() => padEnd.call(null, 0), TypeError);
-    assert.throws(() => padEnd.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => padEnd.call(null, 0), TypeError);
+  assert.throws(() => padEnd.call(undefined, 0), TypeError);
 });
