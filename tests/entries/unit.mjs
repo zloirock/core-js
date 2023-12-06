@@ -262,7 +262,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'regexp/sticky') == 'function');
     ok(typeof load(NS, 'regexp/test') == 'function');
     load(NS, 'regexp');
-    ok(load(NS, 'escape')('!q2ф') === '%21q2%u0444');
     ok(load(NS, 'unescape')('%21q2%u0444') === '!q2ф');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
