@@ -1,6 +1,4 @@
 /* eslint-disable unicorn/prefer-array-flat -- required for testing */
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#flatMap', assert => {
   const { flatMap } = Array.prototype;
   assert.isFunction(flatMap);
@@ -22,10 +20,10 @@ QUnit.test('Array#flatMap', assert => {
     assert.same(this, context);
     return value;
   }, context);
-  if (STRICT) {
-    assert.throws(() => flatMap.call(null, it => it), TypeError);
-    assert.throws(() => flatMap.call(undefined, it => it), TypeError);
-  }
+
+  assert.throws(() => flatMap.call(null, it => it), TypeError);
+  assert.throws(() => flatMap.call(undefined, it => it), TypeError);
+
   assert.notThrows(() => flatMap.call({ length: -1 }, () => {
     throw new Error();
   }).length === 0, 'uses ToLength');

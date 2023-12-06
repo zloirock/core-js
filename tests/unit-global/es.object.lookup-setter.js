@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Object#__lookupSetter__', assert => {
   const { __lookupSetter__ } = Object.prototype;
   const { create } = Object;
@@ -16,8 +14,7 @@ QUnit.test('Object#__lookupSetter__', assert => {
   assert.same(object.__lookupSetter__('key'), setter, 'own getter');
   assert.same(create(object).__lookupSetter__('key'), setter, 'proto getter');
   assert.same(create(object).__lookupSetter__('foo'), undefined, 'empty proto');
-  if (STRICT) {
-    assert.throws(() => __lookupSetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
-    assert.throws(() => __lookupSetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
-  }
+
+  assert.throws(() => __lookupSetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
+  assert.throws(() => __lookupSetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
 });
