@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#flat', assert => {
   const { flat } = Array.prototype;
   const { defineProperty } = Object;
@@ -18,10 +16,10 @@ QUnit.test('Array#flat', assert => {
   assert.deepEqual(array.flat(3), [1, 2, 3, 4, 5, 6]);
   assert.deepEqual(array.flat(-1), array);
   assert.deepEqual(array.flat(Infinity), [1, 2, 3, 4, 5, 6]);
-  if (STRICT) {
-    assert.throws(() => flat.call(null), TypeError);
-    assert.throws(() => flat.call(undefined), TypeError);
-  }
+
+  assert.throws(() => flat.call(null), TypeError);
+  assert.throws(() => flat.call(undefined), TypeError);
+
   assert.notThrows(() => flat.call(defineProperty({ length: -1 }, 0, {
     enumerable: true,
     get() {

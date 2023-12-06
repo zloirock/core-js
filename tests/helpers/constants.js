@@ -55,12 +55,6 @@ try {
   REDEFINABLE_PROTO = true;
 } catch { /* empty */ }
 
-export const STRICT_THIS = (function () {
-  return this;
-})();
-
-export const STRICT = !STRICT_THIS;
-
 // FF < 23 bug
 export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = !function () {
   try {
