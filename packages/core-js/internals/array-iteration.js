@@ -7,7 +7,7 @@ var arraySpeciesCreate = require('../internals/array-species-create');
 
 var push = uncurryThis([].push);
 
-// `Array.prototype.{ forEach, map, filter, some, every, find, findIndex, filterReject }` methods implementation
+// `Array.prototype.{ map, filter, some, every, find, findIndex, filterReject }` methods implementation
 var createMethod = function (TYPE) {
   var IS_MAP = TYPE === 1;
   var IS_FILTER = TYPE === 2;
@@ -27,17 +27,15 @@ var createMethod = function (TYPE) {
     for (;length > index; index++) if (NO_HOLES || index in O) {
       value = O[index];
       result = boundFunction(value, index, O);
-      if (TYPE) {
-        if (IS_MAP) target[index] = result; // map
-        else if (result) switch (TYPE) {
-          case 3: return true;              // some
-          case 5: return value;             // find
-          case 6: return index;             // findIndex
-          case 2: push(target, value);      // filter
-        } else switch (TYPE) {
-          case 4: return false;             // every
-          case 7: push(target, value);      // filterReject
-        }
+      if (IS_MAP) target[index] = result; // map
+      else if (result) switch (TYPE) {
+        case 3: return true;              // some
+        case 5: return value;             // find
+        case 6: return index;             // findIndex
+        case 2: push(target, value);      // filter
+      } else switch (TYPE) {
+        case 4: return false;             // every
+        case 7: push(target, value);      // filterReject
       }
     }
     return IS_FIND_INDEX ? -1 : IS_SOME || IS_EVERY ? IS_EVERY : target;
@@ -45,9 +43,6 @@ var createMethod = function (TYPE) {
 };
 
 module.exports = {
-  // `Array.prototype.forEach` method
-  // https://tc39.es/ecma262/#sec-array.prototype.foreach
-  forEach: createMethod(0),
   // `Array.prototype.map` method
   // https://tc39.es/ecma262/#sec-array.prototype.map
   map: createMethod(1),
