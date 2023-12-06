@@ -459,14 +459,6 @@ export const features = {
     modules: ['es.date.to-gmt-string'],
     template: $virtual({ namespace: 'Date', method: 'toGMTString' }),
   },
-  'date/to-iso-string': {
-    modules: ['es.date.to-iso-string'],
-    template: $prototype({ namespace: 'Date', method: 'toISOString' }),
-  },
-  'date/virtual/to-iso-string': {
-    modules: ['es.date.to-iso-string'],
-    template: $virtual({ namespace: 'Date', method: 'toISOString' }),
-  },
   'date/to-json': {
     modules: ['es.date.to-json'],
     template: $prototype({ namespace: 'Date', method: 'toJSON' }),
