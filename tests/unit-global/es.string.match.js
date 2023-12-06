@@ -1,5 +1,5 @@
 // TODO: fix escaping in regexps
-/* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec -- required for testing */
+/* eslint-disable prefer-regex-literals, regexp/prefer-regexp-exec, es/no-nonstandard-array-prototype-properties -- required for testing */
 import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
