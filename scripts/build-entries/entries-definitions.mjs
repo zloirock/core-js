@@ -130,14 +130,6 @@ export const features = {
     modules: ['es.array.flat-map', 'es.array.unscopables.flat-map'],
     template: $virtual({ namespace: 'Array', method: 'flatMap' }),
   },
-  'array/for-each': {
-    modules: ['es.array.for-each'],
-    template: $prototype({ namespace: 'Array', method: 'forEach' }),
-  },
-  'array/virtual/for-each': {
-    modules: ['es.array.for-each'],
-    template: $virtual({ namespace: 'Array', method: 'forEach' }),
-  },
   'array/from': {
     modules: ['es.array.from'],
     template: $static({ namespace: 'Array', method: 'from' }),
