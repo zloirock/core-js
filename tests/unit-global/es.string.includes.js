@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
@@ -20,10 +20,8 @@ QUnit.test('String#includes', assert => {
     assert.throws(() => includes.call('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => includes.call(null, '.'), TypeError);
-    assert.throws(() => includes.call(undefined, '.'), TypeError);
-  }
+  assert.throws(() => includes.call(null, '.'), TypeError);
+  assert.throws(() => includes.call(undefined, '.'), TypeError);
 
   const regexp = /./;
   assert.throws(() => '/./'.includes(regexp), TypeError);

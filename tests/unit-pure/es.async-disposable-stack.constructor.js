@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Promise from '@core-js/pure/es/promise';
 import Symbol from '@core-js/pure/es/symbol';
 import AsyncDisposableStack from '@core-js/pure/es/async-disposable-stack';
@@ -60,7 +58,7 @@ QUnit.test('AsyncDisposableStack#adopt', assert => {
 
   assert.same(stack.adopt(resource, function (arg) {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 1);
     assert.same(arg, resource);
   }), resource);
@@ -82,7 +80,7 @@ QUnit.test('AsyncDisposableStack#defer', assert => {
 
   assert.same(stack.defer(function () {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 0);
   }), undefined);
 

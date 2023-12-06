@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#reduce', assert => {
   const { reduce } = Array.prototype;
   assert.isFunction(reduce);
@@ -38,8 +36,7 @@ QUnit.test('Array#reduce', assert => {
   }, (a, b) => a + b), 3, 'generic');
   assert.throws(() => reduce.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => reduce.call(Array(5), () => { /* empty */ }), TypeError);
-  if (STRICT) {
-    assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
-    assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
-  }
+
+  assert.throws(() => reduce.call(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce.call(undefined, () => { /* empty */ }, 1), TypeError);
 });

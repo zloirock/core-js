@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#repeat', assert => {
   const { repeat } = String.prototype;
   assert.isFunction(repeat);
@@ -16,8 +14,6 @@ QUnit.test('String#repeat', assert => {
     assert.throws(() => repeat.call(Symbol('repeat test')), 'throws on symbol context');
   }
 
-  if (STRICT) {
-    assert.throws(() => repeat.call(null, 1), TypeError);
-    assert.throws(() => repeat.call(undefined, 1), TypeError);
-  }
+  assert.throws(() => repeat.call(null, 1), TypeError);
+  assert.throws(() => repeat.call(undefined, 1), TypeError);
 });

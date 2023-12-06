@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#includes', assert => {
   const { includes } = Array.prototype;
   assert.isFunction(includes);
@@ -21,9 +19,9 @@ QUnit.test('Array#includes', assert => {
   // https://bugs.webkit.org/show_bug.cgi?id=309342
   // eslint-disable-next-line no-sparse-arrays -- testing
   assert.false([, 1].includes(undefined, 1), '`Array#includes(undefined, fromIndex)` should not find holes before fromIndex');
-  if (STRICT) {
-    assert.throws(() => includes.call(null, 0), TypeError);
-    assert.throws(() => includes.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => includes.call(null, 0), TypeError);
+  assert.throws(() => includes.call(undefined, 0), TypeError);
+
   assert.true('includes' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

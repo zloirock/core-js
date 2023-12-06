@@ -1,7 +1,7 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
 /* eslint-disable regexp/no-empty-group, regexp/no-empty-capturing-group -- required for testing */
 /* eslint-disable regexp/optimal-lookaround-quantifier, regexp/no-lazy-ends -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -711,9 +711,10 @@ QUnit.test('RegExp#@@split basic behavior', assert => {
 });
 
 QUnit.test('String#split delegates to @@split', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
+  /* eslint-disable es/no-nonstandard-array-prototype-properties -- @@split */
   object[Symbol.split] = function (a, b) {
     return { a, b };
   };
@@ -729,6 +730,7 @@ QUnit.test('String#split delegates to @@split', assert => {
   assert.same(string.split(regexp, 42).b, 42);
   assert.same(''.split.call(number, regexp, 42).a, number);
   assert.same(''.split.call(number, regexp, 42).b, 42);
+  /* eslint-enable es/no-nonstandard-array-prototype-properties -- @@split */
 });
 
 QUnit.test('RegExp#@@split delegates to exec', assert => {
