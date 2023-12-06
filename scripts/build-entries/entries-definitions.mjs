@@ -1700,10 +1700,6 @@ export const features = {
     modules: ['web.structured-clone'],
     template: $namespace({ name: 'structuredClone' }),
   },
-  unescape: {
-    modules: ['es.unescape'],
-    template: $namespace({ name: 'unescape' }),
-  },
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
     template: $helper({ name: 'get-iterator' }),
