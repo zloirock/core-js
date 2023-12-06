@@ -435,18 +435,6 @@ export const features = {
     modules: [/^(?:es|esnext)\.date\./],
     template: $namespace({ name: 'Date' }),
   },
-  'date/get-year': {
-    modules: ['es.date.get-year'],
-    template: $prototype({ namespace: 'Date', method: 'getYear' }),
-  },
-  'date/virtual/get-year': {
-    modules: ['es.date.get-year'],
-    template: $virtual({ namespace: 'Date', method: 'getYear' }),
-  },
-  'date/set-year': {
-    modules: ['es.date.set-year'],
-    template: $prototype({ namespace: 'Date', method: 'setYear' }),
-  },
   'date/to-json': {
     modules: ['es.date.to-json'],
     template: $prototype({ namespace: 'Date', method: 'toJSON' }),

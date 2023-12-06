@@ -439,15 +439,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.date.get-year': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '9',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
   'es.date.to-json': {
     chrome: '26',
     firefox: '4',
