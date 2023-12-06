@@ -1508,14 +1508,6 @@ export const features = {
     modules: ['es.string.sub'],
     template: $virtual({ namespace: 'String', method: 'sub' }),
   },
-  'string/substr': {
-    modules: ['es.string.substr'],
-    template: $prototype({ namespace: 'String', method: 'substr' }),
-  },
-  'string/virtual/substr': {
-    modules: ['es.string.substr'],
-    template: $virtual({ namespace: 'String', method: 'substr' }),
-  },
   'string/sup': {
     modules: ['es.string.sup'],
     template: $prototype({ namespace: 'String', method: 'sup' }),
