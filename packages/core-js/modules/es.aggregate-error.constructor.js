@@ -2,16 +2,13 @@
 var $ = require('../internals/export');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var installErrorCause = require('../internals/install-error-cause');
 var installErrorStack = require('../internals/error-stack-install');
 var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
-var wellKnownSymbol = require('../internals/well-known-symbol');
 
-var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
 var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
@@ -19,14 +16,7 @@ var push = [].push;
 
 var $AggregateError = function AggregateError(errors, message /* , options */) {
   var isInstance = isPrototypeOf(AggregateErrorPrototype, this);
-  var that;
-  if (setPrototypeOf) {
-    that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype);
-  } else {
-    that = isInstance ? this : create(AggregateErrorPrototype);
-    // dependency: es.object.to-string
-    createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
-  }
+  var that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : AggregateErrorPrototype);
   if (message !== undefined) createNonEnumerableProperty(that, 'message', normalizeStringArgument(message));
   installErrorStack(that, $AggregateError, that.stack, 1);
   if (arguments.length > 2) installErrorCause(that, arguments[2]);
@@ -37,8 +27,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   return that;
 };
 
-if (setPrototypeOf) setPrototypeOf($AggregateError, $Error);
-else copyConstructorProperties($AggregateError, $Error, { name: true });
+setPrototypeOf($AggregateError, $Error);
 
 var AggregateErrorPrototype = $AggregateError.prototype = create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),

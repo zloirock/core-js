@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var IS_PURE = require('../internals/is-pure');
 var FunctionName = require('../internals/function-name');
-var isCallable = require('../internals/is-callable');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var setToStringTag = require('../internals/set-to-string-tag');
@@ -57,11 +56,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
     CurrentIteratorPrototype = getPrototypeOf(anyNativeIterator.call(new Iterable()));
     if (CurrentIteratorPrototype !== Object.prototype && CurrentIteratorPrototype.next) {
       if (!IS_PURE && getPrototypeOf(CurrentIteratorPrototype) !== IteratorPrototype) {
-        if (setPrototypeOf) {
-          setPrototypeOf(CurrentIteratorPrototype, IteratorPrototype);
-        } else if (!isCallable(CurrentIteratorPrototype[ITERATOR])) {
-          defineBuiltIn(CurrentIteratorPrototype, ITERATOR, returnThis);
-        }
+        setPrototypeOf(CurrentIteratorPrototype, IteratorPrototype);
       }
       // Set @@toStringTag to native iterators
       setToStringTag(CurrentIteratorPrototype, TO_STRING_TAG, true, true);
