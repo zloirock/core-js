@@ -1,11 +1,6 @@
 'use strict';
-require('../../modules/es.object.define-property');
-var path = require('../../internals/path');
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
 
-var Object = path.Object;
-
-var defineProperty = module.exports = function defineProperty(it, key, desc) {
-  return Object.defineProperty(it, key, desc);
+module.exports = function create(it, key, desc) {
+  return getBuiltInStaticMethod('Object', 'defineProperty')(it, key, desc);
 };
-
-if (Object.defineProperty.sham) defineProperty.sham = true;
