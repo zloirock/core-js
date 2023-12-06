@@ -50,14 +50,6 @@ export const features = {
     modules: ['es.array.iterator'],
     template: $virtual({ namespace: 'Array', method: 'entries' }),
   },
-  'array/every': {
-    modules: ['es.array.every'],
-    template: $prototype({ namespace: 'Array', method: 'every' }),
-  },
-  'array/virtual/every': {
-    modules: ['es.array.every'],
-    template: $virtual({ namespace: 'Array', method: 'every' }),
-  },
   'array/fill': {
     modules: ['es.array.fill'],
     template: $prototype({ namespace: 'Array', method: 'fill' }),
