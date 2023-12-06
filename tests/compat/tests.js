@@ -408,17 +408,6 @@ GLOBAL.tests = {
       Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
       !Error.isError(Object.create(Error.prototype));
   },
-  'es.error.to-string': function () {
-    // Chrome 32- incorrectly call accessor
-    var object = Object.create(Object.defineProperty({}, 'name', { get: function () {
-      return this === object;
-    } }));
-    if (Error.prototype.toString.call(object) !== 'true') return false;
-    // FF10- does not properly handle non-strings
-    return Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'
-      // IE8 does not properly handle defaults
-      && Error.prototype.toString.call({}) === 'Error';
-  },
   'es.aggregate-error.constructor': function () {
     return typeof AggregateError == 'function';
   },
