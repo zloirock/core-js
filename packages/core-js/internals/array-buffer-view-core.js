@@ -1,5 +1,4 @@
 'use strict';
-var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var global = require('../internals/global');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
@@ -31,7 +30,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
 var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
 // Fixing native typed arrays in Opera Presto crashes the browser, see #595
-var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && classof(global.opera) !== 'Opera';
+var NATIVE_ARRAY_BUFFER_VIEWS = classof(global.opera) !== 'Opera';
 var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
 
