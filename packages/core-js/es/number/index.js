@@ -11,7 +11,6 @@ require('../../modules/es.number.parse-float');
 require('../../modules/es.number.parse-int');
 require('../../modules/es.number.to-exponential');
 require('../../modules/es.number.to-fixed');
-require('../../modules/es.number.to-precision');
 var path = require('../../internals/path');
 
 module.exports = path.Number;
