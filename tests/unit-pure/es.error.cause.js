@@ -1,5 +1,3 @@
-import { PROTO } from '../helpers/constants.js';
-
 import path from '@core-js/pure/es/error';
 import create from '@core-js/pure/es/object/create';
 
@@ -9,7 +7,7 @@ function runErrorTestCase($Error, ERROR_NAME, WEB_ASSEMBLY) {
     assert.arity($Error, 1);
     assert.name($Error, ERROR_NAME);
 
-    if (PROTO && $Error !== path.Error) {
+    if ($Error !== path.Error) {
       // eslint-disable-next-line no-prototype-builtins -- safe
       assert.true(path.Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
     }
