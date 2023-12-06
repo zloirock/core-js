@@ -4,7 +4,6 @@ require('../../modules/es.array.of');
 require('../../modules/es.array.at');
 require('../../modules/es.array.concat');
 require('../../modules/es.array.copy-within');
-require('../../modules/es.array.every');
 require('../../modules/es.array.fill');
 require('../../modules/es.array.filter');
 require('../../modules/es.array.find');
