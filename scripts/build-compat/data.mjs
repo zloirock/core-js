@@ -64,7 +64,6 @@ for (const scope of [data, external]) {
     if (!hasOwn(module, 'ios') && hasOwn(module, 'safari')) {
       module.ios = module.safari;
     }
-    map('SafariToPhantom');
     map('HermesToReactNative');
 
     for (const [engine, version] of Object.entries(module)) {
