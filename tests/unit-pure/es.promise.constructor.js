@@ -1,4 +1,4 @@
-import { GLOBAL, PROTO, STRICT } from '../helpers/constants.js';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
 import Promise from '@core-js/pure/es/promise';
@@ -147,7 +147,7 @@ if (nativeSubclass) QUnit.test('Promise subclassing with native classes', assert
   });
 });
 
-if (PROTO) QUnit.test('Promise subclassing', assert => {
+QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);
