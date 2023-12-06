@@ -157,14 +157,6 @@ export const data = {
     firefox: '48',
     safari: '9.0',
   },
-  'es.array.every': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.array.fill': {
     chrome: '45',
     edge: '12',
