@@ -1078,9 +1078,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.object.define-properties': function () {
     return Object.defineProperties;
   },
-  'es.object.define-property': function () {
-    return Object.defineProperty;
-  },
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
