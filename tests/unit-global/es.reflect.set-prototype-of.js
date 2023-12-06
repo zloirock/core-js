@@ -1,6 +1,6 @@
-import { NATIVE, PROTO } from '../helpers/constants.js';
+import { NATIVE } from '../helpers/constants.js';
 
-if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
+QUnit.test('Reflect.setPrototypeOf', assert => {
   const { setPrototypeOf } = Reflect;
   assert.isFunction(setPrototypeOf);
   if (NATIVE) assert.arity(setPrototypeOf, 2);
