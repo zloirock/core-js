@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Map#getOrInsertComputed', assert => {
   const { getOrInsertComputed } = Map.prototype;
   const { from } = Array;
@@ -21,7 +19,7 @@ QUnit.test('Map#getOrInsertComputed', assert => {
 
   map = new Map([['a', 2]]);
   map.getOrInsertComputed('b', function (key) {
-    if (STRICT) assert.same(this, undefined, 'correct handler in callback');
+    assert.same(this, undefined, 'correct handler in callback');
     assert.same(arguments.length, 1, 'correct number of callback arguments');
     assert.same(key, 'b', 'correct key in callback');
   });
