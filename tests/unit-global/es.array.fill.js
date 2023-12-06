@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#fill', assert => {
   const { fill } = Array.prototype;
   assert.isFunction(fill);
@@ -15,10 +13,8 @@ QUnit.test('Array#fill', assert => {
   assert.deepEqual(Array(5).fill(5, 6, 1), [undefined, undefined, undefined, undefined, undefined]);
   assert.deepEqual(Array(5).fill(5, -3, 4), [undefined, undefined, 5, 5, undefined]);
   assert.arrayEqual(fill.call({ length: 5 }, 5), [5, 5, 5, 5, 5]);
-  if (STRICT) {
-    assert.throws(() => fill.call(null, 0), TypeError);
-    assert.throws(() => fill.call(undefined, 0), TypeError);
-  }
+  assert.throws(() => fill.call(null, 0), TypeError);
+  assert.throws(() => fill.call(undefined, 0), TypeError);
   // native fill in V8 ~ Chrome 45-47 treats a negative length as unsigned
   assert.notThrows(() => fill.call(Object.defineProperty({
     length: -1,

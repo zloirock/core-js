@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#copyWithin', assert => {
   const { copyWithin } = Array.prototype;
   assert.isFunction(copyWithin);
@@ -21,9 +19,9 @@ QUnit.test('Array#copyWithin', assert => {
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -2), [1, 3, 3, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3, -1), [1, 3, 4, 4, 5]);
   assert.deepEqual([1, 2, 3, 4, 5].copyWithin(-4, -3), [1, 3, 4, 5, 5]);
-  if (STRICT) {
-    assert.throws(() => copyWithin.call(null, 0), TypeError);
-    assert.throws(() => copyWithin.call(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => copyWithin.call(null, 0), TypeError);
+  assert.throws(() => copyWithin.call(undefined, 0), TypeError);
+
   assert.true('copyWithin' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

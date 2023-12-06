@@ -1,4 +1,4 @@
-import { MAX_SAFE_INTEGER, STRICT } from '../helpers/constants.js';
+import { MAX_SAFE_INTEGER } from '../helpers/constants.js';
 /* eslint-disable es/no-bigint -- safe */
 QUnit.test('Iterator.range', assert => {
   const { range } = Iterator;
@@ -102,7 +102,7 @@ QUnit.test('Iterator.range', assert => {
     assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
   }
   // IE11 does not throw on computed-key assignment to getter-only properties.
-  if (STRICT) {
+  {
     assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
     assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
     assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');
@@ -190,7 +190,7 @@ QUnit.test('Iterator.range', assert => {
       assert.throws(() => descriptor.get.call({}), TypeError, `${ key } checks its receiver`);
     }
     // IE11 does not throw on computed-key assignment to getter-only properties.
-    if (STRICT) {
+    {
       assert.throws(() => { iterator.start = 42; }, TypeError, 'start is read-only');
       assert.throws(() => { iterator.end = 42; }, TypeError, 'end is read-only');
       assert.throws(() => { iterator.step = 42; }, TypeError, 'step is read-only');

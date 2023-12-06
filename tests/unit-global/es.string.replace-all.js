@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#replaceAll', assert => {
   const { replaceAll } = String.prototype;
   assert.isFunction(replaceAll);
@@ -38,10 +36,8 @@ QUnit.test('String#replaceAll', assert => {
   assert.throws(() => replaceAll.call('a', symbol, 'b'), 'throws on symbol argument 1');
   assert.throws(() => replaceAll.call('a', 'b', symbol), 'throws on symbol argument 2');
 
-  if (STRICT) {
-    assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);
-    assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
-  }
+  assert.throws(() => replaceAll.call(null, 'a', 'b'), TypeError);
+  assert.throws(() => replaceAll.call(undefined, 'a', 'b'), TypeError);
 
   // eslint-disable-next-line regexp/no-missing-g-flag -- required for testing
   assert.throws(() => 'b.b.b.b.b'.replaceAll(/\./, 'a'), TypeError);

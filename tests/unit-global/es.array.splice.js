@@ -1,4 +1,4 @@
-import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
 const { defineProperty } = Object;
 
@@ -31,13 +31,13 @@ QUnit.test('Array#splice', assert => {
   assert.deepEqual(array.splice(1), [1, 2]);
   array = [0, 1, 2];
   assert.deepEqual(array.splice(2), [2]);
-  if (STRICT) {
-    if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
-      assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'non-writable length');
-    }
-    assert.throws(() => splice.call(null), TypeError);
-    assert.throws(() => splice.call(undefined), TypeError);
+
+  if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
+    assert.throws(() => splice.call(defineProperty([1, 2, 3], 'length', { writable: false }), 1, 1), TypeError, 'non-writable length');
   }
+  assert.throws(() => splice.call(null), TypeError);
+  assert.throws(() => splice.call(undefined), TypeError);
+
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

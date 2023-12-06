@@ -1,4 +1,4 @@
-import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR, STRICT } from '../helpers/constants.js';
+import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
 const { defineProperty } = Object;
 
@@ -28,13 +28,11 @@ QUnit.test('Array#push', assert => {
   assert.same(push.call(empty, 1), 1, 'object without length, result');
   assert.deepEqual(empty, { 0: 1, length: 1 }, 'object without length, content');
 
-  if (STRICT) {
-    if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
-      assert.throws(() => push.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'non-writable length, with arg');
-      assert.throws(() => push.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
-    }
-
-    assert.throws(() => push.call(null), TypeError);
-    assert.throws(() => push.call(undefined), TypeError);
+  if (REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR) {
+    assert.throws(() => push.call(defineProperty([], 'length', { writable: false }), 1), TypeError, 'non-writable length, with arg');
+    assert.throws(() => push.call(defineProperty([], 'length', { writable: false })), TypeError, 'non-writable length, without arg');
   }
+
+  assert.throws(() => push.call(null), TypeError);
+  assert.throws(() => push.call(undefined), TypeError);
 });

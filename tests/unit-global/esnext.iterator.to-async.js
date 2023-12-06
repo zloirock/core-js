@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT } from '../helpers/constants.js';
 
 QUnit.test('Iterator#toAsync', assert => {
   const { toAsync } = Iterator.prototype;
@@ -10,10 +9,8 @@ QUnit.test('Iterator#toAsync', assert => {
   assert.looksNative(toAsync);
   assert.nonEnumerable(Iterator.prototype, 'toAsync');
 
-  if (STRICT) {
-    assert.throws(() => toAsync.call(undefined), TypeError);
-    assert.throws(() => toAsync.call(null), TypeError);
-  }
+  assert.throws(() => toAsync.call(undefined), TypeError);
+  assert.throws(() => toAsync.call(null), TypeError);
 
   const closableIterator = {
     closed: false,
