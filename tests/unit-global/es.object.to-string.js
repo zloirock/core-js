@@ -1,4 +1,4 @@
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 QUnit.test('Object#toString', assert => {
   const { toString } = Object.prototype;
@@ -7,10 +7,10 @@ QUnit.test('Object#toString', assert => {
   assert.name(toString, 'toString');
   assert.looksNative(toString);
   assert.nonEnumerable(Object.prototype, 'toString');
-  if (STRICT) {
-    assert.same(toString.call(null), '[object Null]', 'null -> `Null`');
-    assert.same(toString.call(undefined), '[object Undefined]', 'undefined -> `Undefined`');
-  }
+
+  assert.same(toString.call(null), '[object Null]', 'null -> `Null`');
+  assert.same(toString.call(undefined), '[object Undefined]', 'undefined -> `Undefined`');
+
   assert.same(toString.call(true), '[object Boolean]', 'bool -> `Boolean`');
   assert.same(toString.call('string'), '[object String]', 'string -> `String`');
   assert.same(toString.call(7), '[object Number]', 'number -> `Number`');

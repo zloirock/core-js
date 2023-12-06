@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import uniqueBy from '@core-js/pure/full/array/unique-by';
 
 QUnit.test('Array#uniqueBy', assert => {
@@ -44,8 +42,6 @@ QUnit.test('Array#uniqueBy', assert => {
 
   assert.deepEqual(uniqueBy({ length: 1, 0: 1 }), [1]);
 
-  if (STRICT) {
-    assert.throws(() => uniqueBy(null), TypeError);
-    assert.throws(() => uniqueBy(undefined), TypeError);
-  }
+  assert.throws(() => uniqueBy(null), TypeError);
+  assert.throws(() => uniqueBy(undefined), TypeError);
 });

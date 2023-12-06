@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import toReversed from '@core-js/pure/es/array/to-reversed';
 
@@ -49,8 +47,6 @@ QUnit.test('Array#toReversed', assert => {
   } };
   assert.true(toReversed(array) instanceof Array, 'non-generic');
 
-  if (STRICT) {
-    assert.throws(() => toReversed(null), TypeError);
-    assert.throws(() => toReversed(undefined), TypeError);
-  }
+  assert.throws(() => toReversed(null), TypeError);
+  assert.throws(() => toReversed(undefined), TypeError);
 });

@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('String#matchAll', assert => {
   const { matchAll } = String.prototype;
   const { assign } = Object;
@@ -110,8 +108,6 @@ QUnit.test('String#matchAll', assert => {
     assert.throws(() => matchAll.call('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => matchAll.call(null, /./g), TypeError, 'Throws on null as `this`');
-    assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');
-  }
+  assert.throws(() => matchAll.call(null, /./g), TypeError, 'Throws on null as `this`');
+  assert.throws(() => matchAll.call(undefined, /./g), TypeError, 'Throws on undefined as `this`');
 });
