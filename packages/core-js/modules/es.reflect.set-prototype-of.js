@@ -6,7 +6,7 @@ var objectSetPrototypeOf = require('../internals/object-set-prototype-of');
 
 // `Reflect.setPrototypeOf` method
 // https://tc39.es/ecma262/#sec-reflect.setprototypeof
-if (objectSetPrototypeOf) $({ target: 'Reflect', stat: true }, {
+$({ target: 'Reflect', stat: true }, {
   setPrototypeOf: function setPrototypeOf(target, proto) {
     anObject(target);
     aPossiblePrototype(proto);
