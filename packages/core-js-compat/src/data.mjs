@@ -579,15 +579,6 @@ export const data = {
     deno: '2.2.10',
     firefox: '141',
   },
-  'es.escape': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '3',
-    opera: '3',
-    rhino: '1.7.13',
-    safari: '1',
-  },
   'es.function.has-instance': {
     chrome: '51',
     edge: '15',
