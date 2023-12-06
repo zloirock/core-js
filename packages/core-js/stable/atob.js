@@ -1,5 +1,4 @@
 'use strict';
-require('../modules/es.error.to-string');
 require('../modules/es.object.to-string');
 require('../modules/web.atob');
 require('../modules/web.dom-exception.constructor');
