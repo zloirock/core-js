@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import Iterator from '@core-js/pure/es/iterator';
 
@@ -13,16 +12,14 @@ QUnit.test('Iterator#some', assert => {
   assert.true(some.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #1');
   assert.false(some.call(createIterator([1, 2, 3]), it => typeof it == 'string'), 'basic functionality #2');
   some.call(createIterator([1]), function (arg, counter) {
-    assert.same(this, STRICT_THIS, 'this');
+    assert.same(this, undefined, 'this');
     assert.same(arguments.length, 2, 'arguments length');
     assert.same(arg, 1, 'argument');
     assert.same(counter, 0, 'counter');
   });
 
-  if (STRICT) {
-    assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => some.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => some.call([], () => { /* empty */ }), TypeError);
