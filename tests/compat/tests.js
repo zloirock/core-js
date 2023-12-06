@@ -531,13 +531,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     // eslint-disable-next-line no-sparse-arrays -- testing
     return [1].flatMap(function () { return [, 1]; }).length === 1;
   }],
-  'es.array.for-each': function () {
-    try {
-      Array.prototype.forEach.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.forEach;
-  },
   'es.array.from': [SAFE_ITERATION_CLOSING_SUPPORT, ITERATOR_RESULT_CHECK_SUPPORT],
   'es.array.includes': function () {
     return Array(1).includes()
