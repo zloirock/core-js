@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 QUnit.test('Iterator#drop', assert => {
@@ -16,10 +15,8 @@ QUnit.test('Iterator#drop', assert => {
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 0).toArray(), [1, 2, 3], 'zero');
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), Infinity).toArray(), [], Infinity);
 
-  if (STRICT) {
-    assert.throws(() => drop.call(undefined, 1), TypeError);
-    assert.throws(() => drop.call(null, 1), TypeError);
-  }
+  assert.throws(() => drop.call(undefined, 1), TypeError);
+  assert.throws(() => drop.call(null, 1), TypeError);
 
   assert.throws(() => drop.call({}, 1).next(), TypeError);
   assert.throws(() => drop.call([], 1).next(), TypeError);

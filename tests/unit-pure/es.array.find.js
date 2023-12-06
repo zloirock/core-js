@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import find from '@core-js/pure/es/array/find';
 
 QUnit.test('Array#find', assert => {
@@ -15,10 +13,10 @@ QUnit.test('Array#find', assert => {
   }, context);
   assert.same(find([1, 3, NaN, 42, {}], it => it === 42), 42);
   assert.same(find([1, 3, NaN, 42, {}], it => it === 43), undefined);
-  if (STRICT) {
-    assert.throws(() => find(null, 0), TypeError);
-    assert.throws(() => find(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => find(null, 0), TypeError);
+  assert.throws(() => find(undefined, 0), TypeError);
+
   assert.notThrows(() => find({ length: -1, 0: 1 }, () => {
     throw new Error();
   }), 'uses ToLength');

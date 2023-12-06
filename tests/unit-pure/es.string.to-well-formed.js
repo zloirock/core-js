@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import Symbol from '@core-js/pure/es/symbol';
 import toWellFormed from '@core-js/pure/es/string/virtual/to-well-formed';
 
@@ -28,10 +27,8 @@ QUnit.test('String#toWellFormed', assert => {
 
   assert.same(toWellFormed.call(1), '1', 'conversion #2');
 
-  if (STRICT) {
-    assert.throws(() => toWellFormed.call(null), TypeError, 'coercible #1');
-    assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');
-  }
+  assert.throws(() => toWellFormed.call(null), TypeError, 'coercible #1');
+  assert.throws(() => toWellFormed.call(undefined), TypeError, 'coercible #2');
 
   assert.throws(() => toWellFormed.call(Symbol('toWellFormed test')), 'throws on symbol context');
 });
