@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import at from '@core-js/pure/es/string/at';
 
@@ -24,8 +22,6 @@ QUnit.test('String#at', assert => {
 
   assert.throws(() => at(Symbol('at test'), 0), 'throws on symbol context');
 
-  if (STRICT) {
-    assert.throws(() => at(null, 0), TypeError);
-    assert.throws(() => at(undefined, 0), TypeError);
-  }
+  assert.throws(() => at(null, 0), TypeError);
+  assert.throws(() => at(undefined, 0), TypeError);
 });
