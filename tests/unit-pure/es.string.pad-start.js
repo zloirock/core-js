@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import padStart from '@core-js/pure/es/string/pad-start';
 
@@ -17,8 +15,6 @@ QUnit.test('String#padStart', assert => {
   assert.throws(() => padStart(symbol, 10, 'a'), 'throws on symbol context');
   assert.throws(() => padStart('a', 10, symbol), 'throws on symbol argument');
 
-  if (STRICT) {
-    assert.throws(() => padStart(null, 0), TypeError);
-    assert.throws(() => padStart(undefined, 0), TypeError);
-  }
+  assert.throws(() => padStart(null, 0), TypeError);
+  assert.throws(() => padStart(undefined, 0), TypeError);
 });
