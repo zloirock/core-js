@@ -2657,34 +2657,6 @@ export const data = {
     ie: '10',
     node: '0.9.1',
   },
-  'web.set-interval': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
-  'web.set-timeout': {
-    android: '1.5',
-    // https://github.com/oven-sh/bun/issues/1633
-    bun: '0.4.0', // '0.1.1',
-    chrome: '1',
-    deno: '1.0',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '10',
-    node: '0.0.1',
-    opera: '7',
-    rhino: '1.7.13',
-    safari: '1.0',
-  },
   'web.structured-clone': {
     // https://github.com/whatwg/html/pull/5749
     // deno: '1.14',
