@@ -58,7 +58,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/join')('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/slice')('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/sort')([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/for-each') == 'function');
     ok(typeof load(NS, 'array/map') == 'function');
     ok(typeof load(NS, 'array/filter') == 'function');
     ok(typeof load(NS, 'array/flat') == 'function');
@@ -93,7 +92,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/virtual/slice').call('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/virtual/splice').call([1, 2, 3], 1, 2)[0] === 2);
     ok(load(NS, 'array/virtual/sort').call([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/virtual/for-each') == 'function');
     ok(typeof load(NS, 'array/virtual/map') == 'function');
     ok(typeof load(NS, 'array/virtual/filter') == 'function');
     ok(typeof load(NS, 'array/virtual/flat') == 'function');
@@ -432,11 +430,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof instanceFlat([]) == 'function');
     ok(instanceFlat([]).call([1, [2, 3], [4, [5, [6]]]]).length === 5);
 
-    const instanceForEach = load(NS, 'instance/for-each');
-    ok(typeof instanceForEach == 'function');
-    ok(instanceForEach({}) === undefined);
-    ok(typeof instanceForEach([]) == 'function');
-
     const instanceIncludes = load(NS, 'instance/includes');
     ok(typeof instanceIncludes == 'function');
     ok(instanceIncludes({}) === undefined);
@@ -649,6 +642,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'url/parse')('a:b').href === 'a:b');
     load(NS, 'url/to-json');
     ok(typeof load(NS, 'url-search-params') == 'function');
+
+    const instanceForEach = load(NS, 'instance/for-each');
+    ok(typeof instanceForEach == 'function');
+    ok(instanceForEach({}) === undefined);
+    ok(typeof instanceForEach([]) == 'function');
   }
 
   for (const NS of ['actual', 'full']) {
