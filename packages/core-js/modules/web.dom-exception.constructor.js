@@ -9,7 +9,6 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var hasOwn = require('../internals/has-own-property');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
-var errorToString = require('../internals/error-to-string');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var clearErrorStack = require('../internals/error-stack-clear');
@@ -34,6 +33,7 @@ var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
 })();
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
 var ErrorPrototype = Error.prototype;
+var errorToString = ErrorPrototype.toString;
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
 var HAS_STACK = 'stack' in new Error(DOM_EXCEPTION);
@@ -87,10 +87,8 @@ var INCORRECT_CONSTRUCTOR = fails(function () {
   return !(new NativeDOMException() instanceof Error);
 });
 
-// Safari 10.1 / Chrome 32- / IE8- DOMException.prototype.toString bugs
-var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || fails(function () {
-  return ErrorPrototype.toString !== errorToString || String(new NativeDOMException(1, 2)) !== '2: 1';
-});
+// Safari 10.1 DOMException.prototype.toString bugs
+var INCORRECT_TO_STRING = INCORRECT_CONSTRUCTOR || NativeDOMExceptionPrototype.toString !== errorToString;
 
 // Deno 1.6.3- DOMException.prototype.code just missed
 var INCORRECT_CODE = INCORRECT_CONSTRUCTOR || fails(function () {
