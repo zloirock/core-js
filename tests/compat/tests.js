@@ -1054,9 +1054,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': function () {
-    return Object.defineProperties;
-  },
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
