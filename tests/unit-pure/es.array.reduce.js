@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import reduce from '@core-js/pure/es/array/reduce';
 
 QUnit.test('Array#reduce', assert => {
@@ -35,8 +33,7 @@ QUnit.test('Array#reduce', assert => {
   }, (a, b) => a + b), 3, 'generic');
   assert.throws(() => reduce([], () => { /* empty */ }), TypeError);
   assert.throws(() => reduce(Array(5), () => { /* empty */ }), TypeError);
-  if (STRICT) {
-    assert.throws(() => reduce(null, () => { /* empty */ }, 1), TypeError);
-    assert.throws(() => reduce(undefined, () => { /* empty */ }, 1), TypeError);
-  }
+
+  assert.throws(() => reduce(null, () => { /* empty */ }, 1), TypeError);
+  assert.throws(() => reduce(undefined, () => { /* empty */ }, 1), TypeError);
 });

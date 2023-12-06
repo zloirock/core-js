@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Error#toString', assert => {
   const { toString } = Error.prototype;
   assert.isFunction(toString);
@@ -17,13 +15,11 @@ QUnit.test('Error#toString', assert => {
   assert.same(toString.call({ name: 'foo', message: 'bar' }), 'foo: bar');
   assert.same(toString.call({ name: 1, message: 2 }), '1: 2');
 
-  if (STRICT) {
-    assert.throws(() => toString.call(7));
-    assert.throws(() => toString.call('a'));
-    assert.throws(() => toString.call(false));
-    assert.throws(() => toString.call(null));
-    assert.throws(() => toString.call(undefined));
-  }
+  assert.throws(() => toString.call(7));
+  assert.throws(() => toString.call('a'));
+  assert.throws(() => toString.call(false));
+  assert.throws(() => toString.call(null));
+  assert.throws(() => toString.call(undefined));
 
   // assert.throws(() => toString.call({ name: Symbol() }), 'throws on symbol #1');
   // assert.throws(() => toString.call({ name: Symbol() }), 'throws on symbol #2');
