@@ -554,13 +554,6 @@ GLOBAL.tests = {
     // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.slice().foo === 1;
   },
-  'es.array.some': function () {
-    try {
-      Array.prototype.some.call(null, function () { /* empty */ });
-    } catch (error) {
-      return Array.prototype.some;
-    }
-  },
   'es.array.sort': function () {
     try {
       Array.prototype.sort.call(null);
