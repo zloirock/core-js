@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import findLast from '@core-js/pure/es/array/find-last';
 
 QUnit.test('Array#findLast', assert => {
@@ -23,10 +21,10 @@ QUnit.test('Array#findLast', assert => {
   });
   assert.same(values, '321');
   assert.same(keys, '210');
-  if (STRICT) {
-    assert.throws(() => findLast(null, 0), TypeError);
-    assert.throws(() => findLast(undefined, 0), TypeError);
-  }
+
+  assert.throws(() => findLast(null, 0), TypeError);
+  assert.throws(() => findLast(undefined, 0), TypeError);
+
   assert.notThrows(() => findLast({
     length: -1,
     0: 1,
