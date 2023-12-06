@@ -198,7 +198,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [`self`](#self)
     - [`structuredClone`](#structuredclone)
     - [Base64 utility methods](#base64-utility-methods)
-    - [`setTimeout` and `setInterval`](#settimeout-and-setinterval)
     - [`setImmediate`](#setimmediate)
     - [`queueMicrotask`](#queuemicrotask)
     - [`URL` and `URLSearchParams`](#url-and-urlsearchparams)
@@ -3413,23 +3412,6 @@ btoa('hi, core-js');      // => 'aGksIGNvcmUtanM='
 atob('aGksIGNvcmUtanM='); // => 'hi, core-js'
 ```
 
-#### `setTimeout` and `setInterval`[⬆](#index)
-Modules [`web.set-timeout`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-timeout.js) and [`web.set-interval`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-interval.js). Additional arguments fix for IE9-.
-```ts
-function setTimeout(callback: any, time: any, ...args: Array<mixed>): number;
-function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stable|actual|full/set-timeout
-core-js(-pure)/stable|actual|full/set-interval
-```
-```js
-// Before:
-setTimeout(log.bind(null, 42), 1000);
-// After:
-setTimeout(log, 1000, 42);
-```
 #### `setImmediate`[⬆](#index)
 Modules [`web.set-immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-immediate.js) and [`web.clear-immediate`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.clear-immediate.js). [`setImmediate`](https://w3c.github.io/setImmediate/) polyfill.
 ```ts
