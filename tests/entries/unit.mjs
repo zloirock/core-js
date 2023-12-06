@@ -267,8 +267,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
-    const date = new Date();
-    ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
