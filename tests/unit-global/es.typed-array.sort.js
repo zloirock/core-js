@@ -1,4 +1,4 @@
-import { STRICT, TYPED_ARRAYS } from '../helpers/constants.js';
+import { TYPED_ARRAYS } from '../helpers/constants.js';
 
 QUnit.test('%TypedArrayPrototype%.sort', assert => {
   // we can't implement %TypedArrayPrototype% in all engines, so run all tests for each typed array constructor
@@ -60,9 +60,8 @@ QUnit.test('%TypedArrayPrototype%.sort', assert => {
     assert.notThrows(() => new TypedArray([1, 2, 3]).sort(undefined).length === 3, 'works with undefined');
     assert.throws(() => new TypedArray([1, 2, 3]).sort(null), 'throws on null');
     assert.throws(() => new TypedArray([1, 2, 3]).sort({}), 'throws on {}');
-    if (STRICT) {
-      assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
-      assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');
-    }
+
+    assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
+    assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');
   }
 });
