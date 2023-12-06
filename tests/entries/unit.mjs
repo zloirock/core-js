@@ -161,12 +161,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/parse-int')('2.1') === 2);
     ok(load(NS, 'number/to-exponential')(1, 1) === '1.0e+0');
     ok(load(NS, 'number/to-fixed')(1, 1) === '1.0');
-    ok(load(NS, 'number/to-precision')(1) === '1');
     ok(load(NS, 'parse-float')('1.5') === 1.5);
     ok(load(NS, 'parse-int')('2.1') === 2);
     ok(load(NS, 'number/virtual/to-exponential').call(1, 1) === '1.0e+0');
     ok(load(NS, 'number/virtual/to-fixed').call(1, 1) === '1.0');
-    ok(load(NS, 'number/virtual/to-precision').call(1) === '1');
     ok('isNaN' in load(NS, 'number'));
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
