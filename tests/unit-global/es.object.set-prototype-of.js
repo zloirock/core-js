@@ -1,6 +1,4 @@
-import { PROTO } from '../helpers/constants.js';
-
-if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
+QUnit.test('Object.setPrototypeOf', assert => {
   const { setPrototypeOf } = Object;
   assert.isFunction(setPrototypeOf);
   assert.arity(setPrototypeOf, 2);
