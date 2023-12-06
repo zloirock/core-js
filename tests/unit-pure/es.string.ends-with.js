@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 import Symbol from '@core-js/pure/es/symbol';
 import endsWith from '@core-js/pure/es/string/ends-with';
 
@@ -25,10 +23,9 @@ QUnit.test('String#endsWith', assert => {
     assert.throws(() => endsWith('a', symbol), 'throws on symbol argument');
   }
 
-  if (STRICT) {
-    assert.throws(() => endsWith(null, '.'), TypeError);
-    assert.throws(() => endsWith(undefined, '.'), TypeError);
-  }
+  assert.throws(() => endsWith(null, '.'), TypeError);
+  assert.throws(() => endsWith(undefined, '.'), TypeError);
+
   const regexp = /./;
   assert.throws(() => endsWith('/./', regexp), TypeError);
   regexp[Symbol.match] = false;
