@@ -492,13 +492,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.copy-within': function () {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
-  'es.array.every': function () {
-    try {
-      Array.prototype.every.call(null, function () { /* empty */ });
-      return false;
-    } catch (error) { /* empty */ }
-    return Array.prototype.every;
-  },
   'es.array.fill': function () {
     try {
       Array.prototype.fill.call(Object.defineProperty({ length: 1 }, 0, { writable: false }));
