@@ -1672,10 +1672,6 @@ export const features = {
     modules: ['esnext.composite-symbol'],
     template: $namespace({ name: 'compositeSymbol' }),
   },
-  escape: {
-    modules: ['es.escape'],
-    template: $namespace({ name: 'escape' }),
-  },
   'global-this': {
     modules: ['es.global-this'],
     template: $namespace({ name: 'globalThis' }),
