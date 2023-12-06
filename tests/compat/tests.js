@@ -688,9 +688,6 @@ GLOBAL.tests = {
   'es.data-view.set-float16': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.setFloat16;
   }],
-  'es.date.get-year': function () {
-    return new Date(16e11).getYear() === 120;
-  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
