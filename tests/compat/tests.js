@@ -700,9 +700,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
   },
-  'es.date.set-year': function () {
-    return Date.prototype.setYear;
-  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
