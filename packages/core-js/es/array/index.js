@@ -24,7 +24,6 @@ require('../../modules/es.array.reduce');
 require('../../modules/es.array.reduce-right');
 require('../../modules/es.array.reverse');
 require('../../modules/es.array.slice');
-require('../../modules/es.array.some');
 require('../../modules/es.array.sort');
 require('../../modules/es.array.species');
 require('../../modules/es.array.splice');
