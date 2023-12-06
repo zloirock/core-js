@@ -1744,15 +1744,6 @@ export const data = {
     rhino: '1.7.15',
     safari: '10.0',
   },
-  'es.string.substr': {
-    chrome: '1',
-    firefox: '1',
-    hermes: '0.1',
-    ie: '9',
-    opera: '4',
-    rhino: '1.7.13',
-    safari: '1',
-  },
   'es.string.to-well-formed': {
     // Safari ToString conversion bug
     // https://bugs.webkit.org/show_bug.cgi?id=251757
