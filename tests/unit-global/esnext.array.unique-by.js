@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#uniqueBy', assert => {
   const { uniqueBy } = Array.prototype;
   assert.isFunction(uniqueBy);
@@ -47,9 +45,8 @@ QUnit.test('Array#uniqueBy', assert => {
 
   assert.deepEqual(uniqueBy.call({ length: 1, 0: 1 }), [1]);
 
-  if (STRICT) {
-    assert.throws(() => uniqueBy.call(null), TypeError);
-    assert.throws(() => uniqueBy.call(undefined), TypeError);
-  }
+  assert.throws(() => uniqueBy.call(null), TypeError);
+  assert.throws(() => uniqueBy.call(undefined), TypeError);
+
   assert.true('uniqueBy' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });
