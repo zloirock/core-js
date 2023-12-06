@@ -318,13 +318,6 @@ function IMMEDIATE() {
   })());
 }
 
-function TIMERS() {
-  return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
-    var version = Bun.version.split('.');
-    return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
-  })());
-}
-
 // https://github.com/tc39/ecma262/pull/3467
 function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   return function () {
@@ -2224,8 +2217,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return descriptor.get && descriptor.enumerable;
   },
   'web.set-immediate': IMMEDIATE,
-  'web.set-interval': TIMERS,
-  'web.set-timeout': TIMERS,
   'web.structured-clone': function () {
     function checkErrorsCloning(structuredCloneImplementation, $Error) {
       var error = new $Error();
