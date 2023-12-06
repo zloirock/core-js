@@ -1727,9 +1727,6 @@ GLOBAL.tests = {
   },
   'esnext.set.symmetric-difference': createSetMethodTest('symmetricDifference'),
   'esnext.set.union': createSetMethodTest('union'),
-  'esnext.string.code-points': function () {
-    return String.prototype.codePoints;
-  },
   'esnext.string.cooked': function () {
     return String.cooked;
   },
