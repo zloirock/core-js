@@ -1632,9 +1632,6 @@ GLOBAL.tests = {
     var result = new Int8Array(1).with(-0.5, 1);
     return result[0] === 1;
   }],
-  'es.unescape': function () {
-    return unescape;
-  },
   'es.weak-map.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = Object.freeze([]);
     var called = 0;
