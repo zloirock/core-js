@@ -1418,9 +1418,6 @@ GLOBAL.tests = {
     return ''.split(O) === 7 && execCalled && result.length === 2 && result[0] === 'a' && result[1] === 'b';
   },
   'es.string.starts-with': createIsRegExpLogicTest('startsWith'),
-  'es.string.substr': function () {
-    return 'ab'.substr(-1) === 'b';
-  },
   'es.string.to-well-formed': function () {
     // Safari ToString conversion bug
     // https://bugs.webkit.org/show_bug.cgi?id=251757
