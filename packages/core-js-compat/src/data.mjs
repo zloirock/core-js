@@ -371,14 +371,6 @@ export const data = {
     rhino: '1.9.0',
     safari: '10.0',
   },
-  'es.array.some': {
-    chrome: '26',
-    firefox: '4',
-    hermes: '0.1',
-    ie: '9',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
   'es.array.sort': {
     chrome: '70',
     firefox: '4',
