@@ -480,14 +480,6 @@ export const features = {
     modules: [/^(?:es|esnext)\.error\./],
     template: $namespace({ name: 'Error' }),
   },
-  'error/to-string': {
-    modules: ['es.error.to-string'],
-    template: $prototype({ namespace: 'Error', method: 'toString' }),
-  },
-  'error/virtual/to-string': {
-    modules: ['es.error.to-string'],
-    template: $virtual({ namespace: 'Error', method: 'toString' }),
-  },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
     template: $namespace({ name: 'Function' }),
