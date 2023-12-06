@@ -447,10 +447,6 @@ export const features = {
     modules: ['es.date.set-year'],
     template: $prototype({ namespace: 'Date', method: 'setYear' }),
   },
-  'date/virtual/set-year': {
-    modules: ['es.date.set-year'],
-    template: $virtual({ namespace: 'Date', method: 'setYear' }),
-  },
   'date/to-json': {
     modules: ['es.date.to-json'],
     template: $prototype({ namespace: 'Date', method: 'toJSON' }),
