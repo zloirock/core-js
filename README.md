@@ -179,7 +179,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`String.cooked`](#stringcooked)
-      - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
@@ -2929,25 +2928,6 @@ function safePath(strings, ...subs) {
 let id = 'spottie?';
 
 safePath`/cats/${ id }`; // => /cats/spottie%3F
-```
-##### [`String.prototype.codePoints`](https://github.com/tc39/proposal-string-prototype-codepoints)[⬆](#index)
-Module [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
-```js
-class String {
-  codePoints(): Iterator<{ codePoint, position }>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/string-code-points
-core-js(-pure)/full/string/code-points
-```
-[*Example*](https://goo.gl/Jt7SsD):
-```js
-for (let { codePoint, position } of 'qwe'.codePoints()) {
-  console.log(codePoint); // => 113, 119, 101
-  console.log(position);  // => 0, 1, 2
-}
 ```
 ##### [`Symbol.matcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
 Module [`esnext.symbol.matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.matcher.js).

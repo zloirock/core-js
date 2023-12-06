@@ -737,8 +737,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
     ` === 'a1b');
-    ok('next' in load(NS, 'string/code-points')('a'));
-    ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
     ok(load(NS, 'symbol/matcher'));
@@ -750,12 +748,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
-
-    const instanceCodePoints = load(NS, 'instance/code-points');
-    ok(typeof instanceCodePoints == 'function');
-    ok(instanceCodePoints({}) === undefined);
-    ok(typeof instanceCodePoints('') == 'function');
-    ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
 
     const instanceDemethodize = load(NS, 'instance/demethodize');
     ok(typeof instanceDemethodize == 'function');
@@ -818,7 +810,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/relative-indexing-method');
   load('proposals/set-methods');
   load('proposals/string-cooked');
-  load('proposals/string-code-points');
   load('proposals/string-dedent');
   load('proposals/string-left-right-trim');
   load('proposals/string-match-all');
