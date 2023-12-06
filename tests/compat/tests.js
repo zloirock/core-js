@@ -46,13 +46,6 @@ var ARRAY_BUFFER_TRANSFER_BUG = IS_NODE && /^(?:21\.|22\.[0-3]\.)/.test(versions
 
 var WEBKIT_STRING_PAD_BUG = /Version\/10(?:\.\d+){1,2}(?: [\w./]+)?(?: Mobile\/\w+)? Safari\//.test(USERAGENT);
 
-var V8_PROTOTYPE_DEFINE_BUG = function () {
-  return Object.defineProperty(function () { /* empty */ }, 'prototype', {
-    value: 42,
-    writable: false,
-  }).prototype === 42;
-};
-
 var PROMISES_SUPPORT = function () {
   var promise = new Promise(function (resolve) { resolve(1); });
   var empty = function () { /* empty */ };
@@ -1061,10 +1054,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [V8_PROTOTYPE_DEFINE_BUG, function () {
+  'es.object.define-properties': function () {
     return Object.defineProperties;
-  }],
-  'es.object.define-property': V8_PROTOTYPE_DEFINE_BUG,
+  },
+  'es.object.define-property': function () {
+    return Object.defineProperty;
+  },
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
