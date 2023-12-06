@@ -219,7 +219,7 @@ if (!NATIVE_ARRAY_BUFFER) {
   }
 
   // WebKit bug - the same parent prototype for typed arrays and data view
-  if (setPrototypeOf && getPrototypeOf(DataViewPrototype) !== ObjectPrototype) {
+  if (getPrototypeOf(DataViewPrototype) !== ObjectPrototype) {
     setPrototypeOf(DataViewPrototype, ObjectPrototype);
   }
 
