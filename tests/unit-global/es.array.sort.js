@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Array#sort', assert => {
   const { sort } = Array.prototype;
   assert.isFunction(sort);
@@ -122,8 +120,6 @@ QUnit.test('Array#sort', assert => {
     assert.throws(() => [Symbol(1), Symbol(2)].sort(), 'w/o cmp throws on symbols');
   }
 
-  if (STRICT) {
-    assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
-    assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');
-  }
+  assert.throws(() => sort.call(null), TypeError, 'ToObject(this)');
+  assert.throws(() => sort.call(undefined), TypeError, 'ToObject(this)');
 });

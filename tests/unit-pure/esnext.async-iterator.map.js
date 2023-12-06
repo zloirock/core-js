@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import AsyncIterator from '@core-js/pure/actual/async-iterator';
 
@@ -10,10 +9,8 @@ QUnit.test('AsyncIterator#map', assert => {
   assert.arity(map, 1);
   assert.nonEnumerable(AsyncIterator.prototype, 'map');
 
-  if (STRICT) {
-    assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => map.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => map.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => map.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => map.call(createIterator([1]), null), TypeError);
@@ -22,7 +19,7 @@ QUnit.test('AsyncIterator#map', assert => {
   return map.call(createIterator([1, 2, 3]), it => it ** 2).toArray().then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'basic functionality');
     return map.call(createIterator([1]), function (arg, counter) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(counter, 0, 'counter');
