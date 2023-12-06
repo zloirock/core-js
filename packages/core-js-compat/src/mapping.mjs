@@ -372,10 +372,6 @@ export default {
     ['14.0', '14.0'],
     ['14.1', '14.5'],
   ],
-  SafariToPhantom: [
-    ['4.1', '1.9'],
-    ['6.0', '2.0'],
-  ],
   // This is the base data. Since it have no direct Hermes version equals,
   // don't use mapping for future releases.
   HermesToReactNative: [
