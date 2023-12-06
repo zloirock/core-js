@@ -1354,14 +1354,6 @@ export const features = {
     modules: ['es.string.code-point-at'],
     template: $virtual({ namespace: 'String', method: 'codePointAt' }),
   },
-  'string/code-points': {
-    modules: ['esnext.string.code-points'],
-    template: $prototype({ namespace: 'String', method: 'codePoints' }),
-  },
-  'string/virtual/code-points': {
-    modules: ['esnext.string.code-points'],
-    template: $virtual({ namespace: 'String', method: 'codePoints' }),
-  },
   'string/cooked': {
     modules: ['esnext.string.cooked'],
     template: $static({ namespace: 'String', method: 'cooked' }),
@@ -2147,13 +2139,6 @@ export const proposals = {
       'esnext.set.is-superset-of',
       'esnext.set.symmetric-difference',
       'esnext.set.union',
-    ],
-  },
-  // https://github.com/tc39/proposal-string-prototype-codepoints
-  'string-code-points': {
-    stage: 1,
-    modules: [
-      'esnext.string.code-points',
     ],
   },
   // https://github.com/bathos/proposal-string-cooked
