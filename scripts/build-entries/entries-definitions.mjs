@@ -912,14 +912,6 @@ export const features = {
     modules: ['es.number.to-fixed'],
     template: $virtual({ namespace: 'Number', method: 'toFixed' }),
   },
-  'number/to-precision': {
-    modules: ['es.number.to-precision'],
-    template: $prototype({ namespace: 'Number', method: 'toPrecision' }),
-  },
-  'number/virtual/to-precision': {
-    modules: ['es.number.to-precision'],
-    template: $virtual({ namespace: 'Number', method: 'toPrecision' }),
-  },
   'object/index': {
     modules: [/^(?:es|esnext)\.object\./],
     template: $namespace({ name: 'Object' }),
