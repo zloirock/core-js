@@ -75,7 +75,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/filter') == 'function');
     ok(typeof load(NS, 'array/flat') == 'function');
     ok(typeof load(NS, 'array/flat-map') == 'function');
-    ok(typeof load(NS, 'array/some') == 'function');
     ok(typeof load(NS, 'array/push') == 'function');
     ok(typeof load(NS, 'array/reduce') == 'function');
     ok(typeof load(NS, 'array/reduce-right') == 'function');
@@ -108,7 +107,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/filter') == 'function');
     ok(typeof load(NS, 'array/virtual/flat') == 'function');
     ok(typeof load(NS, 'array/virtual/flat-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/some') == 'function');
     ok(typeof load(NS, 'array/virtual/push') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce-right') == 'function');
@@ -590,12 +588,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     O = [1, 2, 3];
     deepEqual(instanceSlice([]).call(O, 1), [2, 3]);
     deepEqual(O, [1, 2, 3]);
-
-    const instanceSome = load(NS, 'instance/some');
-    ok(typeof instanceSome == 'function');
-    ok(instanceSome({}) === undefined);
-    ok(typeof instanceSome([]) == 'function');
-    ok(instanceSome([]).call([1, 2, 3], it => it > 1) === true);
 
     const instanceSort = load(NS, 'instance/sort');
     ok(typeof instanceSort == 'function');

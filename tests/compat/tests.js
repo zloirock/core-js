@@ -599,13 +599,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return String(test) !== String(test.reverse());
   },
   'es.array.slice': createArrayMethodSpeciesTest('slice'),
-  'es.array.some': function () {
-    try {
-      Array.prototype.some.call(null, function () { /* empty */ });
-    } catch (error) {
-      return Array.prototype.some;
-    }
-  },
   'es.array.sort': function () {
     try {
       Array.prototype.sort.call(null);
