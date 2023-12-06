@@ -48,13 +48,6 @@ var DESCRIPTORS_SUPPORT = function () {
   }).a === 7;
 };
 
-var V8_PROTOTYPE_DEFINE_BUG = function () {
-  return Object.defineProperty(function () { /* empty */ }, 'prototype', {
-    value: 42,
-    writable: false,
-  }).prototype === 42;
-};
-
 var PROMISES_SUPPORT = function () {
   var promise = new Promise(function (resolve) { resolve(1); });
   var empty = function () { /* empty */ };
@@ -797,10 +790,10 @@ GLOBAL.tests = {
     return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
   },
   'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-properties': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG, function () {
+  'es.object.define-properties': [DESCRIPTORS_SUPPORT, function () {
     return Object.defineProperties;
   }],
-  'es.object.define-property': [DESCRIPTORS_SUPPORT, V8_PROTOTYPE_DEFINE_BUG],
+  'es.object.define-property': DESCRIPTORS_SUPPORT,
   'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
   'es.object.entries': function () {
     return Object.entries;
