@@ -623,17 +623,12 @@ class AggregateError extends Error {
   message: string;
   cause: any;
 }
-
-class Error {
-  toString(): string; // different fixes
-}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
-core-js/es|stable|actual|full/error/to-string
 ```
 [*Example*](https://is.gd/1SufcH):
 ```js
@@ -646,8 +641,6 @@ aggregate.errors[1] === error2; // => true
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here explained what`s wrong', { cause });
 error.cause === cause; // => true
-
-Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
 #### ECMAScript: Array[⬆](#index)
