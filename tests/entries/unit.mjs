@@ -63,7 +63,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/flat') == 'function');
     ok(typeof load(NS, 'array/flat-map') == 'function');
     ok(typeof load(NS, 'array/some') == 'function');
-    ok(typeof load(NS, 'array/every') == 'function');
     ok(typeof load(NS, 'array/push') == 'function');
     ok(typeof load(NS, 'array/reduce') == 'function');
     ok(typeof load(NS, 'array/reduce-right') == 'function');
@@ -97,7 +96,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/flat') == 'function');
     ok(typeof load(NS, 'array/virtual/flat-map') == 'function');
     ok(typeof load(NS, 'array/virtual/some') == 'function');
-    ok(typeof load(NS, 'array/virtual/every') == 'function');
     ok(typeof load(NS, 'array/virtual/push') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce-right') == 'function');
@@ -378,12 +376,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceEntries({}) === undefined);
     ok(typeof instanceEntries([]) == 'function');
     ok(instanceEntries([]).call([1, 2, 3]).next().value[1] === 1);
-
-    const instanceEvery = load(NS, 'instance/every');
-    ok(typeof instanceEvery == 'function');
-    ok(instanceEvery({}) === undefined);
-    ok(typeof instanceEvery([]) == 'function');
-    ok(instanceEvery([]).call([1, 2, 3], it => typeof it == 'number'));
 
     const instanceFill = load(NS, 'instance/fill');
     ok(typeof instanceFill == 'function');
