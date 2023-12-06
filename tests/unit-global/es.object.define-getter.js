@@ -1,5 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
-
 QUnit.test('Object#__defineGetter__', assert => {
   const { __defineGetter__ } = Object.prototype;
   assert.isFunction(__defineGetter__);
@@ -16,8 +14,7 @@ QUnit.test('Object#__defineGetter__', assert => {
   object.key = 44;
   assert.same(object.key, 42, 'works with getter #1');
   assert.same(object.foo, 43, 'works with getter #2');
-  if (STRICT) {
-    assert.throws(() => __defineGetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
-    assert.throws(() => __defineGetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
-  }
+
+  assert.throws(() => __defineGetter__.call(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');
+  assert.throws(() => __defineGetter__.call(undefined, 1, () => { /* empty */ }), TypeError, 'Throws on undefined as `this`');
 });
