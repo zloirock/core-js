@@ -914,7 +914,7 @@ export const features = {
     template: $patchableStatic({ namespace: 'Object', method: 'defineProperty' }),
   },
   'object/define-properties': {
-    modules: ['es.object.define-properties'],
+    modules: [],
     template: $patchableStatic({ namespace: 'Object', method: 'defineProperties' }),
   },
   'object/define-getter': {
