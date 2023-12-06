@@ -7,8 +7,6 @@ var setPrototypeOf = require('../internals/object-set-prototype-of');
 module.exports = function ($this, dummy, Wrapper) {
   var NewTarget, NewTargetPrototype;
   if (
-    // it can work only with native `setPrototypeOf`
-    setPrototypeOf &&
     // we haven't completely correct pre-ES6 way for getting `new.target`, so use this
     isCallable(NewTarget = dummy.constructor) &&
     NewTarget !== Wrapper &&
