@@ -627,7 +627,6 @@ Modules [`es.aggregate-error.constructor`](https://github.com/zloirock/core-js/b
 class Error {
   static isError(value: any): boolean;
   constructor(message: string, { cause: any }): %Error%;
-  toString(): string; // different fixes
 }
 
 class [
@@ -663,7 +662,6 @@ class SuppressedError extends Error {
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
 core-js(-pure)/es|stable|actual|full/error/is-error
-core-js/es|stable|actual|full/error/to-string
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js(-pure)/es|stable|actual|full/suppressed-error
 ```
@@ -678,8 +676,6 @@ aggregate.errors[1] === error2; // => true
 const cause = new TypeError('Something wrong');
 const error = new TypeError('Here explained what`s wrong', { cause });
 error.cause === cause; // => true
-
-Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
 [*Example*](https://tinyurl.com/23nauwoz):
