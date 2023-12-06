@@ -271,13 +271,6 @@ function IMMEDIATE() {
   })());
 }
 
-function TIMERS() {
-  return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
-    var version = global.Bun.version.split('.');
-    return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
-  })());
-}
-
 GLOBAL.tests = {
   'es.symbol.constructor': SYMBOLS_SUPPORT,
   'es.symbol.description': function () {
@@ -1892,8 +1885,6 @@ GLOBAL.tests = {
     return descriptor.get && descriptor.enumerable;
   },
   'web.set-immediate': IMMEDIATE,
-  'web.set-interval': TIMERS,
-  'web.set-timeout': TIMERS,
   'web.structured-clone': function () {
     function checkErrorsCloning(structuredCloneImplementation, $Error) {
       var error = new $Error();
