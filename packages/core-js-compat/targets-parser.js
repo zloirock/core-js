@@ -35,7 +35,6 @@ const validTargets = new Set([
   'node',
   'opera',
   'opera-android',
-  'phantom',
   'quest',
   'react-native',
   'rhino',
