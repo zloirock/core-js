@@ -267,7 +267,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
     load(NS, 'date/set-year')(date, 1);
     ok(date.getFullYear() === 1901);
-    ok(load(NS, 'date/to-gmt-string')(date) === date.toUTCString());
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
