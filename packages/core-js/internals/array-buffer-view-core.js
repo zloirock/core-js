@@ -29,8 +29,6 @@ var TypeError = globalThis.TypeError;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
 var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
-// Fixing native typed arrays in Opera Presto crashes the browser, see #595
-var NATIVE_ARRAY_BUFFER_VIEWS = classof(globalThis.opera) !== 'Opera';
 var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
 
@@ -97,7 +95,7 @@ var exportTypedArrayMethod = function (KEY, property, forced, options) {
   }
   if (!TypedArrayPrototype[KEY] || forced) {
     defineBuiltIn(TypedArrayPrototype, KEY, forced ? property
-      : NATIVE_ARRAY_BUFFER_VIEWS && Int8ArrayPrototype[KEY] || property, options);
+      : Int8ArrayPrototype[KEY] || property, options);
   }
 };
 
@@ -113,7 +111,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   if (!TypedArray[KEY] || forced) {
     // V8 ~ Chrome 49-50 `%TypedArray%` methods are non-writable non-configurable
     try {
-      return defineBuiltIn(TypedArray, KEY, forced ? property : NATIVE_ARRAY_BUFFER_VIEWS && TypedArray[KEY] || property);
+      return defineBuiltIn(TypedArray, KEY, forced ? property : TypedArray[KEY] || property);
     } catch (error) { /* empty */ }
   } else return;
   for (ARRAY in TypedArrayConstructorsList) {
@@ -126,9 +124,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
 
 for (NAME in TypedArrayConstructorsList) {
   Constructor = globalThis[NAME];
-  Prototype = Constructor && Constructor.prototype;
-  if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
-  else NATIVE_ARRAY_BUFFER_VIEWS = false;
+  enforceInternalState(Constructor.prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
 }
 
 for (NAME in BigIntArrayConstructorsList) {
@@ -138,25 +134,25 @@ for (NAME in BigIntArrayConstructorsList) {
 }
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
-if (!NATIVE_ARRAY_BUFFER_VIEWS || !isCallable(TypedArray) || TypedArray === Function.prototype) {
+if (!isCallable(TypedArray) || TypedArray === Function.prototype) {
   // eslint-disable-next-line no-shadow -- safe
   TypedArray = function TypedArray() {
     throw new TypeError('Incorrect invocation');
   };
-  if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
+  for (NAME in TypedArrayConstructorsList) {
     if (globalThis[NAME]) setPrototypeOf(globalThis[NAME], TypedArray);
   }
 }
 
-if (!NATIVE_ARRAY_BUFFER_VIEWS || !TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
+if (!TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
   TypedArrayPrototype = TypedArray.prototype;
-  if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
+  for (NAME in TypedArrayConstructorsList) {
     if (globalThis[NAME]) setPrototypeOf(globalThis[NAME].prototype, TypedArrayPrototype);
   }
 }
 
 // WebKit bug - one more object in Uint8ClampedArray prototype chain
-if (NATIVE_ARRAY_BUFFER_VIEWS && getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
+if (getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
   setPrototypeOf(Uint8ClampedArrayPrototype, TypedArrayPrototype);
 }
 
@@ -174,7 +170,6 @@ if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
 }
 
 module.exports = {
-  NATIVE_ARRAY_BUFFER_VIEWS: NATIVE_ARRAY_BUFFER_VIEWS,
   TYPED_ARRAY_TAG: TYPED_ARRAY_TAG_REQUIRED && TYPED_ARRAY_TAG,
   aTypedArray: aTypedArray,
   aTypedArrayConstructor: aTypedArrayConstructor,
