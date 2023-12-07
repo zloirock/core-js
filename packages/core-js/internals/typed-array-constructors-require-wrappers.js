@@ -3,12 +3,11 @@
 var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
-var NATIVE_ARRAY_BUFFER_VIEWS = require('../internals/array-buffer-view-core').NATIVE_ARRAY_BUFFER_VIEWS;
 
 var ArrayBuffer = globalThis.ArrayBuffer;
 var Int8Array = globalThis.Int8Array;
 
-module.exports = !NATIVE_ARRAY_BUFFER_VIEWS || !fails(function () {
+module.exports = !fails(function () {
   Int8Array(1);
 }) || !fails(function () {
   new Int8Array(-1);
