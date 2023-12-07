@@ -203,12 +203,14 @@ QUnit.test('String#match delegates to @@match', assert => {
   object[Symbol.match] = function (it) {
     return { value: it };
   };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@match
   assert.same(string.match(object).value, string);
   assert.same(''.match.call(number, object).value, number);
   const regexp = /./;
   regexp[Symbol.match] = function (it) {
     return { value: it };
   };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@match
   assert.same(string.match(regexp).value, string);
   assert.same(''.match.call(number, regexp).value, number);
   /* eslint-enable es/no-nonstandard-array-prototype-properties -- @@match */
