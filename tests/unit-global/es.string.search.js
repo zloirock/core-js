@@ -99,12 +99,14 @@ QUnit.test('String#search delegates to @@search', assert => {
   object[Symbol.search] = function (it) {
     return { value: it };
   };
+  // eslint-disable-next-line es/no-nonstandard-number-prototype-properties -- @@search
   assert.same(string.search(object).value, string);
   assert.same(''.search.call(number, object).value, number);
   const regexp = /./;
   regexp[Symbol.search] = function (it) {
     return { value: it };
   };
+  // eslint-disable-next-line es/no-nonstandard-number-prototype-properties -- @@search
   assert.same(string.search(regexp).value, string);
   assert.same(''.search.call(number, regexp).value, number);
 });
