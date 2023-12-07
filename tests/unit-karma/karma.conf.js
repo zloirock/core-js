@@ -19,7 +19,6 @@ const browsers = [
   'ChromiumHeadless',
   'FirefoxHeadless',
   'WebKitHeadless',
-  'PhantomJS',
 ];
 
 if (process.env.CI) {
