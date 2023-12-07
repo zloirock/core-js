@@ -8,7 +8,6 @@ var collectionWeak = require('../internals/collection-weak');
 var isObject = require('../internals/is-object');
 var enforceInternalState = require('../internals/internal-state').enforce;
 var fails = require('../internals/fails');
-var NATIVE_WEAK_MAP = require('../internals/weak-map-basic-detection');
 
 var $Object = Object;
 var isArray = Array.isArray;
@@ -48,7 +47,7 @@ var hasMSEdgeFreezingBug = function () {
 // IE11 WeakMap frozen keys fix
 // We can't use feature detection because it crash some old IE builds
 // https://github.com/zloirock/core-js/issues/485
-if (NATIVE_WEAK_MAP) if (IS_IE11) {
+if (IS_IE11) {
   InternalWeakMap = collectionWeak.getConstructor(wrapper, 'WeakMap', true);
   InternalMetadataModule.enable();
   var nativeDelete = uncurryThis(WeakMapPrototype.delete);
