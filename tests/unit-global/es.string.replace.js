@@ -157,7 +157,9 @@ QUnit.test('String.replace delegates to @@replace', assert => {
   object[Symbol.replace] = function (a, b) {
     return { a, b };
   };
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(object, 42).a, string);
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(object, 42).b, 42);
   assert.same(''.replace.call(number, object, 42).a, number);
   assert.same(''.replace.call(number, object, 42).b, 42);
@@ -165,7 +167,9 @@ QUnit.test('String.replace delegates to @@replace', assert => {
   regexp[Symbol.replace] = function (a, b) {
     return { a, b };
   };
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(regexp, 42).a, string);
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(regexp, 42).b, 42);
   assert.same(''.replace.call(number, regexp, 42).a, number);
   assert.same(''.replace.call(number, regexp, 42).b, 42);
