@@ -34,7 +34,6 @@ QUnit.test('WeakSet', assert => {
   assert.false(('clear' in WeakSet.prototype), 'should not contains `.clear` method');
   const array = [];
   done = false;
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return [][Symbol.iterator].call(this);
