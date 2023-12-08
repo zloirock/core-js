@@ -1,7 +1,6 @@
 // Some tests adopted from Test262 project and governed by the BSD license.
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
-import { REDEFINABLE_PROTO } from '../helpers/constants.js';
 import parse from '@core-js/pure/actual/json/parse';
 import defineProperty from '@core-js/pure/es/object/define-property';
 import hasOwn from '@core-js/pure/es/object/has-own';
@@ -100,10 +99,8 @@ QUnit.test('JSON.parse', assert => {
       assert.throws(() => parse(`{ "name" : Jo${ nullChars[i] }hn }`, reviver), SyntaxError, `15.12.2-2-10-${ i } ${ note }`);
     }
 
-    if (REDEFINABLE_PROTO) {
-      // eslint-disable-next-line no-proto -- testing
-      assert.same(parse('{ "__proto__": 1, "__proto__": 2 }', reviver).__proto__, 2, `duplicate proto ${ note }`);
-    }
+    // eslint-disable-next-line no-proto -- testing
+    assert.same(parse('{ "__proto__": 1, "__proto__": 2 }', reviver).__proto__, 2, `duplicate proto ${ note }`);
 
     assert.throws(() => parse('\u16801', reviver), SyntaxError, `15.12.1.1-0-7-1 ${ note }`); // invalid whitespace
     assert.throws(() => parse('\u180e1', reviver), SyntaxError, `15.12.1.1-0-7-2 ${ note }`); // invalid whitespace
