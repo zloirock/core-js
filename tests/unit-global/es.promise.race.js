@@ -76,8 +76,6 @@ QUnit.test('Promise.race, iterables', assert => {
 QUnit.test('Promise.race, iterables 2', assert => {
   const array = [];
   let done = false;
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return [][Symbol.iterator].call(this);
