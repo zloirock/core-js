@@ -8,7 +8,5 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = function (it) {
-  if (!isNullOrUndefined(it)) return getMethod(it, ITERATOR)
-    || getMethod(it, '@@iterator')
-    || Iterators[classof(it)];
+  if (!isNullOrUndefined(it)) return getMethod(it, ITERATOR) || Iterators[classof(it)];
 };
