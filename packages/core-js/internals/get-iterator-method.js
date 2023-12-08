@@ -6,6 +6,5 @@ var ITERATOR = wellKnownSymbol('iterator');
 var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {
-  return it[ITERATOR] || it['@@iterator']
-    || (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
+  return it[ITERATOR] || (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
 };
