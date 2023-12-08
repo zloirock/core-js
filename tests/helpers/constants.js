@@ -45,15 +45,6 @@ export const LITTLE_ENDIAN = (() => {
   }
 })();
 
-export let REDEFINABLE_PROTO = false;
-
-try {
-  // Chrome 27- bug, also a bug for native `JSON.parse`
-  const O = Object.defineProperty({}, '__proto__', { value: 42, writable: true, configurable: true, enumerable: true });
-  // eslint-disable-next-line no-proto -- required for testing
-  REDEFINABLE_PROTO = O.__proto__ === 42;
-} catch { /* empty */ }
-
 // FF < 23 bug
 export const REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR = !function () {
   try {
