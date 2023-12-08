@@ -13,7 +13,7 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
   detach = function (transferable) {
     structuredClone(transferable, { transfer: [transferable] });
   };
-} else if ($ArrayBuffer) try {
+} else try {
   if (!$MessageChannel) {
     WorkerThreads = getBuiltInNodeModule('worker_threads');
     if (WorkerThreads) $MessageChannel = WorkerThreads.MessageChannel;
