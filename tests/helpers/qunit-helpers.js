@@ -43,7 +43,7 @@ assign(QUnit.assert, {
     });
   },
   // TODO: Drop from ~ `core-js@5`
-  // unavailable in `qunit@1` that's required for testing in IE9-
+  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
   },
@@ -169,7 +169,7 @@ assign(QUnit.assert, {
     });
   },
   // TODO: Drop from ~ `core-js@5`
-  // unavailable in `qunit@1` that's required for testing in IE9-
+  // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
   true(value, message = 'The value is `true`') {
     this.same(value, true, message);
   },
