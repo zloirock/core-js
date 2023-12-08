@@ -10,11 +10,11 @@ var $RangeError = RangeError;
 var $TypeError = TypeError;
 var max = Math.max;
 
-var SetRecord = function (set, size, has, keys) {
+var SetRecord = function (set, intSize) {
   this.set = set;
-  this.size = size;
-  this.has = has;
-  this.keys = keys;
+  this.size = max(intSize, 0);
+  this.has = aCallable(set.has);
+  this.keys = aCallable(set.keys);
 };
 
 SetRecord.prototype = {
@@ -36,10 +36,5 @@ module.exports = function (obj) {
   if (numSize !== numSize) throw new $TypeError(INVALID_SIZE);
   var intSize = toIntegerOrInfinity(numSize);
   if (intSize < 0) throw new $RangeError(INVALID_SIZE);
-  return new SetRecord(
-    obj,
-    max(intSize, 0),
-    aCallable(obj.has),
-    aCallable(obj.keys)
-  );
+  return new SetRecord(obj, intSize);
 };
