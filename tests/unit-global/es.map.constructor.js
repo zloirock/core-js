@@ -31,7 +31,6 @@ QUnit.test('Map', assert => {
   assert.true(done, '.return #throw');
   const array = [];
   done = false;
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return [][Symbol.iterator].call(this);
