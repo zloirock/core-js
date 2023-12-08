@@ -88,8 +88,6 @@ QUnit.test('Array.from', assert => {
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
   let array = [1, 2, 3];
   done = false;
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return getIteratorMethod([]).call(this);
