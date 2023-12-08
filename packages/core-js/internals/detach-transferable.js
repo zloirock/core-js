@@ -25,7 +25,7 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
       arrayBufferTransfer(transferable);
     } catch (error) { /* empty */ }
   };
-} else if ($ArrayBuffer) try {
+} else try {
   if (postMessage) {
     buffer = new $ArrayBuffer(2);
 
