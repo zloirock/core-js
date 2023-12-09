@@ -8,7 +8,7 @@ var arrayMethodIsStrict = require('../internals/array-method-is-strict');
 
 var min = Math.min;
 var $lastIndexOf = [].lastIndexOf;
-var NEGATIVE_ZERO = !!$lastIndexOf && 1 / [1].lastIndexOf(1, -0) < 0;
+var NEGATIVE_ZERO = 1 / [1].lastIndexOf(1, -0) < 0;
 var STRICT_METHOD = arrayMethodIsStrict('lastIndexOf');
 var FORCED = NEGATIVE_ZERO || !STRICT_METHOD;
 
