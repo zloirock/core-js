@@ -6,7 +6,6 @@ var getInternalState = require('../internals/internal-state').get;
 var classof = require('../internals/classof-raw');
 
 var $TypeError = TypeError;
-// dependency: es.array-buffer.constructor
 var POLYFILLED_ARRAY_BUFFER = getInternalState(new ArrayBuffer(0)).type === 'ArrayBuffer';
 var byteLength = !POLYFILLED_ARRAY_BUFFER && uncurryThisAccessor(ArrayBuffer.prototype, 'byteLength', 'get');
 
