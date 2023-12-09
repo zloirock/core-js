@@ -6,7 +6,7 @@ var anUint8Array = require('../internals/an-uint8-array');
 
 var Uint8Array = globalThis.Uint8Array;
 
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.setFromBase64 || !function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.setFromBase64 || !function () {
   var target = new Uint8Array([255, 255, 255, 255, 255]);
   try {
     target.setFromBase64('', null);
@@ -26,7 +26,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.s
 
 // `Uint8Array.prototype.setFromBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
+$({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   setFromBase64: function setFromBase64(string /* , options */) {
     anUint8Array(this);
 

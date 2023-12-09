@@ -7,12 +7,12 @@ var notDetached = require('../internals/array-buffer-not-detached');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 
+var Uint8Array = globalThis.Uint8Array;
+
 var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;
 
-var Uint8Array = globalThis.Uint8Array;
-
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.toBase64 || !function () {
   try {
     var target = new Uint8Array();
     target.toBase64(null);
@@ -23,7 +23,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.t
 
 // `Uint8Array.prototype.toBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
+$({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
     var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;
