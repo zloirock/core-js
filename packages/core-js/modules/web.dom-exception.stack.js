@@ -12,7 +12,7 @@ var clearErrorStack = require('../internals/error-stack-clear');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
-var Error = getBuiltIn('Error');
+var Error = globalThis.Error;
 // dependency: web.dom-exception.constructor
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
 var defineProperty = Object.defineProperty;
