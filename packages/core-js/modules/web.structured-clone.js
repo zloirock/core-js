@@ -38,6 +38,10 @@ var Array = globalThis.Array;
 var Date = globalThis.Date;
 var Error = globalThis.Error;
 var TypeError = globalThis.TypeError;
+var ArrayBuffer = globalThis.ArrayBuffer;
+var DataView = globalThis.DataView;
+var getUint8 = uncurryThis(DataView.prototype.getUint8);
+var setUint8 = uncurryThis(DataView.prototype.setUint8);
 var PerformanceMark = globalThis.PerformanceMark;
 // dependency: web.dom-exception.constructor
 var DOMException = getBuiltIn('DOMException');
@@ -186,11 +190,6 @@ var cloneBuffer = function (value, map, $type) {
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     if (!clone || classof(clone) !== 'SharedArrayBuffer') clone = value;
   } else {
-    var DataView = globalThis.DataView;
-
-    // `ArrayBuffer#slice` is not available in IE10
-    // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throw in `DataView` and `.slice`, but not in every engine
     if (isDetached(value)) throw new DOMException('ArrayBuffer is detached', DATA_CLONE_ERROR);
     if (isCallable(value.slice) && !value.resizable) {
@@ -198,12 +197,11 @@ var cloneBuffer = function (value, map, $type) {
     } else {
       length = value.byteLength;
       options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
-      // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
       clone = new ArrayBuffer(length, options);
       source = new DataView(value);
       target = new DataView(clone);
       for (i = 0; i < length; i++) {
-        target.setUint8(i, source.getUint8(i));
+        setUint8(target, i, getUint8(source, i));
       }
     }
   }
