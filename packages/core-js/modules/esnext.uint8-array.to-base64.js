@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
@@ -12,7 +11,7 @@ var base64UrlAlphabet = base64Map.i2cUrl;
 
 // `Uint8Array.prototype.toBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true }, {
+$({ target: 'Uint8Array', proto: true }, {
   toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
     var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;
