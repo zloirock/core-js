@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var aString = require('../internals/a-string');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
@@ -21,7 +20,7 @@ function throwsOnLengthTrackingView() {
 
 // `Uint8Array.prototype.setFromHex` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true, forced: throwsOnLengthTrackingView() }, {
+$({ target: 'Uint8Array', proto: true, forced: throwsOnLengthTrackingView() }, {
   setFromHex: function setFromHex(string) {
     anUint8Array(this);
     aString(string);
