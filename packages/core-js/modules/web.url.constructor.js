@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var globalThis = require('../internals/global-this');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
-var bind = require('../internals/function-bind');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
@@ -1017,16 +1016,13 @@ defineBuiltIn(URLPrototype, 'toString', function toString() {
   return getInternalURLState(this).serialize();
 }, { enumerable: true });
 
-if (NativeURL) {
-  var nativeCreateObjectURL = NativeURL.createObjectURL;
-  var nativeRevokeObjectURL = NativeURL.revokeObjectURL;
-  // `URL.createObjectURL` method
-  // https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
-  if (nativeCreateObjectURL) defineBuiltIn(URLConstructor, 'createObjectURL', bind(nativeCreateObjectURL, NativeURL));
-  // `URL.revokeObjectURL` method
-  // https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL
-  if (nativeRevokeObjectURL) defineBuiltIn(URLConstructor, 'revokeObjectURL', bind(nativeRevokeObjectURL, NativeURL));
-}
+// `URL.createObjectURL` method
+// https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL
+// `URL.revokeObjectURL` method
+// https://developer.mozilla.org/en-US/docs/Web/API/URL/revokeObjectURL
+if (NativeURL) ['createObjectURL', 'revokeObjectURL'].forEach(function (method) {
+  if (NativeURL[method]) defineBuiltIn(URLConstructor, method, NativeURL[method].bind(NativeURL));
+});
 
 setToStringTag(URLConstructor, 'URL');
 
