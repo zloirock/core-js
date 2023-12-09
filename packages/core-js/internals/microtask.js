@@ -59,10 +59,9 @@ if (!microtask) {
   // - setImmediate
   // - MessageChannel
   // - window.postMessage
-  // - onreadystatechange
   // - setTimeout
   } else {
-    // `webpack` dev server bug on IE global methods - use bind(fn, global)
+    // `webpack` dev server bug on IE global methods - use macrotask.bind(global)
     macrotask = macrotask.bind(globalThis);
     notify = function () {
       macrotask(flush);
