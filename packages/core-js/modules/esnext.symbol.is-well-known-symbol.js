@@ -14,13 +14,12 @@ var getOwnPropertyNames = Object.getOwnPropertyNames;
 var thisSymbolValue = uncurryThis(Symbol.prototype.valueOf);
 var WellKnownSymbolsStore = shared('wks');
 
-for (var i = 0, symbolKeys = getOwnPropertyNames(Symbol), symbolKeysLength = symbolKeys.length; i < symbolKeysLength; i++) {
+getOwnPropertyNames(Symbol).forEach(function (symbolKey) {
   // some old engines throws on access to some keys like `arguments` or `caller`
   try {
-    var symbolKey = symbolKeys[i];
     if (isSymbol(Symbol[symbolKey])) wellKnownSymbol(symbolKey);
   } catch (error) { /* empty */ }
-}
+});
 
 // `Symbol.isWellKnownSymbol` method
 // https://tc39.es/proposal-symbol-predicates/#sec-symbol-iswellknownsymbol
