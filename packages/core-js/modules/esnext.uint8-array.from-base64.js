@@ -1,12 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var $fromBase64 = require('../internals/uint8-from-base64');
 
-var Uint8Array = globalThis.Uint8Array;
-
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.fromBase64 || !function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.fromBase64 || !function () {
   try {
     Uint8Array.fromBase64('', null);
   } catch (error) {
@@ -16,7 +13,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.fromBase64 
 
 // `Uint8Array.fromBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
+$({ target: 'Uint8Array', stat: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   fromBase64: function fromBase64(string /* , options */) {
     var result = $fromBase64(string, arguments.length > 1 ? arguments[1] : undefined, null, 0x1FFFFFFFFFFFFF);
     return arrayFromConstructorAndList(Uint8Array, result.bytes);
