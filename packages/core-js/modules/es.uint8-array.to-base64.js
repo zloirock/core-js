@@ -1,7 +1,7 @@
 'use strict';
 /* eslint-disable no-useless-assignment -- false positive for [index++] syntax */
+/* eslint-disable es/no-typed-arrays, es/no-uint8array-prototype-tobase64 -- safe */
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
@@ -14,11 +14,10 @@ var base64UrlAlphabet = base64Map.i2cUrl;
 var $floor = Math.floor;
 var $ceil = Math.ceil;
 
-var Uint8Array = globalThis.Uint8Array;
-var $Array = globalThis.Array;
+var $Array = Array;
 var join = uncurryThis([].join);
 
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.toBase64 || !function () {
   try {
     var target = new Uint8Array();
     target.toBase64(null);
@@ -29,7 +28,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.t
 
 // `Uint8Array.prototype.toBase64` method
 // https://tc39.es/ecma262/#sec-uint8array.prototype.tobase64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
+$({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
     var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;
