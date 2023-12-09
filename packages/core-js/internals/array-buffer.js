@@ -16,9 +16,9 @@ var fround = require('../internals/math-fround');
 var IEEE754 = require('../internals/ieee754');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var arrayFill = require('../internals/array-fill');
 var arraySlice = require('../internals/array-slice-simple');
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 
@@ -223,13 +223,9 @@ if (!NATIVE_ARRAY_BUFFER) {
 
     $ArrayBuffer[PROTOTYPE] = ArrayBufferPrototype;
 
-    for (var keys = getOwnPropertyNames(NativeArrayBuffer), j = 0, key; keys.length > j;) {
-      if (!((key = keys[j++]) in $ArrayBuffer)) {
-        createNonEnumerableProperty($ArrayBuffer, key, NativeArrayBuffer[key]);
-      }
-    }
-
     ArrayBufferPrototype.constructor = $ArrayBuffer;
+
+    copyConstructorProperties($ArrayBuffer, NativeArrayBuffer);
   } else if (INCORRECT_ARRAY_BUFFER_NAME && CONFIGURABLE_FUNCTION_NAME) {
     createNonEnumerableProperty(NativeArrayBuffer, 'name', ARRAY_BUFFER);
   }
