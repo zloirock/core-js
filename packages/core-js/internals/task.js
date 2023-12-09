@@ -1,59 +1,57 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
-var bind = require('../internals/function-bind');
 var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
-var html = require('../internals/html');
 var arraySlice = require('../internals/array-slice');
-var createElement = require('../internals/document-create-element');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var IS_IOS = require('../internals/environment-is-ios');
 var IS_NODE = require('../internals/environment-is-node');
 
-var set = globalThis.setImmediate;
-var clear = globalThis.clearImmediate;
-var process = globalThis.process;
-var Dispatch = globalThis.Dispatch;
-var Function = globalThis.Function;
-var MessageChannel = globalThis.MessageChannel;
-var String = globalThis.String;
-var counter = 0;
-var queue = Object.create(null);
-var ONREADYSTATECHANGE = 'onreadystatechange';
-var $location, defer, channel, port;
+var $setImmediate = globalThis.setImmediate;
+var $clearImmediate = globalThis.clearImmediate;
 
-fails(function () {
-  // Deno throws a ReferenceError on `location` access without `--location` flag
-  $location = globalThis.location;
-});
+// Node.js 0.9+, Bun 0.1.7 and IE10+ has setImmediate and clearImmediate, otherwise:
+if (!$setImmediate || !$clearImmediate) {
+  var $setTimeout = globalThis.setTimeout;
+  var process = globalThis.process;
+  var Dispatch = globalThis.Dispatch;
+  var Function = globalThis.Function;
+  var MessageChannel = globalThis.MessageChannel;
+  var String = globalThis.String;
+  var counter = 0;
+  var queue = Object.create(null);
+  var $location, defer, channel, port;
 
-var run = function (id) {
-  var fn = queue[id];
-  if (fn) {
-    delete queue[id];
-    fn();
-  }
-};
+  fails(function () {
+    // Deno throws a ReferenceError on `location` access without `--location` flag
+    $location = globalThis.location;
+  });
 
-var runner = function (id) {
-  return function () {
-    run(id);
+  var run = function (id) {
+    var fn = queue[id];
+    if (fn) {
+      delete queue[id];
+      fn();
+    }
   };
-};
 
-var eventListener = function (event) {
-  run(event.data);
-};
+  var runner = function (id) {
+    return function () {
+      run(id);
+    };
+  };
 
-var globalPostMessageDefer = function (id) {
-  // old engines have not location.origin
-  globalThis.postMessage(String(id), $location.protocol + '//' + $location.host);
-};
+  var eventListener = function (event) {
+    run(event.data);
+  };
 
-// Node.js 0.9+ & IE10+ has setImmediate, otherwise:
-if (!set || !clear) {
-  set = function setImmediate(handler) {
+  var globalPostMessageDefer = function (id) {
+    // old engines have not location.origin
+    globalThis.postMessage(String(id), $location.protocol + '//' + $location.host);
+  };
+
+  $setImmediate = function setImmediate(handler) {
     validateArgumentsLength(arguments.length, 1);
     var fn = isCallable(handler) ? handler : Function(handler);
     var args = arraySlice(arguments, 1);
@@ -63,7 +61,7 @@ if (!set || !clear) {
     defer(counter);
     return counter;
   };
-  clear = function clearImmediate(id) {
+  $clearImmediate = function clearImmediate(id) {
     delete queue[id];
   };
   // Node.js 0.8-
@@ -82,9 +80,8 @@ if (!set || !clear) {
     channel = new MessageChannel();
     port = channel.port2;
     channel.port1.onmessage = eventListener;
-    defer = bind(port.postMessage, port);
+    defer = port.postMessage.bind(port);
   // Browsers with postMessage, skip WebWorkers
-  // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if (
     globalThis.addEventListener &&
     isCallable(globalThis.postMessage) &&
@@ -94,23 +91,15 @@ if (!set || !clear) {
   ) {
     defer = globalPostMessageDefer;
     globalThis.addEventListener('message', eventListener, false);
-  // IE8-
-  } else if (ONREADYSTATECHANGE in createElement('script')) {
-    defer = function (id) {
-      html.appendChild(createElement('script'))[ONREADYSTATECHANGE] = function () {
-        html.removeChild(this);
-        run(id);
-      };
-    };
   // Rest old browsers
   } else {
     defer = function (id) {
-      setTimeout(runner(id), 0);
+      $setTimeout(runner(id), 0);
     };
   }
 }
 
 module.exports = {
-  set: set,
-  clear: clear,
+  set: $setImmediate,
+  clear: $clearImmediate,
 };
