@@ -5,8 +5,6 @@ var isArray = Array.isArray;
 
 // Safari < 13 does not throw an error in this case
 var SILENT_ON_NON_WRITABLE_LENGTH_SET = !function () {
-  // makes no sense without proper strict mode support
-  if (this !== undefined) return true;
   try {
     Object.defineProperty([], 'length', { writable: false }).length = 1;
   } catch (error) {
