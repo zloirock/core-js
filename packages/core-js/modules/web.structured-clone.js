@@ -33,6 +33,10 @@ var Array = global.Array;
 var Date = global.Date;
 var Error = global.Error;
 var TypeError = global.TypeError;
+var ArrayBuffer = global.ArrayBuffer;
+var DataView = global.DataView;
+var getUint8 = uncurryThis(DataView.prototype.getUint8);
+var setUint8 = uncurryThis(DataView.prototype.setUint8);
 var PerformanceMark = global.PerformanceMark;
 // dependency: web.dom-exception.constructor
 var DOMException = getBuiltIn('DOMException');
@@ -150,11 +154,6 @@ var cloneBuffer = function (value, map, $type) {
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     else clone = value;
   } else {
-    var DataView = global.DataView;
-
-    // `ArrayBuffer#slice` is not available in IE10
-    // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throws in `DataView` and `.slice`
     try {
       if (isCallable(value.slice) && !value.resizable) {
@@ -167,7 +166,7 @@ var cloneBuffer = function (value, map, $type) {
         source = new DataView(value);
         target = new DataView(clone);
         for (i = 0; i < length; i++) {
-          target.setUint8(i, source.getUint8(i));
+          setUint8(target, i, getUint8(source, i));
         }
       }
     } catch (error) {
