@@ -3,6 +3,6 @@ require('../../modules/es.array-buffer.constructor');
 require('../../modules/es.array-buffer.slice');
 require('../../modules/es.typed-array.float32-array');
 require('./methods');
-var global = require('../../internals/global-this');
+var globalThis = require('../../internals/global-this');
 
-module.exports = global.Float32Array;
+module.exports = globalThis.Float32Array;
