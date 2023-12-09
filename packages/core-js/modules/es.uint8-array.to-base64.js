@@ -7,6 +7,8 @@ var notDetached = require('../internals/array-buffer-not-detached');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 
+var Uint8Array = globalThis.Uint8Array;
+
 var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;
 
