@@ -6,7 +6,7 @@ var isArray = Array.isArray;
 var isFrozen = Object.isFrozen;
 
 var isFrozenStringArray = function (array, allowUndefined) {
-  if (!isFrozen || !isArray(array) || !isFrozen(array)) return false;
+  if (!isArray(array) || !isFrozen(array)) return false;
   var index = 0;
   var length = array.length;
   var element;
