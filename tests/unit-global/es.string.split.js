@@ -718,9 +718,7 @@ QUnit.test('String#split delegates to @@split', assert => {
   object[Symbol.split] = function (a, b) {
     return { a, b };
   };
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@split
   assert.same(string.split(object, 42).a, string);
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@split
   assert.same(string.split(object, 42).b, 42);
   assert.same(''.split.call(number, object, 42).a, number);
   assert.same(''.split.call(number, object, 42).b, 42);
@@ -728,9 +726,7 @@ QUnit.test('String#split delegates to @@split', assert => {
   regexp[Symbol.split] = function (a, b) {
     return { a, b };
   };
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@split
   assert.same(string.split(regexp, 42).a, string);
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@split
   assert.same(string.split(regexp, 42).b, 42);
   assert.same(''.split.call(number, regexp, 42).a, number);
   assert.same(''.split.call(number, regexp, 42).b, 42);
