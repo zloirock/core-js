@@ -5,7 +5,6 @@ var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
 var toUint8Clamped = require('../internals/to-uint8-clamped');
 
-// dependency: es.data-view.constructor
 // eslint-disable-next-line es/no-typed-arrays -- safe
 var setUint8 = uncurryThis(DataView.prototype.setUint8);
 
