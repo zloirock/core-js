@@ -3,6 +3,7 @@
 - Unneeded NodeJS domains-related logic removed from `queueMicrotask`
 - Refactoring, some optimizations
 - Compat data improvements:
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as supported from V8 ~ Chrome 121
   - Updated Opera Android 79 compat data mapping
 
 ##### [3.34.0 - 2023.12.06](https://github.com/zloirock/core-js/releases/tag/v3.34.0)

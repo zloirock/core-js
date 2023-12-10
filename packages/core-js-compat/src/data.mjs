@@ -1890,6 +1890,7 @@ export const data = {
   },
   'esnext.array.from-async': {
     bun: '0.3.0',
+    chrome: '121',
     deno: '1.38',
     firefox: '115',
     safari: '16.4',
