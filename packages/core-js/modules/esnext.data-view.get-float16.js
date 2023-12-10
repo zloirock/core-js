@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var unpackIEEE754 = require('../internals/ieee754').unpack;
 
-// dependency: es.data-view.constructor
 // eslint-disable-next-line es/no-typed-arrays -- safe
 var getUint16 = uncurryThis(DataView.prototype.getUint16);
 
