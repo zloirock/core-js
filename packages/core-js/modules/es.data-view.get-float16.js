@@ -18,7 +18,6 @@ var unpackFloat16 = function (bytes) {
   return pow(2, exponent - 15) * (sign === 0 ? 1 + significand * SIGNIFICAND_DENOM16 : -1 - significand * SIGNIFICAND_DENOM16);
 };
 
-// dependency: es.data-view.constructor
 // eslint-disable-next-line es/no-typed-arrays -- safe
 var getUint16 = uncurryThis(DataView.prototype.getUint16);
 
