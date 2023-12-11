@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var $includes = require('../internals/array-includes').includes;
+var $includes = require('../internals/array-includes');
 var fails = require('../internals/fails');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
