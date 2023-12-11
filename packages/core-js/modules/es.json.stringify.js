@@ -11,7 +11,6 @@ var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
 var classof = require('../internals/classof-raw');
 var thisNumberValue = require('../internals/this-number-value');
-var includes = require('../internals/array-includes').includes;
 var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/to-string');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -35,6 +34,8 @@ var slice = uncurryThis(''.slice);
 var split = uncurryThis(''.split);
 var stringIndexOf = uncurryThis(''.indexOf);
 var join = uncurryThis([].join);
+// eslint-disable-next-line es/no-array-prototype-indexof -- safe
+var indexOf = uncurryThis([].indexOf);
 var push = uncurryThis([].push);
 var pop = uncurryThis([].pop);
 var numberToString = uncurryThis(1.1.toString);
@@ -221,7 +222,7 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
         }
         // the innermost reordered object already contains only keys of the property list and arrays are not
         // affected by it, the rest of objects (like ones mistaken for boxed primitives) are filtered here
-        if (!isRoot && this !== currentOrdered && !isArray(this) && !includes(propertyList, key)) return;
+        if (!isRoot && this !== currentOrdered && !isArray(this) && !~indexOf(propertyList, key)) return;
       } else if (replacerFunction) value = call(replacerFunction, this, key, value);
 
       if (isRoot) rootValue = value;
@@ -234,7 +235,7 @@ $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || IL
 
       if (propertyList && isSerializedAsObject(value)) {
         // reordered objects are new each time, so cycles should be detected before the engine does it
-        if (includes(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
+        if (~indexOf(openObjects, value)) throw new $TypeError('Converting circular structure to JSON');
         var ordered = createOrderedObject(value, propertyList, keyPrefix);
         push(openObjects, value);
         push(parentOrdered, currentOrdered);
