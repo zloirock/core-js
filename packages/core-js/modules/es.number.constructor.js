@@ -8,10 +8,9 @@ var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isSymbol = require('../internals/is-symbol');
+var classof = require('../internals/classof-raw');
 var toPrimitive = require('../internals/to-primitive');
-var fails = require('../internals/fails');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var thisNumberValue = require('../internals/this-number-value');
 var trim = require('../internals/string-trim').trim;
 
 var NUMBER = 'Number';
@@ -74,7 +73,7 @@ var FORCED = isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || N
 
 var calledWithNew = function (dummy) {
   // includes check on 1..constructor(foo) case
-  return isPrototypeOf(NumberPrototype, dummy) && fails(function () { thisNumberValue(dummy); });
+  return isPrototypeOf(NumberPrototype, dummy) && classof(dummy) !== NUMBER;
 };
 
 // `Number` constructor
