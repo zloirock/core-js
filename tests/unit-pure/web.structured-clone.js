@@ -1,6 +1,6 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
-/* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
+/* eslint-disable es/no-error-cause -- safe */
 import { GLOBAL, NODE, BUN } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
