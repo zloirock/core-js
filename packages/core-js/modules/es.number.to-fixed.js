@@ -28,10 +28,7 @@ var ACCEPTS_100_DIGITS = !fails(function () {
   nativeToFixed(1, 100);
 });
 
-var FORCED = !ROUNDS_PROPERLY || !ACCEPTS_100_DIGITS || !fails(function () {
-  // V8 ~ Android 4.3-
-  nativeToFixed({});
-});
+var FORCED = !ROUNDS_PROPERLY || !ACCEPTS_100_DIGITS;
 
 // `Number.prototype.toFixed` method
 // https://tc39.es/ecma262/#sec-number.prototype.tofixed
