@@ -14,7 +14,7 @@ if (DESCRIPTORS && UNSUPPORTED_DOT_ALL) {
   defineBuiltInAccessor(RegExpPrototype, 'dotAll', {
     configurable: true,
     get: function dotAll() {
-      if (this === RegExpPrototype) return undefined;
+      if (this === RegExpPrototype) return;
       // We can't use InternalStateModule.getterFor because
       // we don't add metadata for regexps created by a literal.
       if (classof(this) === 'RegExp') {
