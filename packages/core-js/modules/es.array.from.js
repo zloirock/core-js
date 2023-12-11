@@ -14,10 +14,11 @@ var getIteratorMethod = require('../internals/get-iterator-method');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 
 var $Array = Array;
+// eslint-disable-next-line es/no-array-from -- required for testing
+var $from = $Array.from;
 
-var INCORRECT_ITERATION = !checkCorrectnessOfIteration(function (iterable) {
-  // eslint-disable-next-line es/no-array-from -- required for testing
-  Array.from(iterable);
+var INCORRECT_ITERATION = !$from || !checkCorrectnessOfIteration(function (iterable) {
+  $from(iterable);
 });
 
 // `Array.from` method
