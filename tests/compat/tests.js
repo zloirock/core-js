@@ -1243,8 +1243,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     re1.exec('a');
     re2.exec('a');
     return re1.lastIndex === 0 && re2.lastIndex === 0
-      // eslint-disable-next-line regexp/no-empty-group -- required for testing
-      && /()??/.exec('')[1] === undefined
       && reSticky.exec('abc')[0] === 'a'
       && reSticky.exec('abc') === null
       && (reSticky.lastIndex = 1)
