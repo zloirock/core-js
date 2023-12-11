@@ -11,5 +11,6 @@ var $lastIndexOf = uncurryThis([].lastIndexOf);
 // `%TypedArray%.prototype.lastIndexOf` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.lastindexof
 exportTypedArrayMethod('lastIndexOf', function lastIndexOf(searchElement /* , fromIndex */) {
-  return $lastIndexOf(aTypedArray(this), searchElement, arguments.length > 1 ? arguments[1] : undefined) || 0;
+  var O = aTypedArray(this);
+  return (arguments.length > 1 ? $lastIndexOf(O, searchElement, arguments[1]) : $lastIndexOf(O, searchElement)) || 0;
 });
