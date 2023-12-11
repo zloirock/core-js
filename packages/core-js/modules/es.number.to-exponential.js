@@ -43,15 +43,6 @@ var ACCEPTS_100_DIGITS = !fails(function () {
   nativeToExponential(1, 100);
 });
 
-// IE8-
-var throwsOnInfinityFraction = function () {
-  return fails(function () {
-    nativeToExponential(1, Infinity);
-  }) && fails(function () {
-    nativeToExponential(1, -Infinity);
-  });
-};
-
 // Safari <11 && FF <50
 var properNonFiniteThisCheck = function () {
   return !fails(function () {
@@ -60,7 +51,7 @@ var properNonFiniteThisCheck = function () {
   });
 };
 
-var FORCED = !ROUNDS_PROPERLY || !PROPER_SHORTEST || !ACCEPTS_100_DIGITS || !throwsOnInfinityFraction() || !properNonFiniteThisCheck();
+var FORCED = !ROUNDS_PROPERLY || !PROPER_SHORTEST || !ACCEPTS_100_DIGITS || !properNonFiniteThisCheck();
 
 // `Number.prototype.toExponential` method
 // https://tc39.es/ecma262/#sec-number.prototype.toexponential
