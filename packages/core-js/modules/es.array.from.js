@@ -18,10 +18,11 @@ var checkCorrectnessOfIteration = require('../internals/check-correctness-of-ite
 var ITERATOR_RESULT_WEBKIT_BUG = require('../internals/iterator-result-webkit-bug');
 
 var $Array = Array;
+// eslint-disable-next-line es/no-array-from -- required for testing
+var $from = $Array.from;
 
-var INCORRECT_ITERATION = ITERATOR_RESULT_WEBKIT_BUG || !checkCorrectnessOfIteration(function (iterable) {
-  // eslint-disable-next-line es/no-array-from -- required for testing
-  Array.from(iterable);
+var INCORRECT_ITERATION = !$from || ITERATOR_RESULT_WEBKIT_BUG || !checkCorrectnessOfIteration(function (iterable) {
+  $from(iterable);
 });
 
 // `Array.from` method
