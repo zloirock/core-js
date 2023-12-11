@@ -1,6 +1,5 @@
 'use strict';
 var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
-var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var ownKeys = require('../internals/own-keys');
@@ -13,7 +12,6 @@ var $Object = Object;
 var $assign = $Object.assign;
 var defineProperty = $Object.defineProperty;
 var objectKeys = $Object.keys;
-var getPrototypeOf = $Object.getPrototypeOf;
 var concat = uncurryThis([].concat);
 
 // `Object.assign` method
@@ -46,7 +44,6 @@ module.exports = !$assign || fails(function () {
   var getOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
   while (argumentsLength > index) {
     var S = $Object(arguments[index++]);
-    var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && getPrototypeOf(S) === null;
     var keys = NAMES_ORDER ? ownKeys(S) : objectKeys(S);
     if (!NAMES_ORDER && getOwnPropertySymbols) keys = concat(keys, getOwnPropertySymbols(S));
     var length = keys.length;
@@ -55,7 +52,7 @@ module.exports = !$assign || fails(function () {
     while (length > j) {
       key = keys[j++];
       descriptor = getOwnPropertyDescriptor(S, key);
-      if (descriptor ? descriptor.enumerable : IE_WORKAROUND && key in S) T[key] = S[key];
+      if (descriptor && descriptor.enumerable) T[key] = S[key];
     }
   } return T;
 } : $assign;

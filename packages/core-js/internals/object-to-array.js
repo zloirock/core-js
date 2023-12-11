@@ -1,20 +1,17 @@
 'use strict';
 var NAMES_ORDER = require('../internals/object-get-own-property-names-order');
-var IE_NULL_PROTOTYPE_BUG = require('../internals/ie-null-prototype-bug');
 var uncurryThis = require('../internals/function-uncurry-this');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
 var toObject = require('../internals/to-object');
 
 var objectKeys = Object.keys;
-var getPrototypeOf = Object.getPrototypeOf;
 var push = uncurryThis([].push);
 
 // `Object.{ entries, values }` methods implementation
 var createMethod = function (TO_ENTRIES) {
   return function (it) {
     var O = toObject(it);
-    var IE_WORKAROUND = IE_NULL_PROTOTYPE_BUG && getPrototypeOf(O) === null;
     var keys = NAMES_ORDER ? getOwnPropertyNamesModule.f(O) : objectKeys(O);
     var length = keys.length;
     var i = 0;
@@ -23,7 +20,7 @@ var createMethod = function (TO_ENTRIES) {
     while (length > i) {
       key = keys[i++];
       descriptor = getOwnPropertyDescriptorModule.f(O, key);
-      if (descriptor ? descriptor.enumerable : IE_WORKAROUND && key in O) {
+      if (descriptor && descriptor.enumerable) {
         push(result, TO_ENTRIES ? [key, O[key]] : O[key]);
       }
     }
