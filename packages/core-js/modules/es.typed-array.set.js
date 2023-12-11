@@ -15,7 +15,6 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS = !fails(function () {
-  // eslint-disable-next-line es/no-typed-arrays -- required for testing
   var array = new Uint8ClampedArray(2);
   call($set, array, { length: 1, 0: 3 }, 1);
   return array[1] !== 3;
