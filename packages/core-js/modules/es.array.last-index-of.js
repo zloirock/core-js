@@ -14,6 +14,7 @@ var STRICT = arrayMethodIsStrict('lastIndexOf');
 // https://tc39.es/ecma262/#sec-array.prototype.lastindexof
 $({ target: 'Array', proto: true, forced: NEGATIVE_ZERO_BUG || !STRICT }, {
   lastIndexOf: function lastIndexOf(searchElement /* , fromIndex = 0 */) {
-    return $lastIndexOf(toObject(this), searchElement, arguments.length > 1 ? arguments[1] : undefined) || 0;
+    var O = toObject(this);
+    return (arguments.length > 1 ? $lastIndexOf(O, searchElement, arguments[1]) : $lastIndexOf(O, searchElement)) || 0;
   },
 });
