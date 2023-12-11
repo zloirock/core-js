@@ -14,6 +14,7 @@ var STRICT = arrayMethodIsStrict('indexOf');
 // https://tc39.es/ecma262/#sec-array.prototype.indexof
 $({ target: 'Array', proto: true, forced: NEGATIVE_ZERO_BUG || !STRICT }, {
   indexOf: function indexOf(searchElement /* , fromIndex = 0 */) {
-    return $indexOf(toObject(this), searchElement, arguments.length > 1 ? arguments[1] : undefined) || 0;
+    var O = toObject(this);
+    return (arguments.length > 1 ? $indexOf(O, searchElement, arguments[1]) : $indexOf(O, searchElement)) || 0;
   },
 });
