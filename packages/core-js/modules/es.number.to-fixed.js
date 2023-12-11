@@ -66,9 +66,6 @@ var FORCED = fails(function () {
     nativeToFixed(0.9, 0) !== '1' ||
     nativeToFixed(1.255, 2) !== '1.25' ||
     nativeToFixed(1000000000000000128.0, 0) !== '1000000000000000128';
-}) || !fails(function () {
-  // V8 ~ Android 4.3-
-  nativeToFixed({});
 });
 
 // `Number.prototype.toFixed` method
