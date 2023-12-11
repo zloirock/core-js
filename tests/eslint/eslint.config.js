@@ -1515,7 +1515,6 @@ const forbidES2015BuiltIns = {
   'es/no-string-prototype-startswith': ERROR,
   'es/no-string-raw': ERROR,
   'es/no-symbol': ERROR,
-  'es/no-typed-arrays': ERROR,
   'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
   // enforce the use of `Math.cbrt()` instead of other cube root calculations
