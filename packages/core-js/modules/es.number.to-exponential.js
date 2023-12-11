@@ -165,15 +165,6 @@ var ROUNDS_PROPERLY = nativeToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // FF86-, V8 ~ Chrome 49-50
   && nativeToExponential(25, 0) === '3e+1';
 
-// IE8-
-var throwsOnInfinityFraction = function () {
-  return fails(function () {
-    nativeToExponential(1, Infinity);
-  }) && fails(function () {
-    nativeToExponential(1, -Infinity);
-  });
-};
-
 // Safari <11 && FF <50
 var properNonFiniteThisCheck = function () {
   return !fails(function () {
@@ -182,7 +173,7 @@ var properNonFiniteThisCheck = function () {
   });
 };
 
-var FORCED = !ROUNDS_PROPERLY || !throwsOnInfinityFraction() || !properNonFiniteThisCheck();
+var FORCED = !ROUNDS_PROPERLY || !properNonFiniteThisCheck();
 
 // `Number.prototype.toExponential` method
 // https://tc39.es/ecma262/#sec-number.prototype.toexponential
