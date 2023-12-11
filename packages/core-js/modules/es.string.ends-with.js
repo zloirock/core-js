@@ -9,8 +9,6 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var correctIsRegExpLogic = require('../internals/correct-is-regexp-logic');
 var IS_PURE = require('../internals/is-pure');
 
-// eslint-disable-next-line es/no-string-prototype-endswith -- safe
-var nativeEndsWith = uncurryThis(''.endsWith);
 var slice = uncurryThis(''.slice);
 var min = Math.min;
 
@@ -31,8 +29,6 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     var len = that.length;
     var end = endPosition === undefined ? len : min(toLength(endPosition), len);
     var search = toString(searchString);
-    return nativeEndsWith
-      ? nativeEndsWith(that, search, end)
-      : slice(that, end - search.length, end) === search;
+    return slice(that, end - search.length, end) === search;
   }
 });

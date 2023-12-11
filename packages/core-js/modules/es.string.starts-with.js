@@ -9,8 +9,6 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var correctIsRegExpLogic = require('../internals/correct-is-regexp-logic');
 var IS_PURE = require('../internals/is-pure');
 
-// eslint-disable-next-line es/no-string-prototype-startswith -- safe
-var nativeStartsWith = uncurryThis(''.startsWith);
 var stringSlice = uncurryThis(''.slice);
 var min = Math.min;
 
@@ -29,8 +27,6 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
     notARegExp(searchString);
     var index = toLength(min(arguments.length > 1 ? arguments[1] : undefined, that.length));
     var search = toString(searchString);
-    return nativeStartsWith
-      ? nativeStartsWith(that, search, index)
-      : stringSlice(that, index, index + search.length) === search;
+    return stringSlice(that, index, index + search.length) === search;
   }
 });
