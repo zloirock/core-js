@@ -39,7 +39,6 @@ var packFloat16 = function (value) {
   return neg << 15 | exponent + 15 << 10 | significand;
 };
 
-// eslint-disable-next-line es/no-typed-arrays -- safe
 var setUint16 = uncurryThis(DataView.prototype.setUint16);
 
 // `DataView.prototype.setFloat16` method
