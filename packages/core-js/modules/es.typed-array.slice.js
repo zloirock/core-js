@@ -8,7 +8,6 @@ var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var FORCED = fails(function () {
-  // eslint-disable-next-line es/no-typed-arrays -- required for testing
   var array = new Int8Array(1);
   // Rhino 1.8 returns a view on the source buffer
   // https://github.com/mozilla/rhino/pull/1905

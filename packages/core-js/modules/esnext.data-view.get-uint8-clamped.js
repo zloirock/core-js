@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// eslint-disable-next-line es/no-typed-arrays -- safe
 var getUint8 = uncurryThis(DataView.prototype.getUint8);
 
 // `DataView.prototype.getUint8Clamped` method
