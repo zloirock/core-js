@@ -11,5 +11,6 @@ var $indexOf = uncurryThis([].indexOf);
 // `%TypedArray%.prototype.indexOf` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.indexof
 exportTypedArrayMethod('indexOf', function indexOf(searchElement /* , fromIndex */) {
-  return $indexOf(aTypedArray(this), searchElement, arguments.length > 1 ? arguments[1] : undefined) || 0;
+  var O = aTypedArray(this);
+  return (arguments.length > 1 ? $indexOf(O, searchElement, arguments[1]) : $indexOf(O, searchElement)) || 0;
 });
