@@ -1,6 +1,6 @@
 'use strict';
-/* eslint-disable no-useless-assignment -- false positive for [index++] syntax */
-/* eslint-disable es/no-typed-arrays, es/no-uint8array-prototype-tobase64 -- safe */
+/* eslint-disable no-useless-assignment -- false positive for [index++] */
+/* eslint-disable es/no-uint8array-prototype-tobase64 -- safe */
 var $ = require('../internals/export');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var uncurryThis = require('../internals/function-uncurry-this');
