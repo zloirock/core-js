@@ -1,6 +1,5 @@
 'use strict';
 /* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
-/* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 // built-ins are read from here: in the Rhino shell, `global` is a function, not the global object
 var GLOBAL = Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
