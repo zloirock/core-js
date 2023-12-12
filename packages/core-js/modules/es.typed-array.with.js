@@ -27,7 +27,7 @@ var PROPER_ORDER = function () {
 var THROW_ON_VALID_ARGUMENTS = PROPER_ORDER && function () {
   try {
     // Bug in WebKit. It should truncate a negative fractional index to zero, but instead throws an error
-    // eslint-disable-next-line es/no-typed-arrays, es/no-array-prototype-with -- required for testing
+    // eslint-disable-next-line es/no-array-prototype-with -- required for testing
     new Int8Array(1).with(-0.5, 1);
     // Bug in Rhino 1.9. It converts the value with ToNumber instead of ToBigInt on BigInt arrays
     // https://github.com/mozilla/rhino/pull/2467
