@@ -11,7 +11,7 @@ function throwsOnLengthTrackingView() {
   try {
     // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- required for testing
     var rab = new ArrayBuffer(16, { maxByteLength: 1024 });
-    // eslint-disable-next-line es/no-uint8array-prototype-setfromhex, es/no-typed-arrays -- required for testing
+    // eslint-disable-next-line es/no-uint8array-prototype-setfromhex -- required for testing
     new Uint8Array(rab).setFromHex('cafed00d');
   } catch (error) {
     return true;
