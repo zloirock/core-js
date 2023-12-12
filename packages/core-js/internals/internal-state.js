@@ -5,6 +5,7 @@ var shared = require('../internals/shared-store');
 
 var TypeError = globalThis.TypeError;
 var WeakMap = globalThis.WeakMap;
+var create = Object.create;
 
 var store = shared.state || (shared.state = new WeakMap());
 /* eslint-disable no-self-assign -- prototype methods protection */
@@ -20,13 +21,13 @@ var set = function (it, metadata) {
 };
 
 var get = function (it) {
-  return store.get(it) || {};
+  return store.get(it) || create(null);
 };
 
 var has = store.has.bind(store);
 
 var enforce = function (it) {
-  return has(it) ? get(it) : set(it, {});
+  return has(it) ? get(it) : set(it, create(null));
 };
 
 var getterFor = function (TYPE) {
