@@ -97,7 +97,7 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
   anObject(Attributes);
   if (hasOwn(AllSymbols, key)) {
     if (!Attributes.enumerable) {
-      if (!hasOwn(O, HIDDEN)) nativeDefineProperty(O, HIDDEN, createPropertyDescriptor(1, {}));
+      if (!hasOwn(O, HIDDEN)) nativeDefineProperty(O, HIDDEN, createPropertyDescriptor(1, nativeObjectCreate(null)));
       O[HIDDEN][key] = true;
     } else {
       if (hasOwn(O, HIDDEN) && O[HIDDEN][key]) O[HIDDEN][key] = false;

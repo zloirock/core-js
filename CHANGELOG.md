@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed handling some cases of non-enumerable symbol keys from `Symbol` polyfill
 - Unneeded NodeJS domains-related logic removed from `queueMicrotask`
 - Refactoring, some optimizations
 - Compat data improvements:
