@@ -23,7 +23,6 @@ var propertyIsEnumerableModule = require('../internals/object-property-is-enumer
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var shared = require('../internals/shared');
-var sharedKey = require('../internals/shared-key');
 var hiddenKeys = require('../internals/hidden-keys');
 var uid = require('../internals/uid');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -33,12 +32,13 @@ var defineSymbolToPrimitive = require('../internals/symbol-define-to-primitive')
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
 
-var HIDDEN = sharedKey('hidden');
 var SYMBOL = 'Symbol';
 var PROTOTYPE = 'prototype';
 
+var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(SYMBOL);
+var getInternalSymbolState = InternalStateModule.getterFor(SYMBOL);
+var enforceInternalState = InternalStateModule.enforce;
 
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = globalThis.Symbol;
@@ -94,11 +94,13 @@ var $defineProperty = function defineProperty(O, P, Attributes) {
   var key = toPropertyKey(P);
   anObject(Attributes);
   if (hasOwn(AllSymbols, key)) {
+    var state = enforceInternalState(O);
+    var nonEnumerableSymbols = state.nes;
     if (!Attributes.enumerable) {
-      if (!hasOwn(O, HIDDEN)) nativeDefineProperty(O, HIDDEN, createPropertyDescriptor(1, nativeObjectCreate(null)));
-      O[HIDDEN][key] = true;
+      if (!nonEnumerableSymbols) nonEnumerableSymbols = state.nes = nativeObjectCreate(null);
+      nonEnumerableSymbols[key] = true;
     } else {
-      if (hasOwn(O, HIDDEN) && O[HIDDEN][key]) O[HIDDEN][key] = false;
+      if (nonEnumerableSymbols) delete nonEnumerableSymbols[key];
       Attributes = nativeObjectCreate(Attributes, { enumerable: createPropertyDescriptor(0, false) });
     } return setSymbolDescriptor(O, key, Attributes);
   } return nativeDefineProperty(O, key, Attributes);
@@ -121,8 +123,9 @@ var $propertyIsEnumerable = function propertyIsEnumerable(V) {
   var P = toPropertyKey(V);
   var enumerable = call(nativePropertyIsEnumerable, this, P);
   if (this === ObjectPrototype && hasOwn(AllSymbols, P) && !hasOwn(ObjectPrototypeSymbols, P)) return false;
-  return enumerable || !hasOwn(this, P) || !hasOwn(AllSymbols, P) || hasOwn(this, HIDDEN) && this[HIDDEN][P]
-    ? enumerable : true;
+  if (enumerable || !hasOwn(this, P) || !hasOwn(AllSymbols, P)) return enumerable;
+  var nonEnumerableSymbols = getInternalState(this).nes;
+  return nonEnumerableSymbols ? !nonEnumerableSymbols[P] : true;
 };
 
 var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
@@ -130,8 +133,9 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
   var key = toPropertyKey(P);
   if (it === ObjectPrototype && hasOwn(AllSymbols, key) && !hasOwn(ObjectPrototypeSymbols, key)) return;
   var descriptor = nativeGetOwnPropertyDescriptor(it, key);
-  if (descriptor && hasOwn(AllSymbols, key) && !(hasOwn(it, HIDDEN) && it[HIDDEN][key])) {
-    descriptor.enumerable = true;
+  if (descriptor && hasOwn(AllSymbols, key)) {
+    var nonEnumerableSymbols = getInternalState(it).nes;
+    if (!nonEnumerableSymbols || !nonEnumerableSymbols[key]) descriptor.enumerable = true;
   }
   return descriptor;
 };
@@ -165,7 +169,8 @@ if (!NATIVE_SYMBOL) {
     var setter = function (value) {
       var $this = this === undefined ? globalThis : this;
       if ($this === ObjectPrototype) call(setter, ObjectPrototypeSymbols, value);
-      if (hasOwn($this, HIDDEN) && hasOwn($this[HIDDEN], tag)) $this[HIDDEN][tag] = false;
+      var nonEnumerableSymbols = getInternalState($this).nes;
+      if (nonEnumerableSymbols) delete nonEnumerableSymbols[tag];
       var descriptor = createPropertyDescriptor(1, value);
       try {
         setSymbolDescriptor($this, tag, descriptor);
@@ -181,7 +186,7 @@ if (!NATIVE_SYMBOL) {
   SymbolPrototype = $Symbol[PROTOTYPE];
 
   defineBuiltIn(SymbolPrototype, 'toString', function toString() {
-    return getInternalState(this).tag;
+    return getInternalSymbolState(this).tag;
   });
 
   defineBuiltIn($Symbol, 'withoutSetter', function (description) {
@@ -203,7 +208,7 @@ if (!NATIVE_SYMBOL) {
   defineBuiltInAccessor(SymbolPrototype, 'description', {
     configurable: true,
     get: function description() {
-      return getInternalState(this).description;
+      return getInternalSymbolState(this).description;
     },
   });
   if (!IS_PURE) {
@@ -247,5 +252,3 @@ defineSymbolToPrimitive();
 // `Symbol.prototype[@@toStringTag]` property
 // https://tc39.es/ecma262/#sec-symbol.prototype-@@tostringtag
 setToStringTag($Symbol, SYMBOL);
-
-hiddenKeys[HIDDEN] = true;
