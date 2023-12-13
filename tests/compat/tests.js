@@ -1,6 +1,5 @@
 'use strict';
 /* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
-/* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
   '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF';
@@ -836,6 +835,21 @@ GLOBAL.tests = {
   'es.math.trunc': function () {
     return Math.trunc;
   },
+  'es.parse-float': function () {
+    try {
+      parseFloat(Object(Symbol.iterator));
+    } catch (error) {
+      return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+    }
+  },
+  'es.parse-int': function () {
+    try {
+      parseInt(Object(Symbol.iterator));
+    } catch (error) {
+      return parseInt(WHITESPACES + '08') === 8
+        && parseInt(WHITESPACES + '0x16') === 22;
+    }
+  },
   'es.number.constructor': function () {
     // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
     return Number(' 0o1') && Number('0b1') && !Number('+0x1');
@@ -992,21 +1006,6 @@ GLOBAL.tests = {
   }],
   'es.object.values': function () {
     return Object.values;
-  },
-  'es.parse-float': function () {
-    try {
-      parseFloat(Object(Symbol.iterator));
-    } catch (error) {
-      return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
-    }
-  },
-  'es.parse-int': function () {
-    try {
-      parseInt(Object(Symbol.iterator));
-    } catch (error) {
-      return parseInt(WHITESPACES + '08') === 8
-        && parseInt(WHITESPACES + '0x16') === 22;
-    }
   },
   'es.promise.constructor': PROMISES_SUPPORT,
   'es.promise.catch': PROMISES_SUPPORT,
