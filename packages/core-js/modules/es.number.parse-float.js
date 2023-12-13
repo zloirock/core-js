@@ -1,6 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
-var parseFloat = require('../internals/number-parse-float');
+var getBuiltIn = require('../internals/get-built-in');
+
+// dependency: es.parse-float
+var parseFloat = getBuiltIn('parseFloat');
 
 // `Number.parseFloat` method
 // https://tc39.es/ecma262/#sec-number.parseFloat
