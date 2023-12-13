@@ -100,6 +100,7 @@ export default {
     // [117, '1.36.2'], reverted to 11.6 in 1.36.3
     [118, '1.37'],
     [120, '1.38'],
+    [120, '1.39'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
