@@ -1,4 +1,6 @@
 'use strict';
+require('../../modules/es.parse-float');
+require('../../modules/es.parse-int');
 require('../../modules/es.number.constructor');
 require('../../modules/es.number.epsilon');
 require('../../modules/es.number.is-finite');
