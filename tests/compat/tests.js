@@ -867,6 +867,21 @@ GLOBAL.tests = {
   'es.math.trunc': function () {
     return Math.trunc;
   },
+  'es.parse-float': function () {
+    try {
+      parseFloat(Object(Symbol.iterator));
+    } catch (error) {
+      return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
+    }
+  },
+  'es.parse-int': function () {
+    try {
+      parseInt(Object(Symbol.iterator));
+    } catch (error) {
+      return parseInt(WHITESPACES + '08') === 8
+        && parseInt(WHITESPACES + '0x16') === 22;
+    }
+  },
   'es.number.constructor': function () {
     // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
     return Number(' 0o1') && Number('0b1') && !Number('+0x1');
@@ -1023,21 +1038,6 @@ GLOBAL.tests = {
   }],
   'es.object.values': function () {
     return Object.values;
-  },
-  'es.parse-float': function () {
-    try {
-      parseFloat(Object(Symbol.iterator));
-    } catch (error) {
-      return 1 / parseFloat(WHITESPACES + '-0') === -Infinity;
-    }
-  },
-  'es.parse-int': function () {
-    try {
-      parseInt(Object(Symbol.iterator));
-    } catch (error) {
-      return parseInt(WHITESPACES + '08') === 8
-        && parseInt(WHITESPACES + '0x16') === 22;
-    }
   },
   'es.promise.constructor': PROMISES_SUPPORT,
   'es.promise.catch': PROMISES_SUPPORT,
