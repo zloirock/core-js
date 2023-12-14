@@ -80,15 +80,14 @@ module.exports = {
       clear: function clear() {
         var that = this;
         var state = getInternalState(that);
-        var data = state.index;
         var entry = state.first;
         while (entry) {
           entry.removed = true;
           if (entry.previous) entry.previous = entry.previous.next = undefined;
-          delete data[entry.index];
           entry = entry.next;
         }
         state.first = state.last = undefined;
+        state.index = create(null);
         if (DESCRIPTORS) state.size = 0;
         else that.size = 0;
       },
