@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var hiddenKeys = require('../internals/hidden-keys');
-var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
 var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyNamesModule = require('../internals/object-get-own-property-names');
@@ -19,20 +18,6 @@ var setMetadata = function (it) {
     objectID: 'O' + id++, // object ID
     weakData: {},         // weak collections IDs
   } });
-};
-
-var fastKey = function (it, create) {
-  // return a primitive with prefix
-  if (!isObject(it)) return typeof it == 'symbol' ? it : (typeof it == 'string' ? 'S' : 'P') + it;
-  if (!hasOwn(it, METADATA)) {
-    // can't set metadata to uncaught frozen object
-    if (!isExtensible(it)) return 'F';
-    // not necessary to add metadata
-    if (!create) return 'E';
-    // add missing metadata
-    setMetadata(it);
-  // return object ID
-  } return it[METADATA].objectID;
 };
 
 var getWeakData = function (it, create) {
@@ -81,7 +66,6 @@ var enable = function () {
 
 var meta = module.exports = {
   enable: enable,
-  fastKey: fastKey,
   getWeakData: getWeakData,
   onFreeze: onFreeze,
 };
