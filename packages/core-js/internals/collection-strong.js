@@ -8,12 +8,19 @@ var iterate = require('../internals/iterate');
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var setSpecies = require('../internals/set-species');
-var fastKey = require('../internals/internal-metadata').fastKey;
+var MapNativeModule = require('../internals/map-native');
 var InternalStateModule = require('../internals/internal-state');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
-var create = Object.create;
+var Map = MapNativeModule.Map;
+var mapGet = MapNativeModule.get;
+var mapSet = MapNativeModule.set;
+var mapDelete = MapNativeModule.remove;
+
+var normalizeKey = function (key) {
+  return key === 0 ? 0 : key;
+};
 
 module.exports = {
   getConstructor: function (wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER) {
@@ -21,7 +28,7 @@ module.exports = {
       anInstance(that, Prototype);
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
-        index: create(null),
+        index: new Map(),
         first: null,
         last: null,
         size: 0,
@@ -36,17 +43,17 @@ module.exports = {
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
-    var define = function (that, key, value) {
+    var define = function (that, $key, value) {
       var state = getInternalState(that);
+      var key = normalizeKey($key);
       var entry = getEntry(that, key);
-      var previous, index;
+      var previous;
       // change existing entry
       if (entry) {
         entry.value = value;
       // create new entry
       } else {
         state.last = entry = {
-          index: index = fastKey(key, true),
           key: key,
           value: value,
           previous: previous = state.last,
@@ -56,21 +63,12 @@ module.exports = {
         if (!state.first) state.first = entry;
         if (previous) previous.next = entry;
         state.size++;
-        // add to index
-        if (index !== 'F') state.index[index] = entry;
+        mapSet(state.index, key, entry);
       } return that;
     };
 
     var getEntry = function (that, key) {
-      var state = getInternalState(that);
-      // fast case
-      var index = fastKey(key);
-      var entry;
-      if (index !== 'F') return state.index[index];
-      // frozen object case
-      for (entry = state.first; entry; entry = entry.next) {
-        if (entry.key === key) return entry;
-      }
+      return mapGet(getInternalState(that).index, normalizeKey(key));
     };
 
     defineBuiltIns(Prototype, {
@@ -78,8 +76,7 @@ module.exports = {
       // https://tc39.es/ecma262/#sec-map.prototype.clear
       // https://tc39.es/ecma262/#sec-set.prototype.clear
       clear: function clear() {
-        var that = this;
-        var state = getInternalState(that);
+        var state = getInternalState(this);
         var entry = state.first;
         while (entry) {
           entry.removed = true;
@@ -87,20 +84,19 @@ module.exports = {
           entry = entry.next;
         }
         state.first = state.last = null;
-        state.index = create(null);
+        state.index = new Map();
         state.size = 0;
       },
       // `{ Map, Set }.prototype.delete(key)` methods
       // https://tc39.es/ecma262/#sec-map.prototype.delete
       // https://tc39.es/ecma262/#sec-set.prototype.delete
       delete: function (key) {
-        var that = this;
-        var state = getInternalState(that);
-        var entry = getEntry(that, key);
+        var state = getInternalState(this);
+        var entry = getEntry(this, key);
         if (entry) {
           var next = entry.next;
           var prev = entry.previous;
-          delete state.index[entry.index];
+          mapDelete(state.index, entry.key);
           entry.removed = true;
           if (prev) prev.next = next;
           if (next) next.previous = prev;
