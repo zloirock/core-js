@@ -23,7 +23,6 @@ var propertyIsEnumerableModule = require('../internals/object-property-is-enumer
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var shared = require('../internals/shared');
-var hiddenKeys = require('../internals/hidden-keys');
 var uid = require('../internals/uid');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var wrappedWellKnownSymbolModule = require('../internals/well-known-symbol-wrapped');
@@ -143,7 +142,7 @@ var $getOwnPropertyDescriptor = function getOwnPropertyDescriptor(O, P) {
 var $getOwnPropertyNames = function getOwnPropertyNames(O) {
   var result = [];
   forEach(nativeGetOwnPropertyNames(toObject(O)), function (key) {
-    if (!hasOwn(AllSymbols, key) && !hasOwn(hiddenKeys, key)) push(result, key);
+    if (!hasOwn(AllSymbols, key)) push(result, key);
   });
   return result;
 };
