@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable es/no-typed-arrays, es/no-uint8array-prototype-tobase64 -- safe */
+/* eslint-disable es/no-uint8array-prototype-tobase64 -- safe */
 var $ = require('../internals/export');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var anUint8Array = require('../internals/an-uint8-array');
