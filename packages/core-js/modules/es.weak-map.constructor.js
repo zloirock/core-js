@@ -25,8 +25,6 @@ var freeze = $Object.freeze;
 // eslint-disable-next-line es/no-object-seal -- safe
 var seal = $Object.seal;
 
-var FROZEN = {};
-var SEALED = {};
 var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
 var InternalWeakMap;
 
@@ -97,12 +95,11 @@ if (NATIVE_WEAK_MAP) if (IS_IE11) {
     set: function set(key, value) {
       var arrayIntegrityLevel;
       if (isArray(key)) {
-        if (isFrozen(key)) arrayIntegrityLevel = FROZEN;
-        else if (isSealed(key)) arrayIntegrityLevel = SEALED;
+        if (isFrozen(key)) arrayIntegrityLevel = freeze;
+        else if (isSealed(key)) arrayIntegrityLevel = seal;
       }
       nativeSet(this, key, value);
-      if (arrayIntegrityLevel === FROZEN) freeze(key);
-      if (arrayIntegrityLevel === SEALED) seal(key);
+      if (arrayIntegrityLevel) arrayIntegrityLevel(key);
       return this;
     }
   });
