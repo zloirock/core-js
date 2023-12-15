@@ -1,11 +1,10 @@
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
 var isObject = require('../internals/is-object');
+var Map = require('../internals/map-native').Map;
 
 var $Object = Object;
 var $TypeError = TypeError;
-// dependency: es.map.constructor
-var Map = getBuiltIn('Map');
 // dependency: es.weak-map.constructor
 var WeakMap = getBuiltIn('WeakMap');
 var create = Object.create;
@@ -27,8 +26,9 @@ Node.prototype.next = function (i, it, IS_OBJECT) {
   var store = IS_OBJECT
     ? this.objectsByIndex[i] || (this.objectsByIndex[i] = new WeakMap())
     : this.primitives || (this.primitives = new Map());
-  var entry = store.get(it);
-  if (!entry) store.set(it, entry = new Node());
+  var $it = it === 0 ? 0 : it; // same value zero as a fallback for ancient maps
+  var entry = store.get($it);
+  if (!entry) store.set($it, entry = new Node());
   return entry;
 };
 
