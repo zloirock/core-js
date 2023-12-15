@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var InternalMetadataModule = require('../internals/internal-metadata');
 var fails = require('../internals/fails');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var iterate = require('../internals/iterate');
@@ -16,7 +15,7 @@ var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
 var defineProperty = Object.defineProperty;
 
-module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
+module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -25,12 +24,11 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var exported = {};
   var Constructor;
 
-  if (!isCallable(NativeConstructor)
+  if (FORCED || !isCallable(NativeConstructor)
     || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
   ) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
-    InternalMetadataModule.enable();
   } else {
     Constructor = wrapper(function (target, iterable) {
       setInternalState(anInstance(target, Prototype), {
