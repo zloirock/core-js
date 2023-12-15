@@ -2,9 +2,7 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isForced = require('../internals/is-forced');
 var defineBuiltIn = require('../internals/define-built-in');
-var InternalMetadataModule = require('../internals/internal-metadata');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
 var isCallable = require('../internals/is-callable');
@@ -15,7 +13,7 @@ var checkCorrectnessOfIteration = require('../internals/check-correctness-of-ite
 var setToStringTag = require('../internals/set-to-string-tag');
 var inheritIfRequired = require('../internals/inherit-if-required');
 
-module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
+module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -43,18 +41,14 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
     );
   };
 
-  var REPLACE = isForced(
-    CONSTRUCTOR_NAME,
-    !isCallable(NativeConstructor) || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
-      new NativeConstructor().entries().next();
-    }))
-  );
+  var REPLACE = FORCED || !isCallable(NativeConstructor) || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
+    new NativeConstructor().entries().next();
+  }));
 
   if (REPLACE) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
-    InternalMetadataModule.enable();
-  } else if (isForced(CONSTRUCTOR_NAME, true)) {
+  } else {
     var instance = new Constructor();
     // early implementations not supports chaining
     var HASNT_CHAINING = instance[ADDER](IS_WEAK ? {} : -0, 1) !== instance;

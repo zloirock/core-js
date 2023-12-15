@@ -196,7 +196,6 @@ export function fromSource(source) {
 export function arrayToBuffer(array) {
   const { length } = array;
   const buffer = new ArrayBuffer(length);
-
   const view = new DataView(buffer);
   for (let i = 0; i < length; ++i) {
     view.setUint8(i, array[i]);
@@ -206,7 +205,6 @@ export function arrayToBuffer(array) {
 
 export function bufferToArray(buffer) {
   const array = [];
-
   const view = new DataView(buffer);
   for (let i = 0, { byteLength } = view; i < byteLength; ++i) {
     array.push(view.getUint8(i));
