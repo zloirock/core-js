@@ -1,59 +1,43 @@
 'use strict';
-var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIns = require('../internals/define-built-ins');
-var getWeakData = require('../internals/internal-metadata').getWeakData;
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var isObject = require('../internals/is-object');
 var iterate = require('../internals/iterate');
-var ArrayIterationModule = require('../internals/array-iteration');
-var hasOwn = require('../internals/has-own-property');
+var MapNativeModule = require('../internals/map-native');
+var WeakMapNativeModule = require('../internals/weak-map-native');
 var InternalStateModule = require('../internals/internal-state');
+// IE11 WeakMap does not support adding frozen keys, detection of this crashes some IE versions
+var IS_IE11 = require('../internals/environment-is-ie11');
+// adding frozen arrays to WeakMap in Chakra Edge unfreeze them
+var WEAK_COLLECTIONS_UNFREEZING_BUG = require('../internals/weak-collections-unfreezing-bug');
 
 var setInternalState = InternalStateModule.set;
 var internalStateGetterFor = InternalStateModule.getterFor;
-var find = ArrayIterationModule.find;
-var findIndex = ArrayIterationModule.findIndex;
-var splice = uncurryThis([].splice);
-var id = 0;
 
-// fallback for uncaught frozen keys
-var uncaughtFrozenStore = function (state) {
-  return state.frozen || (state.frozen = new UncaughtFrozenStore());
-};
+var Map = MapNativeModule.Map;
+var mapHas = MapNativeModule.has;
+var mapGet = MapNativeModule.get;
+var mapSet = MapNativeModule.set;
+var mapDelete = MapNativeModule.remove;
 
-var UncaughtFrozenStore = function () {
-  this.entries = [];
-};
+var WeakMap = WeakMapNativeModule.WeakMap;
+var weakMapHas = WeakMapNativeModule.has;
+var weakMapGet = WeakMapNativeModule.get;
+var weakMapSet = WeakMapNativeModule.set;
+var weakMapDelete = WeakMapNativeModule.remove;
 
-var findUncaughtFrozen = function (store, key) {
-  return find(store.entries, function (it) {
-    return it[0] === key;
-  });
-};
-
-UncaughtFrozenStore.prototype = {
-  get: function (key) {
-    var entry = findUncaughtFrozen(this, key);
-    if (entry) return entry[1];
-  },
-  has: function (key) {
-    return !!findUncaughtFrozen(this, key);
-  },
-  set: function (key, value) {
-    var entry = findUncaughtFrozen(this, key);
-    if (entry) entry[1] = value;
-    else this.entries.push([key, value]);
-  },
-  delete: function (key) {
-    var index = findIndex(this.entries, function (it) {
-      return it[0] === key;
-    });
-    if (~index) splice(this.entries, index, 1);
-    return !!~index;
-  },
-};
+var $Object = Object;
+var isArray = Array.isArray;
+// eslint-disable-next-line es/no-object-isextensible -- safe
+var isExtensible = $Object.isExtensible;
+// eslint-disable-next-line es/no-object-isfrozen -- safe
+var isFrozen = $Object.isFrozen;
+// eslint-disable-next-line es/no-object-issealed -- safe
+var isSealed = $Object.isSealed;
+var freeze = $Object.freeze;
+var seal = $Object.seal;
 
 module.exports = {
   getConstructor: function (wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER) {
@@ -61,8 +45,8 @@ module.exports = {
       anInstance(that, Prototype);
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
-        id: id++,
-        frozen: null,
+        weakmap: new WeakMap(),
+        map: IS_IE11 ? new Map() : null,
       });
       // dependency: es.array.iterator
       // dependency: web.dom-collections.iterator
@@ -75,9 +59,18 @@ module.exports = {
 
     var define = function (that, key, value) {
       var state = getInternalState(that);
-      var data = getWeakData(anObject(key), true);
-      if (data === true) uncaughtFrozenStore(state).set(key, value);
-      else data[state.id] = value;
+      var arrayIntegrityLevel;
+      anObject(key);
+      if (WEAK_COLLECTIONS_UNFREEZING_BUG && isArray(key)) {
+        if (isFrozen(key)) arrayIntegrityLevel = freeze;
+        else if (isSealed(key)) arrayIntegrityLevel = seal;
+      }
+      if (IS_IE11 && !isExtensible(key) && !weakMapHas(state.weakmap, key)) {
+        mapSet(state.map, key, value);
+      } else {
+        weakMapSet(state.weakmap, key, value);
+      }
+      if (arrayIntegrityLevel) arrayIntegrityLevel(key);
       return that;
     };
 
@@ -88,9 +81,7 @@ module.exports = {
       delete: function (key) {
         var state = getInternalState(this);
         if (!isObject(key)) return false;
-        var data = getWeakData(key);
-        if (data === true) return uncaughtFrozenStore(state).delete(key);
-        return data && hasOwn(data, state.id) && delete data[state.id];
+        return weakMapDelete(state.weakmap, key) || IS_IE11 && mapDelete(state.map, key);
       },
       // `{ WeakMap, WeakSet }.prototype.has(key)` methods
       // https://tc39.es/ecma262/#sec-weakmap.prototype.has
@@ -98,9 +89,7 @@ module.exports = {
       has: function has(key) {
         var state = getInternalState(this);
         if (!isObject(key)) return false;
-        var data = getWeakData(key);
-        if (data === true) return uncaughtFrozenStore(state).has(key);
-        return data && hasOwn(data, state.id);
+        return weakMapHas(state.weakmap, key) || IS_IE11 && mapHas(state.map, key);
       },
     });
 
@@ -109,11 +98,9 @@ module.exports = {
       // https://tc39.es/ecma262/#sec-weakmap.prototype.get
       get: function get(key) {
         var state = getInternalState(this);
-        if (isObject(key)) {
-          var data = getWeakData(key);
-          if (data === true) return uncaughtFrozenStore(state).get(key);
-          if (data) return data[state.id];
-        }
+        var weakmap = state.weakmap;
+        if (!isObject(key)) return;
+        return !IS_IE11 || weakMapHas(weakmap, key) ? weakMapGet(weakmap, key) : mapGet(state.map, key);
       },
       // `WeakMap.prototype.set(key, value)` method
       // https://tc39.es/ecma262/#sec-weakmap.prototype.set
