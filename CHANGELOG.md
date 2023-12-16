@@ -6,6 +6,7 @@
 - Compat data improvements:
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as [supported from V8 ~ Chrome 121](https://bugs.chromium.org/p/v8/issues/detail?id=13321#c13)
   - Added Opera Android 80 and updated [Opera Android 79](https://forums.opera.com/topic/68490/opera-for-android-79) compat data mapping
+  - Added Samsung Internet 24 compat data mapping
 
 ##### [3.34.0 - 2023.12.06](https://github.com/zloirock/core-js/releases/tag/v3.34.0)
 - [`Array` grouping proposal](https://github.com/tc39/proposal-array-grouping):
