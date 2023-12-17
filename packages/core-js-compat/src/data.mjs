@@ -1946,12 +1946,15 @@ export const data = {
   'esnext.array.with': null,
   'esnext.array-buffer.detached': {
     chrome: '114',
+    firefox: '122',
   },
   'esnext.array-buffer.transfer': {
     chrome: '114',
+    firefox: '122',
   },
   'esnext.array-buffer.transfer-to-fixed-length': {
     chrome: '114',
+    firefox: '122',
   },
   'esnext.async-disposable-stack.constructor': {
   },

@@ -5,6 +5,7 @@
 - Refactoring, some optimizations
 - Compat data improvements:
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as [supported from V8 ~ Chrome 121](https://bugs.chromium.org/p/v8/issues/detail?id=13321#c13)
+  - [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer) features marked as [supported from FF 122](https://bugzilla.mozilla.org/show_bug.cgi?id=1865103#c8)
   - Added Opera Android 80 and updated [Opera Android 79](https://forums.opera.com/topic/68490/opera-for-android-79) compat data mapping
   - Added Samsung Internet 24 compat data mapping
 
