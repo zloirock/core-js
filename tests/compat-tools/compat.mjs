@@ -13,11 +13,6 @@ deepEqual(compat({
   targets: 'firefox 27',
 }), {
   list: [
-    'es.array.at',
-    'es.math.clz32',
-    'es.math.expm1',
-    'es.math.f16round',
-    'es.math.to-string-tag',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -31,13 +26,13 @@ deepEqual(compat({
     'es.reflect.set',
     'es.reflect.set-prototype-of',
     'es.reflect.to-string-tag',
+    'es.array.at',
+    'es.math.clz32',
+    'es.math.expm1',
+    'es.math.f16round',
+    'es.math.to-string-tag',
   ],
   targets: {
-    'es.array.at': { firefox: '27' },
-    'es.math.clz32': { firefox: '27' },
-    'es.math.expm1': { firefox: '27' },
-    'es.math.f16round': { firefox: '27' },
-    'es.math.to-string-tag': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
@@ -51,6 +46,11 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.at': { firefox: '27' },
+    'es.math.clz32': { firefox: '27' },
+    'es.math.expm1': { firefox: '27' },
+    'es.math.f16round': { firefox: '27' },
+    'es.math.to-string-tag': { firefox: '27' },
   },
 }, 'basic');
 
