@@ -384,6 +384,151 @@ GLOBAL.tests = {
   'es.symbol.unscopables': [SYMBOLS_SUPPORT, function () {
     return Symbol.unscopables;
   }],
+  'es.object.assign': function () {
+    if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
+      enumerable: true,
+      get: function () {
+        Object.defineProperty(this, 'b', {
+          value: 3,
+          enumerable: false,
+        });
+      },
+    }), { b: 2 })).b !== 1) return false;
+    var A = {};
+    var B = {};
+    var symbol = Symbol('assign detection');
+    var alphabet = 'abcdefghijklmnopqrst';
+    A[symbol] = 7;
+    alphabet.split('').forEach(function (chr) { B[chr] = chr; });
+    return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
+  },
+  'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.entries': function () {
+    return Object.entries;
+  },
+  'es.object.freeze': function () {
+    return Object.freeze(true);
+  },
+  'es.object.from-entries': function () {
+    return Object.fromEntries;
+  },
+  'es.object.get-own-property-descriptor': function () {
+    return Object.getOwnPropertyDescriptor('qwe', '0');
+  },
+  'es.object.get-own-property-descriptors': function () {
+    return Object.getOwnPropertyDescriptors;
+  },
+  'es.object.get-own-property-names': function () {
+    return Object.getOwnPropertyNames('qwe');
+  },
+  'es.object.get-own-property-symbols': [SYMBOLS_SUPPORT, function () {
+    return Object.getOwnPropertySymbols('qwe');
+  }],
+  'es.object.get-prototype-of': function () {
+    return Object.getPrototypeOf('qwe');
+  },
+  'es.object.group-by': function () {
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    return Object.groupBy('ab', function (it) {
+      return it;
+    }).a.length === 1;
+  },
+  'es.object.has-own': function () {
+    return Object.hasOwn;
+  },
+  'es.object.is': function () {
+    return Object.is;
+  },
+  'es.object.is-extensible': function () {
+    return !Object.isExtensible('qwe');
+  },
+  'es.object.is-frozen': function () {
+    return Object.isFrozen('qwe');
+  },
+  'es.object.is-sealed': function () {
+    return Object.isSealed('qwe');
+  },
+  'es.object.keys': function () {
+    return Object.keys('qwe');
+  },
+  'es.object.lookup-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.lookup-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
+  'es.object.prevent-extensions': function () {
+    return Object.preventExtensions(true);
+  },
+  'es.object.proto': function () {
+    return '__proto__' in Object.prototype;
+  },
+  'es.object.seal': function () {
+    return Object.seal(true);
+  },
+  'es.object.set-prototype-of': function () {
+    return Object.setPrototypeOf;
+  },
+  'es.object.to-string': [SYMBOLS_SUPPORT, function () {
+    var O = {};
+    O[Symbol.toStringTag] = 'foo';
+    return String(O) === '[object foo]';
+  }],
+  'es.object.values': function () {
+    return Object.values;
+  },
+  'es.reflect.apply': function () {
+    try {
+      return Reflect.apply(function () {
+        return false;
+      });
+    } catch (error) {
+      return Reflect.apply(function () {
+        return true;
+      }, null, []);
+    }
+  },
+  'es.reflect.construct': function () {
+    try {
+      return !Reflect.construct(function () { /* empty */ });
+    } catch (error) { /* empty */ }
+    function F() { /* empty */ }
+    return Reflect.construct(function () { /* empty */ }, [], F) instanceof F;
+  },
+  'es.reflect.define-property': function () {
+    return !Reflect.defineProperty(Object.defineProperty({}, 1, { value: 1 }), 1, { value: 2 });
+  },
+  'es.reflect.delete-property': function () {
+    return Reflect.deleteProperty;
+  },
+  'es.reflect.get': function () {
+    return Reflect.get;
+  },
+  'es.reflect.get-own-property-descriptor': function () {
+    return Reflect.getOwnPropertyDescriptor;
+  },
+  'es.reflect.get-prototype-of': function () {
+    return Reflect.getPrototypeOf;
+  },
+  'es.reflect.has': function () {
+    return Reflect.has;
+  },
+  'es.reflect.is-extensible': function () {
+    return Reflect.isExtensible;
+  },
+  'es.reflect.own-keys': function () {
+    return Reflect.ownKeys;
+  },
+  'es.reflect.prevent-extensions': function () {
+    return Reflect.preventExtensions;
+  },
+  'es.reflect.set': function () {
+    var object = Object.defineProperty({}, 'a', { configurable: true });
+    return Reflect.set(Object.getPrototypeOf(object), 'a', 1, object) === false;
+  },
+  'es.reflect.set-prototype-of': function () {
+    return Reflect.setPrototypeOf;
+  },
+  'es.reflect.to-string-tag': function () {
+    return Reflect[Symbol.toStringTag];
+  },
   'es.error.cause': function () {
     return new Error('e', { cause: 7 }).cause === 7
       && !('cause' in Error.prototype);
@@ -405,6 +550,54 @@ GLOBAL.tests = {
     return typeof SuppressedError == 'function'
       && SuppressedError.length === 3
       && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
+  },
+  'es.promise.constructor': PROMISES_SUPPORT,
+  'es.promise.catch': PROMISES_SUPPORT,
+  'es.promise.finally': [PROMISES_SUPPORT, function () {
+    // eslint-disable-next-line unicorn/no-thenable -- required for testing
+    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
+  }],
+  'es.promise.reject': PROMISES_SUPPORT,
+  'es.promise.resolve': PROMISES_SUPPORT,
+  'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.all;
+  }],
+  'es.promise.all-settled': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.allSettled;
+  }],
+  'es.promise.any': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.any;
+  }],
+  'es.promise.race': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
+    return Promise.race;
+  }],
+  'es.promise.try': [PROMISES_SUPPORT, function () {
+    var ACCEPT_ARGUMENTS = false;
+    Promise.try(function (argument) {
+      ACCEPT_ARGUMENTS = argument === 8;
+    }, 8);
+    return ACCEPT_ARGUMENTS;
+  }],
+  'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
+    return Promise.withResolvers;
+  }],
+  'es.array.from-async': function () {
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    var counter = 0;
+    Array.fromAsync.call(function () {
+      counter++;
+      return [];
+    }, { length: 0 });
+    return counter === 1;
+  },
+  'es.async-disposable-stack.constructor': function () {
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256
+    // can't be detected synchronously
+    if (V8_VERSION && V8_VERSION < 136) return;
+    return typeof AsyncDisposableStack == 'function';
+  },
+  'es.async-iterator.async-dispose': function () {
+    return AsyncIterator.prototype[Symbol.asyncDispose];
   },
   'es.array.at': function () {
     return [].at;
@@ -916,199 +1109,6 @@ GLOBAL.tests = {
         && 1.255.toFixed(2) === '1.25'
         && 1000000000000000128.0.toFixed(0) === '1000000000000000128';
     }
-  },
-  'es.object.assign': function () {
-    if (Object.assign({ b: 1 }, Object.assign(Object.defineProperty({}, 'a', {
-      enumerable: true,
-      get: function () {
-        Object.defineProperty(this, 'b', {
-          value: 3,
-          enumerable: false,
-        });
-      },
-    }), { b: 2 })).b !== 1) return false;
-    var A = {};
-    var B = {};
-    var symbol = Symbol('assign detection');
-    var alphabet = 'abcdefghijklmnopqrst';
-    A[symbol] = 7;
-    alphabet.split('').forEach(function (chr) { B[chr] = chr; });
-    return Object.assign({}, A)[symbol] === 7 && Object.keys(Object.assign({}, B)).join('') === alphabet;
-  },
-  'es.object.define-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.define-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.entries': function () {
-    return Object.entries;
-  },
-  'es.object.freeze': function () {
-    return Object.freeze(true);
-  },
-  'es.object.from-entries': function () {
-    return Object.fromEntries;
-  },
-  'es.object.get-own-property-descriptor': function () {
-    return Object.getOwnPropertyDescriptor('qwe', '0');
-  },
-  'es.object.get-own-property-descriptors': function () {
-    return Object.getOwnPropertyDescriptors;
-  },
-  'es.object.get-own-property-names': function () {
-    return Object.getOwnPropertyNames('qwe');
-  },
-  'es.object.get-own-property-symbols': [SYMBOLS_SUPPORT, function () {
-    return Object.getOwnPropertySymbols('qwe');
-  }],
-  'es.object.get-prototype-of': function () {
-    return Object.getPrototypeOf('qwe');
-  },
-  'es.object.group-by': function () {
-    // https://bugs.webkit.org/show_bug.cgi?id=271524
-    return Object.groupBy('ab', function (it) {
-      return it;
-    }).a.length === 1;
-  },
-  'es.object.has-own': function () {
-    return Object.hasOwn;
-  },
-  'es.object.is': function () {
-    return Object.is;
-  },
-  'es.object.is-extensible': function () {
-    return !Object.isExtensible('qwe');
-  },
-  'es.object.is-frozen': function () {
-    return Object.isFrozen('qwe');
-  },
-  'es.object.is-sealed': function () {
-    return Object.isSealed('qwe');
-  },
-  'es.object.keys': function () {
-    return Object.keys('qwe');
-  },
-  'es.object.lookup-getter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.lookup-setter': OBJECT_PROTOTYPE_ACCESSORS_SUPPORT,
-  'es.object.prevent-extensions': function () {
-    return Object.preventExtensions(true);
-  },
-  'es.object.proto': function () {
-    return '__proto__' in Object.prototype;
-  },
-  'es.object.seal': function () {
-    return Object.seal(true);
-  },
-  'es.object.set-prototype-of': function () {
-    return Object.setPrototypeOf;
-  },
-  'es.object.to-string': [SYMBOLS_SUPPORT, function () {
-    var O = {};
-    O[Symbol.toStringTag] = 'foo';
-    return String(O) === '[object foo]';
-  }],
-  'es.object.values': function () {
-    return Object.values;
-  },
-  'es.promise.constructor': PROMISES_SUPPORT,
-  'es.promise.catch': PROMISES_SUPPORT,
-  'es.promise.finally': [PROMISES_SUPPORT, function () {
-    // eslint-disable-next-line unicorn/no-thenable -- required for testing
-    return Promise.prototype.finally.call({ then: function () { return this; } }, function () { /* empty */ });
-  }],
-  'es.promise.reject': PROMISES_SUPPORT,
-  'es.promise.resolve': PROMISES_SUPPORT,
-  'es.promise.all': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
-    return Promise.all;
-  }],
-  'es.promise.all-settled': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
-    return Promise.allSettled;
-  }],
-  'es.promise.any': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
-    return Promise.any;
-  }],
-  'es.promise.race': [PROMISES_SUPPORT, SAFE_ITERATION_CLOSING_SUPPORT, PROMISE_STATICS_ITERATION, function () {
-    return Promise.race;
-  }],
-  'es.promise.try': [PROMISES_SUPPORT, function () {
-    var ACCEPT_ARGUMENTS = false;
-    Promise.try(function (argument) {
-      ACCEPT_ARGUMENTS = argument === 8;
-    }, 8);
-    return ACCEPT_ARGUMENTS;
-  }],
-  'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
-    return Promise.withResolvers;
-  }],
-  'es.array.from-async': function () {
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    var counter = 0;
-    Array.fromAsync.call(function () {
-      counter++;
-      return [];
-    }, { length: 0 });
-    return counter === 1;
-  },
-  'es.async-disposable-stack.constructor': function () {
-    // https://github.com/tc39/proposal-explicit-resource-management/issues/256
-    // can't be detected synchronously
-    if (V8_VERSION && V8_VERSION < 136) return;
-    return typeof AsyncDisposableStack == 'function';
-  },
-  'es.async-iterator.async-dispose': function () {
-    return AsyncIterator.prototype[Symbol.asyncDispose];
-  },
-  'es.reflect.apply': function () {
-    try {
-      return Reflect.apply(function () {
-        return false;
-      });
-    } catch (error) {
-      return Reflect.apply(function () {
-        return true;
-      }, null, []);
-    }
-  },
-  'es.reflect.construct': function () {
-    try {
-      return !Reflect.construct(function () { /* empty */ });
-    } catch (error) { /* empty */ }
-    function F() { /* empty */ }
-    return Reflect.construct(function () { /* empty */ }, [], F) instanceof F;
-  },
-  'es.reflect.define-property': function () {
-    return !Reflect.defineProperty(Object.defineProperty({}, 1, { value: 1 }), 1, { value: 2 });
-  },
-  'es.reflect.delete-property': function () {
-    return Reflect.deleteProperty;
-  },
-  'es.reflect.get': function () {
-    return Reflect.get;
-  },
-  'es.reflect.get-own-property-descriptor': function () {
-    return Reflect.getOwnPropertyDescriptor;
-  },
-  'es.reflect.get-prototype-of': function () {
-    return Reflect.getPrototypeOf;
-  },
-  'es.reflect.has': function () {
-    return Reflect.has;
-  },
-  'es.reflect.is-extensible': function () {
-    return Reflect.isExtensible;
-  },
-  'es.reflect.own-keys': function () {
-    return Reflect.ownKeys;
-  },
-  'es.reflect.prevent-extensions': function () {
-    return Reflect.preventExtensions;
-  },
-  'es.reflect.set': function () {
-    var object = Object.defineProperty({}, 'a', { configurable: true });
-    return Reflect.set(Object.getPrototypeOf(object), 'a', 1, object) === false;
-  },
-  'es.reflect.set-prototype-of': function () {
-    return Reflect.setPrototypeOf;
-  },
-  'es.reflect.to-string-tag': function () {
-    return Reflect[Symbol.toStringTag];
   },
   'es.regexp.constructor': [NCG_SUPPORT, function () {
     var re1 = /a/g;
