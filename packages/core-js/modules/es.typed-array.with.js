@@ -23,7 +23,7 @@ var PROPER_ORDER = function () {
 // Bug in WebKit. It should truncate a negative fractional index to zero, but instead throws an error
 var THROW_ON_NEGATIVE_FRACTIONAL_INDEX = PROPER_ORDER && function () {
   try {
-    // eslint-disable-next-line es/no-typed-arrays, es/no-array-prototype-with -- required for testing
+    // eslint-disable-next-line es/no-array-prototype-with -- required for testing
     new Int8Array(1).with(-0.5, 1);
   } catch (error) {
     return true;
