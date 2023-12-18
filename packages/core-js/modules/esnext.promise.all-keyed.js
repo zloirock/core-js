@@ -4,13 +4,13 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var createProperty = require('../internals/create-property');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 
 var create = Object.create;
-var ownKeys = getBuiltIn('Reflect', 'ownKeys');
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 
 // `Promise.allKeyed` method
 // https://github.com/tc39/proposal-await-dictionary
