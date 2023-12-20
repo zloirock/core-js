@@ -3,14 +3,15 @@ var hasOwn = require('./internals/has-own-property');
 var isForced = require('./internals/is-forced');
 var shared = require('./internals/shared-store');
 
-var isArray = Array.isArray;
 var data = isForced.data;
 var normalize = isForced.normalize;
 var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR_PROTOTYPE = 'AsyncIteratorPrototype';
 
 var setAggressivenessLevel = function (object, constant) {
-  if (isArray(object)) for (var i = 0; i < object.length; i++) data[normalize(object[i])] = constant;
+  if (Array.isArray(object)) object.forEach(function (key) {
+    data[normalize(key)] = constant;
+  });
 };
 
 module.exports = function (options) {
