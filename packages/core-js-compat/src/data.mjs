@@ -879,6 +879,7 @@ export const data = {
     rhino: '1.8.0',
     safari: '16.0',
   },
+  // TODO: recheck
   'es.array-buffer.constructor': {
     chrome: '28',
     edge: '14',
@@ -887,6 +888,7 @@ export const data = {
     rhino: '1.8.0',
     safari: '12.0',
   },
+  // TODO: recheck
   'es.array-buffer.is-view': {
     chrome: '32',
     firefox: '29',
@@ -895,6 +897,7 @@ export const data = {
     rhino: '1.9.0',
     safari: '7.1',
   },
+  // TODO: recheck
   'es.array-buffer.slice': {
     chrome: '31',
     firefox: '46',
@@ -924,6 +927,7 @@ export const data = {
     rhino: '1.9.0',
     safari: '17.4',
   },
+  // TODO: recheck
   'es.data-view.constructor': {
     chrome: '26',
     firefox: '15',
@@ -931,6 +935,24 @@ export const data = {
     ie: '10',
     rhino: '1.7.13',
     safari: '7.1',
+  },
+  // TODO: recheck
+  'es.data-view.set-int8': {
+    chrome: '26',
+    firefox: '15',
+    hermes: '0.1',
+    ie: '10',
+    rhino: '1.7.13',
+    safari: '8.0',
+  },
+  // TODO: recheck
+  'es.data-view.set-uint8': {
+    chrome: '26',
+    firefox: '15',
+    hermes: '0.1',
+    ie: '10',
+    rhino: '1.7.13',
+    safari: '8.0',
   },
   'es.data-view.get-float16': {
     bun: '1.1.23',
