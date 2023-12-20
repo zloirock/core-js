@@ -858,6 +858,8 @@ GLOBAL.tests = {
   },
   'es.array-buffer.transfer-to-fixed-length': function () {
     return ArrayBuffer.prototype.transferToFixedLength;
+  'es.array-buffer.to-string-tag': function () {
+    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
   },
   'es.data-view.constructor': function () {
     return DataView;
