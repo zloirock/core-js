@@ -1,4 +1,4 @@
-import { GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants.js';
+import { LITTLE_ENDIAN } from '../helpers/constants.js';
 
 QUnit.test('Int16 conversions', assert => {
   const int16array = new Int16Array(1);
@@ -53,20 +53,16 @@ QUnit.test('Int16 conversions', assert => {
     [5e-324, 0, [0, 0]],
     [-5e-324, 0, [0, 0]],
     [NaN, 0, [0, 0]],
+    [2147483649, 1, [1, 0]],
+    [-2147483649, -1, [255, 255]],
+    [4294967295, -1, [255, 255]],
+    [4294967297, 1, [1, 0]],
+    [9007199254740991, -1, [255, 255]],
+    [-9007199254740991, 1, [1, 0]],
+    [9007199254740994, 2, [2, 0]],
+    [-9007199254740994, -2, [254, 255]],
   ];
-  // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
-    data.push(
-      [2147483649, 1, [1, 0]],
-      [-2147483649, -1, [255, 255]],
-      [4294967295, -1, [255, 255]],
-      [4294967297, 1, [1, 0]],
-      [9007199254740991, -1, [255, 255]],
-      [-9007199254740991, 1, [1, 0]],
-      [9007199254740994, 2, [2, 0]],
-      [-9007199254740994, -2, [254, 255]],
-    );
-  }
+
   for (const [value, conversion, little] of data) {
     const big = little.slice().reverse();
     const representation = LITTLE_ENDIAN ? little : big;
