@@ -966,6 +966,15 @@ export const data = {
     firefox: '129',
     safari: '18.2',
   },
+  // TODO: recheck
+  'es.data-view.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '10',
+  },
   'es.date.to-json': {
     chrome: '26',
     firefox: '4',
