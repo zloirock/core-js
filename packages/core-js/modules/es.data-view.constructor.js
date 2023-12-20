@@ -1,6 +1,5 @@
 'use strict';
 var setPrototypeOf = require('../internals/object-set-prototype-of');
-var setToStringTag = require('../internals/set-to-string-tag');
 
 var $DataView = DataView;
 var DataViewPrototype = $DataView.prototype;
@@ -11,5 +10,3 @@ var getPrototypeOf = Object.getPrototypeOf;
 if (getPrototypeOf(DataViewPrototype) !== ObjectPrototype) {
   setPrototypeOf(DataViewPrototype, ObjectPrototype);
 }
-
-setToStringTag($DataView, 'DataView');
