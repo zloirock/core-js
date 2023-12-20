@@ -1441,7 +1441,6 @@ const forbidES5BuiltIns = {
   'es/no-array-prototype-filter': ERROR,
   'es/no-array-prototype-indexof': ERROR,
   'es/no-array-prototype-lastindexof': ERROR,
-  'es/no-array-prototype-map': ERROR,
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
   'es/no-object-isextensible': ERROR,
