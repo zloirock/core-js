@@ -11,6 +11,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var Symbol = getBuiltIn('Symbol');
 var $isWellKnownSymbol = Symbol.isWellKnownSymbol;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
+var some = uncurryThis([].some);
 var thisSymbolValue = uncurryThis(Symbol.prototype.valueOf);
 var WellKnownSymbolsStore = shared('wks');
 
@@ -29,10 +30,10 @@ $({ target: 'Symbol', stat: true, forced: true }, {
     if ($isWellKnownSymbol && $isWellKnownSymbol(value)) return true;
     try {
       var symbol = thisSymbolValue(value);
-      for (var j = 0, keys = getOwnPropertyNames(WellKnownSymbolsStore), keysLength = keys.length; j < keysLength; j++) {
+      return some(getOwnPropertyNames(WellKnownSymbolsStore), function (key) {
         // eslint-disable-next-line eqeqeq -- polyfilled symbols case
-        if (WellKnownSymbolsStore[keys[j]] == symbol) return true;
-      }
+        if (WellKnownSymbolsStore[key] == symbol) return true;
+      });
     } catch (error) { /* empty */ }
     return false;
   },
