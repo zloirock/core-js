@@ -720,6 +720,9 @@ GLOBAL.tests = {
   },
   'es.data-view.set-int8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.set-uint8': DATA_VIEW_INT8_CONVERSION_BUG,
+  'es.data-view.to-string-tag': function () {
+    return DataView.prototype[Symbol.toStringTag] === 'DataView';
+  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
