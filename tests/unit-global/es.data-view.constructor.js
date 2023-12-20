@@ -136,3 +136,7 @@ for (const type of types) {
     assert.same(new DataView(new ArrayBuffer(8))[SETTER](0, 0), undefined, 'void');
   });
 }
+
+QUnit.test('DataView.prototype[@@toStringTag]', assert => {
+  assert.same(DataView.prototype[Symbol.toStringTag], 'DataView', 'DataView.prototype[@@toStringTag] is `DataView`');
+});
