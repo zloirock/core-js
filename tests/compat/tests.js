@@ -138,6 +138,15 @@ var SAFE_ITERATION_CLOSING_SUPPORT = function () {
   }
 };
 
+var DATA_VIEW_INT8_CONVERSION_BUG = function () {
+  var testView = new DataView(new ArrayBuffer(2));
+  testView.setInt8(0, 2147483648);
+  testView.setInt8(1, 2147483649);
+
+  // iOS Safari 7.x bug
+  return !testView.getInt8(0) || !!testView.getInt8(1);
+};
+
 var TYPED_ARRAY_CONSTRUCTORS_LIST = {
   Int8Array: 1,
   Uint8Array: 1,
@@ -869,6 +878,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.data-view.constructor': function () {
     return DataView;
   },
+  'es.data-view.set-int8': DATA_VIEW_INT8_CONVERSION_BUG,
+  'es.data-view.set-uint8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.get-float16': function () {
     return DataView.prototype.getFloat16;
   },
