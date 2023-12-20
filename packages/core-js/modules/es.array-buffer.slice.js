@@ -2,14 +2,13 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
-var ArrayBufferModule = require('../internals/array-buffer');
+var ArrayBuffer = require('../internals/array-buffer');
 var anObject = require('../internals/an-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 
-var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
-var DataView = ArrayBufferModule.DataView;
-var DataViewPrototype = DataView.prototype;
+var $DataView = DataView;
+var DataViewPrototype = $DataView.prototype;
 var nativeArrayBufferSlice = uncurryThis(ArrayBuffer.prototype.slice);
 var getUint8 = uncurryThis(DataViewPrototype.getUint8);
 var setUint8 = uncurryThis(DataViewPrototype.setUint8);
@@ -29,8 +28,8 @@ $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE },
     var first = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
     var result = new ArrayBuffer(toLength(fin - first));
-    var viewSource = new DataView(this);
-    var viewTarget = new DataView(result);
+    var viewSource = new $DataView(this);
+    var viewTarget = new $DataView(result);
     var index = 0;
     while (first < fin) {
       setUint8(viewTarget, index++, getUint8(viewSource, first++));
