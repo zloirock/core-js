@@ -1,4 +1,4 @@
-import { GLOBAL, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, NATIVE } from '../helpers/constants.js';
+import { LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 QUnit.test('Int16 conversions', assert => {
   const int16array = new Int16Array(1);
@@ -53,20 +53,16 @@ QUnit.test('Int16 conversions', assert => {
     [Number.MIN_VALUE, 0, [0, 0]],
     [-Number.MIN_VALUE, 0, [0, 0]],
     [NaN, 0, [0, 0]],
+    [2147483649, 1, [1, 0]],
+    [-2147483649, -1, [255, 255]],
+    [4294967295, -1, [255, 255]],
+    [4294967297, 1, [1, 0]],
+    [MAX_SAFE_INTEGER, -1, [255, 255]],
+    [MIN_SAFE_INTEGER, 1, [1, 0]],
+    [MAX_SAFE_INTEGER + 3, 2, [2, 0]],
+    [MIN_SAFE_INTEGER - 3, -2, [254, 255]],
   ];
-  // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
-    data.push(
-      [2147483649, 1, [1, 0]],
-      [-2147483649, -1, [255, 255]],
-      [4294967295, -1, [255, 255]],
-      [4294967297, 1, [1, 0]],
-      [MAX_SAFE_INTEGER, -1, [255, 255]],
-      [MIN_SAFE_INTEGER, 1, [1, 0]],
-      [MAX_SAFE_INTEGER + 3, 2, [2, 0]],
-      [MIN_SAFE_INTEGER - 3, -2, [254, 255]],
-    );
-  }
+
   for (const [value, conversion, little] of data) {
     const big = little.slice().reverse();
     const representation = LITTLE_ENDIAN ? little : big;
