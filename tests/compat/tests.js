@@ -853,13 +853,17 @@ GLOBAL.tests = {
   'es.array-buffer.detached': function () {
     return 'detached' in ArrayBuffer.prototype;
   },
+  'es.array-buffer.species': function () {
+    return ArrayBuffer[Symbol.species] === ArrayBuffer;
+  },
+  'es.array-buffer.to-string-tag': function () {
+    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
+  },
   'es.array-buffer.transfer': function () {
     return ArrayBuffer.prototype.transfer;
   },
   'es.array-buffer.transfer-to-fixed-length': function () {
     return ArrayBuffer.prototype.transferToFixedLength;
-  'es.array-buffer.to-string-tag': function () {
-    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
   },
   'es.data-view.constructor': function () {
     return DataView;
