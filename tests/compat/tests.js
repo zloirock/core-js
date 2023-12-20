@@ -870,6 +870,9 @@ GLOBAL.tests = {
   'es.data-view.set-float16': function () {
     return DataView.prototype.setFloat16;
   },
+  'es.data-view.to-string-tag': function () {
+    return DataView.prototype[Symbol.toStringTag] === 'DataView';
+  },
   'es.date.to-json': function () {
     return new Date(NaN).toJSON() === null
       && Date.prototype.toJSON.call({ toISOString: function () { return 1; } }) === 1;
