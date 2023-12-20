@@ -8,7 +8,6 @@ var anInstance = require('../internals/an-instance');
 var toIndex = require('../internals/to-index');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var setSpecies = require('../internals/set-species');
 
 var PROPER_FUNCTION_NAME = FunctionName.PROPER;
 var CONFIGURABLE_FUNCTION_NAME = FunctionName.CONFIGURABLE;
@@ -51,5 +50,3 @@ if (WRAP) {
 $({ global: true, constructor: true, forced: WRAP }, {
   ArrayBuffer: $ArrayBuffer,
 });
-
-setSpecies(ARRAY_BUFFER);
