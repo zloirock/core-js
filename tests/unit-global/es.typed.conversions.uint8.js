@@ -1,4 +1,4 @@
-import { GLOBAL, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, NATIVE } from '../helpers/constants.js';
+import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 QUnit.test('Uint8 conversions', assert => {
   const uint8array = new Uint8Array(1);
@@ -51,20 +51,16 @@ QUnit.test('Uint8 conversions', assert => {
     [Number.MIN_VALUE, 0, [0]],
     [-Number.MIN_VALUE, 0, [0]],
     [NaN, 0, [0]],
+    [2147483649, 1, [1]],
+    [-2147483649, 255, [255]],
+    [4294967295, 255, [255]],
+    [4294967297, 1, [1]],
+    [MAX_SAFE_INTEGER, 255, [255]],
+    [MIN_SAFE_INTEGER, 1, [1]],
+    [MAX_SAFE_INTEGER + 3, 2, [2]],
+    [MIN_SAFE_INTEGER - 3, 254, [254]],
   ];
-  // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
-    data.push(
-      [2147483649, 1, [1]],
-      [-2147483649, 255, [255]],
-      [4294967295, 255, [255]],
-      [4294967297, 1, [1]],
-      [MAX_SAFE_INTEGER, 255, [255]],
-      [MIN_SAFE_INTEGER, 1, [1]],
-      [MAX_SAFE_INTEGER + 3, 2, [2]],
-      [MIN_SAFE_INTEGER - 3, 254, [254]],
-    );
-  }
+
   for (const [value, conversion, little] of data) {
     uint8array[0] = value;
     assert.same(uint8array[0], conversion, `Uint8Array ${ toString(value) } -> ${ toString(conversion) }`);
