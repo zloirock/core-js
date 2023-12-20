@@ -936,6 +936,15 @@ export const data = {
     safari: '17.4',
   },
   // TODO: recheck
+  'es.array-buffer.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '10',
+  },
+  // TODO: recheck
   'es.data-view.constructor': {
     chrome: '54', // '26',
     firefox: '15',

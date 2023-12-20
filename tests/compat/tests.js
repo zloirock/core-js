@@ -951,6 +951,8 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.array-buffer.transfer-to-fixed-length': function () {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
+  'es.array-buffer.to-string-tag': function () {
+    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
   },
   'es.data-view.constructor': [function () {
     // NodeJS 0.11.4 and iOS Safari 7.x truncate large values incorrectly.
