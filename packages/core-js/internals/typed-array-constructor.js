@@ -4,7 +4,7 @@ var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var ArrayBufferModule = require('../internals/array-buffer');
+var ArrayBuffer = require('../internals/array-buffer');
 var anInstance = require('../internals/an-instance');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var toIndex = require('../internals/to-index');
@@ -21,7 +21,6 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 
 var enforceInternalState = InternalStateModule.enforce;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
-var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
 var TypedArray = ArrayBufferViewCore.TypedArray;
