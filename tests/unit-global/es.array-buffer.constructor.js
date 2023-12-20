@@ -21,3 +21,7 @@ QUnit.test('ArrayBuffer', assert => {
 QUnit.test('ArrayBuffer.prototype[@@toStringTag]', assert => {
   assert.same(ArrayBuffer.prototype[Symbol.toStringTag], 'ArrayBuffer', 'ArrayBuffer.prototype[@@toStringTag] is `ArrayBuffer`');
 });
+
+QUnit.test('ArrayBuffer[@@species]', assert => {
+  assert.same(ArrayBuffer[Symbol.species], ArrayBuffer, 'ArrayBuffer[@@species] is ArrayBuffer');
+});
