@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
-var ArrayBufferModule = require('../internals/array-buffer');
+var ArrayBuffer = require('../internals/array-buffer');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var notDetached = require('../internals/array-buffer-not-detached');
 var detach = require('../internals/detach-transferable');
@@ -10,10 +10,9 @@ var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-pr
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toLength = require('../internals/to-length');
 
-var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
-var DataView = ArrayBufferModule.DataView;
+var $DataView = DataView;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
-var DataViewPrototype = DataView.prototype;
+var DataViewPrototype = $DataView.prototype;
 // in NodeJS 0.11.0-0.11.3, `slice` is an own property of each buffer and fails on a missing or undefined argument
 var OWN_SLICE = !ArrayBufferPrototype.slice && new ArrayBuffer(1).slice;
 var nativeArrayBufferSlice = uncurryThis(ArrayBufferPrototype.slice || OWN_SLICE);
@@ -48,8 +47,8 @@ $({ target: 'ArrayBuffer', proto: true, unsafe: true, forced: INCORRECT_SLICE },
       return result;
     }
     result = new ArrayBuffer(toLength(fin - first));
-    var viewSource = new DataView(this);
-    var viewTarget = new DataView(result);
+    var viewSource = new $DataView(this);
+    var viewTarget = new $DataView(result);
     var index = 0;
     while (first < fin) {
       setUint8(viewTarget, index++, getUint8(viewSource, first++));
