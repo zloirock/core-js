@@ -17,3 +17,7 @@ QUnit.test('ArrayBuffer', assert => {
   assert.notThrows(() => new ArrayBuffer(), 'missed length');
   assert.same(ArrayBuffer[Symbol.species], ArrayBuffer, '@@species');
 });
+
+QUnit.test('ArrayBuffer.prototype[@@toStringTag]', assert => {
+  assert.same(ArrayBuffer.prototype[Symbol.toStringTag], 'ArrayBuffer', 'ArrayBuffer.prototype[@@toStringTag] is `ArrayBuffer`');
+});
