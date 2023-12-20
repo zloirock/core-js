@@ -8,7 +8,6 @@ var anInstance = require('../internals/an-instance');
 var toIndex = require('../internals/to-index');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var setToStringTag = require('../internals/set-to-string-tag');
 var setSpecies = require('../internals/set-species');
 
 var PROPER_FUNCTION_NAME = FunctionName.PROPER;
@@ -46,8 +45,6 @@ if (WRAP) {
 } else if (INCORRECT_ARRAY_BUFFER_NAME && CONFIGURABLE_FUNCTION_NAME) {
   createNonEnumerableProperty(NativeArrayBuffer, 'name', ARRAY_BUFFER);
 }
-
-setToStringTag($ArrayBuffer, ARRAY_BUFFER);
 
 // `ArrayBuffer` constructor
 // https://tc39.es/ecma262/#sec-arraybuffer-constructor
