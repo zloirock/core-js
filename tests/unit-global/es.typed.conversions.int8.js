@@ -1,4 +1,4 @@
-import { GLOBAL, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, NATIVE } from '../helpers/constants.js';
+import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 QUnit.test('Int8 conversions', assert => {
   const int8array = new Int8Array(1);
@@ -53,28 +53,22 @@ QUnit.test('Int8 conversions', assert => {
     [Number.MIN_VALUE, 0, [0]],
     [-Number.MIN_VALUE, 0, [0]],
     [NaN, 0, [0]],
+    [2147483649, 1, [1]],
+    [-2147483649, -1, [255]],
+    [4294967295, -1, [255]],
+    [4294967297, 1, [1]],
+    [MAX_SAFE_INTEGER, -1, [255]],
+    [MIN_SAFE_INTEGER, 1, [1]],
+    [MAX_SAFE_INTEGER + 3, 2, [2]],
+    [MIN_SAFE_INTEGER - 3, -2, [254]],
   ];
-  // Android 4.3- bug
-  if (NATIVE || !/Android [2-4]/.test(GLOBAL.navigator && navigator.userAgent)) {
-    data.push(
-      [2147483649, 1, [1]],
-      [-2147483649, -1, [255]],
-      [4294967295, -1, [255]],
-      [4294967297, 1, [1]],
-      [MAX_SAFE_INTEGER, -1, [255]],
-      [MIN_SAFE_INTEGER, 1, [1]],
-      [MAX_SAFE_INTEGER + 3, 2, [2]],
-      [MIN_SAFE_INTEGER - 3, -2, [254]],
-    );
-  }
-  for (const [value, conversion, little] of data) {
-    const big = little.slice().reverse();
-    const representation = LITTLE_ENDIAN ? little : big;
+
+  for (const [value, conversion, representation] of data) {
     int8array[0] = value;
     assert.same(int8array[0], conversion, `Int8Array ${ toString(value) } -> ${ toString(conversion) }`);
     assert.arrayEqual(uint8array, representation, `Int8Array ${ toString(value) } -> [${ representation }]`);
     dataview.setInt8(0, value);
-    assert.arrayEqual(uint8array, big, `dataview.setInt8(0, ${ toString(value) }) -> [${ big }]`);
-    assert.same(viewFrom(big).getInt8(0), conversion, `dataview{${ big }}.getInt8(0) -> ${ toString(conversion) }`);
+    assert.arrayEqual(uint8array, representation, `dataview.setInt8(0, ${ toString(value) }) -> [${ representation }]`);
+    assert.same(viewFrom(representation).getInt8(0), conversion, `dataview{${ representation }}.getInt8(0) -> ${ toString(conversion) }`);
   }
 });
