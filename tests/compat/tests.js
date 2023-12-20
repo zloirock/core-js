@@ -715,6 +715,9 @@ GLOBAL.tests = {
   'es.array-buffer.slice': function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   },
+  'es.array-buffer.to-string-tag': function () {
+    return ArrayBuffer.prototype[Symbol.toStringTag] === 'ArrayBuffer';
+  },
   'es.data-view.constructor': function () {
     return DataView;
   },
