@@ -442,3 +442,7 @@ QUnit.test('Set#@@iterator', assert => {
     done: true,
   });
 });
+
+QUnit.test('Set[@@species]', assert => {
+  assert.same(Set[Symbol.species], Set, 'Set[@@species] is Set');
+});
