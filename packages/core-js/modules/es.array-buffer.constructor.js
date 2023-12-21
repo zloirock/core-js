@@ -17,7 +17,7 @@ var $ArrayBuffer = NativeArrayBuffer;
 var ArrayBufferPrototype = $ArrayBuffer && $ArrayBuffer.prototype;
 
 var INCORRECT_ARRAY_BUFFER_NAME = PROPER_FUNCTION_NAME && NativeArrayBuffer.name !== ARRAY_BUFFER;
-/* eslint-disable no-new, sonar/inconsistent-function-call -- required for testing */
+/* eslint-disable no-new, sonarjs/inconsistent-function-call -- required for testing */
 var WRAP = !fails(function () {
   NativeArrayBuffer(1);
 }) || !fails(function () {
@@ -28,7 +28,7 @@ var WRAP = !fails(function () {
   new NativeArrayBuffer(NaN);
   return NativeArrayBuffer.length !== 1 || INCORRECT_ARRAY_BUFFER_NAME && !CONFIGURABLE_FUNCTION_NAME;
 });
-/* eslint-enable no-new, sonar/inconsistent-function-call -- required for testing */
+/* eslint-enable no-new, sonarjs/inconsistent-function-call -- required for testing */
 
 if (WRAP) {
   $ArrayBuffer = function ArrayBuffer(length) {
