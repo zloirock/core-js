@@ -414,3 +414,7 @@ QUnit.test('Map#@@iterator', assert => {
     done: true,
   });
 });
+
+QUnit.test('Map[@@species]', assert => {
+  assert.same(Map[Symbol.species], Map, 'Map[@@species] is Map');
+});
