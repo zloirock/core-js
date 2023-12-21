@@ -787,6 +787,9 @@ GLOBAL.tests = {
       && map.has(0)
       && map[Symbol.toStringTag];
   }],
+  'es.map.species': function () {
+    return Map[Symbol.species] === Map;
+  },
   'es.map.group-by': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     return Map.groupBy('ab', function (it) {
@@ -1038,6 +1041,9 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
+  'es.set.species': function () {
+    return Set[Symbol.species] === Set;
+  },
   'es.set.difference': createSetMethodTest('difference'),
   'es.set.intersection': [createSetMethodTest('intersection'), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
