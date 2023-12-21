@@ -225,7 +225,7 @@ const promise = (() => {
   } catch { /* empty */ }
 })();
 
-if (promise && promise.constructor !== Promise) QUnit.test('Native Promise, patched', assert => {
+if (promise) QUnit.test('Native Promise, maybe patched', assert => {
   assert.isFunction(promise.then);
   assert.arity(promise.then, 2);
   assert.looksNative(promise.then);
