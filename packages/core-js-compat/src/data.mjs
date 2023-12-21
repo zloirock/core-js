@@ -1174,6 +1174,14 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
+  // TODO: recheck
+  'es.map.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.map.group-by': {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     bun: '1.1.2', // '1.0.19',
@@ -1509,6 +1517,14 @@ export const data = {
     firefox: '53',
     hermes: '0.13',
     'react-native': '0.73',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.set.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
     rhino: '1.7.13',
     safari: '10.0',
   },
