@@ -784,6 +784,9 @@ GLOBAL.tests = {
       && map.has(0)
       && map[Symbol.toStringTag];
   }],
+  'es.map.species': function () {
+    return Map[Symbol.species] === Map;
+  },
   'es.map.group-by': function () {
     return Map.groupBy;
   },
@@ -1032,6 +1035,9 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
+  'es.set.species': function () {
+    return Set[Symbol.species] === Set;
+  },
   'es.string.at': function () {
     return '𠮷'.at(-2) === '\uD842';
   },

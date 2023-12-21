@@ -1370,7 +1370,7 @@ Symbol().description;      // => undefined
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
 #### Map[⬆](#index)
-Modules [`es.map.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.constructor.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+Modules [`es.map.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.constructor.js), [`es.map.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.species.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
 ```js
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -1386,6 +1386,7 @@ class Map {
   @@iterator(): Iterator<[key, value]>;
   readonly attribute size: number;
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
+  static getter @@species: this;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -1431,7 +1432,7 @@ map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ```
 #### Set[⬆](#index)
-Module [`es.set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.constructor.js).
+Module [`es.set.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.constructor.js), [`es.set.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.species.js).
 ```js
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -1445,6 +1446,7 @@ class Set {
   entries(): Iterator<[value, value]>;
   @@iterator(): Iterator<value>;
   readonly attribute size: number;
+  static getter @@species: this;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
