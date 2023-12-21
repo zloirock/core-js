@@ -886,6 +886,14 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
+  // TODO: recheck
+  'es.map.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.map.group-by': {
     bun: '1.0.19',
     chrome: '117',
@@ -1194,6 +1202,14 @@ export const data = {
     edge: '15',
     firefox: '53',
     'react-native': '0.73',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.set.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
     rhino: '1.7.13',
     safari: '10.0',
   },
