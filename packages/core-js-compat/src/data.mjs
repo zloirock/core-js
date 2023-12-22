@@ -1947,14 +1947,17 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array.with': null,
   'esnext.array-buffer.detached': {
+    bun: '1.0.19',
     chrome: '114',
     firefox: '122',
   },
   'esnext.array-buffer.transfer': {
+    bun: '1.0.19',
     chrome: '114',
     firefox: '122',
   },
   'esnext.array-buffer.transfer-to-fixed-length': {
+    bun: '1.0.19',
     chrome: '114',
     firefox: '122',
   },
