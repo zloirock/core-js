@@ -585,6 +585,7 @@ export const data = {
     safari: '10.0',
   },
   'es.map.group-by': {
+    bun: '1.0.19',
     chrome: '117',
     firefox: '119',
   },
@@ -949,6 +950,7 @@ export const data = {
     safari: '9.0',
   },
   'es.object.group-by': {
+    bun: '1.0.19',
     chrome: '117',
     firefox: '119',
   },
