@@ -309,7 +309,7 @@ export const data = {
   },
   'es.array.push': {
     // bug with setting length
-    // chrome: '103',
+    chrome: '122', // chrome: '103',
     // edge: '15',
     firefox: '55',
     hermes: '0.2',
