@@ -2027,6 +2027,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.global-this': null,
   'esnext.iterator.constructor': {
+    deno: '1.37',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
@@ -2034,32 +2035,44 @@ export const data = {
   'esnext.iterator.dispose': {
   },
   'esnext.iterator.drop': {
+    deno: '1.37',
   },
   'esnext.iterator.every': {
+    deno: '1.37',
   },
   'esnext.iterator.filter': {
+    deno: '1.37',
   },
   'esnext.iterator.find': {
+    deno: '1.37',
   },
   'esnext.iterator.flat-map': {
+    deno: '1.37',
   },
   'esnext.iterator.for-each': {
+    deno: '1.37',
   },
   'esnext.iterator.from': {
+    deno: '1.37',
   },
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.map': {
+    deno: '1.37',
   },
   'esnext.iterator.range': {
   },
   'esnext.iterator.reduce': {
+    deno: '1.37',
   },
   'esnext.iterator.some': {
+    deno: '1.37',
   },
   'esnext.iterator.take': {
+    deno: '1.37',
   },
   'esnext.iterator.to-array': {
+    deno: '1.37',
   },
   'esnext.iterator.to-async': {
   },

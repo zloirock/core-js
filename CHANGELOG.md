@@ -8,6 +8,7 @@
   - It seems that the ancient [`Array.prototype.push` bug](https://bugs.chromium.org/p/v8/issues/detail?id=12681) is fixed in V8 ~ Chrome 122 (Hallelujah!)
   - [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer) features marked as [supported from FF 122](https://bugzilla.mozilla.org/show_bug.cgi?id=1865103#c8) and Bun 1.0.19
   - [`Object.groupBy` and `Map.groupBy`](https://github.com/tc39/proposal-array-grouping) marked as supported from Bun 1.0.19
+  - Since [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods are still not disabled in Deno, the web compatibility issue why it was disabled in Chromium makes no sense for Deno and fixed in the spec, mark them as supported from Deno 1.37
   - Added Opera Android 80 and updated [Opera Android 79](https://forums.opera.com/topic/68490/opera-for-android-79) compat data mapping
   - Added Samsung Internet 24 compat data mapping
 
