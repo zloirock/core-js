@@ -1,7 +1,7 @@
 'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
-var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
+var aTypedArray = require('../internals/a-typed-array');
 var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 
 // `%TypedArray%.prototype.toReversed` method
