@@ -1,5 +1,6 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
 var $fill = require('../internals/array-fill');
 var toBigInt = require('../internals/to-big-int');
 var classof = require('../internals/classof');
@@ -7,8 +8,6 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var slice = uncurryThis(''.slice);
 
 // V8 ~ Chrome < 59, Safari < 14.1, FF < 55, Edge <=18
