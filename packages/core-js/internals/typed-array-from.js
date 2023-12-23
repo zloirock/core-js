@@ -2,13 +2,13 @@
 var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
 var aConstructor = require('../internals/a-constructor');
+var aTypedArrayConstructor = require('../internals/a-typed-array-constructor');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var isBigIntArray = require('../internals/is-big-int-array');
-var aTypedArrayConstructor = require('../internals/array-buffer-view-core').aTypedArrayConstructor;
 var toBigInt = require('../internals/to-big-int');
 
 module.exports = function from(source /* , mapfn, thisArg */) {
