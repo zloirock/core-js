@@ -42,9 +42,6 @@ var TypedArrayConstructorsList = {
   Uint32Array: 4,
   Float32Array: 4,
   Float64Array: 8,
-};
-
-var BigIntArrayConstructorsList = {
   BigInt64Array: 8,
   BigUint64Array: 8,
 };
@@ -52,9 +49,7 @@ var BigIntArrayConstructorsList = {
 var isView = function isView(it) {
   if (!isObject(it)) return false;
   var klass = classof(it);
-  return klass === 'DataView'
-    || hasOwn(TypedArrayConstructorsList, klass)
-    || hasOwn(BigIntArrayConstructorsList, klass);
+  return klass === 'DataView' || hasOwn(TypedArrayConstructorsList, klass);
 };
 
 var getTypedArrayConstructor = function (it) {
@@ -65,10 +60,7 @@ var getTypedArrayConstructor = function (it) {
 };
 
 var isTypedArray = function (it) {
-  if (!isObject(it)) return false;
-  var klass = classof(it);
-  return hasOwn(TypedArrayConstructorsList, klass)
-    || hasOwn(BigIntArrayConstructorsList, klass);
+  return isObject(it) ? hasOwn(TypedArrayConstructorsList, classof(it)) : false;
 };
 
 var aTypedArray = function (it) {
@@ -123,11 +115,6 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
 };
 
 for (NAME in TypedArrayConstructorsList) {
-  Constructor = globalThis[NAME];
-  enforceInternalState(Constructor.prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
-}
-
-for (NAME in BigIntArrayConstructorsList) {
   Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
   if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
