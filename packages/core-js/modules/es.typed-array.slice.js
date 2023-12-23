@@ -1,6 +1,6 @@
 'use strict';
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
-var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
+var aTypedArray = require('../internals/a-typed-array');
 var typedArraySpeciesConstructor = require('../internals/typed-array-species-constructor');
 var fails = require('../internals/fails');
 var arraySlice = require('../internals/array-slice');
