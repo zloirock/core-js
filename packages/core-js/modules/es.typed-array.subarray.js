@@ -1,11 +1,14 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var fails = require('../internals/fails');
+var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
 var toLength = require('../internals/to-length');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
+var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
+var DOES_NOT_WORK_WITH_DIFFERENT_TYPED_ARRAYS = fails(function () {
+  return !(Int8Array.prototype.subarray.call(new Float32Array([1, 2, 3]), 0, 1) instanceof Float32Array);
+});
 
 // `%TypedArray%.prototype.subarray` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.subarray
@@ -19,4 +22,4 @@ exportTypedArrayMethod('subarray', function subarray(begin, end) {
     O.byteOffset + beginIndex * O.BYTES_PER_ELEMENT,
     toLength((end === undefined ? length : toAbsoluteIndex(end, length)) - beginIndex)
   );
-});
+}, DOES_NOT_WORK_WITH_DIFFERENT_TYPED_ARRAYS);
