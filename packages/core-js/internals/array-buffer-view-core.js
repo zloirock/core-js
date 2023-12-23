@@ -3,7 +3,6 @@ var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
-var classof = require('../internals/classof');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -20,10 +19,6 @@ var TypeError = globalThis.TypeError;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var NAME, Constructor, Prototype;
-
-var isTypedArray = function (it) {
-  return isObject(it) ? hasOwn(TypedArrayConstructors, classof(it)) : false;
-};
 
 var getTypedArrayMetadata = function (it, key) {
   var proto = getPrototypeOf(it);
@@ -75,7 +70,6 @@ if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
 }
 
 module.exports = {
-  isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
   getTypedArrayMetadata: getTypedArrayMetadata,
