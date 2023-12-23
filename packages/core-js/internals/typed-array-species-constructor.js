@@ -1,6 +1,6 @@
 'use strict';
 var aTypedArrayConstructor = require('../internals/a-typed-array-constructor');
-var getTypedArrayConstructor = require('../internals/array-buffer-view-core').getTypedArrayConstructor;
+var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 var speciesConstructor = require('../internals/species-constructor');
 
 // a part of `TypedArraySpeciesCreate` abstract operation
