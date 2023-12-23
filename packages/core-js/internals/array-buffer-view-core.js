@@ -14,7 +14,6 @@ var InternalStateModule = require('../internals/internal-state');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
 var enforceInternalState = InternalStateModule.enforce;
-var getInternalState = InternalStateModule.get;
 var getPrototypeOf = Object.getPrototypeOf;
 var Int8Array = globalThis.Int8Array;
 var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
@@ -30,13 +29,6 @@ var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
 var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
 var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
-
-var getTypedArrayConstructor = function (it) {
-  var proto = getPrototypeOf(it);
-  if (!isObject(proto)) return;
-  var state = getInternalState(proto);
-  return (state && hasOwn(state, TYPED_ARRAY_CONSTRUCTOR)) ? state[TYPED_ARRAY_CONSTRUCTOR] : getTypedArrayConstructor(proto);
-};
 
 var isTypedArray = function (it) {
   return isObject(it) ? hasOwn(TypedArrayConstructors, classof(it)) : false;
@@ -135,8 +127,8 @@ module.exports = {
   aTypedArray: aTypedArray,
   exportTypedArrayMethod: exportTypedArrayMethod,
   exportTypedArrayStaticMethod: exportTypedArrayStaticMethod,
-  getTypedArrayConstructor: getTypedArrayConstructor,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
+  getInternalState: InternalStateModule.get,
 };
