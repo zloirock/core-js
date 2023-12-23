@@ -4,16 +4,15 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
 var classof = require('../internals/classof');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var uid = require('../internals/uid');
 var InternalStateModule = require('../internals/internal-state');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
 var enforceInternalState = InternalStateModule.enforce;
+var getInternalState = InternalStateModule.get;
 var getPrototypeOf = Object.getPrototypeOf;
 var Int8Array = globalThis.Int8Array;
 var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
@@ -25,9 +24,6 @@ var ObjectPrototype = Object.prototype;
 var TypeError = globalThis.TypeError;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
-var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
-var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
-var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
 
 var isTypedArray = function (it) {
@@ -80,10 +76,21 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   }
 };
 
+var getTypedArrayMetadata = function (it, key) {
+  var proto = getPrototypeOf(it);
+  if (!isObject(proto)) return;
+  var state = getInternalState(proto);
+  return (state && hasOwn(state, key)) ? state[key] : getTypedArrayMetadata(proto, key);
+};
+
 for (NAME in TypedArrayConstructors) {
   Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
-  if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
+  if (Prototype) {
+    var state = enforceInternalState(Prototype);
+    state.TypedArrayConstructor = Constructor;
+    state.TypedArrayTag = NAME;
+  }
 }
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
@@ -110,25 +117,20 @@ if (getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
 }
 
 if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
-  TYPED_ARRAY_TAG_REQUIRED = true;
   defineBuiltInAccessor(TypedArrayPrototype, TO_STRING_TAG, {
     configurable: true,
     get: function () {
-      return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
+      if (isObject(this)) return getTypedArrayMetadata(this, 'TypedArrayTag');
     },
   });
-  for (NAME in TypedArrayConstructors) if (globalThis[NAME]) {
-    createNonEnumerableProperty(globalThis[NAME], TYPED_ARRAY_TAG, NAME);
-  }
 }
 
 module.exports = {
-  TYPED_ARRAY_TAG: TYPED_ARRAY_TAG_REQUIRED && TYPED_ARRAY_TAG,
   aTypedArray: aTypedArray,
   exportTypedArrayMethod: exportTypedArrayMethod,
   exportTypedArrayStaticMethod: exportTypedArrayStaticMethod,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
-  getInternalState: InternalStateModule.get,
+  getTypedArrayMetadata: getTypedArrayMetadata,
 };
