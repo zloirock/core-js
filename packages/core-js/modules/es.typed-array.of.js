@@ -1,9 +1,7 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var aTypedArrayConstructor = require('../internals/a-typed-array-constructor');
+var exportTypedArrayStaticMethod = require('../internals/array-buffer-view-core').exportTypedArrayStaticMethod;
 var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
-
-var aTypedArrayConstructor = ArrayBufferViewCore.aTypedArrayConstructor;
-var exportTypedArrayStaticMethod = ArrayBufferViewCore.exportTypedArrayStaticMethod;
 
 // `%TypedArray%.of` method
 // https://tc39.es/ecma262/#sec-%typedarray%.of
