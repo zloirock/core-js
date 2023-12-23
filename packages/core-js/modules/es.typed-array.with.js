@@ -1,12 +1,12 @@
 'use strict';
 var arrayWith = require('../internals/array-with');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 var isBigIntArray = require('../internals/is-big-int-array');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toBigInt = require('../internals/to-big-int');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 var PROPER_ORDER = function () {
