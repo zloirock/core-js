@@ -1,10 +1,8 @@
 'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
 var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
-
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.toReversed` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.toreversed
