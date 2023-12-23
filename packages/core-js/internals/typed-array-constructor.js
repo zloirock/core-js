@@ -21,7 +21,6 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 var enforceInternalState = InternalStateModule.enforce;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
-var TYPED_ARRAY_TAG = ArrayBufferViewCore.TYPED_ARRAY_TAG;
 var TypedArray = ArrayBufferViewCore.TypedArray;
 var isTypedArray = ArrayBufferViewCore.isTypedArray;
 var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
@@ -68,10 +67,6 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   }
 
   enforceInternalState(TypedArrayConstructorPrototype).TypedArrayConstructor = TypedArrayConstructor;
-
-  if (TYPED_ARRAY_TAG) {
-    createNonEnumerableProperty(TypedArrayConstructorPrototype, TYPED_ARRAY_TAG, CONSTRUCTOR_NAME);
-  }
 
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
