@@ -1,5 +1,5 @@
 'use strict';
-var exportTypedArrayMethod = require('../internals/array-buffer-view-core').exportTypedArrayMethod;
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var fails = require('../internals/fails');
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
