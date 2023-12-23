@@ -1,5 +1,5 @@
 'use strict';
-var TypedArrayConstructors = {
+module.exports = {
   Int8Array: 1,
   Uint8Array: 1,
   Uint8ClampedArray: 1,
@@ -9,14 +9,6 @@ var TypedArrayConstructors = {
   Uint32Array: 4,
   Float32Array: 4,
   Float64Array: 8,
-};
-
-var BigIntArrayConstructors = {
   BigInt64Array: 8,
   BigUint64Array: 8,
-};
-
-module.exports = {
-  base: TypedArrayConstructors,
-  binint: BigIntArrayConstructors,
 };
