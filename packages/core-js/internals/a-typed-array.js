@@ -1,5 +1,5 @@
 'use strict';
-var isTypedArray = require('../internals/array-buffer-view-core').isTypedArray;
+var isTypedArray = require('../internals/is-typed-array');
 
 var $TypeError = TypeError;
 
