@@ -13,6 +13,7 @@ var setPrototypeOf = require('../internals/object-set-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var uid = require('../internals/uid');
 var InternalStateModule = require('../internals/internal-state');
+var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
 var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
@@ -32,26 +33,6 @@ var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
 var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
 
-var TypedArrayConstructorsList = {
-  Int8Array: 1,
-  Uint8Array: 1,
-  Uint8ClampedArray: 1,
-  Int16Array: 2,
-  Uint16Array: 2,
-  Int32Array: 4,
-  Uint32Array: 4,
-  Float32Array: 4,
-  Float64Array: 8,
-  BigInt64Array: 8,
-  BigUint64Array: 8,
-};
-
-var isView = function isView(it) {
-  if (!isObject(it)) return false;
-  var klass = classof(it);
-  return klass === 'DataView' || hasOwn(TypedArrayConstructorsList, klass);
-};
-
 var getTypedArrayConstructor = function (it) {
   var proto = getPrototypeOf(it);
   if (!isObject(proto)) return;
@@ -60,7 +41,7 @@ var getTypedArrayConstructor = function (it) {
 };
 
 var isTypedArray = function (it) {
-  return isObject(it) ? hasOwn(TypedArrayConstructorsList, classof(it)) : false;
+  return isObject(it) ? hasOwn(TypedArrayConstructors, classof(it)) : false;
 };
 
 var aTypedArray = function (it) {
@@ -74,7 +55,7 @@ var aTypedArrayConstructor = function (C) {
 };
 
 var exportTypedArrayMethod = function (KEY, property, forced, options) {
-  if (forced) for (var ARRAY in TypedArrayConstructorsList) {
+  if (forced) for (var ARRAY in TypedArrayConstructors) {
     var TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && hasOwn(TypedArrayConstructor.prototype, KEY)) try {
       delete TypedArrayConstructor.prototype[KEY];
@@ -94,7 +75,7 @@ var exportTypedArrayMethod = function (KEY, property, forced, options) {
 // TODO: Rewrite!!!
 var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   var ARRAY, TypedArrayConstructor;
-  if (forced) for (ARRAY in TypedArrayConstructorsList) {
+  if (forced) for (ARRAY in TypedArrayConstructors) {
     TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && hasOwn(TypedArrayConstructor, KEY)) try {
       delete TypedArrayConstructor[KEY];
@@ -106,7 +87,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
       return defineBuiltIn(TypedArray, KEY, forced ? property : TypedArray[KEY] || property);
     } catch (error) { /* empty */ }
   } else return;
-  for (ARRAY in TypedArrayConstructorsList) {
+  for (ARRAY in TypedArrayConstructors) {
     TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
       defineBuiltIn(TypedArrayConstructor, KEY, property);
@@ -114,7 +95,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   }
 };
 
-for (NAME in TypedArrayConstructorsList) {
+for (NAME in TypedArrayConstructors) {
   Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
   if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
@@ -126,14 +107,14 @@ if (!isCallable(TypedArray) || TypedArray === Function.prototype) {
   TypedArray = function TypedArray() {
     throw new TypeError('Incorrect invocation');
   };
-  for (NAME in TypedArrayConstructorsList) {
+  for (NAME in TypedArrayConstructors) {
     if (globalThis[NAME]) setPrototypeOf(globalThis[NAME], TypedArray);
   }
 }
 
 if (!TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
   TypedArrayPrototype = TypedArray.prototype;
-  for (NAME in TypedArrayConstructorsList) {
+  for (NAME in TypedArrayConstructors) {
     if (globalThis[NAME]) setPrototypeOf(globalThis[NAME].prototype, TypedArrayPrototype);
   }
 }
@@ -151,7 +132,7 @@ if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
       return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
     },
   });
-  for (NAME in TypedArrayConstructorsList) if (globalThis[NAME]) {
+  for (NAME in TypedArrayConstructors) if (globalThis[NAME]) {
     createNonEnumerableProperty(globalThis[NAME], TYPED_ARRAY_TAG, NAME);
   }
 }
@@ -163,7 +144,6 @@ module.exports = {
   exportTypedArrayMethod: exportTypedArrayMethod,
   exportTypedArrayStaticMethod: exportTypedArrayStaticMethod,
   getTypedArrayConstructor: getTypedArrayConstructor,
-  isView: isView,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
