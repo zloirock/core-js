@@ -1,9 +1,7 @@
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
 var $findIndex = require('../internals/array-iteration').findIndex;
-
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 
 // `%TypedArray%.prototype.findIndex` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.findindex
