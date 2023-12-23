@@ -1,13 +1,12 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
 var fails = require('../internals/fails');
 var arraySlice = require('../internals/array-slice');
 
 var Int8Array = globalThis.Int8Array;
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var $toLocaleString = [].toLocaleString;
 
 // iOS Safari 6.x fails here
