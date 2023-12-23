@@ -1,6 +1,6 @@
 'use strict';
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
-var aTypedArray = require('../internals/array-buffer-view-core').aTypedArray;
+var aTypedArray = require('../internals/a-typed-array');
 var $reduce = require('../internals/array-reduce').left;
 
 // `%TypedArray%.prototype.reduce` method
