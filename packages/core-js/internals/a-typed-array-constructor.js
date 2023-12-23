@@ -2,7 +2,7 @@
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var tryToString = require('../internals/try-to-string');
-var TypedArray = require('../internals/array-buffer-view-core').TypedArray;
+var TypedArray = require('../internals/typed-array-core').TypedArray;
 
 module.exports = function (C) {
   if (isCallable(C) && isPrototypeOf(TypedArray, C)) return C;
