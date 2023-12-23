@@ -3,7 +3,7 @@ var globalThis = require('../internals/global-this');
 var hasOwn = require('../internals/has-own-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
-var TypedArray = require('../internals/array-buffer-view-core').TypedArray;
+var TypedArray = require('../internals/typed-array-core').TypedArray;
 
 // TODO: Rewrite!!!
 module.exports = function (KEY, property, forced) {
