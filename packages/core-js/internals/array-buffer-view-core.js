@@ -25,11 +25,6 @@ var isTypedArray = function (it) {
   return isObject(it) ? hasOwn(TypedArrayConstructors, classof(it)) : false;
 };
 
-var aTypedArray = function (it) {
-  if (isTypedArray(it)) return it;
-  throw new TypeError('Target is not a typed array');
-};
-
 var getTypedArrayMetadata = function (it, key) {
   var proto = getPrototypeOf(it);
   if (!isObject(proto)) return;
@@ -80,7 +75,6 @@ if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
 }
 
 module.exports = {
-  aTypedArray: aTypedArray,
   isTypedArray: isTypedArray,
   TypedArray: TypedArray,
   TypedArrayPrototype: TypedArrayPrototype,
