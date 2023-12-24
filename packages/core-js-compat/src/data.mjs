@@ -1729,6 +1729,15 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  // TODO: recheck
+  'es.typed-array.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.typed-array.with': {
     bun: '0.1.9',
     chrome: '110',
