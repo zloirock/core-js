@@ -1595,13 +1595,13 @@ GLOBAL.tests = {
     } return true;
   }],
   'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
-    return Int8Array.prototype.subarray;
+    return Int8Array.prototype.subarray.call(new Float32Array([1, 2, 3]), 0, 1) instanceof Float32Array;
   }],
   'es.typed-array.to-locale-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     try {
       Int8Array.prototype.toLocaleString.call([1, 2]);
     } catch (error) {
-      return [1, 2].toLocaleString() === new Int8Array([1, 2]).toLocaleString();
+      return [1, 2].toLocaleString() === Int8Array.prototype.toLocaleString.call(new Float32Array([1, 2]));
     }
   }],
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
