@@ -15,7 +15,7 @@ var TO_LOCALE_STRING_BUG = !!Int8Array && fails(function () {
 });
 
 var FORCED = fails(function () {
-  return [1, 2].toLocaleString() !== new Int8Array([1, 2]).toLocaleString();
+  return [1, 2].toLocaleString() !== Int8Array.prototype.toLocaleString.call(new Float32Array([1, 2]));
 }) || !fails(function () {
   Int8Array.prototype.toLocaleString.call([1, 2]);
 });
