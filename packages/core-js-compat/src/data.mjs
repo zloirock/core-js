@@ -2134,6 +2134,7 @@ export const data = {
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
+  // TODO: recheck
   'es.typed-array.subarray': {
     chrome: '26',
     edge: '13',
@@ -2142,7 +2143,7 @@ export const data = {
     safari: '7.1',
   },
   'es.typed-array.to-locale-string': {
-    chrome: '45',
+    chrome: '49',
     firefox: '51',
     hermes: '0.1',
     safari: '10.0',
