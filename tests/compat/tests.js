@@ -1710,6 +1710,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.toString === Array.prototype.toString;
   }],
+  'es.typed-array.to-string-tag': function () {
+    return new Int8Array(1)[Symbol.toStringTag] === 'Int8Array';
+  },
   'es.typed-array.to-reversed': function () {
     return Int8Array.prototype.toReversed;
   },
