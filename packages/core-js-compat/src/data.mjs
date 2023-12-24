@@ -2212,14 +2212,13 @@ export const data = {
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
-  // TODO: recheck
   'es.typed-array.subarray': {
-    chrome: '26',
+    chrome: '48',
     edge: '13',
-    firefox: '15',
+    firefox: '35',
     hermes: '0.1',
     rhino: '1.9.0',
-    safari: '7.1',
+    safari: '10.0',
   },
   'es.typed-array.to-locale-string': {
     chrome: '49',
