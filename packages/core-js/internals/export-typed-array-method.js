@@ -5,20 +5,24 @@ var hasOwn = require('../internals/has-own-property');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 var TypedArrayPrototype = require('../internals/typed-array-core').TypedArrayPrototype;
 
-module.exports = function (KEY, property, forced, options) {
-  if (forced) for (var ARRAY in TypedArrayConstructors) {
-    var TypedArrayConstructor = globalThis[ARRAY];
-    if (TypedArrayConstructor && hasOwn(TypedArrayConstructor.prototype, KEY)) try {
-      delete TypedArrayConstructor.prototype[KEY];
+module.exports = function (key, property, forced, options) {
+  var exported = forced ? property : Int8Array.prototype[key] || property;
+
+  for (var name in TypedArrayConstructors) {
+    var Prototype = globalThis[name] && globalThis[name].prototype;
+    if (Prototype && hasOwn(Prototype, key)) try {
+      delete Prototype[key];
     } catch (error) {
       // old WebKit bug - some methods are non-configurable
       try {
-        TypedArrayConstructor.prototype[KEY] = property;
+        Prototype[key] = exported;
       } catch (error2) { /* empty */ }
     }
   }
-  if (!TypedArrayPrototype[KEY] || forced) {
-    defineBuiltIn(TypedArrayPrototype, KEY, forced ? property
-      : Int8Array.prototype[KEY] || property, options);
+
+  // in some cases, this comparison is required since, for example, in V8 ~ Chrome 48-
+  // `Int8#toLocaleString` is correct, but also exists generic incorrect `%TypedArrayPrototype%#toLocaleString`
+  if (TypedArrayPrototype[key] !== exported) {
+    defineBuiltIn(TypedArrayPrototype, key, exported, options);
   }
 };
