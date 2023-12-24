@@ -5,5 +5,5 @@ var classof = require('../internals/classof-raw');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
 module.exports = function (it) {
-  return isObject(it) ? hasOwn(TypedArrayConstructors, classof(it)) : false;
+  return isObject(it) && hasOwn(TypedArrayConstructors, classof(it));
 };
