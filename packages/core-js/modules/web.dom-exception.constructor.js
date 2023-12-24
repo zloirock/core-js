@@ -112,7 +112,7 @@ $({ global: true, constructor: true, forced: FORCED_CONSTRUCTOR }, {
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {
-  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString, { unsafe: true });
 }
 
 if (INCORRECT_CODE && NativeDOMException === PolyfilledDOMException) {
