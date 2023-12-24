@@ -2249,6 +2249,15 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  // TODO: recheck
+  'es.typed-array.to-string-tag': {
+    chrome: '49',
+    edge: '15',
+    firefox: '51',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.typed-array.with': {
     // It should truncate a negative fractional index to zero, but instead throws an error
     bun: '1.2.18', // '0.1.9',
