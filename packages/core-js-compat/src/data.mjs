@@ -2296,17 +2296,16 @@ export const data = {
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
-  // TODO: recheck
   'es.typed-array.subarray': {
-    chrome: '26',
+    chrome: '48',
     edge: '13',
-    firefox: '15',
+    firefox: '35',
     hermes: '0.1',
     ie: '11',
     // Uint8ClampedArray is missing in NodeJS 0.11.0-0.11.3.
     node: '0.11.4',
     rhino: '1.7.13',
-    safari: '7.1',
+    safari: '10.0',
   },
   'es.typed-array.to-locale-string': {
     chrome: '49',
