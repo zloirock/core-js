@@ -5,25 +5,24 @@ var defineBuiltIn = require('../internals/define-built-in');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 var TypedArray = require('../internals/typed-array-core').TypedArray;
 
-// TODO: Rewrite!!!
-module.exports = function (KEY, property, forced) {
-  var ARRAY, TypedArrayConstructor;
-  if (forced) for (ARRAY in TypedArrayConstructors) {
-    TypedArrayConstructor = globalThis[ARRAY];
-    if (TypedArrayConstructor && hasOwn(TypedArrayConstructor, KEY)) try {
-      delete TypedArrayConstructor[KEY];
-    } catch (error) { /* empty */ }
+module.exports = function (key, property, forced) {
+  var exported = forced ? property : TypedArray[key] || property;
+  var definitionThrows = false;
+
+  if (!TypedArray[key] || forced) try {
+    defineBuiltIn(TypedArray, key, exported);
+  } catch (error) {
+    // V8 ~ Chrome 49-50 `%TypedArray%` static methods are non-writable non-configurable
+    definitionThrows = true;
   }
-  if (!TypedArray[KEY] || forced) {
-    // V8 ~ Chrome 49-50 `%TypedArray%` methods are non-writable non-configurable
-    try {
-      return defineBuiltIn(TypedArray, KEY, forced ? property : TypedArray[KEY] || property);
+
+  for (var name in TypedArrayConstructors) {
+    var Constructor = globalThis[name];
+
+    // V8 ~ Chrome 48- `%TypedArray%` constructors static methods are non-writable non-configurable
+    if (Constructor) try {
+      if (definitionThrows) defineBuiltIn(Constructor, key, exported);
+      else if (hasOwn(Constructor, key)) delete Constructor[key];
     } catch (error) { /* empty */ }
-  } else return;
-  for (ARRAY in TypedArrayConstructors) {
-    TypedArrayConstructor = globalThis[ARRAY];
-    if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
-      defineBuiltIn(TypedArrayConstructor, KEY, property);
-    }
   }
 };
