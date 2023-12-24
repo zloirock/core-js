@@ -112,7 +112,7 @@ var PolyfilledDOMException = getBuiltIn(DOM_EXCEPTION);
 var PolyfilledDOMExceptionPrototype = PolyfilledDOMException.prototype;
 
 if (INCORRECT_TO_STRING && (IS_PURE || NativeDOMException === PolyfilledDOMException)) {
-  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString);
+  defineBuiltIn(PolyfilledDOMExceptionPrototype, 'toString', errorToString, { unsafe: true });
 }
 
 if (INCORRECT_CODE && NativeDOMException === PolyfilledDOMException) {
