@@ -1594,6 +1594,9 @@ GLOBAL.tests = {
       if (array[index] !== expected[index]) return;
     } return true;
   }],
+  'es.typed-array.species': [ARRAY_BUFFER_VIEWS_SUPPORT, TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS, function () {
+    return Int8Array[Symbol.species] === Int8Array;
+  }],
   'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
     return Int8Array.prototype.subarray.call(new Float32Array([1, 2, 3]), 0, 1) instanceof Float32Array;
   }],
