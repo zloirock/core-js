@@ -19,7 +19,6 @@ var inheritIfRequired = require('../internals/inherit-if-required');
 
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
-var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
 
 var isArrayBuffer = function (it) {
   var klass;
@@ -62,12 +61,4 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
   $({ global: true, constructor: true, forced: TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS }, exported);
-
-  if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {
-    createNonEnumerableProperty(TypedArrayConstructor, BYTES_PER_ELEMENT, BYTES);
-  }
-
-  if (!(BYTES_PER_ELEMENT in TypedArrayConstructorPrototype)) {
-    createNonEnumerableProperty(TypedArrayConstructorPrototype, BYTES_PER_ELEMENT, BYTES);
-  }
 };
