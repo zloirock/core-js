@@ -5,8 +5,8 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var SPECIES = wellKnownSymbol('species');
 
-module.exports = function (CONSTRUCTOR_NAME) {
-  var Constructor = getBuiltIn(CONSTRUCTOR_NAME);
+module.exports = function (target) {
+  var Constructor = typeof target == 'string' ? getBuiltIn(target) : target;
 
   if (Constructor && !Constructor[SPECIES]) {
     defineBuiltInAccessor(Constructor, SPECIES, {
