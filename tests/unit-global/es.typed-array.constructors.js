@@ -1,7 +1,7 @@
 import { NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
-const { keys, getOwnPropertyDescriptor, getPrototypeOf, defineProperty, assign } = Object;
+const { getOwnPropertyDescriptor, getPrototypeOf } = Object;
 
 for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
   QUnit.test(`${ name } constructor`, assert => {
@@ -187,10 +187,5 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     assert.same(getter.call([]), undefined);
     assert.same(getter.call({}), undefined);
     assert.same(getter.call(), undefined);
-  });
-
-  QUnit.test(`${ name }.sham`, assert => {
-    if (TypedArray.sham) assert.required(`${ name }.sham flag exists`);
-    else assert.required(`${ name }.sham flag missed`);
   });
 }
