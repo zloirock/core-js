@@ -141,23 +141,6 @@ var DATA_VIEW_INT8_CONVERSION_BUG = function () {
   return !testView.getInt8(0) || !!testView.getInt8(1);
 };
 
-var TYPED_ARRAY_CONSTRUCTORS_LIST = {
-  Int8Array: 1,
-  Uint8Array: 1,
-  Uint8ClampedArray: 1,
-  Int16Array: 2,
-  Uint16Array: 2,
-  Int32Array: 4,
-  Uint32Array: 4,
-  Float32Array: 4,
-  Float64Array: 8,
-};
-
-var ARRAY_BUFFER_VIEWS_SUPPORT = function () {
-  for (var constructor in TYPED_ARRAY_CONSTRUCTORS_LIST) if (!GLOBAL[constructor]) return false;
-  return true;
-};
-
 var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
   try {
     return !Int8Array(1);
@@ -1439,87 +1422,77 @@ GLOBAL.tests = {
   'es.string.sub': createStringHTMLMethodTest('sub'),
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.float64-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int8-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int16-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.int32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint8-clamped-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint16-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.uint32-array': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
   ],
   'es.typed-array.at': function () {
     return Int8Array.prototype.at;
   },
-  'es.typed-array.copy-within': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  'es.typed-array.copy-within': function () {
     return Int8Array.prototype.copyWithin;
-  }],
-  'es.typed-array.every': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.every': function () {
     return Int8Array.prototype.every;
-  }],
-  'es.typed-array.fill': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.fill': function () {
     var count = 0;
     new Int8Array(2).fill({ valueOf: function () { return count++; } });
     return count === 1;
-  }],
-  'es.typed-array.filter': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.filter': function () {
     return Int8Array.prototype.filter;
-  }],
-  'es.typed-array.find': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.find': function () {
     return Int8Array.prototype.find;
-  }],
-  'es.typed-array.find-index': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.find-index': function () {
     return Int8Array.prototype.findIndex;
-  }],
+  },
   'es.typed-array.find-last': function () {
     return Int8Array.prototype.findLast;
   },
   'es.typed-array.find-last-index': function () {
     return Int8Array.prototype.findLastIndex;
   },
-  'es.typed-array.for-each': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  'es.typed-array.for-each': function () {
     return Int8Array.prototype.forEach;
-  }],
+  },
   'es.typed-array.from': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.from;
     },
   ],
-  'es.typed-array.includes': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  'es.typed-array.includes': function () {
     return Int8Array.prototype.includes;
-  }],
-  'es.typed-array.index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.index-of': function () {
     return Int8Array.prototype.indexOf;
-  }],
-  'es.typed-array.iterator': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.iterator': function () {
     try {
       Int8Array.prototype[Symbol.iterator].call([1]);
     } catch (error) {
@@ -1528,46 +1501,45 @@ GLOBAL.tests = {
         && Int8Array.prototype.keys
         && Int8Array.prototype.entries;
     }
-  }],
-  'es.typed-array.join': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.join': function () {
     return Int8Array.prototype.join;
-  }],
-  'es.typed-array.last-index-of': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.last-index-of': function () {
     return Int8Array.prototype.lastIndexOf;
-  }],
-  'es.typed-array.map': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.map': function () {
     return Int8Array.prototype.map;
-  }],
+  },
   'es.typed-array.of': [
-    ARRAY_BUFFER_VIEWS_SUPPORT,
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
     function () {
       return Int8Array.of;
     },
   ],
-  'es.typed-array.reduce': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  'es.typed-array.reduce': function () {
     return Int8Array.prototype.reduce;
-  }],
-  'es.typed-array.reduce-right': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.reduce-right': function () {
     return Int8Array.prototype.reduceRight;
-  }],
-  'es.typed-array.reverse': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.reverse': function () {
     return Int8Array.prototype.reverse;
-  }],
-  'es.typed-array.set': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.set': function () {
     var array = new Uint8ClampedArray(3);
     array.set(1);
     array.set('2', 1);
     Int8Array.prototype.set.call(array, { length: 1, 0: 3 }, 2);
     return array[0] === 0 && array[1] === 2 && array[2] === 3;
-  }],
-  'es.typed-array.slice': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.slice': function () {
     return new Int8Array(1).slice();
-  }],
-  'es.typed-array.some': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.some': function () {
     return Int8Array.prototype.some;
-  }],
-  'es.typed-array.sort': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.sort': function () {
     try {
       new Uint16Array(1).sort(null);
       new Uint16Array(1).sort({});
@@ -1591,23 +1563,23 @@ GLOBAL.tests = {
     for (index = 0; index < 516; index++) {
       if (array[index] !== expected[index]) return;
     } return true;
-  }],
-  'es.typed-array.species': [ARRAY_BUFFER_VIEWS_SUPPORT, TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS, function () {
+  },
+  'es.typed-array.species': [TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS, function () {
     return Int8Array[Symbol.species] === Int8Array;
   }],
-  'es.typed-array.subarray': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  'es.typed-array.subarray': function () {
     return Int8Array.prototype.subarray.call(new Float32Array([1, 2, 3]), 0, 1) instanceof Float32Array;
-  }],
-  'es.typed-array.to-locale-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.to-locale-string': function () {
     try {
       Int8Array.prototype.toLocaleString.call([1, 2]);
     } catch (error) {
       return [1, 2].toLocaleString() === Int8Array.prototype.toLocaleString.call(new Float32Array([1, 2]));
     }
-  }],
-  'es.typed-array.to-string': [ARRAY_BUFFER_VIEWS_SUPPORT, function () {
+  },
+  'es.typed-array.to-string': function () {
     return Int8Array.prototype.toString === Array.prototype.toString;
-  }],
+  },
   'es.typed-array.to-string-tag': function () {
     return new Int8Array(1)[Symbol.toStringTag] === 'Int8Array';
   },
