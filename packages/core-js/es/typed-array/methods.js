@@ -26,6 +26,7 @@ require('../../modules/es.typed-array.set');
 require('../../modules/es.typed-array.slice');
 require('../../modules/es.typed-array.some');
 require('../../modules/es.typed-array.sort');
+require('../../modules/es.typed-array.species');
 require('../../modules/es.typed-array.subarray');
 require('../../modules/es.typed-array.to-locale-string');
 require('../../modules/es.typed-array.to-string');
