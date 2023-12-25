@@ -2212,6 +2212,14 @@ export const data = {
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
+  // TODO: recheck
+  'es.typed-array.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '41',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.typed-array.subarray': {
     chrome: '48',
     edge: '13',
