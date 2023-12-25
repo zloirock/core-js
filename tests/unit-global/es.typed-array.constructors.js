@@ -1,4 +1,4 @@
-import { NATIVE, TYPED_ARRAYS } from '../helpers/constants.js';
+import { TYPED_ARRAYS } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 const { getOwnPropertyDescriptor, getPrototypeOf } = Object;
@@ -9,7 +9,7 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     assert.arity(TypedArray, 3);
     assert.name(TypedArray, name);
     // Safari 5 bug
-    if (NATIVE) assert.looksNative(TypedArray);
+    assert.looksNative(TypedArray);
     assert.same(TypedArray.BYTES_PER_ELEMENT, bytes, `${ name }.BYTES_PER_ELEMENT`);
     let array = new TypedArray(4);
     assert.same(array.BYTES_PER_ELEMENT, bytes, '#BYTES_PER_ELEMENT');
@@ -67,7 +67,7 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
       assert.arrayEqual(array, [0], 'correct values, passed 1.5');
       return true;
     }, 'passed 1.5');
-    if (NATIVE) assert.throws(() => new TypedArray(-1), RangeError, 'throws on -1');
+    assert.throws(() => new TypedArray(-1), RangeError, 'throws on -1');
     assert.notThrows(() => {
       array = new TypedArray(null);
       assert.same(array.byteOffset, 0, '#byteOffset, passed null');
@@ -156,22 +156,18 @@ for (const { name, TypedArray, bytes } of TYPED_ARRAYS) {
     assert.same(array.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
     assert.arrayEqual(array, [], 'correct values, passed buffer and byteOffset with buffer length');
     // FF bug - TypeError instead of RangeError
-    assert.throws(() => new TypedArray(new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception');
+    assert.throws(() => new TypedArray(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
     if (bytes !== 1) {
       // FF bug - TypeError instead of RangeError
-      assert.throws(() => new TypedArray(new ArrayBuffer(8), 3), RangeError, 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
+      assert.throws(() => new TypedArray(new ArrayBuffer(8), 3), 'If offset modulo elementSize ≠ 0, throw a RangeError exception');
     }
-    if (NATIVE) {
-      if (bytes !== 1) {
-        // fails in Opera 12
-        assert.throws(() => new TypedArray(new ArrayBuffer(9)), RangeError, 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
-      }
-      assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception');
-      assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-    } else { // FF bug - TypeError instead of RangeError
-      assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
-      assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
+    if (bytes !== 1) {
+      // fails in Opera 12, FF bug - TypeError instead of RangeError
+      assert.throws(() => new TypedArray(new ArrayBuffer(9)), 'If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception');
     }
+    // FF bug - TypeError instead of RangeError
+    assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
+    assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
     // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
     assert.throws(() => TypedArray(1), TypeError, 'throws without `new`');
     assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
