@@ -14,7 +14,6 @@ var isTypedArray = require('../internals/is-typed-array');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var typedArrayFrom = require('../internals/typed-array-from');
-var setSpecies = require('../internals/set-species');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var InternalStateModule = require('../internals/internal-state');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -78,6 +77,4 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   if (!(BYTES_PER_ELEMENT in TypedArrayConstructorPrototype)) {
     createNonEnumerableProperty(TypedArrayConstructorPrototype, BYTES_PER_ELEMENT, BYTES);
   }
-
-  setSpecies(CONSTRUCTOR_NAME);
 };
