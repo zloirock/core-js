@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
-var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
+var TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var TypedArray = require('../internals/typed-array-core').TypedArray;
 var anInstance = require('../internals/an-instance');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -33,7 +33,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
   var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
   var exported = {};
 
-  if (TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS) {
+  if (TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS) {
     TypedArrayConstructor = wrapper(function (dummy, data, typedArrayOffset, length) {
       anInstance(dummy, TypedArrayConstructorPrototype);
       return inheritIfRequired(function () {
@@ -60,5 +60,5 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
 
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
-  $({ global: true, constructor: true, forced: TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS }, exported);
+  $({ global: true, constructor: true, forced: TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS }, exported);
 };
