@@ -56,10 +56,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
       }
     });
     TypedArrayConstructor.prototype = TypedArrayConstructorPrototype;
-  }
-
-  if (TypedArrayConstructorPrototype.constructor !== TypedArrayConstructor) {
-    createNonEnumerableProperty(TypedArrayConstructorPrototype, 'constructor', TypedArrayConstructor);
+    TypedArrayConstructorPrototype.constructor = TypedArrayConstructor;
   }
 
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
