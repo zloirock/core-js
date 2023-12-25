@@ -141,7 +141,7 @@ var DATA_VIEW_INT8_CONVERSION_BUG = function () {
   return !testView.getInt8(0) || !!testView.getInt8(1);
 };
 
-var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS = function () {
+var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS = function () {
   try {
     return !Int8Array(1);
   } catch (error) { /* empty */ }
@@ -1417,31 +1417,31 @@ GLOBAL.tests = {
   'es.string.sub': createStringHTMLMethodTest('sub'),
   'es.string.sup': createStringHTMLMethodTest('sup'),
   'es.typed-array.float32-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.float64-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.int8-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.int16-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.int32-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.uint8-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.uint8-clamped-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.uint16-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.uint32-array': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
   'es.typed-array.at': function () {
     return Int8Array.prototype.at;
@@ -1476,7 +1476,7 @@ GLOBAL.tests = {
     return Int8Array.prototype.forEach;
   },
   'es.typed-array.from': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
     function () {
       return Int8Array.from;
     },
@@ -1507,7 +1507,7 @@ GLOBAL.tests = {
     return Int8Array.prototype.map;
   },
   'es.typed-array.of': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS,
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
     function () {
       return Int8Array.of;
     },
@@ -1559,7 +1559,7 @@ GLOBAL.tests = {
       if (array[index] !== expected[index]) return;
     } return true;
   },
-  'es.typed-array.species': [TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRES_WRAPPERS, function () {
+  'es.typed-array.species': [TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS, function () {
     return Int8Array[Symbol.species] === Int8Array;
   }],
   'es.typed-array.subarray': function () {
