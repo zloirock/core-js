@@ -5,7 +5,6 @@ var call = require('../internals/function-call');
 var TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var TypedArray = require('../internals/typed-array-core').TypedArray;
 var anInstance = require('../internals/an-instance');
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
 var classof = require('../internals/classof');
@@ -16,8 +15,8 @@ var setPrototypeOf = require('../internals/object-set-prototype-of');
 var typedArrayFrom = require('../internals/typed-array-from');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var inheritIfRequired = require('../internals/inherit-if-required');
+var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
-var getOwnPropertyNames = Object.getOwnPropertyNames;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 
 var isArrayBuffer = function (it) {
@@ -48,14 +47,11 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
       }(), dummy, TypedArrayConstructor);
     });
 
-    setPrototypeOf(TypedArrayConstructor, TypedArray);
-    getOwnPropertyNames(NativeTypedArrayConstructor).forEach(function (key) {
-      if (!(key in TypedArrayConstructor)) {
-        createNonEnumerableProperty(TypedArrayConstructor, key, NativeTypedArrayConstructor[key]);
-      }
-    });
     TypedArrayConstructor.prototype = TypedArrayConstructorPrototype;
     TypedArrayConstructorPrototype.constructor = TypedArrayConstructor;
+    // `.from` and `.of` has buggy descriptors in V8 ~ Chrome 50- and anyway can't work with wrappers
+    copyConstructorProperties(TypedArrayConstructor, NativeTypedArrayConstructor, { from: false, of: false });
+    setPrototypeOf(TypedArrayConstructor, TypedArray);
   }
 
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
