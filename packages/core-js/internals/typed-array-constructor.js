@@ -15,10 +15,8 @@ var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var typedArrayFrom = require('../internals/typed-array-from');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
-var InternalStateModule = require('../internals/internal-state');
 var inheritIfRequired = require('../internals/inherit-if-required');
 
-var enforceInternalState = InternalStateModule.enforce;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var BYTES_PER_ELEMENT = 'BYTES_PER_ELEMENT';
@@ -64,11 +62,9 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
     createNonEnumerableProperty(TypedArrayConstructorPrototype, 'constructor', TypedArrayConstructor);
   }
 
-  enforceInternalState(TypedArrayConstructorPrototype).TypedArrayConstructor = TypedArrayConstructor;
-
   exported[CONSTRUCTOR_NAME] = TypedArrayConstructor;
 
-  $({ global: true, constructor: true, forced: TypedArrayConstructor !== NativeTypedArrayConstructor }, exported);
+  $({ global: true, constructor: true, forced: TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS }, exported);
 
   if (!(BYTES_PER_ELEMENT in TypedArrayConstructor)) {
     createNonEnumerableProperty(TypedArrayConstructor, BYTES_PER_ELEMENT, BYTES);
