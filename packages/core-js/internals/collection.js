@@ -69,7 +69,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
     if (!ACCEPT_ITERABLES) {
       Constructor = wrapper(function (dummy, iterable) {
         anInstance(dummy, NativePrototype);
-        var that = inheritIfRequired(new NativeConstructor(), dummy, Constructor);
+        var that = inheritIfRequired(new NativeConstructor(), dummy, NativePrototype);
         if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
         return that;
       });

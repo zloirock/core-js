@@ -80,7 +80,7 @@ var calledWithNew = function (dummy) {
 // https://tc39.es/ecma262/#sec-number-constructor
 var NumberWrapper = function Number(value) {
   var n = arguments.length < 1 ? 0 : NativeNumber(toNumeric(value));
-  return calledWithNew(this) ? inheritIfRequired(Object(n), this, NumberWrapper) : n;
+  return calledWithNew(this) ? inheritIfRequired(Object(n), this, NumberPrototype) : n;
 };
 
 NumberWrapper.prototype = NumberPrototype;
