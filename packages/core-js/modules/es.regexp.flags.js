@@ -38,7 +38,9 @@ var FORCED = fails(function () {
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';
 
-  for (var key in pairs) addGetter(key, pairs[key]);
+  Object.keys(pairs).forEach(function (key) {
+    addGetter(key, pairs[key]);
+  });
 
   var result = Object.getOwnPropertyDescriptor(RegExpPrototype, 'flags').get.call(O);
 
