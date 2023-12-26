@@ -8,7 +8,7 @@ var Iterators = require('../internals/iterators');
 // dependency: es.array.iterator
 var ArrayValues = getBuiltInPrototypeMethod('Array', 'values');
 
-for (var COLLECTION_NAME in DOMIterables) {
-  setToStringTag(global[COLLECTION_NAME], COLLECTION_NAME);
-  Iterators[COLLECTION_NAME] = ArrayValues;
-}
+Object.keys(DOMIterables).forEach(function (collectionName) {
+  setToStringTag(global[collectionName], collectionName);
+  Iterators[collectionName] = ArrayValues;
+});
