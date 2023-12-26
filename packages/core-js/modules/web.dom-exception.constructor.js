@@ -12,7 +12,8 @@ var anObject = require('../internals/an-object');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 var DOMExceptionConstants = require('../internals/dom-exception-constants');
 var clearErrorStack = require('../internals/error-stack-clear');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
@@ -34,8 +35,7 @@ var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
 var NativeDOMExceptionPrototype = NativeDOMException && NativeDOMException.prototype;
 var ErrorPrototype = Error.prototype;
 var errorToString = ErrorPrototype.toString;
-var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(DOM_EXCEPTION);
+var getInternalState = internalStateGetterFor(DOM_EXCEPTION);
 var HAS_STACK = 'stack' in new Error(DOM_EXCEPTION);
 
 var codeFor = function (name) {
