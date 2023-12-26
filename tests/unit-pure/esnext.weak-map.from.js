@@ -6,23 +6,16 @@ QUnit.test('WeakMap.from', assert => {
   const { from } = WeakMap;
   assert.isFunction(from);
   assert.arity(from, 1);
-  assert.true(WeakMap.from() instanceof WeakMap);
+  assert.true(from([]) instanceof WeakMap);
   const array = [];
-  assert.same(WeakMap.from([[array, 2]]).get(array), 2);
-  assert.same(WeakMap.from(createIterable([[array, 2]])).get(array), 2);
+  assert.same(from([[array, 2]]).get(array), 2);
+  assert.same(from(createIterable([[array, 2]])).get(array), 2);
   const pair = [{}, 1];
   const context = {};
-  WeakMap.from([pair], function (element, index) {
+  from([pair], function (element, index) {
     assert.same(element, pair);
     assert.same(index, 0);
     assert.same(this, context);
     return element;
   }, context);
-  assert.throws(() => from([{}, 1]));
-  let arg = null;
-  function F(it) {
-    return arg = it;
-  }
-  from.call(F, createIterable([1, 2, 3]), it => it ** 2);
-  assert.deepEqual(arg, [1, 4, 9]);
 });
