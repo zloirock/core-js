@@ -16,7 +16,7 @@ module.exports = function (key, property, forced) {
     definitionThrows = true;
   }
 
-  for (var name in TypedArrayConstructors) {
+  Object.keys(TypedArrayConstructors).forEach(function (name) {
     var Constructor = globalThis[name];
 
     // V8 ~ Chrome 48- `%TypedArray%` constructors static methods are non-writable non-configurable
@@ -24,5 +24,5 @@ module.exports = function (key, property, forced) {
       if (definitionThrows) defineBuiltIn(Constructor, key, exported);
       else if (hasOwn(Constructor, key)) delete Constructor[key];
     } catch (error) { /* empty */ }
-  }
+  });
 };
