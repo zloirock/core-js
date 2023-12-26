@@ -4,7 +4,6 @@
 // https://issues.chromium.org/issues/352690887
 module.exports = function (METHOD_NAME) {
   try {
-    // eslint-disable-next-line es/no-set -- needed for test
     var baseSet = new Set();
     var setLike = {
       size: 0,

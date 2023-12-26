@@ -8,7 +8,8 @@ var defineBuiltIn = require('../internals/define-built-in');
 var defineBuiltIns = require('../internals/define-built-ins');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 // dependency: esnext.async-iterator.async-dispose
 // dependency: esnext.iterator.dispose
 var addDisposableResource = require('../internals/add-disposable-resource');
@@ -25,14 +26,12 @@ var $ReferenceError = ReferenceError;
 
 var ASYNC_DISPOSE = wellKnownSymbol('asyncDispose');
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
-
 var ASYNC_DISPOSABLE_STACK = 'AsyncDisposableStack';
-var setInternalState = InternalStateModule.set;
-var getAsyncDisposableStackInternalState = InternalStateModule.getterFor(ASYNC_DISPOSABLE_STACK);
-
 var HINT = 'async-dispose';
 var DISPOSED = 'disposed';
 var PENDING = 'pending';
+
+var getAsyncDisposableStackInternalState = internalStateGetterFor(ASYNC_DISPOSABLE_STACK);
 
 var getPendingAsyncDisposableStackInternalState = function (stack) {
   var internalState = getAsyncDisposableStackInternalState(stack);
