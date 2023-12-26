@@ -35,7 +35,9 @@ var FLAGS_GETTER_IS_CORRECT = !fails(function () {
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';
 
-  for (var key in pairs) addGetter(key, pairs[key]);
+  Object.keys(pairs).forEach(function (key) {
+    addGetter(key, pairs[key]);
+  });
 
   var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
