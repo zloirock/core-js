@@ -15,10 +15,10 @@ var $toString = require('../internals/to-string');
 var setToStringTag = require('../internals/set-to-string-tag');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var URLSearchParamsModule = require('../modules/web.url-search-params.constructor');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
-var setInternalState = InternalStateModule.set;
-var getInternalURLState = InternalStateModule.getterFor('URL');
+var getInternalURLState = internalStateGetterFor('URL');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
 

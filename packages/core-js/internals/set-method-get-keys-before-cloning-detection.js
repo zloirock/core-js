@@ -3,7 +3,6 @@
 // https://bugs.webkit.org/show_bug.cgi?id=289430
 module.exports = function (METHOD_NAME) {
   try {
-    // eslint-disable-next-line es/no-set -- needed for test
     var baseSet = new Set();
     var setLike = {
       size: 0,
