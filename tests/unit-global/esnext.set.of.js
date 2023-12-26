@@ -6,14 +6,7 @@ QUnit.test('Set.of', assert => {
   assert.name(of, 'of');
   assert.looksNative(of);
   assert.nonEnumerable(Set, 'of');
-  assert.true(Set.of() instanceof Set);
-  assert.deepEqual(toArray(Set.of(1)), [1]);
-  assert.deepEqual(toArray(Set.of(1, 2, 3, 2, 1)), [1, 2, 3]);
-  assert.throws(() => of(1));
-  let arg = null;
-  function F(it) {
-    return arg = it;
-  }
-  of.call(F, 1, 2, 3);
-  assert.deepEqual(arg, [1, 2, 3]);
+  assert.true(of() instanceof Set);
+  assert.deepEqual(toArray(of(1)), [1]);
+  assert.deepEqual(toArray(of(1, 2, 3, 2, 1)), [1, 2, 3]);
 });
