@@ -18,6 +18,7 @@ var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');
 var arrayFill = require('../internals/array-fill');
 var arraySlice = require('../internals/array-slice');
+var inheritIfRequired = require('../internals/inherit-if-required');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
@@ -218,7 +219,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     /* eslint-enable no-new -- required for testing */
     $ArrayBuffer = function ArrayBuffer(length) {
       anInstance(this, ArrayBufferPrototype);
-      return new NativeArrayBuffer(toIndex(length));
+      return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, $ArrayBuffer);
     };
 
     $ArrayBuffer[PROTOTYPE] = ArrayBufferPrototype;

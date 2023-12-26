@@ -1,7 +1,8 @@
 ## Changelog
 ##### Unreleased
 - Fixed handling some cases of non-enumerable symbol keys from `Symbol` polyfill
-- Unneeded NodeJS domains-related logic removed from `queueMicrotask`
+- Removed unneeded NodeJS domains-related logic from `queueMicrotask` polyfill
+- Fixed subclassing of wrapped `ArrayBuffer`
 - Refactoring, some optimizations
 - Compat data improvements:
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) marked as [supported from V8 ~ Chrome 121](https://bugs.chromium.org/p/v8/issues/detail?id=13321#c13)
