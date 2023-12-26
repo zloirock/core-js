@@ -1,7 +1,8 @@
 'use strict';
 /* eslint-disable es/no-bigint -- safe */
 var $ = require('../internals/export');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
@@ -11,8 +12,7 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var INCORRECT_RANGE = 'Incorrect Iterator.range arguments';
 var NUMERIC_RANGE_ITERATOR = 'NumericRangeIterator';
 
-var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(NUMERIC_RANGE_ITERATOR);
+var getInternalState = internalStateGetterFor(NUMERIC_RANGE_ITERATOR);
 
 var $RangeError = RangeError;
 var $TypeError = TypeError;
