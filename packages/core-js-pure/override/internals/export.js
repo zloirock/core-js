@@ -52,9 +52,9 @@ module.exports = function (options, source) {
   var targetPrototype = target.prototype;
 
   var FORCED, USE_NATIVE, VIRTUAL_PROTOTYPE;
-  var key, sourceProperty, targetProperty, nativeProperty, resultProperty, descriptor;
+  var sourceProperty, targetProperty, nativeProperty, resultProperty, descriptor;
 
-  for (key in source) {
+  Object.keys(source).forEach(function (key) {
     FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contains in native
     USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
@@ -99,5 +99,5 @@ module.exports = function (options, source) {
         createNonEnumerableProperty(targetPrototype, key, sourceProperty);
       }
     }
-  }
+  });
 };
