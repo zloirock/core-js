@@ -24,7 +24,6 @@ var defineProperty = Object.defineProperty;
 // NodeJS < 17.0 does not expose `DOMException` to global
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
   try {
-    // eslint-disable-next-line es/no-weak-map -- safe
     postMessage(new WeakMap());
   } catch (error) {
     if (error.name === DATA_CLONE_ERROR && error.code === 25) return error.constructor;

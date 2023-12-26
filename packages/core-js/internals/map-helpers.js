@@ -2,11 +2,9 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 
 // dependency: es.map.constructor
-// eslint-disable-next-line es/no-map -- safe
 var MapPrototype = Map.prototype;
 
 module.exports = {
-  // eslint-disable-next-line es/no-map -- safe
   Map: Map,
   set: uncurryThis(MapPrototype.set),
   get: uncurryThis(MapPrototype.get),
