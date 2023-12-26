@@ -30,14 +30,15 @@ var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 var defineSymbolToPrimitive = require('../internals/symbol-define-to-primitive');
 var setToStringTag = require('../internals/set-to-string-tag');
 var InternalStateModule = require('../internals/internal-state');
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
 var SYMBOL = 'Symbol';
 var PROTOTYPE = 'prototype';
 
 var getInternalState = InternalStateModule.get;
 var setInternalState = InternalStateModule.set;
-var getInternalSymbolState = InternalStateModule.getterFor(SYMBOL);
 var enforceInternalState = InternalStateModule.enforce;
+var getInternalSymbolState = internalStateGetterFor(SYMBOL);
 
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = globalThis.Symbol;
