@@ -11,7 +11,7 @@ var ITERATOR = wellKnownSymbol('iterator');
 // dependency: es.array.iterator
 var ArrayValues = getBuiltInPrototypeMethod('Array', 'values');
 
-var handlePrototype = function (CollectionPrototype, COLLECTION_NAME) {
+var handlePrototype = function (CollectionPrototype, collectionName) {
   if (CollectionPrototype) {
     // some Chrome versions have non-configurable methods on DOMTokenList
     if (CollectionPrototype[ITERATOR] !== ArrayValues) try {
@@ -19,22 +19,22 @@ var handlePrototype = function (CollectionPrototype, COLLECTION_NAME) {
     } catch (error) {
       CollectionPrototype[ITERATOR] = ArrayValues;
     }
-    setToStringTag(CollectionPrototype, COLLECTION_NAME, true);
-    if (DOMIterables[COLLECTION_NAME]) ['entries', 'keys', 'values'].forEach(function (METHOD_NAME) {
+    setToStringTag(CollectionPrototype, collectionName, true);
+    if (DOMIterables[collectionName]) ['entries', 'keys', 'values'].forEach(function (methodName) {
       // dependency: es.array.iterator
-      var method = getBuiltInPrototypeMethod('Array', METHOD_NAME);
+      var method = getBuiltInPrototypeMethod('Array', methodName);
       // some Chrome versions have non-configurable methods on DOMTokenList
-      if (CollectionPrototype[METHOD_NAME] !== method) try {
-        createNonEnumerableProperty(CollectionPrototype, METHOD_NAME, method);
+      if (CollectionPrototype[methodName] !== method) try {
+        createNonEnumerableProperty(CollectionPrototype, methodName, method);
       } catch (error) {
-        CollectionPrototype[METHOD_NAME] = method;
+        CollectionPrototype[methodName] = method;
       }
     });
   }
 };
 
-for (var COLLECTION_NAME in DOMIterables) {
-  handlePrototype(globalThis[COLLECTION_NAME] && globalThis[COLLECTION_NAME].prototype, COLLECTION_NAME);
-}
+Object.keys(DOMIterables).forEach(function (collectionName) {
+  handlePrototype(globalThis[collectionName] && globalThis[collectionName].prototype, collectionName);
+});
 
 handlePrototype(DOMTokenListPrototype, 'DOMTokenList');
