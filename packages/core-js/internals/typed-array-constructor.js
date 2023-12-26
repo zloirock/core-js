@@ -44,7 +44,7 @@ module.exports = function (TYPE, wrapper, CLAMPED) {
             : new NativeTypedArrayConstructor(data);
         if (isTypedArray(data)) return arrayFromConstructorAndList(TypedArrayConstructor, data);
         return call(typedArrayFrom, TypedArrayConstructor, data);
-      }(), dummy, TypedArrayConstructor);
+      }(), dummy, TypedArrayConstructorPrototype);
     });
 
     TypedArrayConstructor.prototype = TypedArrayConstructorPrototype;
