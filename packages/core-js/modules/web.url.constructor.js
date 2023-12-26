@@ -22,10 +22,11 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var URLSearchParamsState = require('../modules/web.url-search-params.constructor');
 var InternalStateModule = require('../internals/internal-state');
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
 var setInternalState = InternalStateModule.set;
 var hasInternalState = InternalStateModule.has;
-var getInternalURLState = InternalStateModule.getterFor('URL');
+var getInternalURLState = internalStateGetterFor('URL');
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 var codeAt = multibyte.codeAt;
