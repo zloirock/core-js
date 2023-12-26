@@ -7,14 +7,12 @@ var isObject = require('../internals/is-object');
 var iterate = require('../internals/iterate');
 var MapNativeModule = require('../internals/map-native');
 var WeakMapNativeModule = require('../internals/weak-map-native');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 // IE11 WeakMap does not support adding frozen keys, detection of this crashes some IE versions
 var IS_IE11 = require('../internals/environment-is-ie11');
 // adding frozen arrays to WeakMap in Chakra Edge unfreeze them
 var WEAK_COLLECTIONS_UNFREEZING_BUG = require('../internals/weak-collections-unfreezing-bug');
-
-var setInternalState = InternalStateModule.set;
-var internalStateGetterFor = InternalStateModule.getterFor;
 
 var Map = MapNativeModule.Map;
 var mapHas = MapNativeModule.has;
