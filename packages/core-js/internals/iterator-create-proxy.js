@@ -3,7 +3,8 @@ var call = require('../internals/function-call');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -19,10 +20,9 @@ var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
 var NORMAL = 'normal';
 var THROW = 'throw';
 var GENERATOR_IS_RUNNING = 'Generator is already running';
-var setInternalState = InternalStateModule.set;
 
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
-  var getInternalState = InternalStateModule.getterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
+  var getInternalState = internalStateGetterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
 
   return defineBuiltIns(create(IteratorPrototype), {
     next: function next() {
