@@ -14,7 +14,10 @@ var TypedArray = getPrototypeOf(Int8Array);
 var TypedArrayPrototype = getPrototypeOf(Int8Array.prototype);
 var Uint8ClampedArrayPrototype = Uint8ClampedArray.prototype;
 var TypeError = globalThis.TypeError;
-var NAME, Constructor, Prototype;
+
+// WebKit bug - typed arrays constructors prototype is Object.prototype
+var INCORRECT_TYPED_ARRAY_CONSTRUCTOR = !isCallable(TypedArray) || TypedArray === Function.prototype;
+var INCORRECT_TYPED_ARRAY_PROTOTYPE = !TypedArrayPrototype || TypedArrayPrototype === Object.prototype;
 
 var getTypedArrayMetadata = function (it, key) {
   var proto = getPrototypeOf(it);
@@ -23,33 +26,37 @@ var getTypedArrayMetadata = function (it, key) {
   return (state && hasOwn(state, key)) ? state[key] : getTypedArrayMetadata(proto, key);
 };
 
-for (NAME in TypedArrayConstructors) {
-  Constructor = globalThis[NAME];
-  Prototype = Constructor && Constructor.prototype;
-  if (Prototype) {
-    var state = enforceInternalState(Prototype);
-    state.TypedArrayConstructor = Constructor;
-    state.TypedArrayName = NAME;
-  }
-}
-
-// WebKit bug - typed arrays constructors prototype is Object.prototype
-if (!isCallable(TypedArray) || TypedArray === Function.prototype) {
+if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {
   // eslint-disable-next-line no-shadow -- safe
   TypedArray = function TypedArray() {
     throw new TypeError('Incorrect invocation');
   };
-  for (NAME in TypedArrayConstructors) {
-    if (globalThis[NAME]) setPrototypeOf(globalThis[NAME], TypedArray);
+
+  if (!INCORRECT_TYPED_ARRAY_PROTOTYPE) {
+    TypedArray.prototype = TypedArrayPrototype;
+    TypedArrayPrototype.constructor = TypedArray;
   }
 }
 
-if (!TypedArrayPrototype || TypedArrayPrototype === Object.prototype) {
+if (INCORRECT_TYPED_ARRAY_PROTOTYPE) {
   TypedArrayPrototype = TypedArray.prototype;
-  for (NAME in TypedArrayConstructors) {
-    if (globalThis[NAME]) setPrototypeOf(globalThis[NAME].prototype, TypedArrayPrototype);
-  }
 }
+
+Object.keys(TypedArrayConstructors).forEach(function (name) {
+  var Constructor = globalThis[name];
+  if (Constructor) {
+    var Prototype = Constructor.prototype;
+    if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {
+      setPrototypeOf(Constructor, TypedArray);
+    }
+    if (INCORRECT_TYPED_ARRAY_PROTOTYPE) {
+      setPrototypeOf(Prototype, TypedArrayPrototype);
+    }
+    var state = enforceInternalState(Prototype);
+    state.TypedArrayConstructor = Constructor;
+    state.TypedArrayName = name;
+  }
+});
 
 // WebKit bug - one more object in Uint8ClampedArray prototype chain
 if (getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
