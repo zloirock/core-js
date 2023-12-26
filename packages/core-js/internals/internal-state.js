@@ -21,17 +21,12 @@ var get = function (it) {
   return store.get(it) || create(null);
 };
 
-var has = function (it) {
-  return store.has(it);
-};
-
 var enforce = function (it) {
-  return has(it) ? get(it) : set(it, create(null));
+  return store.has(it) ? get(it) : set(it, create(null));
 };
 
 module.exports = {
   set: set,
   get: get,
-  has: has,
   enforce: enforce,
 };
