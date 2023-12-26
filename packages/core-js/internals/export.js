@@ -32,7 +32,7 @@ module.exports = function (options, source) {
   var TARGET = options.target;
   var GLOBAL = options.global;
   var STATIC = options.stat;
-  var FORCED, target, key, targetProperty, sourceProperty, descriptor;
+  var FORCED, target, targetProperty, sourceProperty, descriptor;
   if (GLOBAL) {
     target = globalThis;
   } else if (STATIC) {
@@ -40,7 +40,7 @@ module.exports = function (options, source) {
   } else {
     target = globalThis[TARGET] && globalThis[TARGET].prototype;
   }
-  if (target) for (key in source) {
+  if (target) Object.keys(source).forEach(function (key) {
     sourceProperty = source[key];
     if (options.dontCallGetSet) {
       descriptor = getOwnPropertyDescriptor(target, key);
@@ -49,7 +49,7 @@ module.exports = function (options, source) {
     FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
     // contained in target
     if (!FORCED && targetProperty !== undefined) {
-      if (typeof sourceProperty == typeof targetProperty) continue;
+      if (typeof sourceProperty == typeof targetProperty) return;
       if (isObject(sourceProperty) && isObject(targetProperty)) copyConstructorProperties(sourceProperty, targetProperty);
     }
     // add a flag to not completely full polyfills
@@ -57,5 +57,5 @@ module.exports = function (options, source) {
       createNonEnumerableProperty(sourceProperty, 'sham', true);
     }
     defineBuiltIn(target, key, sourceProperty, options);
-  }
+  });
 };
