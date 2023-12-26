@@ -33,7 +33,7 @@ if (WRAP) {
   /* eslint-enable no-new -- required for testing */
   $ArrayBuffer = function ArrayBuffer(length) {
     anInstance(this, ArrayBufferPrototype);
-    return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, $ArrayBuffer);
+    return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, ArrayBufferPrototype);
   };
 
   $ArrayBuffer.prototype = ArrayBufferPrototype;
