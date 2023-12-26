@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- [`{ Map, Set, WeakMap, WeakSet }.{ from, of }`](https://github.com/tc39/proposal-setmap-offrom) became non-generic, following [this](https://github.com/tc39/proposal-setmap-offrom/issues/16#issuecomment-1843346541) and some other notes. Now then can be invoked without `this`, but no longer return subclasses
 - Fixed handling some cases of non-enumerable symbol keys from `Symbol` polyfill
 - Removed unneeded NodeJS domains-related logic from `queueMicrotask` polyfill
 - Fixed subclassing of wrapped `ArrayBuffer`
