@@ -2,11 +2,9 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 
 // dependency: es.weak-map.constructor
-// eslint-disable-next-line es/no-weak-map -- safe
 var WeakMapPrototype = WeakMap.prototype;
 
 module.exports = {
-  // eslint-disable-next-line es/no-weak-map -- safe
   WeakMap: WeakMap,
   set: uncurryThis(WeakMapPrototype.set),
   get: uncurryThis(WeakMapPrototype.get),
