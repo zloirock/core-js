@@ -122,7 +122,7 @@ if (INCORRECT_CODE && NativeDOMException === PolyfilledDOMException) {
 }
 
 // `DOMException` constants
-for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
+Object.keys(DOMExceptionConstants).forEach(function (key) {
   var constant = DOMExceptionConstants[key];
   var constantName = constant.s;
   var descriptor = createPropertyDescriptor(6, constant.c);
@@ -132,4 +132,4 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
   if (!hasOwn(PolyfilledDOMExceptionPrototype, constantName)) {
     defineProperty(PolyfilledDOMExceptionPrototype, constantName, descriptor);
   }
-}
+});
