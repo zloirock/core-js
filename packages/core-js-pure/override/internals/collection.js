@@ -9,10 +9,9 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
-var setInternalState = InternalStateModule.set;
-var internalStateGetterFor = InternalStateModule.getterFor;
 var defineProperty = Object.defineProperty;
 
 module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
