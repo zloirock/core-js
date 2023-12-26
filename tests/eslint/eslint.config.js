@@ -939,7 +939,6 @@ const forbidES2015BuiltIns = {
   'es/no-array-prototype-findindex': ERROR,
   'es/no-array-prototype-keys': ERROR,
   'es/no-array-prototype-values': ERROR,
-  'es/no-map': ERROR,
   'es/no-math-acosh': ERROR,
   'es/no-math-asinh': ERROR,
   'es/no-math-atanh': ERROR,
@@ -974,7 +973,6 @@ const forbidES2015BuiltIns = {
   'es/no-proxy': ERROR,
   'es/no-reflect': ERROR,
   'es/no-regexp-prototype-flags': ERROR,
-  'es/no-set': ERROR,
   'es/no-string-fromcodepoint': ERROR,
   'es/no-string-prototype-codepointat': ERROR,
   'es/no-string-prototype-endswith': ERROR,
@@ -984,7 +982,6 @@ const forbidES2015BuiltIns = {
   'es/no-string-prototype-startswith': ERROR,
   'es/no-string-raw': ERROR,
   'es/no-symbol': ERROR,
-  'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
