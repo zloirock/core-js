@@ -8,10 +8,9 @@ var iterate = require('../internals/iterate');
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var MapNativeModule = require('../internals/map-native');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
-var setInternalState = InternalStateModule.set;
-var internalStateGetterFor = InternalStateModule.getterFor;
 var Map = MapNativeModule.Map;
 var mapGet = MapNativeModule.get;
 var mapSet = MapNativeModule.set;
