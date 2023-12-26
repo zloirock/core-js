@@ -162,7 +162,9 @@ if (isForced('RegExp', BASE_FORCED)) {
       groups = handled[1];
     }
 
-    result = inheritIfRequired(NativeRegExp(pattern, flags), thisIsRegExp ? this : RegExpPrototype, RegExpWrapper);
+    result = NativeRegExp(pattern, flags);
+
+    if (thisIsRegExp) inheritIfRequired(result, this, RegExpPrototype);
 
     if (dotAll || sticky || groups.length) {
       state = enforceInternalState(result);
