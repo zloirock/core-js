@@ -8,7 +8,7 @@ var TypedArrayPrototype = require('../internals/typed-array-core').TypedArrayPro
 module.exports = function (key, property, forced, options) {
   var exported = forced ? property : Int8Array.prototype[key] || property;
 
-  for (var name in TypedArrayConstructors) {
+  Object.keys(TypedArrayConstructors).forEach(function (name) {
     var Prototype = globalThis[name] && globalThis[name].prototype;
     if (Prototype && hasOwn(Prototype, key)) try {
       delete Prototype[key];
@@ -18,7 +18,7 @@ module.exports = function (key, property, forced, options) {
         Prototype[key] = exported;
       } catch (error2) { /* empty */ }
     }
-  }
+  });
 
   // in some cases, this comparison is required since, for example, in V8 ~ Chrome 48-
   // `Int8#toLocaleString` is correct, but also exists generic incorrect `%TypedArrayPrototype%#toLocaleString`
