@@ -33,7 +33,7 @@ var WRAP = !fails(function () {
 if (WRAP) {
   $ArrayBuffer = function ArrayBuffer(length) {
     anInstance(this, ArrayBufferPrototype);
-    return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, $ArrayBuffer);
+    return inheritIfRequired(new NativeArrayBuffer(toIndex(length)), this, ArrayBufferPrototype);
   };
 
   $ArrayBuffer.prototype = ArrayBufferPrototype;
