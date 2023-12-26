@@ -47,7 +47,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
   var nativeIterator = IterablePrototype[ITERATOR] || DEFAULT && IterablePrototype[DEFAULT];
   var defaultIterator = !BUGGY_SAFARI_ITERATORS && nativeIterator || getIterationMethod(DEFAULT);
   var anyNativeIterator = NAME === 'Array' ? IterablePrototype.entries || nativeIterator : nativeIterator;
-  var CurrentIteratorPrototype, methods, KEY;
+  var CurrentIteratorPrototype, methods;
 
   // fix native
   if (anyNativeIterator) {
@@ -80,10 +80,12 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       entries: getIterationMethod(ENTRIES),
     };
 
-    if (FORCED) for (KEY in methods) {
-      if (BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME || !(KEY in IterablePrototype)) {
-        defineBuiltIn(IterablePrototype, KEY, methods[KEY]);
-      }
+    if (FORCED) {
+      Object.keys(methods).forEach(function (key) {
+        if (BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME || !(key in IterablePrototype)) {
+          defineBuiltIn(IterablePrototype, key, methods[key]);
+        }
+      });
     } else $({ target: NAME, proto: true, forced: BUGGY_SAFARI_ITERATORS || INCORRECT_VALUES_NAME }, methods);
   }
 
