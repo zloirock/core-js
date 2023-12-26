@@ -57,11 +57,11 @@ if (PolyfilledDOMExceptionPrototype.constructor !== PolyfilledDOMException) {
     defineProperty(PolyfilledDOMExceptionPrototype, 'constructor', createPropertyDescriptor(1, PolyfilledDOMException));
   }
 
-  for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
+  Object.keys(DOMExceptionConstants).forEach(function (key) {
     var constant = DOMExceptionConstants[key];
     var constantName = constant.s;
     if (!hasOwn(PolyfilledDOMException, constantName)) {
       defineProperty(PolyfilledDOMException, constantName, createPropertyDescriptor(6, constant.c));
     }
-  }
+  });
 }
