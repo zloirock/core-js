@@ -26,7 +26,7 @@ var $DOMException = function DOMException() {
   var error = new Error(message);
   error.name = DOM_EXCEPTION;
   defineProperty(that, 'stack', createPropertyDescriptor(1, clearErrorStack(error.stack, 1)));
-  inheritIfRequired(that, this, $DOMException);
+  inheritIfRequired(that, this, DOMExceptionPrototype);
   return that;
 };
 
