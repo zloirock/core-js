@@ -15,10 +15,8 @@ var handlePrototype = function (CollectionPrototype) {
   }
 };
 
-for (var COLLECTION_NAME in DOMIterables) {
-  if (DOMIterables[COLLECTION_NAME]) {
-    handlePrototype(globalThis[COLLECTION_NAME] && globalThis[COLLECTION_NAME].prototype);
-  }
-}
+Object.keys(DOMIterables).forEach(function (collectionName) {
+  handlePrototype(DOMIterables[collectionName] && globalThis[collectionName] && globalThis[collectionName].prototype);
+});
 
 handlePrototype(DOMTokenListPrototype);
