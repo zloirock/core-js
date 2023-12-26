@@ -1,13 +1,13 @@
 'use strict';
 var charAt = require('../internals/string-multibyte').charAt;
 var toString = require('../internals/to-string');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var defineIterator = require('../internals/iterator-define');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
 var STRING_ITERATOR = 'String Iterator';
-var setInternalState = InternalStateModule.set;
-var getInternalState = InternalStateModule.getterFor(STRING_ITERATOR);
+var getInternalState = internalStateGetterFor(STRING_ITERATOR);
 
 // `String.prototype[@@iterator]` method
 // https://tc39.es/ecma262/#sec-string.prototype-@@iterator
