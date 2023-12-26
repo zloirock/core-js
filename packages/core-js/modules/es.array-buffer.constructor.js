@@ -34,7 +34,7 @@ if (WRAP) {
   $ArrayBuffer = function ArrayBuffer(length /* , options */) {
     anInstance(this, ArrayBufferPrototype);
     var options = arguments.length > 1 ? arguments[1] : undefined;
-    return inheritIfRequired(new NativeArrayBuffer(toIndex(length), options), this, $ArrayBuffer);
+    return inheritIfRequired(new NativeArrayBuffer(toIndex(length), options), this, ArrayBufferPrototype);
   };
 
   $ArrayBuffer.prototype = ArrayBufferPrototype;
