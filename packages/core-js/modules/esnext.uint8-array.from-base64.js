@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
@@ -11,8 +10,8 @@ var getAlphabetOption = require('../internals/get-alphabet-option');
 var base64Alphabet = base64Map.c2i;
 var base64UrlAlphabet = base64Map.c2iUrl;
 
-var Uint8Array = global.Uint8Array;
-var SyntaxError = global.SyntaxError;
+var $Uint8Array = Uint8Array;
+var $SyntaxError = SyntaxError;
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
 var push = uncurryThis([].push);
@@ -33,12 +32,12 @@ $({ target: 'Uint8Array', stat: true, forced: true }, {
     if (input.length % 4 === 0) {
       if (stringSlice(input, -2) === '==') input = stringSlice(input, 0, -2);
       else if (stringSlice(input, -1) === '=') input = stringSlice(input, 0, -1);
-    } else if (strict) throw new SyntaxError('Input is not correctly padded');
+    } else if (strict) throw new $SyntaxError('Input is not correctly padded');
 
     var lastChunkSize = input.length % 4;
 
     switch (lastChunkSize) {
-      case 1: throw new SyntaxError('Bad input length');
+      case 1: throw new $SyntaxError('Bad input length');
       case 2: input += 'AA'; break;
       case 3: input += 'A';
     }
@@ -50,7 +49,7 @@ $({ target: 'Uint8Array', stat: true, forced: true }, {
     var at = function (shift) {
       var char = input[i + shift];
       if (char in alphabet) return alphabet[char] << (18 - 6 * shift);
-      throw new SyntaxError('Bad char in input: "' + char + '"');
+      throw new $SyntaxError('Bad char in input: "' + char + '"');
     };
 
     for (; i < inputLength; i += 4) {
@@ -61,13 +60,13 @@ $({ target: 'Uint8Array', stat: true, forced: true }, {
     var byteLength = bytes.length;
 
     if (lastChunkSize === 2) {
-      if (strict && bytes[byteLength - 2] !== 0) throw new SyntaxError(EXTRA_BITS);
+      if (strict && bytes[byteLength - 2] !== 0) throw new $SyntaxError(EXTRA_BITS);
       byteLength -= 2;
     } else if (lastChunkSize === 3) {
-      if (strict && bytes[byteLength - 1] !== 0) throw new SyntaxError(EXTRA_BITS);
+      if (strict && bytes[byteLength - 1] !== 0) throw new $SyntaxError(EXTRA_BITS);
       byteLength--;
     }
 
-    return arrayFromConstructorAndList(Uint8Array, bytes, byteLength);
+    return arrayFromConstructorAndList($Uint8Array, bytes, byteLength);
   },
 });
