@@ -1,7 +1,7 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 
 module.exports = function (NAMESPACE, METHOD) {
-  var C = global[NAMESPACE];
+  var C = globalThis[NAMESPACE];
   return C && C[METHOD];
 };

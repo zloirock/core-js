@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var hasOwn = require('../internals/has-own-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
@@ -17,7 +17,7 @@ module.exports = function (key, property, forced) {
   }
 
   Object.keys(TypedArrayConstructors).forEach(function (name) {
-    var Constructor = global[name];
+    var Constructor = globalThis[name];
 
     // V8 ~ Chrome 48- `%TypedArray%` constructors static methods are non-writable non-configurable
     if (Constructor) try {

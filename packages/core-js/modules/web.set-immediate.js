@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var isCallable = require('../internals/is-callable');
 var ENGINE_IS_BUN = require('../internals/engine-is-bun');
@@ -9,12 +9,12 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var setTask = require('../internals/task').set;
 
 var $Function = Function;
-var $setImmediate = global.setImmediate;
+var $setImmediate = globalThis.setImmediate;
 
 // Bun 0.3.0- checks
 // https://github.com/oven-sh/bun/issues/1633
 var WRAP = $setImmediate && ENGINE_IS_BUN && (function () {
-  var version = global.Bun.version.split('.');
+  var version = globalThis.Bun.version.split('.');
   return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
 })();
 

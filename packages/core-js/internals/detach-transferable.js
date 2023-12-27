@@ -1,11 +1,11 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var tryNodeRequire = require('../internals/try-node-require');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var $ArrayBuffer = ArrayBuffer;
-var structuredClone = global.structuredClone;
-var $MessageChannel = global.MessageChannel;
+var structuredClone = globalThis.structuredClone;
+var $MessageChannel = globalThis.MessageChannel;
 var detach = false;
 var WorkerThreads, channel, buffer, $detach;
 

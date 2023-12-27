@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var macrotask = require('../internals/task').set;
 var Queue = require('../internals/queue');
@@ -8,10 +8,10 @@ var IS_IOS_PEBBLE = require('../internals/engine-is-ios-pebble');
 var IS_WEBOS_WEBKIT = require('../internals/engine-is-webos-webkit');
 var IS_NODE = require('../internals/engine-is-node');
 
-var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
-var document = global.document;
-var process = global.process;
-var Promise = global.Promise;
+var MutationObserver = globalThis.MutationObserver || globalThis.WebKitMutationObserver;
+var document = globalThis.document;
+var process = globalThis.process;
+var Promise = globalThis.Promise;
 var microtask = safeGetBuiltIn('queueMicrotask');
 var notify, toggle, node, promise, then;
 
@@ -61,8 +61,8 @@ if (!microtask) {
   // - window.postMessage
   // - setTimeout
   } else {
-    // `webpack` dev server bug on IE global methods - use macrotask.bind(global)
-    macrotask = macrotask.bind(global);
+    // `webpack` dev server bug on IE global methods - use macrotask.bind(globalThis)
+    macrotask = macrotask.bind(globalThis);
     notify = function () {
       macrotask(flush);
     };

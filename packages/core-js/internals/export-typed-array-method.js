@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var defineBuiltIn = require('../internals/define-built-in');
 var hasOwn = require('../internals/has-own-property');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
@@ -9,7 +9,7 @@ module.exports = function (key, property, forced, options) {
   var exported = forced ? property : Int8Array.prototype[key] || property;
 
   Object.keys(TypedArrayConstructors).forEach(function (name) {
-    var Prototype = global[name] && global[name].prototype;
+    var Prototype = globalThis[name] && globalThis[name].prototype;
     if (Prototype && hasOwn(Prototype, key)) try {
       delete Prototype[key];
     } catch (error) {

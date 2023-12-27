@@ -1,10 +1,8 @@
 'use strict';
-var global = require('../internals/global');
-
-var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var globalThis = require('../internals/global-this');
 
 // Avoid NodeJS experimental warning
 module.exports = function (name) {
-  var descriptor = getOwnPropertyDescriptor(global, name);
+  var descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
   return descriptor && descriptor.value;
 };

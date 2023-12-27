@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var isCallable = require('../internals/is-callable');
@@ -47,7 +47,7 @@ module.exports = function (options, source) {
   var STATIC = options.stat;
   var PROTO = options.proto;
 
-  var nativeSource = GLOBAL ? global : STATIC ? global[TARGET] : global[TARGET] && global[TARGET].prototype;
+  var nativeSource = GLOBAL ? globalThis : STATIC ? globalThis[TARGET] : globalThis[TARGET] && globalThis[TARGET].prototype;
 
   var target = GLOBAL ? path : path[TARGET] || createNonEnumerableProperty(path, TARGET, {})[TARGET];
   var targetPrototype = target.prototype;
@@ -73,7 +73,7 @@ module.exports = function (options, source) {
     if (!FORCED && !PROTO && typeof targetProperty == typeof sourceProperty) continue;
 
     // bind methods to global for calling from export context
-    if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, global);
+    if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, globalThis);
     // wrap global constructors for prevent changes in this version
     else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
     // make static versions for prototype methods
