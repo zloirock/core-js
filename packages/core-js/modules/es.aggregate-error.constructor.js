@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var installErrorCause = require('../internals/install-error-cause');
