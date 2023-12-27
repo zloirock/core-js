@@ -1,10 +1,8 @@
 'use strict';
+/* eslint-disable es/no-nonstandard-typed-array-prototype-properties -- safe */
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var $fromBase64 = require('../internals/uint8-from-base64');
 var anUint8Array = require('../internals/an-uint8-array');
-
-var Uint8Array = globalThis.Uint8Array;
 
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.setFromBase64 || !function () {
   var target = new Uint8Array([255, 255, 255, 255, 255]);

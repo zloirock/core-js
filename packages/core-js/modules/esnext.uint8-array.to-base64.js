@@ -1,13 +1,11 @@
 'use strict';
+/* eslint-disable es/no-nonstandard-typed-array-prototype-properties -- safe */
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
-
-var Uint8Array = globalThis.Uint8Array;
 
 var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;

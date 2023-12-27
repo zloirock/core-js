@@ -1,11 +1,9 @@
 'use strict';
+/* eslint-disable es/no-nonstandard-typed-array-prototype-properties -- safe */
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
-
-var Uint8Array = globalThis.Uint8Array;
 
 var numberToString = uncurryThis(1.1.toString);
 
