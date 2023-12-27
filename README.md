@@ -107,7 +107,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [`@babel/preset-env`](#babelpreset-env)
     - [`@babel/runtime`](#babelruntime)
   - [swc](#swc)
-  - [Configurable level of aggressiveness](#configurable-level-of-aggressiveness)
   - [Custom build](#custom-build)
 - [Supported engines and compatibility data](#supported-engines-and-compatibility-data)
 - [Features](#features)
@@ -420,30 +419,6 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
   }
 }
 ```
-
-### Configurable level of aggressiveness[⬆](#index)
-
-By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` uses native implementation.
-
-But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
-
-Sometimes we could have an inverse problem - a knowingly broken environment with problems not covered by `core-js` feature detection.
-
-For those cases, we could redefine this behavior for certain polyfills:
-
-```js
-const configurator = require('core-js/configurator');
-
-configurator({
-  useNative: ['Promise'],                                 // polyfills will be used only if natives are completely unavailable
-  usePolyfill: ['Array.from', 'String.prototype.padEnd'], // polyfills will be used anyway
-  useFeatureDetection: ['Map', 'Set'],                    // default behavior
-});
-
-require('core-js/actual');
-```
-
-It does not work with some features. Also, if you change the default behavior, even `core-js` internals may not work correctly.
 
 ### Custom build[⬆](#index)
 
