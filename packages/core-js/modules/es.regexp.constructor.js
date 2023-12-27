@@ -1,7 +1,6 @@
 'use strict';
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -41,7 +40,7 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 var MISSED_STICKY = stickyHelpers.MISSED_STICKY;
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
-var BASE_FORCED = !CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
+var FORCED = !CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
   re2[MATCH] = false;
   // RegExp constructor can alter flags and IsRegExp works correct with @@match
   // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
@@ -122,7 +121,7 @@ var handleNCG = function (string) {
 
 // `RegExp` constructor
 // https://tc39.es/ecma262/#sec-regexp-constructor
-if (isForced('RegExp', BASE_FORCED)) {
+if (FORCED) {
   var RegExpWrapper = function RegExp(pattern, flags) {
     var thisIsRegExp = isPrototypeOf(RegExpPrototype, this);
     var patternIsRegExp = isRegExp(pattern);
