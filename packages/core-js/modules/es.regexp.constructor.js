@@ -21,7 +21,7 @@ var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = global.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
-var SyntaxError = global.SyntaxError;
+var $SyntaxError = SyntaxError;
 var create = Object.create;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var exec = uncurryThis(RegExpPrototype.exec);
@@ -101,7 +101,7 @@ var handleNCG = function (string) {
         continue;
       case char === '>' && ncg:
         if (groupname === '' || hasOwn(names, groupname)) {
-          throw new SyntaxError('Invalid capture group name');
+          throw new $SyntaxError('Invalid capture group name');
         }
         names[groupname] = true;
         named[named.length] = [groupname, groupid];

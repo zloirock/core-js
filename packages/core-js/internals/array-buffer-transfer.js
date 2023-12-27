@@ -9,12 +9,12 @@ var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = global.structuredClone;
-var ArrayBuffer = global.ArrayBuffer;
-var DataView = global.DataView;
-var TypeError = global.TypeError;
+var $ArrayBuffer = ArrayBuffer;
+var $DataView = DataView;
+var $TypeError = TypeError;
+var ArrayBufferPrototype = $ArrayBuffer.prototype;
+var DataViewPrototype = $DataView.prototype;
 var min = Math.min;
-var ArrayBufferPrototype = ArrayBuffer.prototype;
-var DataViewPrototype = DataView.prototype;
 // dependency: es.array-buffer.slice
 var slice = uncurryThis(ArrayBufferPrototype.slice);
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
@@ -27,7 +27,7 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
   var newByteLength = newLength === undefined ? byteLength : toIndex(newLength);
   var fixedLength = !isResizable || !isResizable(arrayBuffer);
   var newBuffer;
-  if (isDetached(arrayBuffer)) throw new TypeError('ArrayBuffer is detached');
+  if (isDetached(arrayBuffer)) throw new $TypeError('ArrayBuffer is detached');
   if (PROPER_STRUCTURED_CLONE_TRANSFER) {
     arrayBuffer = structuredClone(arrayBuffer, { transfer: [arrayBuffer] });
     if (byteLength === newByteLength && (preserveResizability || fixedLength)) return arrayBuffer;
@@ -36,9 +36,10 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
     newBuffer = slice(arrayBuffer, 0, newByteLength);
   } else {
     var options = preserveResizability && !fixedLength && maxByteLength ? { maxByteLength: maxByteLength(arrayBuffer) } : undefined;
-    newBuffer = new ArrayBuffer(newByteLength, options);
-    var a = new DataView(arrayBuffer);
-    var b = new DataView(newBuffer);
+    // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
+    newBuffer = new $ArrayBuffer(newByteLength, options);
+    var a = new $DataView(arrayBuffer);
+    var b = new $DataView(newBuffer);
     var copyLength = min(newByteLength, byteLength);
     for (var i = 0; i < copyLength; i++) setInt8(b, i, getInt8(a, i));
   }
