@@ -1,5 +1,5 @@
 'use strict';
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 
 var getPrototypeOf = Object.getPrototypeOf;
 
