@@ -13,7 +13,7 @@ var getPrototypeOf = Object.getPrototypeOf;
 var TypedArray = getPrototypeOf(Int8Array);
 var TypedArrayPrototype = getPrototypeOf(Int8Array.prototype);
 var Uint8ClampedArrayPrototype = Uint8ClampedArray.prototype;
-var TypeError = globalThis.TypeError;
+var $TypeError = TypeError;
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
 var INCORRECT_TYPED_ARRAY_CONSTRUCTOR = !isCallable(TypedArray) || TypedArray === Function.prototype;
@@ -29,7 +29,7 @@ var getTypedArrayMetadata = function (it, key) {
 if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {
   // eslint-disable-next-line no-shadow -- safe
   TypedArray = function TypedArray() {
-    throw new TypeError('Incorrect invocation');
+    throw new $TypeError('Incorrect invocation');
   };
 
   if (!INCORRECT_TYPED_ARRAY_PROTOTYPE) {
