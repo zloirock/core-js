@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -40,10 +39,10 @@ var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
-var RegExp = global.RegExp;
-var TypeError = global.TypeError;
-var decodeURIComponent = global.decodeURIComponent;
-var encodeURIComponent = global.encodeURIComponent;
+var $RegExp = RegExp;
+var $TypeError = TypeError;
+var $decodeURIComponent = decodeURIComponent;
+var $encodeURIComponent = encodeURIComponent;
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
 var replace = uncurryThis(''.replace);
@@ -56,12 +55,12 @@ var plus = /\+/g;
 var sequences = Array(4);
 
 var percentSequence = function (bytes) {
-  return sequences[bytes - 1] || (sequences[bytes - 1] = RegExp('((?:%[\\da-f]{2}){' + bytes + '})', 'gi'));
+  return sequences[bytes - 1] || (sequences[bytes - 1] = $RegExp('((?:%[\\da-f]{2}){' + bytes + '})', 'gi'));
 };
 
 var percentDecode = function (sequence) {
   try {
-    return decodeURIComponent(sequence);
+    return $decodeURIComponent(sequence);
   } catch (error) {
     return sequence;
   }
@@ -71,7 +70,7 @@ var deserialize = function (it) {
   var result = replace(it, plus, ' ');
   var bytes = 4;
   try {
-    return decodeURIComponent(result);
+    return $decodeURIComponent(result);
   } catch (error) {
     while (bytes) {
       result = replace(result, percentSequence(bytes--), percentDecode);
@@ -96,7 +95,7 @@ var replacer = function (match) {
 };
 
 var serialize = function (it) {
-  return replace(encodeURIComponent(it), find, replacer);
+  return replace($encodeURIComponent(it), find, replacer);
 };
 
 var URLSearchParamsIterator = createIteratorConstructor(function Iterator(params, kind) {
@@ -153,7 +152,7 @@ URLSearchParamsState.prototype = {
           (first = call(entryNext, entryIterator)).done ||
           (second = call(entryNext, entryIterator)).done ||
           !call(entryNext, entryIterator).done
-        ) throw new TypeError('Expected sequence with length 2');
+        ) throw new $TypeError('Expected sequence with length 2');
         push(entries, { key: $toString(first.value), value: $toString(second.value) });
       }
     } else for (var key in object) if (hasOwn(object, key)) {
