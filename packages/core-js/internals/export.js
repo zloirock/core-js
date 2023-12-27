@@ -4,7 +4,6 @@ var createNonEnumerableProperty = require('../internals/create-non-enumerable-pr
 var defineBuiltIn = require('../internals/define-built-in');
 var defineGlobalProperty = require('../internals/define-global-property');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
-var isForced = require('../internals/is-forced');
 
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 
@@ -41,7 +40,7 @@ module.exports = function (options, source) {
       descriptor = getOwnPropertyDescriptor(target, key);
       targetProperty = descriptor && descriptor.value;
     } else targetProperty = target[key];
-    FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
+    FORCED = options.forced;
     // contained in target
     if (!FORCED && targetProperty !== undefined) {
       if (typeof sourceProperty == typeof targetProperty) return;
