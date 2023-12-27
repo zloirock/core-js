@@ -9,9 +9,11 @@ var getAlphabetOption = require('../internals/get-alphabet-option');
 var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;
 
+// eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.toBase64 || !function () {
   try {
     var target = new Uint8Array();
+    // eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
     target.toBase64(null);
   } catch (error) {
     return true;
