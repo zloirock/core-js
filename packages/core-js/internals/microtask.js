@@ -61,7 +61,7 @@ if (!microtask) {
   // - window.postMessage
   // - setTimeout
   } else {
-    // `webpack` dev server bug on IE global methods - use macrotask.bind(global)
+    // `webpack` dev server bug on IE global methods - use macrotask.bind(globalThis)
     macrotask = macrotask.bind(globalThis);
     notify = function () {
       macrotask(flush);
