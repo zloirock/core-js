@@ -1,23 +1,23 @@
 'use strict';
-var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');
 var fails = require('../internals/fails');
 var arraySlice = require('../internals/array-slice');
 
-var Int8Array = globalThis.Int8Array;
+var $Int8Array = Int8Array;
 var $toLocaleString = [].toLocaleString;
+var Int8ArrayToLocaleString = $Int8Array.prototype.toLocaleString;
 
 // iOS Safari 6.x fails here
-var TO_LOCALE_STRING_BUG = !!Int8Array && fails(function () {
-  $toLocaleString.call(new Int8Array(1));
+var TO_LOCALE_STRING_BUG = fails(function () {
+  $toLocaleString.call(new $Int8Array(1));
 });
 
 var FORCED = fails(function () {
-  return [1, 2].toLocaleString() !== Int8Array.prototype.toLocaleString.call(new Float32Array([1, 2]));
+  return [1, 2].toLocaleString() !== Int8ArrayToLocaleString.call(new Float32Array([1, 2]));
 }) || !fails(function () {
-  Int8Array.prototype.toLocaleString.call([1, 2]);
+  Int8ArrayToLocaleString.call([1, 2]);
 });
 
 // `%TypedArray%.prototype.toLocaleString` method

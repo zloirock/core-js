@@ -8,7 +8,7 @@ var arraySlice = require('../internals/array-slice');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var setTask = require('../internals/task').set;
 
-var Function = globalThis.Function;
+var $Function = Function;
 var $setImmediate = globalThis.setImmediate;
 
 // Bun 0.3.0- checks
@@ -23,7 +23,7 @@ var WRAP = $setImmediate && ENVIRONMENT === 'BUN' && (function () {
 $({ global: true, bind: true, enumerable: true, forced: $setImmediate !== setTask }, {
   setImmediate: WRAP ? function setImmediate(handler /* , ...arguments */) {
     var boundArgs = validateArgumentsLength(arguments.length, 1) > 1;
-    var fn = isCallable(handler) ? handler : Function(handler);
+    var fn = isCallable(handler) ? handler : $Function(handler);
     var params = boundArgs ? arraySlice(arguments, 1) : [];
     var callback = boundArgs ? function () {
       apply(fn, this, params);
