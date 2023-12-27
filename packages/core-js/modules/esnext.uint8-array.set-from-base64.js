@@ -3,13 +3,16 @@ var $ = require('../internals/export');
 var $fromBase64 = require('../internals/uint8-from-base64');
 var anUint8Array = require('../internals/an-uint8-array');
 
+// eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.setFromBase64 || !function () {
   var target = new Uint8Array([255, 255, 255, 255, 255]);
   try {
+    // eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
     target.setFromBase64('', null);
     return;
   } catch (error) { /* empty */ }
   try {
+    // eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
     target.setFromBase64('MjYyZg===');
   } catch (error) {
     return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
