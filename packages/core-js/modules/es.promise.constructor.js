@@ -33,7 +33,7 @@ var getInternalPromiseState = internalStateGetterFor(PROMISE);
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 var PromiseConstructor = NativePromiseConstructor;
 var PromisePrototype = NativePromisePrototype;
-var TypeError = globalThis.TypeError;
+var $TypeError = TypeError;
 var document = globalThis.document;
 var process = globalThis.process;
 var newPromiseCapability = newPromiseCapabilityModule.f;
@@ -80,7 +80,7 @@ var callReaction = function (reaction, state) {
         }
       }
       if (result === reaction.promise) {
-        reject(new TypeError('Promise-chain cycle'));
+        reject(new $TypeError('Promise-chain cycle'));
       } else if (then = isThenable(result)) {
         call(then, result, resolve, reject);
       } else resolve(result);
@@ -170,7 +170,7 @@ var internalResolve = function (state, value, unwrap) {
   state.done = true;
   if (unwrap) state = unwrap;
   try {
-    if (state.facade === value) throw new TypeError("Promise can't be resolved itself");
+    if (state.facade === value) throw new $TypeError("Promise can't be resolved itself");
     var then = isThenable(value);
     if (then) {
       microtask(function () {
