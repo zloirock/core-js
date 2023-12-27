@@ -3,7 +3,6 @@ var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var isCallable = require('../internals/is-callable');
-var isForced = require('../internals/is-forced');
 var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -55,7 +54,7 @@ module.exports = function (options, source) {
   var sourceProperty, targetProperty, nativeProperty, resultProperty, descriptor;
 
   Object.keys(source).forEach(function (key) {
-    FORCED = isForced(GLOBAL ? key : TARGET + (STATIC ? '.' : '#') + key, options.forced);
+    FORCED = options.forced;
     // contains in native
     USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
 
