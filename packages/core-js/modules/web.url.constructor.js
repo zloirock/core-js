@@ -35,8 +35,8 @@ var charAtMultibyte = multibyte.charAt;
 var NativeURL = globalThis.URL;
 var NativeURLPrototype = NativeURL && NativeURL.prototype;
 var getPrototypeOf = Object.getPrototypeOf;
-var TypeError = globalThis.TypeError;
-var parseInt = globalThis.parseInt;
+var $TypeError = TypeError;
+var $parseInt = parseInt;
 // dependency: es.object.assign
 var assign = getBuiltInStaticMethod('Object', 'assign');
 var floor = Math.floor;
@@ -139,7 +139,7 @@ var parseIPv4 = function (input) {
       number = 0;
     } else {
       if (!exec(radix === 10 ? DEC : radix === 8 ? OCT : HEX, part)) return null;
-      number = parseInt(part, radix);
+      number = $parseInt(part, radix);
     }
     push(numbers, number);
   }
@@ -186,7 +186,7 @@ var parseIPv6 = function (input) {
     }
     value = length = 0;
     while (length < 4 && exec(HEX, char())) {
-      value = value * 16 + parseInt(char(), 16);
+      value = value * 16 + $parseInt(char(), 16);
       pointer++;
       length++;
     }
@@ -203,7 +203,7 @@ var parseIPv6 = function (input) {
         }
         if (!exec(DIGIT, char())) return;
         while (exec(DIGIT, char())) {
-          number = parseInt(char(), 10);
+          number = $parseInt(char(), 10);
           if (ipv4Piece === null) ipv4Piece = number;
           else if (ipv4Piece === 0) return;
           else ipv4Piece = ipv4Piece * 10 + number;
@@ -383,12 +383,12 @@ var URLState = function (url, parseOnly, base) {
   var baseState, failure, searchParams;
   if (parseOnly) {
     failure = this.parse(urlString);
-    if (failure) throw new TypeError(failure);
+    if (failure) throw new $TypeError(failure);
     this.searchParams = null;
   } else {
     if (base !== undefined) baseState = new URLState(base, true);
     failure = this.parse(urlString, null, baseState);
-    if (failure) throw new TypeError(failure);
+    if (failure) throw new $TypeError(failure);
     searchParams = new URLSearchParamsState();
     searchParams.bindURL(this);
     this.searchParams = searchParams;
@@ -643,7 +643,7 @@ URLState.prototype = {
             stateOverride
           ) {
             if (buffer !== '') {
-              var port = parseInt(buffer, 10);
+              var port = $parseInt(buffer, 10);
               if (port > 0xFFFF) return INVALID_PORT;
               url.port = (url.isSpecial() && port === specialSchemes[url.scheme]) ? null : port;
               buffer = '';
