@@ -1,5 +1,4 @@
 'use strict';
-var globalThis = require('../internals/global-this');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -13,11 +12,10 @@ var getArrayIteratorMethod = function (METHOD_NAME) {
 };
 
 var ITERATOR = wellKnownSymbol('iterator');
-var Uint8Array = globalThis.Uint8Array;
 var arrayValues = getArrayIteratorMethod('values');
 var arrayKeys = getArrayIteratorMethod('keys');
 var arrayEntries = getArrayIteratorMethod('entries');
-var TypedArrayPrototype = Uint8Array && Uint8Array.prototype;
+var TypedArrayPrototype = Int8Array.prototype;
 
 var GENERIC = !fails(function () {
   TypedArrayPrototype[ITERATOR].call([1]);
