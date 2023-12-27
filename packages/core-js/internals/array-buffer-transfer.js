@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var toIndex = require('../internals/to-index');
@@ -8,7 +8,7 @@ var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 var detachTransferable = require('../internals/detach-transferable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var structuredClone = global.structuredClone;
+var structuredClone = globalThis.structuredClone;
 var $ArrayBuffer = ArrayBuffer;
 var $DataView = DataView;
 var $TypeError = TypeError;

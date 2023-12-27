@@ -1,6 +1,6 @@
 'use strict';
 var IS_PURE = require('../internals/is-pure');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var WEBKIT = require('../internals/engine-webkit-version');
 
@@ -13,5 +13,5 @@ module.exports = IS_PURE || !fails(function () {
   // In FF throws only define methods
   // eslint-disable-next-line no-undef, no-useless-call, es/no-legacy-object-prototype-accessor-methods -- required for testing
   __defineSetter__.call(null, key, function () { /* empty */ });
-  delete global[key];
+  delete globalThis[key];
 });

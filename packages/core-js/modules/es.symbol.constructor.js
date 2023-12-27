@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IS_PURE = require('../internals/is-pure');
@@ -41,11 +41,11 @@ var enforceInternalState = InternalStateModule.enforce;
 var getInternalSymbolState = internalStateGetterFor(SYMBOL);
 
 var ObjectPrototype = Object[PROTOTYPE];
-var $Symbol = global.Symbol;
+var $Symbol = globalThis.Symbol;
 var SymbolPrototype = $Symbol && $Symbol[PROTOTYPE];
 var $RangeError = RangeError;
 var $TypeError = TypeError;
-var QObject = global.QObject;
+var QObject = globalThis.QObject;
 var nativeObjectCreate = Object.create;
 var nativeObjectKeys = Object.keys;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
@@ -167,7 +167,7 @@ if (!NATIVE_SYMBOL) {
     var description = !arguments.length || arguments[0] === undefined ? undefined : $toString(arguments[0]);
     var tag = uid(description);
     var setter = function (value) {
-      var $this = this === undefined ? global : this;
+      var $this = this === undefined ? globalThis : this;
       if ($this === ObjectPrototype) call(setter, ObjectPrototypeSymbols, value);
       var nonEnumerableSymbols = getInternalState($this).nes;
       if (nonEnumerableSymbols) delete nonEnumerableSymbols[tag];

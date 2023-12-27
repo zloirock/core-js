@@ -1,8 +1,8 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 
-var Symbol = global.Symbol;
+var Symbol = globalThis.Symbol;
 
 // `Symbol.dispose` well-known symbol
 // https://github.com/tc39/proposal-explicit-resource-management

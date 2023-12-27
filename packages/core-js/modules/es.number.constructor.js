@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var path = require('../internals/path');
 var uncurryThis = require('../internals/function-uncurry-this');
 var inheritIfRequired = require('../internals/inherit-if-required');
@@ -13,10 +13,10 @@ var copyConstructorProperties = require('../internals/copy-constructor-propertie
 var trim = require('../internals/string-trim').trim;
 
 var NUMBER = 'Number';
-var NativeNumber = global[NUMBER];
+var NativeNumber = globalThis[NUMBER];
 var PureNumberNamespace = path[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
-var TypeError = global.TypeError;
+var TypeError = globalThis.TypeError;
 var stringSlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
