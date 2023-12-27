@@ -56,8 +56,8 @@ var forEach = uncurryThis([].forEach);
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
 
-var AllSymbols = shared('symbols');
-var ObjectPrototypeSymbols = shared('op-symbols');
+var AllSymbols = NATIVE_SYMBOL || shared('symbols');
+var ObjectPrototypeSymbols = NATIVE_SYMBOL || shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
 
 // Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
