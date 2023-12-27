@@ -43,8 +43,8 @@ var getInternalSymbolState = internalStateGetterFor(SYMBOL);
 var ObjectPrototype = Object[PROTOTYPE];
 var $Symbol = globalThis.Symbol;
 var SymbolPrototype = $Symbol && $Symbol[PROTOTYPE];
-var RangeError = globalThis.RangeError;
-var TypeError = globalThis.TypeError;
+var $RangeError = RangeError;
+var $TypeError = TypeError;
 var QObject = globalThis.QObject;
 var nativeObjectCreate = Object.create;
 var nativeObjectKeys = Object.keys;
@@ -163,7 +163,7 @@ var $getOwnPropertySymbols = function (O) {
 // https://tc39.es/ecma262/#sec-symbol-constructor
 if (!NATIVE_SYMBOL) {
   $Symbol = function Symbol() {
-    if (isPrototypeOf(SymbolPrototype, this)) throw new TypeError('Symbol is not a constructor');
+    if (isPrototypeOf(SymbolPrototype, this)) throw new $TypeError('Symbol is not a constructor');
     var description = !arguments.length || arguments[0] === undefined ? undefined : $toString(arguments[0]);
     var tag = uid(description);
     var setter = function (value) {
@@ -175,7 +175,7 @@ if (!NATIVE_SYMBOL) {
       try {
         setSymbolDescriptor($this, tag, descriptor);
       } catch (error) {
-        if (!(error instanceof RangeError)) throw error;
+        if (!(error instanceof $RangeError)) throw error;
         fallbackDefineProperty($this, tag, descriptor);
       }
     };
