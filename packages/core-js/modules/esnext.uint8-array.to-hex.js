@@ -6,9 +6,11 @@ var notDetached = require('../internals/array-buffer-not-detached');
 
 var numberToString = uncurryThis(1.1.toString);
 
+// eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array.prototype.toHex || !(function () {
   try {
     var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
+    // eslint-disable-next-line es/no-nonstandard-typed-array-prototype-properties -- safe
     return target.toHex() === 'ffffffffffffffff';
   } catch (error) {
     return false;
