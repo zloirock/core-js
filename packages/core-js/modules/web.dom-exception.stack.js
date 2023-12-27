@@ -12,7 +12,7 @@ var clearErrorStack = require('../internals/error-stack-clear');
 var IS_PURE = require('../internals/is-pure');
 
 var DOM_EXCEPTION = 'DOMException';
-var Error = globalThis.Error;
+var $Error = Error;
 // dependency: web.dom-exception.constructor
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION);
 var defineProperty = Object.defineProperty;
@@ -23,7 +23,7 @@ var $DOMException = function DOMException() {
   var message = normalizeStringArgument(argumentsLength < 1 ? undefined : arguments[0]);
   var name = normalizeStringArgument(argumentsLength < 2 ? undefined : arguments[1], 'Error');
   var that = new NativeDOMException(message, name);
-  var error = new Error(message);
+  var error = new $Error(message);
   error.name = DOM_EXCEPTION;
   defineProperty(that, 'stack', createPropertyDescriptor(1, clearErrorStack(error.stack, 1)));
   inheritIfRequired(that, this, DOMExceptionPrototype);
@@ -32,7 +32,7 @@ var $DOMException = function DOMException() {
 
 var DOMExceptionPrototype = $DOMException.prototype = NativeDOMException.prototype;
 
-var ERROR_HAS_STACK = 'stack' in new Error(DOM_EXCEPTION);
+var ERROR_HAS_STACK = 'stack' in new $Error(DOM_EXCEPTION);
 var DOM_EXCEPTION_HAS_STACK = 'stack' in new NativeDOMException(1, 2);
 
 var descriptor = NativeDOMException && Object.getOwnPropertyDescriptor(globalThis, DOM_EXCEPTION);

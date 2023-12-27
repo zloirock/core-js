@@ -5,15 +5,16 @@ var arrayFromConstructorAndList = require('../internals/array-from-constructor-a
 var $fromBase64 = require('../internals/uint8-from-base64');
 
 var $Uint8Array = Uint8Array;
+var nativeFromBase64 = $Uint8Array.fromBase64;
 
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !$Uint8Array.fromBase64 || !function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !nativeFromBase64 || !function () {
   // Webkit not throw an error on odd length string
   try {
-    $Uint8Array.fromBase64('a');
+    nativeFromBase64('a');
     return;
   } catch (error) { /* empty */ }
   try {
-    $Uint8Array.fromBase64('', null);
+    nativeFromBase64('', null);
   } catch (error) {
     return true;
   }

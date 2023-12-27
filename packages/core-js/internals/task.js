@@ -16,9 +16,8 @@ if (!$setImmediate || !$clearImmediate) {
   var $setTimeout = globalThis.setTimeout;
   var process = globalThis.process;
   var Dispatch = globalThis.Dispatch;
-  var Function = globalThis.Function;
   var MessageChannel = globalThis.MessageChannel;
-  var String = globalThis.String;
+  var $Function = Function;
   var counter = 0;
   var queue = Object.create(null);
   var $location, defer, channel, port;
@@ -48,12 +47,12 @@ if (!$setImmediate || !$clearImmediate) {
 
   var globalPostMessageDefer = function (id) {
     // old engines have not location.origin
-    globalThis.postMessage(String(id), $location.protocol + '//' + $location.host);
+    globalThis.postMessage(id + '', $location.protocol + '//' + $location.host);
   };
 
   $setImmediate = function setImmediate(handler) {
     validateArgumentsLength(arguments.length, 1);
-    var fn = isCallable(handler) ? handler : Function(handler);
+    var fn = isCallable(handler) ? handler : $Function(handler);
     var args = arraySlice(arguments, 1);
     queue[++counter] = function () {
       apply(fn, undefined, args);

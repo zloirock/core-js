@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
 var isCallable = require('../internals/is-callable');
@@ -13,9 +12,9 @@ var fails = require('../internals/fails');
 var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
+var $Number = Number;
+var $SyntaxError = SyntaxError;
 var isArray = Array.isArray;
-var Number = globalThis.Number;
-var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON.parse;
 var enumerableOwnProperties = Object.keys;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -38,7 +37,7 @@ var $parse = function (source, reviver) {
   var value = root.value;
   var endIndex = context.skip(IS_WHITESPACE, root.end);
   if (endIndex < source.length) {
-    throw new SyntaxError('Unexpected extra character: "' + source[endIndex] + '" after the parsed data at: ' + endIndex);
+    throw new $SyntaxError('Unexpected extra character: "' + source[endIndex] + '" after the parsed data at: ' + endIndex);
   }
   return isCallable(reviver) ? internalize({ '': value }, '', reviver, root) : value;
 };
@@ -112,7 +111,7 @@ Context.prototype = {
         return fork.keyword(false);
       case 'n':
         return fork.keyword(null);
-    } throw new SyntaxError('Unexpected character: "' + char + '" at: ' + i);
+    } throw new $SyntaxError('Unexpected character: "' + char + '" at: ' + i);
   },
   node: function (type, value, start, end, nodes) {
     return new Node(value, end, type ? null : slice(this.source, start, end), nodes);
@@ -197,7 +196,7 @@ Context.prototype = {
     if (source[i] === '-') i++;
     if (source[i] === '0') i++;
     else if (exec(IS_NON_ZERO_DIGIT, source[i])) i = this.skip(IS_DIGIT, i + 1);
-    else throw new SyntaxError('Failed to parse number at: ' + i);
+    else throw new $SyntaxError('Failed to parse number at: ' + i);
     if (source[i] === '.') {
       var fractionStartIndex = i + 1;
       i = this.skip(IS_DIGIT, fractionStartIndex);
@@ -208,15 +207,15 @@ Context.prototype = {
       if (source[i] === '+' || source[i] === '-') i++;
       var exponentStartIndex = i;
       i = this.skip(IS_DIGIT, i);
-      if (exponentStartIndex === i) throw new SyntaxError("Failed to parse number's exponent value at: " + i);
+      if (exponentStartIndex === i) throw new $SyntaxError("Failed to parse number's exponent value at: " + i);
     }
-    return this.node(PRIMITIVE, Number(slice(source, startIndex, i)), startIndex, i);
+    return this.node(PRIMITIVE, $Number(slice(source, startIndex, i)), startIndex, i);
   },
   keyword: function (value) {
     var keyword = '' + value;
     var index = this.index;
     var endIndex = index + keyword.length;
-    if (slice(this.source, index, endIndex) !== keyword) throw new SyntaxError('Failed to parse value at: ' + index);
+    if (slice(this.source, index, endIndex) !== keyword) throw new $SyntaxError('Failed to parse value at: ' + index);
     return this.node(PRIMITIVE, value, index, endIndex);
   },
   skip: function (regex, i) {
@@ -228,7 +227,7 @@ Context.prototype = {
     i = this.skip(IS_WHITESPACE, i);
     var char = this.source[i];
     for (var j = 0; j < array.length; j++) if (array[j] === char) return i;
-    throw new SyntaxError('Unexpected character: "' + char + '" at: ' + i);
+    throw new $SyntaxError('Unexpected character: "' + char + '" at: ' + i);
   },
 };
 
