@@ -1,6 +1,6 @@
 'use strict';
-var path = require('../internals/path');
 var globalThis = require('../internals/global-this');
+var path = require('../internals/path');
 
 var getMethod = function (C, METHOD) {
   return C && C[METHOD];
