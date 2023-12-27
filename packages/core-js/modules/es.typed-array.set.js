@@ -1,5 +1,4 @@
 'use strict';
-var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');
@@ -8,10 +7,10 @@ var toOffset = require('../internals/to-offset');
 var toIndexedObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 
-var RangeError = globalThis.RangeError;
-var Int8Array = globalThis.Int8Array;
-var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
-var $set = Int8ArrayPrototype && Int8ArrayPrototype.set;
+var $RangeError = RangeError;
+var $Int8Array = Int8Array;
+var Int8ArrayPrototype = $Int8Array.prototype;
+var $set = Int8ArrayPrototype.set;
 
 var WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS = !fails(function () {
   var array = new Uint8ClampedArray(2);
@@ -21,7 +20,7 @@ var WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS = !fails(function () {
 
 // https://bugs.chromium.org/p/v8/issues/detail?id=11294 and other
 var TO_OBJECT_BUG = WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS && fails(function () {
-  var array = new Int8Array(2);
+  var array = new $Int8Array(2);
   array.set(1);
   array.set('2', 1);
   return array[0] !== 0 || array[1] !== 2;
@@ -37,6 +36,6 @@ exportTypedArrayMethod('set', function set(arrayLike /* , offset */) {
   var length = this.length;
   var len = lengthOfArrayLike(src);
   var index = 0;
-  if (len + offset > length) throw new RangeError('Wrong length');
+  if (len + offset > length) throw new $RangeError('Wrong length');
   while (index < len) this[offset + index] = src[index++];
 }, !WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS || TO_OBJECT_BUG);
