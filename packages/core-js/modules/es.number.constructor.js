@@ -4,7 +4,6 @@ var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');
 var path = require('../internals/path');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isSymbol = require('../internals/is-symbol');
@@ -69,7 +68,7 @@ var toNumber = function (argument) {
   } return +it;
 };
 
-var FORCED = isForced(NUMBER, !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1'));
+var FORCED = !NativeNumber(' 0o1') || !NativeNumber('0b1') || NativeNumber('+0x1');
 
 var calledWithNew = function (dummy) {
   // includes check on 1..constructor(foo) case
