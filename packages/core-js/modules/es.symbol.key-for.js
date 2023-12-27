@@ -6,7 +6,7 @@ var tryToString = require('../internals/try-to-string');
 var shared = require('../internals/shared');
 var NATIVE_SYMBOL_REGISTRY = require('../internals/symbol-registry-detection');
 
-var SymbolToStringRegistry = shared('symbol-to-string-registry');
+var SymbolToStringRegistry = NATIVE_SYMBOL_REGISTRY || shared('symbol-to-string-registry');
 
 // `Symbol.keyFor` method
 // https://tc39.es/ecma262/#sec-symbol.keyfor
