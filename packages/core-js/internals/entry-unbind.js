@@ -1,7 +1,7 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 module.exports = function (CONSTRUCTOR, METHOD) {
-  return uncurryThis(global[CONSTRUCTOR].prototype[METHOD]);
+  return uncurryThis(globalThis[CONSTRUCTOR].prototype[METHOD]);
 };

@@ -1,11 +1,11 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var regExpFlags = require('../internals/regexp-flags');
 var fails = require('../internals/fails');
 
 // babel-minify and Closure Compiler transpiles RegExp('.', 'd') -> /./d and it causes SyntaxError
-var RegExp = global.RegExp;
+var RegExp = globalThis.RegExp;
 var RegExpPrototype = RegExp.prototype;
 
 var FORCED = fails(function () {

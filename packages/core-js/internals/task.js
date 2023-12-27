@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
@@ -8,15 +8,15 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var IS_IOS = require('../internals/engine-is-ios');
 var IS_NODE = require('../internals/engine-is-node');
 
-var $setImmediate = global.setImmediate;
-var $clearImmediate = global.clearImmediate;
+var $setImmediate = globalThis.setImmediate;
+var $clearImmediate = globalThis.clearImmediate;
 
 // Node.js 0.9+, Bun 0.1.7 and IE10+ has setImmediate and clearImmediate, otherwise:
 if (!$setImmediate || !$clearImmediate) {
-  var $setTimeout = global.setTimeout;
-  var process = global.process;
-  var Dispatch = global.Dispatch;
-  var MessageChannel = global.MessageChannel;
+  var $setTimeout = globalThis.setTimeout;
+  var process = globalThis.process;
+  var Dispatch = globalThis.Dispatch;
+  var MessageChannel = globalThis.MessageChannel;
   var $Function = Function;
   var counter = 0;
   var queue = Object.create(null);
@@ -24,7 +24,7 @@ if (!$setImmediate || !$clearImmediate) {
 
   fails(function () {
     // Deno throws a ReferenceError on `location` access without `--location` flag
-    $location = global.location;
+    $location = globalThis.location;
   });
 
   var run = function (id) {
@@ -47,7 +47,7 @@ if (!$setImmediate || !$clearImmediate) {
 
   var globalPostMessageDefer = function (id) {
     // old engines have not location.origin
-    global.postMessage(id + '', $location.protocol + '//' + $location.host);
+    globalThis.postMessage(id + '', $location.protocol + '//' + $location.host);
   };
 
   $setImmediate = function setImmediate(handler) {
@@ -82,14 +82,14 @@ if (!$setImmediate || !$clearImmediate) {
     defer = port.postMessage.bind(port);
   // Browsers with postMessage, skip WebWorkers
   } else if (
-    global.addEventListener &&
-    isCallable(global.postMessage) &&
-    !global.importScripts &&
+    globalThis.addEventListener &&
+    isCallable(globalThis.postMessage) &&
+    !globalThis.importScripts &&
     $location && $location.protocol !== 'file:' &&
     !fails(globalPostMessageDefer)
   ) {
     defer = globalPostMessageDefer;
-    global.addEventListener('message', eventListener, false);
+    globalThis.addEventListener('message', eventListener, false);
   // Rest old browsers
   } else {
     defer = function (id) {

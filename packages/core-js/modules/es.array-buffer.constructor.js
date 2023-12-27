@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var FunctionName = require('../internals/function-name');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var fails = require('../internals/fails');
@@ -13,7 +13,7 @@ var PROPER_FUNCTION_NAME = FunctionName.PROPER;
 var CONFIGURABLE_FUNCTION_NAME = FunctionName.CONFIGURABLE;
 var ARRAY_BUFFER = 'ArrayBuffer';
 var PROTOTYPE = 'prototype';
-var NativeArrayBuffer = global.ArrayBuffer;
+var NativeArrayBuffer = globalThis.ArrayBuffer;
 var $ArrayBuffer = NativeArrayBuffer;
 var ArrayBufferPrototype = $ArrayBuffer && $ArrayBuffer[PROTOTYPE];
 

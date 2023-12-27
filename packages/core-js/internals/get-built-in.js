@@ -1,8 +1,8 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 
 module.exports = function (CONSTRUCTOR) {
-  var C = global[CONSTRUCTOR];
+  var C = globalThis[CONSTRUCTOR];
   return isCallable(C) ? C : undefined;
 };

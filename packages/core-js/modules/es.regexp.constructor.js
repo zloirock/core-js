@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
@@ -19,7 +19,7 @@ var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
 var MATCH = wellKnownSymbol('match');
-var NativeRegExp = global.RegExp;
+var NativeRegExp = globalThis.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
 var $SyntaxError = SyntaxError;
 var create = Object.create;
@@ -184,7 +184,7 @@ if (FORCED) {
 
   RegExpPrototype.constructor = RegExpWrapper;
   RegExpWrapper.prototype = RegExpPrototype;
-  defineBuiltIn(global, 'RegExp', RegExpWrapper, { constructor: true });
+  defineBuiltIn(globalThis, 'RegExp', RegExpWrapper, { constructor: true });
 }
 
 // https://tc39.es/ecma262/#sec-get-regexp-@@species

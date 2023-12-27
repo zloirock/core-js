@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -22,7 +22,7 @@ var getInternalURLState = internalStateGetterFor('URL');
 var URLSearchParams = URLSearchParamsModule.URLSearchParams;
 var getInternalSearchParamsState = URLSearchParamsModule.getState;
 
-var NativeURL = global.URL;
+var NativeURL = globalThis.URL;
 var $TypeError = TypeError;
 var $parseInt = parseInt;
 // dependency: es.object.assign

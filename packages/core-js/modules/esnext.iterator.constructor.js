@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var anInstance = require('../internals/an-instance');
 var anObject = require('../internals/an-object');
 var isCallable = require('../internals/is-callable');
@@ -17,7 +17,7 @@ var ITERATOR = 'Iterator';
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 var $TypeError = TypeError;
-var NativeIterator = global[ITERATOR];
+var NativeIterator = globalThis[ITERATOR];
 var getPrototypeOf = Object.getPrototypeOf;
 
 // FF56- have non-standard global helper `Iterator`

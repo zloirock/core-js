@@ -10,4 +10,4 @@ require('../../modules/es.typed-array.float32-array');
 require('../../modules/es.typed-array.float64-array');
 require('./methods');
 
-module.exports = require('../../internals/global');
+module.exports = require('../../internals/global-this');

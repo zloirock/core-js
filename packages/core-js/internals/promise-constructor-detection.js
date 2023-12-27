@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var NativePromiseConstructor = require('../internals/promise-native-constructor');
 var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
@@ -13,7 +13,7 @@ var V8_VERSION = require('../internals/engine-v8-version');
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 var SPECIES = wellKnownSymbol('species');
 var SUBCLASSING = false;
-var NATIVE_PROMISE_REJECTION_EVENT = isCallable(global.PromiseRejectionEvent);
+var NATIVE_PROMISE_REJECTION_EVENT = isCallable(globalThis.PromiseRejectionEvent);
 
 var FORCED_PROMISE_CONSTRUCTOR = fails(function () {
   var PROMISE_CONSTRUCTOR_SOURCE = inspectSource(NativePromiseConstructor);

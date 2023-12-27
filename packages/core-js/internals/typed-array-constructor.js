@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var TypedArray = require('../internals/typed-array-core').TypedArray;
@@ -27,7 +27,7 @@ var isArrayBuffer = function (it) {
 module.exports = function (TYPE, wrapper, CLAMPED) {
   var BYTES = TYPE.match(/\d+/)[0] / 8;
   var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
-  var NativeTypedArrayConstructor = global[CONSTRUCTOR_NAME];
+  var NativeTypedArrayConstructor = globalThis[CONSTRUCTOR_NAME];
   var TypedArrayConstructor = NativeTypedArrayConstructor;
   var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
   var exported = {};

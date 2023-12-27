@@ -1,7 +1,7 @@
 'use strict';
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -37,7 +37,7 @@ var $ArrayBuffer = ArrayBuffer;
 var $DataView = DataView;
 var getUint8 = uncurryThis($DataView.prototype.getUint8);
 var setUint8 = uncurryThis($DataView.prototype.setUint8);
-var PerformanceMark = global.PerformanceMark;
+var PerformanceMark = globalThis.PerformanceMark;
 // dependency: web.dom-exception.constructor
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
@@ -59,7 +59,7 @@ var TRANSFERRING = 'Transferring';
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var set1 = new global.Set([7]);
+    var set1 = new globalThis.Set([7]);
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation($Object(7));
     return set2 === set1 || !set2.has(7) || !isObject(number) || +number !== 7;
@@ -95,7 +95,7 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // NodeJS implementation can't clone DOMExceptions
 // https://github.com/nodejs/node/issues/41038
 // only FF103+ supports new (html/5749) error cloning semantic
-var nativeStructuredClone = global.structuredClone;
+var nativeStructuredClone = globalThis.structuredClone;
 
 var FORCED_REPLACEMENT = IS_PURE
   || !checkErrorsCloning(nativeStructuredClone, $Error)
@@ -135,10 +135,10 @@ var tryNativeRestrictedStructuredClone = function (value, type) {
 var createDataTransfer = function () {
   var dataTransfer;
   try {
-    dataTransfer = new global.DataTransfer();
+    dataTransfer = new globalThis.DataTransfer();
   } catch (error) {
     try {
-      dataTransfer = new global.ClipboardEvent('').clipboardData;
+      dataTransfer = new globalThis.ClipboardEvent('').clipboardData;
     } catch (error2) { /* empty */ }
   }
   return dataTransfer && dataTransfer.items && dataTransfer.files ? dataTransfer : null;
@@ -181,7 +181,7 @@ var cloneBuffer = function (value, map, $type) {
 };
 
 var cloneView = function (value, type, offset, length, map) {
-  var C = global[type];
+  var C = globalThis[type];
   // in some old engines like Safari 9, typeof C is 'object'
   // on Uint8ClampedArray or some other constructors
   if (!isObject(C)) throwUnpolyfillable(type);
@@ -336,7 +336,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMPoint':
         case 'DOMPointReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromPoint
               ? C.fromPoint(value)
@@ -346,7 +346,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMRect':
         case 'DOMRectReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromRect
               ? C.fromRect(value)
@@ -356,7 +356,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMMatrix':
         case 'DOMMatrixReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromMatrix
               ? C.fromMatrix(value)
@@ -462,7 +462,7 @@ var tryToTransfer = function (rawTransfer, map) {
       transferred = nativeStructuredClone(value, { transfer: [value] });
     } else switch (type) {
       case 'ImageBitmap':
-        C = global.OffscreenCanvas;
+        C = globalThis.OffscreenCanvas;
         if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
         try {
           canvas = new C(value.width, value.height);

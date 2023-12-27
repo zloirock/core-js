@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var DOMIterables = require('../internals/dom-iterables');
 var DOMTokenListPrototype = require('../internals/dom-token-list-prototype');
@@ -34,7 +34,7 @@ var handlePrototype = function (CollectionPrototype, collectionName) {
 };
 
 Object.keys(DOMIterables).forEach(function (collectionName) {
-  handlePrototype(global[collectionName] && global[collectionName].prototype, collectionName);
+  handlePrototype(globalThis[collectionName] && globalThis[collectionName].prototype, collectionName);
 });
 
 handlePrototype(DOMTokenListPrototype, 'DOMTokenList');

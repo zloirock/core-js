@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
@@ -43,7 +43,7 @@ if (INCORRECT_TYPED_ARRAY_PROTOTYPE) {
 }
 
 Object.keys(TypedArrayConstructors).forEach(function (name) {
-  var Constructor = global[name];
+  var Constructor = globalThis[name];
   if (Constructor) {
     var Prototype = Constructor.prototype;
     if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {

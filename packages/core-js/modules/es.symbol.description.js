@@ -2,7 +2,7 @@
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
@@ -10,7 +10,7 @@ var toString = require('../internals/to-string');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
-var NativeSymbol = global.Symbol;
+var NativeSymbol = globalThis.Symbol;
 var SymbolPrototype = NativeSymbol && NativeSymbol.prototype;
 
 if (isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
