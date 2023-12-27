@@ -1,5 +1,4 @@
 'use strict';
-var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
@@ -11,14 +10,14 @@ var IE_OR_EDGE = require('../internals/environment-is-ie-or-edge');
 var V8 = require('../internals/environment-v8-version');
 var WEBKIT = require('../internals/environment-webkit-version');
 
-var Uint16Array = globalThis.Uint16Array;
-var nativeSort = Uint16Array && uncurryThis(Uint16Array.prototype.sort);
+var $Uint16Array = Uint16Array;
+var nativeSort = uncurryThis($Uint16Array.prototype.sort);
 
 // WebKit
 var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !(fails(function () {
-  nativeSort(new Uint16Array(2), null);
+  nativeSort(new $Uint16Array(2), null);
 }) && fails(function () {
-  nativeSort(new Uint16Array(2), {});
+  nativeSort(new $Uint16Array(2), {});
 }));
 
 var STABLE_SORT = !!nativeSort && !fails(function () {
@@ -28,7 +27,7 @@ var STABLE_SORT = !!nativeSort && !fails(function () {
   if (IE_OR_EDGE) return true;
   if (WEBKIT) return WEBKIT < 602;
 
-  var array = new Uint16Array(516);
+  var array = new $Uint16Array(516);
   var expected = Array(516);
   var index, mod;
 
