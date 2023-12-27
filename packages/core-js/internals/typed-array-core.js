@@ -3,7 +3,7 @@ var global = require('../internals/global');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
-var setPrototypeOf = require('../internals/object-set-prototype-of');
+var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var InternalStateModule = require('../internals/internal-state');
 var TypedArrayConstructors = require('../internals/typed-array-constructors');
 
