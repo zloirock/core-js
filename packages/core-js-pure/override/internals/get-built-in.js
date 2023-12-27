@@ -1,6 +1,6 @@
 'use strict';
-var path = require('../internals/path');
 var globalThis = require('../internals/global-this');
+var path = require('../internals/path');
 var isCallable = require('../internals/is-callable');
 
 var aFunction = function (argument) {
