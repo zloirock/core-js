@@ -3,7 +3,7 @@ var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
+var Int8ArrayPrototype = Int8Array.prototype;
 var arrayToString = [].toString;
 var join = uncurryThis([].join);
 
