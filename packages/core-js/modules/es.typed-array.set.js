@@ -9,8 +9,7 @@ var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
 var $Int8Array = Int8Array;
-var Int8ArrayPrototype = $Int8Array.prototype;
-var $set = Int8ArrayPrototype.set;
+var $set = $Int8Array.prototype.set;
 
 var WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS = !fails(function () {
   var array = new Uint8ClampedArray(2);
