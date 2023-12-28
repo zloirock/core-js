@@ -1,10 +1,9 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 var toObject = require('../internals/to-object');
-var $propertyIsEnumerable = require('../internals/object-property-is-enumerable').f;
 
 var objectKeys = Object.keys;
-var propertyIsEnumerable = uncurryThis($propertyIsEnumerable);
+var propertyIsEnumerable = uncurryThis({}.propertyIsEnumerable);
 var push = uncurryThis([].push);
 
 // `Object.{ entries, values }` methods implementation
