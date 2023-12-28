@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.35.0 - 2023.12.29](https://github.com/zloirock/core-js/releases/tag/v3.35.0)
 - [`{ Map, Set, WeakMap, WeakSet }.{ from, of }`](https://github.com/tc39/proposal-setmap-offrom) became non-generic, following [this](https://github.com/tc39/proposal-setmap-offrom/issues/16#issuecomment-1843346541) and some other notes. Now they can be invoked without `this`, but no longer return subclass instances
 - Fixed handling some cases of non-enumerable symbol keys from `Symbol` polyfill
 - Removed unneeded NodeJS domains-related logic from `queueMicrotask` polyfill
