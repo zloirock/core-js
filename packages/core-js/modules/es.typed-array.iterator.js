@@ -15,16 +15,16 @@ var ITERATOR = wellKnownSymbol('iterator');
 var arrayValues = getArrayIteratorMethod('values');
 var arrayKeys = getArrayIteratorMethod('keys');
 var arrayEntries = getArrayIteratorMethod('entries');
-var TypedArrayPrototype = Int8Array.prototype;
+var Int8ArrayPrototype = Int8Array.prototype;
 
 var GENERIC = !fails(function () {
-  TypedArrayPrototype[ITERATOR].call([1]);
+  Int8ArrayPrototype[ITERATOR].call([1]);
 });
 
-var ITERATOR_IS_VALUES = !!TypedArrayPrototype
-  && TypedArrayPrototype.values
-  && TypedArrayPrototype[ITERATOR] === TypedArrayPrototype.values
-  && TypedArrayPrototype.values.name === 'values';
+var ITERATOR_IS_VALUES = !!Int8ArrayPrototype
+  && Int8ArrayPrototype.values
+  && Int8ArrayPrototype[ITERATOR] === Int8ArrayPrototype.values
+  && Int8ArrayPrototype.values.name === 'values';
 
 var typedArrayValues = function values() {
   return arrayValues(aTypedArray(this));
