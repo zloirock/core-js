@@ -11,7 +11,7 @@ var V8 = require('../internals/engine-v8-version');
 var WEBKIT = require('../internals/engine-webkit-version');
 
 var $Uint16Array = Uint16Array;
-var nativeSort = $Uint16Array && uncurryThis($Uint16Array.prototype.sort);
+var nativeSort = uncurryThis($Uint16Array.prototype.sort);
 
 // WebKit
 var ACCEPT_INCORRECT_ARGUMENTS = !!nativeSort && !(fails(function () {
