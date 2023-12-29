@@ -22,7 +22,7 @@ const browsers = [
   'PhantomJS',
 ];
 
-if (process.env.CI_SERVER) {
+if (process.env.CI) {
   browsers.push('IE_NFM');
 }
 
