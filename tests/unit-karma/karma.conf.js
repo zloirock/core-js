@@ -7,6 +7,17 @@ Object.assign(process.env, {
   WEBKIT_BIN: webkit.executablePath(),
 });
 
+const browsers = [
+  'ChromiumHeadless',
+  'FirefoxHeadless',
+  'WebKitHeadless',
+  'PhantomJS',
+];
+
+if (process.platform === 'win32') {
+  browsers.push('IE');
+}
+
 module.exports = config => config.set({
   plugins: [
     'karma-*',
@@ -15,12 +26,8 @@ module.exports = config => config.set({
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
   frameworks: ['qunit'],
   basePath: '.',
-  browsers: [
-    'ChromiumHeadless',
-    'FirefoxHeadless',
-    'WebKitHeadless',
-    'PhantomJS',
-  ],
+  browsers,
+  browserNoActivityTimeout: 60e3,
   logLevel: config.LOG_ERROR,
   singleRun: true,
 });

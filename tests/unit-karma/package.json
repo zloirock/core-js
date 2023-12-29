@@ -6,6 +6,7 @@
     "@playwright/browser-firefox": "^1.40.1",
     "@playwright/browser-webkit": "^1.40.1",
     "karma": "^6.4.2",
+    "karma-ie-launcher": "^1.0.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.1.2",
     "phantomjs-prebuilt": "~2.1.16",
