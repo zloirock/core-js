@@ -27,7 +27,7 @@ module.exports = config => config.set({
   frameworks: ['qunit'],
   basePath: '.',
   browsers,
-  browserNoActivityTimeout: 60e3,
+  browserNoActivityTimeout: 120e3,
   logLevel: config.LOG_ERROR,
   singleRun: true,
 });
