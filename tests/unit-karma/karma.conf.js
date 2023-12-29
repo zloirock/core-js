@@ -7,6 +7,14 @@ Object.assign(process.env, {
   WEBKIT_BIN: webkit.executablePath(),
 });
 
+const customLaunchers = {
+  IE_NFM: {
+    base: 'IE',
+    // prevents crash on launch of multiple IE11 instances
+    flags: ['-noframemerging'],
+  },
+};
+
 const browsers = [
   'ChromiumHeadless',
   'FirefoxHeadless',
@@ -14,8 +22,8 @@ const browsers = [
   'PhantomJS',
 ];
 
-if (process.platform === 'win32') {
-  browsers.push('IE');
+if (process.env.CI_SERVER) {
+  browsers.push('IE_NFM');
 }
 
 module.exports = config => config.set({
@@ -26,8 +34,8 @@ module.exports = config => config.set({
   files: process.argv.find(it => it.startsWith('-f=')).slice(3).split(','),
   frameworks: ['qunit'],
   basePath: '.',
+  customLaunchers,
   browsers,
-  browserNoActivityTimeout: 120e3,
   logLevel: config.LOG_ERROR,
   singleRun: true,
 });
