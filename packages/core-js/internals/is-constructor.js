@@ -7,7 +7,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var inspectSource = require('../internals/inspect-source');
 
 var noop = function () { /* empty */ };
-var empty = [];
 var construct = getBuiltIn('Reflect', 'construct');
 var constructorRegExp = /^\s*(?:class|function)\b/;
 var exec = uncurryThis(constructorRegExp.exec);
@@ -16,7 +15,7 @@ var INCORRECT_TO_STRING = !constructorRegExp.test(noop);
 var isConstructorModern = function isConstructor(argument) {
   if (!isCallable(argument)) return false;
   try {
-    construct(noop, empty, argument);
+    construct(noop, [], argument);
     return true;
   } catch (error) {
     return false;
