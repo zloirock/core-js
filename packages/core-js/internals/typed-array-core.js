@@ -12,7 +12,6 @@ var getInternalState = InternalStateModule.get;
 var getPrototypeOf = Object.getPrototypeOf;
 var TypedArray = getPrototypeOf(Int8Array);
 var TypedArrayPrototype = getPrototypeOf(Int8Array.prototype);
-var Uint8ClampedArrayPrototype = Uint8ClampedArray.prototype;
 var $TypeError = TypeError;
 
 // WebKit bug - typed arrays constructors prototype is Object.prototype
@@ -49,7 +48,9 @@ Object.keys(TypedArrayConstructors).forEach(function (name) {
     if (INCORRECT_TYPED_ARRAY_CONSTRUCTOR) {
       setPrototypeOf(Constructor, TypedArray);
     }
-    if (INCORRECT_TYPED_ARRAY_PROTOTYPE) {
+    // WebKit bug - extra object in Uint8ClampedArray prototype chain
+    // so use one more check instead of INCORRECT_TYPED_ARRAY_PROTOTYPE
+    if (getPrototypeOf(Prototype) !== TypedArrayPrototype) {
       setPrototypeOf(Prototype, TypedArrayPrototype);
     }
     var state = enforceInternalState(Prototype);
@@ -57,11 +58,6 @@ Object.keys(TypedArrayConstructors).forEach(function (name) {
     state.TypedArrayName = name;
   }
 });
-
-// WebKit bug - one more object in Uint8ClampedArray prototype chain
-if (getPrototypeOf(Uint8ClampedArrayPrototype) !== TypedArrayPrototype) {
-  setPrototypeOf(Uint8ClampedArrayPrototype, TypedArrayPrototype);
-}
 
 module.exports = {
   TypedArray: TypedArray,
