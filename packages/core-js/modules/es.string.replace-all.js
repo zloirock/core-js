@@ -22,7 +22,7 @@ var max = Math.max;
 
 // `String.prototype.replaceAll` method
 // https://tc39.es/ecma262/#sec-string.prototype.replaceall
-$({ target: 'String', proto: true, forced: true }, {
+$({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
     var IS_REG_EXP, flags, replacer, string, searchString, functionalReplace, searchLength, advanceBy, replacement;
