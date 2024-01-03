@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var makeBuiltIn = require('../internals/make-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var apply = require('../internals/function-apply');
 var anObject = require('../internals/an-object');
@@ -130,11 +129,11 @@ var cookStrings = function (raw) {
 };
 
 var makeDedentTag = function (tag) {
-  return makeBuiltIn(function (template /* , ...substitutions */) {
+  return function (template /* , ...substitutions */) {
     var args = createArrayFromList(arguments);
     args[0] = dedentTemplateStringsArray(anObject(template));
     return apply(tag, this, args);
-  }, '');
+  };
 };
 
 var cookedDedentTag = makeDedentTag(cooked);
