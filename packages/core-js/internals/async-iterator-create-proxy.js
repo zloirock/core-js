@@ -19,7 +19,6 @@ var iteratorClose = require('../internals/iterator-close');
 // dependency: es.promise.reject
 // dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
-var create = Object.create;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
