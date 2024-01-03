@@ -45,7 +45,6 @@ var $Symbol = globalThis.Symbol;
 var SymbolPrototype = $Symbol && $Symbol[PROTOTYPE];
 var $RangeError = RangeError;
 var $TypeError = TypeError;
-var QObject = globalThis.QObject;
 var nativeObjectCreate = Object.create;
 var nativeObjectKeys = Object.keys;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
@@ -58,9 +57,6 @@ var push = uncurryThis([].push);
 var AllSymbols = NATIVE_SYMBOL || shared('symbols');
 var ObjectPrototypeSymbols = NATIVE_SYMBOL || shared('op-symbols');
 var WellKnownSymbolsStore = shared('wks');
-
-// Don't use setters in Qt Script, https://github.com/zloirock/core-js/issues/173
-var USE_SETTER = !QObject || !QObject[PROTOTYPE] || !QObject[PROTOTYPE].findChild;
 
 // fallback for old Android, https://code.google.com/p/v8/issues/detail?id=687
 var fallbackDefineProperty = function (O, P, Attributes) {
@@ -179,7 +175,7 @@ if (!NATIVE_SYMBOL) {
         fallbackDefineProperty($this, tag, descriptor);
       }
     };
-    if (USE_SETTER) setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
+    setSymbolDescriptor(ObjectPrototype, tag, { configurable: true, set: setter });
     return wrap(tag, description);
   };
 
