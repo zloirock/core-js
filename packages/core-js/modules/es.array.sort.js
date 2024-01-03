@@ -14,17 +14,16 @@ var IE_OR_EDGE = require('../internals/environment-is-ie-or-edge');
 var V8 = require('../internals/environment-v8-version');
 var WEBKIT = require('../internals/environment-webkit-version');
 
-var test = [];
-var nativeSort = uncurryThis(test.sort);
-var push = uncurryThis(test.push);
+var nativeSort = uncurryThis([].sort);
+var push = uncurryThis([].push);
 
 // IE8-
 var FAILS_ON_UNDEFINED = fails(function () {
-  test.sort(undefined);
+  [].sort(undefined);
 });
 // V8 bug
 var FAILS_ON_NULL = fails(function () {
-  test.sort(null);
+  [].sort(null);
 });
 // Old WebKit
 var STRICT_METHOD = arrayMethodIsStrict('sort');
@@ -36,6 +35,7 @@ var STABLE_SORT = !fails(function () {
   if (IE_OR_EDGE) return true;
   if (WEBKIT) return WEBKIT < 603;
 
+  var test = [];
   var result = '';
   var code, char, value, index;
 
