@@ -7,10 +7,9 @@ var enforceInternalState = require('../internals/internal-state').enforce;
 var postMessage = require('../internals/message-channel-post');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var $ArrayBuffer = ArrayBuffer;
 var structuredClone = globalThis.structuredClone;
 // captured before the transfer polyfill of this copy can replace it
-var arrayBufferTransfer = $ArrayBuffer && uncurryThis($ArrayBuffer.prototype.transfer);
+var arrayBufferTransfer = uncurryThis(ArrayBuffer.prototype.transfer);
 var detach = false;
 var buffer, $detach;
 
@@ -27,7 +26,7 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
   };
 } else try {
   if (postMessage) {
-    buffer = new $ArrayBuffer(2);
+    buffer = new ArrayBuffer(2);
 
     $detach = function (transferable) {
       postMessage(null, [transferable]);
