@@ -10,7 +10,6 @@ var iterate = require('../internals/iterate');
 var normalizeStringArgument = require('../internals/normalize-string-argument');
 
 var $Error = Error;
-var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
 var push = [].push;
 
@@ -29,7 +28,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
 
 setPrototypeOf($AggregateError, $Error);
 
-var AggregateErrorPrototype = $AggregateError.prototype = create($Error.prototype, {
+var AggregateErrorPrototype = $AggregateError.prototype = Object.create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $AggregateError),
   message: createPropertyDescriptor(1, ''),
   name: createPropertyDescriptor(1, 'AggregateError'),
