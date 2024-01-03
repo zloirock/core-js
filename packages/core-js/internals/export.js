@@ -6,8 +6,6 @@ var defineGlobalProperty = require('../internals/define-global-property');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 var isObject = require('../internals/is-object');
 
-var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-
 /*
   options.target          - name of the target object
   options.global          - target is the global object
@@ -42,7 +40,7 @@ module.exports = function (options, source) {
   if (target) Object.keys(source).forEach(function (key) {
     sourceProperty = source[key];
     if (options.dontCallGetSet) {
-      descriptor = getOwnPropertyDescriptor(target, key);
+      descriptor = Object.getOwnPropertyDescriptor(target, key);
       targetProperty = descriptor && descriptor.value;
     } else targetProperty = target[key];
     FORCED = options.forced;

@@ -12,7 +12,6 @@ var IS_PURE = require('../internals/is-pure');
 
 var NativeSuppressedError = globalThis.SuppressedError;
 var $Error = Error;
-var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
 
 // https://github.com/oven-sh/bun/issues/9282
@@ -39,7 +38,7 @@ var $SuppressedError = function SuppressedError(error, suppressed, message) {
 
 setPrototypeOf($SuppressedError, $Error);
 
-var SuppressedErrorPrototype = $SuppressedError.prototype = PATCH ? NativeSuppressedError.prototype : create($Error.prototype, {
+var SuppressedErrorPrototype = $SuppressedError.prototype = PATCH ? NativeSuppressedError.prototype : Object.create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $SuppressedError),
   message: createPropertyDescriptor(1, ''),
   name: createPropertyDescriptor(1, 'SuppressedError'),

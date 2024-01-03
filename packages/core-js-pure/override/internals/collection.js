@@ -13,8 +13,6 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
-var defineProperty = Object.defineProperty;
-
 module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
@@ -57,7 +55,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
       }
     });
 
-    IS_WEAK || defineProperty(Prototype, 'size', {
+    IS_WEAK || Object.defineProperty(Prototype, 'size', {
       configurable: true,
       get: function () {
         return getInternalState(this).collection.size;
