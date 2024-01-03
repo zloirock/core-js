@@ -5,14 +5,13 @@ var hasOwn = require('../internals/has-own-property');
 var toString = require('../internals/object-to-string');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
-var defineProperty = Object.defineProperty;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 
 module.exports = function (it, TAG, STATIC, SET_METHOD) {
   var target = STATIC ? it : it && it.prototype;
   if (target) {
     if (!hasOwn(target, TO_STRING_TAG)) {
-      defineProperty(target, TO_STRING_TAG, { configurable: true, value: TAG });
+      Object.defineProperty(target, TO_STRING_TAG, { configurable: true, value: TAG });
     }
     if (SET_METHOD && !TO_STRING_TAG_SUPPORT) {
       createNonEnumerableProperty(target, 'toString', toString);
