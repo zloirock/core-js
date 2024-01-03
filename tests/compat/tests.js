@@ -2043,6 +2043,20 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'esnext.weak-set.of': function () {
     return WeakSet.of;
   },
+  'web.dom-exception.constructor': function () {
+    return new DOMException() instanceof Error
+      && new DOMException(1, 'DataCloneError').code === 25
+      && String(new DOMException(1, 2)) === '2: 1'
+      && DOMException.DATA_CLONE_ERR === 25
+      && DOMException.prototype.DATA_CLONE_ERR === 25;
+  },
+  'web.dom-exception.stack': function () {
+    return !('stack' in new Error('1')) || 'stack' in new DOMException();
+  },
+  'web.dom-exception.to-string-tag': function () {
+    return typeof DOMException == 'function'
+      && DOMException.prototype[Symbol.toStringTag] === 'DOMException';
+  },
   'web.atob': function () {
     try {
       atob();
@@ -2116,20 +2130,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       }
     }
     return true;
-  },
-  'web.dom-exception.constructor': function () {
-    return new DOMException() instanceof Error
-      && new DOMException(1, 'DataCloneError').code === 25
-      && String(new DOMException(1, 2)) === '2: 1'
-      && DOMException.DATA_CLONE_ERR === 25
-      && DOMException.prototype.DATA_CLONE_ERR === 25;
-  },
-  'web.dom-exception.stack': function () {
-    return !('stack' in new Error('1')) || 'stack' in new DOMException();
-  },
-  'web.dom-exception.to-string-tag': function () {
-    return typeof DOMException == 'function'
-      && DOMException.prototype[Symbol.toStringTag] === 'DOMException';
   },
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value.length === 1;
