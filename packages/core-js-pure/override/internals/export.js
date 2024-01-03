@@ -10,8 +10,6 @@ var hasOwn = require('../internals/has-own-property');
 // add debugging info
 require('../internals/shared-store');
 
-var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
     if (this instanceof Wrapper) {
@@ -63,7 +61,7 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.dontCallGetSet) {
-      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 
