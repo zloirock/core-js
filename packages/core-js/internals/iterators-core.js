@@ -6,7 +6,6 @@ var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
 
-var create = Object.create;
 var getPrototypeOf = Object.getPrototypeOf;
 var ITERATOR = wellKnownSymbol('iterator');
 var BUGGY_SAFARI_ITERATORS = false;
@@ -33,7 +32,7 @@ var NEW_ITERATOR_PROTOTYPE = !isObject(IteratorPrototype) || fails(function () {
 });
 
 if (NEW_ITERATOR_PROTOTYPE) IteratorPrototype = {};
-else if (IS_PURE) IteratorPrototype = create(IteratorPrototype);
+else if (IS_PURE) IteratorPrototype = Object.create(IteratorPrototype);
 
 // `%IteratorPrototype%[@@iterator]()` method
 // https://tc39.es/ecma262/#sec-%iteratorprototype%-@@iterator

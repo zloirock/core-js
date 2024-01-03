@@ -14,7 +14,7 @@ var CONFIGURABLE_FUNCTION_NAME = FunctionName.CONFIGURABLE;
 var ARRAY_BUFFER = 'ArrayBuffer';
 var NativeArrayBuffer = globalThis[ARRAY_BUFFER];
 var $ArrayBuffer = NativeArrayBuffer;
-var ArrayBufferPrototype = $ArrayBuffer && $ArrayBuffer.prototype;
+var ArrayBufferPrototype = $ArrayBuffer.prototype;
 
 var INCORRECT_ARRAY_BUFFER_NAME = PROPER_FUNCTION_NAME && NativeArrayBuffer.name !== ARRAY_BUFFER;
 /* eslint-disable no-new, sonarjs/inconsistent-function-call -- required for testing */

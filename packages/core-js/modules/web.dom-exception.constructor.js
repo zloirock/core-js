@@ -19,7 +19,6 @@ var IS_PURE = require('../internals/is-pure');
 var DOM_EXCEPTION = 'DOMException';
 var DATA_CLONE_ERR = 'DATA_CLONE_ERR';
 var Error = getBuiltIn('Error');
-var create = Object.create;
 var defineProperty = Object.defineProperty;
 // NodeJS < 17.0 does not expose `DOMException` to global
 var NativeDOMException = getBuiltIn(DOM_EXCEPTION) || (function () {
@@ -61,7 +60,7 @@ var $DOMException = function DOMException() {
   }
 };
 
-var DOMExceptionPrototype = $DOMException.prototype = create(ErrorPrototype);
+var DOMExceptionPrototype = $DOMException.prototype = Object.create(ErrorPrototype);
 
 var createGetterDescriptor = function (get) {
   return { enumerable: true, configurable: true, get: get };
