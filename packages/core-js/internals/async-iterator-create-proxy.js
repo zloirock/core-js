@@ -19,7 +19,6 @@ var iteratorClose = require('../internals/iterator-close');
 // dependency: es.promise.reject
 // dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
-var create = Object.create;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
@@ -42,7 +41,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     } return { exit: false, value: state };
   };
 
-  return defineBuiltIns(create(AsyncIteratorPrototype), {
+  return defineBuiltIns(Object.create(AsyncIteratorPrototype), {
     next: function next() {
       var stateCompletion = getStateOrEarlyExit(this);
       var state = stateCompletion.value;
