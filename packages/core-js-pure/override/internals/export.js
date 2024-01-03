@@ -8,8 +8,6 @@ var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var hasOwn = require('../internals/has-own-property');
 
-var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
     if (this instanceof Wrapper) {
@@ -61,7 +59,7 @@ module.exports = function (options, source) {
     targetProperty = target[key];
 
     if (USE_NATIVE) if (options.dontCallGetSet) {
-      descriptor = getOwnPropertyDescriptor(nativeSource, key);
+      descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
       nativeProperty = descriptor && descriptor.value;
     } else nativeProperty = nativeSource[key];
 

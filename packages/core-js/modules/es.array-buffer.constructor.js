@@ -15,7 +15,7 @@ var ARRAY_BUFFER = 'ArrayBuffer';
 var PROTOTYPE = 'prototype';
 var NativeArrayBuffer = globalThis.ArrayBuffer;
 var $ArrayBuffer = NativeArrayBuffer;
-var ArrayBufferPrototype = $ArrayBuffer && $ArrayBuffer[PROTOTYPE];
+var ArrayBufferPrototype = $ArrayBuffer[PROTOTYPE];
 
 var INCORRECT_ARRAY_BUFFER_NAME = PROPER_FUNCTION_NAME && NativeArrayBuffer.name !== ARRAY_BUFFER;
 /* eslint-disable no-new -- required for testing */
