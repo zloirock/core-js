@@ -2582,6 +2582,27 @@ export const data = {
   },
   'esnext.weak-set.of': {
   },
+  'web.dom-exception.constructor': {
+    bun: '0.1.1',
+    chrome: '46',
+    deno: '1.7',
+    firefox: '37',
+    node: '17.0',
+    safari: '11.1',
+  },
+  'web.dom-exception.stack': {
+    deno: '1.15',
+    firefox: '37',
+    node: '17.0',
+  },
+  'web.dom-exception.to-string-tag': {
+    bun: '0.1.1',
+    chrome: '49',
+    deno: '1.7',
+    firefox: '51',
+    node: '17.0',
+    safari: '11.1',
+  },
   'web.atob': {
     bun: '0.1.1',
     chrome: '34',
@@ -2637,27 +2658,6 @@ export const data = {
     node: '0.0.1',
     rhino: '1.7.13',
     safari: '13.1',
-  },
-  'web.dom-exception.constructor': {
-    bun: '0.1.1',
-    chrome: '46',
-    deno: '1.7',
-    firefox: '37',
-    node: '17.0',
-    safari: '11.1',
-  },
-  'web.dom-exception.stack': {
-    deno: '1.15',
-    firefox: '37',
-    node: '17.0',
-  },
-  'web.dom-exception.to-string-tag': {
-    bun: '0.1.1',
-    chrome: '49',
-    deno: '1.7',
-    firefox: '51',
-    node: '17.0',
-    safari: '11.1',
   },
   'web.queue-microtask': {
     // wrong arity in Bun ~ 1.0.30, https://github.com/oven-sh/bun/issues/9249
