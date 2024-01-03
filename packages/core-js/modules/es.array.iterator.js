@@ -1,7 +1,7 @@
 'use strict';
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var toObject = require('../internals/to-object');
 var addToUnscopables = require('../internals/add-to-unscopables');
-var Iterators = require('../internals/iterators');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var defineIterator = require('../internals/iterator-define');
@@ -44,15 +44,12 @@ defineIterator(Array, 'Array', function (iterated, kind) {
   } return createIterResultObject([index, target[index]], false);
 }, 'values');
 
-// argumentsList[@@iterator] is %ArrayProto_values%
-// https://tc39.es/ecma262/#sec-createunmappedargumentsobject
-// https://tc39.es/ecma262/#sec-createmappedargumentsobject
-var values = Iterators.Arguments = Iterators.Array;
-
 // https://tc39.es/ecma262/#sec-array.prototype-@@unscopables
 addToUnscopables('keys');
 addToUnscopables('values');
 addToUnscopables('entries');
+
+var values = getBuiltInPrototypeMethod('Array', 'values');
 
 // V8 ~ Chrome 45- bug
 if (!IS_PURE && values.name !== 'values') try {
