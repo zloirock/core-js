@@ -1,5 +1,4 @@
 'use strict';
-var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
@@ -11,19 +10,16 @@ var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
 var $String = String;
 var defineProperty = Object.defineProperty;
-var stringSlice = uncurryThis(''.slice);
-var replace = uncurryThis(''.replace);
-var join = uncurryThis([].join);
 
 var CONFIGURABLE_LENGTH = !fails(function () {
   return defineProperty(function () { /* empty */ }, 'length', { value: 8 }).length !== 8;
 });
 
-var TEMPLATE = String(String).split('String');
+var TEMPLATE = $String($String).split('String');
 
 var makeBuiltIn = module.exports = function (value, name, options) {
-  if (stringSlice($String(name), 0, 7) === 'Symbol(') {
-    name = '[' + replace($String(name), /^Symbol\(([^)]*)\).*$/, '$1') + ']';
+  if ($String(name).slice(0, 7) === 'Symbol(') {
+    name = '[' + $String(name).replace(/^Symbol\(([^)]*)\).*$/, '$1') + ']';
   }
   if (options && options.getter) name = 'get ' + name;
   if (options && options.setter) name = 'set ' + name;
@@ -41,7 +37,7 @@ var makeBuiltIn = module.exports = function (value, name, options) {
   } catch (error) { /* empty */ }
   var state = enforceInternalState(value);
   if (!hasOwn(state, 'source')) {
-    state.source = join(TEMPLATE, typeof name == 'string' ? name : '');
+    state.source = TEMPLATE.join(typeof name == 'string' ? name : '');
   } return value;
 };
 
