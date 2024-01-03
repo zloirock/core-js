@@ -1,6 +1,8 @@
 'use strict';
+var wellKnownSymbol = require('../../../internals/well-known-symbol');
 require('../../../modules/es.object.to-string');
 require('../../../modules/es.string.iterator');
-var Iterators = require('../../../internals/iterators');
 
-module.exports = Iterators.String;
+var ITERATOR = wellKnownSymbol('iterator');
+
+module.exports = String.prototype[ITERATOR];
