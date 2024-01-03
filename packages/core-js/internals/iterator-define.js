@@ -9,7 +9,6 @@ var setToStringTag = require('../internals/set-to-string-tag');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var Iterators = require('../internals/iterators');
 var IteratorsCore = require('../internals/iterators-core');
 
 var PROPER_FUNCTION_NAME = FunctionName.PROPER;
@@ -22,8 +21,6 @@ var VALUES = 'values';
 var ENTRIES = 'entries';
 
 var getPrototypeOf = Object.getPrototypeOf;
-
-var returnThis = function () { return this; };
 
 module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, IS_SET, FORCED) {
   createIteratorConstructor(IteratorConstructor, NAME, next);
@@ -58,7 +55,6 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
       }
       // Set @@toStringTag to native iterators
       setToStringTag(CurrentIteratorPrototype, TO_STRING_TAG, true, true);
-      if (IS_PURE) Iterators[TO_STRING_TAG] = returnThis;
     }
   }
 
@@ -90,9 +86,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
   }
 
   // define iterator
-  if ((!IS_PURE || FORCED) && IterablePrototype[ITERATOR] !== defaultIterator) {
+  if (IterablePrototype[ITERATOR] !== defaultIterator) {
     defineBuiltIn(IterablePrototype, ITERATOR, defaultIterator, { name: DEFAULT });
   }
-
-  Iterators[NAME] = defaultIterator;
 };
