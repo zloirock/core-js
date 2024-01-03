@@ -3,7 +3,6 @@ var globalThis = require('../internals/global-this');
 var getBuiltInNodeModule = require('../internals/get-built-in-node-module');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var $ArrayBuffer = ArrayBuffer;
 var structuredClone = globalThis.structuredClone;
 var $MessageChannel = globalThis.MessageChannel;
 var detach = false;
