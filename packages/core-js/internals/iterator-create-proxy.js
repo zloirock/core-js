@@ -11,7 +11,6 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 
-var create = Object.create;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
@@ -21,7 +20,7 @@ var THROW = 'throw';
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
   var getInternalState = internalStateGetterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
 
-  return defineBuiltIns(create(IteratorPrototype), {
+  return defineBuiltIns(Object.create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
       // for simplification:
