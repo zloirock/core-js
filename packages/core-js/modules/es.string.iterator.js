@@ -1,5 +1,5 @@
 'use strict';
-var defineIterator = require('../internals/iterator-set');
+var defineIterator = require('../internals/iterator-define');
 var charAt = require('../internals/string-multibyte').charAt;
 var toString = require('../internals/to-string');
 var setInternalState = require('../internals/internal-state').set;
