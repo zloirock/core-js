@@ -7,7 +7,9 @@ var aTypedArray = require('../internals/a-typed-array');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var getArrayIteratorMethod = function (METHOD_NAME) {
-  // dependency: es.array.iterator
+  // dependency: es.array.entries
+  // dependency: es.array.keys
+  // dependency: es.array.values
   return uncurryThis(getBuiltInPrototypeMethod('Array', METHOD_NAME));
 };
 
