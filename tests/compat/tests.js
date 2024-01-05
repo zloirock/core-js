@@ -684,6 +684,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.async-iterator.async-dispose': function () {
     return AsyncIterator.prototype[Symbol.asyncDispose];
   },
+  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
+    return [][Symbol.iterator] === [].values
+      && [][Symbol.iterator].name === 'values'
+      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && [].keys().next()
+      && [][Symbol.unscopables].keys
+      && [][Symbol.unscopables].values
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.at': function () {
     return [].at;
   },
@@ -703,6 +712,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array.copy-within': function () {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
+  'es.array.entries': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].entries();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.fill': function () {
     try {
       Array.prototype.fill.call(Object.defineProperty({ length: 1 }, 0, { writable: false }));
@@ -750,15 +766,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return 1 / [1].indexOf(1, -0) > 0;
     }
   },
-  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
-      && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
-  }],
   'es.array.join': function () {
     try {
       if (!Object.prototype.propertyIsEnumerable.call(Object('z'), 0)) return false;
@@ -771,6 +778,13 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     } catch (error) { /* empty */ }
     return true;
   },
+  'es.array.keys': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].keys();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].keys;
+  }],
   'es.array.last-index-of': function () {
     try {
       [].lastIndexOf.call(null);
@@ -881,6 +895,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       return !touched && [].unshift.call({ length: 0x100000000 }) === 4294967296;
     }
   },
+  'es.array.values': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].values();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].values
+      && [].values.name === 'values'
+      && [][Symbol.iterator] === [].values;
+  }],
   'es.array.with': function () {
     // Incorrect exception thrown when index coercion fails in Firefox
     try {
