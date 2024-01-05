@@ -1,17 +1,18 @@
 'use strict';
+var defineIterator = require('../internals/iterator-set');
 var charAt = require('../internals/string-multibyte').charAt;
 var toString = require('../internals/to-string');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
-var defineIterator = require('../internals/iterator-define');
+var normalizeIteratorMethod = require('../internals/iterator-normalize-method');
+var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
-var STRING_ITERATOR = 'String Iterator';
+var STRING = 'String';
+var STRING_ITERATOR = STRING + ' Iterator';
 var getInternalState = internalStateGetterFor(STRING_ITERATOR);
 
-// `String.prototype[@@iterator]` method
-// https://tc39.es/ecma262/#sec-string.prototype-@@iterator
-defineIterator(String, 'String', function (iterated) {
+var $StringIterator = createIteratorConstructor(function StringIterator(iterated) {
   setInternalState(this, {
     type: STRING_ITERATOR,
     string: toString(iterated),
@@ -19,7 +20,7 @@ defineIterator(String, 'String', function (iterated) {
   });
 // `%StringIteratorPrototype%.next` method
 // https://tc39.es/ecma262/#sec-%stringiteratorprototype%.next
-}, function next() {
+}, STRING, function next() {
   var state = getInternalState(this);
   var string = state.string;
   var index = state.index;
@@ -28,4 +29,10 @@ defineIterator(String, 'String', function (iterated) {
   point = charAt(string, index);
   state.index += point.length;
   return createIterResultObject(point, false);
+});
+
+// `String.prototype[@@iterator]` method
+// https://tc39.es/ecma262/#sec-string.prototype-@@iterator
+defineIterator(STRING, normalizeIteratorMethod(String, STRING) || function () {
+  return new $StringIterator(this);
 });
