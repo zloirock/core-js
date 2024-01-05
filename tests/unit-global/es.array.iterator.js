@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants.js';
+import { GLOBAL, CONFIGURABLE_FUNCTION_NAME } from '../helpers/constants.js';
 
 const Symbol = GLOBAL.Symbol || {};
 
@@ -45,7 +45,7 @@ QUnit.test('Array#values', assert => {
   const { values } = Array.prototype;
   assert.isFunction(values);
   assert.arity(values, 0);
-  assert.name(values, 'values');
+  if (CONFIGURABLE_FUNCTION_NAME) assert.name(values, 'values');
   assert.false(Object.hasOwn(Array.prototype, 'name'), 'Array prototype has no own name');
   assert.looksNative(values);
   assert.nonEnumerable(Array.prototype, 'values');
@@ -123,7 +123,7 @@ QUnit.test('Array#entries', assert => {
 QUnit.test('Array#@@iterator', assert => {
   assert.isIterable(Array.prototype);
   assert.arity(Array.prototype[Symbol.iterator], 0);
-  assert.name(Array.prototype[Symbol.iterator], 'values');
+  if (CONFIGURABLE_FUNCTION_NAME) assert.name(Array.prototype[Symbol.iterator], 'values');
   assert.looksNative(Array.prototype[Symbol.iterator]);
   assert.nonEnumerable(Array.prototype, Symbol.iterator);
   assert.same(Array.prototype[Symbol.iterator], Array.prototype.values);
