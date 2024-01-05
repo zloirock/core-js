@@ -7,5 +7,5 @@ var ArrayIterator = require('../internals/array-iterator-constructor');
 // https://tc39.es/ecma262/#sec-array.prototype-@@iterator
 defineIterator('Array', normalizeIteratorMethod(Array, 'Array') || function values() {
   return new ArrayIterator(this, 'values');
-});
+}, { name: 'values' });
 
