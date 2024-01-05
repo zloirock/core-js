@@ -1,13 +1,12 @@
 'use strict';
 var IS_PURE = require('../internals/is-pure');
-var IteratorsCore = require('../internals/iterators-core');
+var IteratorPrototype = require('../internals/iterator-prototype');
 var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var setToStringTag = require('../internals/set-to-string-tag');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
 
-var IteratorPrototype = IteratorsCore.IteratorPrototype;
 var getPrototypeOf = Object.getPrototypeOf;
 
 module.exports = function (Iterable, ITERABLE_NAME, name) {
