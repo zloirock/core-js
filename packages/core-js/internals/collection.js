@@ -94,7 +94,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME);
 
-  if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
+  if (!IS_WEAK) common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };
