@@ -1473,6 +1473,28 @@ GLOBAL.tests = {
   'es.typed-array.uint32-array': [
     TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
   ],
+  'es.typed-array.from': [
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
+    function () {
+      return Int8Array.from;
+    },
+  ],
+  'es.typed-array.of': [
+    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
+    function () {
+      return Int8Array.of;
+    },
+  ],
+  'es.typed-array.iterator': function () {
+    try {
+      Int8Array.prototype[Symbol.iterator].call([1]);
+    } catch (error) {
+      return Int8Array.prototype[Symbol.iterator].name === 'values'
+        && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
+        && Int8Array.prototype.keys
+        && Int8Array.prototype.entries;
+    }
+  },
   'es.typed-array.at': function () {
     return Int8Array.prototype.at;
   },
@@ -1505,27 +1527,11 @@ GLOBAL.tests = {
   'es.typed-array.for-each': function () {
     return Int8Array.prototype.forEach;
   },
-  'es.typed-array.from': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
-    function () {
-      return Int8Array.from;
-    },
-  ],
   'es.typed-array.includes': function () {
     return Int8Array.prototype.includes;
   },
   'es.typed-array.index-of': function () {
     return Int8Array.prototype.indexOf;
-  },
-  'es.typed-array.iterator': function () {
-    try {
-      Int8Array.prototype[Symbol.iterator].call([1]);
-    } catch (error) {
-      return Int8Array.prototype[Symbol.iterator].name === 'values'
-        && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
-        && Int8Array.prototype.keys
-        && Int8Array.prototype.entries;
-    }
   },
   'es.typed-array.join': function () {
     return Int8Array.prototype.join;
@@ -1536,12 +1542,6 @@ GLOBAL.tests = {
   'es.typed-array.map': function () {
     return Int8Array.prototype.map;
   },
-  'es.typed-array.of': [
-    TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS,
-    function () {
-      return Int8Array.of;
-    },
-  ],
   'es.typed-array.reduce': function () {
     return Int8Array.prototype.reduce;
   },
