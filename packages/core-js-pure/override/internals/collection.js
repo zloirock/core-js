@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var fails = require('../internals/fails');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
@@ -21,9 +20,10 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var exported = {};
   var Constructor;
 
-  if (FORCED || !isCallable(NativeConstructor)
-    || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
-  ) {
+  var REPLACE = FORCED || !isCallable(NativeConstructor)
+    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP)));
+
+  if (REPLACE) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
   } else {
@@ -63,8 +63,6 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
 
   exported[CONSTRUCTOR_NAME] = Constructor;
   $({ global: true, forced: true }, exported);
-
-  if (!IS_WEAK) common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };
