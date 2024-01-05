@@ -9,7 +9,7 @@ var createProperty = require('../internals/create-property');
 var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var IteratorPrototype = require('../internals/iterator-prototype');
 var IS_PURE = require('../internals/is-pure');
 
 var CONSTRUCTOR = 'constructor';

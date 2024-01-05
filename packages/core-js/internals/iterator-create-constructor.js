@@ -1,5 +1,5 @@
 'use strict';
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var IteratorPrototype = require('../internals/iterator-prototype');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var makeBuiltIn = require('../internals/make-built-in');
 var setToStringTag = require('../internals/set-to-string-tag');
