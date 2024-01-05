@@ -1,9 +1,7 @@
 'use strict';
 var uncurryThis = require('../../internals/function-uncurry-this');
-var wellKnownSymbol = require('../../internals/well-known-symbol');
+var getIteratorMethod = require('../../internals/get-iterator-method');
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
 
-var ITERATOR = wellKnownSymbol('iterator');
-
-module.exports = uncurryThis(String.prototype[ITERATOR]);
+module.exports = uncurryThis(getIteratorMethod(''));
