@@ -2076,6 +2076,25 @@ export const data = {
     rhino: '1.7.15',
     safari: '15.4',
   },
+  'es.typed-array.from': {
+    chrome: '54',
+    edge: '15',
+    firefox: '55',
+    safari: '14.0',
+  },
+  'es.typed-array.of': {
+    chrome: '54',
+    edge: '15',
+    firefox: '55',
+    safari: '14.0',
+  },
+  'es.typed-array.iterator': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
+    safari: '10.0',
+  },
   'es.typed-array.copy-within': {
     chrome: '45',
     edge: '13',
@@ -2145,12 +2164,6 @@ export const data = {
     rhino: '1.9.0',
     safari: '10.0',
   },
-  'es.typed-array.from': {
-    chrome: '54',
-    edge: '15',
-    firefox: '55',
-    safari: '14.0',
-  },
   'es.typed-array.includes': {
     chrome: '49',
     edge: '14',
@@ -2165,13 +2178,6 @@ export const data = {
     firefox: '37',
     hermes: '0.1',
     rhino: '1.9.0',
-    safari: '10.0',
-  },
-  'es.typed-array.iterator': {
-    chrome: '51',
-    edge: '13',
-    firefox: '37',
-    hermes: '0.1',
     safari: '10.0',
   },
   'es.typed-array.join': {
@@ -2197,12 +2203,6 @@ export const data = {
     hermes: '0.1',
     rhino: '1.9.0',
     safari: '10.0',
-  },
-  'es.typed-array.of': {
-    chrome: '54',
-    edge: '15',
-    firefox: '55',
-    safari: '14.0',
   },
   'es.typed-array.reduce': {
     chrome: '45',
