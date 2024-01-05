@@ -611,6 +611,14 @@ export const data = {
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
+  // TODO: recheck
+  'es.array.iterator': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
   'es.array.at': {
     chrome: '92',
     firefox: '90',
@@ -631,6 +639,14 @@ export const data = {
     firefox: '48',
     rhino: '1.8.0',
     safari: '9.0',
+  },
+  // TODO: recheck
+  'es.array.entries': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    rhino: '1.8.0',
+    safari: '10.0',
   },
   'es.array.fill': {
     chrome: '45',
@@ -712,13 +728,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.array.iterator': {
-    chrome: '66',
-    edge: '15',
-    firefox: '60',
-    rhino: '1.8.0',
-    safari: '10.0',
-  },
   'es.array.join': {
     chrome: '26',
     edge: '13',
@@ -726,6 +735,14 @@ export const data = {
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
+  },
+  // TODO: recheck
+  'es.array.keys': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    rhino: '1.8.0',
+    safari: '10.0',
   },
   'es.array.last-index-of': {
     chrome: '51',
@@ -856,6 +873,14 @@ export const data = {
     ie: '9',
     // bug with setting length fixed only in Safari 16
     safari: '16.0',
+  },
+  // TODO: recheck
+  'es.array.values': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    rhino: '1.8.0',
+    safari: '10.0',
   },
   'es.array.with': {
     chrome: '110',
