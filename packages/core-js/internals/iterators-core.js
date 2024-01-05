@@ -18,11 +18,10 @@ var IteratorPrototype, PrototypeOfArrayIteratorPrototype, arrayIterator;
 if ([].keys) {
   arrayIterator = [].keys();
   // Safari 8 has buggy iterators w/o `next`
-  if (!('next' in arrayIterator)) BUGGY_SAFARI_ITERATORS = true;
-  else {
+  if ('next' in arrayIterator) {
     PrototypeOfArrayIteratorPrototype = getPrototypeOf(getPrototypeOf(arrayIterator));
     if (PrototypeOfArrayIteratorPrototype !== Object.prototype) IteratorPrototype = PrototypeOfArrayIteratorPrototype;
-  }
+  } else BUGGY_SAFARI_ITERATORS = true;
 }
 
 var NEW_ITERATOR_PROTOTYPE = !isObject(IteratorPrototype) || fails(function () {
