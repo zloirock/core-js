@@ -8,7 +8,6 @@ var IS_PURE = require('../internals/is-pure');
 
 var getPrototypeOf = Object.getPrototypeOf;
 var ITERATOR = wellKnownSymbol('iterator');
-var BUGGY_SAFARI_ITERATORS = false;
 
 // `%IteratorPrototype%` object
 // https://tc39.es/ecma262/#sec-%iteratorprototype%-object
@@ -21,7 +20,7 @@ if ([].keys) {
   if ('next' in arrayIterator) {
     PrototypeOfArrayIteratorPrototype = getPrototypeOf(getPrototypeOf(arrayIterator));
     if (PrototypeOfArrayIteratorPrototype !== Object.prototype) IteratorPrototype = PrototypeOfArrayIteratorPrototype;
-  } else BUGGY_SAFARI_ITERATORS = true;
+  }
 }
 
 var NEW_ITERATOR_PROTOTYPE = !isObject(IteratorPrototype) || fails(function () {
@@ -41,7 +40,4 @@ if (!isCallable(IteratorPrototype[ITERATOR])) {
   });
 }
 
-module.exports = {
-  IteratorPrototype: IteratorPrototype,
-  BUGGY_SAFARI_ITERATORS: BUGGY_SAFARI_ITERATORS,
-};
+module.exports = IteratorPrototype;
