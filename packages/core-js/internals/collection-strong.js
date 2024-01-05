@@ -151,7 +151,7 @@ module.exports = {
     });
     return Constructor;
   },
-  setStrong: function (Constructor, CONSTRUCTOR_NAME, IS_MAP) {
+  ensureIterators: function (Constructor, CONSTRUCTOR_NAME, IS_MAP) {
     var ITERATOR_NAME = CONSTRUCTOR_NAME + ' Iterator';
     var getInternalCollectionState = internalStateGetterFor(CONSTRUCTOR_NAME);
     var getInternalIteratorState = internalStateGetterFor(ITERATOR_NAME);
