@@ -38,7 +38,6 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
     return function () { return new IteratorConstructor(this); };
   };
 
-  var TO_STRING_TAG = NAME + ' Iterator';
   var INCORRECT_VALUES_NAME = false;
   var IterablePrototype = Iterable.prototype;
   var nativeIterator = IterablePrototype[ITERATOR] || DEFAULT && IterablePrototype[DEFAULT];
@@ -54,7 +53,7 @@ module.exports = function (Iterable, NAME, IteratorConstructor, next, DEFAULT, I
         setPrototypeOf(CurrentIteratorPrototype, IteratorPrototype);
       }
       // Set @@toStringTag to native iterators
-      setToStringTag(CurrentIteratorPrototype, TO_STRING_TAG, true, true);
+      setToStringTag(CurrentIteratorPrototype, NAME + ' Iterator', true, true);
     }
   }
 
