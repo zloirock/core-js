@@ -591,6 +591,15 @@ GLOBAL.tests = {
   'es.async-iterator.async-dispose': function () {
     return AsyncIterator.prototype[Symbol.asyncDispose];
   },
+  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
+    return [][Symbol.iterator] === [].values
+      && [][Symbol.iterator].name === 'values'
+      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && [].keys().next()
+      && [][Symbol.unscopables].keys
+      && [][Symbol.unscopables].values
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.at': function () {
     return [].at;
   },
@@ -610,6 +619,13 @@ GLOBAL.tests = {
   'es.array.copy-within': function () {
     return Array.prototype.copyWithin && Array.prototype[Symbol.unscopables].copyWithin;
   },
+  'es.array.entries': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].entries();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.fill': function () {
     return Array.prototype.fill && Array.prototype[Symbol.unscopables].fill;
   },
@@ -656,15 +672,6 @@ GLOBAL.tests = {
       return 1 / [1].indexOf(1, -0) > 0;
     }
   },
-  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
-      && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
-  }],
   'es.array.join': function () {
     try {
       if (!Object.prototype.propertyIsEnumerable.call(Object('z'), 0)) return false;
@@ -677,6 +684,13 @@ GLOBAL.tests = {
     } catch (error) { /* empty */ }
     return true;
   },
+  'es.array.keys': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].keys();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].keys;
+  }],
   'es.array.last-index-of': function () {
     try {
       [].lastIndexOf.call(null);
@@ -805,6 +819,15 @@ GLOBAL.tests = {
       return error instanceof TypeError;
     }
   },
+  'es.array.values': [SYMBOLS_SUPPORT, function () {
+    var iterator = [].values();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
+      && [][Symbol.unscopables].values
+      && [].values.name === 'values'
+      && [][Symbol.iterator] === [].values;
+  }],
   'es.array.with': function () {
     // Incorrect exception thrown when index coercion fails in Firefox
     try {
