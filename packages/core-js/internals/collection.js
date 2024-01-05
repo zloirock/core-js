@@ -41,9 +41,8 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
     );
   };
 
-  var REPLACE = FORCED || !isCallable(NativeConstructor) || !(IS_WEAK || NativePrototype.forEach && !fails(function () {
-    new NativeConstructor().entries().next();
-  }));
+  var REPLACE = FORCED || !isCallable(NativeConstructor)
+    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP)));
 
   if (REPLACE) {
     // create collection constructor
@@ -93,8 +92,6 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   $({ global: true, constructor: true, forced: Constructor !== NativeConstructor }, exported);
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME);
-
-  if (!IS_WEAK) common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };
