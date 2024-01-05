@@ -1,5 +1,5 @@
 'use strict';
-var defineIterator = require('../internals/iterator-set');
+var defineIterator = require('../internals/iterator-define');
 var normalizeIteratorMethod = require('../internals/iterator-normalize-method');
 var ArrayIterator = require('../internals/array-iterator-constructor');
 
