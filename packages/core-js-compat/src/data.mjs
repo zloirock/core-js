@@ -2051,14 +2051,6 @@ export const data = {
     firefox: '55',
     safari: '14.0',
   },
-  'es.typed-array.at': {
-    chrome: '92',
-    firefox: '90',
-    hermes: '0.13',
-    'react-native': '0.71',
-    rhino: '1.7.15',
-    safari: '15.4',
-  },
   'es.typed-array.from': {
     chrome: '54',
     edge: '15',
@@ -2071,6 +2063,7 @@ export const data = {
     firefox: '55',
     safari: '14.0',
   },
+  // TODO: recheck
   'es.typed-array.iterator': {
     chrome: '51',
     edge: '13',
@@ -2078,12 +2071,28 @@ export const data = {
     hermes: '0.1',
     safari: '10.0',
   },
+  'es.typed-array.at': {
+    chrome: '92',
+    firefox: '90',
+    hermes: '0.13',
+    'react-native': '0.71',
+    rhino: '1.7.15',
+    safari: '15.4',
+  },
   'es.typed-array.copy-within': {
     chrome: '45',
     edge: '13',
     firefox: '34',
     hermes: '0.1',
     rhino: '1.9.0',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.entries': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
     safari: '10.0',
   },
   'es.typed-array.every': {
@@ -2169,6 +2178,14 @@ export const data = {
     firefox: '37',
     hermes: '0.1',
     rhino: '1.9.0',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.keys': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
@@ -2293,6 +2310,14 @@ export const data = {
     firefox: '51',
     hermes: '0.1',
     rhino: '1.7.13',
+    safari: '10.0',
+  },
+  // TODO: recheck
+  'es.typed-array.values': {
+    chrome: '51',
+    edge: '13',
+    firefox: '37',
+    hermes: '0.1',
     safari: '10.0',
   },
   'es.typed-array.with': {
