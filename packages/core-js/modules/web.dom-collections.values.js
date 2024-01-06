@@ -4,4 +4,4 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
 // dependency: es.array.iterator
-domIterablesDefineMethod(ITERATOR, [][ITERATOR]);
+domIterablesDefineMethod('values', [][ITERATOR], true);
