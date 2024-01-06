@@ -43,11 +43,11 @@ export const features = {
     template: $virtual({ namespace: 'Array', method: 'copyWithin' }),
   },
   'array/entries': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.entries'],
     template: $prototype({ namespace: 'Array', method: 'entries' }),
   },
   'array/virtual/entries': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.entries'],
     template: $virtual({ namespace: 'Array', method: 'entries' }),
   },
   'array/fill': {
@@ -167,11 +167,11 @@ export const features = {
     template: $virtual({ namespace: 'Array', method: 'join' }),
   },
   'array/keys': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.keys'],
     template: $prototype({ namespace: 'Array', method: 'keys' }),
   },
   'array/virtual/keys': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.keys'],
     template: $virtual({ namespace: 'Array', method: 'keys' }),
   },
   'array/last-index-of': {
@@ -291,11 +291,11 @@ export const features = {
     template: $virtual({ namespace: 'Array', method: 'uniqueBy' }),
   },
   'array/values': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.values'],
     template: $prototype({ namespace: 'Array', method: 'values' }),
   },
   'array/virtual/values': {
-    modules: ['es.array.iterator'],
+    modules: ['es.array.values'],
     template: $virtual({ namespace: 'Array', method: 'values' }),
   },
   'array/with': {
