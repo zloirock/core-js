@@ -286,6 +286,40 @@ function NATIVE_RAW_JSON() {
   return JSON.isRawJSON(raw) && JSON.stringify(raw) === unsafeInt;
 }
 
+var DOMIterables = {
+  CSSRuleList: 0,
+  CSSStyleDeclaration: 0,
+  CSSValueList: 0,
+  ClientRectList: 0,
+  DOMRectList: 0,
+  DOMStringList: 0,
+  DOMTokenList: 1,
+  DataTransferItemList: 0,
+  FileList: 0,
+  HTMLAllCollection: 0,
+  HTMLCollection: 0,
+  HTMLFormElement: 0,
+  HTMLSelectElement: 0,
+  MediaList: 0,
+  MimeTypeArray: 0,
+  NamedNodeMap: 0,
+  NodeList: 1,
+  PaintRequestList: 0,
+  Plugin: 0,
+  PluginArray: 0,
+  SVGLengthList: 0,
+  SVGNumberList: 0,
+  SVGPathSegList: 0,
+  SVGPointList: 0,
+  SVGStringList: 0,
+  SVGTransformList: 0,
+  SourceBufferList: 0,
+  StyleSheetList: 0,
+  TextTrackCueList: 0,
+  TextTrackList: 0,
+  TouchList: 0,
+};
+
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
     var version = Bun.version.split('.');
@@ -2016,58 +2050,30 @@ GLOBAL.tests = {
   'web.clear-immediate': function () {
     return setImmediate && clearImmediate;
   },
-  'web.dom-collections.for-each': function () {
-    return (!GLOBAL.NodeList || (NodeList.prototype.forEach && NodeList.prototype.forEach === [].forEach))
-      && (!GLOBAL.DOMTokenList || (DOMTokenList.prototype.forEach && DOMTokenList.prototype.forEach === [].forEach));
-  },
   'web.dom-collections.iterator': function () {
-    var DOMIterables = {
-      CSSRuleList: 0,
-      CSSStyleDeclaration: 0,
-      CSSValueList: 0,
-      ClientRectList: 0,
-      DOMRectList: 0,
-      DOMStringList: 0,
-      DOMTokenList: 1,
-      DataTransferItemList: 0,
-      FileList: 0,
-      HTMLAllCollection: 0,
-      HTMLCollection: 0,
-      HTMLFormElement: 0,
-      HTMLSelectElement: 0,
-      MediaList: 0,
-      MimeTypeArray: 0,
-      NamedNodeMap: 0,
-      NodeList: 1,
-      PaintRequestList: 0,
-      Plugin: 0,
-      PluginArray: 0,
-      SVGLengthList: 0,
-      SVGNumberList: 0,
-      SVGPathSegList: 0,
-      SVGPointList: 0,
-      SVGStringList: 0,
-      SVGTransformList: 0,
-      SourceBufferList: 0,
-      StyleSheetList: 0,
-      TextTrackCueList: 0,
-      TextTrackList: 0,
-      TouchList: 0,
-    };
-    for (var collection in DOMIterables) {
-      if (GLOBAL[collection]) {
-        if (
-          !GLOBAL[collection].prototype[Symbol.iterator] ||
-          GLOBAL[collection].prototype[Symbol.iterator] !== [].values
-        ) return false;
-        if (DOMIterables[collection] && (
-          !GLOBAL[collection].prototype.keys ||
-          !GLOBAL[collection].prototype.values ||
-          !GLOBAL[collection].prototype.entries
-        )) return false;
-      }
-    }
-    return true;
+    return [][Symbol.iterator] && Object.keys(DOMIterables).every(function (key) {
+      return !GLOBAL[key] || GLOBAL[key].prototype[Symbol.iterator] === [][Symbol.iterator];
+    });
+  },
+  'web.dom-collections.entries': function () {
+    return [].entries && Object.keys(DOMIterables).every(function (key) {
+      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.entries === [].entries;
+    });
+  },
+  'web.dom-collections.for-each': function () {
+    return Object.keys(DOMIterables).every(function (key) {
+      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.forEach === [].forEach;
+    });
+  },
+  'web.dom-collections.keys': function () {
+    return [].keys && Object.keys(DOMIterables).every(function (key) {
+      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.keys === [].keys;
+    });
+  },
+  'web.dom-collections.values': function () {
+    return [][Symbol.iterator] && Object.keys(DOMIterables).every(function (key) {
+      return !DOMIterables[key] || !GLOBAL[key] || GLOBAL[key].prototype.values === [][Symbol.iterator];
+    });
   },
   'web.queue-microtask': function () {
     return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value.length === 1;
