@@ -616,6 +616,9 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'dom-collections');
     ok(typeof load(NS, 'dom-collections/for-each') == 'function');
     ok(typeof load(NS, 'dom-collections/iterator') == 'function');
+    ok(typeof load(NS, 'dom-collections/keys') == 'function');
+    ok(typeof load(NS, 'dom-collections/values') == 'function');
+    ok(typeof load(NS, 'dom-collections/entries') == 'function');
     ok(load(NS, 'self').Math === Math);
     ok(typeof load(NS, 'set-immediate') == 'function');
     ok(load(NS, 'structured-clone')(42) === 42);
