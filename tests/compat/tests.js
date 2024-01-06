@@ -1516,10 +1516,7 @@ GLOBAL.tests = {
     try {
       Int8Array.prototype[Symbol.iterator].call([1]);
     } catch (error) {
-      return Int8Array.prototype[Symbol.iterator].name === 'values'
-        && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values
-        && Int8Array.prototype.keys
-        && Int8Array.prototype.entries;
+      return Int8Array.prototype[Symbol.iterator].name === 'values';
     }
   },
   'es.typed-array.at': function () {
@@ -1527,6 +1524,13 @@ GLOBAL.tests = {
   },
   'es.typed-array.copy-within': function () {
     return Int8Array.prototype.copyWithin;
+  },
+  'es.typed-array.entries': function () {
+    try {
+      Int8Array.prototype.entries.call([1]);
+    } catch (error) {
+      return Int8Array.prototype.entries;
+    }
   },
   'es.typed-array.every': function () {
     return Int8Array.prototype.every;
@@ -1562,6 +1566,13 @@ GLOBAL.tests = {
   },
   'es.typed-array.join': function () {
     return Int8Array.prototype.join;
+  },
+  'es.typed-array.keys': function () {
+    try {
+      Int8Array.prototype.keys.call([1]);
+    } catch (error) {
+      return Int8Array.prototype.keys;
+    }
   },
   'es.typed-array.last-index-of': function () {
     return Int8Array.prototype.lastIndexOf;
@@ -1640,6 +1651,14 @@ GLOBAL.tests = {
   },
   'es.typed-array.to-sorted': function () {
     return Int8Array.prototype.toSorted;
+  },
+  'es.typed-array.values': function () {
+    try {
+      Int8Array.prototype.values.call([1]);
+    } catch (error) {
+      return Int8Array.prototype.values.name === 'values'
+        && Int8Array.prototype[Symbol.iterator] === Int8Array.prototype.values;
+    }
   },
   'es.typed-array.with': [function () {
     try {
