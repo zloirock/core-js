@@ -2688,6 +2688,28 @@ export const data = {
     ie: '10',
     node: '0.9.1',
   },
+  // TODO: recheck
+  'web.dom-collections.iterator': {
+    bun: '0.1.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '60',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
+  },
+  // TODO: recheck
+  'web.dom-collections.entries': {
+    bun: '0.1.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '60',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
+  },
   'web.dom-collections.for-each': {
     bun: '0.1.1',
     chrome: '58',
@@ -2699,7 +2721,19 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  'web.dom-collections.iterator': {
+  // TODO: recheck
+  'web.dom-collections.keys': {
+    bun: '0.1.1',
+    chrome: '66',
+    deno: '1.0',
+    firefox: '60',
+    hermes: '0.1',
+    node: '0.0.1',
+    rhino: '1.7.13',
+    safari: '13.1',
+  },
+  // TODO: recheck
+  'web.dom-collections.values': {
     bun: '0.1.1',
     chrome: '66',
     deno: '1.0',
