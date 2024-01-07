@@ -609,6 +609,9 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.string.repeat': function () {
+    return String.prototype.repeat;
+  },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     var iterator = [][Symbol.iterator]();
     return iterator.next()
