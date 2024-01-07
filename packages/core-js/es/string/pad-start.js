@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.string.repeat');
 require('../../modules/es.string.pad-start');
 var entryUnbind = require('../../internals/entry-unbind');
 
