@@ -1,10 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
 var decimalDigits = require('../internals/number-decimal-digits');
-var $repeat = require('../internals/string-repeat');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
@@ -12,7 +12,8 @@ var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-var repeat = uncurryThis($repeat);
+// dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var charAt = uncurryThis(''.charAt);
 var stringIndexOf = uncurryThis(''.indexOf);
