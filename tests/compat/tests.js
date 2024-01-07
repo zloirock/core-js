@@ -502,6 +502,9 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.string.repeat': function () {
+    return String.prototype.repeat;
+  },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     return [][Symbol.iterator] === [].values
       && [][Symbol.iterator].name === 'values'
@@ -1126,9 +1129,6 @@ GLOBAL.tests = {
   },
   'es.string.raw': function () {
     return String.raw;
-  },
-  'es.string.repeat': function () {
-    return String.prototype.repeat;
   },
   'es.string.replace': function () {
     var O = {};
