@@ -1,9 +1,9 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var thisNumberValue = require('../internals/this-number-value');
-var $repeat = require('../internals/string-repeat');
 var log10 = require('../internals/math-log10');
 var fails = require('../internals/fails');
 
@@ -15,7 +15,8 @@ var floor = Math.floor;
 var pow = Math.pow;
 var round = Math.round;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-var repeat = uncurryThis($repeat);
+// dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 
 // Edge 17-

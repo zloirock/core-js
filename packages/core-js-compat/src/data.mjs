@@ -617,6 +617,14 @@ export const data = {
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
+  'es.string.repeat': {
+    chrome: '41',
+    edge: '13',
+    firefox: '24',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '9.0',
+  },
   // TODO: recheck
   'es.array.iterator': {
     chrome: '66',
@@ -1807,14 +1815,6 @@ export const data = {
     firefox: '34',
     hermes: '0.1',
     rhino: '1.7.14',
-    safari: '9.0',
-  },
-  'es.string.repeat': {
-    chrome: '41',
-    edge: '13',
-    firefox: '24',
-    hermes: '0.1',
-    rhino: '1.7.13',
     safari: '9.0',
   },
   'es.string.replace': {
