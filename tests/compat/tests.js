@@ -639,6 +639,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.async-iterator.async-dispose': function () {
     return AsyncIterator.prototype[Symbol.asyncDispose];
   },
+  'es.string.repeat': function () {
+    return String.prototype.repeat;
+  },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     return [][Symbol.iterator] === [].values
       && [][Symbol.iterator].name === 'values'
@@ -1481,9 +1484,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   },
   'es.string.raw': function () {
     return String.raw;
-  },
-  'es.string.repeat': function () {
-    return String.prototype.repeat;
   },
   'es.string.replace': function () {
     var O = {};
