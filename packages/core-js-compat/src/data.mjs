@@ -2027,6 +2027,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.global-this': null,
   'esnext.iterator.constructor': {
+    chrome: '122',
     deno: '1.37',
   },
   // TODO: Remove from `core-js@4`
@@ -2035,43 +2036,55 @@ export const data = {
   'esnext.iterator.dispose': {
   },
   'esnext.iterator.drop': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.every': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.filter': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.find': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.flat-map': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.for-each': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.from': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.indexed': {
   },
   'esnext.iterator.map': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.range': {
   },
   'esnext.iterator.reduce': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.some': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.take': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.to-array': {
+    chrome: '122',
     deno: '1.37',
   },
   'esnext.iterator.to-async': {

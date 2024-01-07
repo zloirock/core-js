@@ -3,6 +3,7 @@
 - Fixed internal `ToLength` operation with bigints, [#1318](https://github.com/zloirock/core-js/issues/1318)
 - Removed significant redundant code from `String#split` polyfill
 - Compat data improvements:
+  - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as supported from V8 ~ Chrome 122
   - Added Electron 30 compat data mapping
 
 ##### [3.35.0 - 2023.12.29](https://github.com/zloirock/core-js/releases/tag/v3.35.0)
