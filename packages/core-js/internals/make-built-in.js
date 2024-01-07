@@ -21,8 +21,7 @@ var makeBuiltIn = module.exports = function (value, name, options) {
   if ($String(name).slice(0, 7) === 'Symbol(') {
     name = '[' + $String(name).replace(/^Symbol\(([^)]*)\).*$/, '$1') + ']';
   }
-  if (options && options.getter) name = 'get ' + name;
-  if (options && options.setter) name = 'set ' + name;
+  if (options && options.prefix) name = options.prefix + name;
   if (!hasOwn(value, 'name') || (CONFIGURABLE_FUNCTION_NAME && value.name !== name)) {
     defineProperty(value, 'name', { value: name, configurable: true });
   }
