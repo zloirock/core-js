@@ -1,11 +1,12 @@
 'use strict';
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
-var $repeat = require('../internals/string-repeat');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
-var repeat = uncurryThis($repeat);
+// dependency: es.string.repeat
+var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 var ceil = Math.ceil;
 

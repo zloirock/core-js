@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.string.repeat');
 require('../../modules/es.parse-float');
 require('../../modules/es.parse-int');
 require('../../modules/es.number.constructor');
