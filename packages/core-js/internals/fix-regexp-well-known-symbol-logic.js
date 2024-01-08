@@ -15,7 +15,7 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
   var SYMBOL = wellKnownSymbol(KEY);
 
   var DELEGATES_TO_SYMBOL = !fails(function () {
-    // String methods call symbol-named RegEp methods
+    // String methods call symbol-named RegExp methods
     var O = {};
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) !== 7;
