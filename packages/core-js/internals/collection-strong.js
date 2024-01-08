@@ -222,7 +222,7 @@ module.exports = {
       var defaultIterator = IS_MAP ? entries : values;
 
       if (Constructor.prototype[ITERATOR] !== defaultIterator) {
-        defineBuiltIn(Constructor.prototype, ITERATOR, defaultIterator);
+        defineBuiltIn(Constructor.prototype, ITERATOR, defaultIterator, { name: IS_MAP ? 'entries' : 'values' });
       }
 
       return true;
