@@ -188,10 +188,6 @@ if (!NATIVE_SYMBOL) {
     return getInternalSymbolState(this).tag;
   });
 
-  defineBuiltIn($Symbol, 'withoutSetter', function (description) {
-    return wrap(uid(description), description);
-  });
-
   propertyIsEnumerableModule.f = $propertyIsEnumerable;
   definePropertyModule.f = $defineProperty;
   definePropertiesModule.f = $defineProperties;
@@ -210,6 +206,7 @@ if (!NATIVE_SYMBOL) {
       return getInternalSymbolState(this).description;
     },
   });
+
   if (!IS_PURE) {
     defineBuiltIn(ObjectPrototype, 'propertyIsEnumerable', $propertyIsEnumerable, { unsafe: true });
   }
