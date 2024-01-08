@@ -201,7 +201,7 @@ module.exports = {
       },
     });
 
-    defineBuiltIn(Prototype, ITERATOR, IS_MAP ? $entries : $values);
+    defineBuiltIn(Prototype, ITERATOR, IS_MAP ? $entries : $values, { name: IS_MAP ? 'entries' : 'values' });
 
     defineBuiltInAccessor(Prototype, 'size', {
       configurable: true,
