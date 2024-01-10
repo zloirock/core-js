@@ -189,7 +189,6 @@ structuredClone(new Set([1, 2, 3])); // => Set { 1, 2, 3 }
     - [Stage 1 proposals](#stage-1-proposals)
       - [New collections methods](#new-collections-methods)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
-      - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [Array filtering](#array-filtering)
       - [Array deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get--set-uint8clamped-methods)
@@ -3377,45 +3376,7 @@ Set.of(1, 2, 3, 2, 1); // => Set { 1, 2, 3 }
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1 => 4, 9 => 16 }
 ```
-##### [`compositeKey` and `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)[⬆](#index)
-Modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js).
-```ts
-function compositeKey(...args: Array<mixed>): object;
-function compositeSymbol(...args: Array<mixed>): symbol;
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/keys-composition
-core-js(-pure)/full/composite-key
-core-js(-pure)/full/composite-symbol
-```
-[*Examples*](https://core-js.io/playground#code=%2F%2F+returns+a+symbol%0Aconst+symbol+%3D+compositeSymbol%28%7B%7D%29%3B%0Atypeof+symbol%3B+%2F%2F+%3D%3E+%27symbol%27%0A%0A%2F%2F+works+the+same%2C+but+returns+a+plain+frozen+object+without+a+prototype%0Aconst+key+%3D+compositeKey%28%7B%7D%29%3B%0Atypeof+key%3B+%2F%2F+%3D%3E+%27object%27%0A%28%7B%7D%29.toString.call%28key%29%3B+%2F%2F+%3D%3E+%27%5Bobject+Object%5D%27%0AObject.getPrototypeOf%28key%29%3B+%2F%2F+%3D%3E+null%0AObject.isFrozen%28key%29%3B+%2F%2F+%3D%3E+true%0A%0Aconst+a+%3D+%5B%27a%27%5D%3B%0Aconst+b+%3D+%5B%27b%27%5D%3B%0Aconst+c+%3D+%5B%27c%27%5D%3B%0A%0A%2F%2A+eslint-disable+no-self-compare+--+example+%2A%2F%0AcompositeSymbol%28a%29+%3D%3D%3D+compositeSymbol%28a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%29+%21%3D%3D+compositeSymbol%28%5B%27a%27%5D%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+1%29+%3D%3D%3D+compositeSymbol%28a%2C+1%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%29+%21%3D%3D+compositeSymbol%28b%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+b%2C+c%29+%3D%3D%3D+compositeSymbol%28a%2C+b%2C+c%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%29+%3D%3D%3D+compositeSymbol%281%2C+a%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%281%2C+a%2C+2%2C+b%29+%3D%3D%3D+compositeSymbol%281%2C+a%2C+2%2C+b%29%3B+%2F%2F+%3D%3E+true%0AcompositeSymbol%28a%2C+a%29+%3D%3D%3D+compositeSymbol%28a%2C+a%29%3B+%2F%2F+%3D%3E+true):
-```js
-// returns a symbol
-const symbol = compositeSymbol({});
-typeof symbol; // => 'symbol'
 
-// works the same, but returns a plain frozen object without a prototype
-const key = compositeKey({});
-typeof key; // => 'object'
-({}).toString.call(key); // => '[object Object]'
-Object.getPrototypeOf(key); // => null
-Object.isFrozen(key); // => true
-
-const a = ['a'];
-const b = ['b'];
-const c = ['c'];
-
-/* eslint-disable no-self-compare -- example */
-compositeSymbol(a) === compositeSymbol(a); // => true
-compositeSymbol(a) !== compositeSymbol(['a']); // => true
-compositeSymbol(a, 1) === compositeSymbol(a, 1); // => true
-compositeSymbol(a, b) !== compositeSymbol(b, a); // => true
-compositeSymbol(a, b, c) === compositeSymbol(a, b, c); // => true
-compositeSymbol(1, a) === compositeSymbol(1, a); // => true
-compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b); // => true
-compositeSymbol(a, a) === compositeSymbol(a, a); // => true
-```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
 ```ts
