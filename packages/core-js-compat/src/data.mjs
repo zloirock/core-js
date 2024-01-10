@@ -2090,10 +2090,6 @@ export const data = {
   },
   'esnext.async-iterator.to-array': {
   },
-  'esnext.composite-key': {
-  },
-  'esnext.composite-symbol': {
-  },
   'esnext.data-view.get-float16': {
     bun: '1.1.23',
     deno: '1.43',
