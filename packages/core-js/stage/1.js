@@ -7,6 +7,5 @@ require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
 require('../proposals/data-view-get-set-uint8-clamped');
 require('../proposals/extractors');
-require('../proposals/keys-composition');
 require('../proposals/pattern-matching');
 require('../proposals/string-cooked');

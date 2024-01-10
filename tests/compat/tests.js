@@ -1544,12 +1544,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.to-array': function () {
     return AsyncIterator.prototype.toArray;
   },
-  'esnext.composite-key': function () {
-    return compositeKey;
-  },
-  'esnext.composite-symbol': function () {
-    return compositeSymbol;
-  },
   'esnext.data-view.get-float16': function () {
     return DataView.prototype.getFloat16;
   },
