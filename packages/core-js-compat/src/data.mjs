@@ -2496,6 +2496,7 @@ export const data = {
     safari: '12.1',
   },
   'web.self': {
+    bun: '1.0.22',
     chrome: '86',
     // https://github.com/denoland/deno/issues/15765
     deno: '1.29.3',
