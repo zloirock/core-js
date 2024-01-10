@@ -184,7 +184,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 1 proposals](#stage-1-proposals)
       - [New collections methods](#new-collections-methods)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
-      - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
@@ -3105,45 +3104,7 @@ Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
 Map.from([[1, 2], [3, 4]], ([key, value]) => [key ** 2, value ** 2]); // => Map { 1: 4, 9: 16 }
 ```
-##### [`compositeKey` and `compositeSymbol`](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)[⬆](#index)
-Modules [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
-```ts
-function compositeKey(...args: Array<mixed>): object;
-function compositeSymbol(...args: Array<mixed>): symbol;
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/keys-composition
-core-js(-pure)/full/composite-key
-core-js(-pure)/full/composite-symbol
-```
-[*Examples*](https://tinyurl.com/2c8pczur):
-```js
-// returns a symbol
-const symbol = compositeSymbol({});
-console.log(typeof symbol); // => 'symbol'
 
-// works the same, but returns a plain frozen object without a prototype
-const key = compositeKey({});
-console.log(typeof key); // => 'object'
-console.log({}.toString.call(key)); // => '[object Object]'
-console.log(Object.getPrototypeOf(key)); // => null
-console.log(Object.isFrozen(key)); // => true
-
-const a = ['a'];
-const b = ['b'];
-const c = ['c'];
-
-/* eslint-disable no-self-compare -- example */
-console.log(compositeSymbol(a) === compositeSymbol(a)); // => true
-console.log(compositeSymbol(a) !== compositeSymbol(['a'])); // => true
-console.log(compositeSymbol(a, 1) === compositeSymbol(a, 1)); // => true
-console.log(compositeSymbol(a, b) !== compositeSymbol(b, a)); // => true
-console.log(compositeSymbol(a, b, c) === compositeSymbol(a, b, c)); // => true
-console.log(compositeSymbol(1, a) === compositeSymbol(1, a)); // => true
-console.log(compositeSymbol(1, a, 2, b) === compositeSymbol(1, a, 2, b)); // => true
-console.log(compositeSymbol(a, a) === compositeSymbol(a, a)); // => true
-```
 ##### [Array filtering](https://github.com/tc39/proposal-array-filtering)[⬆](#index)
 Modules [`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
 ```ts
