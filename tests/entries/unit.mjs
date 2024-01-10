@@ -670,8 +670,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
-    ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
-    ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
@@ -787,7 +785,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/iterator-chunking');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
-  load('proposals/keys-composition');
   load('proposals/map-emplace');
   load('proposals/map-upsert');
   load('proposals/math-clamp');
