@@ -1608,14 +1608,6 @@ export const features = {
     modules: ['web.clear-immediate'],
     template: $namespace({ name: 'clearImmediate' }),
   },
-  'composite-key': {
-    modules: ['esnext.composite-key'],
-    template: $namespace({ name: 'compositeKey' }),
-  },
-  'composite-symbol': {
-    modules: ['esnext.composite-symbol'],
-    template: $namespace({ name: 'compositeSymbol' }),
-  },
   'global-this': {
     modules: ['es.global-this'],
     template: $namespace({ name: 'globalThis' }),
@@ -1921,14 +1913,6 @@ export const proposals = {
       'esnext.json.is-raw-json',
       'esnext.json.parse',
       'esnext.json.raw-json',
-    ],
-  },
-  // https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey
-  'keys-composition': {
-    stage: 1,
-    modules: [
-      'esnext.composite-key',
-      'esnext.composite-symbol',
     ],
   },
   // https://github.com/tc39/proposal-upsert
