@@ -763,17 +763,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
-    const keyObject = {};
-    const compositeKey = load(NS, 'composite-key');
-    const key = compositeKey(keyObject, 1);
-    ok(typeof key === 'object');
-    ok(compositeKey(keyObject, 1) === key);
-    ok(compositeKey(keyObject, 2) !== key);
-    const compositeSymbol = load(NS, 'composite-symbol');
-    const symbol = compositeSymbol(keyObject, 1);
-    ok(typeof symbol === 'symbol');
-    ok(compositeSymbol(keyObject, 1) === symbol);
-    ok(compositeSymbol(keyObject, 2) !== symbol);
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
@@ -884,7 +873,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/iterator-join');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
-  load('proposals/keys-composition');
   load('proposals/map-emplace');
   load('proposals/map-upsert');
   load('proposals/math-clamp');
