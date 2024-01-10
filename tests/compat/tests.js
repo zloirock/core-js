@@ -1820,12 +1820,6 @@ GLOBAL.tests = {
   'esnext.async-iterator.to-array': function () {
     return AsyncIterator.prototype.toArray;
   },
-  'esnext.composite-key': function () {
-    return compositeKey;
-  },
-  'esnext.composite-symbol': function () {
-    return compositeSymbol;
-  },
   'esnext.data-view.get-uint8-clamped': function () {
     return DataView.prototype.getUint8Clamped;
   },
