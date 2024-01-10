@@ -1890,10 +1890,6 @@ export const data = {
   },
   'esnext.async-iterator.to-array': {
   },
-  'esnext.composite-key': {
-  },
-  'esnext.composite-symbol': {
-  },
   'esnext.data-view.get-float16': {
   },
   'esnext.data-view.get-uint8-clamped': {
