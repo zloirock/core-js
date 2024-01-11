@@ -1861,23 +1861,11 @@ GLOBAL.tests = {
     return source === unsafeInt;
   },
   'esnext.json.raw-json': NATIVE_RAW_JSON,
-  'esnext.map.delete-all': function () {
-    return Map.prototype.deleteAll;
-  },
-  'esnext.map.every': function () {
-    return Map.prototype.every;
-  },
-  'esnext.map.filter': function () {
-    return Map.prototype.filter;
-  },
-  'esnext.map.find': function () {
-    return Map.prototype.find;
-  },
-  'esnext.map.find-key': function () {
-    return Map.prototype.findKey;
-  },
   'esnext.map.from': function () {
     return Map.from;
+  },
+  'esnext.map.of': function () {
+    return Map.of;
   },
   'esnext.map.get-or-insert': function () {
     return Map.prototype.getOrInsert;
@@ -1885,71 +1873,14 @@ GLOBAL.tests = {
   'esnext.map.get-or-insert-computed': function () {
     return Map.prototype.getOrInsertComputed;
   },
-  'esnext.map.includes': function () {
-    return Map.prototype.includes;
-  },
-  'esnext.map.key-by': function () {
-    return Map.keyBy;
-  },
-  'esnext.map.key-of': function () {
-    return Map.prototype.keyOf;
-  },
-  'esnext.map.map-keys': function () {
-    return Map.prototype.mapKeys;
-  },
-  'esnext.map.map-values': function () {
-    return Map.prototype.mapValues;
-  },
-  'esnext.map.merge': function () {
-    return Map.prototype.merge;
-  },
-  'esnext.map.of': function () {
-    return Map.of;
-  },
-  'esnext.map.reduce': function () {
-    return Map.prototype.reduce;
-  },
-  'esnext.map.some': function () {
-    return Map.prototype.some;
-  },
-  'esnext.map.update': function () {
-    return Map.prototype.update;
-  },
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
-  },
-  'esnext.set.add-all': function () {
-    return Set.prototype.addAll;
-  },
-  'esnext.set.delete-all': function () {
-    return Set.prototype.deleteAll;
-  },
-  'esnext.set.every': function () {
-    return Set.prototype.every;
-  },
-  'esnext.set.filter': function () {
-    return Set.prototype.filter;
-  },
-  'esnext.set.find': function () {
-    return Set.prototype.find;
   },
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.join': function () {
-    return Set.prototype.join;
-  },
-  'esnext.set.map': function () {
-    return Set.prototype.map;
-  },
   'esnext.set.of': function () {
     return Set.of;
-  },
-  'esnext.set.reduce': function () {
-    return Set.prototype.reduce;
-  },
-  'esnext.set.some': function () {
-    return Set.prototype.some;
   },
   'esnext.string.cooked': function () {
     return String.cooked;
@@ -1975,8 +1906,11 @@ GLOBAL.tests = {
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
   },
-  'esnext.weak-map.delete-all': function () {
-    return WeakMap.prototype.deleteAll;
+  'esnext.weak-map.from': function () {
+    return WeakMap.from;
+  },
+  'esnext.weak-map.of': function () {
+    return WeakMap.of;
   },
   'esnext.weak-map.get-or-insert': function () {
     return WeakMap.prototype.getOrInsert;
@@ -1990,18 +1924,6 @@ GLOBAL.tests = {
       // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
       return error instanceof TypeError;
     }
-  },
-  'esnext.weak-map.from': function () {
-    return WeakMap.from;
-  },
-  'esnext.weak-map.of': function () {
-    return WeakMap.of;
-  },
-  'esnext.weak-set.add-all': function () {
-    return WeakSet.prototype.addAll;
-  },
-  'esnext.weak-set.delete-all': function () {
-    return WeakSet.prototype.deleteAll;
   },
   'esnext.weak-set.from': function () {
     return WeakSet.from;
