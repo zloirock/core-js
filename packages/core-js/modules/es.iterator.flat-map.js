@@ -15,7 +15,7 @@ var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-he
 // https://bugs.webkit.org/show_bug.cgi?id=297532
 function throwsOnIteratorWithoutReturn() {
   try {
-    // eslint-disable-next-line es/no-map, es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
+    // eslint-disable-next-line es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
     var it = Iterator.prototype.flatMap.call(new Map([[4, 5]]).entries(), function (v) { return v; });
     it.next();
     it.return();

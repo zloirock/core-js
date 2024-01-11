@@ -2512,69 +2512,22 @@ export const data = {
   'esnext.json.parse': null,
   // TODO: Remove from `core-js@4`
   'esnext.json.raw-json': null,
-  'esnext.map.delete-all': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.map.emplace': {
   },
-  'esnext.map.every': {
-  },
-  'esnext.map.filter': {
-  },
-  'esnext.map.find': {
-  },
-  'esnext.map.find-key': {
-  },
   'esnext.map.from': {
-  },
-  'esnext.map.includes': {
-  },
-  'esnext.map.key-by': {
-  },
-  'esnext.map.key-of': {
-  },
-  'esnext.map.map-keys': {
-  },
-  'esnext.map.map-values': {
-  },
-  'esnext.map.merge': {
   },
   'esnext.map.of': {
   },
-  'esnext.map.reduce': {
-  },
-  'esnext.map.some': {
-  },
-  'esnext.map.update': {
-  },
-  'esnext.math.f16round': null,
   // TODO: Remove from `core-js@4`
   'esnext.math.sum-precise': null,
   'esnext.number.clamp': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.try': null,
-  'esnext.set.add-all': {
-  },
-  'esnext.set.delete-all': {
-  },
-  'esnext.set.every': {
-  },
-  'esnext.set.filter': {
-  },
-  'esnext.set.find': {
-  },
   'esnext.set.from': {
   },
-  'esnext.set.join': {
-  },
-  'esnext.set.map': {
-  },
   'esnext.set.of': {
-  },
-  'esnext.set.reduce': {
-  },
-  'esnext.set.some': {
   },
   'esnext.string.cooked': {
   },
@@ -2610,18 +2563,12 @@ export const data = {
   'esnext.uint8-array.to-base64': null,
   // TODO: Remove from `core-js@4`
   'esnext.uint8-array.to-hex': null,
-  'esnext.weak-map.delete-all': {
-  },
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.emplace': {
-  },
-  'esnext.weak-set.add-all': {
-  },
-  'esnext.weak-set.delete-all': {
   },
   'esnext.weak-set.from': {
   },
