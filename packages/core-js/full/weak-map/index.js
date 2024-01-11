@@ -6,6 +6,5 @@ require('../../modules/esnext.weak-map.of');
 require('../../modules/esnext.weak-map.emplace');
 require('../../modules/esnext.weak-map.get-or-insert');
 require('../../modules/esnext.weak-map.get-or-insert-computed');
-require('../../modules/esnext.weak-map.delete-all');
 
 module.exports = parent;
