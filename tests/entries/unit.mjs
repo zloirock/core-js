@@ -679,38 +679,15 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
-    ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
-    ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
-    ok(load(NS, 'map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
-    ok(load(NS, 'map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
-    ok(load(NS, 'map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
-    ok(load(NS, 'map/find-key')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 2);
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
+    ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
+    ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
     ok(load(NS, 'map/get-or-insert')(new Map([[1, 2]]), 1, 3) === 2);
     ok(load(NS, 'map/get-or-insert-computed')(new Map([[1, 2]]), 1, key => key) === 2);
-    ok(load(NS, 'map/includes')(new Map([[1, 2]]), 2), true);
-    ok(load(NS, 'map/key-by')([], it => it) instanceof Map);
-    ok(load(NS, 'map/key-of')(new Map([[1, 2]]), 2), 1);
-    ok(load(NS, 'map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
-    ok(load(NS, 'map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
-    ok(load(NS, 'map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
-    ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
-    ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
-    ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
-    ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
-    ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
-    ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
-    ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
-    ok(load(NS, 'set/filter')(new Set([1, 2, 3]), it => it % 2).size === 2);
-    ok(load(NS, 'set/find')(new Set([2, 3, 4]), it => it % 2) === 3);
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
-    ok(load(NS, 'set/join')(new Set([1, 2, 3])) === '1,2,3');
-    ok(load(NS, 'set/map')(new Set([1, 2, 3]), it => it % 2).size === 2);
     ok(load(NS, 'set/of')(1, 2, 3, 2, 1) instanceof Set);
-    ok(load(NS, 'set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);
-    ok(load(NS, 'set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
@@ -718,14 +695,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
     ok(load(NS, 'weak-map/get-or-insert')(new WeakMap([[{}, 2]]), {}, 3) === 3);
     ok(load(NS, 'weak-map/get-or-insert-computed')(new WeakMap([[{}, 2]]), {}, () => 3) === 3);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
     ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
-    ok(load(NS, 'weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
-    ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
 
@@ -768,7 +742,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
   load('proposals/change-array-by-copy');
-  load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
   load('proposals/decorator-metadata');
