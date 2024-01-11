@@ -150,7 +150,7 @@ export default {
     [116, '26.0'],
     [118, '27.0'],
     [120, '28.0'],
-    [121, '29.0'],
+    [122, '29.0'],
     [122, '30.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json

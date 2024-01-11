@@ -6,7 +6,7 @@
 - Compat data improvements:
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as supported from V8 ~ Chrome 122
   - `self` marked as fixed from Bun 1.0.22
-  - Added Electron 30 compat data mapping
+  - Updated Electron 29 and added Electron 30 compat data mapping
 
 ##### [3.35.0 - 2023.12.29](https://github.com/zloirock/core-js/releases/tag/v3.35.0)
 - [`{ Map, Set, WeakMap, WeakSet }.{ from, of }`](https://github.com/tc39/proposal-setmap-offrom) became non-generic, following [this](https://github.com/tc39/proposal-setmap-offrom/issues/16#issuecomment-1843346541) and some other notes. Now they can be invoked without `this`, but no longer return subclass instances
