@@ -1959,47 +1959,15 @@ export const data = {
   'esnext.json.raw-json': {
     chrome: '114',
   },
-  'esnext.map.delete-all': {
-  },
   'esnext.map.emplace': {
-  },
-  'esnext.map.every': {
-  },
-  'esnext.map.filter': {
-  },
-  'esnext.map.find': {
-  },
-  'esnext.map.find-key': {
   },
   'esnext.map.from': {
   },
-  'esnext.map.includes': {
-  },
-  'esnext.map.key-by': {
-  },
-  'esnext.map.key-of': {
-  },
-  'esnext.map.map-keys': {
-  },
-  'esnext.map.map-values': {
-  },
-  'esnext.map.merge': {
-  },
   'esnext.map.of': {
-  },
-  'esnext.map.reduce': {
-  },
-  'esnext.map.some': {
-  },
-  'esnext.map.update': {
   },
   'esnext.math.f16round': {
   },
   'esnext.regexp.escape': {
-  },
-  'esnext.set.add-all': {
-  },
-  'esnext.set.delete-all': {
   },
   'esnext.set.difference': {
     // v8 do not properly work with set-like objects
@@ -2008,12 +1976,6 @@ export const data = {
     // safari do not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
-  },
-  'esnext.set.every': {
-  },
-  'esnext.set.filter': {
-  },
-  'esnext.set.find': {
   },
   'esnext.set.from': {
   },
@@ -2049,15 +2011,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
-  'esnext.set.join': {
-  },
-  'esnext.set.map': {
-  },
   'esnext.set.of': {
-  },
-  'esnext.set.reduce': {
-  },
-  'esnext.set.some': {
   },
   'esnext.set.symmetric-difference': {
     // v8 do not properly work with set-like objects
@@ -2114,17 +2068,11 @@ export const data = {
   },
   'esnext.uint8-array.to-hex': {
   },
-  'esnext.weak-map.delete-all': {
-  },
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
   },
   'esnext.weak-map.emplace': {
-  },
-  'esnext.weak-set.add-all': {
-  },
-  'esnext.weak-set.delete-all': {
   },
   'esnext.weak-set.from': {
   },
