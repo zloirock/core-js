@@ -11,15 +11,6 @@ require('../../modules/es.set.symmetric-difference');
 require('../../modules/es.set.union');
 require('../../modules/es.string.iterator');
 require('../../modules/esnext.set.from');
-require('../../modules/esnext.set.add-all');
-require('../../modules/esnext.set.delete-all');
-require('../../modules/esnext.set.every');
-require('../../modules/esnext.set.filter');
-require('../../modules/esnext.set.find');
-require('../../modules/esnext.set.join');
-require('../../modules/esnext.set.map');
-require('../../modules/esnext.set.reduce');
-require('../../modules/esnext.set.some');
 require('../../modules/web.dom-collections.iterator');
 var path = require('../../internals/path');
 
