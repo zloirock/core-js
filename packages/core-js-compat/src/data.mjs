@@ -2250,18 +2250,8 @@ export const data = {
     // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     firefox: '135', // '132',
   },
-  'esnext.map.delete-all': {
-  },
   // TODO: Remove from `core-js@4`
   'esnext.map.emplace': {
-  },
-  'esnext.map.every': {
-  },
-  'esnext.map.filter': {
-  },
-  'esnext.map.find': {
-  },
-  'esnext.map.find-key': {
   },
   'esnext.map.from': {
   },
@@ -2269,25 +2259,7 @@ export const data = {
   },
   'esnext.map.get-or-insert-computed': {
   },
-  'esnext.map.includes': {
-  },
-  'esnext.map.key-by': {
-  },
-  'esnext.map.key-of': {
-  },
-  'esnext.map.map-keys': {
-  },
-  'esnext.map.map-values': {
-  },
-  'esnext.map.merge': {
-  },
   'esnext.map.of': {
-  },
-  'esnext.map.reduce': {
-  },
-  'esnext.map.some': {
-  },
-  'esnext.map.update': {
   },
   'esnext.math.f16round': {
     bun: '1.1.23',
@@ -2304,27 +2276,9 @@ export const data = {
     firefox: '134',
     safari: '18.2',
   },
-  'esnext.set.add-all': {
-  },
-  'esnext.set.delete-all': {
-  },
-  'esnext.set.every': {
-  },
-  'esnext.set.filter': {
-  },
-  'esnext.set.find': {
-  },
   'esnext.set.from': {
   },
-  'esnext.set.join': {
-  },
-  'esnext.set.map': {
-  },
   'esnext.set.of': {
-  },
-  'esnext.set.reduce': {
-  },
-  'esnext.set.some': {
   },
   'esnext.string.cooked': {
   },
@@ -2392,8 +2346,6 @@ export const data = {
     firefox: '133',
     safari: '18.2',
   },
-  'esnext.weak-map.delete-all': {
-  },
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
@@ -2404,10 +2356,6 @@ export const data = {
   'esnext.weak-map.get-or-insert': {
   },
   'esnext.weak-map.get-or-insert-computed': {
-  },
-  'esnext.weak-set.add-all': {
-  },
-  'esnext.weak-set.delete-all': {
   },
   'esnext.weak-set.from': {
   },
