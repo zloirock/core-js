@@ -950,7 +950,6 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '48',
-    hermes: '0.1',
     rhino: '1.7.13',
     safari: '10',
   },
