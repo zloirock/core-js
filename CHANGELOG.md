@@ -5,6 +5,7 @@
 - Fixed setting names of methods with symbol keys in some old engines
 - Compat data improvements:
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as supported from V8 ~ Chrome 122
+  - Note that V8 ~ Chrome 122 add [`Set` methods](https://github.com/tc39/proposal-set-methods), but they have [a bug](https://bugs.chromium.org/p/v8/issues/detail?id=14559) [similar to Safari](https://bugs.webkit.org/show_bug.cgi?id=267494)
   - `self` marked as fixed from Bun 1.0.22
   - Updated Electron 29 and added Electron 30 compat data mapping
 
