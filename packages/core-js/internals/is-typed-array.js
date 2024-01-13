@@ -1,9 +1,7 @@
 'use strict';
 var isObject = require('../internals/is-object');
-var hasOwn = require('../internals/has-own-property');
-var classof = require('../internals/classof-raw');
-var TypedArrayConstructors = require('../internals/typed-array-constructors');
+var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 
 module.exports = function (it) {
-  return isObject(it) && hasOwn(TypedArrayConstructors, classof(it));
+  return isObject(it) && !!getTypedArrayConstructor(it);
 };
