@@ -2243,8 +2243,12 @@ export const data = {
   'esnext.set.delete-all': {
   },
   'esnext.set.difference.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
@@ -2258,29 +2262,45 @@ export const data = {
   'esnext.set.from': {
   },
   'esnext.set.intersection.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
   'esnext.set.is-disjoint-from.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
   'esnext.set.is-subset-of.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
   'esnext.set.is-superset-of.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
@@ -2296,15 +2316,23 @@ export const data = {
   'esnext.set.some': {
   },
   'esnext.set.symmetric-difference.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
   'esnext.set.union.v2': {
-    // chrome: '122', // do not properly work with set-like objects
-    // safari: '17.0', // do not properly work with set-like objects
+    // v8 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    // chrome: '122',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
   },
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
