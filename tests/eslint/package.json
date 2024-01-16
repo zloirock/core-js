@@ -9,7 +9,7 @@
     "eslint-plugin-es-x": "^7.5.0",
     "eslint-plugin-filenames": "^1.3.2",
     "eslint-plugin-import": "^2.29.1",
-    "eslint-plugin-jsonc": "^2.12.1",
+    "eslint-plugin-jsonc": "^2.12.2",
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^8.0.1",
