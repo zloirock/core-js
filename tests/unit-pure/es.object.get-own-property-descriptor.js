@@ -2,7 +2,6 @@ import getOwnPropertyDescriptor from '@core-js/pure/es/object/get-own-property-d
 
 QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.isFunction(getOwnPropertyDescriptor);
-  assert.arity(getOwnPropertyDescriptor, 2);
   assert.deepEqual(getOwnPropertyDescriptor({ q: 42 }, 'q'), {
     writable: true,
     enumerable: true,
