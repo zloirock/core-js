@@ -46,8 +46,6 @@ async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
 }
 
 export async function getListOfDependencies(paths) {
-  if (!Array.isArray(paths)) paths = [paths];
-  paths = paths.flatMap(it => it instanceof RegExp ? modules.filter(path => it.test(path)) : [it]);
   const dependencies = [];
   for (const module of paths.map(normalizeModulePath)) {
     dependencies.push(...await getSetOfAllDependenciesForModule(module));
