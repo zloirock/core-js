@@ -4,6 +4,7 @@ QUnit.test('Object.getOwnPropertyDescriptor', assert => {
   assert.isFunction(getOwnPropertyDescriptor);
   assert.arity(getOwnPropertyDescriptor, 2);
   assert.name(getOwnPropertyDescriptor, 'getOwnPropertyDescriptor');
+
   assert.deepEqual(getOwnPropertyDescriptor({ q: 42 }, 'q'), {
     writable: true,
     enumerable: true,
