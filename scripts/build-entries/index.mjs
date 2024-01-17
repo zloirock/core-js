@@ -26,6 +26,8 @@ const ActualSet = new Set(ActualModules);
 let built = 0;
 
 async function buildEntry(entry, template, modules, filter, enforce) {
+  if (!Array.isArray(modules)) modules = [modules];
+  modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(path => it.test(path)) : [it]);
   if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
   if (!enforce && !modules.length) return;
   const level = entry.split('/').length - 1;
