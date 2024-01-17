@@ -583,14 +583,6 @@ export const features = {
     modules: [/^(?:es|esnext)\.map\./],
     template: $namespace({ name: 'Map' }),
   },
-  'map/delete-all': {
-    modules: ['esnext.map.delete-all'],
-    template: $prototype({ namespace: 'Map', method: 'deleteAll' }),
-  },
-  'map/virtual/delete-all': {
-    modules: ['esnext.map.delete-all'],
-    template: $virtual({ namespace: 'Map', method: 'deleteAll' }),
-  },
   'map/emplace': {
     modules: ['esnext.map.emplace'],
     template: $prototype({ namespace: 'Map', method: 'emplace' }),
@@ -598,38 +590,6 @@ export const features = {
   'map/virtual/emplace': {
     modules: ['esnext.map.emplace'],
     template: $virtual({ namespace: 'Map', method: 'emplace' }),
-  },
-  'map/every': {
-    modules: ['esnext.map.every'],
-    template: $prototype({ namespace: 'Map', method: 'every' }),
-  },
-  'map/virtual/every': {
-    modules: ['esnext.map.every'],
-    template: $virtual({ namespace: 'Map', method: 'every' }),
-  },
-  'map/filter': {
-    modules: ['esnext.map.filter'],
-    template: $prototype({ namespace: 'Map', method: 'filter' }),
-  },
-  'map/virtual/filter': {
-    modules: ['esnext.map.filter'],
-    template: $virtual({ namespace: 'Map', method: 'filter' }),
-  },
-  'map/find': {
-    modules: ['esnext.map.find'],
-    template: $prototype({ namespace: 'Map', method: 'find' }),
-  },
-  'map/virtual/find': {
-    modules: ['esnext.map.find'],
-    template: $virtual({ namespace: 'Map', method: 'find' }),
-  },
-  'map/find-key': {
-    modules: ['esnext.map.find-key'],
-    template: $prototype({ namespace: 'Map', method: 'findKey' }),
-  },
-  'map/virtual/find-key': {
-    modules: ['esnext.map.find-key'],
-    template: $virtual({ namespace: 'Map', method: 'findKey' }),
   },
   'map/from': {
     modules: ['esnext.map.from'],
@@ -639,77 +599,9 @@ export const features = {
     modules: ['es.map.group-by'],
     template: $static({ namespace: 'Map', method: 'groupBy' }),
   },
-  'map/includes': {
-    modules: ['esnext.map.includes'],
-    template: $prototype({ namespace: 'Map', method: 'includes' }),
-  },
-  'map/virtual/includes': {
-    modules: ['esnext.map.includes'],
-    template: $virtual({ namespace: 'Map', method: 'includes' }),
-  },
-  'map/key-by': {
-    modules: ['esnext.map.key-by', 'es.map.constructor'],
-    template: $staticWithContext({ namespace: 'Map', method: 'keyBy' }),
-  },
-  'map/key-of': {
-    modules: ['esnext.map.key-of'],
-    template: $prototype({ namespace: 'Map', method: 'keyOf' }),
-  },
-  'map/virtual/key-of': {
-    modules: ['esnext.map.key-of'],
-    template: $virtual({ namespace: 'Map', method: 'keyOf' }),
-  },
-  'map/map-keys': {
-    modules: ['esnext.map.map-keys'],
-    template: $prototype({ namespace: 'Map', method: 'mapKeys' }),
-  },
-  'map/virtual/map-keys': {
-    modules: ['esnext.map.map-keys'],
-    template: $virtual({ namespace: 'Map', method: 'mapKeys' }),
-  },
-  'map/map-values': {
-    modules: ['esnext.map.map-values'],
-    template: $prototype({ namespace: 'Map', method: 'mapValues' }),
-  },
-  'map/virtual/map-values': {
-    modules: ['esnext.map.map-values'],
-    template: $virtual({ namespace: 'Map', method: 'mapValues' }),
-  },
-  'map/merge': {
-    modules: ['esnext.map.merge'],
-    template: $prototype({ namespace: 'Map', method: 'merge' }),
-  },
-  'map/virtual/merge': {
-    modules: ['esnext.map.merge'],
-    template: $virtual({ namespace: 'Map', method: 'merge' }),
-  },
   'map/of': {
     modules: ['esnext.map.of'],
     template: $staticWithContext({ namespace: 'Map', method: 'of' }),
-  },
-  'map/reduce': {
-    modules: ['esnext.map.reduce'],
-    template: $prototype({ namespace: 'Map', method: 'reduce' }),
-  },
-  'map/virtual/reduce': {
-    modules: ['esnext.map.reduce'],
-    template: $virtual({ namespace: 'Map', method: 'reduce' }),
-  },
-  'map/some': {
-    modules: ['esnext.map.some'],
-    template: $prototype({ namespace: 'Map', method: 'some' }),
-  },
-  'map/virtual/some': {
-    modules: ['esnext.map.some'],
-    template: $virtual({ namespace: 'Map', method: 'some' }),
-  },
-  'map/update': {
-    modules: ['esnext.map.update'],
-    template: $prototype({ namespace: 'Map', method: 'update' }),
-  },
-  'map/virtual/update': {
-    modules: ['esnext.map.update'],
-    template: $virtual({ namespace: 'Map', method: 'update' }),
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
@@ -1094,22 +986,6 @@ export const features = {
     modules: [/^(?:es|esnext)\.set\./],
     template: $namespace({ name: 'Set' }),
   },
-  'set/add-all': {
-    modules: ['esnext.set.add-all'],
-    template: $prototype({ namespace: 'Set', method: 'addAll' }),
-  },
-  'set/virtual/add-all': {
-    modules: ['esnext.set.add-all'],
-    template: $virtual({ namespace: 'Set', method: 'addAll' }),
-  },
-  'set/delete-all': {
-    modules: ['esnext.set.delete-all'],
-    template: $prototype({ namespace: 'Set', method: 'deleteAll' }),
-  },
-  'set/virtual/delete-all': {
-    modules: ['esnext.set.delete-all'],
-    template: $virtual({ namespace: 'Set', method: 'deleteAll' }),
-  },
   'set/difference': {
     modules: ['esnext.set.difference'],
     template: $prototype({ namespace: 'Set', method: 'difference' }),
@@ -1117,30 +993,6 @@ export const features = {
   'set/virtual/difference': {
     modules: ['esnext.set.difference'],
     template: $virtual({ namespace: 'Set', method: 'difference' }),
-  },
-  'set/every': {
-    modules: ['esnext.set.every'],
-    template: $prototype({ namespace: 'Set', method: 'every' }),
-  },
-  'set/virtual/every': {
-    modules: ['esnext.set.every'],
-    template: $virtual({ namespace: 'Set', method: 'every' }),
-  },
-  'set/filter': {
-    modules: ['esnext.set.filter'],
-    template: $prototype({ namespace: 'Set', method: 'filter' }),
-  },
-  'set/virtual/filter': {
-    modules: ['esnext.set.filter'],
-    template: $virtual({ namespace: 'Set', method: 'filter' }),
-  },
-  'set/find': {
-    modules: ['esnext.set.find'],
-    template: $prototype({ namespace: 'Set', method: 'find' }),
-  },
-  'set/virtual/find': {
-    modules: ['esnext.set.find'],
-    template: $virtual({ namespace: 'Set', method: 'find' }),
   },
   'set/from': {
     modules: ['esnext.set.from'],
@@ -1178,41 +1030,9 @@ export const features = {
     modules: ['esnext.set.is-superset-of'],
     template: $virtual({ namespace: 'Set', method: 'isSupersetOf' }),
   },
-  'set/join': {
-    modules: ['esnext.set.join'],
-    template: $prototype({ namespace: 'Set', method: 'join' }),
-  },
-  'set/virtual/join': {
-    modules: ['esnext.set.join'],
-    template: $virtual({ namespace: 'Set', method: 'join' }),
-  },
-  'set/map': {
-    modules: ['esnext.set.map'],
-    template: $prototype({ namespace: 'Set', method: 'map' }),
-  },
-  'set/virtual/map': {
-    modules: ['esnext.set.map'],
-    template: $virtual({ namespace: 'Set', method: 'map' }),
-  },
   'set/of': {
     modules: ['esnext.set.of'],
     template: $staticWithContext({ namespace: 'Set', method: 'of' }),
-  },
-  'set/reduce': {
-    modules: ['esnext.set.reduce'],
-    template: $prototype({ namespace: 'Set', method: 'reduce' }),
-  },
-  'set/virtual/reduce': {
-    modules: ['esnext.set.reduce'],
-    template: $virtual({ namespace: 'Set', method: 'reduce' }),
-  },
-  'set/some': {
-    modules: ['esnext.set.some'],
-    template: $prototype({ namespace: 'Set', method: 'some' }),
-  },
-  'set/virtual/some': {
-    modules: ['esnext.set.some'],
-    template: $virtual({ namespace: 'Set', method: 'some' }),
   },
   'set/symmetric-difference': {
     modules: ['esnext.set.symmetric-difference'],
@@ -1544,14 +1364,6 @@ export const features = {
     modules: [/^(?:es|esnext)\.weak-map\./],
     template: $namespace({ name: 'WeakMap' }),
   },
-  'weak-map/delete-all': {
-    modules: ['esnext.weak-map.delete-all'],
-    template: $prototype({ namespace: 'WeakMap', method: 'deleteAll' }),
-  },
-  'weak-map/virtual/delete-all': {
-    modules: ['esnext.weak-map.delete-all'],
-    template: $virtual({ namespace: 'WeakMap', method: 'deleteAll' }),
-  },
   'weak-map/emplace': {
     modules: ['esnext.weak-map.emplace'],
     template: $prototype({ namespace: 'WeakMap', method: 'emplace' }),
@@ -1571,22 +1383,6 @@ export const features = {
   'weak-set/index': {
     modules: [/^(?:es|esnext)\.weak-set\./],
     template: $namespace({ name: 'WeakSet' }),
-  },
-  'weak-set/add-all': {
-    modules: ['esnext.weak-set.add-all'],
-    template: $prototype({ namespace: 'WeakSet', method: 'addAll' }),
-  },
-  'weak-set/virtual/add-all': {
-    modules: ['esnext.weak-set.add-all'],
-    template: $virtual({ namespace: 'WeakSet', method: 'addAll' }),
-  },
-  'weak-set/delete-all': {
-    modules: ['esnext.weak-set.delete-all'],
-    template: $prototype({ namespace: 'WeakSet', method: 'deleteAll' }),
-  },
-  'weak-set/virtual/delete-all': {
-    modules: ['esnext.weak-set.delete-all'],
-    template: $virtual({ namespace: 'WeakSet', method: 'deleteAll' }),
   },
   'weak-set/from': {
     modules: ['esnext.weak-set.from'],
@@ -1771,38 +1567,6 @@ export const proposals = {
       'es.typed-array.to-reversed',
       'es.typed-array.to-sorted',
       'es.typed-array.with',
-    ],
-  },
-  // https://github.com/tc39/proposal-collection-methods
-  'collection-methods': {
-    stage: 1,
-    modules: [
-      'esnext.map.key-by',
-      'esnext.map.delete-all',
-      'esnext.map.every',
-      'esnext.map.filter',
-      'esnext.map.find',
-      'esnext.map.find-key',
-      'esnext.map.includes',
-      'esnext.map.key-of',
-      'esnext.map.map-keys',
-      'esnext.map.map-values',
-      'esnext.map.merge',
-      'esnext.map.reduce',
-      'esnext.map.some',
-      'esnext.map.update',
-      'esnext.set.add-all',
-      'esnext.set.delete-all',
-      'esnext.set.every',
-      'esnext.set.filter',
-      'esnext.set.find',
-      'esnext.set.join',
-      'esnext.set.map',
-      'esnext.set.reduce',
-      'esnext.set.some',
-      'esnext.weak-map.delete-all',
-      'esnext.weak-set.add-all',
-      'esnext.weak-set.delete-all',
     ],
   },
   // https://github.com/tc39/proposal-setmap-offrom
