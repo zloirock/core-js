@@ -7,6 +7,7 @@ QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.isFunction(getOwnPropertyNames);
   assert.arity(getOwnPropertyNames, 1);
   assert.name(getOwnPropertyNames, 'getOwnPropertyNames');
+
   function F1() {
     this.w = 1;
   }
