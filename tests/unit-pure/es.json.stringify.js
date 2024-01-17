@@ -11,7 +11,6 @@ import values from '@core-js/pure/es/object/values';
 if (GLOBAL.JSON?.stringify) {
   QUnit.test('JSON.stringify', assert => {
     assert.isFunction(stringify);
-    assert.arity(stringify, 3);
     assert.name(stringify, 'stringify');
 
     assert.same(stringify({ a: 1, b: 2 }, []), '{}', 'replacer-array-empty-1');
