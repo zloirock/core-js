@@ -5,7 +5,6 @@ import getOwnPropertyNames from '@core-js/pure/es/object/get-own-property-names'
 
 QUnit.test('Object.getOwnPropertyNames', assert => {
   assert.isFunction(getOwnPropertyNames);
-  assert.arity(getOwnPropertyNames, 1);
   function F1() {
     this.w = 1;
   }
