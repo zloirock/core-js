@@ -4,11 +4,12 @@ var apply = require('../internals/function-apply');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var isCallable = require('../internals/is-callable');
 var path = require('../internals/path');
-var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var hasOwn = require('../internals/has-own-property');
 // add debugging info
 require('../internals/shared-store');
+
+var create = Object.create;
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
@@ -44,21 +45,17 @@ module.exports = function (options, source) {
   var GLOBAL = options.global;
   var STATIC = options.stat;
   var PROTO = options.proto;
+  var FORCED = options.forced;
 
   var nativeSource = GLOBAL ? globalThis : STATIC ? globalThis[TARGET] : globalThis[TARGET] && globalThis[TARGET].prototype;
 
-  var target = GLOBAL ? path : path[TARGET] || createNonEnumerableProperty(path, TARGET, {})[TARGET];
+  var target = GLOBAL ? path : path[TARGET] || (path[TARGET] = create(null));
   var targetPrototype = target.prototype;
 
-  var FORCED, USE_NATIVE, VIRTUAL_PROTOTYPE;
-  var sourceProperty, targetProperty, nativeProperty, resultProperty, descriptor;
-
   Object.keys(source).forEach(function (key) {
-    FORCED = options.forced;
     // contains in native
-    USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
-
-    targetProperty = target[key];
+    var USE_NATIVE = !FORCED && nativeSource && hasOwn(nativeSource, key);
+    var nativeProperty, descriptor;
 
     if (USE_NATIVE) if (options.dontCallGetSet) {
       descriptor = Object.getOwnPropertyDescriptor(nativeSource, key);
@@ -66,36 +63,36 @@ module.exports = function (options, source) {
     } else nativeProperty = nativeSource[key];
 
     // export native or implementation
-    sourceProperty = (USE_NATIVE && nativeProperty) ? nativeProperty : source[key];
+    var baseResultProperty = USE_NATIVE ? nativeProperty : source[key];
 
-    if (!FORCED && !PROTO && typeof targetProperty == typeof sourceProperty) return;
+    if (!FORCED && !PROTO && typeof target[key] == typeof baseResultProperty) return;
 
-    // bind methods to global for calling from export context
-    if (options.bind && USE_NATIVE) resultProperty = bind(sourceProperty, globalThis);
-    // wrap global constructors for prevent changes in this version
-    else if (options.wrap && USE_NATIVE) resultProperty = wrapConstructor(sourceProperty);
-    // make static versions for prototype methods
-    else if (PROTO && isCallable(sourceProperty)) resultProperty = uncurryThis(sourceProperty);
-    // default case
-    else resultProperty = sourceProperty;
+    // make static versions of prototype methods
+    var resultProperty = PROTO && isCallable(baseResultProperty) ? uncurryThis(baseResultProperty)
+      // bind methods to global for calling from export context
+      : options.bind && USE_NATIVE ? baseResultProperty.bind(globalThis)
+      // wrap global constructors for prevent changes in this version
+      : options.wrap && USE_NATIVE ? wrapConstructor(baseResultProperty)
+      // default case
+      : baseResultProperty;
 
     // add a flag to not completely full polyfills
-    if (options.sham || (sourceProperty && sourceProperty.sham) || (targetProperty && targetProperty.sham)) {
+    if (options.sham || (baseResultProperty && baseResultProperty.sham)) {
       createNonEnumerableProperty(resultProperty, 'sham', true);
     }
 
     createNonEnumerableProperty(target, key, resultProperty);
 
     if (PROTO) {
-      VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
+      var VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
       if (!hasOwn(path, VIRTUAL_PROTOTYPE)) {
-        createNonEnumerableProperty(path, VIRTUAL_PROTOTYPE, {});
+        createNonEnumerableProperty(path, VIRTUAL_PROTOTYPE, create(null));
       }
       // export virtual prototype methods
-      createNonEnumerableProperty(path[VIRTUAL_PROTOTYPE], key, sourceProperty);
+      createNonEnumerableProperty(path[VIRTUAL_PROTOTYPE], key, baseResultProperty);
       // export real prototype methods
       if (options.real && targetPrototype && (FORCED || !targetPrototype[key])) {
-        createNonEnumerableProperty(targetPrototype, key, sourceProperty);
+        createNonEnumerableProperty(targetPrototype, key, baseResultProperty);
       }
     }
   });
