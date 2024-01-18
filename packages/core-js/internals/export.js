@@ -34,7 +34,7 @@ module.exports = function (options, source) {
     // contained in target
     if (!options.forced && typeof sourceProperty == typeof targetProperty) return;
     // add a flag to not completely full polyfills
-    if (options.sham || (targetProperty && targetProperty.sham)) {
+    if (options.sham) {
       createNonEnumerableProperty(sourceProperty, 'sham', true);
     }
     defineBuiltIn(target, key, sourceProperty, options);
