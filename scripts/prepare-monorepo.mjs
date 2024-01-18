@@ -7,6 +7,7 @@ const exec = promisify(childProcess.exec);
 const { UPDATE_DEPENDENCIES } = process.env;
 
 const ignore = new Set([
+  'scripts/build-entries',
   'scripts/check-actions',
   'scripts/usage',
   'tests/test262',
