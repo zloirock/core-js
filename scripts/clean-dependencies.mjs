@@ -1,6 +1,7 @@
 import { readdir, rm } from 'node:fs/promises';
 
 const ignore = new Set([
+  'scripts/build-entries',
   'scripts/check-actions',
   'scripts/usage',
   'tests/test262',
