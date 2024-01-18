@@ -3,6 +3,7 @@
 - Fixed internal `ToLength` operation with bigints, [#1318](https://github.com/zloirock/core-js/issues/1318)
 - Removed significant redundant code from `String#split` polyfill
 - Fixed setting names of methods with symbol keys in some old engines
+- Minor fix of prototype methods export logic in the pure version
 - Compat data improvements:
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as supported from V8 ~ Chrome 122
   - Note that V8 ~ Chrome 122 add [`Set` methods](https://github.com/tc39/proposal-set-methods), but they have [a bug](https://bugs.chromium.org/p/v8/issues/detail?id=14559) [similar to Safari](https://bugs.webkit.org/show_bug.cgi?id=267494)
