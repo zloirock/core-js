@@ -1,5 +1,5 @@
 import { getListOfDependencies, sort } from './get-dependencies.mjs';
-import { features, proposals } from './entries-definitions.mjs';
+import { features, instance, proposals } from './entries-definitions.mjs';
 import { $justImport, $path } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 
@@ -46,6 +46,19 @@ for (const [entry, { modules, template, enforce }] of Object.entries(features)) 
   await buildEntry(`actual/${ entry }`, template, modules, ActualSet, enforce);
   await buildEntry(`full/${ entry }`, template, modules, null, enforce);
 }
+
+for (const [entry, { name, modules, template, stable, actual, full }] of Object.entries(instance)) {
+  const params = { entry, name };
+  let $template = template(params);
+  await buildEntry(`es/instance/${ entry }`, $template, modules, ESSet);
+  if (stable) $template = stable(params);
+  await buildEntry(`stable/instance/${ entry }`, $template, modules, StableSet);
+  if (actual) $template = actual(params);
+  await buildEntry(`actual/instance/${ entry }`, $template, modules, ActualSet);
+  if (full) $template = full(params);
+  await buildEntry(`full/instance/${ entry }`, $template, modules);
+}
+
 for (const [name, { modules }] of Object.entries(proposals)) {
   await buildEntry(`proposals/${ name }`, $justImport, modules);
 }
