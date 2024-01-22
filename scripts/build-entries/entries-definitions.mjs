@@ -7,6 +7,13 @@ import {
   $namespace,
   $helper,
   $justImport,
+  $instanceArray,
+  $instanceString,
+  $instanceFunction,
+  $instanceDOMIterables,
+  $instanceArrayString,
+  $instanceArrayDOMIterables,
+  $instanceRegExpFlags,
 } from './templates.mjs';
 
 export const features = {
@@ -1443,6 +1450,262 @@ export const features = {
   'is-iterable': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
     template: $helper({ name: 'is-iterable' }),
+  },
+};
+
+export const instance = {
+  at: {
+    name: 'at',
+    modules: ['es.array.at', 'es.string.at'],
+    template: $instanceArrayString,
+  },
+  'code-point-at': {
+    name: 'codePointAt',
+    modules: ['es.string.code-point-at'],
+    template: $instanceString,
+  },
+  concat: {
+    name: 'concat',
+    modules: ['es.array.concat'],
+    template: $instanceArray,
+  },
+  'copy-within': {
+    name: 'copyWithin',
+    modules: ['es.array.copy-within'],
+    template: $instanceArray,
+  },
+  demethodize: {
+    name: 'demethodize',
+    modules: ['esnext.function.demethodize'],
+    template: $instanceFunction,
+  },
+  'ends-with': {
+    name: 'endsWith',
+    modules: ['es.string.ends-with'],
+    template: $instanceString,
+  },
+  entries: {
+    name: 'entries',
+    modules: ['es.array.entries', 'web.dom-collections.entries'],
+    template: $instanceArray,
+    stable: $instanceArrayDOMIterables,
+  },
+  fill: {
+    name: 'fill',
+    modules: ['es.array.fill'],
+    template: $instanceArray,
+  },
+  filter: {
+    name: 'filter',
+    modules: ['es.array.filter'],
+    template: $instanceArray,
+  },
+  'filter-reject': {
+    name: 'filterReject',
+    modules: ['esnext.array.filter-reject'],
+    template: $instanceArray,
+  },
+  find: {
+    name: 'find',
+    modules: ['es.array.find'],
+    template: $instanceArray,
+  },
+  'find-index': {
+    name: 'findIndex',
+    modules: ['es.array.find-index'],
+    template: $instanceArray,
+  },
+  'find-last': {
+    name: 'findLast',
+    modules: ['es.array.find-last'],
+    template: $instanceArray,
+  },
+  'find-last-index': {
+    name: 'findLastIndex',
+    modules: ['es.array.find-last-index'],
+    template: $instanceArray,
+  },
+  flags: {
+    name: 'flags',
+    modules: ['es.regexp.flags'],
+    template: $instanceRegExpFlags,
+  },
+  flat: {
+    name: 'flat',
+    modules: ['es.array.flat'],
+    template: $instanceArray,
+  },
+  'flat-map': {
+    name: 'flatMap',
+    modules: ['es.array.flat-map'],
+    template: $instanceArray,
+  },
+  'for-each': {
+    name: 'forEach',
+    modules: ['web.dom-collections.for-each'],
+    template: $instanceDOMIterables,
+  },
+  includes: {
+    name: 'includes',
+    modules: ['es.array.includes', 'es.string.includes'],
+    template: $instanceArrayString,
+  },
+  'index-of': {
+    name: 'indexOf',
+    modules: ['es.array.index-of'],
+    template: $instanceArray,
+  },
+  'is-well-formed': {
+    name: 'isWellFormed',
+    modules: ['es.string.is-well-formed'],
+    template: $instanceString,
+  },
+  keys: {
+    name: 'keys',
+    modules: ['es.array.keys', 'web.dom-collections.keys'],
+    template: $instanceArray,
+    stable: $instanceArrayDOMIterables,
+  },
+  'last-index-of': {
+    name: 'lastIndexOf',
+    modules: ['es.array.last-index-of'],
+    template: $instanceArray,
+  },
+  map: {
+    name: 'map',
+    modules: ['es.array.map'],
+    template: $instanceArray,
+  },
+  'match-all': {
+    name: 'matchAll',
+    modules: ['es.string.match-all'],
+    template: $instanceString,
+  },
+  'pad-end': {
+    name: 'padEnd',
+    modules: ['es.string.pad-end'],
+    template: $instanceString,
+  },
+  'pad-start': {
+    name: 'padStart',
+    modules: ['es.string.pad-start'],
+    template: $instanceString,
+  },
+  push: {
+    name: 'push',
+    modules: ['es.array.push'],
+    template: $instanceArray,
+  },
+  reduce: {
+    name: 'reduce',
+    modules: ['es.array.reduce'],
+    template: $instanceArray,
+  },
+  'reduce-right': {
+    name: 'reduceRight',
+    modules: ['es.array.reduce-right'],
+    template: $instanceArray,
+  },
+  repeat: {
+    name: 'repeat',
+    modules: ['es.string.repeat'],
+    template: $instanceString,
+  },
+  'replace-all': {
+    name: 'replaceAll',
+    modules: ['es.string.replace-all'],
+    template: $instanceString,
+  },
+  reverse: {
+    name: 'reverse',
+    modules: ['es.array.reverse'],
+    template: $instanceArray,
+  },
+  slice: {
+    name: 'slice',
+    modules: ['es.array.slice'],
+    template: $instanceArray,
+  },
+  sort: {
+    name: 'sort',
+    modules: ['es.array.sort'],
+    template: $instanceArray,
+  },
+  splice: {
+    name: 'splice',
+    modules: ['es.array.splice'],
+    template: $instanceArray,
+  },
+  'starts-with': {
+    name: 'startsWith',
+    modules: ['es.string.starts-with'],
+    template: $instanceString,
+  },
+  'to-reversed': {
+    name: 'toReversed',
+    modules: ['es.array.to-reversed'],
+    template: $instanceArray,
+  },
+  'to-sorted': {
+    name: 'toSorted',
+    modules: ['es.array.to-sorted'],
+    template: $instanceArray,
+  },
+  'to-spliced': {
+    name: 'toSpliced',
+    modules: ['es.array.to-spliced'],
+    template: $instanceArray,
+  },
+  'to-well-formed': {
+    name: 'toWellFormed',
+    modules: ['es.string.to-well-formed'],
+    template: $instanceString,
+  },
+  trim: {
+    name: 'trim',
+    modules: ['es.string.trim'],
+    template: $instanceString,
+  },
+  'trim-end': {
+    name: 'trimEnd',
+    modules: ['es.string.trim-end'],
+    template: $instanceString,
+  },
+  'trim-left': {
+    name: 'trimLeft',
+    modules: ['es.string.trim-left'],
+    template: $instanceString,
+  },
+  'trim-right': {
+    name: 'trimRight',
+    modules: ['es.string.trim-right'],
+    template: $instanceString,
+  },
+  'trim-start': {
+    name: 'trimStart',
+    modules: ['es.string.trim-start'],
+    template: $instanceString,
+  },
+  'unique-by': {
+    name: 'uniqueBy',
+    modules: ['esnext.array.unique-by'],
+    template: $instanceArray,
+  },
+  unshift: {
+    name: 'unshift',
+    modules: ['es.array.unshift'],
+    template: $instanceArray,
+  },
+  values: {
+    name: 'values',
+    modules: ['es.array.values', 'web.dom-collections.values'],
+    template: $instanceArray,
+    stable: $instanceArrayDOMIterables,
+  },
+  with: {
+    name: 'with',
+    modules: ['es.array.with'],
+    template: $instanceArray,
   },
 };
 
