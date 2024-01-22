@@ -87,3 +87,111 @@ export const $helper = t(p => dedent`
 `);
 
 export const $path = $helper({ name: 'path' });
+
+export const $instanceArray = t(p => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var arrayMethod = require('../array/virtual/${ p.entry }');
+
+  var ArrayPrototype = Array.prototype;
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
+    return ownProperty;
+  };
+`);
+
+export const $instanceString = t(p => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var stringMethod = require('../string/virtual/${ p.entry }');
+
+  var StringPrototype = String.prototype;
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (typeof it == 'string' || it === StringPrototype
+      || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
+    return ownProperty;
+  };
+`);
+
+export const $instanceFunction = t(p => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var functionMethod = require('../function/virtual/${ p.entry }');
+
+  var FunctionPrototype = Function.prototype;
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it) && ownProperty === FunctionPrototype.${ p.name })) {
+      return functionMethod;
+    } return ownProperty;
+  };
+`);
+
+export const $instanceDOMIterables = t(p => dedent`
+  var classof = require('../../internals/classof');
+  var hasOwn = require('../../internals/has-own-property');
+
+  var arrayMethod = Array.prototype.${ p.name };
+
+  var DOMIterables = {
+    DOMTokenList: true,
+    NodeList: true,
+  };
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (hasOwn(DOMIterables, classof(it))) return arrayMethod;
+    return ownProperty;
+  };
+`);
+
+export const $instanceArrayString = t(p => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var arrayMethod = require('../array/virtual/${ p.entry }');
+  var stringMethod = require('../string/virtual/${ p.entry }');
+
+  var ArrayPrototype = Array.prototype;
+  var StringPrototype = String.prototype;
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
+    if (typeof it == 'string' || it === StringPrototype
+      || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
+    return ownProperty;
+  };
+`);
+
+export const $instanceArrayDOMIterables = t(p => dedent`
+  var classof = require('../../internals/classof');
+  var hasOwn = require('../../internals/has-own-property');
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var arrayMethod = require('../array/virtual/${ p.entry }');
+
+  var ArrayPrototype = Array.prototype;
+
+  var DOMIterables = {
+    DOMTokenList: true,
+    NodeList: true,
+  };
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
+      || hasOwn(DOMIterables, classof(it)) && ownProperty === ArrayPrototype.${ p.name }))) return arrayMethod;
+    return ownProperty;
+  };
+`);
+
+export const $instanceRegExpFlags = t(() => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var flags = require('../regexp/flags');
+
+  var RegExpPrototype = RegExp.prototype;
+
+  module.exports = function (it) {
+    return (it === RegExpPrototype || isPrototypeOf(RegExpPrototype, it)) ? flags(it) : it.flags;
+  };
+`);
