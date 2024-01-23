@@ -313,12 +313,44 @@ export const features = {
     modules: ['es.array.with'],
     template: $virtual({ namespace: 'Array', method: 'with' }),
   },
+  'array-buffer/index': {
+    modules: [/^(?:es|esnext)\.array-buffer\./],
+    template: $namespace({ name: 'ArrayBuffer' }),
+  },
+  'array-buffer/constructor': {
+    modules: ['es.array-buffer.constructor'],
+    template: $namespace({ name: 'ArrayBuffer' }),
+  },
+  'array-buffer/is-view': {
+    modules: ['es.array-buffer.is-view'],
+    template: $static({ namespace: 'ArrayBuffer', method: 'isView' }),
+  },
+  'array-buffer/detached': {
+    modules: ['esnext.array-buffer.detached'],
+    template: $justImport,
+  },
+  'array-buffer/slice': {
+    modules: ['es.array-buffer.slice'],
+    template: $justImport,
+  },
+  'array-buffer/transfer': {
+    modules: ['esnext.array-buffer.transfer'],
+    template: $justImport,
+  },
+  'array-buffer/transfer-to-fixed-length': {
+    modules: ['esnext.array-buffer.transfer-to-fixed-length'],
+    template: $justImport,
+  },
   'async-iterator/index': {
     modules: [/^(?:es|esnext)\.async-iterator\./],
     template: $namespace({ name: 'AsyncIterator' }),
   },
   'async-disposable-stack/index': {
     modules: [/^(?:es|esnext)\.async-disposable-stack\./],
+    template: $namespace({ name: 'AsyncDisposableStack' }),
+  },
+  'async-disposable-stack/constructor': {
+    modules: ['esnext.async-disposable-stack.constructor'],
     template: $namespace({ name: 'AsyncDisposableStack' }),
   },
   // 'async-iterator/async-dispose' ???
@@ -414,6 +446,26 @@ export const features = {
     modules: ['esnext.async-iterator.to-array'],
     template: $virtual({ namespace: 'AsyncIterator', method: 'toArray' }),
   },
+  'data-view/index': {
+    modules: [/^(?:es|esnext)\.data-view\./],
+    template: $namespace({ name: 'DataView' }),
+  },
+  'data-view/get-float16': {
+    modules: ['esnext.data-view.get-float16'],
+    template: $justImport,
+  },
+  'data-view/get-uint8-clamped': {
+    modules: ['esnext.data-view.get-uint8-clamped'],
+    template: $justImport,
+  },
+  'data-view/set-float16': {
+    modules: ['esnext.data-view.set-float16'],
+    template: $justImport,
+  },
+  'data-view/set-uint8-clamped': {
+    modules: ['esnext.data-view.set-uint8-clamped'],
+    template: $justImport,
+  },
   'date/index': {
     modules: [/^(?:es|esnext)\.date\./],
     template: $namespace({ name: 'Date' }),
@@ -430,12 +482,20 @@ export const features = {
     modules: [/^(?:es|esnext)\.disposable-stack\./],
     template: $namespace({ name: 'DisposableStack' }),
   },
+  'disposable-stack/constructor': {
+    modules: ['esnext.disposable-stack.constructor'],
+    template: $namespace({ name: 'DisposableStack' }),
+  },
   // date/to-primitive ???
   'dom-exception/index': {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
   },
   'error/index': { // < - path ??
+    modules: [/^(?:es|esnext)\.error\./],
+    template: $namespace({ name: 'Error' }),
+  },
+  'error/constructor': {
     modules: [/^(?:es|esnext)\.error\./],
     template: $namespace({ name: 'Error' }),
   },
@@ -876,11 +936,11 @@ export const features = {
     modules: ['es.object.set-prototype-of'],
     template: $static({ namespace: 'Object', method: 'setPrototypeOf' }),
   },
-  'object/to-string': { // <- !!!
+  'object/to-string': {
     modules: ['es.object.to-string'],
     template: $prototype({ namespace: 'Object', method: 'toString' }),
   },
-  'object/virtual/to-string': { // <- !!!
+  'object/virtual/to-string': {
     modules: ['es.object.to-string'],
     template: $virtual({ namespace: 'Object', method: 'toString' }),
   },
