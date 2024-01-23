@@ -39,9 +39,9 @@ export const $prototype = t(p => dedent`
 export const $static = t(p => dedent`
   ${ importModules(p.modules, p.level) }
 
-  var path = ${ importInternal('path', p.level) }
+  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
 
-  module.exports = path.${ p.namespace }.${ p.method };
+  module.exports = getBuiltInStaticMethod('${ p.namespace }', '${ p.method }');
 `);
 
 export const $staticWithContext = t(p => dedent`
