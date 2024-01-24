@@ -1,6 +1,8 @@
 import {
   $prototype,
+  $prototypeIterator,
   $virtual,
+  $virtualIterator,
   $static,
   $staticWithContext,
   $patchableStatic,
@@ -159,11 +161,11 @@ export const features = {
   },
   'array/iterator': {
     modules: ['es.array.iterator'],
-    template: $prototype({ namespace: 'Array', method: 'values' }),
+    template: $prototypeIterator({ source: '[]' }),
   },
   'array/virtual/iterator': {
     modules: ['es.array.iterator'],
-    template: $virtual({ namespace: 'Array', method: 'values' }),
+    template: $virtualIterator({ source: '[]' }),
   },
   'array/join': {
     modules: ['es.array.join'],
@@ -1229,8 +1231,14 @@ export const features = {
     modules: ['es.string.is-well-formed'],
     template: $virtual({ namespace: 'String', method: 'isWellFormed' }),
   },
-  // string/iterator !!!
-  // string/virtual/iterator !!!
+  'string/iterator': {
+    modules: ['es.string.iterator'],
+    template: $prototypeIterator({ source: "''" }),
+  },
+  'string/virtual/iterator': {
+    modules: ['es.string.iterator'],
+    template: $virtualIterator({ source: "''" }),
+  },
   'string/link': {
     modules: ['es.string.link'],
     template: $prototype({ namespace: 'String', method: 'link' }),
