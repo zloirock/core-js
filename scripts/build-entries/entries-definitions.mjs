@@ -1415,6 +1415,102 @@ export const features = {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
     template: $namespace({ name: 'SuppressedError' }),
   },
+  'symbol/index': {
+    modules: [/^(?:es|esnext)\.symbol\./],
+    template: $namespace({ name: 'Symbol' }),
+  },
+  'symbol/constructor': {
+    modules: [/^(?:es|esnext)\.symbol\./],
+    template: $namespace({ name: 'Symbol' }),
+  },
+  'symbol/async-dispose': {
+    modules: ['esnext.symbol.async-dispose'],
+    template: $static({ namespace: 'Symbol', method: 'asyncDispose' }),
+  },
+  'symbol/async-iterator': {
+    modules: ['es.symbol.async-iterator'],
+    template: $static({ namespace: 'Symbol', method: 'asyncIterator' }),
+  },
+  'symbol/description': {
+    modules: ['es.symbol.description'],
+    template: $justImport,
+  },
+  'symbol/dispose': {
+    modules: ['esnext.symbol.dispose'],
+    template: $static({ namespace: 'Symbol', method: 'dispose' }),
+  },
+  'symbol/for': {
+    modules: ['es.symbol.for'],
+    template: $static({ namespace: 'Symbol', method: 'for' }),
+  },
+  'symbol/has-instance': {
+    modules: ['es.symbol.has-instance', 'es.function.has-instance'],
+    template: $static({ namespace: 'Symbol', method: 'hasInstance' }),
+  },
+  'symbol/is-concat-spreadable': {
+    modules: ['es.symbol.is-concat-spreadable'],
+    template: $static({ namespace: 'Symbol', method: 'isConcatSpreadable' }),
+  },
+  'symbol/is-registered-symbol': {
+    modules: ['esnext.symbol.is-registered-symbol'],
+    template: $static({ namespace: 'Symbol', method: 'isRegisteredSymbol' }),
+  },
+  'symbol/is-well-known-symbol': {
+    modules: ['esnext.symbol.is-well-known-symbol'],
+    template: $static({ namespace: 'Symbol', method: 'isWellKnownSymbol' }),
+  },
+  'symbol/iterator': {
+    modules: ['es.symbol.iterator', 'es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
+    template: $static({ namespace: 'Symbol', method: 'iterator' }),
+  },
+  'symbol/key-for': {
+    modules: ['es.symbol.key-for'],
+    template: $static({ namespace: 'Symbol', method: 'keyFor' }),
+  },
+  'symbol/match': {
+    modules: ['es.symbol.match'],
+    template: $static({ namespace: 'Symbol', method: 'match' }),
+  },
+  'symbol/match-all': {
+    modules: ['es.symbol.match-all'],
+    template: $static({ namespace: 'Symbol', method: 'matchAll' }),
+  },
+  'symbol/matcher': {
+    modules: ['esnext.symbol.matcher'],
+    template: $static({ namespace: 'Symbol', method: 'matcher' }),
+  },
+  'symbol/metadata': {
+    modules: ['esnext.symbol.metadata', 'esnext.function.metadata'],
+    template: $static({ namespace: 'Symbol', method: 'metadata' }),
+  },
+  'symbol/replace': {
+    modules: ['es.symbol.replace'],
+    template: $static({ namespace: 'Symbol', method: 'replace' }),
+  },
+  'symbol/search': {
+    modules: ['es.symbol.search'],
+    template: $static({ namespace: 'Symbol', method: 'search' }),
+  },
+  'symbol/species': {
+    modules: ['es.symbol.species'],
+    template: $static({ namespace: 'Symbol', method: 'species' }),
+  },
+  'symbol/split': {
+    modules: ['es.symbol.split'],
+    template: $static({ namespace: 'Symbol', method: 'split' }),
+  },
+  'symbol/to-primitive': {
+    modules: ['es.symbol.to-primitive'],
+    template: $static({ namespace: 'Symbol', method: 'toPrimitive' }),
+  },
+  'symbol/to-string-tag': {
+    modules: ['es.symbol.to-string-tag', 'es.object.to-string'],
+    template: $static({ namespace: 'Symbol', method: 'toStringTag' }),
+  },
+  'symbol/unscopables': {
+    modules: ['es.symbol.unscopables'],
+    template: $static({ namespace: 'Symbol', method: 'unscopables' }),
+  },
   'url/index': {
     modules: [/^web\.url\./],
     template: $namespace({ name: 'URL' }),
