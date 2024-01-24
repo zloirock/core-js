@@ -28,12 +28,29 @@ export const $virtual = t(p => dedent`
   module.exports = getBuiltInPrototypeMethod('${ p.namespace }', '${ p.method }');
 `);
 
+export const $virtualIterator = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
+
+  module.exports = getIteratorMethod(${ p.source });
+`);
+
 export const $prototype = t(p => dedent`
   ${ importModules(p.modules, p.level) }
 
   var entryUnbind = ${ importInternal('entry-unbind', p.level) }
 
   module.exports = entryUnbind('${ p.namespace }', '${ p.method }');
+`);
+
+export const $prototypeIterator = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
+  var uncurryThis = ${ importInternal('function-uncurry-this', p.level) }
+  var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
+
+  module.exports = uncurryThis(getIteratorMethod(${ p.source }));
 `);
 
 export const $static = t(p => dedent`
