@@ -561,6 +561,10 @@ export const features = {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
   },
+  'dom-exception/constructor': {
+    modules: [/^web\.dom-exception\./],
+    template: $namespace({ name: 'DOMException' }),
+  },
   'error/index': { // < - path ??
     modules: [/^(?:es|esnext)\.error\./],
     template: $path,
@@ -893,10 +897,12 @@ export const features = {
   'object/define-property': {
     modules: [],
     template: $patchableStatic({ namespace: 'Object', method: 'defineProperty' }),
+    enforce: true,
   },
   'object/define-properties': {
     modules: [],
     template: $patchableStatic({ namespace: 'Object', method: 'defineProperties' }),
+    enforce: true,
   },
   'object/define-getter': {
     modules: ['es.object.define-getter'],
@@ -1061,6 +1067,10 @@ export const features = {
   'promise/resolve': {
     modules: ['es.promise.constructor', 'es.promise.resolve'],
     template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
+  },
+  'promise/with-resolvers': {
+    modules: ['es.promise.constructor', 'es.promise.with-resolvers'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'withResolvers' }),
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
@@ -1346,6 +1356,14 @@ export const features = {
   'string/virtual/is-well-formed': {
     modules: ['es.string.is-well-formed'],
     template: $virtual({ namespace: 'String', method: 'isWellFormed' }),
+  },
+  'string/italics': {
+    modules: ['es.string.italics'],
+    template: $prototype({ namespace: 'String', method: 'italics' }),
+  },
+  'string/virtual/italics': {
+    modules: ['es.string.italics'],
+    template: $virtual({ namespace: 'String', method: 'italics' }),
   },
   'string/iterator': {
     modules: ['es.string.iterator'],
@@ -2195,6 +2213,16 @@ export const proposals = {
     stage: 4,
     modules: [
       'es.object.has-own',
+    ],
+  },
+  // https://github.com/tc39/proposal-arraybuffer-base64
+  'array-buffer-base64': {
+    stage: 2,
+    modules: [
+      'esnext.uint8-array.from-base64',
+      'esnext.uint8-array.from-hex',
+      'esnext.uint8-array.to-base64',
+      'esnext.uint8-array.to-hex',
     ],
   },
   // https://github.com/tc39/proposal-arraybuffer-transfer
