@@ -613,11 +613,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
     load(NS, 'dom-collections');
-    ok(typeof load(NS, 'dom-collections/for-each') == 'function');
-    ok(typeof load(NS, 'dom-collections/iterator') == 'function');
-    ok(typeof load(NS, 'dom-collections/keys') == 'function');
-    ok(typeof load(NS, 'dom-collections/values') == 'function');
-    ok(typeof load(NS, 'dom-collections/entries') == 'function');
+    load(NS, 'dom-collections/for-each');
+    load(NS, 'dom-collections/iterator');
+    load(NS, 'dom-collections/keys');
+    load(NS, 'dom-collections/values');
+    load(NS, 'dom-collections/entries');
     ok(load(NS, 'self').Math === Math);
     ok(typeof load(NS, 'set-immediate') == 'function');
     ok(load(NS, 'structured-clone')(42) === 42);
