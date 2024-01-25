@@ -1095,6 +1095,54 @@ export const features = {
     template: $static({ namespace: 'Reflect', method: 'set' }),
   },
   // 'reflect/to-string-tag' ???
+  'regexp/index': {
+    modules: [/^(?:es|esnext)\.regexp\./, /^es\.string\.(?:match|replace|search|split)$/],
+    template: $justImport,
+  },
+  'regexp/constructor': {
+    modules: [/^es\.regexp\.(?:constructor|dot-all|sticky)$/],
+    template: $justImport,
+  },
+  'regexp/escape': {
+    modules: ['esnext.regexp.escape'],
+    template: $static({ namespace: 'RegExp', method: 'escape' }),
+  },
+  'regexp/dot-all': {
+    modules: ['es.regexp.dot-all', 'es.regexp.constructor'],
+    template: $justImport,
+  },
+  'regexp/flags': {
+    modules: ['es.regexp.flags'],
+    template: $helper({ name: 'regexp-get-flags' }),
+  },
+  'regexp/match': {
+    modules: ['es.string.match'],
+    template: $justImport,
+  },
+  'regexp/replace': {
+    modules: ['es.string.replace'],
+    template: $justImport,
+  },
+  'regexp/search': {
+    modules: ['es.string.search'],
+    template: $justImport,
+  },
+  'regexp/split': {
+    modules: ['es.string.split'],
+    template: $justImport,
+  },
+  'regexp/sticky': {
+    modules: ['es.regexp.sticky', 'es.regexp.constructor'],
+    template: $justImport,
+  },
+  'regexp/test': {
+    modules: ['es.regexp.test'],
+    template: $prototype({ namespace: 'RegExp', method: 'test' }),
+  },
+  'regexp/to-string': {
+    modules: ['es.regexp.to-string'],
+    template: $justImport,
+  },
   'set/index': {
     modules: [/^(?:es|esnext)\.set\./],
     template: $namespace({ name: 'Set' }),
