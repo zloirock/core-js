@@ -524,6 +524,7 @@ export const features = {
     modules: ['es.date.to-json'],
     template: $virtual({ namespace: 'Date', method: 'toJSON' }),
   },
+  // date/to-primitive ???
   'disposable-stack/index': {
     modules: [/^(?:es|esnext)\.disposable-stack\./],
     template: $namespace({ name: 'DisposableStack' }),
@@ -532,7 +533,30 @@ export const features = {
     modules: ['esnext.disposable-stack.constructor'],
     template: $namespace({ name: 'DisposableStack' }),
   },
-  // date/to-primitive ???
+  'dom-collections/index': {
+    modules: [/^web\.dom-collections\./],
+    template: $justImport,
+  },
+  'dom-collections/entries': {
+    modules: ['web.dom-collections.entries'],
+    template: $justImport,
+  },
+  'dom-collections/for-each': {
+    modules: ['web.dom-collections.for-each'],
+    template: $justImport,
+  },
+  'dom-collections/iterator': {
+    modules: ['web.dom-collections.iterator'],
+    template: $justImport,
+  },
+  'dom-collections/keys': {
+    modules: ['web.dom-collections.keys'],
+    template: $justImport,
+  },
+  'dom-collections/values': {
+    modules: ['web.dom-collections.values'],
+    template: $justImport,
+  },
   'dom-exception/index': {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
