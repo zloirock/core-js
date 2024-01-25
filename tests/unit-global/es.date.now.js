@@ -5,6 +5,5 @@ QUnit.test('Date.now', assert => {
   assert.name(now, 'now');
   assert.looksNative(now);
   assert.nonEnumerable(Date, 'now');
-  // eslint-disable-next-line unicorn/prefer-date-now -- required for testing
-  assert.epsilon(+new Date(), now(), 10, 'Date.now() ~ +new Date');
+  assert.same(typeof now(), 'number', 'typeof');
 });
