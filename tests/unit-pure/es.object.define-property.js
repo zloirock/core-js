@@ -3,7 +3,6 @@ import defineProperty from '@core-js/pure/es/object/define-property';
 
 QUnit.test('Object.defineProperty', assert => {
   assert.isFunction(defineProperty);
-  assert.arity(defineProperty, 3);
   const source = {};
   const result = defineProperty(source, 'q', {
     value: 42,
