@@ -2,5 +2,6 @@
 var parent = require('../../actual/iterator');
 require('../../modules/esnext.iterator.concat');
 require('../../modules/esnext.iterator.range');
+require('../../modules/esnext.iterator.to-async');
 
 module.exports = parent;
