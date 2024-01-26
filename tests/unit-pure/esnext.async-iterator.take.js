@@ -1,6 +1,6 @@
 import { createIterator } from '../helpers/helpers.js';
 
-import AsyncIterator from '@core-js/pure/actual/async-iterator';
+import AsyncIterator from '@core-js/pure/full/async-iterator';
 import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('AsyncIterator#take', assert => {
