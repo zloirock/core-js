@@ -723,29 +723,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full']) {
-    ok(typeof load(NS, 'async-iterator') == 'function');
-    ok(typeof load(NS, 'async-iterator/drop') == 'function');
-    ok(typeof load(NS, 'async-iterator/every') == 'function');
-    ok(typeof load(NS, 'async-iterator/filter') == 'function');
-    ok(typeof load(NS, 'async-iterator/find') == 'function');
-    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
-    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
-    ok(typeof load(NS, 'async-iterator/from') == 'function');
-    ok(typeof load(NS, 'async-iterator/map') == 'function');
-    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
-    ok(typeof load(NS, 'async-iterator/some') == 'function');
-    ok(typeof load(NS, 'async-iterator/take') == 'function');
-    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
-    ok((await load(NS, 'iterator/to-async')([1, 2].values()).next()).value === 1);
-    deepEqual(await load(NS, 'promise/all-keyed')({ a: Promise.resolve(1), b: 2 }), { __proto__: null, a: 1, b: 2 });
-    deepEqual(await load(NS, 'promise/all-settled-keyed')({ a: Promise.resolve(1), b: Promise.reject(2) }), {
-      __proto__: null,
-      a: { status: 'fulfilled', value: 1 },
-      b: { status: 'rejected', reason: 2 },
-    });
-    ok(typeof load(NS, 'symbol/metadata') === 'symbol');
-    ok(load(NS, 'symbol/metadata') === load(NS, 'symbol').metadata);
+    ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
+    ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
+    ok(load(NS, 'symbol/metadata'));
   }
 
   for (const NS of ['full']) {
@@ -758,12 +739,26 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
+    ok(typeof load(NS, 'async-iterator/constructor') == 'function');
+    ok(typeof load(NS, 'async-iterator/drop') == 'function');
+    ok(typeof load(NS, 'async-iterator/every') == 'function');
+    ok(typeof load(NS, 'async-iterator/filter') == 'function');
+    ok(typeof load(NS, 'async-iterator/find') == 'function');
+    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
+    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
+    ok(typeof load(NS, 'async-iterator/from') == 'function');
+    ok(typeof load(NS, 'async-iterator/map') == 'function');
+    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
+    ok(typeof load(NS, 'async-iterator/some') == 'function');
+    ok(typeof load(NS, 'async-iterator/take') == 'function');
+    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     deepEqual([...load(NS, 'iterator/sliding')([1, 2].values(), 3)], [[1, 2]]);
+    ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);

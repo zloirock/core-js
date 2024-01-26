@@ -1,6 +1,7 @@
 'use strict';
 var parent = require('../../actual/iterator');
 require('../../modules/esnext.iterator.range');
+require('../../modules/esnext.iterator.to-async');
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.iterator.sliding');
 

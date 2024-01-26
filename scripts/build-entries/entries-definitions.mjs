@@ -19,6 +19,37 @@ import {
   $path,
 } from './templates.mjs';
 
+const AsyncIteratorPrototypeMethods = [
+  'esnext.async-iterator.async-dispose',
+  'esnext.async-iterator.drop',
+  'esnext.async-iterator.every',
+  'esnext.async-iterator.filter',
+  'esnext.async-iterator.find',
+  'esnext.async-iterator.flat-map',
+  'esnext.async-iterator.for-each',
+  'esnext.async-iterator.map',
+  'esnext.async-iterator.reduce',
+  'esnext.async-iterator.some',
+  'esnext.async-iterator.take',
+  'esnext.async-iterator.to-array',
+];
+
+const IteratorPrototypeMethods = [
+  'esnext.iterator.dispose',
+  'esnext.iterator.drop',
+  'esnext.iterator.every',
+  'esnext.iterator.filter',
+  'esnext.iterator.find',
+  'esnext.iterator.flat-map',
+  'esnext.iterator.for-each',
+  'esnext.iterator.map',
+  'esnext.iterator.reduce',
+  'esnext.iterator.some',
+  'esnext.iterator.take',
+  'esnext.iterator.to-array',
+  'esnext.iterator.to-async',
+];
+
 const TypedArrayMethods = [
   'es.typed-array.from',
   'es.typed-array.of',
@@ -387,10 +418,6 @@ export const features = {
     modules: ['esnext.array-buffer.transfer-to-fixed-length'],
     template: $justImport,
   },
-  'async-iterator/index': {
-    modules: [/^(?:es|esnext)\.async-iterator\./],
-    template: $namespace({ name: 'AsyncIterator' }),
-  },
   'async-disposable-stack/index': {
     modules: [/^(?:es|esnext)\.async-disposable-stack\./],
     template: $namespace({ name: 'AsyncDisposableStack' }),
@@ -398,6 +425,18 @@ export const features = {
   'async-disposable-stack/constructor': {
     modules: ['esnext.async-disposable-stack.constructor'],
     template: $namespace({ name: 'AsyncDisposableStack' }),
+  },
+  'async-iterator/index': {
+    modules: [/^(?:es|esnext)\.async-iterator\./],
+    template: $namespace({ name: 'AsyncIterator' }),
+  },
+  'async-iterator/constructor': {
+    modules: ['esnext.async-iterator.constructor', ...AsyncIteratorPrototypeMethods],
+    template: $namespace({ name: 'AsyncIterator' }),
+  },
+  'async-iterator/from': {
+    modules: ['esnext.async-iterator.from', ...AsyncIteratorPrototypeMethods],
+    template: $static({ namespace: 'AsyncIterator', method: 'from' }),
   },
   // 'async-iterator/async-dispose' ???
   'async-iterator/drop': {
@@ -447,10 +486,6 @@ export const features = {
   'async-iterator/virtual/for-each': {
     modules: ['esnext.async-iterator.for-each'],
     template: $virtual({ namespace: 'AsyncIterator', method: 'forEach' }),
-  },
-  'async-iterator/from': {
-    modules: ['esnext.async-iterator.from'],
-    template: $static({ namespace: 'AsyncIterator', method: 'from' }),
   },
   'async-iterator/map': {
     modules: ['esnext.async-iterator.map'],
@@ -595,6 +630,14 @@ export const features = {
     modules: [/^(?:es|esnext)\.iterator\./],
     template: $namespace({ name: 'Iterator' }),
   },
+  'iterator/constructor': {
+    modules: ['esnext.iterator.constructor', ...IteratorPrototypeMethods],
+    template: $namespace({ name: 'Iterator' }),
+  },
+  'iterator/from': {
+    modules: ['esnext.iterator.from', ...IteratorPrototypeMethods],
+    template: $static({ namespace: 'Iterator', method: 'from' }),
+  },
   // 'iterator/dispose' ???
   'iterator/drop': {
     modules: ['esnext.iterator.drop'],
@@ -643,10 +686,6 @@ export const features = {
   'iterator/virtual/for-each': {
     modules: ['esnext.iterator.for-each'],
     template: $virtual({ namespace: 'Iterator', method: 'forEach' }),
-  },
-  'iterator/from': {
-    modules: ['esnext.iterator.from'],
-    template: $static({ namespace: 'Iterator', method: 'from' }),
   },
   'iterator/map': {
     modules: ['esnext.iterator.map'],
