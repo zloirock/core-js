@@ -2,7 +2,7 @@ import Promise from '@core-js/pure/es/promise';
 import assign from '@core-js/pure/es/object/assign';
 import values from '@core-js/pure/es/array/values';
 import Symbol from '@core-js/pure/es/symbol';
-import AsyncIterator from '@core-js/pure/actual/async-iterator';
+import AsyncIterator from '@core-js/pure/full/async-iterator';
 import Iterator from '@core-js/pure/actual/iterator';
 
 const { create } = Object;
