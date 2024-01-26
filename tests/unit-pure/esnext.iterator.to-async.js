@@ -2,7 +2,6 @@ import Promise from '@core-js/pure/es/promise';
 import Set from '@core-js/pure/es/set';
 import ITERATOR from '@core-js/pure/es/symbol/iterator';
 import Iterator from '@core-js/pure/full/iterator';
-
 import '@core-js/pure/full/async-iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
