@@ -1,4 +1,12 @@
 'use strict';
-var parent = require('../../actual/async-iterator/map');
+require('../../modules/es.object.to-string');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
+require('../../modules/es.promise.reject');
+require('../../modules/es.promise.resolve');
+require('../../modules/esnext.async-iterator.map');
 
-module.exports = parent;
+var entryUnbind = require('../../internals/entry-unbind');
+
+module.exports = entryUnbind('AsyncIterator', 'map');
