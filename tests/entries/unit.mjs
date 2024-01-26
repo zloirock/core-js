@@ -636,21 +636,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full']) {
-    ok(typeof load(NS, 'async-iterator') == 'function');
-    ok(typeof load(NS, 'async-iterator/drop') == 'function');
-    ok(typeof load(NS, 'async-iterator/every') == 'function');
-    ok(typeof load(NS, 'async-iterator/filter') == 'function');
-    ok(typeof load(NS, 'async-iterator/find') == 'function');
-    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
-    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
-    ok(typeof load(NS, 'async-iterator/from') == 'function');
-    ok(typeof load(NS, 'async-iterator/map') == 'function');
-    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
-    ok(typeof load(NS, 'async-iterator/some') == 'function');
-    ok(typeof load(NS, 'async-iterator/take') == 'function');
-    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
-    ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
@@ -668,6 +654,19 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/unique-by') == 'function');
     ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
     ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
+    ok(typeof load(NS, 'async-iterator/constructor') == 'function');
+    ok(typeof load(NS, 'async-iterator/drop') == 'function');
+    ok(typeof load(NS, 'async-iterator/every') == 'function');
+    ok(typeof load(NS, 'async-iterator/filter') == 'function');
+    ok(typeof load(NS, 'async-iterator/find') == 'function');
+    ok(typeof load(NS, 'async-iterator/flat-map') == 'function');
+    ok(typeof load(NS, 'async-iterator/for-each') == 'function');
+    ok(typeof load(NS, 'async-iterator/from') == 'function');
+    ok(typeof load(NS, 'async-iterator/map') == 'function');
+    ok(typeof load(NS, 'async-iterator/reduce') == 'function');
+    ok(typeof load(NS, 'async-iterator/some') == 'function');
+    ok(typeof load(NS, 'async-iterator/take') == 'function');
+    ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
@@ -679,6 +678,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
+    ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
