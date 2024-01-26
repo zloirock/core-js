@@ -1,7 +1,7 @@
 import Promise from '@core-js/pure/es/promise';
 import Set from '@core-js/pure/es/set';
-import Iterator from '@core-js/pure/actual/iterator';
-import '@core-js/pure/actual/async-iterator';
+import Iterator from '@core-js/pure/full/iterator';
+import '@core-js/pure/full/async-iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
   const { toAsync } = Iterator.prototype;
