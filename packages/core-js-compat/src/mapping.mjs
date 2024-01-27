@@ -101,7 +101,7 @@ export default {
     [118, '1.37'],
     [120, '1.38'],
     [120, '1.39'],
-    [120, '1.40'],
+    [121, '1.40'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
