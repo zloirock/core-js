@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed regression in `Set#intersection` feature detection
 - Compat data improvements:
   - Added [Deno 1.40](https://deno.com/blog/v1.40) compat data mapping
   - Updated Electron 30 compat data mapping
