@@ -49,7 +49,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'object/lookup-setter') == 'function');
     ok('values' in load(NS, 'object'));
     load(NS, 'function/name');
-    load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(typeof load(NS, 'array/from-async') == 'function');
@@ -258,7 +257,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
     ok(typeof load(NS, 'symbol') == 'function');
@@ -326,11 +324,9 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
-    load(NS, 'iterator/dispose');
     ok(load(NS, 'symbol/async-dispose'));
     ok(load(NS, 'symbol/dispose'));
     load(NS, 'async-iterator');
-    load(NS, 'async-iterator/async-dispose');
     ok(typeof load(NS, 'async-disposable-stack') == 'function');
     ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
@@ -641,7 +637,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full']) {
-    ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
     ok(load(NS, 'symbol/metadata'));
