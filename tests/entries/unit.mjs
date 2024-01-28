@@ -778,7 +778,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/well-formed-stringify');
   load('proposals/well-formed-unicode-strings');
 
-  load('stage/4');
   load('stage/3');
   load('stage/2.7');
   load('stage/2');
