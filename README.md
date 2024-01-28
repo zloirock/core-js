@@ -1539,7 +1539,6 @@ core-js(-pure)/es|stable|actual|full/symbol/unscopables
 core-js(-pure)/es|stable|actual|full/symbol/for
 core-js(-pure)/es|stable|actual|full/symbol/key-for
 core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
-core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 [*Basic example*](https://core-js.io/playground#code=let+Person+%3D+%28%28%29+%3D%3E+%7B%0A++let+NAME+%3D+Symbol%28%27name%27%29%3B%0A++return+class+%7B%0A++++constructor%28name%29+%7B%0A++++++this%5BNAME%5D+%3D+name%3B%0A++++%7D%0A++++getName%28%29+%7B%0A++++++return+this%5BNAME%5D%3B%0A++++%7D%0A++%7D%3B%0A%7D%29%28%29%3B%0A%0Alet+person+%3D+new+Person%28%27Vasya%27%29%3B%0Aconsole.log%28person.getName%28%29%29%3B++++++++++++%2F%2F+%3D%3E+%27Vasya%27%0Aconsole.log%28person.name%29%3B+++++++++++++++++%2F%2F+%3D%3E+undefined%0Aconsole.log%28person%5BSymbol%28%27name%27%29%5D%29%3B++++++%2F%2F+%3D%3E+undefined%2C+symbols+are+unique%0Afor+%28let+key+in+person%29+console.log%28key%29%3B+%2F%2F+%3D%3E+nothing%2C+for-in+skips+symbol+keys):
 ```js
@@ -2239,7 +2238,6 @@ core-js(-pure)/es|stable|actual|full/json/is-raw-json
 core-js(-pure)/es|stable|actual|full/json/parse
 core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 [*Examples*](https://tinyurl.com/34ctm7cn):
 ```js
@@ -3622,7 +3620,6 @@ class DOMException {
 ```
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
-core-js/stable|actual|full/dom-exception/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=const+exception+%3D+new+DOMException%28%27error%27%2C+%27DataCloneError%27%29%3B%0Aconsole.log%28exception.name%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%27%0Aconsole.log%28exception.message%29%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27error%27%0Aconsole.log%28exception.code%29%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+25%0Aconsole.log%28typeof+exception.stack%29%3B++++++++++++++++++++%2F%2F+%3D%3E+%27string%27%0Aconsole.log%28exception+instanceof+DOMException%29%3B+++++++++%2F%2F+%3D%3E+true%0Aconsole.log%28exception+instanceof+Error%29%3B++++++++++++++++%2F%2F+%3D%3E+true%0Aconsole.log%28exception.toString%28%29%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%3A+error%27%0Aconsole.log%28Object.prototype.toString.call%28exception%29%29%3B+%2F%2F+%3D%3E+%27%5Bobject+DOMException%5D%27):
 ```js
