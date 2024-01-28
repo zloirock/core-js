@@ -2253,7 +2253,6 @@ core-js(-pure)/es|stable|actual|full/json/is-raw-json
 core-js(-pure)/es|stable|actual|full/json/parse
 core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=JSON.stringify%28%7B+%27%F0%A0%AE%B7%27%3A+%5B%27%5CuDF06%5CuD834%27%5D+%7D%29%3B+%2F%2F+%3D%3E+%27%7B%22%F0%A0%AE%B7%22%3A%5B%22%5C%5Cudf06%5C%5Cud834%22%5D%7D%27%0A%0Afunction+digitsToBigInt%28key%2C+val%2C+%7B+source+%7D%29+%7B%0A++return+%2F%5E%5Cd%2B%24%2F.test%28source%29+%3F+BigInt%28source%29+%3A+val%3B%0A%7D%0A%0Afunction+bigIntToRawJSON%28key%2C+val%29+%7B%0A++return+typeof+val+%3D%3D%3D+%27bigint%27+%3F+JSON.rawJSON%28String%28val%29%29+%3A+val%3B%0A%7D%0A%0Aconst+tooBigForNumber+%3D+BigInt%28Number.MAX_SAFE_INTEGER%29+%2B+2n%3B%0AJSON.parse%28String%28tooBigForNumber%29%2C+digitsToBigInt%29+%3D%3D%3D+tooBigForNumber%3B+%2F%2F+%3D%3E+true%0A%0Aconst+wayTooBig+%3D+BigInt%28%601%24%7B+%270%27.repeat%281000%29+%7D%60%29%3B%0AJSON.parse%28String%28wayTooBig%29%2C+digitsToBigInt%29+%3D%3D%3D+wayTooBig%3B+%2F%2F+%3D%3E+true%0A%0Aconst+embedded+%3D+JSON.stringify%28%7B+tooBigForNumber+%7D%2C+bigIntToRawJSON%29%3B%0Aembedded+%3D%3D%3D+%27%7B%22tooBigForNumber%22%3A9007199254740993%7D%27%3B+%2F%2F+%3D%3E+true):
 ```js
@@ -3675,7 +3674,6 @@ class DOMException {
 ```
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
-core-js/stable|actual|full/dom-exception/to-string-tag
 ```
 [*Examples*](https://core-js.io/playground#code=const+exception+%3D+new+DOMException%28%27error%27%2C+%27DataCloneError%27%29%3B%0Aexception.name%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%27%0Aexception.message%3B+++++++++++++++++++++++++%2F%2F+%3D%3E+%27error%27%0Aexception.code%3B++++++++++++++++++++++++++++%2F%2F+%3D%3E+25%0Atypeof+exception.stack%3B++++++++++++++++++++%2F%2F+%3D%3E+%27string%27%0Aexception+instanceof+DOMException%3B+++++++++%2F%2F+%3D%3E+true%0Aexception+instanceof+Error%3B++++++++++++++++%2F%2F+%3D%3E+true%0Aexception.toString%28%29%3B++++++++++++++++++++++%2F%2F+%3D%3E+%27DataCloneError%3A+error%27%0AObject.prototype.toString.call%28exception%29%3B+%2F%2F+%3D%3E+%27%5Bobject+DOMException%5D%27):
 ```js
