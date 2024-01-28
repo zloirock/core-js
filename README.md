@@ -1490,7 +1490,6 @@ core-js(-pure)/es|stable|actual|full/symbol/unscopables
 core-js(-pure)/es|stable|actual|full/symbol/for
 core-js(-pure)/es|stable|actual|full/symbol/key-for
 core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
-core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
 [*Basic example*](https://tinyurl.com/2b2zfvrs):
 ```js
@@ -2139,7 +2138,6 @@ core-js(-pure)/es|stable|actual|full/json/parse
 core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 [*Examples*](https://tinyurl.com/34ctm7cn):
 ```js
@@ -3535,7 +3533,6 @@ class DOMException {
 ```
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
-core-js/stable|actual|full/dom-exception/to-string-tag
 ```
 [*Examples*](https://is.gd/pI6oTN):
 ```js
