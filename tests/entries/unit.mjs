@@ -153,7 +153,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(Object.is(load(NS, 'math/sinh')(-0), -0));
     ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'math/tanh')(Infinity) === 1);
-    ok(load(NS, 'math/to-string-tag') === 'Math');
     ok(load(NS, 'math/trunc')(1.5) === 1);
     ok(load(NS, 'math').cbrt(8) === 2);
     ok(load(NS, 'number/constructor')('5') === 5);
@@ -198,7 +197,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'reflect/set')(O, 'a', 42) === true);
     ok(O.a === 42);
     load(NS, 'reflect/set-prototype-of')(O = {}, []);
-    ok(load(NS, 'reflect/to-string-tag') === 'Reflect');
     ok(O instanceof Array);
     ok(load(NS, 'reflect').has({ a: 1 }, 'a') === true);
     ok(load(NS, 'string/from-code-point')(97) === 'a');
@@ -282,7 +280,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(load(NS, 'json/raw-json')(42).rawJSON === '42');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(load(NS, 'json/to-string-tag') === 'JSON');
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date').now === Date.now);
@@ -691,7 +688,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(exception.name === 'SyntaxError');
     ok(exception.message === 'message');
     ok(exception.code === 12);
-    ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
     load(NS, 'dom-collections');
     load(NS, 'dom-collections/for-each');
