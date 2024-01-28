@@ -1,8 +1,8 @@
-import isError from 'core-js-pure/actual/error/is-error';
-import create from 'core-js-pure/es/object/create';
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import SuppressedError from 'core-js-pure/actual/suppressed-error';
-import DOMException from 'core-js-pure/stable/dom-exception';
+import isError from '@core-js/pure/actual/error/is-error';
+import create from '@core-js/pure/es/object/create';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import SuppressedError from '@core-js/pure/actual/suppressed-error';
+import DOMException from '@core-js/pure/stable/dom-exception';
 
 QUnit.test('Error.isError', assert => {
   assert.isFunction(isError);
