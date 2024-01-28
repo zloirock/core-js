@@ -855,7 +855,6 @@ export const features = {
     modules: ['es.math.tanh'],
     template: $static({ namespace: 'Math', method: 'tanh' }),
   },
-  // 'math/to-string-tag' ???
   'math/trunc': {
     modules: ['es.math.trunc'],
     template: $static({ namespace: 'Math', method: 'trunc' }),
@@ -1167,7 +1166,6 @@ export const features = {
     modules: ['es.reflect.set'],
     template: $static({ namespace: 'Reflect', method: 'set' }),
   },
-  // 'reflect/to-string-tag' ???
   'regexp/index': {
     modules: [/^(?:es|esnext)\.regexp\./, /^es\.string\.(?:match|replace|search|split)$/],
     template: $justImport,
@@ -1677,7 +1675,7 @@ export const features = {
     template: $static({ namespace: 'Symbol', method: 'toPrimitive' }),
   },
   'symbol/to-string-tag': {
-    modules: ['es.symbol.to-string-tag', 'es.object.to-string'],
+    modules: ['es.symbol.to-string-tag', 'es.object.to-string', 'es.json.to-string-tag', 'es.math.to-string-tag'],
     template: $static({ namespace: 'Symbol', method: 'toStringTag' }),
   },
   'symbol/unscopables': {
