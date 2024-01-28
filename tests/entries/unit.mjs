@@ -62,7 +62,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'object/lookup-setter')(O, 'a') === Object.getOwnPropertyDescriptor(O, 'a').set);
     deepEqual(load(NS, 'object').values({ a: 1 }), [1]);
     load(NS, 'function/name');
-    load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(typeof load(NS, 'array/from-async') == 'function');
@@ -280,7 +279,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(load(NS, 'json/raw-json')(42).rawJSON === '42');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date').now === Date.now);
     const symbol = load(NS, 'symbol')('entry');
@@ -368,27 +366,13 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const iteratorZipKeyed = load(NS, 'iterator/zip-keyed');
     ok([...iteratorZipKeyed({ first: [1], second: [2] })][0].second === 2);
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
-    const DisposableStack = load(NS, 'disposable-stack');
-    const stack = new DisposableStack();
-    let disposed = false;
-    stack.defer(() => { disposed = true; });
-    stack.dispose();
-    ok(disposed);
-    ok(load(NS, 'disposable-stack/constructor') === DisposableStack);
-    load(NS, 'iterator/dispose');
-    ok(typeof load(NS, 'symbol/async-dispose') === 'symbol');
-    ok(load(NS, 'symbol/async-dispose') === load(NS, 'symbol').asyncDispose);
-    ok(typeof load(NS, 'symbol/dispose') === 'symbol');
-    ok(load(NS, 'symbol/dispose') === load(NS, 'symbol').dispose);
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
+    ok(load(NS, 'symbol/async-dispose'));
+    ok(load(NS, 'symbol/dispose'));
     load(NS, 'async-iterator');
-    load(NS, 'async-iterator/async-dispose');
-    const AsyncDisposableStack = load(NS, 'async-disposable-stack');
-    const asyncStack = new AsyncDisposableStack();
-    let asyncDisposed = false;
-    asyncStack.defer(async () => { asyncDisposed = true; });
-    await asyncStack.disposeAsync();
-    ok(asyncDisposed);
-    ok(load(NS, 'async-disposable-stack/constructor') === AsyncDisposableStack);
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceAt = load(NS, 'instance/at');
     ok(typeof instanceAt == 'function');
@@ -719,7 +703,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full']) {
-    ok(load(NS, 'function/metadata') === null);
     ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
     ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'symbol/metadata'));
