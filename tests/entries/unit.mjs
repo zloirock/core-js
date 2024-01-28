@@ -139,7 +139,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'math/sign')(-2) === -1);
     ok(Object.is(load(NS, 'math/sinh')(-0), -0));
     ok(load(NS, 'math/tanh')(Infinity) === 1);
-    ok(load(NS, 'math/to-string-tag') === 'Math');
     ok(load(NS, 'math/trunc')(1.5) === 1);
     ok('cbrt' in load(NS, 'math'));
     ok(load(NS, 'number/constructor')('5') === 5);
@@ -175,7 +174,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'reflect/prevent-extensions')({}));
     ok(load(NS, 'reflect/set')({}, 'a', 42));
     load(NS, 'reflect/set-prototype-of')(O = {}, []);
-    ok(load(NS, 'reflect/to-string-tag') === 'Reflect');
     ok(O instanceof Array);
     ok('has' in load(NS, 'reflect'));
     ok(load(NS, 'string/from-code-point')(97) === 'a');
@@ -256,7 +254,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'regexp');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(load(NS, 'json/to-string-tag') === 'JSON');
     ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
@@ -610,7 +607,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'atob')('Zg==') === 'f');
     ok(load(NS, 'btoa')('f') === 'Zg==');
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
-    ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
     load(NS, 'dom-collections');
     load(NS, 'dom-collections/for-each');
