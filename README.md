@@ -586,7 +586,6 @@ class Function {
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name
-core-js/es|stable|actual|full/function/has-instance
 ```
 [*Example*](https://tinyurl.com/22na9nbm):
 ```js
@@ -865,7 +864,6 @@ class Iterator {
 core-js(-pure)/es|stable|actual|full/iterator
 core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/concat
-core-js(-pure)/es|stable|actual|full/iterator/dispose
 core-js(-pure)/es|stable|actual|full/iterator/drop
 core-js(-pure)/es|stable|actual|full/iterator/every
 core-js(-pure)/es|stable|actual|full/iterator/filter
@@ -1270,7 +1268,6 @@ class Date {
 ```
 core-js/es|stable|actual|full/date
 core-js(-pure)/es|stable|actual|full/date/to-json
-core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 
 #### ECMAScript: Promise[⬆](#index)
@@ -1856,8 +1853,6 @@ class AsyncIterator {
 ```
 core-js(-pure)/es|stable|actual|full/disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
-core-js(-pure)/es|stable|actual|full/iterator/dispose
-core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 ```
 
 #### ECMAScript: Typed Arrays[⬆](#index)
@@ -2941,7 +2936,6 @@ class Function {
 ```
 core-js/proposals/decorator-metadata
 core-js(-pure)/actual|full/symbol/metadata
-core-js(-pure)/actual|full/function/metadata
 ```
 
 #### Stage 2 proposals[⬆](#index)
