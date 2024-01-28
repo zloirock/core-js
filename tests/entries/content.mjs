@@ -130,7 +130,6 @@ subset('core-js/stage/0', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/1', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/2', /^(?:es\.|esnext\.)/);
 subset('core-js/stage/3', /^(?:es\.|esnext\.)/);
-subset('core-js/stage/4', /^(?:es\.|esnext\.)/);
 
 async function unexpectedInnerNamespace(namespace, unexpected) {
   const paths = await glob(`packages/core-js/${ namespace }/**/*.js`);
