@@ -438,7 +438,6 @@ export const features = {
     modules: ['esnext.async-iterator.from', ...AsyncIteratorPrototypeMethods],
     template: $static({ namespace: 'AsyncIterator', method: 'from' }),
   },
-  // 'async-iterator/async-dispose' ???
   'async-iterator/drop': {
     modules: ['esnext.async-iterator.drop'],
     template: $prototype({ namespace: 'AsyncIterator', method: 'drop' }),
@@ -559,7 +558,6 @@ export const features = {
     modules: ['es.date.to-json'],
     template: $virtual({ namespace: 'Date', method: 'toJSON' }),
   },
-  // date/to-primitive ???
   'disposable-stack/index': {
     modules: [/^(?:es|esnext)\.disposable-stack\./],
     template: $namespace({ name: 'DisposableStack' }),
@@ -600,13 +598,17 @@ export const features = {
     modules: [/^web\.dom-exception\./],
     template: $namespace({ name: 'DOMException' }),
   },
-  'error/index': { // < - path ??
+  'error/index': {
     modules: [/^(?:es|esnext)\.error\./],
     template: $path,
   },
   'error/constructor': {
     modules: [/^(?:es|esnext)\.error\./],
     template: $path,
+  },
+  'error/is-error': {
+    modules: ['esnext.error.is-error'],
+    template: $static({ namespace: 'Error', method: 'isError' }),
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
@@ -620,8 +622,6 @@ export const features = {
     modules: ['esnext.function.demethodize'],
     template: $virtual({ namespace: 'Function', method: 'demethodize' }),
   },
-  // 'function/has-instance' ???
-  // 'function/metadata' ???
   'function/name': {
     modules: ['es.function.name'],
     template: $justImport, // <- ???
@@ -638,7 +638,6 @@ export const features = {
     modules: ['esnext.iterator.from', ...IteratorPrototypeMethods],
     template: $static({ namespace: 'Iterator', method: 'from' }),
   },
-  // 'iterator/dispose' ???
   'iterator/drop': {
     modules: ['esnext.iterator.drop'],
     template: $prototype({ namespace: 'Iterator', method: 'drop' }),
@@ -1595,7 +1594,7 @@ export const features = {
     template: $namespace({ name: 'Symbol' }),
   },
   'symbol/async-dispose': {
-    modules: ['esnext.symbol.async-dispose'],
+    modules: ['esnext.symbol.async-dispose', 'esnext.async-iterator.async-dispose'],
     template: $static({ namespace: 'Symbol', method: 'asyncDispose' }),
   },
   'symbol/async-iterator': {
@@ -1607,7 +1606,7 @@ export const features = {
     template: $justImport,
   },
   'symbol/dispose': {
-    modules: ['esnext.symbol.dispose'],
+    modules: ['esnext.symbol.dispose', 'esnext.iterator.dispose'],
     template: $static({ namespace: 'Symbol', method: 'dispose' }),
   },
   'symbol/for': {
@@ -1671,7 +1670,7 @@ export const features = {
     template: $static({ namespace: 'Symbol', method: 'split' }),
   },
   'symbol/to-primitive': {
-    modules: ['es.symbol.to-primitive'],
+    modules: ['es.symbol.to-primitive', 'es.date.to-primitive'],
     template: $static({ namespace: 'Symbol', method: 'toPrimitive' }),
   },
   'symbol/to-string-tag': {
@@ -1898,7 +1897,7 @@ export const features = {
     modules: ['web.url.to-json'],
     template: $virtual({ namespace: 'URL', method: 'toJSON' }),
   },
-  'url-search-params/index': { // <- O_o
+  'url-search-params/index': {
     modules: [/^web\.url-search-params\./],
     template: $namespace({ name: 'URLSearchParams' }),
   },
@@ -2449,6 +2448,13 @@ export const proposals = {
     stage: 4,
     modules: [
       'es.global-this',
+    ],
+  },
+  // https://github.com/tc39/proposal-is-error
+  'is-error': {
+    stage: 3,
+    modules: [
+      'esnext.error.is-error',
     ],
   },
   // https://github.com/tc39/proposal-iterator-helpers
