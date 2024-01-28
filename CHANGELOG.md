@@ -2,6 +2,7 @@
 ##### Unreleased
 - Compat data improvements:
   - Added [Deno 1.40](https://deno.com/blog/v1.40) compat data mapping
+  - Updated Electron 30 compat data mapping
 
 ##### [3.35.1 - 2024.01.21](https://github.com/zloirock/core-js/releases/tag/v3.35.1)
 - Fixed internal `ToLength` operation with bigints, [#1318](https://github.com/zloirock/core-js/issues/1318)
