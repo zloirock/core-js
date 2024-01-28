@@ -49,7 +49,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'object/lookup-setter') == 'function');
     ok('values' in load(NS, 'object'));
     load(NS, 'function/name');
-    load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
@@ -250,7 +249,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'regexp');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
     ok(typeof load(NS, 'symbol') == 'function');
@@ -599,7 +597,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'array/from-async') == 'function');
     load(NS, 'data-view/get-float16');
     load(NS, 'data-view/set-float16');
-    ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator') == 'function');
     ok(typeof load(NS, 'iterator/drop') == 'function');
     ok(typeof load(NS, 'iterator/every') == 'function');
@@ -629,9 +626,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
-    load(NS, 'iterator/dispose');
     ok(load(NS, 'symbol/async-dispose'));
-    load(NS, 'async-iterator/async-dispose');
     ok(typeof load(NS, 'async-disposable-stack') == 'function');
     ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
   }
