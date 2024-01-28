@@ -1770,7 +1770,7 @@ GLOBAL.tests = {
     return Set.from;
   },
   'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
-    return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) === '3,2';
+    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
   'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
   'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
