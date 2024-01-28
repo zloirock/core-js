@@ -578,7 +578,6 @@ class Function {
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name
-core-js/es|stable|actual|full/function/has-instance
 ```
 [*Example*](https://tinyurl.com/22na9nbm):
 ```js
@@ -1126,7 +1125,6 @@ class Date {
 ```
 core-js/es|stable|actual|full/date
 core-js(-pure)/es|stable|actual|full/date/to-json
-core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 
 #### ECMAScript: Promise[⬆](#index)
@@ -2486,8 +2484,6 @@ core-js(-pure)/actual|full/symbol/dispose
 core-js(-pure)/actual|full/disposable-stack
 core-js(-pure)/actual|full/async-disposable-stack
 core-js(-pure)/actual|full/suppressed-error
-core-js(-pure)/actual|full/iterator/dispose
-core-js(-pure)/actual|full/async-iterator/async-dispose
 ```
 
 ##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
@@ -2548,7 +2544,6 @@ class Function {
 ```
 core-js/proposals/decorator-metadata
 core-js(-pure)/actual|full/symbol/metadata
-core-js(-pure)/actual|full/function/metadata
 ```
 
 #### Stage 2.7 proposals[⬆](#index)
