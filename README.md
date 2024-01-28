@@ -598,7 +598,6 @@ class Function {
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name
-core-js/es|stable|actual|full/function/has-instance
 ```
 [*Example*](https://core-js.io/playground#code=%28function+foo%28%29+%7B+%2F%2A+empty+%2A%2F+%7D%29.name%3B+%2F%2F+%3D%3E+%27foo%27%0A%0Aconsole.log.bind%28console%2C+42%29%2843%29%3B+%2F%2F+%3D%3E+42+43):
 ```js
@@ -878,7 +877,6 @@ class Iterator {
 core-js(-pure)/es|stable|actual|full/iterator
 core-js(-pure)/es|stable|actual|full/iterator/chunks
 core-js(-pure)/es|stable|actual|full/iterator/concat
-core-js(-pure)/es|stable|actual|full/iterator/dispose
 core-js(-pure)/es|stable|actual|full/iterator/drop
 core-js(-pure)/es|stable|actual|full/iterator/every
 core-js(-pure)/es|stable|actual|full/iterator/filter
@@ -1287,7 +1285,6 @@ class Date {
 ```
 core-js/es|stable|actual|full/date
 core-js(-pure)/es|stable|actual|full/date/to-json
-core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 
 #### ECMAScript: Promise[⬆](#index)
@@ -1875,8 +1872,6 @@ class AsyncIterator {
 ```
 core-js(-pure)/es|stable|actual|full/disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
-core-js(-pure)/es|stable|actual|full/iterator/dispose
-core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 core-js(-pure)/es|stable|actual|full/suppressed-error
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/dispose
@@ -3012,7 +3007,6 @@ class Function {
 ```
 core-js/proposals/decorator-metadata
 core-js(-pure)/actual|full/symbol/metadata
-core-js(-pure)/actual|full/function/metadata
 ```
 
 #### Stage 2 proposals[⬆](#index)
