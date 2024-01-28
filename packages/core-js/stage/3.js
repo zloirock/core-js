@@ -1,6 +1,4 @@
 'use strict';
-require('./4');
-
 require('../proposals/array-buffer-base64');
 require('../proposals/array-from-async');
 require('../proposals/decorator-metadata');
