@@ -19,6 +19,45 @@ import {
   $path,
 } from './templates.mjs';
 
+const PromiseWithPrototype = [
+  'es.promise.constructor',
+  'es.promise.catch',
+  'es.promise.finally',
+];
+
+const MapWithPrototype = [
+  'es.map.constructor',
+  'es.map.species',
+  'esnext.map.emplace',
+];
+
+const SetWithPrototype = [
+  'es.set.constructor',
+  'es.set.species',
+  'esnext.set.difference',
+  'esnext.set.intersection',
+  'esnext.set.is-disjoint-from',
+  'esnext.set.is-subset-of',
+  'esnext.set.is-superset-of',
+  'esnext.set.symmetric-difference',
+  'esnext.set.union',
+];
+
+const WeakMapWithPrototype = [
+  'es.weak-map.constructor',
+  'esnext.weak-map.emplace',
+];
+
+const WeakSetWithPrototype = [
+  'es.weak-set.constructor',
+];
+
+const ArrayBufferPrototypeMethods = [
+  'es.array-buffer.slice',
+  'es.array-buffer.species',
+  'es.array-buffer.to-string-tag',
+];
+
 const AsyncIteratorPrototypeMethods = [
   'esnext.async-iterator.async-dispose',
   'esnext.async-iterator.drop',
@@ -50,11 +89,7 @@ const IteratorPrototypeMethods = [
   'esnext.iterator.to-async',
 ];
 
-const TypedArrayMethods = [
-  'es.typed-array.from',
-  'es.typed-array.of',
-  'esnext.uint8-array.from-base64',
-  'esnext.uint8-array.from-hex',
+const TypedArrayPrototypeMethods = [
   'es.typed-array.at',
   'es.typed-array.copy-within',
   'es.typed-array.entries',
@@ -93,8 +128,20 @@ const TypedArrayMethods = [
   'esnext.uint8-array.to-hex',
 ];
 
+const TypedArrayMethods = [
+  'es.typed-array.from',
+  'es.typed-array.of',
+  'esnext.uint8-array.from-base64',
+  'esnext.uint8-array.from-hex',
+  ...TypedArrayPrototypeMethods,
+];
+
 export const features = {
   'aggregate-error/index': {
+    modules: [/^(?:es|esnext)\.aggregate-error\./],
+    template: $namespace({ name: 'AggregateError' }),
+  },
+  'aggregate-error/constructor': {
     modules: [/^(?:es|esnext)\.aggregate-error\./],
     template: $namespace({ name: 'AggregateError' }),
   },
@@ -395,7 +442,7 @@ export const features = {
     template: $namespace({ name: 'ArrayBuffer' }),
   },
   'array-buffer/constructor': {
-    modules: ['es.array-buffer.constructor'],
+    modules: ['es.array-buffer.constructor', ...ArrayBufferPrototypeMethods],
     template: $namespace({ name: 'ArrayBuffer' }),
   },
   'array-buffer/is-view': {
@@ -527,6 +574,10 @@ export const features = {
     template: $virtual({ namespace: 'AsyncIterator', method: 'toArray' }),
   },
   'data-view/index': {
+    modules: [/^(?:es|esnext)\.data-view\./],
+    template: $namespace({ name: 'DataView' }),
+  },
+  'data-view/constructor': {
     modules: [/^(?:es|esnext)\.data-view\./],
     template: $namespace({ name: 'DataView' }),
   },
@@ -762,6 +813,10 @@ export const features = {
     modules: [/^(?:es|esnext)\.map\./],
     template: $namespace({ name: 'Map' }),
   },
+  'map/constructor': {
+    modules: [...MapWithPrototype],
+    template: $namespace({ name: 'Map' }),
+  },
   'map/emplace': {
     modules: ['esnext.map.emplace'],
     template: $prototype({ namespace: 'Map', method: 'emplace' }),
@@ -771,15 +826,17 @@ export const features = {
     template: $virtual({ namespace: 'Map', method: 'emplace' }),
   },
   'map/from': {
-    modules: ['esnext.map.from'],
+    modules: ['esnext.map.from', ...MapWithPrototype],
+    ifModules: ['esnext.map.from'],
     template: $staticWithContext({ namespace: 'Map', method: 'from' }),
   },
   'map/group-by': {
-    modules: ['es.map.group-by'],
+    modules: ['es.map.group-by', ...MapWithPrototype],
     template: $static({ namespace: 'Map', method: 'groupBy' }),
   },
   'map/of': {
-    modules: ['esnext.map.of'],
+    modules: ['esnext.map.of', ...MapWithPrototype],
+    ifModules: ['esnext.map.of'],
     template: $staticWithContext({ namespace: 'Map', method: 'of' }),
   },
   'math/index': {
@@ -1065,48 +1122,52 @@ export const features = {
     modules: [/^(?:es|esnext)\.promise\./],
     template: $namespace({ name: 'Promise' }),
   },
+  'promise/constructor': {
+    modules: [...PromiseWithPrototype],
+    template: $namespace({ name: 'Promise' }),
+  },
   'promise/all': {
-    modules: ['es.promise.constructor', 'es.promise.all'],
+    modules: ['es.promise.all'],
     template: $staticWithContext({ namespace: 'Promise', method: 'all' }),
   },
   'promise/all-settled': {
-    modules: ['es.promise.constructor', 'es.promise.all-settled'],
+    modules: ['es.promise.all-settled'],
     template: $staticWithContext({ namespace: 'Promise', method: 'allSettled' }),
   },
   'promise/any': {
-    modules: ['es.promise.constructor', 'es.promise.any'],
+    modules: ['es.promise.any'],
     template: $staticWithContext({ namespace: 'Promise', method: 'any' }),
   },
   'promise/catch': {
-    modules: ['es.promise.constructor', 'es.promise.catch'],
+    modules: ['es.promise.catch'],
     template: $prototype({ namespace: 'Promise', method: 'catch' }),
   },
   'promise/virtual/catch': {
-    modules: ['es.promise.constructor', 'es.promise.catch'],
+    modules: ['es.promise.catch'],
     template: $virtual({ namespace: 'Promise', method: 'catch' }),
   },
   'promise/finally': {
-    modules: ['es.promise.constructor', 'es.promise.finally'],
+    modules: ['es.promise.finally'],
     template: $prototype({ namespace: 'Promise', method: 'finally' }),
   },
   'promise/virtual/finally': {
-    modules: ['es.promise.constructor', 'es.promise.finally'],
+    modules: ['es.promise.finally'],
     template: $virtual({ namespace: 'Promise', method: 'finally' }),
   },
   'promise/race': {
-    modules: ['es.promise.constructor', 'es.promise.race'],
+    modules: ['es.promise.race'],
     template: $staticWithContext({ namespace: 'Promise', method: 'race' }),
   },
   'promise/reject': {
-    modules: ['es.promise.constructor', 'es.promise.reject'],
+    modules: ['es.promise.reject'],
     template: $staticWithContext({ namespace: 'Promise', method: 'reject' }),
   },
   'promise/resolve': {
-    modules: ['es.promise.constructor', 'es.promise.resolve'],
+    modules: ['es.promise.resolve'],
     template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
   },
   'promise/with-resolvers': {
-    modules: ['es.promise.constructor', 'es.promise.with-resolvers'],
+    modules: ['es.promise.with-resolvers'],
     template: $staticWithContext({ namespace: 'Promise', method: 'withResolvers' }),
   },
   'reflect/index': {
@@ -1217,6 +1278,10 @@ export const features = {
     modules: [/^(?:es|esnext)\.set\./],
     template: $namespace({ name: 'Set' }),
   },
+  'set/constructor': {
+    modules: [...SetWithPrototype],
+    template: $namespace({ name: 'Set' }),
+  },
   'set/difference': {
     modules: ['esnext.set.difference'],
     template: $prototype({ namespace: 'Set', method: 'difference' }),
@@ -1226,7 +1291,8 @@ export const features = {
     template: $virtual({ namespace: 'Set', method: 'difference' }),
   },
   'set/from': {
-    modules: ['esnext.set.from'],
+    modules: ['esnext.set.from', ...SetWithPrototype],
+    ifModules: ['esnext.set.from'],
     template: $staticWithContext({ namespace: 'Set', method: 'from' }),
   },
   'set/intersection': {
@@ -1262,7 +1328,8 @@ export const features = {
     template: $virtual({ namespace: 'Set', method: 'isSupersetOf' }),
   },
   'set/of': {
-    modules: ['esnext.set.of'],
+    modules: ['esnext.set.of', ...SetWithPrototype],
+    ifModules: ['esnext.set.of'],
     template: $staticWithContext({ namespace: 'Set', method: 'of' }),
   },
   'set/symmetric-difference': {
@@ -1905,6 +1972,10 @@ export const features = {
     modules: [/^(?:es|esnext)\.weak-map\./],
     template: $namespace({ name: 'WeakMap' }),
   },
+  'weak-map/constructor': {
+    modules: [...WeakMapWithPrototype],
+    template: $namespace({ name: 'WeakMap' }),
+  },
   'weak-map/emplace': {
     modules: ['esnext.weak-map.emplace'],
     template: $prototype({ namespace: 'WeakMap', method: 'emplace' }),
@@ -1914,23 +1985,31 @@ export const features = {
     template: $virtual({ namespace: 'WeakMap', method: 'emplace' }),
   },
   'weak-map/from': {
-    modules: ['esnext.weak-map.from'],
+    modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
+    ifModules: ['esnext.weak-map.from'],
     template: $staticWithContext({ namespace: 'WeakMap', method: 'from' }),
   },
   'weak-map/of': {
-    modules: ['esnext.weak-map.of'],
+    modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
+    ifModules: ['esnext.weak-map.of'],
     template: $staticWithContext({ namespace: 'WeakMap', method: 'of' }),
   },
   'weak-set/index': {
     modules: [/^(?:es|esnext)\.weak-set\./],
     template: $namespace({ name: 'WeakSet' }),
   },
+  'weak-set/constructor': {
+    modules: [...WeakSetWithPrototype],
+    template: $namespace({ name: 'WeakSet' }),
+  },
   'weak-set/from': {
-    modules: ['esnext.weak-set.from'],
+    modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
+    ifModules: ['esnext.weak-set.from'],
     template: $staticWithContext({ namespace: 'WeakSet', method: 'from' }),
   },
   'weak-set/of': {
-    modules: ['esnext.weak-set.of'],
+    modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
+    ifModules: ['esnext.weak-set.of'],
     template: $staticWithContext({ namespace: 'WeakSet', method: 'of' }),
   },
   atob: {
