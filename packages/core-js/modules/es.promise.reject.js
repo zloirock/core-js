@@ -7,6 +7,9 @@ var FORCED_PROMISE_CONSTRUCTOR = require('../internals/promise-constructor-detec
 // https://tc39.es/ecma262/#sec-promise.reject
 $({ target: 'Promise', stat: true, forced: FORCED_PROMISE_CONSTRUCTOR }, {
   reject: function reject(r) {
+    // dependency: es.promise.constructor
+    // dependency: es.promise.catch
+    // dependency: es.promise.finally
     var capability = newPromiseCapabilityModule.f(this);
     var capabilityReject = capability.reject;
     capabilityReject(r);
