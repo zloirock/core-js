@@ -11,6 +11,10 @@ var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-
 // https://tc39.es/ecma262/#sec-promise.allsettled
 $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   allSettled: function allSettled(iterable) {
+    // dependency: es.promise.constructor
+    // dependency: es.promise.catch
+    // dependency: es.promise.finally
+    // dependency: es.promise.resolve
     var C = this;
     var capability = newPromiseCapabilityModule.f(C);
     var resolve = capability.resolve;
