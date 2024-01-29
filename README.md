@@ -178,6 +178,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`compositeKey` and `compositeSymbol`](#compositekey-and-compositesymbol)
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
+      - [`Promise.try`](#promisetry)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
       - [`Number.fromString`](#numberfromstring)
       - [`Math` extensions](#math-extensions)
@@ -2949,6 +2950,29 @@ core-js/full/typed-array/unique-by
   { id: 2, uid: 10000 },
   { id: 3, uid: 10001 }
 ].uniqueBy(it => it.uid);    // => [{ id: 1, uid: 10000 }, { id: 3, uid: 10001 }]
+```
+
+##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
+Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
+```js
+class Promise {
+  static try(callbackfn: Function): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/promise-try
+core-js(-pure)/full/promise/try
+```
+[*Examples*](https://goo.gl/k5GGRo):
+```js
+Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
+
+Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
+
+Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${it}`));
+
+Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
 
 ##### [`DataView` get / set `Uint8Clamped` methods](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)[⬆](#index)
