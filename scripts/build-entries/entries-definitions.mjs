@@ -1652,12 +1652,16 @@ export const features = {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
     template: $namespace({ name: 'SuppressedError' }),
   },
+  'suppressed-error/constructor': {
+    modules: [/^(?:es|esnext)\.suppressed-error\./],
+    template: $namespace({ name: 'SuppressedError' }),
+  },
   'symbol/index': {
     modules: [/^(?:es|esnext)\.symbol\./],
     template: $namespace({ name: 'Symbol' }),
   },
   'symbol/constructor': {
-    modules: [/^(?:es|esnext)\.symbol\./],
+    modules: ['es.symbol.constructor', 'es.symbol.description'],
     template: $namespace({ name: 'Symbol' }),
   },
   'symbol/async-dispose': {
