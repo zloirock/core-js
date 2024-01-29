@@ -14,6 +14,10 @@ var PROMISE_ANY_ERROR = 'No one promise resolved';
 // https://tc39.es/ecma262/#sec-promise.any
 $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   any: function any(iterable) {
+    // dependency: es.promise.constructor
+    // dependency: es.promise.catch
+    // dependency: es.promise.finally
+    // dependency: es.promise.resolve
     var C = this;
     // dependency: es.aggregate-error.constructor
     var AggregateError = getBuiltIn('AggregateError');
