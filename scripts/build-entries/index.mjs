@@ -25,11 +25,19 @@ const ActualSet = new Set(ActualModules);
 
 let built = 0;
 
-async function buildEntry(entry, template, modules, filter, enforce) {
+function expandModules(modules, filter) {
   if (!Array.isArray(modules)) modules = [modules];
   modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(path => it.test(path)) : [it]);
   if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
-  if (!enforce && !modules.length) return;
+  return modules;
+}
+
+async function buildEntry(entry, template, modules, filter, enforce, ifModules) {
+  modules = expandModules(modules, filter);
+  if (!enforce) {
+    ifModules = ifModules ? expandModules(ifModules, filter) : modules;
+    if (!ifModules.length) return;
+  }
   const level = entry.split('/').length - 1;
   modules = await getListOfDependencies(modules);
   if (filter) modules = modules.filter(it => filter.has(it));
@@ -40,11 +48,11 @@ async function buildEntry(entry, template, modules, filter, enforce) {
   built++;
 }
 
-for (const [entry, { modules, template, enforce }] of Object.entries(features)) {
-  await buildEntry(`es/${ entry }`, template, modules, ESSet, enforce);
-  await buildEntry(`stable/${ entry }`, template, modules, StableSet, enforce);
-  await buildEntry(`actual/${ entry }`, template, modules, ActualSet, enforce);
-  await buildEntry(`full/${ entry }`, template, modules, null, enforce);
+for (const [entry, { modules, ifModules, template, enforce }] of Object.entries(features)) {
+  await buildEntry(`es/${ entry }`, template, modules, ESSet, enforce, ifModules);
+  await buildEntry(`stable/${ entry }`, template, modules, StableSet, enforce, ifModules);
+  await buildEntry(`actual/${ entry }`, template, modules, ActualSet, enforce, ifModules);
+  await buildEntry(`full/${ entry }`, template, modules, null, enforce, ifModules);
 }
 
 for (const [entry, { name, modules, template, stable, actual, full }] of Object.entries(instance)) {
