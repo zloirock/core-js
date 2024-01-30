@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Fixed regression in `Set#intersection` feature detection
+- Fixed a missed check in `Array#lastIndexOf`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Compat data improvements:
   - [New `Set` methods](https://github.com/tc39/proposal-set-methods) [fixed](https://bugs.chromium.org/p/v8/issues/detail?id=14559#c4) and marked as supported from V8 ~ Chrome 123
   - Added [Deno 1.40](https://deno.com/blog/v1.40) compat data mapping
