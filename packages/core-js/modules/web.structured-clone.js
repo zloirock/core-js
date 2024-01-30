@@ -39,6 +39,8 @@ var getUint8 = uncurryThis($DataView.prototype.getUint8);
 var setUint8 = uncurryThis($DataView.prototype.setUint8);
 var PerformanceMark = globalThis.PerformanceMark;
 // dependency: web.dom-exception.constructor
+// dependency: web.dom-exception.stack
+// dependency: web.dom-exception.to-string-tag
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
