@@ -25,6 +25,8 @@ $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }
       var counter = 0;
       var remaining = 1;
       // dependency: es.array.iterator
+      // dependency: es.string.iterator
+      // dependency: web.dom-collections.iterator
       iterate(iterable, function (promise) {
         var index = counter++;
         var alreadyCalled = false;
