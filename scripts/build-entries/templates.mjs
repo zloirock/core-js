@@ -147,6 +147,8 @@ export const $instanceFunction = t(p => dedent`
 `);
 
 export const $instanceDOMIterables = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
   var classof = require('../../internals/classof');
   var hasOwn = require('../../internals/has-own-property');
 
@@ -182,6 +184,8 @@ export const $instanceArrayString = t(p => dedent`
 `);
 
 export const $instanceArrayDOMIterables = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
   var classof = require('../../internals/classof');
   var hasOwn = require('../../internals/has-own-property');
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
@@ -202,7 +206,9 @@ export const $instanceArrayDOMIterables = t(p => dedent`
   };
 `);
 
-export const $instanceRegExpFlags = t(() => dedent`
+export const $instanceRegExpFlags = t(p => dedent`
+  ${ importModules(p.modules, p.level) }
+
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
   var flags = require('../regexp/flags');
 
