@@ -10,6 +10,8 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var i2c = require('../internals/base64-map').i2c;
 
 // dependency: web.dom-exception.constructor
+// dependency: web.dom-exception.stack
+// dependency: web.dom-exception.to-string-tag
 var DOMException = getBuiltIn('DOMException');
 var $btoa = getBuiltIn('btoa');
 var $Array = Array;
