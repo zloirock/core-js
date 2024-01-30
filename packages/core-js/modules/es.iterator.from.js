@@ -25,6 +25,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.from` method
 // https://tc39.es/ecma262/#sec-iterator.from
+// dependency: esnext.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: FORCED }, {
   from: function from(O) {
     var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O, true);
