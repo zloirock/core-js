@@ -56,6 +56,9 @@ const ArrayBufferPrototypeMethods = [
   'es.array-buffer.slice',
   'es.array-buffer.species',
   'es.array-buffer.to-string-tag',
+  'esnext.array-buffer.detached',
+  'esnext.array-buffer.transfer',
+  'esnext.array-buffer.transfer-to-fixed-length',
 ];
 
 const AsyncIteratorPrototypeMethods = [
@@ -1953,7 +1956,7 @@ export const features = {
     template: $justImport,
   },
   'url/index': {
-    modules: [/^web\.url\./],
+    modules: [/^web\.url(?:-search-params)?\./],
     template: $namespace({ name: 'URL' }),
   },
   'url/can-parse': {
