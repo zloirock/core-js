@@ -9,6 +9,7 @@ var NATIVE_SYMBOL_REGISTRY = require('../internals/symbol-registry-detection');
 var StringToSymbolRegistry = NATIVE_SYMBOL_REGISTRY || shared('string-to-symbol-registry');
 var SymbolToStringRegistry = NATIVE_SYMBOL_REGISTRY || shared('symbol-to-string-registry');
 // dependency: es.symbol.constructor
+// dependency: es.symbol.description
 var Symbol = getBuiltIn('Symbol');
 
 // `Symbol.for` method
