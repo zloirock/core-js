@@ -5,6 +5,7 @@ var IS_PURE = require('../internals/is-pure');
 
 // `Iterator.prototype.windows` method
 // https://github.com/tc39/proposal-iterator-chunking
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   windows: function windows(windowSize /* , undersized */) {
     return iteratorWindow(this, windowSize, arguments.length < 2 ? undefined : arguments[1]);
