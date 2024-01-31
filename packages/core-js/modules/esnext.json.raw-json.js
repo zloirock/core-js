@@ -16,7 +16,6 @@ var setInternalState = require('../internals/internal-state').set;
 var $String = String;
 var $SyntaxError = SyntaxError;
 var parse = getBuiltInStaticMethod('JSON', 'parse');
-// dependency: es.json.stringify
 var $stringify = getBuiltInStaticMethod('JSON', 'stringify');
 var create = Object.create;
 var freeze = Object.freeze;

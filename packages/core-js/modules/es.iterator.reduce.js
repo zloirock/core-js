@@ -9,6 +9,7 @@ var $TypeError = TypeError;
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);

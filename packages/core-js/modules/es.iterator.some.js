@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.some` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.some
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   some: function some(predicate) {
     anObject(this);
