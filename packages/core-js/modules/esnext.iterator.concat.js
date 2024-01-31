@@ -35,6 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.concat` method
 // https://github.com/tc39/proposal-iterator-sequencing
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: true }, {
   concat: function concat() {
     var length = arguments.length;
