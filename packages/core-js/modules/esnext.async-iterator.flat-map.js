@@ -76,6 +76,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.flaMap` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
