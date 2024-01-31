@@ -12,6 +12,7 @@ var someWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('s
 
 // `Iterator.prototype.some` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.some
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: someWithoutClosingOnEarlyError }, {
   some: function some(predicate) {
     anObject(this);
