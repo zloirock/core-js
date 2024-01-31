@@ -24,6 +24,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: esnext.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   filter: function filter(predicate) {
     anObject(this);
