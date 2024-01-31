@@ -19,6 +19,7 @@ var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://github.com/tc39/proposal-joint-iteration
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: true }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);
