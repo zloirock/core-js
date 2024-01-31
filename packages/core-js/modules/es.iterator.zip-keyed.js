@@ -19,6 +19,7 @@ var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://tc39.es/ecma262/#sec-iterator.zipkeyed
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);
