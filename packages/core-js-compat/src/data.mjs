@@ -2250,9 +2250,6 @@ export const data = {
     // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     firefox: '135', // '132',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.emplace': {
-  },
   'esnext.map.from': {
   },
   'esnext.map.get-or-insert': {
@@ -2349,9 +2346,6 @@ export const data = {
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.emplace': {
   },
   'esnext.weak-map.get-or-insert': {
   },
