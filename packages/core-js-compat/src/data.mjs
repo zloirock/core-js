@@ -2255,28 +2255,14 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.suppressed-error.constructor': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array.from-async': null,
   'esnext.array.filter-reject': {
   },
   'esnext.array.is-template-object': {
   },
   'esnext.array.unique-by': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.detached': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer-to-fixed-length': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.async-disposable-stack.constructor': null,
   'esnext.async-iterator.constructor': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.async-iterator.async-dispose': null,
   'esnext.async-iterator.drop': {
   },
   'esnext.async-iterator.every': {
@@ -2301,58 +2287,22 @@ export const data = {
   },
   'esnext.async-iterator.to-array': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.data-view.get-float16': null,
   'esnext.data-view.get-uint8-clamped': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.data-view.set-float16': null,
   'esnext.data-view.set-uint8-clamped': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.disposable-stack.constructor': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.error.is-error': null,
   'esnext.function.demethodize': {
   },
   'esnext.function.metadata': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.constructor': null,
   'esnext.iterator.chunks': {
   },
   'esnext.iterator.concat': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.dispose': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.drop': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.every': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.filter': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.find': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.flat-map': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.for-each': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.from': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.map': null,
   'esnext.iterator.range': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.reduce': null,
   'esnext.iterator.sliding': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.some': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.take': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
   'esnext.iterator.windows': {
@@ -2382,9 +2332,6 @@ export const data = {
     firefox: '135', // '132',
     safari: '18.4',
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.map.emplace': {
-  },
   'esnext.map.from': {
   },
   'esnext.map.get-or-insert': {
@@ -2399,8 +2346,6 @@ export const data = {
   },
   'esnext.number.clamp': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.try': null,
   'esnext.set.from': {
   },
   'esnext.set.of': {
@@ -2409,12 +2354,8 @@ export const data = {
   },
   'esnext.string.dedent': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.async-dispose': null,
   'esnext.symbol.custom-matcher': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.symbol.dispose': null,
   'esnext.symbol.is-registered-symbol': {
   },
   // We should patch it for newly added well-known symbols. If it's not required, this module just will not be injected
@@ -2470,9 +2411,6 @@ export const data = {
   'esnext.weak-map.from': {
   },
   'esnext.weak-map.of': {
-  },
-  // TODO: Remove from `core-js@4`
-  'esnext.weak-map.emplace': {
   },
   'esnext.weak-map.get-or-insert': {
   },
@@ -2698,37 +2636,7 @@ export const data = {
 };
 
 export const renamed = new Map([
-  // TODO: Clean in `core-js@4`
-  ['esnext.array.from-async', 'es.array.from-async'],
-  ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
-  ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
-  ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.async-disposable-stack.constructor', 'es.async-disposable-stack.constructor'],
-  ['esnext.async-iterator.async-dispose', 'es.async-iterator.async-dispose'],
-  ['esnext.data-view.get-float16', 'es.data-view.get-float16'],
-  ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
-  ['esnext.disposable-stack.constructor', 'es.disposable-stack.constructor'],
-  ['esnext.error.is-error', 'es.error.is-error'],
-  ['esnext.iterator.constructor', 'es.iterator.constructor'],
-  ['esnext.iterator.dispose', 'es.iterator.dispose'],
-  ['esnext.iterator.drop', 'es.iterator.drop'],
-  ['esnext.iterator.every', 'es.iterator.every'],
-  ['esnext.iterator.filter', 'es.iterator.filter'],
-  ['esnext.iterator.find', 'es.iterator.find'],
-  ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
-  ['esnext.iterator.for-each', 'es.iterator.for-each'],
-  ['esnext.iterator.from', 'es.iterator.from'],
-  ['esnext.iterator.map', 'es.iterator.map'],
-  ['esnext.iterator.reduce', 'es.iterator.reduce'],
-  ['esnext.iterator.some', 'es.iterator.some'],
-  ['esnext.iterator.take', 'es.iterator.take'],
-  ['esnext.iterator.to-array', 'es.iterator.to-array'],
-  ['esnext.math.f16round', 'es.math.f16round'],
-  ['esnext.promise.try', 'es.promise.try'],
-  ['esnext.regexp.escape', 'es.regexp.escape'],
-  ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
-  ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
-  ['esnext.symbol.dispose', 'es.symbol.dispose'],
+  // empty
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];

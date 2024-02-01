@@ -13,6 +13,7 @@ deepEqual(compat({
   targets: 'firefox 27',
 }), {
   list: [
+    'es.object.to-string',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -33,6 +34,7 @@ deepEqual(compat({
     'es.math.to-string-tag',
   ],
   targets: {
+    'es.object.to-string': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
@@ -106,6 +108,7 @@ deepEqual(compat({
   },
 }), {
   list: [
+    'es.object.to-string',
     'es.math.acosh',
     'es.math.clz32',
     'es.math.expm1',
@@ -114,6 +117,7 @@ deepEqual(compat({
     'es.math.to-string-tag',
   ],
   targets: {
+    'es.object.to-string': { chrome: '40', firefox: '27' },
     'es.math.acosh': { chrome: '40' },
     'es.math.clz32': { firefox: '27' },
     'es.math.expm1': { firefox: '27' },
