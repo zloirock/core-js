@@ -1,4 +1,11 @@
 'use strict';
-var parent = require('../../es/weak-map/get-or-insert-computed');
+require('../../modules/es.object.to-string');
+require('../../modules/es.array.iterator');
+require('../../modules/es.string.iterator');
+require('../../modules/es.weak-map.constructor');
+require('../../modules/es.weak-map.get-or-insert-computed');
+require('../../modules/web.dom-collections.iterator');
 
-module.exports = parent;
+var entryUnbind = require('../../internals/entry-unbind');
+
+module.exports = entryUnbind('WeakMap', 'getOrInsertComputed');

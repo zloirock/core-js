@@ -10,10 +10,9 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
-// dependency: esnext.iterator.dispose
 var addDisposableResource = require('../internals/add-disposable-resource');
 
-// dependency: esnext.suppressed-error.constructor
+// dependency: es.suppressed-error.constructor
 var SuppressedError = getBuiltIn('SuppressedError');
 var $ReferenceError = ReferenceError;
 
@@ -103,7 +102,7 @@ defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
 });
 
 defineBuiltIn(DisposableStackPrototype, DISPOSE, DisposableStackPrototype.dispose, { name: 'dispose' });
-// dependency: esnext.object.to-string
+// dependency: es.object.to-string
 defineBuiltIn(DisposableStackPrototype, TO_STRING_TAG, DISPOSABLE_STACK, { nonWritable: true });
 
 $({ global: true, constructor: true }, {
