@@ -444,8 +444,6 @@ const base = {
   'import/no-empty-named-blocks': ERROR,
   // forbid imports with CommonJS exports
   'import/no-import-module-exports': ERROR,
-  // prevent importing packages through relative paths
-  'import/no-relative-packages': ERROR,
   // forbid a module from importing itself
   'import/no-self-import': ERROR,
   // ensure imports point to files / modules that can be resolved
