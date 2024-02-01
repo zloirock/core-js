@@ -201,7 +201,7 @@ export const $instanceArrayDOMIterables = t(p => dedent`
   module.exports = function (it) {
     var ownProperty = it.${ p.name };
     if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
-      || hasOwn(DOMIterables, classof(it)) && ownProperty === ArrayPrototype.${ p.name }))) return arrayMethod;
+      || hasOwn(DOMIterables, classof(it))) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
     return ownProperty;
   };
 `);
