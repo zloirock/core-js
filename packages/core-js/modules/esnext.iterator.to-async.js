@@ -7,7 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.toAsync` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-// dependency: esnext.iterator.constructor
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(anObject(this)))));

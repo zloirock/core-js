@@ -118,6 +118,20 @@ export const $instanceArray = t(p => dedent`
   };
 `);
 
+export const $instanceNumber = t(p => dedent`
+  var isPrototypeOf = require('../../internals/object-is-prototype-of');
+  var numberMethod = require('../number/virtual/${ p.entry }');
+
+  var NumberPrototype = Number.prototype;
+
+  module.exports = function (it) {
+    var ownProperty = it.${ p.name };
+    if (typeof it == 'number' || it === NumberPrototype
+      || (isPrototypeOf(NumberPrototype, it) && ownProperty === NumberPrototype.${ p.name })) return numberMethod;
+    return ownProperty;
+  };
+`);
+
 export const $instanceString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
   var stringMethod = require('../string/virtual/${ p.entry }');
@@ -201,7 +215,7 @@ export const $instanceArrayDOMIterables = t(p => dedent`
   module.exports = function (it) {
     var ownProperty = it.${ p.name };
     if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
-      || hasOwn(DOMIterables, classof(it)) && ownProperty === ArrayPrototype.${ p.name }))) return arrayMethod;
+      || hasOwn(DOMIterables, classof(it))) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
     return ownProperty;
   };
 `);
