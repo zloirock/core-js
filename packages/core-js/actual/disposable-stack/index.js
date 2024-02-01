@@ -1,4 +1,9 @@
 'use strict';
-var parent = require('../../stable/disposable-stack');
+require('../../modules/es.object.to-string');
+require('../../modules/es.suppressed-error.constructor');
+require('../../modules/es.disposable-stack.constructor');
+require('../../modules/es.iterator.dispose');
 
-module.exports = parent;
+var path = require('../../internals/path');
+
+module.exports = path.DisposableStack;

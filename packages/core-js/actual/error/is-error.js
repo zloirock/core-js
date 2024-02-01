@@ -1,5 +1,6 @@
 'use strict';
-var parent = require('../../stable/error/is-error');
-require('../../modules/esnext.error.is-error');
+require('../../modules/es.error.is-error');
 
-module.exports = parent;
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Error', 'isError');

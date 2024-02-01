@@ -1,5 +1,7 @@
 'use strict';
 require('../../modules/es.symbol.dispose');
-var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
+require('../../modules/es.iterator.dispose');
 
-module.exports = WrappedWellKnownSymbolModule.f('dispose');
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Symbol', 'dispose');
