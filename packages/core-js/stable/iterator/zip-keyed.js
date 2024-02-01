@@ -1,5 +1,23 @@
 'use strict';
-var parent = require('../../es/iterator/zip-keyed');
+require('../../modules/es.object.to-string');
+require('../../modules/es.array.iterator');
+require('../../modules/es.iterator.constructor');
+require('../../modules/es.iterator.dispose');
+require('../../modules/es.iterator.drop');
+require('../../modules/es.iterator.every');
+require('../../modules/es.iterator.filter');
+require('../../modules/es.iterator.find');
+require('../../modules/es.iterator.flat-map');
+require('../../modules/es.iterator.for-each');
+require('../../modules/es.iterator.map');
+require('../../modules/es.iterator.reduce');
+require('../../modules/es.iterator.some');
+require('../../modules/es.iterator.take');
+require('../../modules/es.iterator.to-array');
+require('../../modules/es.iterator.zip-keyed');
+require('../../modules/es.string.iterator');
 require('../../modules/web.dom-collections.iterator');
 
-module.exports = parent;
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Iterator', 'zipKeyed');

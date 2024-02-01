@@ -1,4 +1,8 @@
 'use strict';
-var parent = require('../../actual/iterator/join');
+require('../../modules/es.object.to-string');
+require('../../modules/es.iterator.constructor');
+require('../../modules/esnext.iterator.join');
 
-module.exports = parent;
+var entryUnbind = require('../../internals/entry-unbind');
+
+module.exports = entryUnbind('Iterator', 'join');

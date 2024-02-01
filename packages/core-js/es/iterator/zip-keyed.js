@@ -1,9 +1,8 @@
 'use strict';
-require('../../modules/es.array.iterator');
 require('../../modules/es.object.to-string');
-require('../../modules/es.reflect.own-keys');
-require('../../modules/es.string.iterator');
+require('../../modules/es.array.iterator');
 require('../../modules/es.iterator.constructor');
+require('../../modules/es.iterator.dispose');
 require('../../modules/es.iterator.drop');
 require('../../modules/es.iterator.every');
 require('../../modules/es.iterator.filter');
@@ -16,8 +15,8 @@ require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
 require('../../modules/es.iterator.zip-keyed');
-require('../../modules/web.dom-collections.iterator');
+require('../../modules/es.string.iterator');
 
-var entryUnbind = require('../../internals/entry-unbind');
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
 
-module.exports = entryUnbind('Iterator', 'zipKeyed');
+module.exports = getBuiltInStaticMethod('Iterator', 'zipKeyed');
