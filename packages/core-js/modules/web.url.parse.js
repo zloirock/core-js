@@ -5,6 +5,7 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var toString = require('../internals/to-string');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 
+// dependency: web.url.constructor
 var URL = getBuiltIn('URL');
 
 // `URL.parse` method
