@@ -127,6 +127,10 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.with',
   'esnext.typed-array.filter-reject',
   'esnext.typed-array.unique-by',
+];
+
+const Uint8ArrayPrototypeMethods = [
+  ...TypedArrayPrototypeMethods,
   'esnext.uint8-array.to-base64',
   'esnext.uint8-array.to-hex',
 ];
@@ -827,7 +831,7 @@ export const features = {
   'map/from': {
     modules: ['esnext.map.from', ...MapWithPrototype],
     ifModules: ['esnext.map.from'],
-    template: $staticWithContext({ namespace: 'Map', method: 'from' }),
+    template: $static({ namespace: 'Map', method: 'from' }),
   },
   'map/group-by': {
     modules: ['es.map.group-by', ...MapWithPrototype],
@@ -836,7 +840,7 @@ export const features = {
   'map/of': {
     modules: ['esnext.map.of', ...MapWithPrototype],
     ifModules: ['esnext.map.of'],
-    template: $staticWithContext({ namespace: 'Map', method: 'of' }),
+    template: $static({ namespace: 'Map', method: 'of' }),
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
@@ -1292,7 +1296,7 @@ export const features = {
   'set/from': {
     modules: ['esnext.set.from', ...SetWithPrototype],
     ifModules: ['esnext.set.from'],
-    template: $staticWithContext({ namespace: 'Set', method: 'from' }),
+    template: $static({ namespace: 'Set', method: 'from' }),
   },
   'set/intersection': {
     modules: ['esnext.set.intersection'],
@@ -1329,7 +1333,7 @@ export const features = {
   'set/of': {
     modules: ['esnext.set.of', ...SetWithPrototype],
     ifModules: ['esnext.set.of'],
-    template: $staticWithContext({ namespace: 'Set', method: 'of' }),
+    template: $static({ namespace: 'Set', method: 'of' }),
   },
   'set/symmetric-difference': {
     modules: ['esnext.set.symmetric-difference'],
@@ -1776,7 +1780,7 @@ export const features = {
     template: $namespace({ name: 'Int32Array' }),
   },
   'typed-array/uint8-array': {
-    modules: ['es.typed-array.uint8-array', ...TypedArrayMethods],
+    modules: ['es.typed-array.uint8-array', ...Uint8ArrayPrototypeMethods],
     template: $namespace({ name: 'Uint8Array' }),
   },
   'typed-array/uint8-clamped-array': {
@@ -1990,12 +1994,12 @@ export const features = {
   'weak-map/from': {
     modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
     ifModules: ['esnext.weak-map.from'],
-    template: $staticWithContext({ namespace: 'WeakMap', method: 'from' }),
+    template: $static({ namespace: 'WeakMap', method: 'from' }),
   },
   'weak-map/of': {
     modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
     ifModules: ['esnext.weak-map.of'],
-    template: $staticWithContext({ namespace: 'WeakMap', method: 'of' }),
+    template: $static({ namespace: 'WeakMap', method: 'of' }),
   },
   'weak-set/index': {
     modules: [/^(?:es|esnext)\.weak-set\./],
@@ -2008,12 +2012,12 @@ export const features = {
   'weak-set/from': {
     modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
     ifModules: ['esnext.weak-set.from'],
-    template: $staticWithContext({ namespace: 'WeakSet', method: 'from' }),
+    template: $static({ namespace: 'WeakSet', method: 'from' }),
   },
   'weak-set/of': {
     modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
     ifModules: ['esnext.weak-set.of'],
-    template: $staticWithContext({ namespace: 'WeakSet', method: 'of' }),
+    template: $static({ namespace: 'WeakSet', method: 'of' }),
   },
   atob: {
     modules: ['web.atob'],
