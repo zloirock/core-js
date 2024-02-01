@@ -28,24 +28,26 @@ const PromiseWithPrototype = [
 const MapWithPrototype = [
   'es.map.constructor',
   'es.map.species',
-  'esnext.map.emplace',
+  'esnext.map.get-or-insert',
+  'esnext.map.get-or-insert-computed',
 ];
 
 const SetWithPrototype = [
   'es.set.constructor',
   'es.set.species',
-  'esnext.set.difference',
-  'esnext.set.intersection',
-  'esnext.set.is-disjoint-from',
-  'esnext.set.is-subset-of',
-  'esnext.set.is-superset-of',
-  'esnext.set.symmetric-difference',
-  'esnext.set.union',
+  'es.set.difference',
+  'es.set.intersection',
+  'es.set.is-disjoint-from',
+  'es.set.is-subset-of',
+  'es.set.is-superset-of',
+  'es.set.symmetric-difference',
+  'es.set.union',
 ];
 
 const WeakMapWithPrototype = [
   'es.weak-map.constructor',
-  'esnext.weak-map.emplace',
+  'esnext.weak-map.get-or-insert',
+  'esnext.weak-map.get-or-insert-computed',
 ];
 
 const WeakSetWithPrototype = [
@@ -77,18 +79,18 @@ const AsyncIteratorPrototypeMethods = [
 ];
 
 const IteratorPrototypeMethods = [
+  'es.iterator.drop',
+  'es.iterator.every',
+  'es.iterator.filter',
+  'es.iterator.find',
+  'es.iterator.flat-map',
+  'es.iterator.for-each',
+  'es.iterator.map',
+  'es.iterator.reduce',
+  'es.iterator.some',
+  'es.iterator.take',
+  'es.iterator.to-array',
   'esnext.iterator.dispose',
-  'esnext.iterator.drop',
-  'esnext.iterator.every',
-  'esnext.iterator.filter',
-  'esnext.iterator.find',
-  'esnext.iterator.flat-map',
-  'esnext.iterator.for-each',
-  'esnext.iterator.map',
-  'esnext.iterator.reduce',
-  'esnext.iterator.some',
-  'esnext.iterator.take',
-  'esnext.iterator.to-array',
   'esnext.iterator.to-async',
 ];
 
@@ -131,6 +133,8 @@ const TypedArrayPrototypeMethods = [
 
 const Uint8ArrayPrototypeMethods = [
   ...TypedArrayPrototypeMethods,
+  'esnext.uint8-array.set-from-base64',
+  'esnext.uint8-array.set-from-hex',
   'esnext.uint8-array.to-base64',
   'esnext.uint8-array.to-hex',
 ];
@@ -457,7 +461,7 @@ export const features = {
     template: $static({ namespace: 'ArrayBuffer', method: 'isView' }),
   },
   'array-buffer/detached': {
-    modules: ['esnext.array-buffer.detached'],
+    modules: ['es.array-buffer.detached'],
     template: $justImport,
   },
   'array-buffer/slice': {
@@ -465,11 +469,11 @@ export const features = {
     template: $justImport,
   },
   'array-buffer/transfer': {
-    modules: ['esnext.array-buffer.transfer'],
+    modules: ['es.array-buffer.transfer'],
     template: $justImport,
   },
   'array-buffer/transfer-to-fixed-length': {
-    modules: ['esnext.array-buffer.transfer-to-fixed-length'],
+    modules: ['es.array-buffer.transfer-to-fixed-length'],
     template: $justImport,
   },
   'async-disposable-stack/index': {
@@ -685,103 +689,107 @@ export const features = {
     template: $namespace({ name: 'Iterator' }),
   },
   'iterator/constructor': {
-    modules: ['esnext.iterator.constructor', ...IteratorPrototypeMethods],
+    modules: ['es.iterator.constructor', ...IteratorPrototypeMethods],
     template: $namespace({ name: 'Iterator' }),
   },
+  'iterator/concat': {
+    modules: ['esnext.iterator.concat', ...IteratorPrototypeMethods],
+    template: $static({ namespace: 'Iterator', method: 'concat' }),
+  },
   'iterator/from': {
-    modules: ['esnext.iterator.from', ...IteratorPrototypeMethods],
+    modules: ['es.iterator.from', ...IteratorPrototypeMethods],
     template: $static({ namespace: 'Iterator', method: 'from' }),
   },
+  'iterator/range': {
+    modules: ['esnext.iterator.range', ...IteratorPrototypeMethods],
+    template: $static({ namespace: 'Iterator', method: 'range' }),
+  },
   'iterator/drop': {
-    modules: ['esnext.iterator.drop'],
+    modules: ['es.iterator.drop'],
     template: $prototype({ namespace: 'Iterator', method: 'drop' }),
   },
   'iterator/virtual/drop': {
-    modules: ['esnext.iterator.drop'],
+    modules: ['es.iterator.drop'],
     template: $virtual({ namespace: 'Iterator', method: 'drop' }),
   },
   'iterator/every': {
-    modules: ['esnext.iterator.every'],
+    modules: ['es.iterator.every'],
     template: $prototype({ namespace: 'Iterator', method: 'every' }),
   },
   'iterator/virtual/every': {
-    modules: ['esnext.iterator.every'],
+    modules: ['es.iterator.every'],
     template: $virtual({ namespace: 'Iterator', method: 'every' }),
   },
   'iterator/filter': {
-    modules: ['esnext.iterator.filter'],
+    modules: ['es.iterator.filter'],
     template: $prototype({ namespace: 'Iterator', method: 'filter' }),
   },
   'iterator/virtual/filter': {
-    modules: ['esnext.iterator.filter'],
+    modules: ['es.iterator.filter'],
     template: $virtual({ namespace: 'Iterator', method: 'filter' }),
   },
   'iterator/find': {
-    modules: ['esnext.iterator.find'],
+    modules: ['es.iterator.find'],
     template: $prototype({ namespace: 'Iterator', method: 'find' }),
   },
   'iterator/virtual/find': {
-    modules: ['esnext.iterator.find'],
+    modules: ['es.iterator.find'],
     template: $virtual({ namespace: 'Iterator', method: 'find' }),
   },
   'iterator/flat-map': {
-    modules: ['esnext.iterator.flat-map'],
+    modules: ['es.iterator.flat-map'],
     template: $prototype({ namespace: 'Iterator', method: 'flatMap' }),
   },
   'iterator/virtual/flat-map': {
-    modules: ['esnext.iterator.flat-map'],
+    modules: ['es.iterator.flat-map'],
     template: $virtual({ namespace: 'Iterator', method: 'flatMap' }),
   },
   'iterator/for-each': {
-    modules: ['esnext.iterator.for-each'],
+    modules: ['es.iterator.for-each'],
     template: $prototype({ namespace: 'Iterator', method: 'forEach' }),
   },
   'iterator/virtual/for-each': {
-    modules: ['esnext.iterator.for-each'],
+    modules: ['es.iterator.for-each'],
     template: $virtual({ namespace: 'Iterator', method: 'forEach' }),
   },
   'iterator/map': {
-    modules: ['esnext.iterator.map'],
+    modules: ['es.iterator.map'],
     template: $prototype({ namespace: 'Iterator', method: 'map' }),
   },
   'iterator/virtual/map': {
-    modules: ['esnext.iterator.map'],
+    modules: ['es.iterator.map'],
     template: $virtual({ namespace: 'Iterator', method: 'map' }),
   },
-  'iterator/range': {
-    modules: ['esnext.iterator.range'],
-    template: $static({ namespace: 'Iterator', method: 'range' }),
-  },
   'iterator/reduce': {
-    modules: ['esnext.iterator.reduce'],
+    modules: ['es.iterator.reduce'],
     template: $prototype({ namespace: 'Iterator', method: 'reduce' }),
   },
   'iterator/virtual/reduce': {
-    modules: ['esnext.iterator.reduce'],
+    modules: ['es.iterator.reduce'],
     template: $virtual({ namespace: 'Iterator', method: 'reduce' }),
   },
   'iterator/some': {
-    modules: ['esnext.iterator.some'],
+    modules: ['es.iterator.some'],
     template: $prototype({ namespace: 'Iterator', method: 'some' }),
   },
   'iterator/virtual/some': {
-    modules: ['esnext.iterator.some'],
+    modules: ['es.iterator.some'],
     template: $virtual({ namespace: 'Iterator', method: 'some' }),
   },
   'iterator/take': {
-    modules: ['esnext.iterator.take'],
+    modules: ['es.iterator.take'],
     template: $prototype({ namespace: 'Iterator', method: 'take' }),
   },
   'iterator/virtual/take': {
-    modules: ['esnext.iterator.take'],
+    modules: ['es.iterator.take'],
     template: $virtual({ namespace: 'Iterator', method: 'take' }),
   },
   'iterator/to-array': {
-    modules: ['esnext.iterator.to-array'],
+    modules: ['es.iterator.to-array'],
     template: $prototype({ namespace: 'Iterator', method: 'toArray' }),
   },
   'iterator/virtual/to-array': {
-    modules: ['esnext.iterator.to-array'],
+    modules: ['es.iterator.to-array'],
     template: $virtual({ namespace: 'Iterator', method: 'toArray' }),
   },
   'iterator/to-async': {
@@ -820,13 +828,21 @@ export const features = {
     modules: [...MapWithPrototype],
     template: $namespace({ name: 'Map' }),
   },
-  'map/emplace': {
-    modules: ['esnext.map.emplace'],
-    template: $prototype({ namespace: 'Map', method: 'emplace' }),
+  'map/get-or-insert': {
+    modules: ['esnext.map.get-or-insert'],
+    template: $prototype({ namespace: 'Map', method: 'getOrInsert' }),
   },
-  'map/virtual/emplace': {
-    modules: ['esnext.map.emplace'],
-    template: $virtual({ namespace: 'Map', method: 'emplace' }),
+  'map/virtual/get-or-insert': {
+    modules: ['esnext.map.get-or-insert'],
+    template: $virtual({ namespace: 'Map', method: 'getOrInsert' }),
+  },
+  'map/get-or-insert-computed': {
+    modules: ['esnext.map.get-or-insert-computed'],
+    template: $prototype({ namespace: 'Map', method: 'getOrInsertComputed' }),
+  },
+  'map/virtual/get-or-insert-computed': {
+    modules: ['esnext.map.get-or-insert-computed'],
+    template: $virtual({ namespace: 'Map', method: 'getOrInsertComputed' }),
   },
   'map/from': {
     modules: ['esnext.map.from', ...MapWithPrototype],
@@ -909,6 +925,10 @@ export const features = {
   'math/sinh': {
     modules: ['es.math.sinh'],
     template: $static({ namespace: 'Math', method: 'sinh' }),
+  },
+  'math/sum-precise': {
+    modules: ['esnext.math.sum-precise'],
+    template: $static({ namespace: 'Math', method: 'sumPrecise' }),
   },
   'math/tanh': {
     modules: ['es.math.tanh'],
@@ -1169,6 +1189,10 @@ export const features = {
     modules: ['es.promise.resolve'],
     template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
   },
+  'promise/try': {
+    modules: ['es.promise.try'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'try' }),
+  },
   'promise/with-resolvers': {
     modules: ['es.promise.with-resolvers'],
     template: $staticWithContext({ namespace: 'Promise', method: 'withResolvers' }),
@@ -1286,11 +1310,11 @@ export const features = {
     template: $namespace({ name: 'Set' }),
   },
   'set/difference': {
-    modules: ['esnext.set.difference'],
+    modules: ['es.set.difference'],
     template: $prototype({ namespace: 'Set', method: 'difference' }),
   },
   'set/virtual/difference': {
-    modules: ['esnext.set.difference'],
+    modules: ['es.set.difference'],
     template: $virtual({ namespace: 'Set', method: 'difference' }),
   },
   'set/from': {
@@ -1299,35 +1323,35 @@ export const features = {
     template: $static({ namespace: 'Set', method: 'from' }),
   },
   'set/intersection': {
-    modules: ['esnext.set.intersection'],
+    modules: ['es.set.intersection'],
     template: $prototype({ namespace: 'Set', method: 'intersection' }),
   },
   'set/virtual/intersection': {
-    modules: ['esnext.set.intersection'],
+    modules: ['es.set.intersection'],
     template: $virtual({ namespace: 'Set', method: 'intersection' }),
   },
   'set/is-disjoint-from': {
-    modules: ['esnext.set.is-disjoint-from'],
+    modules: ['es.set.is-disjoint-from'],
     template: $prototype({ namespace: 'Set', method: 'isDisjointFrom' }),
   },
   'set/virtual/is-disjoint-from': {
-    modules: ['esnext.set.is-disjoint-from'],
+    modules: ['es.set.is-disjoint-from'],
     template: $virtual({ namespace: 'Set', method: 'isDisjointFrom' }),
   },
   'set/is-subset-of': {
-    modules: ['esnext.set.is-subset-of'],
+    modules: ['es.set.is-subset-of'],
     template: $prototype({ namespace: 'Set', method: 'isSubsetOf' }),
   },
   'set/virtual/is-subset-of': {
-    modules: ['esnext.set.is-subset-of'],
+    modules: ['es.set.is-subset-of'],
     template: $virtual({ namespace: 'Set', method: 'isSubsetOf' }),
   },
   'set/is-superset-of': {
-    modules: ['esnext.set.is-superset-of'],
+    modules: ['es.set.is-superset-of'],
     template: $prototype({ namespace: 'Set', method: 'isSupersetOf' }),
   },
   'set/virtual/is-superset-of': {
-    modules: ['esnext.set.is-superset-of'],
+    modules: ['es.set.is-superset-of'],
     template: $virtual({ namespace: 'Set', method: 'isSupersetOf' }),
   },
   'set/of': {
@@ -1336,19 +1360,19 @@ export const features = {
     template: $static({ namespace: 'Set', method: 'of' }),
   },
   'set/symmetric-difference': {
-    modules: ['esnext.set.symmetric-difference'],
+    modules: ['es.set.symmetric-difference'],
     template: $prototype({ namespace: 'Set', method: 'symmetricDifference' }),
   },
   'set/virtual/symmetric-difference': {
-    modules: ['esnext.set.symmetric-difference'],
+    modules: ['es.set.symmetric-difference'],
     template: $virtual({ namespace: 'Set', method: 'symmetricDifference' }),
   },
   'set/union': {
-    modules: ['esnext.set.union'],
+    modules: ['es.set.union'],
     template: $prototype({ namespace: 'Set', method: 'union' }),
   },
   'set/virtual/union': {
-    modules: ['esnext.set.union'],
+    modules: ['es.set.union'],
     template: $virtual({ namespace: 'Set', method: 'union' }),
   },
   'string/index': {
@@ -1675,6 +1699,10 @@ export const features = {
     modules: ['es.symbol.async-iterator'],
     template: $static({ namespace: 'Symbol', method: 'asyncIterator' }),
   },
+  'symbol/custom-matcher': {
+    modules: ['esnext.symbol.custom-matcher'],
+    template: $static({ namespace: 'Symbol', method: 'customMatcher' }),
+  },
   'symbol/description': {
     modules: ['es.symbol.description'],
     template: $justImport,
@@ -1718,10 +1746,6 @@ export const features = {
   'symbol/match-all': {
     modules: ['es.symbol.match-all'],
     template: $static({ namespace: 'Symbol', method: 'matchAll' }),
-  },
-  'symbol/matcher': {
-    modules: ['esnext.symbol.matcher'],
-    template: $static({ namespace: 'Symbol', method: 'matcher' }),
   },
   'symbol/metadata': {
     modules: ['esnext.symbol.metadata', 'esnext.function.metadata'],
@@ -1903,6 +1927,14 @@ export const features = {
     modules: ['es.typed-array.set'],
     template: $justImport,
   },
+  'typed-array/set-from-base64': {
+    modules: ['esnext.uint8-array.set-from-base64'],
+    template: $justImport,
+  },
+  'typed-array/set-from-hex': {
+    modules: ['esnext.uint8-array.set-from-hex'],
+    template: $justImport,
+  },
   'typed-array/slice': {
     modules: ['es.typed-array.slice'],
     template: $justImport,
@@ -1963,6 +1995,10 @@ export const features = {
     modules: ['web.url.can-parse'],
     template: $static({ namespace: 'URL', method: 'canParse' }),
   },
+  'url/parse': {
+    modules: ['web.url.parse'],
+    template: $static({ namespace: 'URL', method: 'parse' }),
+  },
   'url/to-json': { // <- ???
     modules: ['web.url.to-json'],
     template: $prototype({ namespace: 'URL', method: 'toJSON' }),
@@ -1983,14 +2019,6 @@ export const features = {
     modules: [...WeakMapWithPrototype],
     template: $namespace({ name: 'WeakMap' }),
   },
-  'weak-map/emplace': {
-    modules: ['esnext.weak-map.emplace'],
-    template: $prototype({ namespace: 'WeakMap', method: 'emplace' }),
-  },
-  'weak-map/virtual/emplace': {
-    modules: ['esnext.weak-map.emplace'],
-    template: $virtual({ namespace: 'WeakMap', method: 'emplace' }),
-  },
   'weak-map/from': {
     modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
     ifModules: ['esnext.weak-map.from'],
@@ -2000,6 +2028,22 @@ export const features = {
     modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
     ifModules: ['esnext.weak-map.of'],
     template: $static({ namespace: 'WeakMap', method: 'of' }),
+  },
+  'weak-map/get-or-insert': {
+    modules: ['esnext.weak-map.get-or-insert'],
+    template: $prototype({ namespace: 'WeakMap', method: 'getOrInsert' }),
+  },
+  'weak-map/virtual/get-or-insert': {
+    modules: ['esnext.weak-map.get-or-insert'],
+    template: $virtual({ namespace: 'WeakMap', method: 'getOrInsert' }),
+  },
+  'weak-map/get-or-insert-computed': {
+    modules: ['esnext.weak-map.get-or-insert-computed'],
+    template: $prototype({ namespace: 'WeakMap', method: 'getOrInsertComputed' }),
+  },
+  'weak-map/virtual/get-or-insert-computed': {
+    modules: ['esnext.weak-map.get-or-insert-computed'],
+    template: $virtual({ namespace: 'WeakMap', method: 'getOrInsertComputed' }),
   },
   'weak-set/index': {
     modules: [/^(?:es|esnext)\.weak-set\./],
@@ -2339,10 +2383,12 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-arraybuffer-base64
   'array-buffer-base64': {
-    stage: 2,
+    stage: 3,
     modules: [
       'esnext.uint8-array.from-base64',
       'esnext.uint8-array.from-hex',
+      'esnext.uint8-array.set-from-base64',
+      'esnext.uint8-array.set-from-hex',
       'esnext.uint8-array.to-base64',
       'esnext.uint8-array.to-hex',
     ],
@@ -2351,9 +2397,9 @@ export const proposals = {
   'array-buffer-transfer': {
     stage: 3,
     modules: [
-      'esnext.array-buffer.detached',
-      'esnext.array-buffer.transfer',
-      'esnext.array-buffer.transfer-to-fixed-length',
+      'es.array-buffer.detached',
+      'es.array-buffer.transfer',
+      'es.array-buffer.transfer-to-fixed-length',
     ],
   },
   // https://github.com/tc39/proposal-array-filtering
@@ -2513,6 +2559,13 @@ export const proposals = {
       'esnext.symbol.dispose',
     ],
   },
+  // https://github.com/tc39/proposal-extractors
+  extractors: {
+    stage: 1,
+    modules: [
+      'esnext.symbol.custom-matcher',
+    ],
+  },
   // https://github.com/tc39/proposal-float16array
   float16: {
     stage: 3,
@@ -2538,29 +2591,37 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-iterator-helpers
   'iterator-helpers': {
-    stage: 3,
+    stage: 4,
     modules: [
-      'esnext.iterator.constructor',
-      'esnext.iterator.drop',
-      'esnext.iterator.every',
-      'esnext.iterator.filter',
-      'esnext.iterator.find',
-      'esnext.iterator.flat-map',
-      'esnext.iterator.for-each',
-      'esnext.iterator.from',
-      'esnext.iterator.map',
-      'esnext.iterator.reduce',
-      'esnext.iterator.some',
-      'esnext.iterator.take',
-      'esnext.iterator.to-array',
+      'es.iterator.constructor',
+      'es.iterator.drop',
+      'es.iterator.every',
+      'es.iterator.filter',
+      'es.iterator.find',
+      'es.iterator.flat-map',
+      'es.iterator.for-each',
+      'es.iterator.from',
+      'es.iterator.map',
+      'es.iterator.reduce',
+      'es.iterator.some',
+      'es.iterator.take',
+      'es.iterator.to-array',
     ],
   },
   // https://github.com/tc39/proposal-Number.range
   'iterator-range': {
     stage: 2,
     modules: [
-      'esnext.iterator.constructor',
+      'es.iterator.constructor',
       'esnext.iterator.range',
+    ],
+  },
+  // https://github.com/tc39/proposal-iterator-sequencing
+  'iterator-sequencing': {
+    stage: 2.7,
+    modules: [
+      'es.iterator.constructor',
+      'esnext.iterator.concat',
     ],
   },
   // https://github.com/tc39/proposal-json-parse-with-source
@@ -2573,11 +2634,20 @@ export const proposals = {
     ],
   },
   // https://github.com/tc39/proposal-upsert
-  'map-emplace': {
+  'map-upsert': {
     stage: 2,
     modules: [
-      'esnext.map.emplace',
-      'esnext.weak-map.emplace',
+      'esnext.map.get-or-insert',
+      'esnext.map.get-or-insert-computed',
+      'esnext.weak-map.get-or-insert',
+      'esnext.weak-map.get-or-insert-computed',
+    ],
+  },
+  // https://github.com/tc39/proposal-math-sum
+  'math-sum': {
+    stage: 3,
+    modules: [
+      'esnext.math.sum-precise',
     ],
   },
   // https://github.com/tc39/proposal-object-from-entries
@@ -2606,7 +2676,7 @@ export const proposals = {
   'pattern-matching': {
     stage: 1,
     modules: [
-      'esnext.symbol.matcher',
+      'esnext.symbol.custom-matcher',
     ],
   },
   // https://github.com/tc39/proposal-promise-allSettled
@@ -2631,6 +2701,13 @@ export const proposals = {
       'es.promise.finally',
     ],
   },
+  // https://github.com/tc39/proposal-promise-try
+  'promise-try': {
+    stage: 4,
+    modules: [
+      'es.promise.try',
+    ],
+  },
   // https://github.com/tc39/proposal-promise-with-resolvers
   'promise-with-resolvers': {
     stage: 4,
@@ -2650,7 +2727,7 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-regex-escaping
   'regexp-escaping': {
-    stage: 2,
+    stage: 3,
     modules: [
       'esnext.regexp.escape',
     ],
@@ -2675,15 +2752,15 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-set-methods
   'set-methods': {
-    stage: 3,
+    stage: 4,
     modules: [
-      'esnext.set.difference',
-      'esnext.set.intersection',
-      'esnext.set.is-disjoint-from',
-      'esnext.set.is-subset-of',
-      'esnext.set.is-superset-of',
-      'esnext.set.symmetric-difference',
-      'esnext.set.union',
+      'es.set.difference',
+      'es.set.intersection',
+      'es.set.is-disjoint-from',
+      'es.set.is-subset-of',
+      'es.set.is-superset-of',
+      'es.set.symmetric-difference',
+      'es.set.union',
     ],
   },
   // https://github.com/bathos/proposal-string-cooked
