@@ -14,7 +14,7 @@ ok(script.includes("import 'core-js/modules/esnext.iterator.zip.js';"), 'actual 
 ok(script.includes("import 'core-js/modules/web.structured-clone.js';"), 'actual node 16 #4');
 ok(!script.includes("import 'core-js/modules/es.weak-set.constructor.js';"), 'actual node 16 #5');
 ok(!script.includes("import 'core-js/modules/es.typed-array.with.js';"), 'actual node 16 #6');
-ok(!script.includes("import 'core-js/modules/esnext.object.group-by.js';"), 'actual node 16 #7');
+ok(!script.includes("import 'core-js/modules/es.object.group-by.js';"), 'actual node 16 #7');
 ok(!script.includes("import 'core-js/modules/esnext.weak-set.from.js';"), 'actual node 16 #8');
 
 echo(chalk.green('builder tested'));
