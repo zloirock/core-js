@@ -42,7 +42,7 @@ async function buildEntry(entry, template, modules, filter, enforce, ifModules) 
   modules = await getListOfDependencies(modules);
   if (filter) modules = modules.filter(it => filter.has(it));
   const file = template({ modules, level });
-  const filepath = `./packages/core-js/$test$/${ entry }.js`;
+  const filepath = `./packages/core-js/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
   await writeFile(filepath, file);
   built++;

@@ -819,7 +819,6 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   load(NS, 'typed-array/to-string');
   load(NS, 'typed-array/values');
   load(NS, 'typed-array/with');
-  load(NS, 'typed-array/methods');
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
