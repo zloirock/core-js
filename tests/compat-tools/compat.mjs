@@ -13,6 +13,7 @@ deepEqual(compat({
   targets: 'firefox 27',
 }), {
   list: [
+    'es.object.to-string',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -33,8 +34,10 @@ deepEqual(compat({
     'es.math.f16round',
     'es.math.sum-precise',
     'es.math.to-string-tag',
+    'es.string.iterator',
   ],
   targets: {
+    'es.object.to-string': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
@@ -55,6 +58,7 @@ deepEqual(compat({
     'es.math.f16round': { firefox: '27' },
     'es.math.sum-precise': { firefox: '27' },
     'es.math.to-string-tag': { firefox: '27' },
+    'es.string.iterator': { firefox: '27' },
   },
 }, 'basic');
 
@@ -110,6 +114,7 @@ deepEqual(compat({
   },
 }), {
   list: [
+    'es.object.to-string',
     'es.array.iterator',
     'es.math.acosh',
     'es.math.clz32',
@@ -118,8 +123,10 @@ deepEqual(compat({
     'es.math.hypot',
     'es.math.sum-precise',
     'es.math.to-string-tag',
+    'es.string.iterator',
   ],
   targets: {
+    'es.object.to-string': { chrome: '40', firefox: '27' },
     'es.array.iterator': { chrome: '40', firefox: '27' },
     'es.math.acosh': { chrome: '40' },
     'es.math.clz32': { firefox: '27' },
@@ -128,6 +135,7 @@ deepEqual(compat({
     'es.math.hypot': { chrome: '40' },
     'es.math.sum-precise': { chrome: '40', firefox: '27' },
     'es.math.to-string-tag': { chrome: '40', firefox: '27' },
+    'es.string.iterator': { chrome: '40', firefox: '27' },
   },
 }, 'some targets');
 
