@@ -62,6 +62,7 @@ var fixIllFormed = function (match, offset, string) {
 
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
+// dependency: es.date.to-json
 $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE }, {
   // eslint-disable-next-line no-unused-vars -- required for `.length`
   stringify: function stringify(it, replacer, space) {
