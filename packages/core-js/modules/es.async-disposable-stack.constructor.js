@@ -10,8 +10,7 @@ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
-// dependency: esnext.async-iterator.async-dispose
-// dependency: esnext.iterator.dispose
+// dependency: es.async-iterator.async-dispose
 var addDisposableResource = require('../internals/add-disposable-resource');
 var V8_VERSION = require('../internals/environment-v8-version');
 
@@ -20,7 +19,7 @@ var V8_VERSION = require('../internals/environment-v8-version');
 // dependency: es.promise.finally
 // dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
-// dependency: esnext.suppressed-error.constructor
+// dependency: es.suppressed-error.constructor
 var SuppressedError = getBuiltIn('SuppressedError');
 var $ReferenceError = ReferenceError;
 
