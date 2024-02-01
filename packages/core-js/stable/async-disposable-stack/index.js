@@ -1,4 +1,14 @@
 'use strict';
-var parent = require('../../es/async-disposable-stack');
+require('../../modules/es.object.to-string');
+require('../../modules/es.suppressed-error.constructor');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
+require('../../modules/es.promise.resolve');
+require('../../modules/es.async-disposable-stack.constructor');
+require('../../modules/es.async-iterator.async-dispose');
+require('../../modules/es.iterator.dispose');
 
-module.exports = parent;
+var path = require('../../internals/path');
+
+module.exports = path.AsyncDisposableStack;

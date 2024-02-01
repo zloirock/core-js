@@ -1,5 +1,6 @@
 'use strict';
 require('../../modules/es.error.is-error');
-var path = require('../../internals/path');
 
-module.exports = path.Error.isError;
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Error', 'isError');

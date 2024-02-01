@@ -1,10 +1,10 @@
 'use strict';
+require('../../modules/es.object.to-string');
 require('../../modules/es.promise.constructor');
 require('../../modules/es.promise.catch');
 require('../../modules/es.promise.finally');
-require('../../modules/es.array.from');
+require('../../modules/es.promise.resolve');
 require('../../modules/es.array.from-async');
-require('../../modules/es.array.of');
 require('../../modules/es.array.iterator');
 require('../../modules/es.array.at');
 require('../../modules/es.array.concat');
@@ -18,12 +18,14 @@ require('../../modules/es.array.find-last');
 require('../../modules/es.array.find-last-index');
 require('../../modules/es.array.flat');
 require('../../modules/es.array.flat-map');
+require('../../modules/es.array.from');
 require('../../modules/es.array.includes');
 require('../../modules/es.array.index-of');
 require('../../modules/es.array.join');
 require('../../modules/es.array.keys');
 require('../../modules/es.array.last-index-of');
 require('../../modules/es.array.map');
+require('../../modules/es.array.of');
 require('../../modules/es.array.push');
 require('../../modules/es.array.reduce');
 require('../../modules/es.array.reduce-right');
@@ -40,8 +42,8 @@ require('../../modules/es.array.unscopables.flat-map');
 require('../../modules/es.array.unshift');
 require('../../modules/es.array.values');
 require('../../modules/es.array.with');
-require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
+
 var path = require('../../internals/path');
 
 module.exports = path.Array;

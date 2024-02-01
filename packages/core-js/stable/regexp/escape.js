@@ -1,4 +1,7 @@
 'use strict';
-var parent = require('../../es/regexp/escape');
+require('../../modules/es.string.repeat');
+require('../../modules/es.regexp.escape');
 
-module.exports = parent;
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('RegExp', 'escape');

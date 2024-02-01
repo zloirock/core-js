@@ -4,13 +4,14 @@ require('../../modules/es.promise.constructor');
 require('../../modules/es.promise.catch');
 require('../../modules/es.promise.finally');
 require('../../modules/es.promise.with-resolvers');
-var call = require('../../internals/function-call');
-var isCallable = require('../../internals/is-callable');
-var path = require('../../internals/path');
 
-var Promise = path.Promise;
-var promiseWithResolvers = Promise.withResolvers;
+var getBuiltIn = require('../../internals/get-built-in');
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+var isCallable = require('../../internals/is-callable');
+var apply = require('../../internals/function-apply');
+
+var method = getBuiltInStaticMethod('Promise', 'withResolvers');
 
 module.exports = function withResolvers() {
-  return call(promiseWithResolvers, isCallable(this) ? this : Promise);
+  return apply(method, isCallable(this) ? this : getBuiltIn('Promise'), arguments);
 };

@@ -1,5 +1,7 @@
 'use strict';
-var parent = require('../../stable/symbol/dispose');
-require('../../modules/esnext.symbol.dispose');
+require('../../modules/es.symbol.dispose');
+require('../../modules/es.iterator.dispose');
 
-module.exports = parent;
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Symbol', 'dispose');

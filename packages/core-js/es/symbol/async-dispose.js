@@ -1,5 +1,12 @@
 'use strict';
 require('../../modules/es.symbol.async-dispose');
-var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
+require('../../modules/es.object.to-string');
+require('../../modules/es.promise.constructor');
+require('../../modules/es.promise.catch');
+require('../../modules/es.promise.finally');
+require('../../modules/es.promise.resolve');
+require('../../modules/es.async-iterator.async-dispose');
 
-module.exports = WrappedWellKnownSymbolModule.f('asyncDispose');
+var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');
+
+module.exports = getBuiltInStaticMethod('Symbol', 'asyncDispose');
