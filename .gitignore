@@ -9,9 +9,13 @@ node_modules/
 .idea
 
 /docs/web/blog/index.md
-/packages/core-js/es/index.js
-/packages/core-js/full/index.js
-/packages/core-js/stable/index.js
+/packages/core-js/actual/
+/packages/core-js/es/
+/packages/core-js/full/
+/packages/core-js/proposals/
+/packages/core-js/stable/
+/packages/core-js/stage/
+/packages/core-js/index.js
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
