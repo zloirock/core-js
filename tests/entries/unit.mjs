@@ -671,12 +671,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
-    ok(typeof load(NS, 'iterator/sliding') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
-    ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
@@ -688,7 +686,6 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
     ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
@@ -747,12 +744,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
-  load('proposals/iterator-chunking-v2');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
-  load('proposals/map-emplace');
-  load('proposals/map-upsert');
   load('proposals/math-clamp');
+  load('proposals/map-upsert');
   load('proposals/math-sum');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
@@ -859,7 +854,6 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   load(NS, 'typed-array/to-string');
   load(NS, 'typed-array/values');
   load(NS, 'typed-array/with');
-  load(NS, 'typed-array/methods');
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
