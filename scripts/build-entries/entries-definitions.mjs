@@ -2339,7 +2339,7 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-arraybuffer-base64
   'array-buffer-base64': {
-    stage: 2,
+    stage: 3,
     modules: [
       'esnext.uint8-array.from-base64',
       'esnext.uint8-array.from-hex',
