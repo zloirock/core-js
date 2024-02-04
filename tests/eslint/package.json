@@ -1,5 +1,6 @@
 {
   "name": "tests/eslint",
+  "type": "module",
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.1.0",
     "@stylistic/eslint-plugin-js": "^1.5.4",

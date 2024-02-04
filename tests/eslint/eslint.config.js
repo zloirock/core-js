@@ -1,23 +1,22 @@
-'use strict';
-const globals = require('globals');
-const confusingBrowserGlobals = require('confusing-browser-globals');
-const parserJSONC = require('jsonc-eslint-parser');
-const pluginArrayFunc = require('eslint-plugin-array-func');
-const pluginESX = require('eslint-plugin-es-x');
-const pluginESlintComments = require('@eslint-community/eslint-plugin-eslint-comments');
-const pluginFilenames = require('eslint-plugin-filenames');
-const pluginImport = require('eslint-plugin-import');
-const pluginJSONC = require('eslint-plugin-jsonc');
-const pluginN = require('eslint-plugin-n');
-const pluginPromise = require('eslint-plugin-promise');
-const pluginQUnit = require('eslint-plugin-qunit');
-const pluginReDoS = require('eslint-plugin-redos');
-const pluginRegExp = require('eslint-plugin-regexp');
-const pluginSonarJS = require('eslint-plugin-sonarjs');
-const pluginStylisticJS = require('@stylistic/eslint-plugin-js');
-const pluginUnicorn = require('eslint-plugin-unicorn');
-const PACKAGES_NODE_VERSIONS = require('core-js-builder/package').engines.node;
+import globals from 'globals';
+import confusingBrowserGlobals from 'confusing-browser-globals';
+import parserJSONC from 'jsonc-eslint-parser';
+import pluginArrayFunc from 'eslint-plugin-array-func';
+import pluginESX from 'eslint-plugin-es-x';
+import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
+import pluginFilenames from 'eslint-plugin-filenames';
+import pluginImport from 'eslint-plugin-import';
+import pluginJSONC from 'eslint-plugin-jsonc';
+import pluginN from 'eslint-plugin-n';
+import pluginPromise from 'eslint-plugin-promise';
+import pluginQUnit from 'eslint-plugin-qunit';
+import pluginReDoS from 'eslint-plugin-redos';
+import pluginRegExp from 'eslint-plugin-regexp';
+import pluginSonarJS from 'eslint-plugin-sonarjs';
+import pluginStylisticJS from '@stylistic/eslint-plugin-js';
+import pluginUnicorn from 'eslint-plugin-unicorn';
 
+const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^18.12';
 
 const ERROR = 'error';
@@ -1478,7 +1477,7 @@ const globalsZX = {
   YAML: READONLY,
 };
 
-module.exports = [
+export default [
   {
     ignores: [
       'deno/corejs/**',
@@ -1530,6 +1529,7 @@ module.exports = [
   {
     files: [
       '**/*.mjs',
+      'tests/eslint/**',
     ],
     languageOptions: {
       sourceType: 'module',
