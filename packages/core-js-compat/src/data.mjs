@@ -588,6 +588,7 @@ export const data = {
     bun: '1.0.19',
     chrome: '117',
     firefox: '119',
+    safari: '17.4',
   },
   'es.math.acosh': {
     chrome: '54',
@@ -953,6 +954,7 @@ export const data = {
     bun: '1.0.19',
     chrome: '117',
     firefox: '119',
+    safari: '17.4',
   },
   'es.object.has-own': {
     chrome: '93',
@@ -1172,6 +1174,7 @@ export const data = {
     bun: '0.7.1',
     chrome: '119',
     firefox: '121',
+    safari: '17.4',
   },
   'es.reflect.apply': {
     chrome: '49',
@@ -1951,16 +1954,19 @@ export const data = {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    safari: '17.4',
   },
   'esnext.array-buffer.transfer': {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    safari: '17.4',
   },
   'esnext.array-buffer.transfer-to-fixed-length': {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    safari: '17.4',
   },
   'esnext.async-disposable-stack.constructor': {
   },
