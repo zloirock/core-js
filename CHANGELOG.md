@@ -6,6 +6,7 @@
 - Dropped context workaround from collection static methods entries since with current methods semantic it's no longer required
 - Added instance methods polyfills to entries of collections static methods that produce collection instances
 - Added missed `Date#toJSON` to `JSON.stringify` entries dependencies
+- Added debugging info in some missed cases
 - Compat data improvements:
   - [`{ Map, Object }.groupBy`](https://github.com/tc39/proposal-array-grouping), [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers), [`ArrayBuffer#transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer) marked as supported from [Safari 17.4](https://developer.apple.com/documentation/safari-release-notes/safari-17_4-release-notes#JavaScript)
   - [New `Set` methods](https://github.com/tc39/proposal-set-methods) [fixed](https://bugs.chromium.org/p/v8/issues/detail?id=14559#c4) and marked as supported from V8 ~ Chrome 123

@@ -9,6 +9,8 @@ var path = require('../internals/path');
 var bind = require('../internals/function-bind-context');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var hasOwn = require('../internals/has-own-property');
+// add debugging info
+require('../internals/shared-store');
 
 var wrapConstructor = function (NativeConstructor) {
   var Wrapper = function (a, b, c) {
