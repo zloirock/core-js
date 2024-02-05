@@ -13,6 +13,7 @@ var createMethod = function (IS_RIGHT) {
     var self = IndexedObject(O);
     var length = lengthOfArrayLike(O);
     aCallable(callbackfn);
+    if (length === 0 && argumentsLength < 2) throw new $TypeError('Reduce of empty array with no initial value');
     var index = IS_RIGHT ? length - 1 : 0;
     var i = IS_RIGHT ? -1 : 1;
     if (argumentsLength < 2) while (true) {
