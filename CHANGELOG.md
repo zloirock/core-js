@@ -2,6 +2,7 @@
 ##### Unreleased
 - Fixed regression in `Set#intersection` feature detection
 - Fixed a missed check in `Array#{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- Fixed a missed check in `Array#{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed `Array.from` and some other methods with proxy targets, [#1322](https://github.com/zloirock/core-js/issues/1322), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Dropped context workaround from collection static methods entries since with current methods semantic it's no longer required
 - Added instance methods polyfills to entries of collections static methods that produce collection instances
