@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and [moved to stage 2](https://github.com/tc39/proposal-promise-try/issues/15)
 - Fixed regression in `Set#intersection` feature detection
 - Fixed a missed check in `Array#{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed a missed check in `Array#{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
