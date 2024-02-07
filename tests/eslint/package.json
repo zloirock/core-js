@@ -17,7 +17,7 @@
     "eslint-plugin-redos": "^4.5.0-beta.4",
     "eslint-plugin-regexp": "^2.2.0",
     "eslint-plugin-sonarjs": "^0.23.0",
-    "eslint-plugin-unicorn": "^51.0.0",
+    "eslint-plugin-unicorn": "^51.0.1",
     "globals": "^13.24.0",
     "jsonc-eslint-parser": "^2.4.0"
   }
