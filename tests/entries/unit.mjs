@@ -636,6 +636,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
     const WeakSet = load(NS, 'weak-set');
+    const Promise = load(NS, 'promise');
     ok(typeof load(NS, 'array/filter-reject') == 'function');
     ok(typeof load(NS, 'array/is-template-object') == 'function');
     ok(typeof load(NS, 'array/unique-by') == 'function');
@@ -663,6 +664,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
+    ok(load(NS, 'promise/try')(() => 42) instanceof Promise);
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
     ok(load(NS, 'set/of')(1, 2, 3, 2, 1) instanceof Set);
@@ -731,6 +733,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
   load('proposals/promise-finally');
+  load('proposals/promise-try');
   load('proposals/promise-with-resolvers');
   load('proposals/regexp-dotall-flag');
   load('proposals/regexp-escaping');

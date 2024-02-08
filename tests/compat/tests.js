@@ -1617,6 +1617,9 @@ GLOBAL.tests = {
   'esnext.math.f16round': function () {
     return Math.f16round;
   },
+  'esnext.promise.try': [PROMISES_SUPPORT, function () {
+    return Promise.try;
+  }],
   'esnext.regexp.escape': function () {
     return RegExp.escape;
   },
