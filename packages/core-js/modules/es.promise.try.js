@@ -2,10 +2,10 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
+var aCallable = require('../internals/a-callable');
 var slice = require('../internals/array-slice');
 var promiseResolve = require('../internals/promise-resolve');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
-var aCallable = require('../internals/a-callable');
 var perform = require('../internals/perform');
 var fails = require('../internals/fails');
 
