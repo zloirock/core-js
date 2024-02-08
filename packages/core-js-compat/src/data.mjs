@@ -1978,6 +1978,8 @@ export const data = {
   },
   'esnext.math.f16round': {
   },
+  'esnext.promise.try': {
+  },
   'esnext.regexp.escape': {
   },
   'esnext.set.difference': {

@@ -1169,6 +1169,10 @@ export const features = {
     modules: ['es.promise.resolve'],
     template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
   },
+  'promise/try': {
+    modules: ['esnext.promise.try'],
+    template: $staticWithContext({ namespace: 'Promise', method: 'try' }),
+  },
   'promise/with-resolvers': {
     modules: ['es.promise.with-resolvers'],
     template: $staticWithContext({ namespace: 'Promise', method: 'withResolvers' }),
@@ -2629,6 +2633,13 @@ export const proposals = {
     stage: 4,
     modules: [
       'es.promise.finally',
+    ],
+  },
+  // https://github.com/tc39/proposal-promise-try
+  'promise-try': {
+    stage: 2,
+    modules: [
+      'esnext.promise.try',
     ],
   },
   // https://github.com/tc39/proposal-promise-with-resolvers
