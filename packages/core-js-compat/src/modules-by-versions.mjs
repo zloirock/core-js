@@ -232,4 +232,9 @@ export default {
     'esnext.uint8-array.to-base64',
     'esnext.uint8-array.to-hex',
   ],
+  3.36: [
+    'es.array-buffer.detached',
+    'es.array-buffer.transfer',
+    'es.array-buffer.transfer-to-fixed-length',
+  ],
 };

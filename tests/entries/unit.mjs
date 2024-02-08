@@ -660,9 +660,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by') == 'function');
     ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
-    load(NS, 'array-buffer/detached');
-    load(NS, 'array-buffer/transfer');
-    load(NS, 'array-buffer/transfer-to-fixed-length');
     ok(typeof load(NS, 'async-iterator') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/every') == 'function');
@@ -1016,6 +1013,9 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   ok(typeof load(NS, 'array-buffer/constructor') == 'function');
   ok(typeof load(NS, 'array-buffer/is-view') == 'function');
   load(NS, 'array-buffer/slice');
+  load(NS, 'array-buffer/detached');
+  load(NS, 'array-buffer/transfer');
+  load(NS, 'array-buffer/transfer-to-fixed-length');
   ok(typeof load(NS, 'data-view') == 'function');
   ok(typeof load(NS, 'typed-array/int8-array') == 'function');
   ok(typeof load(NS, 'typed-array/uint8-array') == 'function');

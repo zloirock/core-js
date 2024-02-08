@@ -1,23 +1,30 @@
 ## Changelog
 ##### Unreleased
-- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and [moved to stage 2](https://github.com/tc39/proposal-promise-try/issues/15), Febrary 2024 TC39 meeting
-- Fixed regression in `Set#intersection` feature detection
-- Fixed a missed check in `Array#{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
-- Fixed a missed check in `Array#{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
+  - Built-ins:
+    - `ArrayBuffer.prototype.detached`
+    - `ArrayBuffer.prototype.transfer`
+    - `ArrayBuffer.prototype.transferToFixedLength`
+  - Moved to stable ES, [Febrary 2024 TC39 meeting](https://twitter.com/ljharb/status/1755025758219841987)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
+- Fixed regression in `Set.prototype.intersection` feature detection
+- Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- Fixed a missed check in `Array.prototype.{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed `Array.from` and some other methods with proxy targets, [#1322](https://github.com/zloirock/core-js/issues/1322), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Dropped context workaround from collection static methods entries since with current methods semantic it's no longer required
 - Added instance methods polyfills to entries of collections static methods that produce collection instances
-- Added missed `Date#toJSON` to `JSON.stringify` entries dependencies
+- Added missed `Date.prototype.toJSON` to `JSON.stringify` entries dependencies
 - Added debugging info in some missed cases
 - Compat data improvements:
-  - [`{ Map, Object }.groupBy`](https://github.com/tc39/proposal-array-grouping), [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers), [`ArrayBuffer#transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer) marked as supported from [Safari 17.4](https://developer.apple.com/documentation/safari-release-notes/safari-17_4-release-notes#JavaScript)
+  - [`{ Map, Object }.groupBy`](https://github.com/tc39/proposal-array-grouping), [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers), [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer) marked as supported from [Safari 17.4](https://developer.apple.com/documentation/safari-release-notes/safari-17_4-release-notes#JavaScript)
   - [New `Set` methods](https://github.com/tc39/proposal-set-methods) [fixed](https://bugs.chromium.org/p/v8/issues/detail?id=14559#c4) and marked as supported from V8 ~ Chrome 123
   - Added [Deno 1.40](https://deno.com/blog/v1.40) compat data mapping
   - Updated Electron 30 compat data mapping
 
 ##### [3.35.1 - 2024.01.21](https://github.com/zloirock/core-js/releases/tag/v3.35.1)
 - Fixed internal `ToLength` operation with bigints, [#1318](https://github.com/zloirock/core-js/issues/1318)
-- Removed significant redundant code from `String#split` polyfill
+- Removed significant redundant code from `String.prototype.split` polyfill
 - Fixed setting names of methods with symbol keys in some old engines
 - Minor fix of prototype methods export logic in the pure version
 - Compat data improvements:

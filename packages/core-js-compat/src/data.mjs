@@ -440,6 +440,24 @@ export const data = {
     rhino: '1.7.13',
     safari: '12.1',
   },
+  'es.array-buffer.detached': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
+  'es.array-buffer.transfer': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
+  'es.array-buffer.transfer-to-fixed-length': {
+    bun: '1.0.19',
+    chrome: '114',
+    firefox: '122',
+    safari: '17.4',
+  },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.data-view': null,
   'es.data-view.constructor': {
@@ -1950,24 +1968,12 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.with': null,
-  'esnext.array-buffer.detached': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
-  'esnext.array-buffer.transfer-to-fixed-length': {
-    bun: '1.0.19',
-    chrome: '114',
-    firefox: '122',
-    safari: '17.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array-buffer.detached': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.array-buffer.transfer': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.array-buffer.transfer-to-fixed-length': null,
   'esnext.async-disposable-stack.constructor': {
   },
   'esnext.async-iterator.constructor': {
@@ -2687,6 +2693,9 @@ export const renamed = new Map([
   ['esnext.array.to-sorted', 'es.array.to-sorted'],
   ['esnext.array.to-spliced', 'es.array.to-spliced'],
   ['esnext.array.with', 'es.array.with'],
+  ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
+  ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
+  ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.map.group-by', 'es.map.group-by'],
