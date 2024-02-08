@@ -2038,12 +2038,6 @@ export const data = {
   },
   'esnext.array.unique-by': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.detached': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.array-buffer.transfer-to-fixed-length': null,
   'esnext.async-disposable-stack.constructor': {
   },
   'esnext.async-iterator.constructor': {
@@ -2437,9 +2431,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
-  ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
-  ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
   ['esnext.iterator.every', 'es.iterator.every'],

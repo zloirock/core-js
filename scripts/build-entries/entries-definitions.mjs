@@ -54,11 +54,11 @@ const WeakSetWithPrototype = [
 
 const ArrayBufferPrototypeMethods = [
   'es.array-buffer.slice',
+  'es.array-buffer.detached',
   'es.array-buffer.species',
   'es.array-buffer.to-string-tag',
-  'esnext.array-buffer.detached',
-  'esnext.array-buffer.transfer',
-  'esnext.array-buffer.transfer-to-fixed-length',
+  'es.array-buffer.transfer',
+  'es.array-buffer.transfer-to-fixed-length',
 ];
 
 const AsyncIteratorPrototypeMethods = [
@@ -2373,7 +2373,7 @@ export const proposals = {
   },
   // https://github.com/tc39/proposal-arraybuffer-transfer
   'array-buffer-transfer': {
-    stage: 3,
+    stage: 4,
     modules: [
       'es.array-buffer.detached',
       'es.array-buffer.transfer',
