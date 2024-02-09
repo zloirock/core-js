@@ -20,6 +20,7 @@
   - [`{ Map, Object }.groupBy`](https://github.com/tc39/proposal-array-grouping), [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers), [`ArrayBuffer.prototype.transfer` and friends](https://github.com/tc39/proposal-arraybuffer-transfer) marked as supported from [Safari 17.4](https://developer.apple.com/documentation/safari-release-notes/safari-17_4-release-notes#JavaScript)
   - [New `Set` methods](https://github.com/tc39/proposal-set-methods) [fixed](https://bugs.chromium.org/p/v8/issues/detail?id=14559#c4) and marked as supported from V8 ~ Chrome 123
   - Added [Deno 1.40](https://deno.com/blog/v1.40) compat data mapping
+  - `Symbol.metadata` marked as supported from [Deno 1.40.4](https://github.com/denoland/deno/releases/tag/v1.40.4)
   - Updated Electron 30 compat data mapping
 
 ##### [3.35.1 - 2024.01.21](https://github.com/zloirock/core-js/releases/tag/v3.35.1)
