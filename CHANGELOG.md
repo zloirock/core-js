@@ -7,6 +7,15 @@
     - `ArrayBuffer.prototype.transferToFixedLength`
   - Moved to stable ES, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/c84d3dde9a7d8ee4410ffa28624fc4c39247faca)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+  - Methods:
+    - `Uint8Array.fromBase64`
+    - `Uint8Array.fromHex`
+    - `Uint8Array.prototype.toBase64`
+    - `Uint8Array.prototype.toHex`
+  - Moved to stable stage 3, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/278ab28b8f849f2110d770e7b034b7ef59f14daf)
+  - Added `/actual/` namespaces entries
+  - Skipped adding new methods of writing to existing arrays to clarification some moments
 - [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
 - Fixed regression in `Set.prototype.intersection` feature detection
 - Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)

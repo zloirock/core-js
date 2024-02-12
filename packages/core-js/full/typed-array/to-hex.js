@@ -1,2 +1,4 @@
 'use strict';
-require('../../modules/esnext.uint8-array.to-hex');
+var parent = require('../../actual/typed-array/to-hex');
+
+module.exports = parent;

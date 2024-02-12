@@ -1,2 +1,4 @@
 'use strict';
-require('../../modules/esnext.uint8-array.from-base64');
+var parent = require('../../actual/typed-array/from-base64');
+
+module.exports = parent;

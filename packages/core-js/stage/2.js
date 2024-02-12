@@ -1,7 +1,6 @@
 'use strict';
 var parent = require('./3');
 
-require('../proposals/array-buffer-base64');
 require('../proposals/array-is-template-object');
 require('../proposals/async-iterator-helpers');
 require('../proposals/iterator-range');
