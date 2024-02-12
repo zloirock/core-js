@@ -5,7 +5,7 @@
     - `ArrayBuffer.prototype.detached`
     - `ArrayBuffer.prototype.transfer`
     - `ArrayBuffer.prototype.transferToFixedLength`
-  - Moved to stable ES, [Febrary 2024 TC39 meeting](https://twitter.com/ljharb/status/1755025758219841987)
+  - Moved to stable ES, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/c84d3dde9a7d8ee4410ffa28624fc4c39247faca)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
 - Fixed regression in `Set.prototype.intersection` feature detection
