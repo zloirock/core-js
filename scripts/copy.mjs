@@ -13,10 +13,7 @@ function options(overwrite) {
 
 await copy('packages/core-js', 'packages/core-js-pure', options(false));
 
-const license = [
-  'deno/corejs/LICENSE',
-  ...(await glob('packages/*/package.json')).map(path => path.replace(/package\.json$/, 'LICENSE')),
-];
+const license = (await glob('packages/*/package.json')).map(path => path.replace(/package\.json$/, 'LICENSE'));
 
 await Promise.all([
   copy('packages/core-js-pure/override', 'packages/core-js-pure', options(true)),
