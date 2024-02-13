@@ -78,6 +78,7 @@ await buildEntry('full/index', $path, AllModules);
 await buildEntry('index', $path, ActualModules);
 
 await buildEntry('stage/3', $path, ActualModules, ESWithProposalsSet);
+await buildEntry('stage/2.7', $path, modulesToStage(2.7), ESWithProposalsSet);
 await buildEntry('stage/2', $path, modulesToStage(2), ESWithProposalsSet);
 await buildEntry('stage/1', $path, modulesToStage(1), ESWithProposalsSet);
 await buildEntry('stage/0', $path, AllModules, ESWithProposalsSet);
