@@ -1,6 +1,9 @@
 {
   "name": "@core-js/compat",
   "version": "4.0.0-alpha.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "description": "core-js compat",
   "repository": {
