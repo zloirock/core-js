@@ -8,11 +8,10 @@ function namedArg(name, fallback) {
 }
 
 const { cyan, green } = chalk;
-const DENO = argv._.includes('deno');
 const ESMODULES = argv._.includes('esmodules');
 const BUNDLED_NAME = namedArg('bundled-name', 'index');
 const MINIFIED_NAME = namedArg('minified-name', 'minified');
-const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
+const PATH = 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
@@ -24,8 +23,6 @@ async function bundle({ bundled, minified, options = {} }) {
 
   log('bundling', bundled, script);
   await fs.writeFile(`${ PATH }${ bundled }.js`, script);
-
-  if (!minified) return;
 
   const { code, map } = await minify(script, {
     ecma: 5,
@@ -58,12 +55,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-await bundle(DENO ? {
-  bundled: BUNDLED_NAME,
-  options: {
-    targets: { deno: '1.0' },
-  },
-} : {
+await bundle({
   bundled: BUNDLED_NAME,
   minified: MINIFIED_NAME,
   options: ESMODULES ? { targets: { esmodules: true } } : {},
