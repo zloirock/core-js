@@ -3,8 +3,7 @@ import builder from '@core-js/builder';
 import config from '@core-js/builder/config.js';
 
 const { cyan, green } = chalk;
-const DENO = argv._.includes('deno');
-const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
+const PATH = 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
@@ -16,8 +15,6 @@ async function bundle({ bundled, minified, options = {} }) {
 
   log('bundling', bundled, script);
   await fs.writeFile(`${ PATH }${ bundled }.js`, script);
-
-  if (!minified) return;
 
   const { code, map } = await minify(script, {
     ecma: 5,
@@ -50,12 +47,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-await bundle(DENO ? {
-  bundled: 'index',
-  options: {
-    targets: { deno: '1.0' },
-  },
-} : {
+await bundle({
   bundled: 'index',
   minified: 'minified',
 });
