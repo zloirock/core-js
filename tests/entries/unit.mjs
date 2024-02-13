@@ -978,6 +978,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
 
   ok(load('stage/4'));
   ok(load('stage/3'));
+  ok(load('stage/2.7'));
   ok(load('stage/2'));
   ok(load('stage/1'));
   ok(load('stage/0'));

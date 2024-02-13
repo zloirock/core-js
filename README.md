@@ -162,6 +162,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Float16` methods](#float16-methods)
       - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
+    - [Stage 2.7 proposals](#stage-27-proposals)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2490,6 +2491,14 @@ core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
 ```
+
+#### Stage 2.7 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/stage/2.7
+```
+
+*Nothing*
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

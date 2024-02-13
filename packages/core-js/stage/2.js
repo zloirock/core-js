@@ -1,5 +1,5 @@
 'use strict';
-var parent = require('./3');
+var parent = require('./2.7');
 
 require('../proposals/array-is-template-object');
 require('../proposals/async-iterator-helpers');

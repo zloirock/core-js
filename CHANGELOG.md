@@ -17,6 +17,7 @@
   - Added `/actual/` namespaces entries
   - Skipped adding new methods of writing to existing arrays to clarification some moments
 - [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
+- Added an entry point for [the new TC39 proposals stage](https://tc39.es/process-document/) - `core-js/stage/2.7` - still empty
 - Fixed regression in `Set.prototype.intersection` feature detection
 - Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed a missed check in `Array.prototype.{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
