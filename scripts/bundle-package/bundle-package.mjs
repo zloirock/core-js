@@ -2,24 +2,16 @@ import { minify } from 'terser';
 import builder from '@core-js/builder';
 import config from '@core-js/builder/config.js';
 
-const args = argv._.values();
-const cliOptions = new Map();
-for (const key of args) {
-  const value = key === 'bundled-name' || key === 'minified-name' ? args.next().value : true;
-  if (value === undefined) {
-    console.error(`Missing bundle filename after ${ key }`);
-    process.exitCode = 1;
-    break;
-  }
-  if (!cliOptions.has(key)) cliOptions.set(key, value);
+function namedArg(name, fallback) {
+  const idx = argv._.indexOf(name);
+  return idx === -1 ? fallback : argv._[idx + 1];
 }
 
 const { cyan, green } = chalk;
-const DENO = cliOptions.has('deno');
-const ESMODULES = cliOptions.has('esmodules');
-const BUNDLED_NAME = cliOptions.get('bundled-name') ?? 'index';
-const MINIFIED_NAME = cliOptions.get('minified-name') ?? 'minified';
-const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
+const ESMODULES = argv._.includes('esmodules');
+const BUNDLED_NAME = namedArg('bundled-name', 'index');
+const MINIFIED_NAME = namedArg('minified-name', 'minified');
+const PATH = 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
@@ -31,8 +23,6 @@ async function bundle({ bundled, minified, options = {} }) {
 
   log('bundling', bundled, script);
   await fs.writeFile(`${ PATH }${ bundled }.js`, script);
-
-  if (!minified) return;
 
   const { code, map } = await minify(script, {
     ecma: 5,
@@ -65,12 +55,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-if (!process.exitCode) await bundle(DENO ? {
-  bundled: BUNDLED_NAME,
-  options: {
-    targets: { deno: '1.0' },
-  },
-} : {
+await bundle({
   bundled: BUNDLED_NAME,
   minified: MINIFIED_NAME,
   options: ESMODULES ? { targets: { esmodules: true } } : {},
