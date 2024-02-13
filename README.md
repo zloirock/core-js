@@ -2239,7 +2239,7 @@ core-js/proposals/well-formed-unicode-strings
 
 #### Stage 3 proposals[⬆](#index)
 
-`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2` - stage 2 and stage 3, etc.
+`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2.7` - stage 2.7 and stage 3, etc.
 
 [*CommonJS entry points:*](#commonjs-api)
 ```js
