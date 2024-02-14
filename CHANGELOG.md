@@ -17,7 +17,7 @@
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
   - Moved to stable stage 3, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposals/commit/278ab28b8f849f2110d770e7b034b7ef59f14daf)
-  - Added `/actual/` namespaces entries
+  - Added `/actual/` namespace entries
   - Skipped adding new methods of writing to existing arrays to clarification some moments
 - [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try) has been resurrected and moved to stage 2, [Febrary 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/issues/15)
 - Added an entry point for [the new TC39 proposals stage](https://tc39.es/process-document/) - `core-js/stage/2.7` - still empty
