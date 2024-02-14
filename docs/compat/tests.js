@@ -615,6 +615,15 @@ GLOBAL.tests = {
   'es.array-buffer.slice': [ARRAY_BUFFER_SUPPORT, function () {
     return new ArrayBuffer(2).slice(1, undefined).byteLength;
   }],
+  'es.array-buffer.detached': function () {
+    return 'detached' in ArrayBuffer.prototype;
+  },
+  'es.array-buffer.transfer': function () {
+    return ArrayBuffer.prototype.transfer;
+  },
+  'es.array-buffer.transfer-to-fixed-length': function () {
+    return ArrayBuffer.prototype.transferToFixedLength;
+  },
   'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
@@ -1516,15 +1525,6 @@ GLOBAL.tests = {
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },
-  'esnext.array-buffer.detached': function () {
-    return 'detached' in ArrayBuffer.prototype;
-  },
-  'esnext.array-buffer.transfer': function () {
-    return ArrayBuffer.prototype.transfer;
-  },
-  'esnext.array-buffer.transfer-to-fixed-length': function () {
-    return ArrayBuffer.prototype.transferToFixedLength;
-  },
   'esnext.async-disposable-stack.constructor': function () {
     return typeof AsyncDisposableStack == 'function';
   },
@@ -1770,7 +1770,7 @@ GLOBAL.tests = {
     return Set.from;
   },
   'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
-    return Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2]))) === '3,2';
+    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
   'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
   'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
