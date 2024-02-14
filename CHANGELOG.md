@@ -22,6 +22,7 @@
 - Fixed a missed check in `Array.prototype.{ indexOf, lastIndexOf, includes }`, [#1325](https://github.com/zloirock/core-js/issues/1325), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed a missed check in `Array.prototype.{ reduce, reduceRight }`, [#1327](https://github.com/zloirock/core-js/issues/1327), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed `Array.from` and some other methods with proxy targets, [#1322](https://github.com/zloirock/core-js/issues/1322), thanks [**@minseok-choe**](https://github.com/minseok-choe)
+- Fixed dependencies loading for modules from `ArrayBuffer.prototype.transfer` and friends proposal in some specific cases in IE10-
 - Dropped context workaround from collection static methods entries since with current methods semantic it's no longer required
 - Added instance methods polyfills to entries of collections static methods that produce collection instances
 - Added missed `Date.prototype.toJSON` to `JSON.stringify` entries dependencies

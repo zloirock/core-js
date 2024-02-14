@@ -440,6 +440,16 @@ export const data = {
     rhino: '1.7.13',
     safari: '12.1',
   },
+  // TODO: Remove this module from `core-js@4` since it's replaced to module below
+  'es.data-view': null,
+  'es.data-view.constructor': {
+    chrome: '26',
+    firefox: '15',
+    hermes: '0.1',
+    ie: '10',
+    rhino: '1.7.13',
+    safari: '7.1',
+  },
   'es.array-buffer.detached': {
     bun: '1.0.19',
     chrome: '114',
@@ -457,16 +467,6 @@ export const data = {
     chrome: '114',
     firefox: '122',
     safari: '17.4',
-  },
-  // TODO: Remove this module from `core-js@4` since it's replaced to module below
-  'es.data-view': null,
-  'es.data-view.constructor': {
-    chrome: '26',
-    firefox: '15',
-    hermes: '0.1',
-    ie: '10',
-    rhino: '1.7.13',
-    safari: '7.1',
   },
   'es.date.get-year': {
     chrome: '1',
