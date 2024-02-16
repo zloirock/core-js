@@ -1,6 +1,6 @@
 {
   "name": "tests/unit-bun",
   "devDependencies": {
-    "qunit": "^2.20.0"
+    "qunit": "^2.20.1"
   }
 }
