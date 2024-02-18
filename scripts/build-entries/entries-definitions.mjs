@@ -689,6 +689,264 @@ export const features = {
     modules: ['es.function.name'],
     template: $justImport, // <- ???
   },
+  'instance/at': {
+    name: 'at',
+    modules: ['es.array.at', 'es.string.at'],
+    template: $instanceArrayString,
+  },
+  'instance/clamp': {
+    name: 'clamp',
+    modules: ['esnext.number.clamp'],
+    template: $instanceNumber,
+  },
+  'instance/code-point-at': {
+    name: 'codePointAt',
+    modules: ['es.string.code-point-at'],
+    template: $instanceString,
+  },
+  'instance/concat': {
+    name: 'concat',
+    modules: ['es.array.concat'],
+    template: $instanceArray,
+  },
+  'instance/copy-within': {
+    name: 'copyWithin',
+    modules: ['es.array.copy-within'],
+    template: $instanceArray,
+  },
+  'instance/demethodize': {
+    name: 'demethodize',
+    modules: ['esnext.function.demethodize'],
+    template: $instanceFunction,
+  },
+  'instance/ends-with': {
+    name: 'endsWith',
+    modules: ['es.string.ends-with'],
+    template: $instanceString,
+  },
+  'instance/entries': {
+    name: 'entries',
+    modules: ['es.array.entries', 'web.dom-collections.entries'],
+    template: $instanceArray,
+    templateStable: $instanceArrayDOMIterables,
+  },
+  'instance/fill': {
+    name: 'fill',
+    modules: ['es.array.fill'],
+    template: $instanceArray,
+  },
+  'instance/filter': {
+    name: 'filter',
+    modules: ['es.array.filter'],
+    template: $instanceArray,
+  },
+  'instance/filter-reject': {
+    name: 'filterReject',
+    modules: ['esnext.array.filter-reject'],
+    template: $instanceArray,
+  },
+  'instance/find': {
+    name: 'find',
+    modules: ['es.array.find'],
+    template: $instanceArray,
+  },
+  'instance/find-index': {
+    name: 'findIndex',
+    modules: ['es.array.find-index'],
+    template: $instanceArray,
+  },
+  'instance/find-last': {
+    name: 'findLast',
+    modules: ['es.array.find-last'],
+    template: $instanceArray,
+  },
+  'instance/find-last-index': {
+    name: 'findLastIndex',
+    modules: ['es.array.find-last-index'],
+    template: $instanceArray,
+  },
+  'instance/flags': {
+    name: 'flags',
+    modules: ['es.regexp.flags'],
+    template: $instanceRegExpFlags,
+  },
+  'instance/flat': {
+    name: 'flat',
+    modules: ['es.array.flat'],
+    template: $instanceArray,
+  },
+  'instance/flat-map': {
+    name: 'flatMap',
+    modules: ['es.array.flat-map'],
+    template: $instanceArray,
+  },
+  'instance/for-each': {
+    name: 'forEach',
+    modules: ['web.dom-collections.for-each'],
+    template: $instanceDOMIterables,
+  },
+  'instance/includes': {
+    name: 'includes',
+    modules: ['es.array.includes', 'es.string.includes'],
+    template: $instanceArrayString,
+  },
+  'instance/index-of': {
+    name: 'indexOf',
+    modules: ['es.array.index-of'],
+    template: $instanceArray,
+  },
+  'instance/is-well-formed': {
+    name: 'isWellFormed',
+    modules: ['es.string.is-well-formed'],
+    template: $instanceString,
+  },
+  'instance/keys': {
+    name: 'keys',
+    modules: ['es.array.keys', 'web.dom-collections.keys'],
+    template: $instanceArray,
+    templateStable: $instanceArrayDOMIterables,
+  },
+  'instance/last-index-of': {
+    name: 'lastIndexOf',
+    modules: ['es.array.last-index-of'],
+    template: $instanceArray,
+  },
+  'instance/map': {
+    name: 'map',
+    modules: ['es.array.map'],
+    template: $instanceArray,
+  },
+  'instance/match-all': {
+    name: 'matchAll',
+    modules: ['es.string.match-all'],
+    template: $instanceString,
+  },
+  'instance/pad-end': {
+    name: 'padEnd',
+    modules: ['es.string.pad-end'],
+    template: $instanceString,
+  },
+  'instance/pad-start': {
+    name: 'padStart',
+    modules: ['es.string.pad-start'],
+    template: $instanceString,
+  },
+  'instance/push': {
+    name: 'push',
+    modules: ['es.array.push'],
+    template: $instanceArray,
+  },
+  'instance/reduce': {
+    name: 'reduce',
+    modules: ['es.array.reduce'],
+    template: $instanceArray,
+  },
+  'instance/reduce-right': {
+    name: 'reduceRight',
+    modules: ['es.array.reduce-right'],
+    template: $instanceArray,
+  },
+  'instance/repeat': {
+    name: 'repeat',
+    modules: ['es.string.repeat'],
+    template: $instanceString,
+  },
+  'instance/replace-all': {
+    name: 'replaceAll',
+    modules: ['es.string.replace-all'],
+    template: $instanceString,
+  },
+  'instance/reverse': {
+    name: 'reverse',
+    modules: ['es.array.reverse'],
+    template: $instanceArray,
+  },
+  'instance/slice': {
+    name: 'slice',
+    modules: ['es.array.slice'],
+    template: $instanceArray,
+  },
+  'instance/sort': {
+    name: 'sort',
+    modules: ['es.array.sort'],
+    template: $instanceArray,
+  },
+  'instance/splice': {
+    name: 'splice',
+    modules: ['es.array.splice'],
+    template: $instanceArray,
+  },
+  'instance/starts-with': {
+    name: 'startsWith',
+    modules: ['es.string.starts-with'],
+    template: $instanceString,
+  },
+  'instance/to-reversed': {
+    name: 'toReversed',
+    modules: ['es.array.to-reversed'],
+    template: $instanceArray,
+  },
+  'instance/to-sorted': {
+    name: 'toSorted',
+    modules: ['es.array.to-sorted'],
+    template: $instanceArray,
+  },
+  'instance/to-spliced': {
+    name: 'toSpliced',
+    modules: ['es.array.to-spliced'],
+    template: $instanceArray,
+  },
+  'instance/to-well-formed': {
+    name: 'toWellFormed',
+    modules: ['es.string.to-well-formed'],
+    template: $instanceString,
+  },
+  'instance/trim': {
+    name: 'trim',
+    modules: ['es.string.trim'],
+    template: $instanceString,
+  },
+  'instance/trim-end': {
+    name: 'trimEnd',
+    modules: ['es.string.trim-end'],
+    template: $instanceString,
+  },
+  'instance/trim-left': {
+    name: 'trimLeft',
+    modules: ['es.string.trim-left'],
+    template: $instanceString,
+  },
+  'instance/trim-right': {
+    name: 'trimRight',
+    modules: ['es.string.trim-right'],
+    template: $instanceString,
+  },
+  'instance/trim-start': {
+    name: 'trimStart',
+    modules: ['es.string.trim-start'],
+    template: $instanceString,
+  },
+  'instance/unique-by': {
+    name: 'uniqueBy',
+    modules: ['esnext.array.unique-by'],
+    template: $instanceArray,
+  },
+  'instance/unshift': {
+    name: 'unshift',
+    modules: ['es.array.unshift'],
+    template: $instanceArray,
+  },
+  'instance/values': {
+    name: 'values',
+    modules: ['es.array.values', 'web.dom-collections.values'],
+    template: $instanceArray,
+    templateStable: $instanceArrayDOMIterables,
+  },
+  'instance/with': {
+    name: 'with',
+    modules: ['es.array.with'],
+    template: $instanceArray,
+  },
   'iterator/index': {
     modules: [/^(?:es|esnext)\.iterator\./],
     template: $namespace({ name: 'Iterator' }),
@@ -2154,277 +2412,16 @@ export const features = {
   },
 };
 
-export const instance = {
-  at: {
-    name: 'at',
-    modules: ['es.array.at', 'es.string.at'],
-    template: $instanceArrayString,
-  },
-  clamp: {
-    name: 'clamp',
-    modules: ['esnext.number.clamp'],
-    template: $instanceNumber,
-  },
-  'code-point-at': {
-    name: 'codePointAt',
-    modules: ['es.string.code-point-at'],
-    template: $instanceString,
-  },
-  concat: {
-    name: 'concat',
-    modules: ['es.array.concat'],
-    template: $instanceArray,
-  },
-  'copy-within': {
-    name: 'copyWithin',
-    modules: ['es.array.copy-within'],
-    template: $instanceArray,
-  },
-  demethodize: {
-    name: 'demethodize',
-    modules: ['esnext.function.demethodize'],
-    template: $instanceFunction,
-  },
-  'ends-with': {
-    name: 'endsWith',
-    modules: ['es.string.ends-with'],
-    template: $instanceString,
-  },
-  entries: {
-    name: 'entries',
-    modules: ['es.array.entries', 'web.dom-collections.entries'],
-    template: $instanceArray,
-    stable: $instanceArrayDOMIterables,
-  },
-  fill: {
-    name: 'fill',
-    modules: ['es.array.fill'],
-    template: $instanceArray,
-  },
-  filter: {
-    name: 'filter',
-    modules: ['es.array.filter'],
-    template: $instanceArray,
-  },
-  'filter-reject': {
-    name: 'filterReject',
-    modules: ['esnext.array.filter-reject'],
-    template: $instanceArray,
-  },
-  find: {
-    name: 'find',
-    modules: ['es.array.find'],
-    template: $instanceArray,
-  },
-  'find-index': {
-    name: 'findIndex',
-    modules: ['es.array.find-index'],
-    template: $instanceArray,
-  },
-  'find-last': {
-    name: 'findLast',
-    modules: ['es.array.find-last'],
-    template: $instanceArray,
-  },
-  'find-last-index': {
-    name: 'findLastIndex',
-    modules: ['es.array.find-last-index'],
-    template: $instanceArray,
-  },
-  flags: {
-    name: 'flags',
-    modules: ['es.regexp.flags'],
-    template: $instanceRegExpFlags,
-  },
-  flat: {
-    name: 'flat',
-    modules: ['es.array.flat'],
-    template: $instanceArray,
-  },
-  'flat-map': {
-    name: 'flatMap',
-    modules: ['es.array.flat-map'],
-    template: $instanceArray,
-  },
-  'for-each': {
-    name: 'forEach',
-    modules: ['web.dom-collections.for-each'],
-    template: $instanceDOMIterables,
-  },
-  includes: {
-    name: 'includes',
-    modules: ['es.array.includes', 'es.string.includes'],
-    template: $instanceArrayString,
-  },
-  'index-of': {
-    name: 'indexOf',
-    modules: ['es.array.index-of'],
-    template: $instanceArray,
-  },
-  'is-well-formed': {
-    name: 'isWellFormed',
-    modules: ['es.string.is-well-formed'],
-    template: $instanceString,
-  },
-  keys: {
-    name: 'keys',
-    modules: ['es.array.keys', 'web.dom-collections.keys'],
-    template: $instanceArray,
-    stable: $instanceArrayDOMIterables,
-  },
-  'last-index-of': {
-    name: 'lastIndexOf',
-    modules: ['es.array.last-index-of'],
-    template: $instanceArray,
-  },
-  map: {
-    name: 'map',
-    modules: ['es.array.map'],
-    template: $instanceArray,
-  },
-  'match-all': {
-    name: 'matchAll',
-    modules: ['es.string.match-all'],
-    template: $instanceString,
-  },
-  'pad-end': {
-    name: 'padEnd',
-    modules: ['es.string.pad-end'],
-    template: $instanceString,
-  },
-  'pad-start': {
-    name: 'padStart',
-    modules: ['es.string.pad-start'],
-    template: $instanceString,
-  },
-  push: {
-    name: 'push',
-    modules: ['es.array.push'],
-    template: $instanceArray,
-  },
-  reduce: {
-    name: 'reduce',
-    modules: ['es.array.reduce'],
-    template: $instanceArray,
-  },
-  'reduce-right': {
-    name: 'reduceRight',
-    modules: ['es.array.reduce-right'],
-    template: $instanceArray,
-  },
-  repeat: {
-    name: 'repeat',
-    modules: ['es.string.repeat'],
-    template: $instanceString,
-  },
-  'replace-all': {
-    name: 'replaceAll',
-    modules: ['es.string.replace-all'],
-    template: $instanceString,
-  },
-  reverse: {
-    name: 'reverse',
-    modules: ['es.array.reverse'],
-    template: $instanceArray,
-  },
-  slice: {
-    name: 'slice',
-    modules: ['es.array.slice'],
-    template: $instanceArray,
-  },
-  sort: {
-    name: 'sort',
-    modules: ['es.array.sort'],
-    template: $instanceArray,
-  },
-  splice: {
-    name: 'splice',
-    modules: ['es.array.splice'],
-    template: $instanceArray,
-  },
-  'starts-with': {
-    name: 'startsWith',
-    modules: ['es.string.starts-with'],
-    template: $instanceString,
-  },
-  'to-reversed': {
-    name: 'toReversed',
-    modules: ['es.array.to-reversed'],
-    template: $instanceArray,
-  },
-  'to-sorted': {
-    name: 'toSorted',
-    modules: ['es.array.to-sorted'],
-    template: $instanceArray,
-  },
-  'to-spliced': {
-    name: 'toSpliced',
-    modules: ['es.array.to-spliced'],
-    template: $instanceArray,
-  },
-  'to-well-formed': {
-    name: 'toWellFormed',
-    modules: ['es.string.to-well-formed'],
-    template: $instanceString,
-  },
-  trim: {
-    name: 'trim',
-    modules: ['es.string.trim'],
-    template: $instanceString,
-  },
-  'trim-end': {
-    name: 'trimEnd',
-    modules: ['es.string.trim-end'],
-    template: $instanceString,
-  },
-  'trim-left': {
-    name: 'trimLeft',
-    modules: ['es.string.trim-left'],
-    template: $instanceString,
-  },
-  'trim-right': {
-    name: 'trimRight',
-    modules: ['es.string.trim-right'],
-    template: $instanceString,
-  },
-  'trim-start': {
-    name: 'trimStart',
-    modules: ['es.string.trim-start'],
-    template: $instanceString,
-  },
-  'unique-by': {
-    name: 'uniqueBy',
-    modules: ['esnext.array.unique-by'],
-    template: $instanceArray,
-  },
-  unshift: {
-    name: 'unshift',
-    modules: ['es.array.unshift'],
-    template: $instanceArray,
-  },
-  values: {
-    name: 'values',
-    modules: ['es.array.values', 'web.dom-collections.values'],
-    template: $instanceArray,
-    stable: $instanceArrayDOMIterables,
-  },
-  with: {
-    name: 'with',
-    modules: ['es.array.with'],
-    template: $instanceArray,
-  },
-};
-
 export const proposals = {
-  // https://github.com/tc39/proposal-accessible-object-hasownproperty
   'accessible-object-hasownproperty': {
+    link: 'https://github.com/tc39/proposal-accessible-object-hasownproperty',
     stage: 4,
     modules: [
       'es.object.has-own',
     ],
   },
-  // https://github.com/tc39/proposal-arraybuffer-base64
   'array-buffer-base64': {
+    link: 'https://github.com/tc39/proposal-arraybuffer-base64',
     stage: 4,
     modules: [
       'es.uint8-array.from-base64',
@@ -2435,8 +2432,8 @@ export const proposals = {
       'es.uint8-array.to-hex',
     ],
   },
-  // https://github.com/tc39/proposal-arraybuffer-transfer
   'array-buffer-transfer': {
+    link: 'https://github.com/tc39/proposal-arraybuffer-transfer',
     stage: 4,
     modules: [
       'es.array-buffer.detached',
@@ -2444,16 +2441,16 @@ export const proposals = {
       'es.array-buffer.transfer-to-fixed-length',
     ],
   },
-  // https://github.com/tc39/proposal-array-filtering
   'array-filtering': {
+    link: 'https://github.com/tc39/proposal-array-filtering',
     stage: 1,
     modules: [
       'esnext.array.filter-reject',
       'esnext.typed-array.filter-reject',
     ],
   },
-  // https://github.com/tc39/proposal-array-find-from-last
   'array-find-from-last': {
+    link: 'https://github.com/tc39/proposal-array-find-from-last',
     stage: 4,
     modules: [
       'es.array.find-last',
@@ -2462,8 +2459,8 @@ export const proposals = {
       'es.typed-array.find-last-index',
     ],
   },
-  // https://github.com/tc39/proposal-flatMap
   'array-flat-map': {
+    link: 'https://github.com/tc39/proposal-flatMap',
     stage: 4,
     modules: [
       'es.array.flat',
@@ -2472,53 +2469,53 @@ export const proposals = {
       'es.array.unscopables.flat-map',
     ],
   },
-  // https://github.com/tc39/proposal-array-from-async
   'array-from-async': {
+    link: 'https://github.com/tc39/proposal-array-from-async',
     stage: 4,
     modules: [
       'es.array.from-async',
     ],
   },
-  // https://github.com/tc39/proposal-array-grouping
   'array-grouping': {
+    link: 'https://github.com/tc39/proposal-array-grouping',
     stage: 4,
     modules: [
       'es.map.group-by',
       'es.object.group-by',
     ],
   },
-  // https://github.com/tc39/proposal-Array.prototype.includes
   'array-includes': {
+    link: 'https://github.com/tc39/proposal-Array.prototype.includes',
     stage: 4,
     modules: [
       'es.array.includes',
       'es.typed-array.includes',
     ],
   },
-  // https://github.com/tc39/proposal-array-is-template-object
   'array-is-template-object': {
+    link: 'https://github.com/tc39/proposal-array-is-template-object',
     stage: 2,
     modules: [
       'esnext.array.is-template-object',
     ],
   },
-  // https://github.com/tc39/proposal-array-unique
   'array-unique': {
+    link: 'https://github.com/tc39/proposal-array-unique',
     stage: 1,
     modules: [
       'esnext.array.unique-by',
       'esnext.typed-array.unique-by',
     ],
   },
-  // https://github.com/tc39/proposal-async-iteration
   'async-iteration': {
+    link: 'https://github.com/tc39/proposal-async-iteration',
     stage: 4,
     modules: [
       'es.symbol.async-iterator',
     ],
   },
-  // https://github.com/tc39/proposal-async-iterator-helpers
   'async-iterator-helpers': {
+    link: 'https://github.com/tc39/proposal-async-iterator-helpers',
     stage: 2,
     modules: [
       'esnext.async-iterator.constructor',
@@ -2537,8 +2534,8 @@ export const proposals = {
       'esnext.iterator.to-async',
     ],
   },
-  // https://github.com/tc39/proposal-change-array-by-copy
   'change-array-by-copy': {
+    link: 'https://github.com/tc39/proposal-change-array-by-copy',
     stage: 4,
     modules: [
       'es.array.to-reversed',
@@ -2550,8 +2547,8 @@ export const proposals = {
       'es.typed-array.with',
     ],
   },
-  // https://github.com/tc39/proposal-setmap-offrom
   'collection-of-from': {
+    link: 'https://github.com/tc39/proposal-setmap-offrom',
     stage: 1,
     modules: [
       'esnext.map.from',
@@ -2564,32 +2561,32 @@ export const proposals = {
       'esnext.weak-set.of',
     ],
   },
-  // https://github.com/tc39/proposal-dataview-get-set-uint8clamped
   'data-view-get-set-uint8-clamped': {
+    link: 'https://github.com/tc39/proposal-dataview-get-set-uint8clamped',
     stage: 1,
     modules: [
       'esnext.data-view.get-uint8-clamped',
       'esnext.data-view.set-uint8-clamped',
     ],
   },
-  // https://github.com/tc39/proposal-decorator-metadata
   'decorator-metadata': {
+    link: 'https://github.com/tc39/proposal-decorator-metadata',
     stage: 3,
     modules: [
       'esnext.function.metadata',
       'esnext.symbol.metadata',
     ],
   },
-  // https://github.com/tc39/proposal-error-cause
   'error-cause': {
+    link: 'https://github.com/tc39/proposal-error-cause',
     stage: 4,
     modules: [
       'es.error.cause',
       'es.aggregate-error.cause',
     ],
   },
-  // https://github.com/tc39/proposal-explicit-resource-management
   'explicit-resource-management': {
+    link: 'https://github.com/tc39/proposal-explicit-resource-management',
     stage: 4,
     modules: [
       'es.suppressed-error.constructor',
@@ -2601,15 +2598,15 @@ export const proposals = {
       'es.symbol.dispose',
     ],
   },
-  // https://github.com/tc39/proposal-extractors
   extractors: {
+    link: 'https://github.com/tc39/proposal-extractors',
     stage: 1,
     modules: [
       'esnext.symbol.custom-matcher',
     ],
   },
-  // https://github.com/tc39/proposal-float16array
   float16: {
+    link: 'https://github.com/tc39/proposal-float16array',
     stage: 4,
     modules: [
       'es.data-view.get-float16',
@@ -2617,29 +2614,29 @@ export const proposals = {
       'es.math.f16round',
     ],
   },
-  // https://github.com/js-choi/proposal-function-demethodize
   'function-demethodize': {
+    link: 'https://github.com/js-choi/proposal-function-demethodize',
     stage: 0,
     modules: [
       'esnext.function.demethodize',
     ],
   },
-  // https://github.com/tc39/proposal-global
   'global-this': {
+    link: 'https://github.com/tc39/proposal-global',
     stage: 4,
     modules: [
       'es.global-this',
     ],
   },
-  // https://github.com/tc39/proposal-is-error
   'is-error': {
+    link: 'https://github.com/tc39/proposal-is-error',
     stage: 4,
     modules: [
       'es.error.is-error',
     ],
   },
-  // https://github.com/tc39/proposal-iterator-helpers
   'iterator-helpers': {
+    link: 'https://github.com/tc39/proposal-iterator-helpers',
     stage: 4,
     modules: [
       'es.iterator.constructor',
@@ -2657,40 +2654,40 @@ export const proposals = {
       'es.iterator.to-array',
     ],
   },
-  // https://github.com/tc39/proposal-iterator-chunking
   'iterator-chunking': {
+    link: 'https://github.com/tc39/proposal-iterator-chunking',
     stage: 2.7,
     modules: [
       'esnext.iterator.chunks',
       'esnext.iterator.windows',
     ],
   },
-  // https://github.com/tc39/proposal-iterator.range
   'iterator-range': {
+    link: 'https://github.com/tc39/proposal-Number.range',
     stage: 2,
     modules: [
       'es.iterator.constructor',
       'esnext.iterator.range',
     ],
   },
-  // https://github.com/tc39/proposal-iterator-sequencing
   'iterator-sequencing': {
+    link: 'https://github.com/tc39/proposal-iterator-sequencing',
     stage: 4,
     modules: [
       'es.iterator.constructor',
       'es.iterator.concat',
     ],
   },
-  // https://github.com/tc39/proposal-joint-iteration
   'joint-iteration': {
+    link: 'https://github.com/tc39/proposal-joint-iteration',
     stage: 3,
     modules: [
       'esnext.iterator.zip',
       'esnext.iterator.zip-keyed',
     ],
   },
-  // https://github.com/tc39/proposal-json-parse-with-source
   'json-parse-with-source': {
+    link: 'https://github.com/tc39/proposal-json-parse-with-source',
     stage: 4,
     modules: [
       'es.json.is-raw-json',
@@ -2699,8 +2696,8 @@ export const proposals = {
       'es.json.stringify',
     ],
   },
-  // https://github.com/tc39/proposal-upsert
   'map-upsert': {
+    link: 'https://github.com/tc39/proposal-upsert',
     stage: 4,
     modules: [
       'es.map.get-or-insert',
@@ -2709,87 +2706,87 @@ export const proposals = {
       'es.weak-map.get-or-insert-computed',
     ],
   },
-  // https://github.com/tc39/proposal-math-clamp
   'math-clamp': {
+    link: 'https://github.com/tc39/proposal-math-clamp',
     stage: 2,
     modules: [
       'esnext.number.clamp',
     ],
   },
-  // https://github.com/tc39/proposal-math-sum
   'math-sum': {
+    link: 'https://github.com/tc39/proposal-math-sum',
     stage: 4,
     modules: [
       'es.math.sum-precise',
     ],
   },
-  // https://github.com/tc39/proposal-object-from-entries
   'object-from-entries': {
+    link: 'https://github.com/tc39/proposal-object-from-entries',
     stage: 4,
     modules: [
       'es.object.from-entries',
     ],
   },
-  // https://github.com/tc39/proposal-object-getownpropertydescriptors
   'object-getownpropertydescriptors': {
+    link: 'https://github.com/tc39/proposal-object-getownpropertydescriptors',
     stage: 4,
     modules: [
       'es.object.get-own-property-descriptors',
     ],
   },
-  // https://github.com/tc39/proposal-object-values-entries
   'object-values-entries': {
+    link: 'https://github.com/tc39/proposal-object-values-entries',
     stage: 4,
     modules: [
       'es.object.entries',
       'es.object.values',
     ],
   },
-  // https://github.com/tc39/proposal-pattern-matching
   'pattern-matching': {
+    link: 'https://github.com/tc39/proposal-pattern-matching',
     stage: 1,
     modules: [
       'esnext.symbol.custom-matcher',
     ],
   },
-  // https://github.com/tc39/proposal-promise-allSettled
   'promise-all-settled': {
+    link: 'https://github.com/tc39/proposal-promise-allSettled',
     stage: 4,
     modules: [
       'es.promise.all-settled',
     ],
   },
-  // https://github.com/tc39/proposal-promise-any
   'promise-any': {
+    link: 'https://github.com/tc39/proposal-promise-any',
     stage: 4,
     modules: [
       'es.aggregate-error.constructor',
       'es.promise.any',
     ],
   },
-  // https://github.com/tc39/proposal-promise-finally
   'promise-finally': {
+    link: 'https://github.com/tc39/proposal-promise-finally',
     stage: 4,
     modules: [
       'es.promise.finally',
     ],
   },
-  // https://github.com/tc39/proposal-promise-try
   'promise-try': {
+    link: 'https://github.com/tc39/proposal-promise-try',
     stage: 4,
     modules: [
       'es.promise.try',
     ],
   },
-  // https://github.com/tc39/proposal-promise-with-resolvers
   'promise-with-resolvers': {
+    link: 'https://github.com/tc39/proposal-promise-with-resolvers',
     stage: 4,
     modules: [
       'es.promise.with-resolvers',
     ],
   },
-  // https://github.com/tc39/proposal-regexp-dotall-flag
   'regexp-dotall-flag': {
+    link: 'https://github.com/tc39/proposal-regexp-dotall-flag',
     stage: 4,
     modules: [
       'es.regexp.constructor',
@@ -2798,15 +2795,15 @@ export const proposals = {
       'es.regexp.flags',
     ],
   },
-  // https://github.com/tc39/proposal-regex-escaping
   'regexp-escaping': {
+    link: 'https://github.com/tc39/proposal-regex-escaping',
     stage: 4,
     modules: [
       'es.regexp.escape',
     ],
   },
-  // https://github.com/tc39/proposal-regexp-named-groups
   'regexp-named-groups': {
+    link: 'https://github.com/tc39/proposal-regexp-named-groups',
     stage: 4,
     modules: [
       'es.regexp.constructor',
@@ -2814,8 +2811,8 @@ export const proposals = {
       'es.string.replace',
     ],
   },
-  // https://github.com/tc39/proposal-relative-indexing-method
   'relative-indexing-method': {
+    link: 'https://github.com/tc39/proposal-relative-indexing-method',
     stage: 4,
     modules: [
       'es.string.at',
@@ -2823,8 +2820,8 @@ export const proposals = {
       'es.typed-array.at',
     ],
   },
-  // https://github.com/tc39/proposal-set-methods
   'set-methods': {
+    link: 'https://github.com/tc39/proposal-set-methods',
     stage: 4,
     modules: [
       'es.set.difference',
@@ -2836,22 +2833,22 @@ export const proposals = {
       'es.set.union',
     ],
   },
-  // https://github.com/tc39/proposal-string-cooked
   'string-cooked': {
+    link: 'https://github.com/tc39/proposal-string-cooked',
     stage: 1,
     modules: [
       'esnext.string.cooked',
     ],
   },
-  // https://github.com/tc39/proposal-string-dedent
   'string-dedent': {
+    link: 'https://github.com/tc39/proposal-string-dedent',
     stage: 2,
     modules: [
       'esnext.string.dedent',
     ],
   },
-  // https://github.com/tc39/proposal-string-left-right-trim
   'string-left-right-trim': {
+    link: 'https://github.com/tc39/proposal-string-left-right-trim',
     stage: 4,
     modules: [
       'es.string.trim-end',
@@ -2860,52 +2857,52 @@ export const proposals = {
       'es.string.trim-start',
     ],
   },
-  // https://github.com/tc39/proposal-string-matchall
   'string-match-all': {
+    link: 'https://github.com/tc39/proposal-string-matchall',
     stage: 4,
     modules: [
       'es.string.match-all',
     ],
   },
-  // https://github.com/tc39/proposal-string-pad-start-end
   'string-padding': {
+    link: 'https://github.com/tc39/proposal-string-pad-start-end',
     stage: 4,
     modules: [
       'es.string.pad-end',
       'es.string.pad-start',
     ],
   },
-  // https://github.com/tc39/proposal-string-replaceall
   'string-replace-all': {
+    link: 'https://github.com/tc39/proposal-string-replaceall',
     stage: 4,
     modules: [
       'es.string.replace-all',
     ],
   },
-  // https://github.com/tc39/proposal-Symbol-description
   'symbol-description': {
+    link: 'https://github.com/tc39/proposal-Symbol-description',
     stage: 4,
     modules: [
       'es.symbol.description',
     ],
   },
-  // https://github.com/tc39/proposal-symbol-predicates
   'symbol-predicates': {
+    link: 'https://github.com/tc39/proposal-symbol-predicates',
     stage: 2,
     modules: [
       'esnext.symbol.is-registered-symbol',
       'esnext.symbol.is-well-known-symbol',
     ],
   },
-  // https://github.com/tc39/proposal-well-formed-stringify
   'well-formed-stringify': {
+    link: 'https://github.com/tc39/proposal-well-formed-stringify',
     stage: 4,
     modules: [
       'es.json.stringify',
     ],
   },
-  // https://github.com/tc39/proposal-is-usv-string
   'well-formed-unicode-strings': {
+    link: 'https://github.com/tc39/proposal-is-usv-string',
     stage: 4,
     modules: [
       'es.string.is-well-formed',
