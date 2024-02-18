@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import dedent from 'dedent';
 
 const t = template => declared => processed => `'use strict';\n${ template({ ...processed, ...declared }) }\n`;
@@ -6,7 +7,7 @@ const importInternal = (module, level) => `require('${ level ? '../'.repeat(leve
 
 const importModule = (module, level) => `require('${ level ? '../'.repeat(level) : './' }modules/${ module }');`;
 
-const importModules = (modules, level) => modules.map(it => importModule(it, level)).join('\n');
+const importModules = ({ modules, level }) => modules.map(module => importModule(module, level)).join('\n');
 
 function isAllowedFunctionName(name) {
   try {
@@ -18,10 +19,10 @@ function isAllowedFunctionName(name) {
   }
 }
 
-export const $justImport = t(p => importModules(p.modules, p.level))();
+export const $justImport = t(p => importModules(p))();
 
 export const $virtual = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var getBuiltInPrototypeMethod = ${ importInternal('get-built-in-prototype-method', p.level) }
 
@@ -29,7 +30,7 @@ export const $virtual = t(p => dedent`
 `);
 
 export const $virtualIterator = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
 
@@ -37,7 +38,7 @@ export const $virtualIterator = t(p => dedent`
 `);
 
 export const $prototype = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var entryUnbind = ${ importInternal('entry-unbind', p.level) }
 
@@ -45,7 +46,7 @@ export const $prototype = t(p => dedent`
 `);
 
 export const $prototypeIterator = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var uncurryThis = ${ importInternal('function-uncurry-this', p.level) }
   var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
@@ -54,7 +55,7 @@ export const $prototypeIterator = t(p => dedent`
 `);
 
 export const $static = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
 
@@ -62,7 +63,7 @@ export const $static = t(p => dedent`
 `);
 
 export const $staticWithContext = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var getBuiltIn = ${ importInternal('get-built-in', p.level) }
   var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
@@ -77,7 +78,7 @@ export const $staticWithContext = t(p => dedent`
 `);
 
 export const $patchableStatic = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
   var apply = ${ importInternal('function-apply', p.level) }
@@ -88,7 +89,7 @@ export const $patchableStatic = t(p => dedent`
 `);
 
 export const $namespace = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var path = ${ importInternal('path', p.level) }
 
@@ -96,7 +97,7 @@ export const $namespace = t(p => dedent`
 `);
 
 export const $helper = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var $export = ${ importInternal(p.name, p.level) }
 
@@ -107,7 +108,7 @@ export const $path = $helper({ name: 'path' });
 
 export const $instanceArray = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ p.entry }');
+  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
 
@@ -116,11 +117,11 @@ export const $instanceArray = t(p => dedent`
     if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceNumber = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var numberMethod = require('../number/virtual/${ p.entry }');
+  var numberMethod = require('../number/virtual/${ basename(p.entry) }');
 
   var NumberPrototype = Number.prototype;
 
@@ -130,11 +131,11 @@ export const $instanceNumber = t(p => dedent`
       || (isPrototypeOf(NumberPrototype, it) && ownProperty === NumberPrototype.${ p.name })) return numberMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var stringMethod = require('../string/virtual/${ p.entry }');
+  var stringMethod = require('../string/virtual/${ basename(p.entry) }');
 
   var StringPrototype = String.prototype;
 
@@ -144,11 +145,11 @@ export const $instanceString = t(p => dedent`
       || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceFunction = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var functionMethod = require('../function/virtual/${ p.entry }');
+  var functionMethod = require('../function/virtual/${ basename(p.entry) }');
 
   var FunctionPrototype = Function.prototype;
 
@@ -158,10 +159,10 @@ export const $instanceFunction = t(p => dedent`
       return functionMethod;
     } return ownProperty;
   };
-`);
+`)();
 
 export const $instanceDOMIterables = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var classof = require('../../internals/classof');
   var hasOwn = require('../../internals/has-own-property');
@@ -178,12 +179,12 @@ export const $instanceDOMIterables = t(p => dedent`
     if (hasOwn(DOMIterables, classof(it))) return arrayMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceArrayString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ p.entry }');
-  var stringMethod = require('../string/virtual/${ p.entry }');
+  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
+  var stringMethod = require('../string/virtual/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
   var StringPrototype = String.prototype;
@@ -195,15 +196,15 @@ export const $instanceArrayString = t(p => dedent`
       || (isPrototypeOf(StringPrototype, it) && ownProperty === StringPrototype.${ p.name })) return stringMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceArrayDOMIterables = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var classof = require('../../internals/classof');
   var hasOwn = require('../../internals/has-own-property');
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ p.entry }');
+  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
 
@@ -218,10 +219,10 @@ export const $instanceArrayDOMIterables = t(p => dedent`
       || hasOwn(DOMIterables, classof(it))) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
     return ownProperty;
   };
-`);
+`)();
 
 export const $instanceRegExpFlags = t(p => dedent`
-  ${ importModules(p.modules, p.level) }
+  ${ importModules(p) }
 
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
   var flags = require('../regexp/flags');
@@ -231,4 +232,10 @@ export const $instanceRegExpFlags = t(p => dedent`
   module.exports = function (it) {
     return (it === RegExpPrototype || isPrototypeOf(RegExpPrototype, it)) ? flags(it) : it.flags;
   };
-`);
+`)();
+
+export const $proposal = t(p => dedent`
+  // proposal stage: ${ p.stage }
+  // ${ p.link }
+  ${ importModules(p) }
+`)();
