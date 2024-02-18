@@ -1133,7 +1133,7 @@ export const features = {
   },
   'map/from': {
     modules: ['esnext.map.from', ...MapWithPrototype],
-    ifModules: ['esnext.map.from'],
+    necessary: ['esnext.map.from'],
     template: $static({ namespace: 'Map', method: 'from' }),
   },
   'map/group-by': {
@@ -1142,7 +1142,7 @@ export const features = {
   },
   'map/of': {
     modules: ['esnext.map.of', ...MapWithPrototype],
-    ifModules: ['esnext.map.of'],
+    necessary: ['esnext.map.of'],
     template: $static({ namespace: 'Map', method: 'of' }),
   },
   'math/index': {
@@ -1614,7 +1614,7 @@ export const features = {
   },
   'set/from': {
     modules: ['esnext.set.from', ...SetWithPrototype],
-    ifModules: ['esnext.set.from'],
+    necessary: ['esnext.set.from'],
     template: $static({ namespace: 'Set', method: 'from' }),
   },
   'set/intersection': {
@@ -1651,7 +1651,7 @@ export const features = {
   },
   'set/of': {
     modules: ['esnext.set.of', ...SetWithPrototype],
-    ifModules: ['esnext.set.of'],
+    necessary: ['esnext.set.of'],
     template: $static({ namespace: 'Set', method: 'of' }),
   },
   'set/symmetric-difference': {
@@ -2316,12 +2316,12 @@ export const features = {
   },
   'weak-map/from': {
     modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
-    ifModules: ['esnext.weak-map.from'],
+    necessary: ['esnext.weak-map.from'],
     template: $static({ namespace: 'WeakMap', method: 'from' }),
   },
   'weak-map/of': {
     modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
-    ifModules: ['esnext.weak-map.of'],
+    necessary: ['esnext.weak-map.of'],
     template: $static({ namespace: 'WeakMap', method: 'of' }),
   },
   'weak-map/get-or-insert': {
@@ -2350,12 +2350,12 @@ export const features = {
   },
   'weak-set/from': {
     modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
-    ifModules: ['esnext.weak-set.from'],
+    necessary: ['esnext.weak-set.from'],
     template: $static({ namespace: 'WeakSet', method: 'from' }),
   },
   'weak-set/of': {
     modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
-    ifModules: ['esnext.weak-set.of'],
+    necessary: ['esnext.weak-set.of'],
     template: $static({ namespace: 'WeakSet', method: 'of' }),
   },
   atob: {
