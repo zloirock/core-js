@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added Opera Android 81 compat data mapping
 
 ##### [3.36.0 - 2024.02.14](https://github.com/zloirock/core-js/releases/tag/v3.36.0)
 - [`ArrayBuffer.prototype.transfer` and friends proposal](https://github.com/tc39/proposal-arraybuffer-transfer):
