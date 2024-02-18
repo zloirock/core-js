@@ -1,6 +1,6 @@
 import { getListOfDependencies, sort } from './get-dependencies.mjs';
-import { features, instance, proposals } from './entries-definitions.mjs';
-import { $justImport, $path } from './templates.mjs';
+import { features, proposals } from './entries-definitions.mjs';
+import { $proposal, $path } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 
 const { mkdir, writeFile } = fs;
@@ -32,55 +32,72 @@ function expandModules(modules, filter) {
   return modules;
 }
 
-async function buildEntry(entry, template, modules, filter, enforce, ifModules) {
+async function buildEntry(entry, options) {
+  let { subset = 'full', template, templateStable, templateActual, templateFull, filter, modules, enforce, ifModules } = options;
+
+  switch (subset) {
+    case 'es':
+      filter ??= ESSet;
+      break;
+    case 'stable':
+      filter ??= StableSet;
+      template = templateStable ?? template;
+      break;
+    case 'actual':
+      filter ??= ActualSet;
+      template = templateActual ?? templateStable ?? template;
+      break;
+    case 'full':
+      template = templateFull ?? templateActual ?? templateStable ?? template;
+      break;
+    case 'es-stage':
+      filter ??= ESWithProposalsSet;
+  }
+
+  const rawModules = modules;
+
   modules = expandModules(modules, filter);
+
   if (!enforce) {
     ifModules = ifModules ? expandModules(ifModules, filter) : modules;
     if (!ifModules.length) return;
   }
+
   const level = entry.split('/').length - 1;
+
   modules = await getListOfDependencies(modules);
   if (filter) modules = modules.filter(it => filter.has(it));
-  const file = template({ modules, level });
+
+  const file = template({ ...options, modules, rawModules, level, entry });
+
   const filepath = `./packages/core-js/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
   await writeFile(filepath, file);
+
   built++;
 }
 
-for (const [entry, { modules, ifModules, template, enforce }] of Object.entries(features)) {
-  await buildEntry(`es/${ entry }`, template, modules, ESSet, enforce, ifModules);
-  await buildEntry(`stable/${ entry }`, template, modules, StableSet, enforce, ifModules);
-  await buildEntry(`actual/${ entry }`, template, modules, ActualSet, enforce, ifModules);
-  await buildEntry(`full/${ entry }`, template, modules, null, enforce, ifModules);
+for (const [entry, definition] of Object.entries(features)) {
+  await buildEntry(`es/${ entry }`, { ...definition, subset: 'es' });
+  await buildEntry(`stable/${ entry }`, { ...definition, subset: 'stable' });
+  await buildEntry(`actual/${ entry }`, { ...definition, subset: 'actual' });
+  await buildEntry(`full/${ entry }`, definition);
 }
 
-for (const [entry, { name, modules, template, stable, actual, full }] of Object.entries(instance)) {
-  const params = { entry, name };
-  let $template = template(params);
-  await buildEntry(`es/instance/${ entry }`, $template, modules, ESSet);
-  if (stable) $template = stable(params);
-  await buildEntry(`stable/instance/${ entry }`, $template, modules, StableSet);
-  if (actual) $template = actual(params);
-  await buildEntry(`actual/instance/${ entry }`, $template, modules, ActualSet);
-  if (full) $template = full(params);
-  await buildEntry(`full/instance/${ entry }`, $template, modules);
+for (const [name, definition] of Object.entries(proposals)) {
+  await buildEntry(`proposals/${ name }`, { ...definition, template: $proposal });
 }
 
-for (const [name, { modules }] of Object.entries(proposals)) {
-  await buildEntry(`proposals/${ name }`, $justImport, modules);
-}
+await buildEntry('stage/3', { template: $path, modules: ActualModules, subset: 'es-stage' });
+await buildEntry('stage/2.7', { template: $path, modules: modulesToStage(2.7), subset: 'es-stage' });
+await buildEntry('stage/2', { template: $path, modules: modulesToStage(2), subset: 'es-stage' });
+await buildEntry('stage/1', { template: $path, modules: modulesToStage(1), subset: 'es-stage' });
+await buildEntry('stage/0', { template: $path, modules: AllModules, subset: 'es-stage' });
 
-await buildEntry('es/index', $path, ESModules, ESSet);
-await buildEntry('stable/index', $path, StableModules, StableSet);
-await buildEntry('actual/index', $path, ActualModules);
-await buildEntry('full/index', $path, AllModules);
-await buildEntry('index', $path, ActualModules);
-
-await buildEntry('stage/3', $path, ActualModules, ESWithProposalsSet);
-await buildEntry('stage/2.7', $path, modulesToStage(2.7), ESWithProposalsSet);
-await buildEntry('stage/2', $path, modulesToStage(2), ESWithProposalsSet);
-await buildEntry('stage/1', $path, modulesToStage(1), ESWithProposalsSet);
-await buildEntry('stage/0', $path, AllModules, ESWithProposalsSet);
+await buildEntry('es/index', { template: $path, modules: ESModules, subset: 'es' });
+await buildEntry('stable/index', { template: $path, modules: StableModules, subset: 'stable' });
+await buildEntry('actual/index', { template: $path, modules: ActualModules });
+await buildEntry('full/index', { template: $path, modules: AllModules });
+await buildEntry('index', { template: $path, modules: ActualModules });
 
 echo(chalk.green(`built ${ chalk.cyan(built) } entries`));
