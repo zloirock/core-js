@@ -33,7 +33,7 @@ function expandModules(modules, filter) {
 }
 
 async function buildEntry(entry, options) {
-  let { subset = 'full', template, templateStable, templateActual, templateFull, filter, modules, enforce, ifModules } = options;
+  let { subset = 'full', template, templateStable, templateActual, templateFull, filter, modules, enforce, necessary } = options;
 
   switch (subset) {
     case 'es':
@@ -59,8 +59,8 @@ async function buildEntry(entry, options) {
   modules = expandModules(modules, filter);
 
   if (!enforce) {
-    ifModules = ifModules ? expandModules(ifModules, filter) : modules;
-    if (!ifModules.length) return;
+    necessary = necessary ? expandModules(necessary, filter) : modules;
+    if (!necessary.length) return;
   }
 
   const level = entry.split('/').length - 1;
