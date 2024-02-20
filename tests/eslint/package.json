@@ -14,7 +14,7 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^8.1.1",
-    "eslint-plugin-redos": "^4.5.0-beta.4",
+    "eslint-plugin-redos": "^4.5.0-beta.6",
     "eslint-plugin-regexp": "^2.2.0",
     "eslint-plugin-sonarjs": "^0.24.0",
     "eslint-plugin-unicorn": "^51.0.1",
