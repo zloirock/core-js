@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
   - Added Opera Android 81 compat data mapping
 
 ##### [3.36.0 - 2024.02.14](https://github.com/zloirock/core-js/releases/tag/v3.36.0)

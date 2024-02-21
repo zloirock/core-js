@@ -381,6 +381,7 @@ export const data = {
     deno: '1.27',
     firefox: '115',
     safari: '16.0',
+    'react-native': '0.74',
   },
   'es.array.to-sorted': {
     chrome: '110',
@@ -393,6 +394,7 @@ export const data = {
     deno: '1.27',
     firefox: '115',
     safari: '16.0',
+    'react-native': '0.74',
   },
   'es.array.unscopables.flat': {
     chrome: '73',
@@ -417,6 +419,7 @@ export const data = {
     deno: '1.27',
     firefox: '115',
     safari: '16.0',
+    'react-native': '0.74',
   },
   'es.array-buffer.constructor': {
     chrome: '28',
@@ -2475,6 +2478,7 @@ export const data = {
     // https://github.com/nodejs/node/issues/42646
     node: '18.0', // '17.9', '17.5', '16.0',
     opera: '10.5',
+    'react-native': '0.74',
     safari: '10.1',
   },
   'web.btoa': {
