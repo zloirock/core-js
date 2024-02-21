@@ -380,8 +380,8 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    safari: '16.0',
     'react-native': '0.74',
+    safari: '16.0',
   },
   'es.array.to-sorted': {
     chrome: '110',
@@ -393,8 +393,8 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    safari: '16.0',
     'react-native': '0.74',
+    safari: '16.0',
   },
   'es.array.unscopables.flat': {
     chrome: '73',
@@ -418,8 +418,8 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    safari: '16.0',
     'react-native': '0.74',
+    safari: '16.0',
   },
   'es.array-buffer.constructor': {
     chrome: '28',
