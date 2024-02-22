@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed some validation cases in `Object.setPrototypeOf`, [#1329](https://github.com/zloirock/core-js/issues/1329), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Compat data improvements:
   - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
   - Added Opera Android 81 compat data mapping
