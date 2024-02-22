@@ -1,7 +1,8 @@
 'use strict';
 /* eslint-disable no-proto -- safe */
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
-var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
+var requireObjectCoercible = require('../internals/require-object-coercible');
 var aPossiblePrototype = require('../internals/a-possible-prototype');
 
 // `Object.setPrototypeOf` method
@@ -18,8 +19,9 @@ module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
     CORRECT_SETTER = test instanceof Array;
   } catch (error) { /* empty */ }
   return function setPrototypeOf(O, proto) {
-    anObject(O);
+    requireObjectCoercible(O);
     aPossiblePrototype(proto);
+    if (!isObject(O)) return O;
     if (CORRECT_SETTER) setter(O, proto);
     else O.__proto__ = proto;
     return O;
