@@ -26,9 +26,9 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
   var length, result, step, iterator, next, value;
   // if the target is not iterable or it's an array with the default iterator - use a simple case
   if (iteratorMethod && !(this === $Array && isArrayIteratorMethod(iteratorMethod))) {
+    result = IS_CONSTRUCTOR ? new this() : [];
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
-    result = IS_CONSTRUCTOR ? new this() : [];
     for (;!(step = call(next, iterator)).done; index++) {
       value = mapping ? callWithSafeIterationClosing(iterator, mapfn, [step.value, index], true) : step.value;
       createProperty(result, index, value);
