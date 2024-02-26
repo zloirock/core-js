@@ -471,6 +471,8 @@ const base = {
   'node/no-process-exit': ERROR,
   // disallow synchronous methods
   'node/no-sync': ERROR,
+  // prefer `node:` protocol
+  'node/prefer-node-protocol': ERROR,
   // prefer global
   'node/prefer-global/buffer': [ERROR, ALWAYS],
   'node/prefer-global/console': [ERROR, ALWAYS],
@@ -1156,6 +1158,8 @@ const forbidModernESBuiltIns = {
 };
 
 const polyfills = {
+  // prefer `node:` protocol
+  'node/prefer-node-protocol': OFF,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': OFF,
   // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
@@ -1200,6 +1204,8 @@ const nodePackages = {
   'node/no-hide-core-modules': OFF,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
+  // prefer `node:` protocol
+  'node/prefer-node-protocol': OFF,
   // prefer promises
   'node/prefer-promises/dns': OFF,
   'node/prefer-promises/fs': OFF,
