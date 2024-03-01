@@ -60,7 +60,7 @@ if (NEW_VERSION !== PREV_VERSION) {
     CURRENT_YEAR }.${ String(NOW.getMonth() + 1).padStart(2, '0') }.${ String(NOW.getDate()).padStart(2, '0')
   }](https://github.com/zloirock/core-js/releases/tag/v${
     NEW_VERSION
-  })`));
+  })\n- Changes [v${ PREV_VERSION }...v${ NEW_VERSION }](https://github.com/zloirock/core-js/compare/v${ PREV_VERSION }...v${ NEW_VERSION })`));
 }
 
 if (CURRENT_YEAR !== OLD_YEAR) echo(green('the year updated'));
