@@ -2549,7 +2549,8 @@ export const data = {
     node: '0.9.1',
   },
   'web.queue-microtask': {
-    bun: '0.1.1',
+    // wrong arity in Bun ~ 1.0.30, https://github.com/oven-sh/bun/issues/9249
+    // bun: '0.1.1',
     chrome: '71',
     deno: '1.0',
     firefox: '69',
