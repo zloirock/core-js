@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var microtask = require('../internals/microtask');
 var aCallable = require('../internals/a-callable');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
