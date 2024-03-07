@@ -1957,7 +1957,7 @@ GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to submodules
   'web.immediate': IMMEDIATE,
   'web.queue-microtask': function () {
-    return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value;
+    return Object.getOwnPropertyDescriptor(GLOBAL, 'queueMicrotask').value.length === 1;
   },
   'web.self': function () {
     // eslint-disable-next-line no-restricted-globals -- safe
