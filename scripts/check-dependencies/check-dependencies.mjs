@@ -6,6 +6,9 @@ const ignore = {
   'tests/observables': [
     'moon-unit',
   ],
+  'scripts/check-dependencies': [
+    'updates',
+  ],
 };
 
 const pkgs = await glob('?(@(packages|scripts|tests)/*/)package.json');
