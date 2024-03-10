@@ -3,8 +3,9 @@ import { features, proposals } from './entries-definitions.mjs';
 import { $proposal, $path } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 
-const { mkdir, writeFile } = fs;
+const { mkdir, writeFile, readJson, writeJson } = fs;
 const { dirname } = path;
+const { cyan, green } = chalk;
 
 function modulesToStage(x) {
   return sort([
@@ -25,6 +26,14 @@ const ActualSet = new Set(ActualModules);
 
 let built = 0;
 
+const exportsFields = {
+  '.': './index.js',
+  './configurator': './configurator.js',
+  './configurator.js': './configurator.js',
+  './modules/*': './modules/*.js',
+  './modules/*.js': './modules/*.js',
+};
+
 function expandModules(modules, filter) {
   if (!Array.isArray(modules)) modules = [modules];
   modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(path => it.test(path)) : [it]);
@@ -33,7 +42,11 @@ function expandModules(modules, filter) {
 }
 
 async function buildEntry(entry, options) {
-  let { subset = 'full', template, templateStable, templateActual, templateFull, filter, modules, enforce, necessary } = options;
+  let {
+    entryFromNamespace,
+    subset = entryFromNamespace ?? 'full',
+    template, templateStable, templateActual, templateFull, filter, modules, enforce, necessary,
+  } = options;
 
   switch (subset) {
     case 'es':
@@ -75,13 +88,31 @@ async function buildEntry(entry, options) {
   await writeFile(filepath, file);
 
   built++;
+
+  if (entry.endsWith('/index')) exportsFields[`./${ entry.slice(0, -6) }`] = `./${ entry }.js`;
+  const split = entry.split('/');
+  if (!entryFromNamespace || split.length < 3) {
+    exportsFields[`./${ entry }`] = `./${ entry }.js`;
+    exportsFields[`./${ entry }.js`] = `./${ entry }.js`;
+  } else if (entryFromNamespace) {
+    const entrySlice2 = split.slice(0, 2).join('/');
+    exportsFields[`./${ entrySlice2 }/*`] = `./${ entrySlice2 }/*.js`;
+    exportsFields[`./${ entrySlice2 }/*.js`] = `./${ entrySlice2 }/*.js`;
+  }
+}
+
+async function writeExportsField(path) {
+  const pkg = await readJson(path);
+  pkg.exports = exportsFields;
+  await writeJson(path, pkg, { spaces: '  ' });
+  echo(green(`built ${ cyan(path) } exports field`));
 }
 
 for (const [entry, definition] of Object.entries(features)) {
-  await buildEntry(`es/${ entry }`, { ...definition, subset: 'es' });
-  await buildEntry(`stable/${ entry }`, { ...definition, subset: 'stable' });
-  await buildEntry(`actual/${ entry }`, { ...definition, subset: 'actual' });
-  await buildEntry(`full/${ entry }`, definition);
+  await buildEntry(`es/${ entry }`, { ...definition, entryFromNamespace: 'es' });
+  await buildEntry(`stable/${ entry }`, { ...definition, entryFromNamespace: 'stable' });
+  await buildEntry(`actual/${ entry }`, { ...definition, entryFromNamespace: 'actual' });
+  await buildEntry(`full/${ entry }`, { ...definition, entryFromNamespace: 'full' });
 }
 
 for (const [name, definition] of Object.entries(proposals)) {
@@ -100,4 +131,7 @@ await buildEntry('actual/index', { template: $path, modules: ActualModules });
 await buildEntry('full/index', { template: $path, modules: AllModules });
 await buildEntry('index', { template: $path, modules: ActualModules });
 
-echo(chalk.green(`built ${ chalk.cyan(built) } entries`));
+echo(green(`built ${ cyan(built) } entries`));
+
+await writeExportsField('./packages/core-js/package.json');
+await writeExportsField('./packages/core-js-pure/package.json');
