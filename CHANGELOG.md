@@ -6,6 +6,7 @@
 - Compat data improvements:
   - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
   - Added Opera Android 81 compat data mapping
+  - Added Samsung Internet 25 compat data mapping
   - Added Oculus Quest Browser 32 compat data mapping
   - Updated Electron 30 compat data mapping
 
