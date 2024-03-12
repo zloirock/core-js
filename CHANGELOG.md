@@ -5,6 +5,7 @@
 - Added a fix of [Bun `queueMicrotask` arity](https://github.com/oven-sh/bun/issues/9249)
 - Compat data improvements:
   - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
+  - Added Deno 1.41.3 compat data mapping
   - Added Opera Android 81 compat data mapping
   - Added Samsung Internet 25 compat data mapping
   - Added Oculus Quest Browser 32 compat data mapping
