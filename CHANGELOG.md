@@ -3,6 +3,7 @@
 - Fixed some validation cases in `Object.setPrototypeOf`, [#1329](https://github.com/zloirock/core-js/issues/1329), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Fixed the order of validations in `Array.from`, [#1331](https://github.com/zloirock/core-js/pull/1331), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Added a fix of [Bun `queueMicrotask` arity](https://github.com/oven-sh/bun/issues/9249)
+- Added a fix of [Bun `URL.canParse` arity](https://github.com/oven-sh/bun/issues/9250)
 - Compat data improvements:
   - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
   - Added Deno 1.41.3 compat data mapping

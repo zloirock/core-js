@@ -1992,7 +1992,7 @@ GLOBAL.tests = {
     try {
       URL.canParse();
     } catch (error) {
-      return URL.canParse;
+      return URL.canParse.length === 1;
     }
   }],
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
