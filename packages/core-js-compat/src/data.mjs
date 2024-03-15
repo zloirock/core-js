@@ -2663,6 +2663,7 @@ export const data = {
     safari: '14.0',
   },
   'web.url-search-params.delete': {
+    bun: '1.0.31',
     chrome: '118',
     deno: '1.35',
     firefox: '115',
@@ -2670,6 +2671,7 @@ export const data = {
     safari: '17.0',
   },
   'web.url-search-params.has': {
+    bun: '1.0.31',
     chrome: '118',
     deno: '1.35',
     firefox: '115',
