@@ -17,7 +17,7 @@ var THROWS_WITHOUT_ARGUMENTS = USE_NATIVE_URL && fails(function () {
 // Bun ~ 1.0.30 bug
 // https://github.com/oven-sh/bun/issues/9250
 var WRONG_ARITY = fails(function () {
-  return URL.canParse !== 1;
+  return URL.canParse.length !== 1;
 });
 
 // `URL.canParse` method
