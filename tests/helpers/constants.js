@@ -14,7 +14,9 @@ export const GLOBAL = Function('return this')();
 
 export const NATIVE = GLOBAL.NATIVE || false;
 
-export const NODE = Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
+export const NODE = typeof Bun == 'undefined' && Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
+
+export const BUN = typeof Bun != 'undefined' && Object.prototype.toString.call(GLOBAL.process).slice(8, -1) === 'process';
 
 const $TYPED_ARRAYS = {
   Float32Array: 4,

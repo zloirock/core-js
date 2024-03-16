@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, BUN } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
@@ -859,7 +859,8 @@ QUnit.test('URLSearchParams#size', assert => {
     const { enumerable, configurable, get } = getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
 
     assert.true(enumerable, 'enumerable');
-    assert.true(configurable, 'configurable');
+    // https://github.com/oven-sh/bun/issues/9251
+    if (!BUN) assert.true(configurable, 'configurable');
 
     assert.throws(() => get.call([]));
   }

@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NODE } from '../helpers/constants.js';
+import { DESCRIPTORS, NODE, BUN } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 const { getPrototypeOf, getOwnPropertyDescriptor } = Object;
@@ -882,7 +882,8 @@ QUnit.test('URLSearchParams#size', assert => {
     const { enumerable, configurable, get } = getOwnPropertyDescriptor(URLSearchParams.prototype, 'size');
 
     assert.true(enumerable, 'enumerable');
-    assert.true(configurable, 'configurable');
+    // https://github.com/oven-sh/bun/issues/9251
+    if (!BUN) assert.true(configurable, 'configurable');
 
     if (!NODE) assert.looksNative(get);
 
