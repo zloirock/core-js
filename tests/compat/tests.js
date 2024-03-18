@@ -1511,7 +1511,9 @@ GLOBAL.tests = {
       && set[Symbol.toStringTag];
   }],
   'esnext.suppressed-error.constructor': function () {
-    return typeof SuppressedError == 'function';
+    return typeof SuppressedError == 'function'
+      && SuppressedError.length === 3
+      && SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'esnext.array.from-async': function () {
     return Array.fromAsync;

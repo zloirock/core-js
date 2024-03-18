@@ -1913,7 +1913,10 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
   'esnext.suppressed-error.constructor': {
-    bun: '1.0.23',
+    // Bun ~ 1.0.33 issues
+    // https://github.com/oven-sh/bun/issues/9282
+    // https://github.com/oven-sh/bun/issues/9283
+    // bun: '1.0.23',
   },
   'esnext.array.from-async': {
     bun: '0.3.0',

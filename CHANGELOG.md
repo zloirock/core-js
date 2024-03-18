@@ -4,6 +4,7 @@
 - Fixed the order of validations in `Array.from`, [#1331](https://github.com/zloirock/core-js/pull/1331), thanks [**@minseok-choe**](https://github.com/minseok-choe)
 - Added a fix of [Bun `queueMicrotask` arity](https://github.com/oven-sh/bun/issues/9249)
 - Added a fix of [Bun `URL.canParse` arity](https://github.com/oven-sh/bun/issues/9250)
+- Added a fix of Bun `SuppressedError` [extra arguments support](https://github.com/oven-sh/bun/issues/9283) and [arity](https://github.com/oven-sh/bun/issues/9282)
 - Compat data improvements:
   - [`value` argument of `URLSearchParams.prototype.{ has, delete }`](https://url.spec.whatwg.org/#dom-urlsearchparams-delete) marked as supported [from Bun 1.0.31](https://github.com/oven-sh/bun/issues/9263)
   - Added React Native 0.74 Hermes compat data, `Array.prototype.{ toSpliced, toReversed, with }` and `atob` marked as supported
