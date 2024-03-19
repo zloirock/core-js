@@ -70,12 +70,12 @@ export const $staticWithContext = t(p => dedent`
   var isCallable = ${ importInternal('is-callable', p.level) }
   var apply = ${ importInternal('function-apply', p.level) }
 
-  var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.method }');
+  var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
 
-  module.exports = function ${ isAllowedFunctionName(p.method) ? p.method : '' }() {
+  module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }() {
     return apply(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }'), arguments);
   };
-`);
+`)();
 
 export const $patchableStatic = t(p => dedent`
   ${ importModules(p) }
