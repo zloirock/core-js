@@ -94,7 +94,7 @@ export const $namespace = t(p => dedent`
   var path = ${ importInternal('path', p.level) }
 
   module.exports = path.${ p.name };
-`);
+`)();
 
 export const $helper = t(p => dedent`
   ${ importModules(p) }
