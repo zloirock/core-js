@@ -99,12 +99,18 @@ export const $namespace = t(p => dedent`
 export const $helper = t(p => dedent`
   ${ importModules(p) }
 
-  var $export = ${ importInternal(p.name, p.level) }
+  var $export = ${ importInternal(p.helper, p.level) }
 
   module.exports = $export;
-`);
+`)();
 
-export const $path = $helper({ name: 'path' });
+export const $path = t(p => dedent`
+  ${ importModules(p) }
+
+  var path = ${ importInternal('path', p.level) }
+
+  module.exports = path;
+`)();
 
 export const $instanceArray = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
