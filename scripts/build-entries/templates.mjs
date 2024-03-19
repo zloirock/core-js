@@ -35,7 +35,7 @@ export const $virtualIterator = t(p => dedent`
   var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
 
   module.exports = getIteratorMethod(${ p.source });
-`);
+`)();
 
 export const $prototype = t(p => dedent`
   ${ importModules(p) }
