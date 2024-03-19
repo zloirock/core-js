@@ -298,7 +298,8 @@ export const features = {
   },
   'array/iterator': {
     modules: ['es.array.iterator'],
-    template: $prototypeIterator({ source: '[]' }),
+    template: $prototypeIterator,
+    source: '[]',
   },
   'array/virtual/iterator': {
     modules: ['es.array.iterator'],
@@ -1833,7 +1834,8 @@ export const features = {
   },
   'string/iterator': {
     modules: ['es.string.iterator'],
-    template: $prototypeIterator({ source: "''" }),
+    template: $prototypeIterator,
+    source: "''",
   },
   'string/virtual/iterator': {
     modules: ['es.string.iterator'],
