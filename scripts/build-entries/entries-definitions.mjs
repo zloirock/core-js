@@ -148,15 +148,18 @@ const TypedArrayMethods = [
 export const features = {
   'aggregate-error/index': {
     modules: [/^(?:es|esnext)\.aggregate-error\./],
-    template: $namespace({ name: 'AggregateError' }),
+    template: $namespace,
+    name: 'AggregateError',
   },
   'aggregate-error/constructor': {
     modules: [/^(?:es|esnext)\.aggregate-error\./],
-    template: $namespace({ name: 'AggregateError' }),
+    template: $namespace,
+    name: 'AggregateError',
   },
   'array/index': {
     modules: [/^(?:es|esnext)\.array\./],
-    template: $namespace({ name: 'Array' }),
+    template: $namespace,
+    name: 'Array',
   },
   'array/at': {
     modules: ['es.array.at'],
@@ -448,11 +451,13 @@ export const features = {
   },
   'array-buffer/index': {
     modules: [/^(?:es|esnext)\.array-buffer\./],
-    template: $namespace({ name: 'ArrayBuffer' }),
+    template: $namespace,
+    name: 'ArrayBuffer',
   },
   'array-buffer/constructor': {
     modules: ['es.array-buffer.constructor', ...ArrayBufferPrototypeMethods],
-    template: $namespace({ name: 'ArrayBuffer' }),
+    template: $namespace,
+    name: 'ArrayBuffer',
   },
   'array-buffer/is-view': {
     modules: ['es.array-buffer.is-view'],
@@ -476,19 +481,23 @@ export const features = {
   },
   'async-disposable-stack/index': {
     modules: [/^(?:es|esnext)\.async-disposable-stack\./],
-    template: $namespace({ name: 'AsyncDisposableStack' }),
+    template: $namespace,
+    name: 'AsyncDisposableStack',
   },
   'async-disposable-stack/constructor': {
     modules: ['esnext.async-disposable-stack.constructor'],
-    template: $namespace({ name: 'AsyncDisposableStack' }),
+    template: $namespace,
+    name: 'AsyncDisposableStack',
   },
   'async-iterator/index': {
     modules: [/^(?:es|esnext)\.async-iterator\./],
-    template: $namespace({ name: 'AsyncIterator' }),
+    template: $namespace,
+    name: 'AsyncIterator',
   },
   'async-iterator/constructor': {
     modules: ['esnext.async-iterator.constructor', ...AsyncIteratorPrototypeMethods],
-    template: $namespace({ name: 'AsyncIterator' }),
+    template: $namespace,
+    name: 'AsyncIterator',
   },
   'async-iterator/from': {
     modules: ['esnext.async-iterator.from', ...AsyncIteratorPrototypeMethods],
@@ -584,11 +593,13 @@ export const features = {
   },
   'data-view/index': {
     modules: [/^(?:es|esnext)\.data-view\./],
-    template: $namespace({ name: 'DataView' }),
+    template: $namespace,
+    name: 'DataView',
   },
   'data-view/constructor': {
     modules: [/^(?:es|esnext)\.data-view\./],
-    template: $namespace({ name: 'DataView' }),
+    template: $namespace,
+    name: 'DataView',
   },
   'data-view/get-float16': {
     modules: ['esnext.data-view.get-float16'],
@@ -608,7 +619,8 @@ export const features = {
   },
   'date/index': {
     modules: [/^(?:es|esnext)\.date\./],
-    template: $namespace({ name: 'Date' }),
+    template: $namespace,
+    name: 'Date',
   },
   'date/to-json': {
     modules: ['es.date.to-json'],
@@ -620,11 +632,13 @@ export const features = {
   },
   'disposable-stack/index': {
     modules: [/^(?:es|esnext)\.disposable-stack\./],
-    template: $namespace({ name: 'DisposableStack' }),
+    template: $namespace,
+    name: 'DisposableStack',
   },
   'disposable-stack/constructor': {
     modules: ['esnext.disposable-stack.constructor'],
-    template: $namespace({ name: 'DisposableStack' }),
+    template: $namespace,
+    name: 'DisposableStack',
   },
   'dom-collections/index': {
     modules: [/^web\.dom-collections\./],
@@ -652,11 +666,13 @@ export const features = {
   },
   'dom-exception/index': {
     modules: [/^web\.dom-exception\./],
-    template: $namespace({ name: 'DOMException' }),
+    template: $namespace,
+    name: 'DOMException',
   },
   'dom-exception/constructor': {
     modules: [/^web\.dom-exception\./],
-    template: $namespace({ name: 'DOMException' }),
+    template: $namespace,
+    name: 'DOMException',
   },
   'error/index': {
     modules: [/^(?:es|esnext)\.error\./],
@@ -668,7 +684,8 @@ export const features = {
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
-    template: $namespace({ name: 'Function' }),
+    template: $namespace,
+    name: 'Function',
   },
   'function/demethodize': {
     modules: ['esnext.function.demethodize'],
@@ -937,11 +954,13 @@ export const features = {
   },
   'iterator/index': {
     modules: [/^(?:es|esnext)\.iterator\./],
-    template: $namespace({ name: 'Iterator' }),
+    template: $namespace,
+    name: 'Iterator',
   },
   'iterator/constructor': {
     modules: ['esnext.iterator.constructor', ...IteratorPrototypeMethods],
-    template: $namespace({ name: 'Iterator' }),
+    template: $namespace,
+    name: 'Iterator',
   },
   'iterator/from': {
     modules: ['esnext.iterator.from', ...IteratorPrototypeMethods],
@@ -1049,7 +1068,8 @@ export const features = {
   },
   'json/index': {
     modules: [/^(?:es|esnext)\.json\./],
-    template: $namespace({ name: 'JSON' }),
+    template: $namespace,
+    name: 'JSON',
   },
   'json/is-raw-json': {
     modules: ['esnext.json.is-raw-json'],
@@ -1069,11 +1089,13 @@ export const features = {
   },
   'map/index': {
     modules: [/^(?:es|esnext)\.map\./],
-    template: $namespace({ name: 'Map' }),
+    template: $namespace,
+    name: 'Map',
   },
   'map/constructor': {
     modules: [...MapWithPrototype],
-    template: $namespace({ name: 'Map' }),
+    template: $namespace,
+    name: 'Map',
   },
   'map/emplace': {
     modules: ['esnext.map.emplace'],
@@ -1099,7 +1121,8 @@ export const features = {
   },
   'math/index': {
     modules: [/^(?:es|esnext)\.math\./],
-    template: $namespace({ name: 'Math' }),
+    template: $namespace,
+    name: 'Math',
   },
   'math/acosh': {
     modules: ['es.math.acosh'],
@@ -1179,11 +1202,13 @@ export const features = {
   },
   'number/index': {
     modules: [/^(?:es|esnext)\.number\./],
-    template: $namespace({ name: 'Number' }),
+    template: $namespace,
+    name: 'Number',
   },
   'number/constructor': {
     modules: ['es.number.constructor'],
-    template: $namespace({ name: 'Number' }),
+    template: $namespace,
+    name: 'Number',
   },
   'number/epsilon': {
     modules: ['es.number.epsilon'],
@@ -1239,7 +1264,8 @@ export const features = {
   },
   'object/index': {
     modules: [/^(?:es|esnext)\.object\./],
-    template: $namespace({ name: 'Object' }),
+    template: $namespace,
+    name: 'Object',
   },
   'object/assign': {
     modules: ['es.object.assign'],
@@ -1382,11 +1408,13 @@ export const features = {
   },
   'promise/index': {
     modules: [/^(?:es|esnext)\.promise\./],
-    template: $namespace({ name: 'Promise' }),
+    template: $namespace,
+    name: 'Promise',
   },
   'promise/constructor': {
     modules: [...PromiseWithPrototype],
-    template: $namespace({ name: 'Promise' }),
+    template: $namespace,
+    name: 'Promise',
   },
   'promise/all': {
     modules: ['es.promise.all'],
@@ -1438,7 +1466,8 @@ export const features = {
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
-    template: $namespace({ name: 'Reflect' }),
+    template: $namespace,
+    name: 'Reflect',
   },
   'reflect/apply': {
     modules: ['es.reflect.apply'],
@@ -1542,11 +1571,13 @@ export const features = {
   },
   'set/index': {
     modules: [/^(?:es|esnext)\.set\./],
-    template: $namespace({ name: 'Set' }),
+    template: $namespace,
+    name: 'Set',
   },
   'set/constructor': {
     modules: [...SetWithPrototype],
-    template: $namespace({ name: 'Set' }),
+    template: $namespace,
+    name: 'Set',
   },
   'set/difference': {
     modules: ['es.set.difference'],
@@ -1616,7 +1647,8 @@ export const features = {
   },
   'string/index': {
     modules: [/^(?:es|esnext)\.string\./],
-    template: $namespace({ name: 'String' }),
+    template: $namespace,
+    name: 'String',
   },
   'string/anchor': {
     modules: ['es.string.anchor'],
@@ -1916,19 +1948,23 @@ export const features = {
   },
   'suppressed-error/index': {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
-    template: $namespace({ name: 'SuppressedError' }),
+    template: $namespace,
+    name: 'SuppressedError',
   },
   'suppressed-error/constructor': {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
-    template: $namespace({ name: 'SuppressedError' }),
+    template: $namespace,
+    name: 'SuppressedError',
   },
   'symbol/index': {
     modules: [/^(?:es|esnext)\.symbol\./],
-    template: $namespace({ name: 'Symbol' }),
+    template: $namespace,
+    name: 'Symbol',
   },
   'symbol/constructor': {
     modules: ['es.symbol.constructor', 'es.symbol.description'],
-    template: $namespace({ name: 'Symbol' }),
+    template: $namespace,
+    name: 'Symbol',
   },
   'symbol/async-dispose': {
     modules: ['esnext.symbol.async-dispose', 'esnext.async-iterator.async-dispose'],
@@ -2024,39 +2060,48 @@ export const features = {
   },
   'typed-array/float32-array': {
     modules: ['es.typed-array.float32-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Float32Array' }),
+    template: $namespace,
+    name: 'Float32Array',
   },
   'typed-array/float64-array': {
     modules: ['es.typed-array.float64-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Float64Array' }),
+    template: $namespace,
+    name: 'Float64Array',
   },
   'typed-array/int8-array': {
     modules: ['es.typed-array.int8-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Int8Array' }),
+    template: $namespace,
+    name: 'Int8Array',
   },
   'typed-array/int16-array': {
     modules: ['es.typed-array.int16-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Int16Array' }),
+    template: $namespace,
+    name: 'Int16Array',
   },
   'typed-array/int32-array': {
     modules: ['es.typed-array.int32-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Int32Array' }),
+    template: $namespace,
+    name: 'Int32Array',
   },
   'typed-array/uint8-array': {
     modules: ['es.typed-array.uint8-array', ...Uint8ArrayPrototypeMethods],
-    template: $namespace({ name: 'Uint8Array' }),
+    template: $namespace,
+    name: 'Uint8Array',
   },
   'typed-array/uint8-clamped-array': {
     modules: ['es.typed-array.uint8-clamped-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Uint8ClampedArray' }),
+    template: $namespace,
+    name: 'Uint8ClampedArray',
   },
   'typed-array/uint16-array': {
     modules: ['es.typed-array.uint16-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Uint16Array' }),
+    template: $namespace,
+    name: 'Uint16Array',
   },
   'typed-array/uint32-array': {
     modules: ['es.typed-array.uint32-array', ...TypedArrayMethods],
-    template: $namespace({ name: 'Uint32Array' }),
+    template: $namespace,
+    name: 'Uint32Array',
   },
   'typed-array/from': {
     modules: ['es.typed-array.from'],
@@ -2228,7 +2273,8 @@ export const features = {
   },
   'url/index': {
     modules: [/^web\.url(?:-search-params)?\./],
-    template: $namespace({ name: 'URL' }),
+    template: $namespace,
+    name: 'URL',
   },
   'url/can-parse': {
     modules: ['web.url.can-parse'],
@@ -2248,15 +2294,18 @@ export const features = {
   },
   'url-search-params/index': {
     modules: [/^web\.url-search-params\./],
-    template: $namespace({ name: 'URLSearchParams' }),
+    template: $namespace,
+    name: 'URLSearchParams',
   },
   'weak-map/index': {
     modules: [/^(?:es|esnext)\.weak-map\./],
-    template: $namespace({ name: 'WeakMap' }),
+    template: $namespace,
+    name: 'WeakMap',
   },
   'weak-map/constructor': {
     modules: [...WeakMapWithPrototype],
-    template: $namespace({ name: 'WeakMap' }),
+    template: $namespace,
+    name: 'WeakMap',
   },
   'weak-map/emplace': {
     modules: ['esnext.weak-map.emplace'],
@@ -2278,11 +2327,13 @@ export const features = {
   },
   'weak-set/index': {
     modules: [/^(?:es|esnext)\.weak-set\./],
-    template: $namespace({ name: 'WeakSet' }),
+    template: $namespace,
+    name: 'WeakSet',
   },
   'weak-set/constructor': {
     modules: [...WeakSetWithPrototype],
-    template: $namespace({ name: 'WeakSet' }),
+    template: $namespace,
+    name: 'WeakSet',
   },
   'weak-set/from': {
     modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
@@ -2296,43 +2347,53 @@ export const features = {
   },
   atob: {
     modules: ['web.atob'],
-    template: $namespace({ name: 'atob' }),
+    template: $namespace,
+    name: 'atob',
   },
   btoa: {
     modules: ['web.btoa'],
-    template: $namespace({ name: 'btoa' }),
+    template: $namespace,
+    name: 'btoa',
   },
   'clear-immediate': {
     modules: ['web.clear-immediate'],
-    template: $namespace({ name: 'clearImmediate' }),
+    template: $namespace,
+    name: 'clearImmediate',
   },
   'global-this': {
     modules: ['es.global-this'],
-    template: $namespace({ name: 'globalThis' }),
+    template: $namespace,
+    name: 'globalThis',
   },
   'parse-float': {
     modules: ['es.parse-float'],
-    template: $namespace({ name: 'parseFloat' }),
+    template: $namespace,
+    name: 'parseFloat',
   },
   'parse-int': {
     modules: ['es.parse-int'],
-    template: $namespace({ name: 'parseInt' }),
+    template: $namespace,
+    name: 'parseInt',
   },
   'queue-microtask': {
     modules: ['web.queue-microtask'],
-    template: $namespace({ name: 'queueMicrotask' }),
+    template: $namespace,
+    name: 'queueMicrotask',
   },
   self: {
     modules: ['web.self'],
-    template: $namespace({ name: 'self' }),
+    template: $namespace,
+    name: 'self',
   },
   'set-immediate': {
     modules: ['web.set-immediate'],
-    template: $namespace({ name: 'setImmediate' }),
+    template: $namespace,
+    name: 'setImmediate',
   },
   'structured-clone': {
     modules: ['web.structured-clone'],
-    template: $namespace({ name: 'structuredClone' }),
+    template: $namespace,
+    name: 'structuredClone',
   },
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
