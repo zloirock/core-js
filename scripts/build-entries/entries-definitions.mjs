@@ -1492,7 +1492,9 @@ export const features = {
   },
   'promise/all': {
     modules: ['es.promise.all'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'all' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'all',
   },
   'promise/all-keyed': {
     modules: ['esnext.promise.all-keyed'],
@@ -1500,7 +1502,9 @@ export const features = {
   },
   'promise/all-settled': {
     modules: ['es.promise.all-settled'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'allSettled' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allSettled',
   },
   'promise/all-settled-keyed': {
     modules: ['esnext.promise.all-settled-keyed'],
@@ -1508,7 +1512,9 @@ export const features = {
   },
   'promise/any': {
     modules: ['es.promise.any'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'any' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'any',
   },
   'promise/catch': {
     modules: ['es.promise.catch'],
@@ -1528,23 +1534,33 @@ export const features = {
   },
   'promise/race': {
     modules: ['es.promise.race'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'race' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'race',
   },
   'promise/reject': {
     modules: ['es.promise.reject'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'reject' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'reject',
   },
   'promise/resolve': {
     modules: ['es.promise.resolve'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'resolve' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'resolve',
   },
   'promise/try': {
     modules: ['es.promise.try'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'try' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'try',
   },
   'promise/with-resolvers': {
     modules: ['es.promise.with-resolvers'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'withResolvers' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'withResolvers',
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
