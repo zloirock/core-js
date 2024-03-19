@@ -84,7 +84,6 @@
     "@babel/plugin-transform-parameters": "^7.24.1",
     "@babel/plugin-transform-private-methods": "^7.24.1",
     "@babel/plugin-transform-private-property-in-object": "^7.24.1",
-    "@babel/plugin-transform-property-literals": "^7.24.1",
     "@babel/plugin-transform-shorthand-properties": "^7.24.1",
     "@babel/plugin-transform-spread": "^7.24.1",
     "@babel/plugin-transform-template-literals": "^7.24.1",
