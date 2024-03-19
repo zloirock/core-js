@@ -1603,7 +1603,8 @@ export const features = {
   },
   'regexp/flags': {
     modules: ['es.regexp.flags'],
-    template: $helper({ name: 'regexp-get-flags' }),
+    template: $helper,
+    helper: 'regexp-get-flags',
   },
   'regexp/match': {
     modules: ['es.string.match'],
@@ -2469,15 +2470,18 @@ export const features = {
   },
   'get-iterator': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
-    template: $helper({ name: 'get-iterator' }),
+    template: $helper,
+    helper: 'get-iterator',
   },
   'get-iterator-method': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
-    template: $helper({ name: 'get-iterator-method' }),
+    template: $helper,
+    helper: 'get-iterator-method',
   },
   'is-iterable': {
     modules: ['es.array.iterator', 'es.string.iterator', 'web.dom-collections.iterator'],
-    template: $helper({ name: 'is-iterable' }),
+    template: $helper,
+    helper: 'is-iterable',
   },
 };
 
