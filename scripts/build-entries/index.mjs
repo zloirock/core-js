@@ -28,6 +28,7 @@ let built = 0;
 
 const exportsFields = {
   '.': './index.js',
+  './package.json': './package.json',
   './configurator': './configurator.js',
   './configurator.js': './configurator.js',
   './modules/*': './modules/*.js',
