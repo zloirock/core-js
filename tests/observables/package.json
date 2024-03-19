@@ -1,7 +1,7 @@
 {
   "name": "tests/observables",
   "devDependencies": {
-    "@babel/cli": "^7.23.9",
+    "@babel/cli": "^7.24.1",
     "es-observable": "tc39/proposal-observable#d3404f06bc70c7c578a5047dfb3dc813730e3319",
     "moon-unit": "0.2.2"
   }
