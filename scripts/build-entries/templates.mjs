@@ -52,7 +52,7 @@ export const $prototypeIterator = t(p => dedent`
   var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
 
   module.exports = uncurryThis(getIteratorMethod(${ p.source }));
-`);
+`)();
 
 export const $static = t(p => dedent`
   ${ importModules(p) }
