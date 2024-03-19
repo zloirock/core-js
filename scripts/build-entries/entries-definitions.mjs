@@ -1087,7 +1087,9 @@ export const features = {
   },
   'json/stringify': {
     modules: ['es.json.stringify'],
-    template: $patchableStatic({ namespace: 'JSON', method: 'stringify' }),
+    template: $patchableStatic,
+    namespace: 'JSON',
+    name: 'stringify',
   },
   'map/index': {
     modules: [/^(?:es|esnext)\.map\./],
@@ -1275,17 +1277,23 @@ export const features = {
   },
   'object/create': {
     modules: [],
-    template: $patchableStatic({ namespace: 'Object', method: 'create' }),
+    template: $patchableStatic,
+    namespace: 'Object',
+    name: 'create',
     enforce: true,
   },
   'object/define-property': {
     modules: [],
-    template: $patchableStatic({ namespace: 'Object', method: 'defineProperty' }),
+    template: $patchableStatic,
+    namespace: 'Object',
+    name: 'defineProperty',
     enforce: true,
   },
   'object/define-properties': {
     modules: [],
-    template: $patchableStatic({ namespace: 'Object', method: 'defineProperties' }),
+    template: $patchableStatic,
+    namespace: 'Object',
+    name: 'defineProperties',
     enforce: true,
   },
   'object/define-getter': {
@@ -1318,7 +1326,9 @@ export const features = {
   },
   'object/get-own-property-descriptor': {
     modules: ['es.object.get-own-property-descriptor'],
-    template: $patchableStatic({ namespace: 'Object', method: 'getOwnPropertyDescriptor' }),
+    template: $patchableStatic,
+    namespace: 'Object',
+    name: 'getOwnPropertyDescriptor',
   },
   'object/get-own-property-descriptors': {
     modules: ['es.object.get-own-property-descriptors'],
@@ -1326,7 +1336,9 @@ export const features = {
   },
   'object/get-own-property-names': {
     modules: ['es.object.get-own-property-names'],
-    template: $patchableStatic({ namespace: 'Object', method: 'getOwnPropertyNames' }),
+    template: $patchableStatic,
+    namespace: 'Object',
+    name: 'getOwnPropertyNames',
   },
   'object/get-own-property-symbols': {
     modules: ['es.object.get-own-property-symbols'],
