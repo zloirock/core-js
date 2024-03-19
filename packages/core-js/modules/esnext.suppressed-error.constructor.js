@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of-simple');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
