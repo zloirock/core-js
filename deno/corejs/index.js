@@ -1,7 +1,7 @@
 /**
- * core-js 3.36.0
+ * core-js 3.36.1
  * © 2014-2024 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.36.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.36.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -1025,10 +1025,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.36.0',
+  version: '3.36.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2024 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.36.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.36.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -1898,7 +1898,8 @@ module.exports = function (FULL_NAME, wrapper, FORCED, IS_AGGREGATE_ERROR) {
 
 /* eslint-disable no-proto -- safe */
 var uncurryThisAccessor = __webpack_require__(70);
-var anObject = __webpack_require__(45);
+var isObject = __webpack_require__(19);
+var requireObjectCoercible = __webpack_require__(15);
 var aPossiblePrototype = __webpack_require__(71);
 
 // `Object.setPrototypeOf` method
@@ -1915,8 +1916,9 @@ module.exports = Object.setPrototypeOf || ('__proto__' in {} ? function () {
     CORRECT_SETTER = test instanceof Array;
   } catch (error) { /* empty */ }
   return function setPrototypeOf(O, proto) {
-    anObject(O);
+    requireObjectCoercible(O);
     aPossiblePrototype(proto);
+    if (!isObject(O)) return O;
     if (CORRECT_SETTER) setter(O, proto);
     else O.__proto__ = proto;
     return O;
@@ -5798,6 +5800,7 @@ module.exports = function (argument) {
 "use strict";
 
 var $ = __webpack_require__(2);
+var globalThis = __webpack_require__(3);
 var isPrototypeOf = __webpack_require__(23);
 var getPrototypeOf = __webpack_require__(85);
 var setPrototypeOf = __webpack_require__(69);
@@ -5808,15 +5811,30 @@ var createPropertyDescriptor = __webpack_require__(10);
 var installErrorStack = __webpack_require__(80);
 var normalizeStringArgument = __webpack_require__(75);
 var wellKnownSymbol = __webpack_require__(32);
+var fails = __webpack_require__(6);
+var IS_PURE = __webpack_require__(35);
 
+var NativeSuppressedError = globalThis.SuppressedError;
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var $Error = Error;
+
+// https://github.com/oven-sh/bun/issues/9282
+var WRONG_ARITY = !!NativeSuppressedError && NativeSuppressedError.length !== 3;
+
+// https://github.com/oven-sh/bun/issues/9283
+var EXTRA_ARGS_SUPPORT = !!NativeSuppressedError && fails(function () {
+  return NativeSuppressedError(1, 2, 3, { cause: 4 }).cause === 4;
+});
+
+var PATCH = WRONG_ARITY || EXTRA_ARGS_SUPPORT;
 
 var $SuppressedError = function SuppressedError(error, suppressed, message) {
   var isInstance = isPrototypeOf(SuppressedErrorPrototype, this);
   var that;
   if (setPrototypeOf) {
-    that = setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
+    that = PATCH && (!isInstance || getPrototypeOf(this) === SuppressedErrorPrototype)
+      ? new NativeSuppressedError()
+      : setPrototypeOf(new $Error(), isInstance ? getPrototypeOf(this) : SuppressedErrorPrototype);
   } else {
     that = isInstance ? this : create(SuppressedErrorPrototype);
     createNonEnumerableProperty(that, TO_STRING_TAG, 'Error');
@@ -5831,15 +5849,17 @@ var $SuppressedError = function SuppressedError(error, suppressed, message) {
 if (setPrototypeOf) setPrototypeOf($SuppressedError, $Error);
 else copyConstructorProperties($SuppressedError, $Error, { name: true });
 
-var SuppressedErrorPrototype = $SuppressedError.prototype = create($Error.prototype, {
+var SuppressedErrorPrototype = $SuppressedError.prototype = PATCH ? NativeSuppressedError.prototype : create($Error.prototype, {
   constructor: createPropertyDescriptor(1, $SuppressedError),
   message: createPropertyDescriptor(1, ''),
   name: createPropertyDescriptor(1, 'SuppressedError')
 });
 
+if (PATCH && !IS_PURE) SuppressedErrorPrototype.constructor = $SuppressedError;
+
 // `SuppressedError` constructor
 // https://github.com/tc39/proposal-explicit-resource-management
-$({ global: true, constructor: true, arity: 3 }, {
+$({ global: true, constructor: true, arity: 3, forced: PATCH }, {
   SuppressedError: $SuppressedError
 });
 
@@ -15741,9 +15761,15 @@ var THROWS_WITHOUT_ARGUMENTS = USE_NATIVE_URL && fails(function () {
   URL.canParse();
 });
 
+// Bun ~ 1.0.30 bug
+// https://github.com/oven-sh/bun/issues/9250
+var WRONG_ARITY = fails(function () {
+  return URL.canParse.length !== 1;
+});
+
 // `URL.canParse` method
 // https://url.spec.whatwg.org/#dom-url-canparse
-$({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS }, {
+$({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS || WRONG_ARITY }, {
   canParse: function canParse(url) {
     var length = validateArgumentsLength(arguments.length, 1);
     var urlString = toString(url);
