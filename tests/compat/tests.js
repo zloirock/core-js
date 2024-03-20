@@ -924,7 +924,12 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
   'es.data-view.constructor': function () {
-    return DataView;
+    try {
+      DataView(new ArrayBuffer(1));
+    } catch (error) {
+      return new DataView(new ArrayBuffer(1)).byteLength === 1
+        && Object.getPrototypeOf(DataView.prototype) === Object.prototype;
+    }
   },
   'es.data-view.set-int8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.set-uint8': DATA_VIEW_INT8_CONVERSION_BUG,
