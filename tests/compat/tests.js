@@ -1001,20 +1001,14 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.array-buffer.transfer-to-fixed-length': function () {
     return !ARRAY_BUFFER_TRANSFER_BUG && ArrayBuffer.prototype.transferToFixedLength;
   },
-  'es.data-view.constructor': [function () {
-    // NodeJS 0.11.4 and iOS Safari 7.x truncate large values incorrectly.
-    var view = new DataView(new ArrayBuffer(2));
-    view.setInt8(0, 2147483648);
-    view.setInt8(1, 2147483649);
-    return !(view.getInt8(0) || !view.getInt8(1));
-  }, function () {
-    // V8 ~ Chrome 50-53 follows ES2015: accepts a negative `byteLength` and rejects a non-integer `byteOffset`
+  'es.data-view.constructor': function () {
     try {
-      new DataView(new ArrayBuffer(1), 0, -1);
+      DataView(new ArrayBuffer(1));
     } catch (error) {
-      return true;
+      return new DataView(new ArrayBuffer(1)).byteLength === 1
+        && Object.getPrototypeOf(DataView.prototype) === Object.prototype;
     }
-  }],
+  },
   'es.data-view.set-int8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.set-uint8': DATA_VIEW_INT8_CONVERSION_BUG,
   'es.data-view.get-float16': function () {
