@@ -1,10 +1,10 @@
 import { NATIVE } from '../helpers/constants.js';
 
 QUnit.test('DataView', assert => {
-  assert.same(DataView, Object(DataView), 'is object'); // in Safari 5 typeof DataView is 'object'
-  if (NATIVE) assert.arity(DataView, 3); // 1 in IE11
-  if (NATIVE) assert.name(DataView, 'DataView'); // Safari 5 bug
-  if (NATIVE) assert.looksNative(DataView); // Safari 5 bug
+  assert.isFunction(DataView); // in Safari 5 typeof DataView is 'object'
+  assert.arity(DataView, 1);
+  assert.name(DataView, 'DataView'); // Safari 5 bug
+  assert.looksNative(DataView); // Safari 5 bug
   let dataview = new DataView(new ArrayBuffer(8));
   assert.same(dataview.byteOffset, 0, '#byteOffset, passed buffer');
   assert.same(dataview.byteLength, 8, '#byteLength, passed buffer');
@@ -31,15 +31,14 @@ QUnit.test('DataView', assert => {
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
-    // Android ~ 4.0
-    assert.throws(() => DataView(1), TypeError, 'throws without `new`');
-    assert.throws(() => DataView(1), 'throws without `new`');
   } else {
     // FF bug - TypeError instead of RangeError
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
   }
+  assert.throws(() => DataView(1), TypeError, 'throws with incorrect argument');
+  assert.throws(() => DataView(new ArrayBuffer(1)), TypeError, 'throws without `new`');
   dataview = new DataView(new ArrayBuffer(8));
   dataview.setUint32(0, 0x12345678);
   assert.same(dataview.getUint32(0), 0x12345678, 'big endian/big endian');
