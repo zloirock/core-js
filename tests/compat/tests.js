@@ -910,7 +910,7 @@ GLOBAL.tests = {
     try {
       DataView(new ArrayBuffer(1));
     } catch (error) {
-      return new DataView(new ArrayBuffer(1)).byteLength === 1
+      return new DataView(new ArrayBuffer(1), undefined, undefined).byteLength === 1
         && Object.getPrototypeOf(DataView.prototype) === Object.prototype;
     }
   },
