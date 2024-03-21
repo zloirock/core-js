@@ -14,6 +14,7 @@ QUnit.test('DataView', assert => {
   dataview = new DataView(new ArrayBuffer(24), 8, 8);
   assert.same(dataview.byteOffset, 8, '#byteOffset, passed buffer, byteOffset and length');
   assert.same(dataview.byteLength, 8, '#byteLength, passed buffer, byteOffset and length');
+  assert.same(new DataView(new ArrayBuffer(1), undefined, undefined).byteLength, 1, 'proper `undefined` handling');
   if (NATIVE) {
     // fails in IE / MS Edge
     dataview = new DataView(new ArrayBuffer(8), undefined);
