@@ -1092,12 +1092,13 @@ const forbidES2023BuiltIns = {
 };
 
 const forbidES2024BuiltIns = {
+  'es/no-arraybuffer-prototype-transfer': ERROR,
   'es/no-atomics-waitasync': ERROR,
   'es/no-object-map-groupby': ERROR,
   'es/no-promise-withresolvers': ERROR,
-  'es/no-string-prototype-iswellformed-towellformed': ERROR,
   'es/no-regexp-v-flag': ERROR,
   'es/no-resizable-and-growable-arraybuffers': ERROR,
+  'es/no-string-prototype-iswellformed-towellformed': ERROR,
 };
 
 const forbidES2016IntlBuiltIns = {
