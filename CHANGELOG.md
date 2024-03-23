@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) [moved to hex-escape semantics](https://github.com/tc39/proposal-regex-escaping/pull/67)
 
 ##### [3.36.1 - 2024.03.19](https://github.com/zloirock/core-js/releases/tag/v3.36.1)
 - Changes [v3.36.0...v3.36.1](https://github.com/zloirock/core-js/compare/v3.36.0...v3.36.1)
