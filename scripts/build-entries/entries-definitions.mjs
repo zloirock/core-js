@@ -912,9 +912,9 @@ export const features = {
     name: 'at',
   },
   'instance/clamp': {
-    name: 'clamp',
     modules: ['esnext.number.clamp'],
     template: $instanceNumber,
+    name: 'clamp',
   },
   'instance/code-point-at': {
     modules: ['es.string.code-point-at'],
@@ -1206,11 +1206,15 @@ export const features = {
   },
   'iterator/chunks': {
     modules: ['esnext.iterator.chunks'],
-    template: $prototype({ namespace: 'Iterator', method: 'chunks' }),
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'chunks',
   },
   'iterator/virtual/chunks': {
     modules: ['esnext.iterator.chunks'],
-    template: $virtual({ namespace: 'Iterator', method: 'chunks' }),
+    template: $virtual,
+    namespace: 'Iterator',
+    name: 'chunks',
   },
   'iterator/drop': {
     modules: ['es.iterator.drop'],
@@ -1358,11 +1362,15 @@ export const features = {
   },
   'iterator/windows': {
     modules: ['esnext.iterator.windows'],
-    template: $prototype({ namespace: 'Iterator', method: 'windows' }),
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'windows',
   },
   'iterator/virtual/windows': {
     modules: ['esnext.iterator.windows'],
-    template: $virtual({ namespace: 'Iterator', method: 'windows' }),
+    template: $virtual,
+    namespace: 'Iterator',
+    name: 'windows',
   },
   'json/index': {
     modules: [/^(?:es|esnext)\.json\./],
@@ -1578,11 +1586,15 @@ export const features = {
   },
   'number/clamp': {
     modules: ['esnext.number.clamp'],
-    template: $prototype({ namespace: 'Number', method: 'clamp' }),
+    template: $prototype,
+    namespace: 'Number',
+    name: 'clamp',
   },
   'number/virtual/clamp': {
     modules: ['esnext.number.clamp'],
-    template: $virtual({ namespace: 'Number', method: 'clamp' }),
+    template: $virtual,
+    namespace: 'Number',
+    name: 'clamp',
   },
   'number/epsilon': {
     modules: ['es.number.epsilon'],
