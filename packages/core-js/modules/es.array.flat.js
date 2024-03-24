@@ -1,4 +1,5 @@
 'use strict';
+// dependency: es.array.unscopables.flat
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
