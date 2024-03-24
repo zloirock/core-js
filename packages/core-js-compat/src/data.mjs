@@ -432,13 +432,13 @@ export const data = {
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
-    'react-native': '0.72',
+    react_native: '0.72',
     safari: '14.0',
   },
   'es.aggregate-error.cause': {
     chrome: '94',
     firefox: '91',
-    'react-native': '0.72',
+    react_native: '0.72',
     safari: '15.0',
   },
   'es.promise.constructor': {
@@ -540,7 +540,7 @@ export const data = {
   'es.array.at': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71',
+    react_native: '0.71',
     safari: '15.4',
   },
   'es.array.concat': {
@@ -614,7 +614,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    'react-native': '0.73',
+    react_native: '0.73',
     rhino: '1.7.13',
     safari: '9.0',
   },
@@ -735,7 +735,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    'react-native': '0.74',
+    react_native: '0.74',
     safari: '16.0',
   },
   'es.array.to-sorted': {
@@ -748,7 +748,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    'react-native': '0.74',
+    react_native: '0.74',
     safari: '16.0',
   },
   'es.array.unscopables.flat': {
@@ -780,7 +780,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
-    'react-native': '0.74',
+    react_native: '0.74',
     safari: '16.0',
   },
   // TODO: recheck
@@ -920,7 +920,7 @@ export const data = {
   'es.json.stringify': {
     chrome: '72',
     firefox: '64',
-    'react-native': '0.72',
+    react_native: '0.72',
     safari: '12.1',
   },
   'es.json.to-string-tag': {
@@ -934,7 +934,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    'react-native': '0.73',
+    react_native: '0.73',
     rhino: '1.7.13',
     safari: '10.0',
   },
@@ -1222,7 +1222,7 @@ export const data = {
   'es.regexp.exec': {
     chrome: '64',
     firefox: '78',
-    'react-native': '0.71',
+    react_native: '0.71',
     safari: '11.1',
   },
   'es.regexp.flags': {
@@ -1254,7 +1254,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    'react-native': '0.73',
+    react_native: '0.73',
     rhino: '1.7.13',
     safari: '10.0',
   },
@@ -1269,7 +1269,7 @@ export const data = {
   'es.string.at': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71',
+    react_native: '0.71',
     safari: '15.4',
   },
   'es.string.code-point-at': {
@@ -1354,7 +1354,7 @@ export const data = {
   'es.string.replace': {
     chrome: '64',
     firefox: '78',
-    'react-native': '0.71',
+    react_native: '0.71',
     safari: '14.0',
   },
   'es.string.replace-all': {
@@ -1596,7 +1596,7 @@ export const data = {
   'es.typed-array.at': {
     chrome: '92',
     firefox: '90',
-    'react-native': '0.71',
+    react_native: '0.71',
     safari: '15.4',
   },
   'es.typed-array.copy-within': {
@@ -1828,7 +1828,7 @@ export const data = {
     // adding frozen arrays to WeakMap unfreeze them
     // edge: '15',
     firefox: '53',
-    'react-native': '0.73',
+    react_native: '0.73',
     rhino: '1.7.13',
     safari: '10.0',
   },
@@ -1836,7 +1836,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
-    'react-native': '0.73',
+    react_native: '0.73',
     rhino: '1.7.13',
     safari: '10.0',
   },
@@ -2125,7 +2125,7 @@ export const data = {
     // https://github.com/nodejs/node/issues/42646
     node: '18.0', // '17.9', '17.5', '16.0',
     opera: '10.5',
-    'react-native': '0.74',
+    react_native: '0.74',
     safari: '10.1',
   },
   'web.btoa': {
