@@ -912,9 +912,9 @@ export const features = {
     name: 'at',
   },
   'instance/clamp': {
-    name: 'clamp',
     modules: ['esnext.number.clamp'],
     template: $instanceNumber,
+    name: 'clamp',
   },
   'instance/code-point-at': {
     modules: ['es.string.code-point-at'],
