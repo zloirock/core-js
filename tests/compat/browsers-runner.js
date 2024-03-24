@@ -13,20 +13,20 @@ var environments = [
   'android',
   'bun',
   'chrome',
-  'chrome-android',
+  'chrome_mobile',
   'deno',
   'edge',
   'electron',
   'firefox',
-  'firefox-android',
+  'firefox_mobile',
   'hermes',
   'ie',
   'ios',
   'node',
   'opera',
-  'opera-android',
+  'opera_mobile',
   'quest',
-  'react-native',
+  'react_native',
   'rhino',
   'safari',
   'samsung',
@@ -37,7 +37,7 @@ var columnHeaders = ['module', 'current'].concat(environments);
 
 for (var i = 0; i < columnHeaders.length; i++) {
   tableHeader.appendChild(createElement('th', {
-    innerHTML: columnHeaders[i].replace(/-/g, '<br />'),
+    innerHTML: columnHeaders[i].replace(/_/g, '<br />'),
   }));
 }
 
