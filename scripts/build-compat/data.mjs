@@ -13,7 +13,7 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>-$<upper>').toLowerCase());
+        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>_$<upper>').toLowerCase());
       const version = module[engine];
       if (!version || hasOwn(module, targetKey)) return;
       const mapping = mappings[mappingKey];
@@ -43,23 +43,23 @@ for (const scope of [data, external]) {
       map('ChromeToElectron');
     }
     map('ChromeToOpera');
-    map('ChromeToChromeAndroid');
+    map('ChromeToChromeMobile');
     map('ChromeToAndroid');
-    if (!hasOwn(module, 'android') && module['chrome-android']) {
+    if (!hasOwn(module, 'android') && module.chrome_mobile) {
       // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
-      module.android = String(Math.max(module['chrome-android'], 37));
+      module.android = String(Math.max(module.chrome_mobile, 37));
     }
-    if (!hasOwn(module, 'opera-android') && module.opera <= 42) {
-      module['opera-android'] = module.opera;
+    if (!hasOwn(module, 'opera_mobile') && module.opera <= 42) {
+      module.opera_mobile = module.opera;
     } else {
-      map('ChromeAndroidToOperaAndroid');
+      map('ChromeMobileToOperaMobile');
     }
-    map('ChromeAndroidToQuest');
-    map('ChromeAndroidToSamsung');
+    map('ChromeMobileToQuest');
+    map('ChromeMobileToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
-    map('FirefoxToFirefoxAndroid');
+    map('FirefoxToFirefoxMobile');
     map('SafariToIOS');
     if (!hasOwn(module, 'ios') && hasOwn(module, 'safari')) {
       module.ios = module.safari;
