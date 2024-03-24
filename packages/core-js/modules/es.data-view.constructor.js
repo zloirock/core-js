@@ -15,15 +15,16 @@ if (Object.getPrototypeOf(DataViewPrototype) !== ObjectPrototype) {
   setPrototypeOf(DataViewPrototype, ObjectPrototype);
 }
 
-var NEW_REQUIRED = fails(function () {
-  NativeDataView(new NativeArrayBuffer(1));
-});
-
 var PROPER_UNDEFINED_HANDLING = !fails(function () {
   return new NativeDataView(new NativeArrayBuffer(1), undefined, undefined).byteLength !== 1;
 });
 
-var WRAP = !NEW_REQUIRED || !PROPER_UNDEFINED_HANDLING;
+var NEW_REQUIRED = fails(function () {
+  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
+  NativeDataView(new NativeArrayBuffer(1));
+});
+
+var WRAP = !PROPER_UNDEFINED_HANDLING || !NEW_REQUIRED;
 
 var $DataView = function DataView(buffer) {
   anInstance(this, DataViewPrototype);
