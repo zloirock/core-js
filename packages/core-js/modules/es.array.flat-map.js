@@ -1,4 +1,5 @@
 'use strict';
+// dependency: es.array.unscopables.flat-map
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var aCallable = require('../internals/a-callable');
