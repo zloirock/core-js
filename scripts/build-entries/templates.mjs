@@ -137,7 +137,7 @@ export const $instanceNumber = t(p => dedent`
       || (isPrototypeOf(NumberPrototype, it) && ownProperty === NumberPrototype.${ p.name })) return numberMethod;
     return ownProperty;
   };
-`)();
+`);
 
 export const $instanceString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
