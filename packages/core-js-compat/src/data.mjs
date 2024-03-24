@@ -2647,6 +2647,8 @@ export const data = {
     node: '20.1.0',
     safari: '17.0',
   },
+  'web.url.parse': {
+  },
   'web.url.to-json': {
     bun: '0.1.1',
     chrome: '71',

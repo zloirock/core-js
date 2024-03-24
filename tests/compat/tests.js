@@ -1997,6 +1997,9 @@ GLOBAL.tests = {
       return URL.canParse.length === 1;
     }
   }],
+  'web.url.parse': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    return URL.parse;
+  }],
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
   }],

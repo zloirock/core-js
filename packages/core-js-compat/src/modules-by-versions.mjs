@@ -237,4 +237,7 @@ export default {
     'es.array-buffer.transfer',
     'es.array-buffer.transfer-to-fixed-length',
   ],
+  3.37: [
+    'web.url.parse',
+  ],
 };
