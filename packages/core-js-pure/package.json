@@ -547,6 +547,8 @@
     "./proposals/function-demethodize.js": "./proposals/function-demethodize.js",
     "./proposals/global-this": "./proposals/global-this.js",
     "./proposals/global-this.js": "./proposals/global-this.js",
+    "./proposals/is-error": "./proposals/is-error.js",
+    "./proposals/is-error.js": "./proposals/is-error.js",
     "./proposals/iterator-helpers": "./proposals/iterator-helpers.js",
     "./proposals/iterator-helpers.js": "./proposals/iterator-helpers.js",
     "./proposals/iterator-range": "./proposals/iterator-range.js",

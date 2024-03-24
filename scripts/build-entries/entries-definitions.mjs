@@ -880,7 +880,9 @@ export const features = {
   },
   'error/is-error': {
     modules: ['esnext.error.is-error'],
-    template: $static({ namespace: 'Error', method: 'isError' }),
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
