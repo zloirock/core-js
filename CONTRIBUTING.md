@@ -42,26 +42,26 @@ For updating `@core-js/compat` data:
 
 engine            | how to run tests | base data inherits from    | mandatory check  | mapping for a new version
 ---               | ---              | ---                        | ---              | ---
-`android`         | browser runner   | `chrome`, `chrome-android` |                  |
+`android`         | browser runner   | `chrome`, `chrome_mobile`  |                  |
 `bun`             | bun runner       | `safari` (only ES)         | required         |
 `chrome`          | browser runner   |                            | required         |
-`chrome-android`  | browser runner   | `chrome`                   |                  |
+`chrome_mobile`   | browser runner   | `chrome`                   |                  |
 `deno`            | deno runner      | `chrome` (only ES)         | non-ES features  | required
 `edge`            | browser runner   | `ie`, `chrome`             | required (<= 18) |
 `electron`        | browser runner   | `chrome`                   |                  | required
 `firefox`         | browser runner   |                            | required         |
-`firefox-android` | browser runner   | `firefox`                  |                  |
+`firefox_mobile`  | browser runner   | `firefox`                  |                  |
 `hermes`          | hermes runner    |                            | required         |
 `ie`              | browser runner   |                            | required         |
 `ios`             | browser runner   | `safari`                   |                  | if inconsistent (!= `safari`)
 `node`            | node runner      | `chrome` (only ES)         | non-ES features  | required
 `opera`           | browser runner   | `chrome`                   |                  | if inconsistent (!= `chrome` - 14)
-`opera-android`   | browser runner   | `opera`, `chrome-android`  |                  | required
-`quest`           | browser runner   | `chrome-android`           |                  | required
-`react-native`    | hermes runner    | `hermes`                   | required         |
+`opera_mobile`    | browser runner   | `opera`, `chrome_mobile`   |                  | required
+`quest`           | browser runner   | `chrome_mobile`            |                  | required
+`react_native`    | hermes runner    | `hermes`                   | required         |
 `rhino`           | rhino runner     |                            | required         |
 `safari`          | browser runner   |                            | required         |
-`samsung`         | browser runner   | `chrome-android`           |                  | required
+`samsung`         | browser runner   | `chrome_mobile`            |                  | required
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 
