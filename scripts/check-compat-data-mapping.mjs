@@ -57,7 +57,7 @@ const [
   deno,
   oculus,
   opera,
-  operaAndroid,
+  operaMobile,
   safari,
   ios,
   samsung,
@@ -79,11 +79,11 @@ assert(modernV8ToChrome(node.find(({ v8 }) => v8).v8) <= latest(mapping.ChromeTo
 assert(latest(Object.entries(electron))[0] <= latest(mapping.ChromeToElectron)[0], 'Electron');
 assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno');
 // Quest Browser after 42 follows the Chromium version, so the build derives it without the mapping
-assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0] || coerce(oculus.version).major === Number(oculus.engine), 'Meta Quest');
+assert(oculus.engine <= latest(mapping.ChromeMobileToQuest)[0] || coerce(oculus.version).major === Number(oculus.engine), 'Meta Quest');
 assert(opera.version === String(mapping.ChromeToOpera(opera.engine)), 'Opera');
-assert(operaAndroid.engine <= latest(mapping.ChromeAndroidToOperaAndroid)[0], 'Opera for Android');
+assert(operaMobile.engine <= latest(mapping.ChromeMobileToOperaMobile)[0], 'Opera for Mobile');
 assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
-assert(samsung.engine <= latest(mapping.ChromeAndroidToSamsung)[0], 'Samsung Internet');
+assert(samsung.engine <= latest(mapping.ChromeMobileToSamsung)[0], 'Samsung Internet');
 assert(yandexAndroid.engine <= latest(mapping.ChromeAndroidToYandexAndroid)[0], 'Yandex Browser for Android');
 
 if (updated) echo(chalk.green('updates of compat data mapping not required'));
