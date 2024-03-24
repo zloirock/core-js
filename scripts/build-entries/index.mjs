@@ -46,7 +46,7 @@ async function buildEntry(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
-    template, templateStable, templateActual, templateFull, filter, modules, enforce, necessary,
+    template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation, necessaryModules,
   } = options;
 
   switch (subset) {
@@ -72,9 +72,9 @@ async function buildEntry(entry, options) {
 
   modules = expandModules(modules, filter);
 
-  if (!enforce) {
-    necessary = necessary ? expandModules(necessary, filter) : modules;
-    if (!necessary.length) return;
+  if (!enforceEntryCreation) {
+    necessaryModules = necessaryModules ? expandModules(necessaryModules, filter) : modules;
+    if (!necessaryModules.length) return;
   }
 
   const level = entry.split('/').length - 1;
