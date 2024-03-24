@@ -34,6 +34,11 @@ const exportsFields = {
   './modules/*.js': './modules/*.js',
 };
 
+const entriesMap = AllModules.reduce((memo, it) => {
+  memo[`core-js/modules/${ it }`] = [it];
+  return memo;
+}, {});
+
 function expandModules(modules, filter) {
   if (!Array.isArray(modules)) modules = [modules];
   modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(path => it.test(path)) : [it]);
@@ -99,6 +104,8 @@ async function buildEntry(entry, options) {
     exportsFields[`./${ entrySlice2 }/*`] = `./${ entrySlice2 }/*.js`;
     exportsFields[`./${ entrySlice2 }/*.js`] = `./${ entrySlice2 }/*.js`;
   }
+
+  entriesMap[`core-js/${ entry }`.replace(/\/index$/, '')] = modules;
 }
 
 async function writeExportsField(path) {
@@ -135,3 +142,7 @@ echo(green(`built ${ cyan(built) } entries`));
 
 await writeExportsField('./packages/core-js/package.json');
 await writeExportsField('./packages/core-js-pure/package.json');
+
+await writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
+
+echo(chalk.green('entries data rebuilt'));
