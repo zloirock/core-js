@@ -3301,7 +3301,7 @@ queueMicrotask(() => console.log('called as microtask'));
 ```
 
 #### `URL` and `URLSearchParams`[⬆](#index)
-[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
+[`URL` standard](https://url.spec.whatwg.org/) implementation. Modules [`web.url`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.js), [`web.url.can-parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.can-parse.js), [`web.url.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.parse.js), [`web.url.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url.to-json.js), [`web.url-search-params`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.js), [`web.url-search-params.delete`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.delete.js), [`web.url-search-params.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.has.js), [`web.url-search-params.size`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.url-search-params.size.js).
 ```js
 class URL {
   constructor(url: string, base?: string);
@@ -3320,6 +3320,7 @@ class URL {
   toJSON(): string;
   toString(): string;
   static canParse(url: string, base?: string): boolean;
+  static parse(url: string, base?: string): URL | null;
 }
 
 class URLSearchParams {
@@ -3348,10 +3349,13 @@ core-js(-pure)/stable|actual|full/url/can-parse
 core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
-[*Examples*](https://tinyurl.com/2j35uor6):
+[*Examples*](https://tinyurl.com/2yz45vol):
 ```js
 URL.canParse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => true
 URL.canParse('https'); // => false
+
+URL.parse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => url
+URL.parse('https'); // => null
 
 const url = new URL('https://login:password@example.com:8080/foo/bar?a=1&b=2&a=3#fragment');
 
