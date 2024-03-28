@@ -4,6 +4,8 @@ var hasOwn = require('../internals/has-own-property');
 var toIndexedObject = require('../internals/to-indexed-object');
 var indexOf = require('../internals/array-includes').indexOf;
 var hiddenKeys = require('../internals/hidden-keys');
+var call = require('../internals/function-call');
+var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 
 var push = uncurryThis([].push);
 
@@ -14,7 +16,7 @@ module.exports = function (object, names) {
   var key;
   for (key in O) !hasOwn(hiddenKeys, key) && hasOwn(O, key) && push(result, key);
   // Don't enum bug & hidden keys
-  while (names.length > i) if (hasOwn(O, key = names[i++])) {
+  while (names.length > i) if (hasOwn(O, key = names[i++]) && call(propertyIsEnumerableModule.f, O, key)) {
     ~indexOf(result, key) || push(result, key);
   }
   return result;
