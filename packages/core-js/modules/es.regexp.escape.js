@@ -1,15 +1,17 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aString = require('../internals/a-string');
 var hasOwn = require('../internals/has-own-property');
-var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
 var $escape = RegExp.escape;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
+// dependency: es.string.pad-start
+var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
 var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
 var FIRST_DIGIT_OR_ASCII = /^[0-9a-z]/i;
