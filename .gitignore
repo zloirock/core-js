@@ -6,10 +6,13 @@ node_modules/
 *.bak
 *.swp
 
-/packages/core-js/features/
-/packages/core-js/es/index.js
-/packages/core-js/full/index.js
-/packages/core-js/stable/index.js
+/packages/core-js/actual/
+/packages/core-js/es/
+/packages/core-js/full/
+/packages/core-js/proposals/
+/packages/core-js/stable/
+/packages/core-js/stage/
+/packages/core-js/index.js
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
@@ -25,14 +28,12 @@ node_modules/
 /packages/core-js-compat/modules-by-versions.json
 /packages/core-js-pure/actual/
 /packages/core-js-pure/es/
-/packages/core-js-pure/features/
 /packages/core-js-pure/full/
 /packages/core-js-pure/internals/
 /packages/core-js-pure/modules/
 /packages/core-js-pure/proposals/
 /packages/core-js-pure/stable/
 /packages/core-js-pure/stage/
-/packages/core-js-pure/web/
 /packages/core-js-pure/LICENSE
 /packages/core-js-pure/index.js
 /packages/core-js-pure/configurator.js

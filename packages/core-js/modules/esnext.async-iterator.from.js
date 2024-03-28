@@ -9,11 +9,12 @@ var IS_PURE = require('../internals/is-pure');
 
 // `AsyncIterator.from` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', stat: true, forced: IS_PURE }, {
   from: function from(O) {
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
     return isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new WrapAsyncIterator(iteratorRecord);
-  }
+  },
 });

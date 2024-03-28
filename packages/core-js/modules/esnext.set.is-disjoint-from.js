@@ -1,14 +1,26 @@
 'use strict';
 var $ = require('../internals/export');
-var call = require('../internals/function-call');
-var toSetLike = require('../internals/to-set-like');
-var $isDisjointFrom = require('../internals/set-is-disjoint-from');
+var aSet = require('../internals/a-set');
+var has = require('../internals/set-helpers').has;
+var size = require('../internals/set-size');
+var getSetRecord = require('../internals/get-set-record');
+var iterateSet = require('../internals/set-iterate');
+var iterateSimple = require('../internals/iterate-simple');
+var iteratorClose = require('../internals/iterator-close');
+var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');
 
 // `Set.prototype.isDisjointFrom` method
 // https://github.com/tc39/proposal-set-methods
-// TODO: Obsolete version, remove from `core-js@4`
-$({ target: 'Set', proto: true, real: true, forced: true }, {
+$({ target: 'Set', proto: true, real: true, forced: !setMethodAcceptSetLike('isDisjointFrom') }, {
   isDisjointFrom: function isDisjointFrom(other) {
-    return call($isDisjointFrom, this, toSetLike(other));
-  }
+    var O = aSet(this);
+    var otherRec = getSetRecord(other);
+    if (size(O) <= otherRec.size) return iterateSet(O, function (e) {
+      if (otherRec.includes(e)) return false;
+    }, true) !== false;
+    var iterator = otherRec.getIterator();
+    return iterateSimple(iterator, function (e) {
+      if (has(O, e)) return iteratorClose(iterator, 'normal', false);
+    }) !== false;
+  },
 });

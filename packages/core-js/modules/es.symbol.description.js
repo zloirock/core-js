@@ -2,24 +2,22 @@
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
 var $ = require('../internals/export');
-var DESCRIPTORS = require('../internals/descriptors');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var hasOwn = require('../internals/has-own-property');
 var isCallable = require('../internals/is-callable');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var toString = require('../internals/to-string');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
-var NativeSymbol = global.Symbol;
+var NativeSymbol = globalThis.Symbol;
 var SymbolPrototype = NativeSymbol && NativeSymbol.prototype;
 
-if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
+if (isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||
   // Safari 12 bug
   NativeSymbol().description !== undefined
 )) {
-  var EmptyStringDescriptionStore = {};
+  var EmptyStringDescriptionStore = Object.create(null);
   // wrap Symbol constructor for correct work with undefined description
   var SymbolWrapper = function Symbol() {
     var description = arguments.length < 1 || arguments[0] === undefined ? undefined : toString(arguments[0]);
@@ -46,14 +44,14 @@ if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototy
     configurable: true,
     get: function description() {
       var symbol = thisSymbolValue(this);
-      if (hasOwn(EmptyStringDescriptionStore, symbol)) return '';
+      if (symbol in EmptyStringDescriptionStore) return '';
       var string = symbolDescriptiveString(symbol);
       var desc = NATIVE_SYMBOL ? stringSlice(string, 7, -1) : replace(string, regexp, '$1');
       return desc === '' ? undefined : desc;
-    }
+    },
   });
 
   $({ global: true, constructor: true, forced: true }, {
-    Symbol: SymbolWrapper
+    Symbol: SymbolWrapper,
   });
 }

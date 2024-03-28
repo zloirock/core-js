@@ -1,8 +1,8 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isObject = require('../internals/is-object');
 
-var document = global.document;
+var document = globalThis.document;
 // typeof document.createElement is 'object' in old IE
 var EXISTS = isObject(document) && isObject(document.createElement);
 

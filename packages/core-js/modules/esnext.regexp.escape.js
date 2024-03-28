@@ -1,11 +1,13 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
-var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
 var charCodeAt = uncurryThis(''.charCodeAt);
+// dependency: es.string.pad-start
+var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
 var replace = uncurryThis(''.replace);
 var numberToString = uncurryThis(1.1.toString);
 var NEED_ESCAPING = RegExp('[!"#$%&\'()*+,\\-./:;<=>?@[\\\\\\]^`{|}~' + WHITESPACES + ']', 'g');
@@ -21,5 +23,5 @@ $({ target: 'RegExp', stat: true, forced: true }, {
       var hex = numberToString(charCodeAt(match, 0), 16);
       return hex.length < 3 ? '\\x' + padStart(hex, 2, '0') : '\\u' + padStart(hex, 4, '0');
     });
-  }
+  },
 });

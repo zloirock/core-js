@@ -1,12 +1,12 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var V8 = require('../internals/engine-v8-version');
 var IS_BROWSER = require('../internals/engine-is-browser');
 var IS_DENO = require('../internals/engine-is-deno');
 var IS_NODE = require('../internals/engine-is-node');
 
-var structuredClone = global.structuredClone;
+var structuredClone = globalThis.structuredClone;
 
 module.exports = !!structuredClone && !fails(function () {
   // prevent V8 ArrayBufferDetaching protector cell invalidation and performance degradation

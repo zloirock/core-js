@@ -22,12 +22,13 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.take` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: esnext.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   take: function take(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

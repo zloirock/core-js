@@ -1,8 +1,8 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var NativePromiseConstructor = require('../internals/promise-native-constructor');
 var isCallable = require('../internals/is-callable');
-var isForced = require('../internals/is-forced');
+var fails = require('../internals/fails');
 var inspectSource = require('../internals/inspect-source');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_BROWSER = require('../internals/engine-is-browser');
@@ -13,9 +13,9 @@ var V8_VERSION = require('../internals/engine-v8-version');
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 var SPECIES = wellKnownSymbol('species');
 var SUBCLASSING = false;
-var NATIVE_PROMISE_REJECTION_EVENT = isCallable(global.PromiseRejectionEvent);
+var NATIVE_PROMISE_REJECTION_EVENT = isCallable(globalThis.PromiseRejectionEvent);
 
-var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
+var FORCED_PROMISE_CONSTRUCTOR = fails(function () {
   var PROMISE_CONSTRUCTOR_SOURCE = inspectSource(NativePromiseConstructor);
   var GLOBAL_CORE_JS_PROMISE = PROMISE_CONSTRUCTOR_SOURCE !== String(NativePromiseConstructor);
   // V8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
@@ -23,7 +23,7 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
   // We can't detect it synchronously, so just check versions
   if (!GLOBAL_CORE_JS_PROMISE && V8_VERSION === 66) return true;
   // We need Promise#{ catch, finally } in the pure version for preventing prototype pollution
-  if (IS_PURE && !(NativePromisePrototype['catch'] && NativePromisePrototype['finally'])) return true;
+  if (IS_PURE && !(NativePromisePrototype.catch && NativePromisePrototype.finally)) return true;
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
@@ -44,5 +44,5 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
 module.exports = {
   CONSTRUCTOR: FORCED_PROMISE_CONSTRUCTOR,
   REJECTION_EVENT: NATIVE_PROMISE_REJECTION_EVENT,
-  SUBCLASSING: SUBCLASSING
+  SUBCLASSING: SUBCLASSING,
 };

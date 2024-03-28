@@ -1,4 +1,4 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 
-module.exports = global;
+module.exports = globalThis;

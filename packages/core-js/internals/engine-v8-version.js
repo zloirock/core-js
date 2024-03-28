@@ -1,9 +1,9 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var userAgent = require('../internals/engine-user-agent');
 
-var process = global.process;
-var Deno = global.Deno;
+var process = globalThis.process;
+var Deno = globalThis.Deno;
 var versions = process && process.versions || Deno && Deno.version;
 var v8 = versions && versions.v8;
 var match, version;

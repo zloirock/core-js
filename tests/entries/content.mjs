@@ -30,7 +30,7 @@ function subset(name, required) {
   }
 }
 
-equal('core-js', allModules);
+superset('core-js/actual', /^(?:es|web)\./);
 equal('core-js/es', /^es\./);
 superset('core-js/es/array', /^es\.array\./);
 superset('core-js/es/array-buffer', /^es\.array-buffer\./);
@@ -52,7 +52,6 @@ superset('core-js/es/symbol', /^es\.symbol/);
 superset('core-js/es/typed-array', /^es\.typed-array\./);
 superset('core-js/es/weak-map', /^es\.weak-map/);
 superset('core-js/es/weak-set', /^es\.weak-set/);
-equal('core-js/web', /^web\./);
 equal('core-js/stable', /^(?:es|web)\./);
 superset('core-js/stable/array', /^es\.array\./);
 superset('core-js/stable/array-buffer', /^es\.array-buffer\./);
@@ -104,7 +103,6 @@ equal('core-js/full', allModules);
 superset('core-js/full/array', /^(?:es|esnext)\.array\./);
 superset('core-js/full/array-buffer', /^(?:es|esnext)\.array-buffer\./);
 superset('core-js/full/async-iterator', /^(?:es|esnext)\.async-iterator\./);
-superset('core-js/full/bigint', /^(?:es|esnext)\.bigint\./);
 superset('core-js/full/data-view', /^(?:es|esnext)\.data-view\./);
 superset('core-js/full/date', /^(?:es|esnext)\.date\./);
 superset('core-js/full/dom-collections', /^web\.dom-collections\./);
@@ -128,14 +126,10 @@ superset('core-js/full/url', /^web\.url(?:\.|$)/);
 superset('core-js/full/url-search-params', /^web\.url-search-params/);
 superset('core-js/full/weak-map', /^(?:es|esnext)\.weak-map/);
 superset('core-js/full/weak-set', /^(?:es|esnext)\.weak-set/);
-subset('core-js/proposals', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/pre', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/0', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/1', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/2', /^es\.string\.at|esnext\./);
-subset('core-js/stage/3', /^es\.string\.at|esnext\./);
-subset('core-js/stage/4', /^es\.string\.at|esnext\./);
+subset('core-js/stage/0', /^(?:es\.|esnext\.)/);
+subset('core-js/stage/1', /^(?:es\.|esnext\.)/);
+subset('core-js/stage/2', /^es\.|esnext\./);
+subset('core-js/stage/3', /^es\.|esnext\./);
 
 async function unexpectedInnerNamespace(namespace, unexpected) {
   const paths = await glob(`packages/core-js/${ namespace }/**/*.js`);

@@ -1,8 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
-var FREEZING = require('../internals/freezing');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isCallable = require('../internals/is-callable');
@@ -16,11 +15,10 @@ var setInternalState = require('../internals/internal-state').set;
 
 var $String = String;
 var $SyntaxError = SyntaxError;
-var parse = getBuiltIn('JSON', 'parse');
-var $stringify = getBuiltIn('JSON', 'stringify');
-var create = getBuiltIn('Object', 'create');
-var freeze = getBuiltIn('Object', 'freeze');
-var at = uncurryThis(''.charAt);
+var parse = getBuiltInStaticMethod('JSON', 'parse');
+var $stringify = getBuiltInStaticMethod('JSON', 'stringify');
+var create = Object.create;
+var freeze = Object.freeze;
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
@@ -36,7 +34,7 @@ var IS_WHITESPACE = /^[\t\n\r ]$/;
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {
     var jsonString = toString(text);
-    if (jsonString === '' || exec(IS_WHITESPACE, at(jsonString, 0)) || exec(IS_WHITESPACE, at(jsonString, jsonString.length - 1))) {
+    if (jsonString === '' || exec(IS_WHITESPACE, jsonString[0]) || exec(IS_WHITESPACE, jsonString[jsonString.length - 1])) {
       throw new $SyntaxError(ERROR_MESSAGE);
     }
     var parsed = parse(jsonString);
@@ -44,14 +42,14 @@ $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
     var obj = create(null);
     setInternalState(obj, { type: 'RawJSON' });
     createProperty(obj, 'rawJSON', jsonString);
-    return FREEZING ? freeze(obj) : obj;
-  }
+    return freeze(obj);
+  },
 });
 
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
+$({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);
     var rawStrings = [];
@@ -68,17 +66,17 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: !NATIVE_RAW_JS
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = at(json, i);
-      if (chr === '"') {
+      var char = json[i];
+      if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         result += slice(string, 0, MARK_LENGTH) === MARK
           ? rawStrings[slice(string, MARK_LENGTH)]
           : '"' + string + '"';
         i = end;
-      } else result += chr;
+      } else result += char;
     }
 
     return result;
-  }
+  },
 });

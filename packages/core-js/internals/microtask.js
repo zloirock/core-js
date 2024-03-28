@@ -1,7 +1,6 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
-var bind = require('../internals/function-bind-context');
 var macrotask = require('../internals/task').set;
 var Queue = require('../internals/queue');
 var IS_IOS = require('../internals/engine-is-ios');
@@ -9,10 +8,10 @@ var IS_IOS_PEBBLE = require('../internals/engine-is-ios-pebble');
 var IS_WEBOS_WEBKIT = require('../internals/engine-is-webos-webkit');
 var IS_NODE = require('../internals/engine-is-node');
 
-var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
-var document = global.document;
-var process = global.process;
-var Promise = global.Promise;
+var MutationObserver = globalThis.MutationObserver || globalThis.WebKitMutationObserver;
+var document = globalThis.document;
+var process = globalThis.process;
+var Promise = globalThis.Promise;
 var microtask = safeGetBuiltIn('queueMicrotask');
 var notify, toggle, node, promise, then;
 
@@ -47,7 +46,7 @@ if (!microtask) {
     promise = Promise.resolve(undefined);
     // workaround of WebKit ~ iOS Safari 10.1 bug
     promise.constructor = Promise;
-    then = bind(promise.then, promise);
+    then = promise.then.bind(promise);
     notify = function () {
       then(flush);
     };
@@ -60,11 +59,10 @@ if (!microtask) {
   // - setImmediate
   // - MessageChannel
   // - window.postMessage
-  // - onreadystatechange
   // - setTimeout
   } else {
-    // `webpack` dev server bug on IE global methods - use bind(fn, global)
-    macrotask = bind(macrotask, global);
+    // `webpack` dev server bug on IE global methods - use macrotask.bind(globalThis)
+    macrotask = macrotask.bind(globalThis);
     notify = function () {
       macrotask(flush);
     };

@@ -1,13 +1,12 @@
 'use strict';
 var $ = require('../internals/export');
-var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toPropertyKey = require('../internals/to-property-key');
 var iterate = require('../internals/iterate');
 
-var create = getBuiltIn('Object', 'create');
+var create = Object.create;
 var push = uncurryThis([].push);
 
 // `Object.groupBy` method
@@ -18,6 +17,9 @@ $({ target: 'Object', stat: true }, {
     aCallable(callbackfn);
     var obj = create(null);
     var k = 0;
+    // dependency: es.array.iterator
+    // dependency: es.string.iterator
+    // dependency: web.dom-collections.iterator
     iterate(items, function (value) {
       var key = toPropertyKey(callbackfn(value, k++));
       // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
@@ -26,5 +28,5 @@ $({ target: 'Object', stat: true }, {
       else obj[key] = [value];
     });
     return obj;
-  }
+  },
 });

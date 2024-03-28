@@ -1,17 +1,11 @@
 'use strict';
 /* eslint-disable no-console -- output */
-const { promisify } = require('util');
-const fs = require('fs');
-// TODO: replace by `fs.promises` after dropping NodeJS < 10 support
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-const writeFile = promisify(fs.writeFile);
-const { dirname, join } = require('path');
-const tmpdir = require('os').tmpdir();
-// TODO: replace by `mkdir` with `recursive: true` after dropping NodeJS < 10.12 support
-const mkdirp = promisify(require('mkdirp'));
+const { promisify } = require('node:util');
+const { mkdir, readFile, unlink, writeFile } = require('node:fs/promises');
+const { dirname, join } = require('node:path');
+const tmpdir = require('node:os').tmpdir();
 const webpack = promisify(require('webpack'));
-const compat = require('core-js-compat/compat');
+const compat = require('@core-js/compat/compat');
 const { banner } = require('./config');
 
 function normalizeSummary(unit = {}) {
@@ -26,7 +20,6 @@ function normalizeSummary(unit = {}) {
 
 module.exports = async function ({
   modules = null,
-  blacklist = null, // TODO: Obsolete, remove from `core-js@4`
   exclude = [],
   targets = null,
   format = 'bundle',
@@ -40,7 +33,7 @@ module.exports = async function ({
   let script = banner;
   let code = '\n';
 
-  const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
+  const { list, targets: compatTargets } = compat({ targets, modules, exclude });
 
   if (list.length) {
     if (format === 'bundle') {
@@ -49,15 +42,11 @@ module.exports = async function ({
 
       await webpack({
         mode: 'none',
-        node: {
-          global: false,
-          process: false,
-          setImmediate: false,
-        },
+        node: false,
+        target: ['es5', 'node'],
         entry: list.map(it => require.resolve(`core-js/modules/${ it }`)),
         output: {
           filename: tempFileName,
-          hashFunction: 'md5',
           path: tmpdir,
         },
       });
@@ -96,9 +85,9 @@ module.exports = async function ({
   }
 
   if (!(filename === null || filename === undefined)) {
-    await mkdirp(dirname(filename));
+    await mkdir(dirname(filename), { recursive: true });
     await writeFile(filename, script);
   }
 
-  return script;
+  return { script };
 };

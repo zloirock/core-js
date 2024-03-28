@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.some` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: esnext.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   some: function some(predicate) {
     anObject(this);
@@ -16,5 +17,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop();
     }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });
