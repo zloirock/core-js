@@ -2939,6 +2939,12 @@ export const features = {
     namespace: 'URL',
     name: 'canParse',
   },
+  'url/parse': {
+    modules: ['web.url.parse'],
+    template: $static,
+    namespace: 'URL',
+    name: 'parse',
+  },
   'url/to-json': { // <- ???
     modules: ['web.url.to-json'],
     template: $prototype,
