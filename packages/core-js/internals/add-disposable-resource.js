@@ -20,6 +20,7 @@ var getDisposeMethod = function (V, hint) {
     var method = getMethod(V, ASYNC_DISPOSE);
     if (method !== undefined) return method;
     method = getMethod(V, DISPOSE);
+    if (method === undefined) return method;
     return function () {
       call(method, this);
     };
