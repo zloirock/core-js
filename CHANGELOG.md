@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- [`Promise.try`](https://github.com/tc39/proposal-promise-try):
+  - Built-ins:
+    - `Promise.try`
+  - Moved to stage 2.7, April 2024 TC39 meeting
 - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse), [url/825](https://github.com/whatwg/url/pull/825)
 - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) [moved to hex-escape semantics](https://github.com/tc39/proposal-regex-escaping/pull/67)
 - Some minor updates of [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 proposal like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
