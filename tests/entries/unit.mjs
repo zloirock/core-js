@@ -316,6 +316,13 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(new Set([1, 2, 3, 2, 1]).size === 3);
     ok(new WeakMap([[O = {}, 42]]).get(O) === 42);
     ok(new WeakSet([O = {}]).has(O));
+    ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
+    ok(load(NS, 'set/intersection')(new Set([1, 2, 3]), new Set([1, 3, 4])).size === 2);
+    ok(load(NS, 'set/is-disjoint-from')(new Set([1, 2, 3]), new Set([4, 5, 6])));
+    ok(load(NS, 'set/is-subset-of')(new Set([1, 2, 3]), new Set([1, 2, 3, 4])));
+    ok(load(NS, 'set/is-superset-of')(new Set([1, 2, 3, 4]), new Set([1, 2, 3])));
+    ok(load(NS, 'set/symmetric-difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 4);
+    ok(load(NS, 'set/union')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 5);
     const Promise = load(NS, 'promise');
     ok('then' in Promise.prototype);
     ok(load(NS, 'promise/all-settled')([1, 2, 3]) instanceof Promise);
@@ -695,13 +702,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
-    ok(load(NS, 'set/difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 2);
-    ok(load(NS, 'set/intersection')(new Set([1, 2, 3]), new Set([1, 3, 4])).size === 2);
-    ok(load(NS, 'set/is-disjoint-from')(new Set([1, 2, 3]), new Set([4, 5, 6])));
-    ok(load(NS, 'set/is-subset-of')(new Set([1, 2, 3]), new Set([1, 2, 3, 4])));
-    ok(load(NS, 'set/is-superset-of')(new Set([1, 2, 3, 4]), new Set([1, 2, 3])));
-    ok(load(NS, 'set/symmetric-difference')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 4);
-    ok(load(NS, 'set/union')(new Set([1, 2, 3]), new Set([3, 4, 5])).size === 5);
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/metadata'));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);

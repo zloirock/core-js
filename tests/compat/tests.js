@@ -1135,6 +1135,15 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
+  'es.set.difference.v2': createSetMethodTest('difference'),
+  'es.set.intersection.v2': [createSetMethodTest('intersection'), function () {
+    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
+  }],
+  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
+  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
+  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
+  'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'es.set.union.v2': createSetMethodTest('union'),
   'es.string.at-alternative': function () {
     return '𠮷'.at(-2) === '\uD842';
   },
@@ -1758,7 +1767,6 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference.v2': createSetMethodTest('difference'),
   'esnext.set.every': function () {
     return Set.prototype.every;
   },
@@ -1771,12 +1779,6 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
-    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
-  }],
-  'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
-  'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
-  'esnext.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
   'esnext.set.join': function () {
     return Set.prototype.join;
   },
@@ -1792,8 +1794,6 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
-  'esnext.set.union.v2': createSetMethodTest('union'),
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },

@@ -1348,6 +1348,69 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
+  'es.set.difference.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.intersection.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.is-disjoint-from.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.is-subset-of.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.is-superset-of.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.symmetric-difference.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
+  'es.set.union.v2': {
+    bun: '1.1.1',
+    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
+    chrome: '123',
+    // safari do not properly work with set-like objects
+    // https://bugs.webkit.org/show_bug.cgi?id=267494
+    // safari: '17.0',
+  },
   'es.string.at-alternative': {
     chrome: '92',
     firefox: '90',
@@ -2261,15 +2324,8 @@ export const data = {
   },
   'esnext.set.delete-all': {
   },
-  'esnext.set.difference.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.difference.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.difference': {
   },
@@ -2281,51 +2337,23 @@ export const data = {
   },
   'esnext.set.from': {
   },
-  'esnext.set.intersection.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.intersection.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.intersection': {
   },
-  'esnext.set.is-disjoint-from.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.is-disjoint-from.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-disjoint-from': {
   },
-  'esnext.set.is-subset-of.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.is-subset-of.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-subset-of': {
   },
-  'esnext.set.is-superset-of.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.is-superset-of.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.is-superset-of': {
   },
@@ -2339,27 +2367,13 @@ export const data = {
   },
   'esnext.set.some': {
   },
-  'esnext.set.symmetric-difference.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.symmetric-difference.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.symmetric-difference': {
   },
-  'esnext.set.union.v2': {
-    // v8 ~ Chrome 122 do not properly work with set-like objects
-    // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    chrome: '123',
-    bun: '1.1.1',
-    // safari do not properly work with set-like objects
-    // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.set.union.v2': null,
   // TODO: Remove from `core-js@4`
   'esnext.set.union': {
   },
@@ -2727,6 +2741,13 @@ export const renamed = new Map([
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
+  ['esnext.set.difference.v2', 'es.set.difference.v2'],
+  ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
+  ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],
+  ['esnext.set.is-subset-of.v2', 'es.set.is-subset-of.v2'],
+  ['esnext.set.is-superset-of.v2', 'es.set.is-superset-of.v2'],
+  ['esnext.set.symmetric-difference.v2', 'es.set.symmetric-difference.v2'],
+  ['esnext.set.union.v2', 'es.set.union.v2'],
   ['esnext.string.is-well-formed', 'es.string.is-well-formed'],
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],

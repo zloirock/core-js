@@ -1,5 +1,6 @@
 import { createIterable, createSetLike } from '../helpers/helpers.js';
 
+// TODO: use /es/ in core-js@4
 import Set from 'core-js-pure/full/set';
 
 QUnit.test('Set#isSubsetOf', assert => {

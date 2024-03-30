@@ -1,6 +1,5 @@
 'use strict';
-require('../../modules/es.set');
+var parent = require('../../stable/set/difference');
 require('../../modules/esnext.set.difference.v2');
-var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = entryUnbind('Set', 'difference');
+module.exports = parent;

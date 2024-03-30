@@ -154,10 +154,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Symbol.prototype.description`](#symbolprototypedescription)
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
+      - [New `Set` methods](#new-set-methods)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` helpers](#iterator-helpers)
       - [`Array.fromAsync`](#arrayfromasync)
-      - [New `Set` methods](#new-set-methods)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Float16` methods](#float16-methods)
       - [Explicit resource management](#explicit-resource-management)
@@ -1499,7 +1499,7 @@ map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ```
 #### Set[⬆](#index)
-Module [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js).
+Modules [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
 ```js
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -1511,6 +1511,13 @@ class Set {
   values(): Iterator<value>;
   keys(): Iterator<value>;
   entries(): Iterator<[value, value]>;
+  difference(other: SetLike<mixed>): Set;
+  intersection(other: SetLike<mixed>): Set;
+  isDisjointFrom(other: SetLike<mixed>): boolean;
+  isSubsetOf(other: SetLike<mixed>): boolean;
+  isSupersetOf(other: SetLike<mixed>): boolean;
+  symmetricDifference(other: SetLike<mixed>): Set;
+  union(other: SetLike<mixed>): Set;
   @@iterator(): Iterator<value>;
   readonly attribute size: number;
 }
@@ -1518,8 +1525,15 @@ class Set {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/set
+core-js(-pure)/es|stable|actual|full/set/difference
+core-js(-pure)/es|stable|actual|full/set/intersection
+core-js(-pure)/es|stable|actual|full/set/is-disjoint-from
+core-js(-pure)/es|stable|actual|full/set/is-subset-of
+core-js(-pure)/es|stable|actual|full/set/is-superset-of
+core-js(-pure)/es|stable|actual|full/set/symmetric-difference
+core-js(-pure)/es|stable|actual|full/set/union
 ```
-[*Examples*](https://goo.gl/bmhLwg):
+[*Examples*](https://tinyurl.com/2dy5t9ey):
 ```js
 let set = new Set(['a', 'b', 'a', 'c']);
 set.add('d').add('b').add('e');
@@ -1542,6 +1556,14 @@ for (let [key, value] of set.entries()) {
   console.log(key);                                 // => 1, 2, 3
   console.log(value);                               // => 1, 2, 3
 }
+
+new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
+new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
+new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
+new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
+new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
+new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
+new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 #### WeakMap[⬆](#index)
 Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
@@ -2236,6 +2258,22 @@ class String {
 ```js
 core-js/proposals/well-formed-unicode-strings
 ```
+##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)[⬆](#index)
+```js
+class Set {
+  difference(other: SetLike<mixed>): Set;
+  intersection(other: SetLike<mixed>): Set;
+  isDisjointFrom(other: SetLike<mixed>): boolean;
+  isSubsetOf(other: SetLike<mixed>): boolean;
+  isSupersetOf(other: SetLike<mixed>): boolean;
+  symmetricDifference(other: SetLike<mixed>): Set;
+  union(other: SetLike<mixed>): Set;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/set-methods-v2
+```
 
 #### Stage 3 proposals[⬆](#index)
 
@@ -2313,40 +2351,6 @@ core-js(-pure)/actual|full/array/from-async
 [*Example*](https://goo.gl/Jt7SsD):
 ```js
 await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
-```
-##### [New `Set` methods](https://github.com/tc39/proposal-set-methods)[⬆](#index)
-Modules [`esnext.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.difference.v2.js), [`esnext.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.intersection.v2.js), [`esnext.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-disjoint-from.v2.js), [`esnext.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-subset-of.v2.js), [`esnext.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.is-superset-of.v2.js), [`esnext.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.symmetric-difference.v2.js), [`esnext.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.union.v2.js)
-```js
-class Set {
-  difference(other: SetLike<mixed>): Set;
-  intersection(other: SetLike<mixed>): Set;
-  isDisjointFrom(other: SetLike<mixed>): boolean;
-  isSubsetOf(other: SetLike<mixed>): boolean;
-  isSupersetOf(other: SetLike<mixed>): boolean;
-  symmetricDifference(other: SetLike<mixed>): Set;
-  union(other: SetLike<mixed>): Set;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/set-methods-v2
-core-js(-pure)/actual|full/set/difference
-core-js(-pure)/actual|full/set/intersection
-core-js(-pure)/actual|full/set/is-disjoint-from
-core-js(-pure)/actual|full/set/is-subset-of
-core-js(-pure)/actual|full/set/is-superset-of
-core-js(-pure)/actual|full/set/symmetric-difference
-core-js(-pure)/actual|full/set/union
-```
-[*Examples*](https://tinyurl.com/2henaoac):
-```js
-new Set([1, 2, 3]).union(new Set([3, 4, 5]));               // => Set {1, 2, 3, 4, 5}
-new Set([1, 2, 3]).intersection(new Set([3, 4, 5]));        // => Set {3}
-new Set([1, 2, 3]).difference(new Set([3, 4, 5]));          // => Set {1, 2}
-new Set([1, 2, 3]).symmetricDifference(new Set([3, 4, 5])); // => Set {1, 2, 4, 5}
-new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
-new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
-new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 
 ##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
