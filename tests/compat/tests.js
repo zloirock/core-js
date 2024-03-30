@@ -1822,6 +1822,9 @@ GLOBAL.tests = {
     var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
     return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
+  'esnext.symbol.custom-matcher': function () {
+    return Symbol.customMatcher;
+  },
   'esnext.symbol.dispose': function () {
     var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
     return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
@@ -1831,9 +1834,6 @@ GLOBAL.tests = {
   },
   'esnext.symbol.is-well-known-symbol': function () {
     return Symbol.isWellKnownSymbol;
-  },
-  'esnext.symbol.matcher': function () {
-    return Symbol.matcher;
   },
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;

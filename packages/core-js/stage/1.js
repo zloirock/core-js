@@ -13,7 +13,7 @@ require('../proposals/math-signbit');
 require('../proposals/number-from-string');
 require('../proposals/object-iteration');
 require('../proposals/observable');
-require('../proposals/pattern-matching');
+require('../proposals/pattern-matching-v2');
 require('../proposals/seeded-random');
 require('../proposals/string-code-points');
 require('../proposals/string-cooked');
@@ -21,6 +21,7 @@ require('../proposals/string-cooked');
 require('../proposals/array-from-async');
 require('../proposals/map-upsert');
 require('../proposals/number-range');
+require('../proposals/pattern-matching');
 require('../proposals/string-replace-all');
 
 module.exports = parent;
