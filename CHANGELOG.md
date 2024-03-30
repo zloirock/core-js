@@ -11,13 +11,17 @@
     - `Set.prototype.isDisjointFrom`
   - Moved to stable ES, April 2024 TC39 meeting
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping):
+  - Built-ins:
+    - `RegExp.escape`
+  - Moved to stage 2.7, April 2024 TC39 meeting
+  - Moved to hex-escape semantics, [regex-escaping/67](https://github.com/tc39/proposal-regex-escaping/pull/67)
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`
   - Added optional arguments support, [promise-try/16](https://github.com/tc39/proposal-promise-try/pull/16)
   - Moved to stage 2.7, [April 2024 TC39 meeting](https://twitter.com/ljharb/status/1777398184387514544)
 - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse), [url/825](https://github.com/whatwg/url/pull/825)
-- [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) [moved to hex-escape semantics](https://github.com/tc39/proposal-regex-escaping/pull/67)
 - Some minor updates of [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 proposal like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
 - Compat data improvements:
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as supported [from FF 126](https://bugzilla.mozilla.org/show_bug.cgi?id=1887611)

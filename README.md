@@ -163,6 +163,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
+      - [`RegExp` escaping](#regexp-escaping)
       - [`Promise.try`](#promisetry)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
@@ -170,7 +171,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
-      - [`RegExp` escaping](#regexp-escaping)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to-from-base64-and-hex)
     - [Stage 1 proposals](#stage-1-proposals)
@@ -2502,6 +2502,28 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
+##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
+Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
+```js
+class RegExp {
+  static escape(value: string): string
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-escaping
+core-js(-pure)/full/regexp/escape
+```
+[*Example*](https://tinyurl.com/2cdgu3cz):
+```js
+console.log(RegExp.escape('10$')); // => '\\x310\\x24'
+console.log(RegExp.escape('abcdefg_123456')); // => 'abcdefg_123456'
+console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
+// => '\\x28\\x29\\x7b\\x7d\\x5b\\x5d\\x7c\\x2c\\x2e\\x3f\\x2a\\x2b\\x2d\\x5e\\x24\\x3d\\x3c\\x3e\\x5c\\x2f\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
+console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
+// => '\\x09\\x0a\\x0b\\x0c\\x0d\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
+```
+
 ##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 ```js
@@ -2517,11 +2539,8 @@ core-js(-pure)/full/promise/try
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
 Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
-
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
-
 Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${it}`));
-
 Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
 
@@ -2694,27 +2713,6 @@ console.log(String.dedent`
 String.dedent(console.log)`
   print('${ message }')
 `; // => ["print('", "')", raw: Array(2)], 42
-```
-##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
-Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
-```js
-class RegExp {
-  static escape(value: string): string
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/regexp-escaping
-core-js(-pure)/full/regexp/escape
-```
-[*Example*](https://tinyurl.com/2cdgu3cz):
-```js
-console.log(RegExp.escape('10$')); // => '\\x310\\x24'
-console.log(RegExp.escape('abcdefg_123456')); // => 'abcdefg_123456'
-console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
-// => '\\x28\\x29\\x7b\\x7d\\x5b\\x5d\\x7c\\x2c\\x2e\\x3f\\x2a\\x2b\\x2d\\x5e\\x24\\x3d\\x3c\\x3e\\x5c\\x2f\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
-console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
-// => '\\x09\\x0a\\x0b\\x0c\\x0d\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
 ```
 
 ##### [`Symbol` predicates](https://github.com/tc39/proposal-symbol-predicates)[⬆](#index)
