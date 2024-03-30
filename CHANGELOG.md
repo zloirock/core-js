@@ -11,6 +11,10 @@
     - `Set.prototype.isDisjointFrom`
   - Moved to stable ES, April 2024 TC39 meeting
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Iterator.range`](https://github.com/tc39/proposal-iterator.range):
+  - Built-ins:
+    - `Iterator.range`
+  - Moved to stage 2.7, April 2024 TC39 meeting
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`

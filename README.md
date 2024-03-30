@@ -163,10 +163,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit resource management](#explicit-resource-management)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
+      - [`Iterator.range`](#iteratorrange)
       - [`Promise.try`](#promisetry)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
-      - [`Iterator.range`](#iteratorrange)
       - [`Map.prototype.emplace`](#mapprototypeemplace)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
@@ -2502,6 +2502,29 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
+##### [`Iterator.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
+Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+```js
+class Iterator {
+  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
+  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/number-range
+core-js(-pure)/full/iterator/range
+```
+[*Example*](https://tinyurl.com/2gobe777):
+```js
+for (const i of Iterator.range(1, 10)) {
+  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
+}
+for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
+  console.log(i); // => 1, 4, 7, 10
+}
+```
+
 ##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 ```js
@@ -2517,11 +2540,8 @@ core-js(-pure)/full/promise/try
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
 Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
-
 Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
-
 Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${it}`));
-
 Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
 ```
 
@@ -2605,29 +2625,7 @@ require('core-js/actual/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
-##### [`Iterator.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
-Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
-```js
-class Iterator {
-  range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;
-  range(start: bigint, end: bigint | Infinity | -Infinity, options: { step: bigint = 1n, inclusive: boolean = false } | step: bigint = 1n): NumericRangeIterator;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/number-range
-core-js(-pure)/full/iterator/range
-```
-[*Example*](https://tinyurl.com/2gobe777):
-```js
-for (const i of Iterator.range(1, 10)) {
-  console.log(i); // => 1, 2, 3, 4, 5, 6, 7, 8, 9
-}
 
-for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
-  console.log(i); // => 1, 4, 7, 10
-}
-```
 ##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
 ```js
