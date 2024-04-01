@@ -2973,6 +2973,11 @@ export const features = {
     template: $namespace,
     name: 'URL',
   },
+  'url/constructor': {
+    modules: ['web.url.constructor', 'web.url.to-json', /^web\.url-search-params?\./],
+    template: $namespace,
+    name: 'URL',
+  },
   'url/can-parse': {
     modules: ['web.url.can-parse'],
     template: $static,
@@ -2998,6 +3003,11 @@ export const features = {
     name: 'toJSON',
   },
   'url-search-params/index': {
+    modules: [/^web\.url-search-params\./],
+    template: $namespace,
+    name: 'URLSearchParams',
+  },
+  'url-search-params/constructor': {
     modules: [/^web\.url-search-params\./],
     template: $namespace,
     name: 'URLSearchParams',
