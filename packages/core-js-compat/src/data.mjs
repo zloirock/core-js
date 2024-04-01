@@ -2638,9 +2638,9 @@ export const data = {
     safari: '14.0',
   },
   'web.url.can-parse': {
-    // Bun ~ 1.0.30 bug
+    // Bun < 1.1.0 bug
     // https://github.com/oven-sh/bun/issues/9250
-    // bun: '1.0.2',
+    bun: '1.1.0', // bun: '1.0.2',
     chrome: '120',
     deno: '1.33.2',
     firefox: '115',
