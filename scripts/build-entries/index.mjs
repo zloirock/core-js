@@ -35,6 +35,13 @@ const exportsFields = {
   './modules/*.js': './modules/*.js',
 };
 
+// use Object.create(null) because of cases like __proto__
+const builtInDefinitions = {
+  BuiltIns: Object.create(null),
+  StaticProperties: Object.create(null),
+  InstanceProperties: Object.create(null),
+};
+
 const entriesMap = AllModules.reduce((memo, it) => {
   memo[`core-js/modules/${ it }`] = [it];
   return memo;
@@ -52,6 +59,7 @@ async function buildEntry(entry, options) {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation, necessaryModules,
+    buildBuiltInDefinitions, injectOn, globalModeOnly = false, rawEntry, name, namespace,
   } = options;
 
   switch (subset) {
@@ -107,6 +115,29 @@ async function buildEntry(entry, options) {
   }
 
   entriesMap[`core-js/${ entry }`.replace(/\/index$/, '')] = modules;
+
+  if (buildBuiltInDefinitions && injectOn) {
+    let definitionTarget;
+
+    switch (injectOn) {
+      case 'global':
+        definitionTarget = builtInDefinitions.BuiltIns;
+        break;
+      case 'static':
+        definitionTarget = (builtInDefinitions.StaticProperties[namespace] ??= Object.create(null));
+        break;
+      case 'instance':
+        definitionTarget = builtInDefinitions.InstanceProperties;
+    }
+
+    if (Object.hasOwn(definitionTarget, name)) throw new Error(`${ name } already defined`);
+
+    definitionTarget[name] = {
+      entry: rawEntry,
+      modules,
+      globalModeOnly,
+    };
+  }
 }
 
 async function writeExportsField(path) {
@@ -120,7 +151,7 @@ for (const [entry, definition] of Object.entries(features)) {
   await buildEntry(`es/${ entry }`, { ...definition, entryFromNamespace: 'es' });
   await buildEntry(`stable/${ entry }`, { ...definition, entryFromNamespace: 'stable' });
   await buildEntry(`actual/${ entry }`, { ...definition, entryFromNamespace: 'actual' });
-  await buildEntry(`full/${ entry }`, { ...definition, entryFromNamespace: 'full' });
+  await buildEntry(`full/${ entry }`, { ...definition, entryFromNamespace: 'full', buildBuiltInDefinitions: true, rawEntry: entry });
 }
 
 for (const [name, definition] of Object.entries(proposals)) {
@@ -147,3 +178,7 @@ await writeExportsField('./packages/core-js-pure/package.json');
 await writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
 
 echo(chalk.green('entries data rebuilt'));
+
+await writeJson('packages/core-js-compat/built-in-definitions.json', builtInDefinitions, { spaces: '  ' });
+
+echo(chalk.green('built-in definitions rebuilt'));
