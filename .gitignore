@@ -28,6 +28,7 @@ node_modules/
 /packages/core-js-bundle/minified.js.map
 /packages/core-js-bundle/postinstall.js
 /packages/core-js-compat/LICENSE
+/packages/core-js-compat/built-in-definitions.json
 /packages/core-js-compat/data.json
 /packages/core-js-compat/entries.json
 /packages/core-js-compat/external.json
