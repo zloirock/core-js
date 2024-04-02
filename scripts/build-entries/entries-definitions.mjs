@@ -2063,6 +2063,12 @@ export const features = {
     namespace: 'RegExp',
     name: 'escape',
   },
+  'regexp/exec': {
+    modules: ['es.regexp.exec'],
+    template: $prototype,
+    namespace: 'RegExp',
+    name: 'exec',
+  },
   'regexp/dot-all': {
     modules: ['es.regexp.dot-all', 'es.regexp.constructor'],
     template: $justImport,
