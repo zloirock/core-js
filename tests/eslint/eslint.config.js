@@ -535,6 +535,8 @@ const base = {
   'unicorn/no-abusive-eslint-disable': ERROR,
   // enforce combining multiple `Array#push` into one call
   'unicorn/no-array-push-push': ERROR,
+  // disallow using `await` in `Promise` method parameters
+  'unicorn/no-await-in-promise-methods': ERROR,
   // do not use leading/trailing space between `console.log` parameters
   'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
@@ -545,6 +547,8 @@ const base = {
   'unicorn/no-lonely-if': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
+  // disallow passing single-element arrays to `Promise` methods
+  'unicorn/no-single-promise-in-promise-methods': ERROR,
   // forbid classes that only have static members
   'unicorn/no-static-only-class': ERROR,
   // disallow `then` property
