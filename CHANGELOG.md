@@ -5,6 +5,7 @@
 - Some minor updates of [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 proposal like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
 - Compat data improvements:
   - `URL.canParse` fixed and marked as supported [from Bun 1.1.0](https://github.com/oven-sh/bun/pull/9710)
+  - [New `Set` methods](https://github.com/tc39/proposal-set-methods) fixed in JavaScriptCore and marked as supported from Bun 1.1.1
 
 ##### [3.36.1 - 2024.03.19](https://github.com/zloirock/core-js/releases/tag/v3.36.1)
 - Changes [v3.36.0...v3.36.1](https://github.com/zloirock/core-js/compare/v3.36.0...v3.36.1)
