@@ -2655,6 +2655,7 @@ export const data = {
     safari: '17.0',
   },
   'web.url.parse': {
+    firefox: '126',
   },
   'web.url.to-json': {
     bun: '0.1.1',
