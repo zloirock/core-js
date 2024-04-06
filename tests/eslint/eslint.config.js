@@ -2,9 +2,9 @@ import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
+import pluginCanonical from 'eslint-plugin-canonical';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
-import pluginFilenames from 'eslint-plugin-filenames';
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginN from 'eslint-plugin-n';
@@ -1519,9 +1519,9 @@ export default [
     plugins: {
       '@stylistic/js': pluginStylisticJS,
       'array-func': pluginArrayFunc,
+      canonical: pluginCanonical,
       es: pluginESX,
       'eslint-comments': pluginESlintComments,
-      filenames: pluginFilenames,
       import: pluginImport,
       jsonc: pluginJSONC,
       node: pluginN,
@@ -1653,7 +1653,7 @@ export default [
   {
     rules: {
       // ensure that filenames match a convention
-      'filenames/match-regex': [ERROR, /^[\da-z]|[a-z][\d\-.a-z]*[\da-z]$/],
+      'canonical/filename-match-regex': [ERROR, { regex: '^[\\da-z]|[a-z][\\d\\-.a-z]*[\\da-z]$' }],
     },
   },
   {
@@ -1662,7 +1662,7 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'filenames/match-regex': [ERROR, /^(?:es|esnext|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+      'canonical/filename-match-regex': [ERROR, { regex: '^(?:es|esnext|web)(?:\\.[a-z][\\d\\-a-z]*[\\da-z])+$' }],
     },
   },
   {
@@ -1671,7 +1671,7 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'filenames/match-regex': [ERROR, /^(?:es|esnext|helpers|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+      'canonical/filename-match-regex': [ERROR, { regex: '^(?:es|esnext|helpers|web)(?:\\.[a-z][\\d\\-a-z]*[\\da-z])+$' }],
     },
   },
   {
