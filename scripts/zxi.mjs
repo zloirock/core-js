@@ -25,6 +25,7 @@ if (await pathExists(`${ DIR }/package.json`)) {
     --no-fund \
     --lockfile-version=3 \
     --loglevel=error \
+    --force \
   `;
 
   const BIN = normalize(`${ cwd() }/node_modules/.bin`);
