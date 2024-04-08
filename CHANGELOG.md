@@ -4,7 +4,7 @@
   - Built-ins:
     - `Promise.try`
   - Added optional arguments support, [promise-try/16](https://github.com/tc39/proposal-promise-try/pull/16)
-  - Moved to stage 2.7, April 2024 TC39 meeting
+  - Moved to stage 2.7, [April 2024 TC39 meeting](https://twitter.com/ljharb/status/1777398184387514544)
 - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse), [url/825](https://github.com/whatwg/url/pull/825)
 - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) [moved to hex-escape semantics](https://github.com/tc39/proposal-regex-escaping/pull/67)
 - Some minor updates of [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 proposal like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
