@@ -12,6 +12,12 @@ QUnit.test('Promise.try, resolved', assert => {
   });
 });
 
+QUnit.test('Promise.try, resolved, with args', assert => {
+  return Promise.try((a, b) => Promise.resolve(a + b), 1, 2).then(it => {
+    assert.same(it, 3, 'resolved with a correct value');
+  });
+});
+
 QUnit.test('Promise.try, rejected', assert => {
   return Promise.try(() => {
     throw new Error();

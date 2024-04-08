@@ -1,6 +1,6 @@
 'use strict';
 var parent = require('./3');
 
-// nothing
+require('../proposals/promise-try');
 
 module.exports = parent;
