@@ -459,8 +459,6 @@ const base = {
   'node/no-deprecated-api': ERROR,
   // disallow the assignment to `exports`
   'node/no-exports-assign': ERROR,
-  // disallow third-party modules which are hiding core modules
-  'node/no-hide-core-modules': ERROR,
   // disallow require calls to be mixed with regular variable declarations
   'node/no-mixed-requires': [ERROR, { grouping: true, allowCall: false }],
   // disallow new operators with calls to require
@@ -1205,8 +1203,6 @@ const nodePackages = {
   'logical-assignment-operators': [ERROR, NEVER],
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
-  // disallow third-party modules which are hiding core modules
-  'node/no-hide-core-modules': OFF,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
   // prefer `node:` protocol
