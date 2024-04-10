@@ -1,5 +1,16 @@
 ## Changelog
 ##### Unreleased
+- [New `Set` methods](https://github.com/tc39/proposal-set-methods):
+  - Built-ins:
+    - `Set.prototype.intersection`
+    - `Set.prototype.union`
+    - `Set.prototype.difference`
+    - `Set.prototype.symmetricDifference`
+    - `Set.prototype.isSubsetOf`
+    - `Set.prototype.isSupersetOf`
+    - `Set.prototype.isDisjointFrom`
+  - Moved to stable ES, April 2024 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`

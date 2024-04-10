@@ -1,6 +1,7 @@
 import { createIterable, createSetLike } from '../helpers/helpers.js';
 
 import from from 'core-js-pure/es/array/from';
+// TODO: use /es/ in core-js@4
 import Set from 'core-js-pure/full/set';
 
 QUnit.test('Set#union', assert => {

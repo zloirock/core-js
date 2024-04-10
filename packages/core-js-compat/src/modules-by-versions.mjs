@@ -238,6 +238,13 @@ export default {
     'es.array-buffer.transfer-to-fixed-length',
   ],
   3.37: [
+    'es.set.difference.v2',
+    'es.set.intersection.v2',
+    'es.set.is-disjoint-from.v2',
+    'es.set.is-subset-of.v2',
+    'es.set.is-superset-of.v2',
+    'es.set.symmetric-difference.v2',
+    'es.set.union.v2',
     'web.url.parse',
   ],
 };

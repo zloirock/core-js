@@ -1,6 +1,5 @@
 'use strict';
-require('../../modules/es.set');
+var parent = require('../../stable/set/is-superset-of');
 require('../../modules/esnext.set.is-superset-of.v2');
-var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = entryUnbind('Set', 'isSupersetOf');
+module.exports = parent;
