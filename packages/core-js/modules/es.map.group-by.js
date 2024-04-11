@@ -6,6 +6,7 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var iterate = require('../internals/iterate');
 var MapHelpers = require('../internals/map-helpers');
 var IS_PURE = require('../internals/is-pure');
+var fails = require('../internals/fails');
 
 var Map = MapHelpers.Map;
 var has = MapHelpers.has;
@@ -13,9 +14,15 @@ var get = MapHelpers.get;
 var set = MapHelpers.set;
 var push = uncurryThis([].push);
 
+var DOES_NOT_WORK_WITH_PRIMITIVES = IS_PURE || fails(function () {
+  return Map.groupBy('ab', function (it) {
+    return it;
+  }).get('a').length !== 1;
+});
+
 // `Map.groupBy` method
 // https://github.com/tc39/proposal-array-grouping
-$({ target: 'Map', stat: true, forced: IS_PURE }, {
+$({ target: 'Map', stat: true, forced: IS_PURE || DOES_NOT_WORK_WITH_PRIMITIVES }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);
     aCallable(callbackfn);

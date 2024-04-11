@@ -16,6 +16,7 @@ QUnit.test('Map.groupBy', assert => {
   assert.deepEqual(from(groupBy([1, 2], it => it ** 2)), [[1, [1]], [4, [2]]]);
   assert.deepEqual(from(groupBy([1, 2, 1], it => it ** 2)), [[1, [1, 1]], [4, [2]]]);
   assert.deepEqual(from(groupBy(createIterable([1, 2]), it => it ** 2)), [[1, [1]], [4, [2]]]);
+  assert.deepEqual(from(groupBy('qwe', it => it)), [['q', ['q']], ['w', ['w']], ['e', ['e']]], 'iterable string');
 
   const element = {};
   groupBy([element], function (it, i) {

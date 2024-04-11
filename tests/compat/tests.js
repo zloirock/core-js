@@ -704,7 +704,10 @@ GLOBAL.tests = {
       && map[Symbol.toStringTag];
   }],
   'es.map.group-by': function () {
-    return Map.groupBy;
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    return Map.groupBy('ab', function (it) {
+      return it;
+    }).get('a').length === 1;
   },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
@@ -893,7 +896,10 @@ GLOBAL.tests = {
     return Object.getPrototypeOf('qwe');
   },
   'es.object.group-by': function () {
-    return Object.groupBy;
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    return Object.groupBy('ab', function (it) {
+      return it;
+    }).a.length === 1;
   },
   'es.object.has-own': function () {
     return Object.hasOwn;

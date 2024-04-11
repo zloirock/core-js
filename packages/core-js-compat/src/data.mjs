@@ -606,10 +606,12 @@ export const data = {
     safari: '10.0',
   },
   'es.map.group-by': {
-    bun: '1.0.19',
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    bun: '1.1.2', // bun: '1.0.19',
     chrome: '117',
     firefox: '119',
-    safari: '17.4',
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    // safari: '17.4',
   },
   'es.math.acosh': {
     chrome: '54',
@@ -972,10 +974,12 @@ export const data = {
     safari: '9.0',
   },
   'es.object.group-by': {
-    bun: '1.0.19',
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    bun: '1.1.2', // bun: '1.0.19',
     chrome: '117',
     firefox: '119',
-    safari: '17.4',
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    // safari: '17.4',
   },
   'es.object.has-own': {
     chrome: '93',
