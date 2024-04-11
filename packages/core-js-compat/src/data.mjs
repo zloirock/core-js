@@ -1982,11 +1982,13 @@ export const data = {
     // bun: '1.0.23',
   },
   'esnext.array.from-async': {
-    bun: '0.3.0',
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    bun: '1.1.2', // bun: '0.3.0',
     chrome: '121',
     deno: '1.38',
     firefox: '115',
-    safari: '16.4',
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    // safari: '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,

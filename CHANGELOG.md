@@ -19,6 +19,8 @@
 - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse), [url/825](https://github.com/whatwg/url/pull/825)
 - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) [moved to hex-escape semantics](https://github.com/tc39/proposal-regex-escaping/pull/67)
 - Some minor updates of [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) Stage 3 proposal like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
+- Engines bugs fixes:
+  - Added a fix of [Safari bug with double call of constructor in `Array.fromAsync`](https://bugs.webkit.org/show_bug.cgi?id=271703)
 - Compat data improvements:
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as supported [from FF 126](https://bugzilla.mozilla.org/show_bug.cgi?id=1887611)
   - `URL.canParse` fixed and marked as supported [from Bun 1.1.0](https://github.com/oven-sh/bun/pull/9710)

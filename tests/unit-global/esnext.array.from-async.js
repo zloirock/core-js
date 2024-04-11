@@ -10,6 +10,15 @@ QUnit.test('Array.fromAsync', assert => {
   assert.looksNative(fromAsync);
   assert.nonEnumerable(Array, 'fromAsync');
 
+  let counter = 0;
+  // eslint-disable-next-line prefer-arrow-callback -- constructor
+  fromAsync.call(function () {
+    counter++;
+    return [];
+  }, { length: 0 });
+
+  assert.same(counter, 1, 'proper number of constructor calling');
+
   function C() { /* empty */ }
 
   return fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {

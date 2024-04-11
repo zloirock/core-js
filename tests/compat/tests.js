@@ -1525,7 +1525,13 @@ GLOBAL.tests = {
       && SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'esnext.array.from-async': function () {
-    return Array.fromAsync;
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    var counter = 0;
+    Array.fromAsync.call(function () {
+      counter++;
+      return [];
+    }, { length: 0 });
+    return counter === 1;
   },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
