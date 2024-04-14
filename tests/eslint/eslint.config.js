@@ -425,6 +425,8 @@ const base = {
   '@stylistic/js/yield-star-spacing': [ERROR, 'both'],
 
   // import:
+  // forbid any invalid exports, i.e. re-export of the same name
+  'import/export': ERROR,
   // ensure all imports appear before other statements
   'import/first': ERROR,
   // enforce a newline after import statements
@@ -449,6 +451,8 @@ const base = {
   'import/no-unresolved': [ERROR, { commonjs: true }],
   // forbid useless path segments
   'import/no-useless-path-segments': ERROR,
+  // forbid Webpack loader syntax in imports
+  'import/no-webpack-loader-syntax': ERROR,
 
   // node:
   // enforce the style of file extensions in `import` declarations
