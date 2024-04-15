@@ -245,6 +245,7 @@ export default {
     'es.set.is-superset-of.v2',
     'es.set.symmetric-difference.v2',
     'es.set.union.v2',
+    'esnext.math.sum-precise',
     'web.url.parse',
   ],
 };

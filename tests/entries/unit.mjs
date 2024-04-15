@@ -796,6 +796,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
     ok(typeof load(NS, 'math/seeded-prng')({ seed: 42 }).next().value === 'number');
     ok(load(NS, 'math/signbit')(-2) === true);
+    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
@@ -938,6 +939,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/map-upsert-stage-2');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
+  load('proposals/math-sum');
   load('proposals/number-from-string');
   load('proposals/number-range');
   load('proposals/object-from-entries');

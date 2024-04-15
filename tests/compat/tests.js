@@ -1767,6 +1767,9 @@ GLOBAL.tests = {
   'esnext.math.signbit': function () {
     return Math.signbit;
   },
+  'esnext.math.sum-precise': function () {
+    return Math.sumPrecise;
+  },
   'esnext.number.from-string': function () {
     return Number.fromString;
   },

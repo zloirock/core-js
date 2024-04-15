@@ -2258,6 +2258,8 @@ export const data = {
   },
   'esnext.math.signbit': {
   },
+  'esnext.math.sum-precise': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.math.umulh': {
   },
