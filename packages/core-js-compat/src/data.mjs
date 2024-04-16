@@ -2680,6 +2680,7 @@ export const data = {
     safari: '17.0',
   },
   'web.url.parse': {
+    bun: '1.1.4',
     firefox: '126',
   },
   'web.url.to-json': {
