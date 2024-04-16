@@ -15,7 +15,7 @@
     - `Set.prototype.isDisjointFrom`
   - Moved to stable ES, [April 2024 TC39 meeting](https://github.com/tc39/proposals/commit/bda5a6bccbaca183e193f9e680889ea5b5462ce4)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
-- [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management)
+- [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management):
   - Some minor updates like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
 - Added [`Math.sumPrecise` stage 2.7 proposal](https://github.com/tc39/proposal-math-sum/):
   - Built-ins:

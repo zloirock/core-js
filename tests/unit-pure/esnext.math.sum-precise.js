@@ -12,8 +12,8 @@ QUnit.test('Math.sumPrecise', assert => {
 
   assert.throws(() => sumPrecise(undefined), TypeError, 'undefined');
   assert.throws(() => sumPrecise(null), TypeError, 'null');
-  assert.throws(() => sumPrecise({ 0: 1 }), TypeError, 'non-iterabls');
-  assert.throws(() => sumPrecise(1, 2), TypeError, 'non-iterabls #2');
+  assert.throws(() => sumPrecise({ 0: 1 }), TypeError, 'non-iterable');
+  assert.throws(() => sumPrecise(1, 2), TypeError, 'non-iterable #2');
   assert.throws(() => sumPrecise([1, '2']), TypeError, 'non-number elements');
 
   // Adapted from https://github.com/tc39/test262
