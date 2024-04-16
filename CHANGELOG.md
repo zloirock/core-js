@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- [New `Set` methods](https://github.com/tc39/proposal-set-methods):
+- [New `Set` methods proposal](https://github.com/tc39/proposal-set-methods):
   - Built-ins:
     - `Set.prototype.intersection`
     - `Set.prototype.union`
@@ -16,7 +16,7 @@
 - Added [`Math.sumPrecise` stage 2.7 proposal](https://github.com/tc39/proposal-math-sum/):
   - Built-ins:
     - `Math.sumPrecise`
-- [`Promise.try`](https://github.com/tc39/proposal-promise-try):
+- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`
   - Added optional arguments support, [promise-try/16](https://github.com/tc39/proposal-promise-try/pull/16)
