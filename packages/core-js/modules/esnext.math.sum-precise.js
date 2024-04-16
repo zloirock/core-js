@@ -63,7 +63,7 @@ $({ target: 'Math', stat: true, forced: true }, {
     }
 
     var partials = [];
-    var overflow = 0; // conceptually 2**1024 times this value; the final partial is biased by this amount
+    var overflow = 0; // conceptually 2 ** 1024 times this value; the final partial is biased by this amount
     var x, y, sum, hi, lo, tmp;
 
     for (var i = 0; i < numbers.length; i++) {
@@ -97,7 +97,7 @@ $({ target: 'Math', stat: true, forced: true }, {
         x = hi;
       }
       partials.length = actuallyUsedPartials;
-      if (x !== 0) partials[partials.length] = x;
+      if (x !== 0) push(partials, x);
     }
 
     // compute the exact sum of partials, stopping once we lose precision
