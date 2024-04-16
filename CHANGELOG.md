@@ -30,7 +30,7 @@
   - Added a fix of [Safari bug with double call of constructor in `Array.fromAsync`](https://bugs.webkit.org/show_bug.cgi?id=271703)
 - Compat data improvements:
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as supported [from FF 126](https://bugzilla.mozilla.org/show_bug.cgi?id=1887611)
-  - `URL.canParse` fixed and marked as supported [from Bun 1.1.0](https://github.com/oven-sh/bun/pull/9710)
+  - [`URL.canParse`](https://url.spec.whatwg.org/#dom-url-canparse) fixed and marked as supported [from Bun 1.1.0](https://github.com/oven-sh/bun/pull/9710)
   - [New `Set` methods](https://github.com/tc39/proposal-set-methods) fixed in JavaScriptCore and marked as supported from Bun 1.1.1
   - Added Opera Android 82 compat data mapping
 
