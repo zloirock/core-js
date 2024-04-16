@@ -13,7 +13,7 @@
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management)
   - Some minor updates like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
-- Added [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum/) stage 2.7 proposal
+- Added [`Math.sumPrecise` stage 2.7 proposal](https://github.com/tc39/proposal-math-sum/):
   - Built-ins:
     - `Math.sumPrecise`
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
@@ -21,7 +21,7 @@
     - `Promise.try`
   - Added optional arguments support, [promise-try/16](https://github.com/tc39/proposal-promise-try/pull/16)
   - Moved to stage 2.7, [April 2024 TC39 meeting](https://github.com/tc39/proposals/commit/301fc9c7eef2344d2b443f32a9c24ecd5fbdbec0)
-- [`RegExp.escape` stage 2 proposal](https://github.com/tc39/proposal-regex-escaping)
+- [`RegExp.escape` stage 2 proposal](https://github.com/tc39/proposal-regex-escaping):
   - Moved to hex-escape semantics, [regex-escaping/67](https://github.com/tc39/proposal-regex-escaping/pull/67)
     - It's not the final change of the way of escaping, waiting for [regex-escaping/77](https://github.com/tc39/proposal-regex-escaping/pull/77) soon
 - [Pattern matching stage 1 proposal](https://github.com/tc39/proposal-pattern-matching):
@@ -29,7 +29,7 @@
     - `Symbol.customMatcher`
   - Once again, [the used well-known symbol was renamed](https://github.com/tc39/proposal-pattern-matching/pull/295)
   - Added new entries for that
-- [Extractors stage 1 proposal](https://github.com/tc39/proposal-extractors):
+- Added [Extractors stage 1 proposal](https://github.com/tc39/proposal-extractors):
   - Built-ins:
     - `Symbol.customMatcher`
   - Since the `Symbol.customMatcher` well-known symbol from the pattern matching proposal is also used in the exactors proposal, added an entry also for this proposal
