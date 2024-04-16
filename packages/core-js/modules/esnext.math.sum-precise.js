@@ -93,10 +93,7 @@ $({ target: 'Math', stat: true, forced: true }, {
           hi = sum.hi;
           lo = sum.lo;
         }
-        if (lo !== 0) {
-          partials[actuallyUsedPartials] = lo;
-          actuallyUsedPartials += 1;
-        }
+        if (lo !== 0) partials[actuallyUsedPartials++] = lo;
         x = hi;
       }
       partials.length = actuallyUsedPartials;
@@ -110,7 +107,7 @@ $({ target: 'Math', stat: true, forced: true }, {
 
     if (overflow !== 0) {
       var next = n >= 0 ? partials[n] : 0;
-      n -= 1;
+      n--;
       if (abs(overflow) > 1 || (overflow > 0 && next > 0) || (overflow < 0 && next < 0)) {
         return overflow > 0 ? $Infinity : -$Infinity;
       }
@@ -129,8 +126,7 @@ $({ target: 'Math', stat: true, forced: true }, {
       }
 
       if (lo !== 0) {
-        partials[n + 1] = lo;
-        n += 1;
+        partials[++n] = lo;
         lo = 0;
       }
 
@@ -138,17 +134,14 @@ $({ target: 'Math', stat: true, forced: true }, {
     }
 
     while (n >= 0) {
-      x = hi;
-      y = partials[n];
-      n -= 1;
-      sum = twosum(x, y);
+      sum = twosum(hi, partials[n--]);
       hi = sum.hi;
       lo = sum.lo;
       if (lo !== 0) break;
     }
 
-    if (n >= 0 && ((lo < 0.0 && partials[n] < 0.0) || (lo > 0.0 && partials[n] > 0.0))) {
-      y = lo * 2.0;
+    if (n >= 0 && ((lo < 0 && partials[n] < 0) || (lo > 0 && partials[n] > 0))) {
+      y = lo * 2;
       x = hi + y;
       if (y === x - hi) hi = x;
     }
