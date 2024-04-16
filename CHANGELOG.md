@@ -13,6 +13,9 @@
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management)
   - Some minor updates like [explicit-resource-management/217](https://github.com/tc39/proposal-explicit-resource-management/pull/217)
+- Added [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum/) stage 2.7 proposal
+  - Built-ins:
+    - `Math.sumPrecise`
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`
