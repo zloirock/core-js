@@ -24,11 +24,15 @@
 - [`RegExp.escape` stage 2 proposal](https://github.com/tc39/proposal-regex-escaping)
   - Moved to hex-escape semantics, [regex-escaping/67](https://github.com/tc39/proposal-regex-escaping/pull/67)
     - It's not the final change of the way of escaping, waiting for [regex-escaping/77](https://github.com/tc39/proposal-regex-escaping/pull/77) soon
-- [Pattern matching proposal](https://github.com/tc39/proposal-pattern-matching):
+- [Pattern matching stage 1 proposal](https://github.com/tc39/proposal-pattern-matching):
   - Built-ins:
     - `Symbol.customMatcher`
   - Once again, [the used well-known symbol was renamed](https://github.com/tc39/proposal-pattern-matching/pull/295)
   - Added new entries for that
+- [Extractors stage 1 proposal](https://github.com/tc39/proposal-extractors):
+  - Built-ins:
+    - `Symbol.customMatcher`
+  - Since the `Symbol.customMatcher` well-known symbol from the pattern matching proposal is also used in the exactors proposal, added an entry also for this proposal
 - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse), [url/825](https://github.com/whatwg/url/pull/825)
 - Engines bugs fixes:
   - Added a fix of [Safari `{ Object, Map }.groupBy` bug that does not support iterable primitives](https://bugs.webkit.org/show_bug.cgi?id=271524)

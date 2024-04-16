@@ -186,6 +186,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
+      - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
@@ -3095,6 +3096,19 @@ class Symbol {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/pattern-matching-v2
+core-js(-pure)/full/symbol/custom-matcher
+```
+
+##### [`Symbol.customMatcher` for extractors](https://github.com/tc39/proposal-extractors)[⬆](#index)
+Module [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
+```js
+class Symbol {
+  static customMatcher: @@customMatcher;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
 ```
 

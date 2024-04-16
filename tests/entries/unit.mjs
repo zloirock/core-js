@@ -924,6 +924,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
   load('proposals/explicit-resource-management');
+  load('proposals/extractors');
   load('proposals/float16');
   load('proposals/function-demethodize');
   load('proposals/function-is-callable-is-constructor');
