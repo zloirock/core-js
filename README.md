@@ -185,7 +185,8 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Number.fromString`](#numberfromstring)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
-      - [`Symbol.matcher` for pattern matching](#symbolmatcher-for-pattern-matching)
+      - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
+      - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
@@ -2759,6 +2760,7 @@ Symbol.isRegisteredSymbol(Symbol('key')); // => false
 Symbol.isWellKnownSymbol(Symbol.iterator); // => true
 Symbol.isWellKnownSymbol(Symbol('key')); // => false
 ```
+
 ##### [`Uint8Array` to / from base64 and hex](https://github.com/tc39/proposal-arraybuffer-base64)[⬆](#index)
 Modules [`esnext.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-base64.js), [`esnext.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-hex.js), [`esnext.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-base64.js), [`esnext.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-hex.js).
 ```js
@@ -3083,17 +3085,31 @@ for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(position);  // => 0, 1, 2
 }
 ```
-##### [`Symbol.matcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
-Module [`esnext.symbol.matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.matcher.js).
+
+##### [`Symbol.customMatcher` for pattern matching](https://github.com/tc39/proposal-pattern-matching)[⬆](#index)
+Module [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
 ```js
 class Symbol {
-  static matcher: @@matcher;
+  static customMatcher: @@customMatcher;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```js
-core-js/proposals/pattern-matching
-core-js(-pure)/full/symbol/matcher
+core-js/proposals/pattern-matching-v2
+core-js(-pure)/full/symbol/custom-matcher
+```
+
+##### [`Symbol.customMatcher` for extractors](https://github.com/tc39/proposal-extractors)[⬆](#index)
+Module [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
+```js
+class Symbol {
+  static customMatcher: @@customMatcher;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/pattern-extractors
+core-js(-pure)/full/symbol/custom-matcher
 ```
 
 #### Stage 0 proposals[⬆](#index)

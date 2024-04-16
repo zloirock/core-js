@@ -246,6 +246,7 @@ export default {
     'es.set.symmetric-difference.v2',
     'es.set.union.v2',
     'esnext.math.sum-precise',
+    'esnext.symbol.custom-matcher',
     'web.url.parse',
   ],
 };

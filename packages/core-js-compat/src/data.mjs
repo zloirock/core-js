@@ -2409,6 +2409,8 @@ export const data = {
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
   },
+  'esnext.symbol.custom-matcher': {
+  },
   'esnext.symbol.dispose': {
     bun: '1.0.23',
     deno: '1.38',
@@ -2427,6 +2429,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.symbol.is-well-known': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.symbol.matcher': {
   },
   'esnext.symbol.metadata': {

@@ -64,6 +64,7 @@ const ignore = new Set([
   'esnext.string.at',
   'esnext.symbol.is-registered',
   'esnext.symbol.is-well-known',
+  'esnext.symbol.matcher',
   'esnext.symbol.metadata-key',
   'esnext.symbol.pattern-match',
   'esnext.symbol.replace-all',
