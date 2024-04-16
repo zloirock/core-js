@@ -704,7 +704,10 @@ GLOBAL.tests = {
       && map[Symbol.toStringTag];
   }],
   'es.map.group-by': function () {
-    return Map.groupBy;
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    return Map.groupBy('ab', function (it) {
+      return it;
+    }).get('a').length === 1;
   },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
@@ -893,7 +896,10 @@ GLOBAL.tests = {
     return Object.getPrototypeOf('qwe');
   },
   'es.object.group-by': function () {
-    return Object.groupBy;
+    // https://bugs.webkit.org/show_bug.cgi?id=271524
+    return Object.groupBy('ab', function (it) {
+      return it;
+    }).a.length === 1;
   },
   'es.object.has-own': function () {
     return Object.hasOwn;
@@ -1135,6 +1141,15 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
+  'es.set.difference.v2': createSetMethodTest('difference'),
+  'es.set.intersection.v2': [createSetMethodTest('intersection'), function () {
+    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
+  }],
+  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
+  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
+  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
+  'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
+  'es.set.union.v2': createSetMethodTest('union'),
   'es.string.at-alternative': function () {
     return '𠮷'.at(-2) === '\uD842';
   },
@@ -1516,7 +1531,13 @@ GLOBAL.tests = {
       && SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'esnext.array.from-async': function () {
-    return Array.fromAsync;
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    var counter = 0;
+    Array.fromAsync.call(function () {
+      counter++;
+      return [];
+    }, { length: 0 });
+    return counter === 1;
   },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
@@ -1746,6 +1767,9 @@ GLOBAL.tests = {
   'esnext.math.signbit': function () {
     return Math.signbit;
   },
+  'esnext.math.sum-precise': function () {
+    return Math.sumPrecise;
+  },
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
@@ -1758,7 +1782,6 @@ GLOBAL.tests = {
   'esnext.set.delete-all': function () {
     return Set.prototype.deleteAll;
   },
-  'esnext.set.difference.v2': createSetMethodTest('difference'),
   'esnext.set.every': function () {
     return Set.prototype.every;
   },
@@ -1771,12 +1794,6 @@ GLOBAL.tests = {
   'esnext.set.from': function () {
     return Set.from;
   },
-  'esnext.set.intersection.v2': [createSetMethodTest('intersection'), function () {
-    return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
-  }],
-  'esnext.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
-  'esnext.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
-  'esnext.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
   'esnext.set.join': function () {
     return Set.prototype.join;
   },
@@ -1792,8 +1809,6 @@ GLOBAL.tests = {
   'esnext.set.some': function () {
     return Set.prototype.some;
   },
-  'esnext.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
-  'esnext.set.union.v2': createSetMethodTest('union'),
   'esnext.string.code-points': function () {
     return String.prototype.codePoints;
   },
@@ -1807,6 +1822,9 @@ GLOBAL.tests = {
     var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
     return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
+  'esnext.symbol.custom-matcher': function () {
+    return Symbol.customMatcher;
+  },
   'esnext.symbol.dispose': function () {
     var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
     return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
@@ -1816,9 +1834,6 @@ GLOBAL.tests = {
   },
   'esnext.symbol.is-well-known-symbol': function () {
     return Symbol.isWellKnownSymbol;
-  },
-  'esnext.symbol.matcher': function () {
-    return Symbol.matcher;
   },
   'esnext.symbol.metadata': function () {
     return Symbol.metadata;
@@ -1996,6 +2011,9 @@ GLOBAL.tests = {
     } catch (error) {
       return URL.canParse.length === 1;
     }
+  }],
+  'web.url.parse': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
+    return URL.parse;
   }],
   'web.url.to-json': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return URL.prototype.toJSON;
