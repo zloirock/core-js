@@ -2413,6 +2413,7 @@ export const data = {
   },
   'esnext.symbol.dispose': {
     bun: '1.0.23',
+    chrome: '125',
     deno: '1.38',
     // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699

@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - [`Symbol.dispose`](https://github.com/tc39/proposal-explicit-resource-management) added marked as supported from V8 ~ Chromium 125
   - Added Electron 31 compat data mapping
 
 ##### [3.37.0 - 2024.04.17](https://github.com/zloirock/core-js/releases/tag/v3.37.0)
