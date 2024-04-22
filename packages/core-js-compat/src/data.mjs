@@ -2683,6 +2683,7 @@ export const data = {
   'web.url.parse': {
     bun: '1.1.4',
     firefox: '126',
+    node: '22.0',
   },
   'web.url.to-json': {
     bun: '0.1.1',
