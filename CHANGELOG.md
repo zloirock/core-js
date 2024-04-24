@@ -2,8 +2,8 @@
 ##### Unreleased
 - Compat data improvements:
   - [`Symbol.dispose`](https://github.com/tc39/proposal-explicit-resource-management) added marked as supported from V8 ~ Chromium 125
-  - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as supported [from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
-  - Added NodeJS 22.0 compat data mapping
+  - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
+  - Added [NodeJS 22.0](https://nodejs.org/en/blog/release/v22.0.0) compat data mapping
   - Added Electron 31 compat data mapping
 
 ##### [3.37.0 - 2024.04.17](https://github.com/zloirock/core-js/releases/tag/v3.37.0)
