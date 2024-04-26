@@ -309,7 +309,7 @@ export const data = {
   },
   'es.array.push': {
     // bug with setting length
-    chrome: '122', // chrome: '103',
+    chrome: '122', // '103',
     // edge: '15',
     firefox: '55',
     hermes: '0.2',
@@ -607,7 +607,7 @@ export const data = {
   },
   'es.map.group-by': {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
-    bun: '1.1.2', // bun: '1.0.19',
+    bun: '1.1.2', // '1.0.19',
     chrome: '117',
     firefox: '119',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
@@ -975,7 +975,7 @@ export const data = {
   },
   'es.object.group-by': {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
-    bun: '1.1.2', // bun: '1.0.19',
+    bun: '1.1.2', // '1.0.19',
     chrome: '117',
     firefox: '119',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
@@ -1354,64 +1354,64 @@ export const data = {
   },
   'es.set.difference.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.intersection.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.is-disjoint-from.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.is-subset-of.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.is-superset-of.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.symmetric-difference.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
   'es.set.union.v2': {
     bun: '1.1.1',
-    // v8 ~ Chrome 122 do not properly work with set-like objects
+    // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
-    // safari do not properly work with set-like objects
+    // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
   },
@@ -1471,10 +1471,10 @@ export const data = {
   },
   'es.string.match-all': {
     // Early implementations does not throw an error on non-global regex
-    chrome: '80', // 73
-    firefox: '73', // 67
+    chrome: '80',   // '73',
+    firefox: '73',  // '67',
     hermes: '0.6',
-    safari: '13.1', // 13
+    safari: '13.1', // '13',
   },
   'es.string.pad-end': {
     chrome: '57',
@@ -1987,7 +1987,7 @@ export const data = {
   },
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
-    bun: '1.1.2', // bun: '0.3.0',
+    bun: '1.1.2', // '0.3.0',
     chrome: '121',
     deno: '1.38',
     firefox: '115',
@@ -2507,7 +2507,7 @@ export const data = {
     chrome: '34',
     deno: '1.0',
     // older have wrong arity
-    edge: '16', // 13
+    edge: '16', // '13',
     firefox: '27',
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
@@ -2673,11 +2673,11 @@ export const data = {
   'web.url.can-parse': {
     // Bun < 1.1.0 bug
     // https://github.com/oven-sh/bun/issues/9250
-    bun: '1.1.0', // bun: '1.0.2',
+    bun: '1.1.0', // '1.0.2',
     chrome: '120',
     deno: '1.33.2',
     firefox: '115',
-    node: '20.1.0',
+    node: '20.1',
     safari: '17.0',
   },
   'web.url.parse': {
@@ -2708,7 +2708,7 @@ export const data = {
     chrome: '118',
     deno: '1.35',
     firefox: '115',
-    node: '20.2.0',
+    node: '20.2',
     safari: '17.0',
   },
   'web.url-search-params.has': {
@@ -2716,7 +2716,7 @@ export const data = {
     chrome: '118',
     deno: '1.35',
     firefox: '115',
-    node: '20.2.0',
+    node: '20.2',
     safari: '17.0',
   },
   'web.url-search-params.size': {
@@ -2724,7 +2724,7 @@ export const data = {
     chrome: '113',
     deno: '1.32',
     firefox: '112',
-    node: '19.8.0',
+    node: '19.8',
     safari: '17.0',
   },
 };
