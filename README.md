@@ -232,7 +232,7 @@ npm install --loglevel silent
 ```
 
 ### CommonJS API[⬆](#index)
-You can import only-required-for-you polyfills, like in examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
+You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```js
 // polyfill all `core-js` features, including early-stage proposals:
@@ -262,7 +262,7 @@ import Set from "core-js-pure/actual/set";
 import Set from "core-js-pure/stable/set";
 import Set from "core-js-pure/es/set";
 
-// if you want to polyfill just required methods:
+// if you want to polyfill just the required methods:
 import "core-js/full/set/intersection";
 import "core-js/actual/array/find-last";
 import "core-js/stable/queue-microtask";
@@ -274,15 +274,15 @@ import "core-js/proposals/iterator-helpers";
 import "core-js/stage/2";
 ```
 
-**Note: The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.**
+> [!TIP]
+> The usage of the `/actual/` namespace is recommended since it includes all actual JavaScript features and does not include unstable early-stage proposals that are available mainly for experiments.
 
-##### Caveats when using CommonJS API:[⬆](#index)
-
-* `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
-* If you use `core-js` with the extension of native objects, recommended load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
-  * For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and/or something else from `core-js`, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
-  * Such conflicts also resolvable by discovering and manual adding each conflicting entry from `core-js`.
-* `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of usage loader for each file, otherwise, you will have hundreds of requests.
+> [!WARNING]
+> - The `modules` path is an internal API, does not inject all required dependencies and can be changed in minor or patch releases. Use it only for a custom build and/or if you know what are you doing.
+> - If you use `core-js` with the extension of native objects, recommended to load all `core-js` modules at the top of the entry point of your application, otherwise, you can have conflicts.
+>   - For example, Google Maps use their own `Symbol.iterator`, conflicting with `Array.from`, `URLSearchParams` and / or something else from `core-js`, see [related issues](https://github.com/zloirock/core-js/search?q=Google+Maps&type=Issues).
+>   - Such conflicts are also resolvable by discovering and manually adding each conflicting entry from `core-js`.
+> - `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of a usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution[⬆](#index)
 In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
@@ -293,7 +293,8 @@ import findIndex from 'core-js-pure/actual/array/virtual/find-index';
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
 
-> **Warning!** The bind operator is an early-stage ECMAScript proposal and usage of this syntax can be dangerous.
+> [!WARNING]
+> The bind operator is an early-stage ECMAScript proposal and usage of this syntax can be dangerous.
 
 ### Babel[⬆](#index)
 
@@ -303,7 +304,7 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 [`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so if you load `@babel/polyfill` - you load the global version of `core-js` without ES proposals.
 
-Now it's deprecated in favour of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
+Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for preventing breaking changes, left on `core-js@2`.
 
 As a full equal of `@babel/polyfill`, you can use this:
 ```js
@@ -313,9 +314,12 @@ import 'regenerator-runtime/runtime';
 
 #### `@babel/preset-env`[⬆](#index)
 
-[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to used version of `core-js`, like `corejs: '3.37'`.
+[`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes working with the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '3.37'`.
 
-> **Warning!** Recommended to specify used minor `core-js` version, like `corejs: '3.37'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+> [!IMPORTANT]
+> Recommended to specify used minor `core-js` version, like `corejs: '3.37'`, instead of `corejs: 3`, since with `corejs: 3` will not be injected modules which were added in minor `core-js` releases.
+
+---
 
 - `useBuiltIns: 'entry'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```js
@@ -334,7 +338,7 @@ import 'core-js/es';
 import 'core-js/proposals/set-methods';
 import 'core-js/full/set/map';
 ```
-with `chrome 71` target you will have as a result:
+with `chrome 71` target you will have as the result:
 ```js
 import "core-js/modules/es.array.unscopables.flat";
 import "core-js/modules/es.array.unscopables.flat-map";
@@ -357,7 +361,7 @@ var set = new Set([1, 2, 3]);
 // second file:
 var array = Array.of(1, 2, 3);
 ```
-if target contains an old environment like `IE 11` we will have something like:
+if the target contains an old environment like `IE 11` we will have something like:
 ```js
 // first file:
 import 'core-js/modules/es.array.iterator';
@@ -370,13 +374,14 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: '3.37', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: '3.37', proposals: true }`.
 
-> **Warning!** In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
+> [!IMPORTANT]
+> In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
 
 #### `@babel/runtime`[⬆](#index)
 
-[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with `core-js-pure`. It automatically replaces usage of modern features from JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
+[`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 3` option simplifies work with the `core-js-pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```js
 import from from 'core-js-pure/stable/array/from';
 import flat from 'core-js-pure/stable/array/flat';
@@ -396,11 +401,12 @@ Promise.resolve(32).then(x => console.log(x));
 
 By default, `@babel/runtime` only polyfills stable features, but like in `@babel/preset-env`, you can enable polyfilling of proposals by `proposals` option, as `corejs: { version: 3, proposals: true }`.
 
-> **Warning!** If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+> [!WARNING]
+> If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
 
 ### swc[⬆](#index)
 
-Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so good like in `babel`. Example of configuration in `.swcrc`:
+Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://swc.rs/docs/configuration/supported-browsers), that optimizes work with the global version of `core-js`. [Like `@babel/preset-env`](#babelpreset-env), it has 2 modes: `usage` and `entry`, but `usage` mode still works not so well as in `babel`. Example of configuration in `.swcrc`:
 ```json
 {
   "env": {
@@ -413,27 +419,27 @@ Fast JavaScript transpiler `swc` [contains integration with `core-js`](https://s
 
 ### Configurable level of aggressiveness[⬆](#index)
 
-By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` use native implementation.
+By default, `core-js` sets polyfills only when they are required. That means that `core-js` checks if a feature is available and works correctly or not and if it has no problems, `core-js` uses native implementation.
 
 But sometimes `core-js` feature detection could be too strict for your case. For example, `Promise` constructor requires the support of unhandled rejection tracking and `@@species`.
 
-Sometimes we could have inverse problem - knowingly broken environment with problems not covered by `core-js` feature detection.
+Sometimes we could have an inverse problem - a knowingly broken environment with problems not covered by `core-js` feature detection.
 
-For those cases, we could redefine this behaviour for certain polyfills:
+For those cases, we could redefine this behavior for certain polyfills:
 
 ```js
 const configurator = require('core-js/configurator');
 
 configurator({
-  useNative: ['Promise'],                                 // polyfills will be used only if natives completely unavailable
+  useNative: ['Promise'],                                 // polyfills will be used only if natives are completely unavailable
   usePolyfill: ['Array.from', 'String.prototype.padEnd'], // polyfills will be used anyway
-  useFeatureDetection: ['Map', 'Set'],                    // default behaviour
+  useFeatureDetection: ['Map', 'Set'],                    // default behavior
 });
 
 require('core-js/actual');
 ```
 
-It does not work with some features. Also, if you change the default behaviour, even `core-js` internals may not work correctly.
+It does not work with some features. Also, if you change the default behavior, even `core-js` internals may not work correctly.
 
 ### Custom build[⬆](#index)
 
@@ -1416,9 +1422,9 @@ Symbol().description;      // => undefined
 ```
 ##### Caveats when using `Symbol` polyfill:[⬆](#index)
 
-* We can't add new primitive type, `Symbol` returns object.
-* `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
-* By default, to hide the keys, `Symbol` polyfill defines setter in `Object.prototype`. For this reason, uncontrolled creation of symbols can cause memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
+- We can't add a new primitive type, `Symbol` returns an object.
+- `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
+- By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
 You can disable defining setters in `Object.prototype`. [Example](https://goo.gl/N5UD7J):
 ```js
@@ -1434,11 +1440,11 @@ let object2 = {};
 object2[symbol2] = true;
 for (let key in object2) console.log(key); // nothing
 ```
-* Currently, `core-js` not adds setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
-* Some problems possible with environment exotic objects (for example, IE `localStorage`).
+- Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.
+- Some problems are possible with environment exotic objects (for example, IE `localStorage`).
 
 #### ECMAScript: Collections[⬆](#index)
-`core-js` uses native collections in most case, just fixes methods / constructor, if it's required, and in old environment uses fast polyfill (O(1) lookup).
+`core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in the old environment uses fast polyfill (O(1) lookup).
 #### Map[⬆](#index)
 Modules [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
 ```js
@@ -1640,10 +1646,10 @@ console.log(weakset.has([2])); // => false
 weakset.delete(b);
 console.log(weakset.has(b));   // => false
 ```
-##### Caveats when using collections polyfill:[⬆](#index)
 
-* Weak-collections polyfill stores values as hidden properties of keys. It works correct and not leak in most cases. However, it is desirable to store a collection longer than its keys.
-* Native symbols as `WeakMap` keys can't be properly polyfilled without memory leaks.
+> [!WARNING]
+> - Weak-collections polyfill stores values as hidden properties of keys. It works correctly and does not leak in most cases. However, it is desirable to store a collection longer than its keys.
+> - Native symbols as `WeakMap` keys can't be properly polyfilled without memory leaks.
 
 #### ECMAScript: Typed Arrays[⬆](#index)
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
@@ -1842,10 +1848,10 @@ console.log(newBuffer.byteLength); // => 4
 console.log(newBuffer.detached); // => false
 console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
 ```
-##### Caveats when using typed arrays polyfills:[⬆](#index)
 
-* Polyfills of Typed Arrays constructors work completely how should work by the spec, but because of internal usage of getters / setters on each instance, are slow and consumes significant memory. However, polyfills of Typed Arrays constructors required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
-* `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.
+> [!WARNING]
+> - Polyfills of Typed Arrays constructors work completely how they should work by the spec. Still, because of the internal usage of getters / setters on each instance, they are slow and consume significant memory. However, polyfills of Typed Arrays constructors are required mainly for old IE, all modern engines have native Typed Arrays constructors and require only fixes of constructors and polyfills of methods.
+> - `ArrayBuffer.prototype.{ transfer, transferToFixedLength }` polyfilled only in runtime with native `structuredClone` with `ArrayBuffer` transfer or `MessageChannel` support.
 
 #### ECMAScript: Reflect[⬆](#index)
 Modules [`es.reflect.apply`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.apply.js), [`es.reflect.construct`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.construct.js), [`es.reflect.define-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.define-property.js), [`es.reflect.delete-property`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.delete-property.js), [`es.reflect.get`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get.js), [`es.reflect.get-own-property-descriptor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-own-property-descriptor.js), [`es.reflect.get-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.get-prototype-of.js), [`es.reflect.has`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.has.js), [`es.reflect.is-extensible`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.is-extensible.js), [`es.reflect.own-keys`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.own-keys.js), [`es.reflect.prevent-extensions`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.prevent-extensions.js), [`es.reflect.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set.js), [`es.reflect.set-prototype-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.reflect.set-prototype-of.js).
@@ -1899,7 +1905,7 @@ instance.c; // => 42
 ```
 
 #### ECMAScript: JSON[⬆](#index)
-Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON` polyfill, however, fix already existing implementations by the current standard, for example, [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify). `JSON` also fixed in other modules - for example, `Symbol` polyfill fixes `JSON.stringify` for correct work with symbols.
+Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON` polyfill, however, fix already existing implementations by the current standard, for example, [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify). `JSON` is also fixed in other modules - for example, `Symbol` polyfill fixes `JSON.stringify` for correct work with symbols.
 
 Module [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
 ```js
@@ -1937,7 +1943,7 @@ globalThis.Array === Array; // => true
 
 #### Finished proposals[⬆](#index)
 
-Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find then in related sections of this doc. However, even for finished proposals, `core-js` provide a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
+Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find them in related sections of the README. However, even for finished proposals, `core-js` provides a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
 
 ##### [`globalThis`](https://github.com/tc39/proposal-global)[⬆](#index)
 ```js
@@ -2335,8 +2341,8 @@ Iterator.from({
 }).toArray(); // => [7, 6, 3, 0, 2, 8]
 ```
 
-###### Caveats:[⬆](#index)
-- For preventing prototypes pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
+> [!WARNING]
+> - For preventing prototype pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they are available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
 
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
@@ -2452,7 +2458,8 @@ console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72,
 ```
 
 ##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
-Note: **This is only built-ins for this proposal, `using` syntax support requires transpiler support.**
+> [!NOTE]
+> This is only built-ins for this proposal, `using` syntax support requires transpiler support.
 
 Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js), [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js), [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js), [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js), [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js), [`esnext.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-disposable-stack.constructor.js), [`esnext.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
 ```js
@@ -2630,9 +2637,10 @@ await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
 
 await [1, 2, 3].values().toAsync().map(async it => it ** 2).toArray(); // => [1, 4, 9]
 ```
+
 ###### Caveats:[⬆](#index)
 - For preventing prototypes pollution, in the `pure` version, new `%AsyncIteratorPrototype%` methods are not added to the real `%AsyncIteratorPrototype%`, they available only on wrappers - instead of `[].values().toAsync().map(fn)` use `AsyncIterator.from([]).map(fn)`.
-- Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
+- Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility of the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
 ```js
 const configurator = require('core-js/configurator');
 
@@ -2653,6 +2661,7 @@ require('core-js/actual/async-iterator');
 
 (async function * () { /* empty */ })() instanceof AsyncIterator; // => true
 ```
+
 ##### [`Iterator.range`](https://github.com/tc39/proposal-Number.range)[⬆](#index)
 Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
 ```js
@@ -3262,10 +3271,9 @@ structuredClone(new ImageData(8, 8));                           // => new ImageD
 
 structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
-##### Caveats when using `structuredClone` polyfill:[⬆](#index)
-
-* Many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
-* Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
+> [!WARNING]
+> - Many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however `.transfer` option works for some platform types. I recommend avoiding this option.
+> - Some specific platform types can't be cloned in old engines. Mainly it's very specific types or very old engines, but here are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look to the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you wanna clone something specific.
 
 #### Base64 utility methods[⬆](#index)
 [Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob), [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64). Modules [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
@@ -3442,10 +3450,10 @@ console.log(params.has('a', 4)); // => false
 console.log(params.toString()); // => 'a=3&a=2&b=2&c=4'
 ```
 
-##### Caveats when using `URL` and `URLSearchParams`:[⬆](#index)
-- IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
-- Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
-- `URL` implementations from all of the popular browsers have much more problems than `core-js`, however, replacing all of them does not looks like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
+> [!WARNING]
+> - IE8 does not support setters, so they do not work on `URL` instances. However, `URL` constructor can be used for basic `URL` parsing.
+> - Legacy encodings in a search query are not supported. Also, `core-js` implementation has some other encoding-related issues.
+> - `URL` implementations from all of the popular browsers have significantly more problems than `core-js`, however, replacing all of them does not look like a good idea. You can customize the aggressiveness of polyfill [by your requirements](#configurable-level-of-aggressiveness).
 
 ##### `DOMException`:[⬆](#index)
 [The specification.](https://webidl.spec.whatwg.org/#idl-DOMException) Modules [`web.dom-exception.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.constructor.js), [`web.dom-exception.stack`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.stack.js), [`web.dom-exception.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-exception.to-string-tag.js).
@@ -3541,7 +3549,7 @@ for (let [index, { id }] of document.querySelectorAll('*').entries()) {
 document.querySelectorAll('*').forEach(it => console.log(it.id));
 ```
 ### Iteration helpers[⬆](#index)
-Helpers for check iterability / get iterator in the `pure` version or, for example, for `arguments` object:
+Helpers for checking iterability / get iterator in the `pure` version or, for example, for `arguments` object:
 ```js
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
@@ -3585,8 +3593,8 @@ console.log(getIteratorMethod({})); // undefined
 ```
 
 ## Missing polyfills[⬆](#index)
-- ES `BigInt` can't be polyfilled since it requires changes in the behavior of operators, you could find more info [here](https://github.com/zloirock/core-js/issues/381). You could try to use [`JSBI`](https://github.com/GoogleChromeLabs/jsbi).
-- ES `Proxy` can't be polyfilled, you can try to use [`proxy-polyfill`](https://github.com/GoogleChrome/proxy-polyfill) which provides a very little subset of features.
+- ES `BigInt` can't be polyfilled since it requires changes in the behavior of operators, you can find more info [here](https://github.com/zloirock/core-js/issues/381). You could try to use [`JSBI`](https://github.com/GoogleChromeLabs/jsbi).
+- ES `Proxy` can't be polyfilled, you can try to use [`proxy-polyfill`](https://github.com/GoogleChrome/proxy-polyfill) which provides a very small subset of features.
 - ES `String#normalize` is not a very useful feature, but this polyfill will be very large. If you need it, you can use [unorm](https://github.com/walling/unorm/).
 - ECMA-402 `Intl` is missed because of the size. You can use [those polyfills](https://formatjs.io/docs/polyfills).
 - `window.fetch` is not a cross-platform feature, in some environments, it makes no sense. For this reason, I don't think it should be in `core-js`. Looking at a large number of requests it *might be*  added in the future. Now you can use, for example, [this polyfill](https://github.com/github/fetch).
