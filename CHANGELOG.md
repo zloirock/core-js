@@ -5,6 +5,7 @@
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
   - Added [NodeJS 22.0](https://nodejs.org/en/blog/release/v22.0.0) compat data mapping
   - Added Electron 31 compat data mapping
+  - Updated Opera Android 82 compat data mapping
 
 ##### [3.37.0 - 2024.04.17](https://github.com/zloirock/core-js/releases/tag/v3.37.0)
 - Changes [v3.36.1...v3.37.0](https://github.com/zloirock/core-js/compare/v3.36.1...v3.37.0)
