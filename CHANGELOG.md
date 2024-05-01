@@ -3,6 +3,7 @@
 - Compat data improvements:
   - [`Symbol.dispose`](https://github.com/tc39/proposal-explicit-resource-management) added marked as supported from V8 ~ Chromium 125
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
+  - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from Deno 1.43](https://github.com/nodejs/node/pull/52280)
   - Added [NodeJS 22.0](https://nodejs.org/en/blog/release/v22.0.0) compat data mapping
   - Added [Deno 1.43](https://github.com/denoland/deno/releases/tag/v1.43.0) compat data mapping
   - Added Electron 31 compat data mapping
