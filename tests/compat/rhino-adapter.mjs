@@ -1,4 +1,4 @@
-const { version } = argv;
+const [version] = argv._;
 
 const rhino = await fetch(
   `https://github.com/mozilla/rhino/releases/download/Rhino${ version.replace(/\./g, '_') }_Release/rhino-${ version }.jar`,
