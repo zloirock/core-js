@@ -10,7 +10,7 @@
   - Added [NodeJS 22.0](https://nodejs.org/en/blog/release/v22.0.0) compat data mapping
   - Added [Deno 1.43](https://github.com/denoland/deno/releases/tag/v1.43.0) compat data mapping
   - Added Electron 31 compat data mapping
-  - Updated Opera Android 82 compat data mapping
+  - Updated [Opera Android 82](https://forums.opera.com/topic/71513/opera-for-android-82) compat data mapping
   - Added Samsung Internet 26 compat data mapping
   - Added Oculus Quest Browser 33 compat data mapping
 
