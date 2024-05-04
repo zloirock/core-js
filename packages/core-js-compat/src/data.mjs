@@ -5,6 +5,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.symbol.constructor': {
@@ -161,6 +162,7 @@ export const data = {
     chrome: '92',
     firefox: '90',
     'react-native': '0.71',
+    rhino: '1.7.15',
     safari: '15.4',
   },
   'es.array.concat': {
@@ -223,12 +225,14 @@ export const data = {
     chrome: '69',
     firefox: '62',
     hermes: '0.4',
+    rhino: '1.7.15',
     safari: '12.0',
   },
   'es.array.flat-map': {
     chrome: '69',
     firefox: '62',
     hermes: '0.4',
+    rhino: '1.7.15',
     safari: '12.0',
   },
   'es.array.for-each': {
@@ -368,6 +372,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '48',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.array.splice': {
@@ -593,6 +598,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
@@ -746,6 +752,7 @@ export const data = {
     edge: '15',
     firefox: '51',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.math.trunc': {
@@ -947,6 +954,7 @@ export const data = {
     edge: '15',
     firefox: '50',
     hermes: '0.6',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.object.get-own-property-names': {
@@ -985,6 +993,7 @@ export const data = {
     chrome: '93',
     firefox: '92',
     hermes: '0.10',
+    rhino: '1.7.15',
     safari: '15.4',
   },
   'es.object.is': {
@@ -1142,6 +1151,7 @@ export const data = {
     // `unhandledrejection` event support was added in Deno@1.24
     deno: '1.24',
     firefox: '71',
+    rhino: '1.7.15',
     safari: '13',
   },
   'es.promise.any': {
@@ -1309,6 +1319,7 @@ export const data = {
     chrome: '62',
     firefox: '78',
     hermes: '0.4',
+    rhino: '1.7.15',
     safari: '11.1',
   },
   'es.regexp.exec': {
@@ -1329,6 +1340,7 @@ export const data = {
     edge: '13',
     firefox: '3',
     hermes: '0.3',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.regexp.test': {
@@ -1340,6 +1352,7 @@ export const data = {
     chrome: '50',
     firefox: '46',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
@@ -1419,6 +1432,7 @@ export const data = {
     chrome: '92',
     firefox: '90',
     'react-native': '0.71',
+    rhino: '1.7.15',
     safari: '15.4',
   },
   'es.string.code-point-at': {
@@ -1433,6 +1447,7 @@ export const data = {
     chrome: '51',
     firefox: '40',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.string.from-code-point': {
@@ -1447,6 +1462,7 @@ export const data = {
     chrome: '51',
     firefox: '40',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.string.is-well-formed': {
@@ -1518,6 +1534,7 @@ export const data = {
     chrome: '85',
     firefox: '77',
     hermes: '0.7',
+    rhino: '1.7.15',
     safari: '13.1',
   },
   'es.string.search': {
@@ -1535,6 +1552,7 @@ export const data = {
     chrome: '51',
     firefox: '40',
     hermes: '0.1',
+    rhino: '1.7.15',
     safari: '10.0',
   },
   'es.string.substr': {
@@ -1743,6 +1761,7 @@ export const data = {
     chrome: '92',
     firefox: '90',
     'react-native': '0.71',
+    rhino: '1.7.15',
     safari: '15.4',
   },
   'es.typed-array.copy-within': {

@@ -5,6 +5,7 @@
   - `Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }` from [`Float16Array` proposal](https://github.com/tc39/proposal-float16array) added and marked as [supported from Deno 1.43](https://github.com/denoland/deno/pull/23490)
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from Deno 1.43](https://github.com/denoland/deno/pull/23318)
+  - Added [Rhino 1.7.15](https://github.com/mozilla/rhino/releases/tag/Rhino1_7_15_Release) compat data, many features marked as supported
   - Added [NodeJS 22.0](https://nodejs.org/en/blog/release/v22.0.0) compat data mapping
   - Added [Deno 1.43](https://github.com/denoland/deno/releases/tag/v1.43.0) compat data mapping
   - Added Electron 31 compat data mapping
