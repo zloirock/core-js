@@ -1370,6 +1370,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1379,6 +1380,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1388,6 +1390,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1397,6 +1400,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1406,6 +1410,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1415,6 +1420,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
@@ -1424,6 +1430,7 @@ export const data = {
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
+    firefox: '127',
     // safari does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // safari: '17.0',
