@@ -16,7 +16,7 @@
     "eslint-plugin-qunit": "^8.1.1",
     "eslint-plugin-redos": "^4.5.0-beta.6",
     "eslint-plugin-regexp": "^2.5.0",
-    "eslint-plugin-sonarjs": "1.0.0",
+    "eslint-plugin-sonarjs": "^1.0.3",
     "eslint-plugin-unicorn": "^52.0.0",
     "globals": "^15.1.0",
     "jsonc-eslint-parser": "^2.4.0"
