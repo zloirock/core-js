@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed `URL.parse` feature detection
 - Compat data improvements:
   - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) added and marked as [supported from FF 127](https://bugzilla.mozilla.org/show_bug.cgi?id=1868423)
   - [`Symbol.dispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 125
