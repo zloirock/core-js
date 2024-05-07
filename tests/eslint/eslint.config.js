@@ -1250,7 +1250,7 @@ const nodePackages = {
 
 const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'] }],
   ...disable(forbidModernESBuiltIns),
   ...forbidES2023BuiltIns,
   'es/no-array-prototype-findlast-findlastindex': OFF,
