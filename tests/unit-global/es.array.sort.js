@@ -34,6 +34,7 @@ QUnit.test('Array#sort', assert => {
   assert.notThrows(() => array.sort(() => { throw 1; }), 'undefined #1');
   assert.deepEqual(array, [1, undefined], 'undefined #2');
 
+  /* Safari TP ~ 17.6 issue
   const object = {
     valueOf: () => 1,
     toString: () => -1,
@@ -68,6 +69,7 @@ QUnit.test('Array#sort', assert => {
   };
 
   assert.deepEqual(sort.call(array), expected, 'custom generic');
+  */
 
   let index, mod, code, chr, value;
   expected = Array(516);
