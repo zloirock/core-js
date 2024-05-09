@@ -3,7 +3,7 @@
   "type": "module",
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.3.0",
-    "@stylistic/eslint-plugin-js": "^2.0.0",
+    "@stylistic/eslint-plugin-js": "^2.1.0",
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^8.57.0",
     "eslint-plugin-array-func": "^5.0.1",
@@ -18,7 +18,7 @@
     "eslint-plugin-regexp": "^2.5.0",
     "eslint-plugin-sonarjs": "^1.0.3",
     "eslint-plugin-unicorn": "^52.0.0",
-    "globals": "^15.1.0",
+    "globals": "^15.2.0",
     "jsonc-eslint-parser": "^2.4.0"
   }
 }
