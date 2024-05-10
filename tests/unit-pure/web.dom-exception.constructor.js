@@ -30,7 +30,7 @@ const errors = {
   DataCloneError: { s: 'DATA_CLONE_ERR', c: 25, m: 1 },
 };
 
-const HAS_STACK = 'stack' in Error('1');
+const HAS_STACK = 'stack' in new Error('1');
 
 QUnit.test('DOMException', assert => {
   assert.isFunction(DOMException);

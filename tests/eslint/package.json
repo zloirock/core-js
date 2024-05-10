@@ -11,13 +11,13 @@
     "eslint-plugin-es-x": "^7.6.0",
     "eslint-plugin-import-x": "^0.5.0",
     "eslint-plugin-jsonc": "^2.15.1",
-    "eslint-plugin-n": "^17.5.1",
+    "eslint-plugin-n": "^17.6.0",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-qunit": "^8.1.1",
     "eslint-plugin-redos": "^4.5.0-beta.6",
     "eslint-plugin-regexp": "^2.5.0",
     "eslint-plugin-sonarjs": "^1.0.3",
-    "eslint-plugin-unicorn": "^52.0.0",
+    "eslint-plugin-unicorn": "^53.0.0",
     "globals": "^15.2.0",
     "jsonc-eslint-parser": "^2.4.0"
   }

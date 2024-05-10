@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/throw-new-error -- testing */
 import AggregateError from 'core-js-pure/es/aggregate-error';
 import Symbol from 'core-js-pure/es/symbol';
 import toString from 'core-js-pure/es/object/to-string';

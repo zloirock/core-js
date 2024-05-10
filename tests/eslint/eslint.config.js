@@ -525,6 +525,8 @@ const base = {
   // unicorn
   // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
+  // prefer consistent types when spreading a ternary in an array literal
+  'unicorn/consistent-empty-array-spread': ERROR,
   // enforce correct `Error` subclassing
   'unicorn/custom-error-definition': ERROR,
   // enforce passing a message value when throwing a built-in error
@@ -543,10 +545,14 @@ const base = {
   'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
+  // disallow invalid options in `fetch` and `Request`
+  'unicorn/no-invalid-fetch-options': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
   'unicorn/no-invalid-remove-event-listener': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
+  // disallow a magic number as the depth argument in `Array#flat`
+  'unicorn/no-magic-array-flat-depth': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
   // disallow passing single-element arrays to `Promise` methods
@@ -621,6 +627,8 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
@@ -1142,7 +1150,7 @@ const forbidES2023IntlBuiltIns = {
   'es/no-intl-pluralrules-prototype-selectrange': ERROR,
 };
 
-const forbidModernESBuiltIns = {
+const forbidModernBuiltIns = {
   ...forbidESAnnexBBuiltIns,
   ...forbidES5BuiltIns,
   ...forbidES2015BuiltIns,
@@ -1162,6 +1170,8 @@ const forbidModernESBuiltIns = {
   ...forbidES2021IntlBuiltIns,
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': OFF,
 };
 
 const polyfills = {
@@ -1208,7 +1218,7 @@ const nodePackages = {
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
   // prefer `node:` protocol
   'node/prefer-node-protocol': OFF,
   // prefer promises
@@ -1224,6 +1234,8 @@ const nodePackages = {
   'unicorn/prefer-node-protocol': OFF,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': OFF,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': OFF,
   ...disable(forbidES5BuiltIns),
   ...disable(forbidES2015BuiltIns),
   ...disable(forbidES2016BuiltIns),
@@ -1250,8 +1262,8 @@ const nodePackages = {
 
 const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'] }],
-  ...disable(forbidModernESBuiltIns),
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
+  ...disable(forbidModernBuiltIns),
   ...forbidES2023BuiltIns,
   'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
@@ -1562,7 +1574,7 @@ export default [
       'tests/@(unit-pure|worker)/**',
       'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
     ],
-    rules: forbidModernESBuiltIns,
+    rules: forbidModernBuiltIns,
   },
   {
     files: [

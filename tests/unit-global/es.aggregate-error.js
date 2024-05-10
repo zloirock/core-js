@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/throw-new-error -- testing */
 const { create } = Object;
 
 QUnit.test('AggregateError', assert => {

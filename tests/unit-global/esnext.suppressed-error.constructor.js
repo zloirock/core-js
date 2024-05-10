@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/throw-new-error -- testing */
 QUnit.test('SuppressedError', assert => {
   assert.isFunction(SuppressedError);
   assert.arity(SuppressedError, 3);

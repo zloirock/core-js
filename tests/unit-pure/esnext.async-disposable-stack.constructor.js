@@ -170,7 +170,7 @@ QUnit.test('AsyncDisposableStack#3', assert => {
   stack.use({ [Symbol.asyncDispose]: () => result += '6' });
   stack.adopt({}, () => { throw new Error(5); });
   stack.defer(() => result += '4');
-  stack.use({ [Symbol.asyncDispose]: () => Promise.reject(Error(3)) });
+  stack.use({ [Symbol.asyncDispose]: () => Promise.reject(new Error(3)) });
   stack.adopt({}, () => Promise.resolve(result += '2'));
   stack.defer(() => Promise.resolve(result += '1'));
 

@@ -31,7 +31,7 @@ const sites = file
 echo(green(`downloading and parsing the rank took ${ cyan((Date.now() - start) / 1e3) } seconds\n${ gray('-'.repeat(120)) }`));
 
 function timeout(promise, time) {
-  return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(Error('timeout')), time))]);
+  return Promise.race([promise, new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout')), time))]);
 }
 
 chromium.use(StealthPlugin());
