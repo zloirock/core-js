@@ -2711,6 +2711,7 @@ export const data = {
   },
   'web.url.parse': {
     bun: '1.1.4',
+    chrome: '126',
     deno: '1.43',
     firefox: '126',
     node: '22.0',

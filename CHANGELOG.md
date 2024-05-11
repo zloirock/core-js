@@ -5,6 +5,7 @@
   - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) added and marked as [supported from FF 127](https://bugzilla.mozilla.org/show_bug.cgi?id=1868423)
   - [`Symbol.dispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 125
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) added and marked as [supported from Deno 1.43](https://github.com/denoland/deno/pull/23490)
+  - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from Chromium 126](https://chromestatus.com/feature/6301071388704768)
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from NodeJS 22.0](https://github.com/nodejs/node/pull/52280)
   - [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) added and marked as [supported from Deno 1.43](https://github.com/denoland/deno/pull/23318)
   - Added [Rhino 1.7.15](https://github.com/mozilla/rhino/releases/tag/Rhino1_7_15_Release) compat data, many features marked as supported
