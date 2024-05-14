@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.37.1 - 2024.05.14](https://github.com/zloirock/core-js/releases/tag/v3.37.1)
+- Changes [v3.37.0...v3.37.1](https://github.com/zloirock/core-js/compare/v3.37.0...v3.37.1)
 - Fixed [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse) feature detection for some specific cases
 - Compat data improvements:
   - [`Set` methods proposal](https://github.com/tc39/proposal-set-methods) added and marked as [supported from FF 127](https://bugzilla.mozilla.org/show_bug.cgi?id=1868423)

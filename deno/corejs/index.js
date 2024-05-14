@@ -1,7 +1,7 @@
 /**
- * core-js 3.37.0
+ * core-js 3.37.1
  * © 2014-2024 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.37.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.37.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -1028,10 +1028,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.37.0',
+  version: '3.37.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2024 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.37.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.37.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -6388,7 +6388,7 @@ var WRONG_ARITY = !!NativeSuppressedError && NativeSuppressedError.length !== 3;
 
 // https://github.com/oven-sh/bun/issues/9283
 var EXTRA_ARGS_SUPPORT = !!NativeSuppressedError && fails(function () {
-  return NativeSuppressedError(1, 2, 3, { cause: 4 }).cause === 4;
+  return new NativeSuppressedError(1, 2, 3, { cause: 4 }).cause === 4;
 });
 
 var PATCH = WRONG_ARITY || EXTRA_ARGS_SUPPORT;
@@ -16123,12 +16123,13 @@ var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(22);
 var validateArgumentsLength = __webpack_require__(146);
 var toString = __webpack_require__(76);
+var USE_NATIVE_URL = __webpack_require__(472);
 
 var URL = getBuiltIn('URL');
 
 // `URL.parse` method
 // https://url.spec.whatwg.org/#dom-url-canparse
-$({ target: 'URL', stat: true }, {
+$({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
   parse: function parse(url) {
     var length = validateArgumentsLength(arguments.length, 1);
     var urlString = toString(url);

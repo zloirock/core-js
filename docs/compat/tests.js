@@ -338,7 +338,7 @@ GLOBAL.tests = {
     return Symbol.unscopables;
   }],
   'es.error.cause': function () {
-    return Error('e', { cause: 7 }).cause === 7
+    return new Error('e', { cause: 7 }).cause === 7
       && !('cause' in Error.prototype);
   },
   'es.error.to-string': function () {
@@ -358,7 +358,7 @@ GLOBAL.tests = {
     return typeof AggregateError == 'function';
   },
   'es.aggregate-error.cause': function () {
-    return AggregateError([1], 'e', { cause: 7 }).cause === 7
+    return new AggregateError([1], 'e', { cause: 7 }).cause === 7
       && !('cause' in AggregateError.prototype);
   },
   'es.array.at': function () {
@@ -1528,7 +1528,7 @@ GLOBAL.tests = {
   'esnext.suppressed-error.constructor': function () {
     return typeof SuppressedError == 'function'
       && SuppressedError.length === 3
-      && SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
+      && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'esnext.array.from-async': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
@@ -1965,7 +1965,7 @@ GLOBAL.tests = {
       && DOMException.prototype.DATA_CLONE_ERR === 25;
   },
   'web.dom-exception.stack': function () {
-    return !('stack' in Error('1')) || 'stack' in new DOMException();
+    return !('stack' in new Error('1')) || 'stack' in new DOMException();
   },
   'web.dom-exception.to-string-tag': function () {
     return typeof DOMException == 'function'
