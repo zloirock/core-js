@@ -1,4 +1,13 @@
+const featuresExclude = [
+  'arraybuffer-transfer',
+  'regexp-duplicate-named-groups',
+  'regexp-modifiers',
+  'regexp-v-flag',
+  'resizable-arraybuffer',
+];
+
 await $`test262-harness \
+  --features-exclude=${ featuresExclude.join(',') } \
   --threads=${ os.cpus().length } \
   --host-args="--unhandled-rejections=none" \
   --preprocessor=preprocessor.js \

@@ -8,11 +8,12 @@ const include = [
   // 'Date',
   'Error',
   'Function/prototype',
-  'IteratorPrototype',
+  'Iterator',
   'JSON',
   'Map',
   'MapIteratorPrototype',
   'Math',
+  'NativeErrors',
   'Number',
   'Object',
   'Promise',
@@ -41,16 +42,11 @@ const include = [
 ];
 
 const exclude = [
-  '/ArrayBuffer/prototype/resize/',
-  '/ArrayBuffer/prototype/resizable/',
-  '/ArrayBuffer/prototype/transfer/',
   '/Function/prototype/toString/',
   '/Object/internals/DefineOwnProperty/',
   // conflict with iterators helpers proposal
   '/Object/prototype/toString/symbol-tag-non-str-builtin',
   '/RegExp/property-escapes/',
-  'resizable-buffer',
-  'resize-arraybuffer',
   'detached-buffer',
   'detach-typedarray',
   // we can't implement this behavior on methods 100% proper and compatible with ES3
