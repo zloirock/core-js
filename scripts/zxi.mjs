@@ -13,6 +13,7 @@ if (TIME) args.splice(args.indexOf('time'), 1);
 const FILE = args.shift();
 const DIR = dirname(FILE);
 
+$.preferLocal = true;
 $.verbose = true;
 
 if (await pathExists(`${ DIR }/package.json`)) {
