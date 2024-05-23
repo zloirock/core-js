@@ -1,3 +1,4 @@
+import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
@@ -117,6 +118,7 @@ const base = {
   'no-unused-vars': [ERROR, {
     vars: 'all',
     args: 'after-used',
+    caughtErrors: 'none',
     ignoreRestSiblings: true,
   }],
   // require or disallow the Unicode Byte Order Mark
@@ -178,7 +180,7 @@ const base = {
   // disallow unnecessary function binding
   'no-extra-bind': ERROR,
   // disallow unnecessary boolean casts
-  'no-extra-boolean-cast': ERROR,
+  'no-extra-boolean-cast': [ERROR, { enforceForInnerExpressions: true }],
   // disallow unnecessary labels
   'no-extra-label': ERROR,
   // disallow reassignments of native objects
@@ -499,7 +501,7 @@ const base = {
   // avoid calling `cb()` inside of a `then()` or `catch()`
   'promise/no-callback-in-promise': ERROR,
   // disallow creating new promises with paths that resolve multiple times (no-multiple-resolved)
-  'promise/no-multiple-resolved': ERROR,
+  // 'promise/no-multiple-resolved': ERROR,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': ERROR,
   // avoid calling new on a `Promise` static method
@@ -1538,7 +1540,7 @@ export default [
       jsonc: pluginJSONC,
       node: pluginN,
       promise: pluginPromise,
-      qunit: pluginQUnit,
+      qunit: fixupPluginRules(pluginQUnit),
       redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
