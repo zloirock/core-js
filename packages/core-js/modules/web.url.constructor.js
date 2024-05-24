@@ -203,11 +203,7 @@ var findLongestZeroSequence = function (ipv6) {
       ++currLength;
     }
   }
-  if (currLength > maxLength) {
-    maxIndex = currStart;
-    maxLength = currLength;
-  }
-  return maxIndex;
+  return currLength > maxLength ? currStart : maxIndex;
 };
 
 // https://url.spec.whatwg.org/#host-serializing

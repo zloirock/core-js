@@ -26,7 +26,7 @@ QUnit.test('Reflect.set', assert => {
     set(target, 'bar', 1, receiver);
     assert.same(receiver.bar, 1, 'receiver.bar === 1');
     assert.false(getOwnPropertyDescriptor(receiver, 'bar').enumerable, 'enumerability not overridden');
-    let out = null;
+    let out;
     target = create(defineProperty({ z: 3 }, 'w', {
       set() {
         out = this;

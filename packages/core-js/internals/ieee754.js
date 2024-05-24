@@ -61,7 +61,7 @@ var pack = function (number, mantissaLength, bytes) {
     exponent /= 256;
     exponentLength -= 8;
   }
-  buffer[--index] |= sign * 128;
+  buffer[index - 1] |= sign * 128;
   return buffer;
 };
 

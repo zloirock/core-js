@@ -58,10 +58,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     if (f < 0 || f > 20) throw new $RangeError('Incorrect fraction digits');
     if (ROUNDS_PROPERLY) return nativeToExponential(x, f);
     var s = '';
-    var m = '';
-    var e = 0;
-    var c = '';
-    var d = '';
+    var m, e, c, d;
     if (x < 0) {
       s = '-';
       x = -x;
@@ -74,9 +71,8 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       // TODO: improve accuracy with big fraction digits
       var l = log10(x);
       e = floor(l);
-      var n = 0;
       var w = pow(10, e - f);
-      n = round(x / w);
+      var n = round(x / w);
       if (2 * x >= (2 * n + 1) * w) {
         n += 1;
       }

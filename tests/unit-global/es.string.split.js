@@ -489,7 +489,7 @@ const run = assert => {
   split = instance.split(1, NaN);
   assert.same(split.constructor, Array, 'S15.5.4.14_A2_T38 #1');
   assert.same(split.length, 0, 'S15.5.4.14_A2_T38 #2');
-  instance = Object('hello').split('l', 0);
+  split = Object('hello').split('l', 0);
   assert.same(split.constructor, Array, 'S15.5.4.14_A2_T39 #1');
   assert.same(split.length, 0, 'S15.5.4.14_A2_T39 #2');
   split = Object('hello').split('l', 1);

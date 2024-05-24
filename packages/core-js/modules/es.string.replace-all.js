@@ -25,8 +25,7 @@ var max = Math.max;
 $({ target: 'String', proto: true }, {
   replaceAll: function replaceAll(searchValue, replaceValue) {
     var O = requireObjectCoercible(this);
-    var IS_REG_EXP, flags, replacer, string, searchString, functionalReplace, searchLength, advanceBy, replacement;
-    var position = 0;
+    var IS_REG_EXP, flags, replacer, string, searchString, functionalReplace, searchLength, advanceBy, position, replacement;
     var endOfLastMatch = 0;
     var result = '';
     if (!isNullOrUndefined(searchValue)) {

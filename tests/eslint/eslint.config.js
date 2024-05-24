@@ -121,6 +121,8 @@ const base = {
     caughtErrors: 'none',
     ignoreRestSiblings: true,
   }],
+  // disallow variable assignments when the value is not used
+  'no-useless-assignment': ERROR,
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
   // disallow comparisons with the value NaN

@@ -29,7 +29,6 @@ QUnit.test('Reflect.getOwnMetadataKeys', assert => {
   defineMetadata('key0', 'value', object, undefined);
   defineMetadata('key1', 'value', object, undefined);
   assert.deepEqual(getOwnMetadataKeys(object, undefined), ['key0', 'key1']);
-  object = {};
   assert.deepEqual(getOwnMetadataKeys({}, 'name'), []);
   object = {};
   defineMetadata('key', 'value', object, 'name');
