@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - Added [Deno 1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) compat data mapping
   - Added Opera Android 83 compat data mapping
 
 ##### [3.37.1 - 2024.05.14](https://github.com/zloirock/core-js/releases/tag/v3.37.1)
