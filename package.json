@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.6",
+    "@babel/plugin-proposal-duplicate-named-capturing-groups-regex": "^7.24.6",
     "@babel/plugin-transform-arrow-functions": "^7.24.6",
     "@babel/plugin-transform-block-scoped-functions": "^7.24.6",
     "@babel/plugin-transform-block-scoping": "^7.24.6",
