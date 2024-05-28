@@ -134,7 +134,12 @@ const base = {
   // enforce the use of variables within the scope they are defined
   'block-scoped-var': ERROR,
   // require camel case names
-  camelcase: [ERROR, { properties: NEVER }],
+  camelcase: [ERROR, {
+    properties: NEVER,
+    ignoreDestructuring: true,
+    ignoreImports: true,
+    ignoreGlobals: true,
+  }],
   // enforce default clauses in switch statements to be last
   'default-case-last': ERROR,
   // enforce default parameters to be last
