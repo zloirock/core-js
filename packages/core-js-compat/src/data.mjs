@@ -2433,6 +2433,7 @@ export const data = {
   'esnext.string.to-well-formed': null,
   'esnext.symbol.async-dispose': {
     bun: '1.0.23',
+    chrome: '127',
     deno: '1.38',
     // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
