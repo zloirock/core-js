@@ -8,7 +8,7 @@ var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = !fails(function () {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
-  var url = new URL('b?a=1&b=2&c=3', 'http://a');
+  var url = new URL('b?a=1&b=2&c=3', 'https://a');
   var params = url.searchParams;
   var params2 = new URLSearchParams('a=1&a=2&b=3');
   var result = '';
@@ -24,7 +24,7 @@ module.exports = !fails(function () {
   return (IS_PURE && (!url.toJSON || !params2.has('a', 1) || params2.has('a', 2) || !params2.has('a', undefined) || params2.has('b')))
     || (!params.size && (IS_PURE || !DESCRIPTORS))
     || !params.sort
-    || url.href !== 'http://a/c%20d?a=1&c=3'
+    || url.href !== 'https://a/c%20d?a=1&c=3'
     || params.get('c') !== '3'
     || String(new URLSearchParams('?a=1')) !== 'a=1'
     || !params[ITERATOR]
@@ -32,11 +32,11 @@ module.exports = !fails(function () {
     || new URL('https://a@b').username !== 'a'
     || new URLSearchParams(new URLSearchParams('a=b')).get('a') !== 'b'
     // not punycoded in Edge
-    || new URL('http://тест').host !== 'xn--e1aybc'
+    || new URL('https://тест').host !== 'xn--e1aybc'
     // not escaped in Chrome 62-
-    || new URL('http://a#б').hash !== '#%D0%B1'
+    || new URL('https://a#б').hash !== '#%D0%B1'
     // fails in Chrome 66-
     || result !== 'a1c3'
     // throws in Safari
-    || new URL('http://x', undefined).host !== 'x';
+    || new URL('https://x', undefined).host !== 'x';
 });
