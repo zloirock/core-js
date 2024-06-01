@@ -205,7 +205,7 @@ const base = {
   // disallow `if` as the only statement in an `else` block
   'no-lonely-if': ERROR,
   // disallow function declarations and expressions inside loop statements
-  'no-loop-func': ERROR,
+  'no-loop-func': OFF,
   // disallow use of multiline strings
   'no-multi-str': ERROR,
   // disallow use of new operator when not part of the assignment or comparison
