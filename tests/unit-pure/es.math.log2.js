@@ -13,10 +13,10 @@ QUnit.test('Math.log2', assert => {
   assert.same(log2(Infinity), Infinity);
   assert.same(log2(0.5), -1);
   assert.same(log2(32), 5);
-  assert.epsilon(log2(5), 2.321928094887362);
+  assert.closeTo(log2(5), 2.321928094887362, 1e-11);
 
   const checker = createConversionChecker(5);
-  assert.epsilon(log2(checker), 2.321928094887362);
+  assert.closeTo(log2(checker), 2.321928094887362, 1e-11);
   assert.same(checker.$valueOf, 1, 'valueOf calls');
   assert.same(checker.$toString, 0, 'toString calls');
 });

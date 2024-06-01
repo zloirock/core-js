@@ -14,15 +14,15 @@ QUnit.test('Math.log10', assert => {
   assert.same(log10(-0), -Infinity);
   assert.same(log10(1), 0);
   assert.same(log10(Infinity), Infinity);
-  assert.epsilon(log10(0.1), -1);
-  assert.epsilon(log10(0.5), -0.3010299956639812);
-  assert.epsilon(log10(1.5), 0.17609125905568124);
-  assert.epsilon(log10(5), 0.6989700043360189);
-  assert.epsilon(log10(50), 1.6989700043360187);
-  assert.epsilon(log10(1000), 3);
+  assert.closeTo(log10(0.1), -1, 1e-11);
+  assert.closeTo(log10(0.5), -0.3010299956639812, 1e-11);
+  assert.closeTo(log10(1.5), 0.17609125905568124, 1e-11);
+  assert.closeTo(log10(5), 0.6989700043360189, 1e-11);
+  assert.closeTo(log10(50), 1.6989700043360187, 1e-11);
+  assert.closeTo(log10(1000), 3, 1e-11);
 
   const checker = createConversionChecker(0.5);
-  assert.epsilon(log10(checker), -0.3010299956639812);
+  assert.closeTo(log10(checker), -0.3010299956639812, 1e-11);
   assert.same(checker.$valueOf, 1, 'valueOf calls');
   assert.same(checker.$toString, 0, 'toString calls');
 });

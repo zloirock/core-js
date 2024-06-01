@@ -9,14 +9,14 @@ QUnit.test('Math.asinh', assert => {
   assert.same(asinh(-0), -0);
   assert.same(asinh(Infinity), Infinity);
   assert.same(asinh(-Infinity), -Infinity);
-  assert.epsilon(asinh(1234), 7.811163549201245);
-  assert.epsilon(asinh(9.99), 2.997227420191335);
-  assert.epsilon(asinh(1e150), 346.0809111296668);
-  assert.epsilon(asinh(1e7), 16.811242831518268);
-  assert.epsilon(asinh(-1e7), -16.811242831518268);
+  assert.closeTo(asinh(1234), 7.811163549201245, 1e-11);
+  assert.closeTo(asinh(9.99), 2.997227420191335, 1e-11);
+  assert.closeTo(asinh(1e150), 346.0809111296668, 1e-11);
+  assert.closeTo(asinh(1e7), 16.811242831518268, 1e-11);
+  assert.closeTo(asinh(-1e7), -16.811242831518268, 1e-11);
 
   const checker = createConversionChecker(1234);
-  assert.epsilon(asinh(checker), 7.811163549201245);
+  assert.closeTo(asinh(checker), 7.811163549201245, 1e-11);
   assert.same(checker.$valueOf, 1, 'valueOf calls');
   assert.same(checker.$toString, 0, 'toString calls');
 });

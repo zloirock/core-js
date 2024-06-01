@@ -9,10 +9,10 @@ QUnit.test('Math.tanh', assert => {
   assert.same(tanh(-0), -0);
   assert.same(tanh(Infinity), 1);
   assert.same(tanh(90), 1);
-  assert.epsilon(tanh(10), 0.9999999958776927);
+  assert.closeTo(tanh(10), 0.9999999958776927, 1e-11);
 
   const checker = createConversionChecker(10);
-  assert.epsilon(tanh(checker), 0.9999999958776927);
+  assert.closeTo(tanh(checker), 0.9999999958776927, 1e-11);
   assert.same(checker.$valueOf, 1, 'valueOf calls');
   assert.same(checker.$toString, 0, 'toString calls');
 });

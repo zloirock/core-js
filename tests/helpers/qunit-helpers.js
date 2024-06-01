@@ -22,6 +22,18 @@ assign(QUnit.assert, {
   avoid(message = 'It should never be called') {
     this.ok(false, message);
   },
+  // TODO: Drop from future `core-js` versions
+  // available from `qunit@2.21`
+  closeTo(actual, expected, delta, message) {
+    if (typeof delta != 'number') throw new TypeError('closeTo() requires a delta argument');
+    const result = Math.abs(actual - expected) <= delta;
+    this.pushResult({
+      result,
+      actual,
+      expected,
+      message: message ?? `The value should be within ${ delta } inclusive`,
+    });
+  },
   enumerable(O, key, message) {
     const result = !DESCRIPTORS || propertyIsEnumerable.call(O, key);
     this.pushResult({
@@ -33,16 +45,7 @@ assign(QUnit.assert, {
         : 'Enumerability is not applicable',
     });
   },
-  epsilon(a, b, EPSILON = 1e-11, message = null) {
-    const result = Math.abs(a - b) <= EPSILON;
-    this.pushResult({
-      result,
-      actual: result,
-      expected: `The value should be closer to the target by less than ${ EPSILON }`,
-      message: message ?? `The value should be closer to the target by less than ${ EPSILON }`,
-    });
-  },
-  // TODO: Drop from ~ `core-js@5`
+  // TODO: Drop from future `core-js` versions
   // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
   false(value, message = 'The value is `false`') {
     this.same(value, false, message);
@@ -168,7 +171,7 @@ assign(QUnit.assert, {
       message,
     });
   },
-  // TODO: Drop from ~ `core-js@5`
+  // TODO: Drop from future `core-js` versions
   // unavailable in `qunit@1` that's required for testing in IE9-, Chrome 38, etc.
   true(value, message = 'The value is `true`') {
     this.same(value, true, message);
