@@ -1,7 +1,7 @@
 // Originally from: https://github.com/web-platform-tests/wpt/blob/4b35e758e2fc4225368304b02bcec9133965fd1a/IndexedDB/structured-clone.any.js
 // Copyright © web-platform-tests contributors. Available under the 3-Clause BSD License.
 /* eslint-disable es/no-error-cause, es/no-typed-arrays -- safe */
-import { GLOBAL, NODE } from '../helpers/constants.js';
+import { GLOBAL, NODE, BUN } from '../helpers/constants.js';
 import { bufferToArray, fromSource } from '../helpers/helpers.js';
 
 import structuredClone from 'core-js-pure/stable/structured-clone';
@@ -430,7 +430,8 @@ QUnit.module('structuredClone', () => {
     });
   });
 
-  if (fromSource('new File(["test"], "foo.txt")')) QUnit.test('File', assert => {
+  // https://github.com/oven-sh/bun/issues/11696
+  if (!BUN && fromSource('new File(["test"], "foo.txt")')) QUnit.test('File', assert => {
     cloneObjectTest(
       assert,
       new File(['This is a test.'], 'foo.txt', { type: 'c/d' }),
