@@ -119,7 +119,8 @@ QUnit.test('URLSearchParams', assert => {
     });
   }
 
-  assert.throws(() => {
+  // https://github.com/oven-sh/bun/issues/9253
+  if (!BUN) assert.throws(() => {
     URLSearchParams('');
   }, 'throws w/o `new`');
 
