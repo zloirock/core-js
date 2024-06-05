@@ -37,7 +37,7 @@
     "test-raw": "run-s lint-raw bundle-tests test-unit test-promises test-observables test-entries test-compat-data test-compat-tools test-builder check",
     "test-eslint": "npm run zxi time tests/eslint/runner.mjs",
     "test-publint": "npm run zxi time tests/publint/runner.mjs",
-    "test-unit": "run-s test-unit-karma test-unit-node",
+    "test-unit": "run-s test-unit-karma test-unit-node test-unit-bun",
     "test-unit-karma": "npm run zxi time cd tests/unit-karma/runner.mjs",
     "test-unit-node": "npm run zxi time tests/unit-node/runner.mjs",
     "test-unit-bun": "npm run zxi time tests/unit-bun/runner.mjs",
