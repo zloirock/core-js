@@ -1125,6 +1125,16 @@ const forbidES2024BuiltIns = {
   'es/no-string-prototype-iswellformed-towellformed': ERROR,
 };
 
+const forbidES2025BuiltIns = {
+  'es/no-set-prototype-difference': ERROR,
+  'es/no-set-prototype-intersection': ERROR,
+  'es/no-set-prototype-isdisjointfrom': ERROR,
+  'es/no-set-prototype-issubsetof': ERROR,
+  'es/no-set-prototype-issupersetof': ERROR,
+  'es/no-set-prototype-symmetricdifference': ERROR,
+  'es/no-set-prototype-union': ERROR,
+};
+
 const forbidES2016IntlBuiltIns = {
   'es/no-intl-getcanonicallocales': ERROR,
 };
@@ -1173,6 +1183,7 @@ const forbidModernBuiltIns = {
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
   ...forbidES2024BuiltIns,
+  ...forbidES2025BuiltIns,
   ...forbidES2016IntlBuiltIns,
   ...forbidES2017IntlBuiltIns,
   ...forbidES2018IntlBuiltIns,
@@ -1261,6 +1272,7 @@ const nodePackages = {
   ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
   ...forbidES2024BuiltIns,
+  ...forbidES2025BuiltIns,
   ...disable(forbidES2016IntlBuiltIns),
   ...disable(forbidES2017IntlBuiltIns),
   ...forbidES2018IntlBuiltIns,
@@ -1277,6 +1289,7 @@ const nodeDev = {
   ...forbidES2023BuiltIns,
   'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
+  ...forbidES2025BuiltIns,
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
   // ReDoS vulnerability check
