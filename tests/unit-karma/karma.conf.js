@@ -23,7 +23,7 @@ const browsers = [
   'PhantomJS',
 ];
 
-if (which('iexplore.exe', { nothrow: true })) {
+if (process.env.CI || which('iexplore.exe', { nothrow: true })) {
   browsers.push('IE_NFM');
 }
 
