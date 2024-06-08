@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Some minor optimizations
 - Compat data improvements:
   - [`Symbol.asyncDispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 127
   - Added [Deno 1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) compat data mapping
