@@ -32,6 +32,20 @@ jobs:
       - run: npm ci
       - run: npx run-s bundle test-unit-karma
 
+  bun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ^22.1
+          cache: npm
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1
+      - run: npm ci
+      - run: npx run-s bundle test-unit-bun
+
   promises-and-observables:
     strategy:
       matrix:
