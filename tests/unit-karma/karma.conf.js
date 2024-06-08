@@ -1,5 +1,6 @@
 'use strict';
 const { chromium, firefox, webkit } = require('playwright');
+const { sync: which } = require('which');
 
 Object.assign(process.env, {
   CHROMIUM_BIN: chromium.executablePath(),
@@ -22,7 +23,7 @@ const browsers = [
   'PhantomJS',
 ];
 
-if (process.env.CI) {
+if (which('iexplore', { nothrow: true })) {
   browsers.push('IE_NFM');
 }
 
