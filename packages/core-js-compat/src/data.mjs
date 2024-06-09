@@ -617,7 +617,7 @@ export const data = {
     chrome: '117',
     firefox: '119',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
-    // safari: '17.4',
+    safari: '18.0', // '17.4',
   },
   'es.math.acosh': {
     chrome: '54',
@@ -987,7 +987,7 @@ export const data = {
     chrome: '117',
     firefox: '119',
     // https://bugs.webkit.org/show_bug.cgi?id=271524
-    // safari: '17.4',
+    safari: '18.0', // '17.4',
   },
   'es.object.has-own': {
     chrome: '93',
@@ -1371,9 +1371,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.intersection.v2': {
     bun: '1.1.1',
@@ -1381,9 +1381,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.is-disjoint-from.v2': {
     bun: '1.1.1',
@@ -1391,9 +1391,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.is-subset-of.v2': {
     bun: '1.1.1',
@@ -1401,9 +1401,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.is-superset-of.v2': {
     bun: '1.1.1',
@@ -1411,9 +1411,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.symmetric-difference.v2': {
     bun: '1.1.1',
@@ -1421,9 +1421,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.set.union.v2': {
     bun: '1.1.1',
@@ -1431,9 +1431,9 @@ export const data = {
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
-    // safari does not properly work with set-like objects
+    // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    // safari: '17.0',
+    safari: '18.0', // '17.0',
   },
   'es.string.at-alternative': {
     chrome: '92',
@@ -2018,7 +2018,7 @@ export const data = {
     deno: '1.38',
     firefox: '115',
     // https://bugs.webkit.org/show_bug.cgi?id=271703
-    // safari: '16.4',
+    safari: '18.0', // '16.4',
   },
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,
@@ -2716,6 +2716,7 @@ export const data = {
     deno: '1.43',
     firefox: '126',
     node: '22.0',
+    safari: '18.0',
   },
   'web.url.to-json': {
     bun: '0.1.1',
