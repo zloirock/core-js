@@ -162,9 +162,9 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Float16` methods](#float16-methods)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [Explicit resource management](#explicit-resource-management)
+      - [`Promise.try`](#promisetry)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
-      - [`Promise.try`](#promisetry)
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
@@ -2515,29 +2515,6 @@ core-js(-pure)/actual|full/suppressed-error
 core-js(-pure)/actual|full/iterator/dispose
 core-js(-pure)/actual|full/async-iterator/async-dispose
 ```
-##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
-Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
-```js
-class Symbol {
-  static metadata: @@metadata;
-}
-
-class Function {
-  @@metadata: null;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/decorator-metadata-v2
-core-js(-pure)/actual|full/symbol/metadata
-core-js(-pure)/actual|full/function/metadata
-```
-
-#### Stage 2.7 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/2.7
-```
 
 ##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
 Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
@@ -2560,6 +2537,30 @@ Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as $
 Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${it}`));
 
 Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
+```
+
+##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
+Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
+```js
+class Symbol {
+  static metadata: @@metadata;
+}
+
+class Function {
+  @@metadata: null;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/decorator-metadata-v2
+core-js(-pure)/actual|full/symbol/metadata
+core-js(-pure)/actual|full/function/metadata
+```
+
+#### Stage 2.7 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/stage/2.7
 ```
 
 ##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)

@@ -1,5 +1,10 @@
 ## Changelog
 ##### Unreleased
+- [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try):
+  - Built-ins:
+    - `Promise.try`
+  - Moved to stage 3, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/de20984cd7f7bc616682c557cb839abc100422cb)
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Some minor optimizations
 - Compat data improvements:
   - Added [Safari 18.0](https://webkit.org/blog/15443/news-from-wwdc24-webkit-in-safari-18-beta/) compat data:

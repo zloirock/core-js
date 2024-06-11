@@ -702,6 +702,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
+    ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/metadata'));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
@@ -817,7 +818,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'reflect/has-metadata') == 'function');
     ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
     ok(typeof load(NS, 'reflect/metadata') == 'function');
-    ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\x24');
     ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
     ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);

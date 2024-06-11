@@ -8,7 +8,7 @@ var perform = require('../internals/perform');
 
 // `Promise.try` method
 // https://github.com/tc39/proposal-promise-try
-$({ target: 'Promise', stat: true, forced: true }, {
+$({ target: 'Promise', stat: true }, {
   'try': function (callbackfn /* , ...args */) {
     var args = arguments.length > 1 ? slice(arguments, 1) : [];
     var promiseCapability = newPromiseCapabilityModule.f(this);
