@@ -93,7 +93,7 @@ var SYMBOL_REGISTRY = [SYMBOLS_SUPPORT, function () {
 
 var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
   // eslint-disable-next-line unicorn/relative-url-style -- required for testing
-  var url = new URL('b?a=1&b=2&c=3', 'http://a');
+  var url = new URL('b?a=1&b=2&c=3', 'https://a');
   var searchParams = url.searchParams;
   var result = '';
   url.pathname = 'c%20d';
@@ -102,16 +102,16 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     result += key + value;
   });
   return searchParams.sort
-    && url.href === 'http://a/c%20d?a=1&c=3'
+    && url.href === 'https://a/c%20d?a=1&c=3'
     && searchParams.get('c') === '3'
     && String(new URLSearchParams('?a=1')) === 'a=1'
     && searchParams[Symbol.iterator]
     && new URL('https://a@b').username === 'a'
     && new URLSearchParams(new URLSearchParams('a=b')).get('a') === 'b'
-    && new URL('http://тест').host === 'xn--e1aybc'
-    && new URL('http://a#б').hash === '#%D0%B1'
+    && new URL('https://тест').host === 'xn--e1aybc'
+    && new URL('https://a#б').hash === '#%D0%B1'
     && result === 'a1c3'
-    && new URL('http://x', undefined).host === 'x';
+    && new URL('https://x', undefined).host === 'x';
 };
 
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
