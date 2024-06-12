@@ -2526,7 +2526,7 @@ class Promise {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/promise-try
-core-js(-pure)/full/promise/try
+core-js(-pure)/actual|full/promise/try
 ```
 [*Examples*](https://goo.gl/k5GGRo):
 ```js
