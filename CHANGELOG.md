@@ -5,6 +5,10 @@
     - `Promise.try`
   - Moved to stage 3, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/de20984cd7f7bc616682c557cb839abc100422cb)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
+- [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
+  - Built-ins:
+    - `RegExp.escape`
+  - Moved to stage 2.7, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/4b8ee265248abfa2c88ed71b3c541ddd5a2eaffe)
 - Some minor optimizations
 - Compat data improvements:
   - Added [Safari 18.0](https://webkit.org/blog/15443/news-from-wwdc24-webkit-in-safari-18-beta/) compat data:
