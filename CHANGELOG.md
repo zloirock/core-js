@@ -19,6 +19,7 @@
     - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse)
   - [`Symbol.asyncDispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 127
   - Added [Deno 1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) compat data mapping
+  - Added Electron 32 compat data mapping
   - Added Opera Android 83 compat data mapping
 
 ##### [3.37.1 - 2024.05.14](https://github.com/zloirock/core-js/releases/tag/v3.37.1)
