@@ -9,6 +9,7 @@
   - Built-ins:
     - `RegExp.escape`
   - Moved to stage 2.7, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/4b8ee265248abfa2c88ed71b3c541ddd5a2eaffe)
+- Used `https` instead of `http` in `URL` constructor feature detection to avoid extra notifications from some overly vigilant security scanners, [#1345](https://github.com/zloirock/core-js/issues/1345)
 - Some minor optimizations
 - Compat data improvements:
   - Added [Safari 18.0](https://webkit.org/blog/15443/news-from-wwdc24-webkit-in-safari-18-beta/) compat data:
