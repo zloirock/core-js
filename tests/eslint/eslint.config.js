@@ -563,6 +563,8 @@ const base = {
   'unicorn/no-lonely-if': ERROR,
   // disallow a magic number as the depth argument in `Array#flat`
   'unicorn/no-magic-array-flat-depth': ERROR,
+  // disallow negated expression in equality check
+  'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
   'unicorn/no-new-buffer': ERROR,
   // disallow passing single-element arrays to `Promise` methods
@@ -602,7 +604,7 @@ const base = {
     hexadecimal: { minimumDigits: 0, groupLength: 2 },
   }],
   // prefer `.find()` over the first element from `.filter()`
-  'unicorn/prefer-array-find': ERROR,
+  'unicorn/prefer-array-find': [ERROR, { checkFromLast: true }],
   // use `.flat()` to flatten an array of arrays
   'unicorn/prefer-array-flat': ERROR,
   // use `.flatMap()` to map and then flatten an array instead of using `.map().flat()`
