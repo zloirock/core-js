@@ -4,5 +4,5 @@ if (await which('bun', { nothrow: true })) {
     // ['packages/core-js/index', 'tests/bundles/unit-global'],
     ['packages/core-js-bundle/index', 'tests/bundles/unit-global'],
     ['tests/bundles/unit-pure'],
-  ].map(files => $`bun ./tests/unit-bun/node_modules/.bin/qunit ${ files.map(file => `${ file }.js`) }`));
+  ].map(files => $`bun qunit ${ files.map(file => `../../${ file }.js`) }`));
 } else echo(chalk.cyan('bun is not found'));

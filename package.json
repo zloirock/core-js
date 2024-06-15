@@ -40,7 +40,7 @@
     "test-unit": "run-s test-unit-karma test-unit-node test-unit-bun",
     "test-unit-karma": "npm run zxi time cd tests/unit-karma/runner.mjs",
     "test-unit-node": "npm run zxi time tests/unit-node/runner.mjs",
-    "test-unit-bun": "npm run zxi time tests/unit-bun/runner.mjs",
+    "test-unit-bun": "npm run zxi time cd tests/unit-bun/runner.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-observables": "npm run zxi time cd tests/observables/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
