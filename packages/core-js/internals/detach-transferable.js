@@ -1,6 +1,6 @@
 'use strict';
 var global = require('../internals/global');
-var tryNodeRequire = require('../internals/try-node-require');
+var getBuiltInNodeModule = require('../internals/get-built-in-node-module');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
 var structuredClone = global.structuredClone;
@@ -15,7 +15,7 @@ if (PROPER_STRUCTURED_CLONE_TRANSFER) {
   };
 } else if ($ArrayBuffer) try {
   if (!$MessageChannel) {
-    WorkerThreads = tryNodeRequire('worker_threads');
+    WorkerThreads = getBuiltInNodeModule('worker_threads');
     if (WorkerThreads) $MessageChannel = WorkerThreads.MessageChannel;
   }
 
