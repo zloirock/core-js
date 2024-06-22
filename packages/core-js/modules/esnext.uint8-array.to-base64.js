@@ -15,7 +15,7 @@ var charAt = uncurryThis(''.charAt);
 
 // `Uint8Array.prototype.toBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: true }, {
+if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
   toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
     var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;

@@ -13,7 +13,7 @@ var stringSlice = uncurryThis(''.slice);
 
 // `Uint8Array.fromHex` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
+if (Uint8Array) $({ target: 'Uint8Array', stat: true }, {
   fromHex: function fromHex(string) {
     aString(string);
     var stringLength = string.length;

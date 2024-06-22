@@ -23,7 +23,7 @@ var EXTRA_BITS = 'Extra bits';
 
 // `Uint8Array.fromBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', stat: true, forced: true }, {
+if (Uint8Array) $({ target: 'Uint8Array', stat: true }, {
   fromBase64: function fromBase64(string /* , options */) {
     aString(string);
     var options = arguments.length > 1 ? anObjectOrUndefined(arguments[1]) : undefined;
