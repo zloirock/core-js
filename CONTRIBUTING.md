@@ -98,7 +98,7 @@ You can run parts of the test case separately:
   ```sh
   npx run-s prepare bundle test-unit-node
   ```
-- Unit test case in Bun (it's not included in `npm t` since required installed Bun):
+- Unit test case in Bun:
   ```sh
   npx run-s prepare bundle test-unit-bun
   ```
