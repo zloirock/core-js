@@ -90,7 +90,7 @@ You can run parts of the test case separately:
   ```sh
   npm run lint
   ```
-- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright) and ancient WebKit (PhantomJS)):
+- Unit test case in Karma (modern Chromium, Firefox, WebKit (Playwright), ancient WebKit (PhantomJS), IE11 (if available)):
   ```sh
   npx run-s prepare bundle test-unit-karma
   ```
