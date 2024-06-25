@@ -4,6 +4,7 @@ import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginCanonical from 'eslint-plugin-canonical';
+import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import pluginImport from 'eslint-plugin-import-x';
@@ -887,6 +888,9 @@ const base = {
   'eslint-comments/no-unused-enable': ERROR,
   // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': ERROR,
+
+  // suggest alternatives to bad dependencies
+  'depend/ban-dependencies': ERROR,
 };
 
 const noAsyncAwait = {
@@ -1557,6 +1561,7 @@ export default [
       '@stylistic/js': pluginStylisticJS,
       'array-func': pluginArrayFunc,
       canonical: pluginCanonical,
+      depend: pluginDepend,
       es: pluginESX,
       'eslint-comments': pluginESlintComments,
       import: pluginImport,
