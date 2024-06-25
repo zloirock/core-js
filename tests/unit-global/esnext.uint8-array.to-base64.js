@@ -12,6 +12,8 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.same(array.toBase64(), 'SGVsbG8gV29ybGQ=', 'proper result');
   assert.same(array.toBase64({ alphabet: 'base64' }), 'SGVsbG8gV29ybGQ=', 'proper result, base64');
   assert.same(array.toBase64({ alphabet: 'base64url' }), 'SGVsbG8gV29ybGQ=', 'proper result, base64url');
+  assert.same(array.toBase64({ omitPadding: true }), 'SGVsbG8gV29ybGQ', 'proper result');
+  assert.same(array.toBase64({ omitPadding: false }), 'SGVsbG8gV29ybGQ=', 'proper result');
 
   assert.throws(() => array.toBase64(null), TypeError, 'incorrect options argument #1');
   assert.throws(() => array.toBase64(1), TypeError, 'incorrect options argument #2');

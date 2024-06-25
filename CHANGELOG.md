@@ -11,6 +11,7 @@
     - `Uint8Array.fromHex`
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
+  - Added `Uint8Array.prototype.toBase64` `omitPadding` option, [proposal-arraybuffer-base64/60](https://github.com/tc39/proposal-arraybuffer-base64/pull/60)
   - Unconditional forced replacement changed to feature detection
 - [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
   - Built-ins:

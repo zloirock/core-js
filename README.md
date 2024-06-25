@@ -2435,7 +2435,7 @@ Modules [`esnext.uint8-array.from-base64`](https://github.com/zloirock/core-js/b
 class Uint8Array {
   static fromBase64(string, options?: { alphabet?: 'base64' | 'base64url', strict?: boolean }): Uint8Array;
   static fromHex(string): Uint8Array;
-  toBase64(options?: { alphabet?: 'base64' | 'base64url' }): string;
+  toBase64(options?: { alphabet?: 'base64' | 'base64url', omitPadding?: boolean }): string;
   toHex(): string;
 }
 ```
@@ -2452,6 +2452,7 @@ core-js(-pure)/full/typed-array/to-hex
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
 console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
+console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
 console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
 console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])

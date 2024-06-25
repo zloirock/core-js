@@ -20,6 +20,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
     var array = anUint8Array(this);
     var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;
     var alphabet = getAlphabetOption(options) === 'base64' ? base64Alphabet : base64UrlAlphabet;
+    var omitPadding = !!options && !!options.omitPadding;
 
     var result = '';
     var i = 0;
@@ -36,10 +37,10 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
     }
     if (i + 2 === length) {
       triplet = (array[i] << 16) + (array[i + 1] << 8);
-      result += at(3) + at(2) + at(1) + '=';
+      result += at(3) + at(2) + at(1) + (omitPadding ? '' : '=');
     } else if (i + 1 === length) {
       triplet = array[i] << 16;
-      result += at(3) + at(2) + '==';
+      result += at(3) + at(2) + (omitPadding ? '' : '==');
     }
 
     return result;
