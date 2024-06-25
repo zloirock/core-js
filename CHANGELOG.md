@@ -5,7 +5,7 @@
     - `Promise.try`
   - Moved to stage 3, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/de20984cd7f7bc616682c557cb839abc100422cb)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
-- [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+- [`Uint8Array` to / from base64 and hex stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
   - Methods:
     - `Uint8Array.fromBase64`
     - `Uint8Array.fromHex`
