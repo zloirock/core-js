@@ -889,7 +889,7 @@ const base = {
   // require include descriptions in eslint directive-comments
   'eslint-comments/require-description': ERROR,
 
-  // suggest alternatives to bad dependencies
+  // suggest better alternatives to some dependencies
   'depend/ban-dependencies': ERROR,
 };
 
