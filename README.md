@@ -2521,7 +2521,7 @@ core-js(-pure)/actual|full/async-iterator/async-dispose
 Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
 ```js
 class Promise {
-  static try(callbackfn: Function): Promise;
+  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2529,15 +2529,17 @@ class Promise {
 core-js/proposals/promise-try
 core-js(-pure)/actual|full/promise/try
 ```
-[*Examples*](https://goo.gl/k5GGRo):
+[*Examples*](https://tinyurl.com/2p48ojau):
 ```js
-Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${it}`));
+Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${ it }`));
 
-Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
+Promise.try(() => { throw 42; }).catch(it => console.log(`Promise, rejected as ${ it }`));
 
-Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${it}`));
+Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${ it }`));
 
-Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${it}`));
+Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejected as ${ it }`));
+
+Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`));
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
