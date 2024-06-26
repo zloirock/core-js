@@ -596,7 +596,7 @@ Lighthouse检测出所有资源仅约200KB，0.56秒。但该网站包含大约�
 
 从我开始写core-js的一开始，我就一直在考虑创建一个Web服务，为浏览器提供所需的polyfill服务。
 
-未提供此类服务是core-js落后于另一个项目的唯一方面。英国《金融时报》的[polyfill-service](https://polyfill.io/)就基于这一概念，这是一个很牛的服务。这个项目的主要问题是，服务很牛，但是用了糟糕的polyfill。这个项目只是polyfill了core-js提供的ECMAScript功能的一小部分，大多数polyfill是第三方的，他们并不是为一起工作而设计的，太多polyfill没有正确遵循规范，或者太粗糙，或者使用起来很危险（例如，[WeakMap看样子是在一步步实现规范](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/polyfill.js)，但缺乏一些特别手段，使其导致内存泄漏和线性访问时间，这就不太好了，还有更多其他问题——它不是在IE11这类引擎中修补、修复和重用本地实现，而是不接受可迭代参数，[这使得WeakMap将会被完全替换](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/detect.js)）。一些优秀的开发人员时不时尝试修复这个问题，但是polyfill本身拥有的时间实在是太少了，因此它还远远达不到可被推荐的地步。
+未提供此类服务是core-js落后于另一个项目的唯一方面。[polyfill-service](https://cdnjs.cloudflare.com/polyfill/)就基于这一概念，这是一个很牛的服务。这个项目的主要问题是，服务很牛，但是用了糟糕的polyfill。这个项目只是polyfill了core-js提供的ECMAScript功能的一小部分，大多数polyfill是第三方的，他们并不是为一起工作而设计的，太多polyfill没有正确遵循规范，或者太粗糙，或者使用起来很危险（例如，[WeakMap看样子是在一步步实现规范](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/polyfill.js)，但缺乏一些特别手段，使其导致内存泄漏和线性访问时间，这就不太好了，还有更多其他问题——它不是在IE11这类引擎中修补、修复和重用本地实现，而是不接受可迭代参数，[这使得WeakMap将会被完全替换](https://github.com/Financial-Times/polyfill-library/blob/554248173eae7554ef0a7776549d2901f02a7d51/polyfill/WeakMap/detect.js)）。一些优秀的开发人员时不时尝试修复这个问题，但是polyfill本身拥有的时间实在是太少了，因此它还远远达不到可被推荐的地步。
 
 
 以适当的形式创建这样的服务需要制作和维护许多新组件。我独自一人从事core-js开发，项目没有得到任何公司的必要支持，开发纯粹是建立在热情之上，我需要资金来养活自己和家人，所以我没有时间和其他资源去开发它。然而，在其他任务范围内，我已经制作了一些必需的组件，与一些用户的讨论让我相信，创建一个最大限度简化的服务，然后在你自己的服务器上运行它就足够了。
