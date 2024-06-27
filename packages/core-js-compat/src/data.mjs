@@ -2119,11 +2119,13 @@ export const data = {
   },
   'esnext.data-view.get-float16': {
     deno: '1.43',
+    firefox: '129',
   },
   'esnext.data-view.get-uint8-clamped': {
   },
   'esnext.data-view.set-float16': {
     deno: '1.43',
+    firefox: '129',
   },
   'esnext.data-view.set-uint8-clamped': {
   },
@@ -2266,6 +2268,7 @@ export const data = {
   },
   'esnext.math.f16round': {
     deno: '1.43',
+    firefox: '129',
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': {

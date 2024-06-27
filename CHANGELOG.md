@@ -28,6 +28,7 @@
     - Fixed [`Set.prototype.symmetricDifference` to call `this.has` in each iteration](https://bugs.webkit.org/show_bug.cgi?id=272679)
     - Fixed `Array.fromAsync` to [not call the `Array` constructor twice](https://bugs.webkit.org/show_bug.cgi?id=271703)
     - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse)
+  - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as [shipped from FF129](https://bugzilla.mozilla.org/show_bug.cgi?id=1903329)
   - [`Symbol.asyncDispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 127
   - Added [Deno 1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) compat data mapping
   - Added Electron 32 compat data mapping
