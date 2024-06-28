@@ -1206,6 +1206,7 @@ export const data = {
     safari: '11.0',
   },
   'es.promise.with-resolvers': {
+    android: '126',
     bun: '0.7.1',
     chrome: '119',
     firefox: '121',
