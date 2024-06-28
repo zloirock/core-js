@@ -1,6 +1,4 @@
 import escape from 'core-js-pure/full/regexp/escape';
-import Symbol from 'core-js-pure/es/symbol';
-import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('RegExp.escape', assert => {
   assert.isFunction(escape);
@@ -26,12 +24,6 @@ QUnit.test('RegExp.escape', assert => {
   assert.same(escape('\uDCA9'), '\\udca9', '\\udca9');
   assert.same(escape('\uDCA9\uD83D'), '\\udca9\\ud83d', '\\udca9\\ud83d');
 
-  const checker = createConversionChecker('10$');
-  assert.same(escape(checker), '\\x310\\$', 'checker result');
-  assert.same(checker.$valueOf, 0, 'checker valueOf calls');
-  assert.same(checker.$toString, 1, 'checker toString calls');
-
-  if (!Symbol.sham) {
-    assert.throws(() => escape(Symbol('thrower')), TypeError, 'throws on symbol');
-  }
+  assert.throws(() => escape(42), TypeError, 'throws on non-string #1');
+  assert.throws(() => escape({}), TypeError, 'throws on non-string #2');
 });
