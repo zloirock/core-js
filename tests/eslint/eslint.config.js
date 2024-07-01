@@ -1131,6 +1131,8 @@ const forbidES2024BuiltIns = {
 };
 
 const forbidES2025BuiltIns = {
+  // disallow duplicate named capture groups
+  'es/no-regexp-duplicate-named-capturing-groups': ERROR,
   'es/no-set-prototype-difference': ERROR,
   'es/no-set-prototype-intersection': ERROR,
   'es/no-set-prototype-isdisjointfrom': ERROR,
@@ -1224,6 +1226,8 @@ const transpiledAndPolyfilled = {
   'es/no-top-level-await': ERROR,
   // unpolyfillable es2015 builtins
   'es/no-proxy': ERROR,
+  // disallow duplicate named capture groups
+  'es/no-regexp-duplicate-named-capturing-groups': OFF,
   'es/no-string-prototype-normalize': ERROR,
   // unpolyfillable es2017 builtins
   'es/no-atomics': ERROR,
