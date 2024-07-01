@@ -509,8 +509,7 @@ const base = {
   // avoid calling `cb()` inside of a `then()` or `catch()`
   'promise/no-callback-in-promise': ERROR,
   // disallow creating new promises with paths that resolve multiple times
-  // https://github.com/eslint-community/eslint-plugin-promise/issues/472
-  // 'promise/no-multiple-resolved': ERROR,
+  'promise/no-multiple-resolved': ERROR,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': ERROR,
   // avoid calling new on a `Promise` static method
