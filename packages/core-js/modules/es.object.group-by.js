@@ -8,7 +8,7 @@ var toPropertyKey = require('../internals/to-property-key');
 var iterate = require('../internals/iterate');
 var fails = require('../internals/fails');
 
-// eslint-disable-next-line es/no-object-map-groupby -- testing
+// eslint-disable-next-line es/no-object-groupby -- testing
 var nativeGroupBy = Object.groupBy;
 var create = getBuiltIn('Object', 'create');
 var push = uncurryThis([].push);

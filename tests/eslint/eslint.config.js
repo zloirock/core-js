@@ -1102,11 +1102,12 @@ const forbidES2021BuiltIns = {
 const forbidES2022BuiltIns = {
   // prefer `Object.hasOwn`
   'prefer-object-has-own': OFF,
-  'es/no-array-string-prototype-at': ERROR,
+  'es/no-array-prototype-at': ERROR,
   'es/no-error-cause': ERROR,
   'es/no-object-hasown': ERROR,
   'es/no-regexp-d-flag': ERROR,
   'es/no-regexp-unicode-property-escapes-2022': ERROR,
+  'es/no-string-prototype-at': ERROR,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': OFF,
 };
@@ -1123,11 +1124,13 @@ const forbidES2023BuiltIns = {
 const forbidES2024BuiltIns = {
   'es/no-arraybuffer-prototype-transfer': ERROR,
   'es/no-atomics-waitasync': ERROR,
-  'es/no-object-map-groupby': ERROR,
+  'es/no-map-groupby': ERROR,
+  'es/no-object-groupby': ERROR,
   'es/no-promise-withresolvers': ERROR,
   'es/no-regexp-v-flag': ERROR,
   'es/no-resizable-and-growable-arraybuffers': ERROR,
-  'es/no-string-prototype-iswellformed-towellformed': ERROR,
+  'es/no-string-prototype-iswellformed': ERROR,
+  'es/no-string-prototype-towellformed': ERROR,
 };
 
 const forbidES2025BuiltIns = {
