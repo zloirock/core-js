@@ -96,9 +96,9 @@ var handleNCG = function (string) {
         break;
       case chr === '(':
         result += chr;
-        if (stringSlice(string, index + 1, index + 3) == "?:") { // avoid groupid increment in non-capturing group
+        if (stringSlice(string, index + 1, index + 3) === '?:') { // avoid groupid increment in non-capturing group
           continue;
-        } if (exec(IS_NCG, stringSlice(string, index + 1))) {
+        } else if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
         }
