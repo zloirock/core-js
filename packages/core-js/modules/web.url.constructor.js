@@ -209,15 +209,19 @@ var findLongestZeroSequence = function (ipv6) {
 // https://url.spec.whatwg.org/#host-serializing
 var serializeHost = function (host) {
   var result, index, compress, ignore0;
+
   // ipv4
   if (typeof host == 'number') {
     result = [];
     for (index = 0; index < 4; index++) {
       unshift(result, host % 256);
       host = floor(host / 256);
-    } return join(result, '.');
+    }
+    return join(result, '.');
+  }
+
   // ipv6
-  } else if (typeof host == 'object') {
+  if (typeof host == 'object') {
     result = '';
     compress = findLongestZeroSequence(host);
     for (index = 0; index < 8; index++) {
@@ -232,7 +236,9 @@ var serializeHost = function (host) {
       }
     }
     return '[' + result + ']';
-  } return host;
+  }
+
+  return host;
 };
 
 var C0ControlPercentEncodeSet = {};

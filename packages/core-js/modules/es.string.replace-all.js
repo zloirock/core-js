@@ -35,11 +35,8 @@ $({ target: 'String', proto: true }, {
         if (!~indexOf(flags, 'g')) throw new $TypeError('`.replaceAll` does not allow non-global regexes');
       }
       replacer = getMethod(searchValue, REPLACE);
-      if (replacer) {
-        return call(replacer, searchValue, O, replaceValue);
-      } else if (IS_PURE && IS_REG_EXP) {
-        return replace(toString(O), searchValue, replaceValue);
-      }
+      if (replacer) return call(replacer, searchValue, O, replaceValue);
+      if (IS_PURE && IS_REG_EXP) return replace(toString(O), searchValue, replaceValue);
     }
     string = toString(O);
     searchString = toString(searchValue);

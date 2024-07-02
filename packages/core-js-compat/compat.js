@@ -19,7 +19,8 @@ function getModules(filter) {
   if (typeof filter == 'string') {
     if (has(entries, filter)) return entries[filter];
     return atLeastSomeModules(allModules.filter(it => it.startsWith(filter)), filter);
-  } else if (filter instanceof RegExp) return atLeastSomeModules(allModules.filter(it => filter.test(it)), filter);
+  }
+  if (filter instanceof RegExp) return atLeastSomeModules(allModules.filter(it => filter.test(it)), filter);
   throwInvalidFilter(filter);
 }
 

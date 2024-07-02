@@ -172,7 +172,7 @@ const base = {
   // disallow deletion of variables
   'no-delete-var': ERROR,
   // disallow else after a return in an if
-  'no-else-return': ERROR,
+  'no-else-return': [ERROR, { allowElseIf: false }],
   // disallow empty statements
   'no-empty': ERROR,
   // disallow empty functions, except for standalone funcs/arrows
