@@ -95,11 +95,13 @@ var handleNCG = function (string) {
         brackets = true;
         break;
       case chr === '(':
-        if (exec(IS_NCG, stringSlice(string, index + 1))) {
+        result += chr;
+        if (stringSlice(string, index + 1, index + 3) === '?:') { // avoid groupid increment in non-capturing group
+          continue;
+        } else if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
         }
-        result += chr;
         groupid++;
         continue;
       case chr === '>' && ncg:
